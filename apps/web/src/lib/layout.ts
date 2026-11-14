@@ -3,7 +3,14 @@
  * Tabs are opaque IDs; what a tab shows is up to the caller. All functions are pure and
  * return a new layout (or the same one, if nothing changed).
  */
-export type Group = { kind: 'group'; id: string; tabs: string[]; active: string | null };
+export type Group = {
+	kind: 'group';
+	id: string;
+	tabs: string[];
+	active: string | null;
+	/** A sticky group stays where it is when its last tab leaves, as a place to put tabs. */
+	sticky?: boolean;
+};
 export type Split = {
 	kind: 'split';
 	id: string;
@@ -20,15 +27,23 @@ export type Zone = 'center' | 'left' | 'right' | 'top' | 'bottom';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-const group = (tabs: string[]): Group => ({
-	kind: 'group',
-	id: uid(),
-	tabs,
-	active: tabs[0] ?? null
-});
+/** A group of tabs. Give it an `id` to find it again later. */
+export const singleGroup = (
+	tabs: string[],
+	{ id = uid(), sticky }: { id?: string; sticky?: boolean } = {}
+): Group => ({ kind: 'group', id, tabs, active: tabs[0] ?? null, ...(sticky && { sticky }) });
 
-/** Everything in one group. */
-export const singleGroup = group;
+const group = (tabs: string[]) => singleGroup(tabs);
+
+/** Two layouts side by side (`row`) or one above the other (`column`); `ratio` is the first one's share. */
+export const splitOf = (dir: Split['dir'], ratio: number, a: Layout, b: Layout): Split => ({
+	kind: 'split',
+	id: uid(),
+	dir,
+	ratio,
+	a,
+	b
+});
 
 export function groupsOf(layout: Layout): Group[] {
 	return layout.kind === 'group' ? [layout] : [...groupsOf(layout.a), ...groupsOf(layout.b)];
@@ -51,7 +66,7 @@ function mapGroups(layout: Layout, fn: (group: Group) => Layout | null): Layout 
 function without(group: Group, tab: string): Group | null {
 	const index = group.tabs.indexOf(tab);
 	const tabs = group.tabs.filter((other) => other !== tab);
-	if (tabs.length === 0) return null;
+	if (tabs.length === 0) return group.sticky ? { ...group, tabs, active: null } : null;
 	const active = group.active === tab ? tabs[Math.min(index, tabs.length - 1)] : group.active;
 	return { ...group, tabs, active };
 }
@@ -70,11 +85,15 @@ export function open(layout: Layout, tab: string, groupId?: string): Layout {
 	return mapGroups(layout, (g) => (g === target ? withTab(g, tab) : g))!;
 }
 
-/** Adds `tab` to the first group, unless it is open already, without bringing it to the front. */
-export function add(layout: Layout, tab: string): Layout {
-	const [first, ...others] = groupsOf(layout);
-	if ([first, ...others].some((g) => g.tabs.includes(tab))) return layout;
-	return mapGroups(layout, (g) => (g === first ? withTab(g, tab, false) : g))!;
+/**
+ * Adds `tab` to the given (or first) group, unless it is open already, without bringing it
+ * to the front.
+ */
+export function add(layout: Layout, tab: string, groupId?: string): Layout {
+	const groups = groupsOf(layout);
+	if (groups.some((g) => g.tabs.includes(tab))) return layout;
+	const target = groups.find((g) => g.id === groupId) ?? groups[0];
+	return mapGroups(layout, (g) => (g === target ? withTab(g, tab, false) : g))!;
 }
 
 export function close(layout: Layout, tab: string): Layout {

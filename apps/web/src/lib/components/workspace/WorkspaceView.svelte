@@ -4,16 +4,26 @@
 	import { actionsFor, type WorkspaceAction } from '#lib/actions.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
-	import { open, singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
+	import { SvelteSet } from 'svelte/reactivity';
+	import {
+		add,
+		groupsOf,
+		open,
+		prune,
+		singleGroup,
+		splitOf,
+		tabsOf,
+		type Layout
+	} from '#lib/layout.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import Split from '#lib/ui/Split.svelte';
 	import { getRepo } from '../../../routes/repos.remote';
 	import {
 		archiveWorkspace,
+		closeTerminal,
 		getChanges,
 		getUpstream,
 		getWorkspace,
@@ -22,7 +32,7 @@
 	import Changes from './Changes.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
-	import Terminals from './Terminals.svelte';
+	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from './WorkspaceActions.svelte';
 
 	let { id }: { id: string } = $props();
@@ -32,22 +42,74 @@
 	const repo = $derived(await getRepo(workspace.repoId));
 	const running = $derived(workspace.status === 'running');
 
-	// Windows are tabs named after what they show: the conversation, or `diff:<path>`.
+	// Everything in a workspace is a window, and every window a tab that can be dragged
+	// anywhere: the conversation, the changes, each diff (`diff:<path>`) and each terminal
+	// (`terminal:<name>`).
 	const CHAT = 'chat';
+	const CHANGES = 'changes';
 	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
+	const terminalOf = (tab: string) => (tab.startsWith('terminal:') ? tab.slice(9) : undefined);
 
-	// The layout lives in this browser. The conversation is always part of it.
+	/** The group terminals open in by default. It stays put when empty. */
+	const TERMINALS = 'terminals';
+	// The conversation takes the room; changes sit beside it, above the terminals.
+	const initial = splitOf(
+		'row',
+		0.7,
+		singleGroup([CHAT]),
+		splitOf(
+			'column',
+			0.45,
+			singleGroup([CHANGES]),
+			singleGroup([], { id: TERMINALS, sticky: true })
+		)
+	);
+
+	// How the windows are arranged is remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
 	// svelte-ignore state_referenced_locally
-	const custom = persisted<Layout | null>(`geordi:layout:${id}`, null);
-	const layout = $derived.by(() => {
-		const stored = custom.current;
-		if (!stored) return singleGroup([CHAT]);
-		const known = tabsOf(stored).every((tab) => tab === CHAT || pathOf(tab));
-		return known && tabsOf(stored).includes(CHAT) ? stored : singleGroup([CHAT]);
+	const arrangement = persisted<Layout | null>(`geordi:windows:${id}`, null);
+
+	/** Terminals asked for just now, whose shells are still starting. */
+	const starting = new SvelteSet<string>();
+	$effect(() => {
+		for (const name of starting) if (workspace.terminals.includes(name)) starting.delete(name);
 	});
 
-	const sidebar = persisted('geordi:sidebar', { width: 0.3, changes: 0.45 });
+	// Which windows there are follows from the workspace, not from memory: the conversation
+	// and the changes always, a terminal for every running shell and for no other.
+	const layout = $derived.by(() => {
+		const live = (name: string) => workspace.terminals.includes(name) || starting.has(name);
+		let layout = prune(arrangement.current ?? initial, (tab) => {
+			const terminal = terminalOf(tab);
+			return terminal ? live(terminal) : tab === CHAT || tab === CHANGES || !!pathOf(tab);
+		});
+		for (const tab of [CHAT, CHANGES]) layout = add(layout, tab);
+		for (const name of workspace.terminals) layout = add(layout, `terminal:${name}`, TERMINALS);
+		return layout;
+	});
+
+	function newTerminal() {
+		const name = crypto.randomUUID().slice(0, 8);
+		starting.add(name);
+		return `terminal:${name}`;
+	}
+
+	/** The group a window is in, so that related windows can open next to it. */
+	const groupOf = (tab: string) => groupsOf(layout).find((group) => group.tabs.includes(tab))?.id;
+
+	function arrange(next: Layout) {
+		// closing a terminal's window ends its shell
+		const remaining = tabsOf(next);
+		for (const tab of tabsOf(layout)) {
+			const terminal = terminalOf(tab);
+			if (terminal && !remaining.includes(tab)) {
+				starting.delete(terminal);
+				closeTerminal({ workspaceId: id, terminal }).catch(() => {});
+			}
+		}
+		arrangement.current = next;
+	}
 
 	// What could happen next (FDR-003), from where the changes and the pull request stand.
 	// These are the same queries the changes pane shows and keeps fresh.
@@ -91,9 +153,18 @@
 
 {#snippet tab(tab: string)}
 	{@const path = pathOf(tab)}
+	{@const terminal = terminalOf(tab)}
 	{#if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
+	{:else if terminal}
+		{@const terminals = tabsOf(layout).filter(terminalOf)}
+		<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
+		<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
+	{:else if tab === CHANGES}
+		<span class="icon-[lucide--git-compare-arrows] size-3.5 shrink-0"></span>
+		<span class="truncate">Changes</span>
+		{#if changes.current?.files.length}<Badge>{changes.current.files.length}</Badge>{/if}
 	{:else}
 		<AgentAvatar agent={workspace.agent} size="sm" />
 		<span class="truncate">Conversation</span>
@@ -103,11 +174,28 @@
 
 {#snippet window(tab: string)}
 	{@const path = pathOf(tab)}
+	{@const terminal = terminalOf(tab)}
 	{#if path}
 		<DiffWindow workspaceId={id} {path} />
+	{:else if terminal}
+		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
+	{:else if tab === CHANGES}
+		{#if workspace.worktree}
+			<Changes
+				workspaceId={id}
+				revision={workspace.filesRevision}
+				onopen={(path) => arrange(open(layout, `diff:${path}`, groupOf(CHAT)))}
+			/>
+		{:else}
+			<p class="p-5 text-sm text-muted">Changes appear once the workspace's worktree is ready.</p>
+		{/if}
 	{:else}
 		<Conversation {workspace} />
 	{/if}
+{/snippet}
+
+{#snippet empty()}
+	Open a terminal with +, or drag a window here.
 {/snippet}
 
 <main class="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col overflow-hidden md:h-dvh">
@@ -176,47 +264,14 @@
 		</div>
 	{/if}
 
-	<Split
-		dir="row"
-		bind:ratio={
-			() => 1 - sidebar.current.width,
-			(ratio) => (sidebar.current = { ...sidebar.current, width: 1 - ratio })
-		}
-	>
-		{#snippet a()}
-			<Panes
-				{layout}
-				onchange={(next) => (custom.current = next)}
-				{tab}
-				{window}
-				closable={(tab) => tab !== CHAT}
-			/>
-		{/snippet}
-		{#snippet b()}
-			{#if workspace.worktree}
-				<Split
-					dir="column"
-					bind:ratio={
-						() => sidebar.current.changes,
-						(changes) => (sidebar.current = { ...sidebar.current, changes })
-					}
-				>
-					{#snippet a()}
-						<Changes
-							workspaceId={id}
-							revision={workspace.filesRevision}
-							onopen={(path) => (custom.current = open(layout, `diff:${path}`))}
-						/>
-					{/snippet}
-					{#snippet b()}
-						<Terminals workspaceId={id} running={workspace.terminals} />
-					{/snippet}
-				</Split>
-			{:else}
-				<p class="p-5 text-sm text-muted">
-					Changes and the terminal appear once the workspace's worktree is ready.
-				</p>
-			{/if}
-		{/snippet}
-	</Split>
+	<Panes
+		{layout}
+		onchange={arrange}
+		{tab}
+		{window}
+		{empty}
+		closable={(tab) => tab !== CHAT && tab !== CHANGES}
+		newTab={workspace.worktree && !workspace.archivedAt ? newTerminal : undefined}
+		newLabel="New terminal"
+	/>
 </main>

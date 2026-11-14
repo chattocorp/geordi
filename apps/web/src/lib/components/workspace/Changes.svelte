@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Badge from '#lib/ui/Badge.svelte';
 	import { getChanges, getUpstream } from '../../../routes/workspaces.remote';
 	import UpstreamStatus from './UpstreamStatus.svelte';
 
@@ -13,8 +12,6 @@
 
 	const changes = $derived(getChanges(workspaceId));
 	const files = $derived(changes.current?.files ?? []);
-	const total = (key: 'added' | 'removed') =>
-		files.reduce((sum, file) => sum + (file[key] ?? 0), 0);
 
 	const upstream = $derived(getUpstream(workspaceId));
 
@@ -47,14 +44,6 @@
 {/snippet}
 
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
-	<header class="pane-bar gap-2 px-3.5">
-		<h2 class="text-sm font-medium">Changes</h2>
-		{#if files.length > 0}
-			<Badge>{files.length}</Badge>
-			<span class="ml-auto">{@render stats(total('added'), total('removed'))}</span>
-		{/if}
-	</header>
-
 	{#if upstream.current?.upstream}
 		<UpstreamStatus upstream={upstream.current.upstream} />
 	{/if}

@@ -128,10 +128,12 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   motion. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and IBM Plex Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output).
-- **Workspace UI:** components in `#lib/components/workspace/`. Windows are tabs in a tree of
-  splits (`#lib/layout.ts`, pure functions; rendered by `Panes.svelte`), named after what
-  they show (`chat`, `diff:<path>`). Layout and pane sizes are per-browser
-  preferences (`persisted`), not events.
+- **Workspace UI:** components in `#lib/components/workspace/`. Everything in a workspace is
+  a window, and every window a tab in one tree of splits (`#lib/layout.ts`, pure functions;
+  rendered by `Panes.svelte`), named after what it shows: `chat`, `changes`, `diff:<path>`,
+  `terminal:<name>`. There is no fixed sidebar: any tab can be dragged into any group. Which
+  windows exist follows from the workspace's state; only their arrangement is a per-browser
+  preference (`persisted`), not an event.
 - **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
   (https://diffs.com) from both whole file versions, which is what makes context
   expandable. It renders into a shadow root; style it through its `--diffs-*` properties.

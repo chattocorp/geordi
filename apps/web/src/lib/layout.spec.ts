@@ -9,6 +9,7 @@ import {
 	replace,
 	resize,
 	singleGroup,
+	splitOf,
 	type Layout
 } from './layout.ts';
 
@@ -65,6 +66,25 @@ describe('layout', () => {
 		expect(shape(nested)).toEqual(['row', 'a*', ['column', 'c*', 'b*']]);
 		if (nested.kind !== 'split' || nested.b.kind !== 'split') throw new Error('expected splits');
 		expect(resize(nested, nested.b.id, 0.3)).toMatchObject({ ratio: 0.5, b: { ratio: 0.3 } });
+	});
+
+	it('keeps a sticky group in place when it empties, as somewhere to drop tabs', () => {
+		const pane = singleGroup(['t'], { id: 'pane', sticky: true });
+		const layout = splitOf('column', 0.4, singleGroup(['a']), pane);
+
+		const emptied = close(layout, 't');
+		expect(shape(emptied)).toEqual(['column', 'a*', '']);
+		// tabs can be put into it by name, moved into it, and it can be split
+		expect(shape(add(emptied, 'new', 'pane'))).toEqual(['column', 'a*', 'new*']);
+		expect(shape(move(layout, 'a', 'pane', 'center'))).toBe('t a*');
+		expect(shape(move(add(layout, 'b'), 'a', 'pane', 'left'))).toEqual([
+			'column',
+			'b*',
+			['row', 'a*', 't*']
+		]);
+		// and its only tab can be dragged out to elsewhere
+		const [first] = groupsOf(layout);
+		expect(shape(move(layout, 't', first.id, 'center'))).toEqual(['column', 'a t*', '']);
 	});
 
 	it('replaces and prunes tabs', () => {
