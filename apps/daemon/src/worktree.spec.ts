@@ -122,4 +122,24 @@ describe('changes', () => {
 		expect(changes(worktree, repoPath)).toEqual([{ path: 'new.txt', added: 1, removed: 0 }]);
 		expect(existsSync(marker)).toBe(false);
 	});
+
+	it('never runs git inside a submodule an agent planted', () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+
+		// a nested repository with hostile config, staged as a submodule and then dirtied
+		const nested = join(worktree.path, 'nested');
+		const marker = join(base, 'pwned');
+		const git = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, ...args], { stdio: 'ignore' });
+		execFileSync('git', ['init', '-q', nested]);
+		git(nested, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--allow-empty', '-qm', 'x');
+		git(worktree.path, 'add', 'nested');
+		git(nested, 'config', 'core.fsmonitor', `touch ${marker}; false`);
+		writeFileSync(join(nested, 'dirty.txt'), 'x\n');
+
+		changes(worktree, repoPath);
+		expect(existsSync(marker)).toBe(false);
+	});
 });

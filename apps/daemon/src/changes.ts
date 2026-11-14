@@ -6,8 +6,11 @@ import { gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** Diffs are for reading; beyond this they are cut off. */
 const MAX_DIFF = 400_000;
-/** Never run the repository's diff drivers: they are code. */
-const SAFE = ['--no-ext-diff', '--no-textconv', '--no-renames'];
+/**
+ * Never run code the worktree can supply: no diff drivers, and no looking inside submodules
+ * (git would run itself in them, under whatever config the agent put there).
+ */
+const SAFE = ['--no-ext-diff', '--no-textconv', '--no-renames', '--ignore-submodules=all'];
 
 /**
  * The commit the workspace's changes are measured against: where its branch forked off the
