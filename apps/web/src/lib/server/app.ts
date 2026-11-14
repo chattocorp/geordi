@@ -12,6 +12,7 @@ import { createIssues } from './issues.ts';
 import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
+import { createWatchers } from './watchers.ts';
 import { createWorkspaces } from './workspaces.ts';
 
 /** The forge's services, wired together. Everything is created on first use. */
@@ -32,17 +33,26 @@ export const terminals = lazy(() =>
 	)
 );
 
+export const watchers = lazy(() =>
+	createWatchers(
+		(message) => hub().send(message),
+		(id) => workspaces().ref(id)
+	)
+);
+
 export const hub = lazy(() =>
 	createHub(GEORDI_DAEMON_PORT, loadSecret(join(GEORDI_DATA_DIR, 'daemon-token')), {
 		onHello: (_daemonId, running, runningTerminals) => {
 			workspaces().reconcile(running);
 			terminals().reconcile(runningTerminals);
+			watchers().resync();
 		},
 		onMessage: (message) => {
 			if (message.type === 'session.event') workspaces().record(message.sessionId, message.event);
 			else if (message.type === 'terminal.output')
 				terminals().output(message.terminalId, message.data, message.offset);
 			else if (message.type === 'terminal.exit') terminals().exit(message.terminalId);
+			else if (message.type === 'workspace.changed') watchers().changed(message.workspaceId);
 		}
 	})
 );

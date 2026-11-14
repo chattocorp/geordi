@@ -101,10 +101,16 @@ export class EventStore<E extends EventInput = EventInput> {
 		return () => this.#listeners.delete(listener);
 	}
 
-	/** Yields `read()` now and again after every append. Use as a `query.live` body. */
-	async *live<T>(read: () => T): AsyncGenerator<T> {
+	/**
+	 * Yields `read()` now and again after every append. Use as a `query.live` body.
+	 *
+	 * `also` adds another reason to read again, for state that isn't in the log: it is given
+	 * a function to call whenever that state changes, and returns one that stops it calling.
+	 */
+	async *live<T>(read: () => T, also?: (changed: () => void) => () => void): AsyncGenerator<T> {
 		let notify = () => {};
 		const unsubscribe = this.subscribe(() => notify());
+		const unsubscribeAlso = also?.(() => notify());
 
 		try {
 			while (true) {
@@ -115,6 +121,7 @@ export class EventStore<E extends EventInput = EventInput> {
 			}
 		} finally {
 			unsubscribe();
+			unsubscribeAlso?.();
 		}
 	}
 

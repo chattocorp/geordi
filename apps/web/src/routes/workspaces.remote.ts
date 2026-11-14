@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
 import { AGENTS, type FileChange, type FileVersions, type Upstream } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
-import { hub, terminals, workspaces } from '#lib/server/app.ts';
+import { hub, terminals, watchers, workspaces } from '#lib/server/app.ts';
 import { webUrl } from '#lib/url.ts';
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
@@ -16,15 +16,25 @@ export const getWorkspaces = query.live(v.string(), async function* (repoId) {
 /**
  * One workspace with all of its sessions, so a page needs a single live connection. `parent`
  * is the workspace whose agent started this one, if any.
+ *
+ * While someone has this open, a daemon watches the workspace's files; `filesRevision` is
+ * different after every change to them, which is the cue to ask for the changes again.
  */
 export const getWorkspace = query.live(v.string(), async function* (id) {
-	yield* store().live(() => {
-		const workspace = workspaces().get(id);
-		const parent = workspace.parentWorkspaceId
-			? workspaces().summary(workspace.parentWorkspaceId)
-			: null;
-		return { ...workspace, parent: parent && { id: parent.id, title: parent.title } };
-	});
+	yield* store().live(
+		() => {
+			const workspace = workspaces().get(id);
+			const parent = workspace.parentWorkspaceId
+				? workspaces().summary(workspace.parentWorkspaceId)
+				: null;
+			return {
+				...workspace,
+				parent: parent && { id: parent.id, title: parent.title },
+				filesRevision: watchers().revision()
+			};
+		},
+		(changed) => watchers().watch(id, changed)
+	);
 });
 
 export const createWorkspace = form(v.object({ repoId: v.string(), ...newSession }), (data) => {

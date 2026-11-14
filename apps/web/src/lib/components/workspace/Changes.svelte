@@ -3,8 +3,13 @@
 	import { getChanges, getUpstream } from '../../../routes/workspaces.remote';
 	import UpstreamStatus from './UpstreamStatus.svelte';
 
-	type Props = { workspaceId: string; onopen(path: string): void };
-	let { workspaceId, onopen }: Props = $props();
+	type Props = {
+		workspaceId: string;
+		/** Different after every change to the workspace's files: the cue to look again. */
+		revision: number;
+		onopen(path: string): void;
+	};
+	let { workspaceId, revision, onopen }: Props = $props();
 
 	const changes = $derived(getChanges(workspaceId));
 	const files = $derived(changes.current?.files ?? []);
@@ -13,15 +18,20 @@
 
 	const upstream = $derived(getUpstream(workspaceId));
 
-	// The worktree changes behind the forge's back (agents, the terminal), and so does the
-	// pull request, so poll. The daemon spares the upstream forge: it reuses answers for a while.
+	// The daemon watches the workspace's files and Git state while we look at it, so both
+	// are asked for again exactly when something changed there.
 	$effect(() => {
-		const queries = [changes, upstream] as const;
-		const timers = [
-			setInterval(() => !document.hidden && queries[0].refresh(), 4000),
-			setInterval(() => !document.hidden && queries[1].refresh(), 15_000)
-		];
-		return () => timers.forEach(clearInterval);
+		void revision;
+		changes.refresh();
+		upstream.refresh();
+	});
+
+	// What happens to the pull request on the upstream forge (checks, reviews) is not ours
+	// to see, so that is still asked for now and then. The daemon reuses answers for a while.
+	$effect(() => {
+		const query = upstream;
+		const timer = setInterval(() => !document.hidden && query.refresh(), 60_000);
+		return () => clearInterval(timer);
 	});
 </script>
 

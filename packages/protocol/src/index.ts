@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -130,6 +130,11 @@ export type ForgeMessage =
 	  } & WorkspaceRef)
 	| { type: 'turn.stop'; sessionId: string }
 	| { type: 'request'; id: string; request: DaemonRequest }
+	/**
+	 * The workspaces someone is looking at right now, all of them: the daemon watches their
+	 * files and reports changes, and stops watching any that are no longer listed.
+	 */
+	| { type: 'watch'; workspaces: WorkspaceRef[] }
 	/** Starts a shell in the workspace's directory. A workspace can have several terminals. */
 	| ({ type: 'terminal.open'; terminalId: string } & WorkspaceRef & TerminalSize)
 	| { type: 'terminal.input'; terminalId: string; data: string }
@@ -157,4 +162,6 @@ export type DaemonMessage =
 	| { type: 'response'; id: string; result?: unknown; error?: string }
 	/** `offset` counts the characters this terminal's shell had put out before `data`. */
 	| { type: 'terminal.output'; terminalId: string; data: string; offset: number }
-	| { type: 'terminal.exit'; terminalId: string };
+	| { type: 'terminal.exit'; terminalId: string }
+	/** Something changed in a watched workspace's files or Git state. */
+	| { type: 'workspace.changed'; workspaceId: string };

@@ -172,6 +172,7 @@
 					{#snippet a()}
 						<Changes
 							workspaceId={id}
+							revision={workspace.filesRevision}
 							onopen={(path) => (custom.current = open(layout, `diff:${path}`))}
 						/>
 					{/snippet}

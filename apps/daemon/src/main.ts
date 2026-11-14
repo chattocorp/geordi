@@ -22,6 +22,7 @@ import {
 } from './terminals.ts';
 import { runTurn, type Turn } from './turn.ts';
 import { upstream } from './upstream.ts';
+import { createWatches } from './watch.ts';
 import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
@@ -56,6 +57,12 @@ function readToken(): string | null {
 
 const turns = new Map<string, Turn>();
 
+/** File watchers for the workspaces someone is looking at; see the `watch` message. */
+const watches = createWatches(
+	({ repoPath, workspaceId }) => locateWorktree(worktreesDir, repoPath, workspaceId),
+	(workspaceId) => sendLive({ type: 'workspace.changed', workspaceId })
+);
+
 // --- Connection to the forge --------------------------------------------------------------
 
 /** The current connection, set only once the forge has proven it knows the token. */
@@ -70,7 +77,8 @@ function send(message: DaemonMessage) {
 
 /**
  * For messages that only matter to a forge that is listening right now: terminal output
- * (kept in the terminal's scrollback) and exits (reported with the next `hello`).
+ * (kept in the terminal's scrollback), exits (reported with the next `hello`) and file
+ * changes (the forge asks afresh when it is back).
  */
 function sendLive(message: DaemonMessage) {
 	if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -159,8 +167,10 @@ async function handle(message: ForgeMessage) {
 
 			try {
 				const worktree = ensureWorktree(worktreesDir, repoPath, workspaceId, base);
-				if (worktree.created)
+				if (worktree.created) {
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
+					watches.refresh();
+				}
 
 				const adapter = await adapterFor(agent);
 				const turn = runTurn(
@@ -190,6 +200,10 @@ async function handle(message: ForgeMessage) {
 			} catch (error) {
 				send({ type: 'response', id: message.id, error: errorMessage(error) });
 			}
+			break;
+
+		case 'watch':
+			watches.set(message.workspaces);
 			break;
 
 		case 'terminal.open': {

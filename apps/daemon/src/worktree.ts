@@ -121,7 +121,9 @@ export function gitIn({ path, adminDir, commonDir }: Worktree, ...args: string[]
 			...process.env,
 			GIT_DIR: commonDir,
 			GIT_WORK_TREE: path,
-			GIT_INDEX_FILE: join(adminDir, 'index')
+			GIT_INDEX_FILE: join(adminDir, 'index'),
+			// Looking must not write (git would refresh the index): we watch these files.
+			GIT_OPTIONAL_LOCKS: '0'
 		},
 		encoding: 'utf8',
 		stdio: ['ignore', 'pipe', 'pipe'],

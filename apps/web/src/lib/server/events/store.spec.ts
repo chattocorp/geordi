@@ -87,4 +87,29 @@ describe('EventStore', () => {
 
 		await live.return(undefined);
 	});
+
+	it('reads again for another reason too, and lets go of it when done', async () => {
+		const store = new EventStore<TestEvent>(':memory:');
+		let outside = 'a';
+		let changed = () => {};
+		let listening = false;
+		const live = store.live(
+			() => outside,
+			(notify) => {
+				changed = notify;
+				listening = true;
+				return () => (listening = false);
+			}
+		);
+
+		expect((await live.next()).value).toBe('a');
+		const next = live.next();
+		outside = 'b';
+		changed();
+		expect((await next).value).toBe('b');
+
+		expect(listening).toBe(true);
+		await live.return(undefined);
+		expect(listening).toBe(false);
+	});
 });

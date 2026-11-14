@@ -82,6 +82,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   adding an entry to `tools` in `mcp.ts`.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
+  learns when to ask again by push, never by polling: the daemon watches the workspaces
+  someone has open (`watch.ts`, `watchers.ts`) and the workspace live query carries a
+  `filesRevision` that changes with them. Also,
   terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers read it as
   server-sent events, since `query.live` drops intermediate values). Shells and scrollback
   live in the daemon (`apps/daemon/src/terminals.ts`).
