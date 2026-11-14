@@ -10,6 +10,11 @@
 	};
 	let { path, old, new: current }: Props = $props();
 
+	// The diff is rendered afresh (losing any expanded context) when these change, so they
+	// must only change when the text really does, not whenever the data is fetched again.
+	const before = $derived(old);
+	const after = $derived(current);
+
 	const isDark = () => document.documentElement.classList.contains('dark');
 
 	/**
@@ -20,9 +25,8 @@
 	const diff: Attachment<HTMLElement> = (node) => {
 		// Read here so that a change to the file renders the diff afresh.
 		const name = path;
-		const before = old;
-		const after = current;
-		if (before === null && after === null) return;
+		const [was, is] = [before, after];
+		if (was === null && is === null) return;
 
 		let dispose = () => {};
 		let disposed = false;
@@ -43,8 +47,8 @@
 				unsafeCSS: `:host { --diffs-bg: var(--bg) !important; }`
 			});
 			const fileDiff = parseDiffFromFile(
-				before === null ? null : { name, contents: before },
-				after === null ? null : { name, contents: after }
+				was === null ? null : { name, contents: was },
+				is === null ? null : { name, contents: is }
 			);
 			view.render({ fileDiff, containerWrapper: node });
 

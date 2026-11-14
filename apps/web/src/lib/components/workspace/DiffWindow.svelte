@@ -6,11 +6,15 @@
 
 	const versions = $derived(getDiff({ workspaceId, path }));
 
-	// Reload whenever the changes pane (which polls) sees this file change.
+	// Reload when the changes pane (which polls) sees this file's line counts change. The
+	// counts are compared as one value: the list itself is new on every poll.
 	const changes = $derived(getChanges(workspaceId));
-	const stats = $derived(changes.current?.files.find((file) => file.path === path));
+	const counts = $derived.by(() => {
+		const file = changes.current?.files.find((file) => file.path === path);
+		return `${file?.added} ${file?.removed}`;
+	});
 	$effect(() => {
-		void [stats?.added, stats?.removed];
+		void counts;
 		versions.refresh();
 	});
 </script>
