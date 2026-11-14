@@ -1,18 +1,18 @@
 ---
 title: Geordi planning
-description: 'The Geordi backlog: features, bugs, tasks, and design decisions for Geordi itself.'
+description: 'The Geordi backlog: features, bugs, and tasks for Geordi itself. Architectural decisions live in docs/adr/, feature designs in docs/fdr/.'
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
   properties:
     type:
       type: string
-      enum: [task, bug, feature, decision]
-      description: Task for general work, bug for incorrect behavior, feature for new functionality, decision for a recorded design decision.
+      enum: [task, bug, feature]
+      description: Task for general work, bug for incorrect behavior, or feature for new functionality.
     status:
       type: string
       enum: [todo, in_progress, done, canceled]
-      description: Todo before work starts, in_progress while working, done once acceptance criteria are met (or a decision is accepted), canceled when intentionally abandoned.
+      description: Todo before work starts, in_progress while working, done once acceptance criteria are met, canceled when intentionally abandoned.
     priority:
       type: string
       enum: [low, normal, high, urgent]
@@ -31,14 +31,12 @@ app:
     - title: Open work
       filter: data.status in ["todo", "in_progress"]
       columns: [title, data.type, data.status, data.priority]
-    - title: Decisions
-      filter: data.type == "decision"
-      columns: [title, data.status]
 ---
 
 # Working with Geordi planning
 
-This collection is Geordi's backlog. Run commands from the repository root:
+This collection is Geordi's backlog of actionable work. Record architectural decisions as ADRs
+(`docs/adr/`) and feature designs as FDRs (`docs/fdr/`) instead. Run commands from the repository root:
 
 ```sh
 means list --path ./planning --limit 0 --json
@@ -70,8 +68,6 @@ Never supply `id`; means generates it. Reference other items by ID.
 3. Set `in_progress` when starting agreed work. Set `done` only when acceptance
    criteria are met, and record the outcome in the body. Use `canceled` for
    abandoned work instead of deleting.
-4. Decisions: describe context, alternatives, and rationale in the body. Keep them
-   `todo` while open, `done` once accepted.
-5. Read before each update and supply the returned `hash`. On conflict, read again
+4. Read before each update and supply the returned `hash`. On conflict, read again
    and reconcile. Omitting `body` preserves it; supplying it replaces it entirely.
-6. Mention relevant item IDs in commits and when reporting work.
+5. Mention relevant item IDs in commits and when reporting work.

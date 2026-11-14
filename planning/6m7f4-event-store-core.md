@@ -8,7 +8,7 @@ data:
 id: 6m7f4
 title: Event store core
 ---
-Implement the event sourcing core decided in eqzzj. Own implementation on `node:sqlite`, no dependencies; borrow Emmett's decide/evolve pattern.
+Implement the event sourcing core decided in ADR-001 (`docs/adr/ADR-001-event-sourcing.md`). Own implementation on `node:sqlite`, no dependencies; borrow Emmett's decide/evolve pattern.
 
 ## Acceptance criteria
 

@@ -1,0 +1,17 @@
+{
+	"name": "@geordi/daemon",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "node --watch src/main.ts",
+		"start": "node src/main.ts",
+		"check": "tsc"
+	},
+	"dependencies": {
+		"@geordi/protocol": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"typescript": "catalog:"
+	}
+}

@@ -6,7 +6,10 @@ bun.lock
 bun.lockb
 
 # Miscellaneous
-/static/
+/apps/web/static/
 
 # Managed by means
 /planning/
+
+# Vendored from hmans/skills
+/.claude/skills/

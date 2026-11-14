@@ -1,3 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
 engineStrict: true
 allowBuilds:
   esbuild: true
+
+catalog:
+  '@types/node': ^24
+  typescript: ^6.0.3
+  vitest: ^4.1.8
