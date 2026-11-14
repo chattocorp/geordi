@@ -9,22 +9,23 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 
 ## Behavior
 
-- An agent can start a child agent (of the same kind as itself, or another) in one of two ways, and chooses per child:
-  - **In the same workspace:** the child is another session sharing the parent's files, for work that needs to see uncommitted state (reviewing, pairing).
-  - **In a sub-workspace:** the child gets its own worktree and branch, branched from the parent workspace's branch, for work that should not interfere (parallel tasks).
+- An agent can start another agent (of the same kind as itself, or another). The new agent is a workspace of its own, with its own conversation, and works in one of two places, as the parent decides each time:
+  - **Its own worktree:** a new worktree and branch, branched from the parent workspace's branch, for work that should not interfere (parallel tasks).
+  - **The parent's worktree:** the same directory as the parent, for work that needs to see uncommitted state (reviewing, pairing).
 - The parent can message a child, wait until it has finished its turn, read its latest reply, and stop it. Children can start children of their own, up to a limit.
 - An agent can only see and control the agents it started, directly or indirectly.
-- Work from a sub-workspace comes back by the parent merging the child's branch. Geordi does not merge on its own.
+- Work from a child with its own worktree comes back by the parent merging the child's branch. Geordi does not merge on its own.
 - The sidebar shows workspaces as a tree by who started what, not grouped by repository. The repository is shown on each workspace. A parent shows as working while any of its descendants is.
-- Inside a workspace, sessions started by an agent are marked as such and name their parent. They get a tab as they appear, without taking focus. A sub-workspace links back to the workspace it was started from, and its changes are measured against that workspace's branch.
-- People can open, message and stop any child like any other session.
+- A workspace started by an agent links back to the one that started it, and says so if it works in that one's directory. Its changes are measured against the parent's branch.
+- People can open, message and stop any child like any other workspace.
 - Limits on nesting depth and on the number of children running at once stop runaway delegation; hitting one is reported to the calling agent as an error it can act on.
+- A worktree that several workspaces work in is only removed once the last of them is archived.
 
 ## Design Decisions
 
 ### 1. Both sharing and isolating are first-class
 
-**Decision:** A child either shares its parent's worktree or gets its own; the parent decides each time.
+**Decision:** A child is always a workspace of its own; it either works in its parent's worktree or gets its own, and the parent decides each time.
 **Why:** Reviewing needs the parent's uncommitted files, parallel implementation needs isolation. Neither default fits both.
 **Tradeoff:** Agents sharing a worktree can step on each other's edits, and the lead has to choose well.
 
@@ -53,7 +54,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 ## Related
 
 - **ADRs:** ADR-001, ADR-002, ADR-004
-- **FDRs:** FDR-001
+- **FDRs:** FDR-001, FDR-003
 
 ## Open Questions
 

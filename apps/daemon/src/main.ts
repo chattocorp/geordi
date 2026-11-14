@@ -10,7 +10,7 @@ import {
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
-import { changes, versions } from './changes.ts';
+import { status, versions } from './changes.ts';
 import {
 	closeTerminal,
 	closeTerminals,
@@ -23,7 +23,7 @@ import {
 import { runTurn, type Turn } from './turn.ts';
 import { upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
-import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
+import { ensureWorktree, locateWorktree, removeWorktree, verifyLinks } from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 /** Where agents on this machine reach the forge's agent API (ADR-004). */
@@ -144,11 +144,15 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 
 async function answer(request: DaemonRequest) {
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
+	if (request.kind === 'removeWorktree') {
+		removeWorktree(worktreesDir, request.repoPath, request.worktreeId, request.force);
+		return null;
+	}
 
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
-			return changes(worktree, request);
+			return status(worktree, request);
 		case 'diff':
 			return versions(worktree, request, request.path);
 		case 'upstream':
@@ -162,8 +166,16 @@ async function handle(message: ForgeMessage) {
 			const { workspaceId, worktreeId, agent, repoPath, base, resumeId, prompt } = message;
 			const emit = (event: AgentEvent) => send({ type: 'workspace.event', workspaceId, event });
 
-			if (turns.has(workspaceId))
-				return emit({ kind: 'turn.failed', error: 'A turn is already running' });
+			// The forge sends the next message as soon as the agent says it is done, which is a
+			// moment before its process has exited. Let it finish; if it won't, end it.
+			const previous = turns.get(workspaceId);
+			if (previous) {
+				await Promise.race([previous.done, new Promise((resolve) => setTimeout(resolve, 10_000))]);
+				if (turns.get(workspaceId) === previous) {
+					previous.stop();
+					await previous.done;
+				}
+			}
 
 			try {
 				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base);
@@ -187,7 +199,9 @@ async function handle(message: ForgeMessage) {
 					message.apiToken
 				);
 				turns.set(workspaceId, turn);
-				turn.done.then(() => turns.delete(workspaceId));
+				turn.done.then(() => {
+					if (turns.get(workspaceId) === turn) turns.delete(workspaceId);
+				});
 			} catch (error) {
 				emit({ kind: 'turn.failed', error: errorMessage(error) });
 			}

@@ -9,7 +9,7 @@ import {
 	realpathSync
 } from 'node:fs';
 import { join } from 'node:path';
-import type { FileChange, FileVersions } from '@geordi/protocol';
+import type { Changes, FileChange, FileVersions } from '@geordi/protocol';
 import { branchRef, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** Files are for reading; beyond this size (in characters) they are not shown. */
@@ -95,6 +95,29 @@ export function changes(worktree: Worktree, origin: Origin): FileChange[] {
 	});
 
 	return [...tracked, ...added].sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** The workspace's changes, and how far they have got: committed? pushed? */
+export function status(worktree: Worktree, origin: Origin): Changes {
+	// Not `git status`: `gitIn` runs against the repository's own .git, whose HEAD is not ours.
+	const head = headOf(worktree);
+	const modified = gitIn(worktree, 'diff', '--name-only', '-z', ...SAFE, head)
+		.split('\0')
+		.filter(Boolean);
+	const uncommitted = modified.length + untracked(worktree).length;
+
+	// What is on the remote, as far as this machine knows: the remote-tracking branch.
+	let unpushed: number | null = null;
+	if (head.startsWith('refs/heads/')) {
+		const remote = `refs/remotes/origin/${head.slice('refs/heads/'.length)}`;
+		try {
+			unpushed = Number(gitIn(worktree, 'rev-list', '--count', `${remote}..${head}`).trim());
+		} catch {
+			// no such remote branch: nothing of this branch is pushed
+		}
+	}
+
+	return { files: changes(worktree, origin), uncommitted, unpushed };
 }
 
 /**

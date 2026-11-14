@@ -3,7 +3,7 @@ import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changes } from './changes.ts';
+import { status, versions } from './changes.ts';
 import { createWatches } from './watch.ts';
 import { ensureWorktree, locateWorktree } from './worktree.ts';
 
@@ -50,10 +50,13 @@ describe('watching workspaces', () => {
 		const { base, ref, seen, watches } = setup();
 		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
+		await wait(300); // let that write pass before we start watching
 		watches.set([ref]);
-		await wait(100);
+		await wait(600);
+		seen.length = 0;
 
-		expect(changes(worktree, ref)).toHaveLength(1);
+		expect(status(worktree, ref)).toMatchObject({ uncommitted: 1 });
+		expect(versions(worktree, ref, 'a.txt')).toEqual({ old: null, new: 'one\n' });
 		await wait(600);
 		expect(seen).toEqual([]);
 

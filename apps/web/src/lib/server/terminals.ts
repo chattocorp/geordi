@@ -137,6 +137,15 @@ export function createTerminals(
 			terminals.delete(terminalId);
 		},
 
+		/** Ends every shell of a workspace, e.g. because its directory is about to go. */
+		closeAll(workspaceId: string) {
+			for (const [terminalId, terminal] of terminals) {
+				if (!terminalId.startsWith(`${workspaceId}:`)) continue;
+				if (terminal.running) dispatch({ type: 'terminal.close', terminalId });
+				terminals.delete(terminalId);
+			}
+		},
+
 		output(terminalId: string, data: string, offset: number) {
 			const terminal = terminals.get(terminalId);
 			if (terminal) emit(terminal, data, offset);

@@ -6,8 +6,10 @@ A self-hostable code forge and agent orchestrator.
 - Issues, pull requests, reviews
 - Run coding agents (`claude -p`, `codex`) in workspaces: isolated Git worktrees with
   several agent sessions side by side, a live view of their changes, and a terminal
-- Let agents start and supervise other agents, in the same workspace or in sub-workspaces
-  of their own, and see who is controlling what
+- Let agents start and supervise other agents, in the same directory or in worktrees of
+  their own, and see who is controlling what
+- See each workspace's pull request, and move it along with one click: create it, fix its
+  checks, merge it, archive
 
 Geordi is in early development.
 
@@ -46,9 +48,9 @@ The tests render the UI's stories in a real browser; install it once with
 `pnpm dev` starts the forge on http://localhost:5173 and a daemon that connects to it. In
 development, forge data is stored in `./.data`.
 
-Register a repository on the home page, open it, and start a workspace. Each workspace
-gets its own Git worktree on a new branch (`geordi/<id>`) and can run several agent
-sessions in it (see [FDR-001](docs/fdr/FDR-001-workspaces.md)).
+Register a repository on the home page, open it, and start a workspace: one conversation
+with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See
+[FDR-001](docs/fdr/FDR-001-workspaces.md).
 
 ## Running in production
 
@@ -60,6 +62,10 @@ node apps/daemon/src/main.ts
 
 > **Geordi has no authentication yet.** Anyone who can reach the forge can run agents on
 > your machine, so it only listens on 127.0.0.1 and only answers to localhost hostnames.
+
+> **Agents run without permission prompts or a sandbox by default.** They need to commit,
+> push and use tools like `gh`, so they can do whatever your user can. The two variables
+> below restrict them again, at the cost of the workspace actions that need the network.
 
 The daemon connects once the forge has served its first request. Forge and daemon
 authenticate each other with a shared token that the forge creates in its data directory.
@@ -86,7 +92,8 @@ authenticate each other with a shared token that the forge creates in its data d
 | `GEORDI_DAEMON_TOKEN_FILE`                                                                     | `~/.geordi/daemon-token` | Forge's shared secret (the forge creates it in its data directory)                                                          |
 | `GEORDI_DAEMON_TOKEN`                                                                          |                          | The secret itself, instead of the file                                                                                      |
 | `GEORDI_WORKTREES_DIR`                                                                         | `~/.geordi/worktrees`    | Where workspace worktrees are created                                                                                       |
-| `GEORDI_CLAUDE_PERMISSION_MODE`                                                                | `acceptEdits`            | `--permission-mode` for `claude -p`                                                                                         |
+| `GEORDI_CLAUDE_PERMISSION_MODE`                                                                | `bypassPermissions`      | `--permission-mode` for `claude -p`, e.g. `auto` or `acceptEdits`                                                           |
+| `GEORDI_CODEX_SANDBOX`                                                                         |                          | Set to `workspace-write` to run Codex in its sandbox: no network, writes only in the worktree                               |
 | `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables) |                          | Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset |
 
 Codex runs in its `workspace-write` sandbox. So that it can commit, the sandbox may also write

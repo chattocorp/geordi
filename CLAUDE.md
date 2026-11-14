@@ -57,12 +57,18 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - Domains are factories (`createIssues(store)`) so tests can use `new EventStore(':memory:')`.
   - Record `actor` on events; authentication comes later.
 - **Forge and daemon (ADR-002).** The daemon connects to the forge over one WebSocket carrying
-  JSON (`packages/protocol`): commands down, session events up. The forge stores all session
+  JSON (`packages/protocol`): commands down, agent events up. The forge stores all conversation
   history; the daemon holds nothing but running processes.
   - Forge: `daemons.ts` (WebSocket server) and `workspaces.ts` (domain) in
     `apps/web/src/lib/server/`, wired together in `app.ts`.
-  - A **workspace** (FDR-001) is a worktree on its own branch plus the agent sessions working
-    in it. The daemon derives the worktree from the workspace ID (`worktree.ts`).
+  - A **workspace** (FDR-001) is one conversation with one agent, in a worktree on its own
+    branch. There are no sessions: a second agent is a second workspace, which may work in
+    another's worktree (`worktreeId`). The daemon derives a worktree from that ID
+    (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
+  - Messages to a working agent queue (`workspace.queued`) and go out when its turn ends.
+  - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
+    tested); most just `say` something to the agent.
+  - Agents run without permission prompts by default (they must commit, push and use `gh`).
   - The daemon runs git in agent-writable worktrees: always through `gitIn`, which never
     trusts the worktree's own Git metadata.
   - Daemon: one adapter per agent CLI in `apps/daemon/src/agents/` maps the CLI's JSON output
@@ -77,7 +83,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   stored.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per turn; the
-  daemon hands URL and token to the CLI. The calling session is the parent of what it starts
+  daemon hands URL and token to the CLI. The calling workspace is the parent of what it starts
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
@@ -124,7 +130,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   loading); mono only for actual code (paths, branches, commands, output).
 - **Workspace UI:** components in `#lib/components/workspace/`. Windows are tabs in a tree of
   splits (`#lib/layout.ts`, pure functions; rendered by `Panes.svelte`), named after what
-  they show (`session:<id>`, `diff:<path>`, `new`). Layout and pane sizes are per-browser
+  they show (`chat`, `diff:<path>`). Layout and pane sizes are per-browser
   preferences (`persisted`), not events.
 - **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
   (https://diffs.com) from both whole file versions, which is what makes context

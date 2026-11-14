@@ -163,6 +163,44 @@ describe('workspaces', () => {
 	});
 });
 
+describe('archiving', () => {
+	it('takes a workspace out of the lists and keeps its conversation', () => {
+		const { store, repos, workspaces, repo, create, dispatch } = setup();
+		const id = create('One');
+		expect(() => workspaces.archive(id)).toThrow(); // the agent is working
+
+		workspaces.record(id, { kind: 'text', text: 'Done.' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.archive(id);
+		workspaces.archive(id);
+
+		expect(workspaces.list(repo.id)).toEqual([]);
+		expect(workspaces.all()).toEqual([]);
+		expect(workspaces.get(id)).toMatchObject({
+			archivedAt: expect.any(String),
+			transcript: [{ kind: 'user' }, { kind: 'text', text: 'Done.' }]
+		});
+		expect(() => workspaces.send(id, 'More')).toThrow();
+		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
+	});
+
+	it('knows whether a worktree is still in use by another workspace', () => {
+		const { workspaces, create } = setup();
+		const lead = create('Lead');
+		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = workspaces.agents.start(lead, { worktree: 'shared', prompt: 'Review' }).id;
+		const own = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Build' }).id;
+
+		expect(workspaces.worktreeInUse(lead)).toBe(true);
+		expect(workspaces.worktreeInUse(child)).toBe(true);
+		expect(workspaces.worktreeInUse(own)).toBe(false);
+
+		workspaces.record(child, { kind: 'turn.completed' });
+		workspaces.archive(child);
+		expect(workspaces.worktreeInUse(lead)).toBe(false);
+	});
+});
+
 describe('event logs from before a workspace had one conversation', () => {
 	it('turns a session without a workspace into a workspace', () => {
 		const { store, workspaces, repo, sent } = setup();

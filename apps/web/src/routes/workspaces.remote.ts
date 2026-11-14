@@ -1,7 +1,7 @@
 import * as v from 'valibot';
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, type FileChange, type FileVersions, type Upstream } from '@geordi/protocol';
+import { AGENTS, type Changes, type FileVersions, type Upstream } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
 import { hub, terminals, watchers, workspaces } from '#lib/server/app.ts';
 import { webUrl } from '#lib/url.ts';
@@ -49,6 +49,34 @@ export const sendMessage = form(
 	}
 );
 
+/** Says something to the workspace's agent without a form: what the workspace's actions do. */
+export const say = command(v.object({ workspaceId: v.string(), text }), ({ workspaceId, text }) =>
+	workspaces().send(workspaceId, text)
+);
+
+/**
+ * Archives a workspace: ends its shells, removes its worktree (unless another workspace
+ * still works in it) and takes it out of the lists. Its branch and conversation stay.
+ * Fails if the worktree has uncommitted or untracked files, unless `discard` is set.
+ */
+export const archiveWorkspace = command(
+	v.object({ workspaceId: v.string(), discard: v.optional(v.boolean(), false) }),
+	async ({ workspaceId: id, discard }) => {
+		const workspace = workspaces().get(id);
+		if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
+
+		terminals().closeAll(id);
+		if (workspace.worktree && !workspaces().worktreeInUse(id)) {
+			try {
+				await hub().request({ kind: 'removeWorktree', force: discard, ...workspaces().ref(id) });
+			} catch (reason) {
+				error(409, message(reason));
+			}
+		}
+		workspaces().archive(id);
+	}
+);
+
 /** Takes back a message that is waiting for the agent to finish its turn. */
 export const removeQueued = command(
 	v.object({ workspaceId: v.string(), index: v.pipe(v.number(), v.integer(), v.minValue(0)) }),
@@ -66,12 +94,12 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
  */
 export const getChanges = query(
 	v.string(),
-	async (id): Promise<{ files: FileChange[]; unavailable: string | null }> => {
+	async (id): Promise<Changes & { unavailable: string | null }> => {
 		try {
-			const files = await hub().request({ kind: 'changes', ...workspaces().ref(id) });
-			return { files, unavailable: null };
+			const changes = await hub().request({ kind: 'changes', ...workspaces().ref(id) });
+			return { ...changes, unavailable: null };
 		} catch (error) {
-			return { files: [], unavailable: message(error) };
+			return { files: [], uncommitted: 0, unpushed: null, unavailable: message(error) };
 		}
 	}
 );

@@ -1,17 +1,29 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { actionsFor, type WorkspaceAction } from '#lib/actions.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import { open, singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
+	import Badge from '#lib/ui/Badge.svelte';
+	import Button from '#lib/ui/Button.svelte';
+	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import { getRepo } from '../../../routes/repos.remote';
-	import { getWorkspace } from '../../../routes/workspaces.remote';
+	import {
+		archiveWorkspace,
+		getChanges,
+		getUpstream,
+		getWorkspace,
+		say
+	} from '../../../routes/workspaces.remote';
 	import Changes from './Changes.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import Terminals from './Terminals.svelte';
+	import WorkspaceActions from './WorkspaceActions.svelte';
 
 	let { id }: { id: string } = $props();
 
@@ -36,6 +48,43 @@
 	});
 
 	const sidebar = persisted('geordi:sidebar', { width: 0.3, changes: 0.45 });
+
+	// What could happen next (FDR-003), from where the changes and the pull request stand.
+	// These are the same queries the changes pane shows and keeps fresh.
+	const changes = $derived(getChanges(id));
+	const upstream = $derived(getUpstream(id));
+	const actions = $derived(
+		workspace.archivedAt || !changes.current || changes.current.unavailable
+			? []
+			: actionsFor({ changes: changes.current, upstream: upstream.current?.upstream ?? null })
+	);
+	// An action is under way while its message waits, or is what the agent is working on.
+	const pending = $derived.by(() => {
+		const asked = [...workspace.queue];
+		const last = workspace.transcript.findLast((item) => item.kind === 'user');
+		if (running && last?.kind === 'user') asked.push(last.text);
+		return actions
+			.filter((action) => action.prompt && asked.includes(action.prompt))
+			.map((a) => a.id);
+	});
+
+	/** Why archiving didn't work, if it didn't: usually work that would be lost. */
+	let archiveProblem = $state<string | null>(null);
+
+	async function archive(discard = false) {
+		archiveProblem = null;
+		try {
+			await archiveWorkspace({ workspaceId: id, discard });
+			await goto(resolve('/repos/[id]', { id: workspace.repoId }));
+		} catch (error) {
+			archiveProblem = error instanceof Error ? error.message : 'Could not archive the workspace';
+		}
+	}
+
+	function act(action: WorkspaceAction) {
+		if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		else if (action.id === 'archive') archive();
+	}
 </script>
 
 <svelte:head><title>{workspace.title} · Geordi</title></svelte:head>
@@ -101,8 +150,31 @@
 				{/if}
 			</div>
 		</div>
-		<StatusBadge {running} />
+		<WorkspaceActions {actions} {pending} onaction={act} />
+		{#if workspace.archivedAt}
+			<Badge>Archived</Badge>
+		{:else}
+			<StatusBadge {running} />
+			<!-- Always possible, not only once it is the obvious next step. -->
+			{#if !actions.some((action) => action.id === 'archive')}
+				<Button
+					variant="ghost"
+					icon="icon-[lucide--archive]"
+					label="Archive workspace"
+					disabled={running}
+					onclick={() => archive()}
+				/>
+			{/if}
+		{/if}
 	</header>
+
+	{#if archiveProblem}
+		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
+			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
+			<Button onclick={() => archive(true)}>Discard them and archive</Button>
+			<Button variant="ghost" onclick={() => (archiveProblem = null)}>Cancel</Button>
+		</div>
+	{/if}
 
 	<Split
 		dir="row"

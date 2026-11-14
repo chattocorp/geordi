@@ -109,6 +109,39 @@ export function headOf({ path, adminDir }: Worktree): string {
 }
 
 /**
+ * Removes a workspace's worktree; its branch stays. Git refuses while the worktree has
+ * uncommitted or untracked files, unless `force` says to discard them. A worktree that is
+ * already gone is fine.
+ */
+export function removeWorktree(
+	baseDir: string,
+	repoPath: string,
+	worktreeId: string,
+	force: boolean
+) {
+	const { path } = describe(baseDir, repoPath, worktreeId);
+	if (!existsSync(path)) return;
+	try {
+		execFileSync(
+			'git',
+			['-C', repoPath, 'worktree', 'remove', ...(force ? ['--force'] : []), path],
+			{
+				encoding: 'utf8',
+				stdio: ['ignore', 'pipe', 'pipe']
+			}
+		);
+	} catch (error) {
+		const reason = (error as { stderr?: string }).stderr?.trim();
+		throw new Error(
+			/modified or untracked/.test(reason ?? '')
+				? 'The worktree has uncommitted or untracked files.'
+				: reason || 'Could not remove the worktree',
+			{ cause: error }
+		);
+	}
+}
+
+/**
  * Runs git on a worktree's files without trusting anything an agent can write. Git uses the
  * repository's own .git directory (so only its config, hooks and filters apply, never the
  * worktree's `config.worktree` or repointed links), the worktree's files, and the worktree's

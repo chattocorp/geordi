@@ -21,11 +21,16 @@
 	const form = $derived(sendMessage.for(workspace.id));
 
 	// Follow new output while the reader is at the bottom; leave them alone once they scroll up.
-	let scroller: HTMLElement;
+	let scroller: HTMLElement | undefined;
 	let following = $state(true);
 	const toLatest = () => {
 		following = true;
-		scroller.scrollTop = scroller.scrollHeight;
+		if (scroller) scroller.scrollTop = scroller.scrollHeight;
+	};
+	/** Scroll events can still arrive while the view is being taken down. */
+	const atBottom = () => {
+		if (scroller)
+			following = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
 	};
 	$effect(() => {
 		void blocks;
@@ -38,12 +43,7 @@
 		<div class="visor absolute inset-x-0 top-0 z-10" role="status" aria-label="Working"></div>
 	{/if}
 
-	<div
-		bind:this={scroller}
-		onscroll={() =>
-			(following = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80)}
-		class="scroller"
-	>
+	<div bind:this={scroller} onscroll={atBottom} class="scroller">
 		<ol class="mx-auto w-full max-w-3xl space-y-8 px-5 py-6">
 			{#each blocks as block, i (i)}
 				<li>
@@ -102,36 +102,40 @@
 				Jump to latest
 			</Button>
 		{/if}
-		<div class="mx-auto max-w-3xl px-5 pb-4">
-			<Composer
-				{form}
-				rows={2}
-				placeholder={running ? 'Queue a message for when the agent is done' : 'Reply to the agent'}
-				field={form.fields.text.as('text')}
-				problems={form.fields.text.issues()?.map((problem) => problem.message)}
-			>
-				{#snippet header()}
-					<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
-				{/snippet}
-				{#snippet footer()}
-					<p class="hidden pl-1 text-xs text-muted sm:block">
-						Enter to send, Shift+Enter for a new line
-					</p>
-					<div class="ml-auto flex items-center gap-2">
-						{#if running}
-							<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
-								Stop
-							</Button>
-						{/if}
-						<Button
-							type="submit"
-							variant={running ? 'secondary' : 'primary'}
-							icon={running ? 'icon-[lucide--list-plus]' : 'icon-[lucide--arrow-up]'}
-							label={running ? 'Queue' : 'Send'}
-						/>
-					</div>
-				{/snippet}
-			</Composer>
-		</div>
+		{#if !workspace.archivedAt}
+			<div class="mx-auto max-w-3xl px-5 pb-4">
+				<Composer
+					{form}
+					rows={2}
+					placeholder={running
+						? 'Queue a message for when the agent is done'
+						: 'Reply to the agent'}
+					field={form.fields.text.as('text')}
+					problems={form.fields.text.issues()?.map((problem) => problem.message)}
+				>
+					{#snippet header()}
+						<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
+					{/snippet}
+					{#snippet footer()}
+						<p class="hidden pl-1 text-xs text-muted sm:block">
+							Enter to send, Shift+Enter for a new line
+						</p>
+						<div class="ml-auto flex items-center gap-2">
+							{#if running}
+								<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
+									Stop
+								</Button>
+							{/if}
+							<Button
+								type="submit"
+								variant={running ? 'secondary' : 'primary'}
+								icon={running ? 'icon-[lucide--list-plus]' : 'icon-[lucide--arrow-up]'}
+								label={running ? 'Queue' : 'Send'}
+							/>
+						</div>
+					{/snippet}
+				</Composer>
+			</div>
+		{/if}
 	</div>
 </div>

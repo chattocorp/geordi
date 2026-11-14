@@ -35,6 +35,8 @@ export type WorkspacesEvent =
 	  }
 	/** A message to send once the agent has finished what it is doing. */
 	| { type: 'workspace.queued'; stream: WorkspaceStream; data: { id: string; text: string } }
+	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
+	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
 	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
 	/** Whatever the daemon reports, stored verbatim. */
@@ -82,6 +84,8 @@ export type Workspace = {
 	resumeId: string | null;
 	/** Messages waiting for the agent to finish its turn, in the order they will be sent. */
 	queue: string[];
+	/** When the workspace was archived; `null` while it is in use. */
+	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 	transcript: TranscriptItem[];
@@ -143,6 +147,7 @@ export function createWorkspaces(
 				worktree: null,
 				resumeId: null,
 				queue: [],
+				archivedAt: null,
 				createdAt: at,
 				updatedAt: at,
 				transcript: []
@@ -155,6 +160,11 @@ export function createWorkspaces(
 		workspace.updatedAt = at;
 		const { transcript } = workspace;
 
+		if (event.type === 'workspace.archived') {
+			workspace.archivedAt = at;
+			workspace.queue = [];
+			return;
+		}
 		if (event.type === 'workspace.queued') {
 			workspace.queue.push(event.data.text);
 			return;
@@ -445,13 +455,17 @@ export function createWorkspaces(
 	return {
 		agents,
 
-		/** All workspaces, newest first, without their transcripts. */
-		all: (): WorkspaceSummary[] => [...projection.get().values()].reverse().map(summarise),
+		/** All workspaces in use (not archived), newest first, without their transcripts. */
+		all: (): WorkspaceSummary[] =>
+			[...projection.get().values()]
+				.filter((workspace) => !workspace.archivedAt)
+				.reverse()
+				.map(summarise),
 
-		/** Workspaces of a repository, newest first, without their transcripts. */
+		/** A repository's workspaces in use, newest first, without their transcripts. */
 		list: (repoId: string): WorkspaceSummary[] =>
 			[...projection.get().values()]
-				.filter((workspace) => workspace.repoId === repoId)
+				.filter((workspace) => workspace.repoId === repoId && !workspace.archivedAt)
 				.reverse()
 				.map(summarise),
 
@@ -468,6 +482,7 @@ export function createWorkspaces(
 		 */
 		send(id: string, text: string, actor: string | null = null) {
 			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
 				return startTurn(workspace, text, actor);
 			store.append(
@@ -489,6 +504,28 @@ export function createWorkspaces(
 
 		stop,
 		record,
+
+		/**
+		 * Whether anything but this workspace still works in its worktree: only when nothing
+		 * does may the worktree go when the workspace is archived.
+		 */
+		worktreeInUse(id: string): boolean {
+			const { worktreeId } = find(id);
+			return [...projection.get().values()].some(
+				(other) => other.id !== id && other.worktreeId === worktreeId && !other.archivedAt
+			);
+		},
+
+		/** Marks the workspace as done with. Its conversation stays readable. */
+		archive(id: string, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) return;
+			if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
+			store.append(
+				{ type: 'workspace.archived', stream: `workspace:${id}`, data: { id } },
+				{ actor }
+			);
+		},
 
 		/**
 		 * Called when a daemon (re)connects with the workspaces whose turns it is actually

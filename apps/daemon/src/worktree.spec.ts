@@ -11,8 +11,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changes, readText, versions } from './changes.ts';
-import { ensureWorktree, locateWorktree } from './worktree.ts';
+import { changes, readText, status, versions } from './changes.ts';
+import { ensureWorktree, locateWorktree, removeWorktree } from './worktree.ts';
 
 function repo() {
 	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-wt-')));
@@ -233,5 +233,70 @@ describe('changes', () => {
 
 		changes(worktree, { repoPath });
 		expect(existsSync(marker)).toBe(false);
+	});
+});
+
+describe('status', () => {
+	function workspace() {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const git = (...args: string[]) =>
+			execFileSync('git', [
+				'-C',
+				worktree.path,
+				'-c',
+				'user.name=t',
+				'-c',
+				'user.email=t@t',
+				...args
+			]);
+		return { repoPath, base, worktree, git, origin: { repoPath } };
+	}
+
+	it('tells uncommitted from committed from pushed', () => {
+		const { repoPath, worktree, git, origin } = workspace();
+		expect(status(worktree, origin)).toEqual({ files: [], uncommitted: 0, unpushed: null });
+
+		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
+		writeFileSync(join(worktree.path, 'b.txt'), 'b\n');
+		expect(status(worktree, origin)).toMatchObject({ uncommitted: 2, unpushed: null });
+
+		git('add', 'a.txt');
+		git('commit', '-qm', 'a');
+		expect(status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: null });
+
+		// pushed, as far as this machine knows: the remote-tracking branch is where we are
+		const remote = 'refs/remotes/origin/geordi/abcdefgh';
+		execFileSync('git', ['-C', repoPath, 'update-ref', remote, 'refs/heads/geordi/abcdefgh']);
+		expect(status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: 0 });
+
+		git('add', '.');
+		git('commit', '-qm', 'b');
+		expect(status(worktree, origin)).toMatchObject({ uncommitted: 0, unpushed: 1 });
+		expect(status(worktree, origin).files).toHaveLength(2);
+	});
+
+	it('removes a clean worktree, keeps its branch, and refuses to discard work unless told to', () => {
+		const { repoPath, base, worktree, git } = workspace();
+		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
+		expect(() => removeWorktree(base, repoPath, 'abcdefgh-1', false)).toThrow(
+			/uncommitted or untracked/
+		);
+		expect(existsSync(worktree.path)).toBe(true);
+
+		git('add', '.');
+		git('commit', '-qm', 'a');
+		removeWorktree(base, repoPath, 'abcdefgh-1', false);
+		expect(existsSync(worktree.path)).toBe(false);
+		const branches = execFileSync('git', ['-C', repoPath, 'branch', '--list', 'geordi/*']);
+		expect(String(branches)).toContain('geordi/abcdefgh');
+
+		// already gone is fine; and force discards
+		removeWorktree(base, repoPath, 'abcdefgh-1', false);
+		const second = ensureWorktree(base, repoPath, 'second00-1');
+		writeFileSync(join(second.path, 'junk.txt'), 'x\n');
+		removeWorktree(base, repoPath, 'second00-1', true);
+		expect(existsSync(second.path)).toBe(false);
 	});
 });
