@@ -71,6 +71,9 @@ importers:
       '@lydell/node-pty':
         specifier: 1.2.0-beta.18
         version: 1.2.0-beta.18
+      forges:
+        specifier: ^0.3.2
+        version: 0.3.2
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1771,6 +1774,10 @@ packages:
 
   flatted@3.4.4:
     resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
+
+  forges@0.3.2:
+    resolution: {integrity: sha512-x6epJowWXC8yOQThyxmvgPL4duk8iB9/smsmEU0gKuq7M6CGgzcljoA1KDyIlhrYwTZP8HtMNMQXIPm931OiyA==}
+    engines: {node: '>=22.18'}
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -4184,6 +4191,8 @@ snapshots:
       hookified: 1.15.1
 
   flatted@3.4.4: {}
+
+  forges@0.3.2: {}
 
   fsevents@2.3.3:
     optional: true

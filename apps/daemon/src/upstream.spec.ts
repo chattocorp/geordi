@@ -1,0 +1,86 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Thread } from 'forges';
+import { describe, expect, it } from 'vitest';
+import { summarise, upstream } from './upstream.ts';
+import { ensureWorktree } from './worktree.ts';
+
+/** A pull request as `forges` reports it, with only the fields we read. */
+const pull = (overrides: Partial<Thread> = {}) =>
+	({
+		ref: { number: '42' },
+		title: 'Add the thing',
+		url: 'https://github.com/acme/widgets/pull/42',
+		state: 'open',
+		isDraft: false,
+		reviewers: [],
+		branches: { head: { ref: 'geordi/abc' }, base: { ref: 'main' } },
+		...overrides
+	}) as Thread;
+
+const reviewer = (state: string) => ({ state }) as Thread['reviewers'][number];
+
+describe('summarise', () => {
+	it('reports state, target branch and checks', () => {
+		const checks = { state: 'failure', total: 18, failed: 2, url: 'https://checks' } as const;
+		expect(summarise(pull({ checks, isDraft: true }))).toEqual({
+			number: '42',
+			title: 'Add the thing',
+			url: 'https://github.com/acme/widgets/pull/42',
+			state: 'open',
+			draft: true,
+			base: 'main',
+			checks,
+			review: null
+		});
+	});
+
+	it('shows no checks when there are none', () => {
+		expect(summarise(pull()).checks).toBeNull();
+		expect(summarise(pull({ checks: { state: 'unknown', total: 0 } })).checks).toBeNull();
+	});
+
+	it('lets the most decisive review speak', () => {
+		const review = (...states: string[]) =>
+			summarise(pull({ reviewers: states.map(reviewer) })).review;
+		expect(review('pending', 'approved')).toBe('approved');
+		expect(review('approved', 'changes_requested', 'pending')).toBe('changes_requested');
+		expect(review('pending', 'commented')).toBe('pending');
+		expect(review('commented')).toBeNull();
+	});
+});
+
+describe('upstream', () => {
+	function workspace(remote?: string) {
+		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-up-')));
+		const git = (...args: string[]) => execFileSync('git', ['-C', repoPath, ...args]);
+		git('init', '-q');
+		git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
+		if (remote) git('remote', 'add', 'origin', remote);
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		return { worktree, ref: { repoPath, workspaceId: 'abcdefgh-1' } };
+	}
+
+	it('is nothing for repositories without a remote, or on a forge we do not know', async () => {
+		const local = workspace();
+		expect(await upstream(local.worktree, local.ref)).toBeNull();
+		const elsewhere = workspace('git@git.example.invalid:acme/widgets.git');
+		expect(await upstream(elsewhere.worktree, elsewhere.ref)).toBeNull();
+	});
+
+	it('knows the repository, and asks the forge nothing while the branch is not pushed', async () => {
+		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		expect(await upstream(worktree, ref)).toEqual({
+			forge: 'github',
+			repo: 'acme/widgets',
+			repoUrl: 'https://github.com/acme/widgets',
+			branch: 'geordi/abcdefgh',
+			pushed: false,
+			createUrl: null,
+			pull: null
+		});
+	});
+});

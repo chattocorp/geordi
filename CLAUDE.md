@@ -67,6 +67,11 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     terminal event. Follow-up turns resume the CLI's own session (`resumeId`).
   - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
     `adapterFor`, and add parser tests based on real captured CLI output.
+- **Upstream forges (ADR-006).** The daemon talks to the forge a repository is hosted on
+  through the `forges` library (`apps/daemon/src/upstream.ts`): never a forge-specific
+  client. Credentials come from `FORGES_*` variables in the daemon's environment, or the
+  GitHub CLI's login. Upstream state is live data: asked on demand, cached briefly, never
+  stored.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per turn; the
   daemon hands URL and token to the CLI. The calling session is the parent of what it starts

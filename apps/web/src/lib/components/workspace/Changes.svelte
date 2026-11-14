@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Badge from '#lib/ui/Badge.svelte';
-	import { getChanges } from '../../../routes/workspaces.remote';
+	import { getChanges, getUpstream } from '../../../routes/workspaces.remote';
+	import UpstreamStatus from './UpstreamStatus.svelte';
 
 	type Props = { workspaceId: string; onopen(path: string): void };
 	let { workspaceId, onopen }: Props = $props();
@@ -10,11 +11,17 @@
 	const total = (key: 'added' | 'removed') =>
 		files.reduce((sum, file) => sum + (file[key] ?? 0), 0);
 
-	// The worktree changes behind the forge's back (agents, the terminal), so poll.
+	const upstream = $derived(getUpstream(workspaceId));
+
+	// The worktree changes behind the forge's back (agents, the terminal), and so does the
+	// pull request, so poll. The daemon spares the upstream forge: it reuses answers for a while.
 	$effect(() => {
-		const query = changes;
-		const timer = setInterval(() => !document.hidden && query.refresh(), 4000);
-		return () => clearInterval(timer);
+		const queries = [changes, upstream] as const;
+		const timers = [
+			setInterval(() => !document.hidden && queries[0].refresh(), 4000),
+			setInterval(() => !document.hidden && queries[1].refresh(), 15_000)
+		];
+		return () => timers.forEach(clearInterval);
 	});
 </script>
 
@@ -37,6 +44,10 @@
 			<span class="ml-auto">{@render stats(total('added'), total('removed'))}</span>
 		{/if}
 	</header>
+
+	{#if upstream.current?.upstream}
+		<UpstreamStatus upstream={upstream.current.upstream} />
+	{/if}
 
 	<div class="min-h-0 flex-1 overflow-y-auto py-1.5">
 		{#if !changes.current}

@@ -21,6 +21,7 @@ import {
 	writeTerminal
 } from './terminals.ts';
 import { runTurn, type Turn } from './turn.ts';
+import { upstream } from './upstream.ts';
 import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
@@ -133,7 +134,7 @@ function connect(delay = 500) {
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-function answer(request: DaemonRequest) {
+async function answer(request: DaemonRequest) {
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.workspaceId);
@@ -142,6 +143,8 @@ function answer(request: DaemonRequest) {
 			return changes(worktree, request);
 		case 'diff':
 			return diff(worktree, request, request.path);
+		case 'upstream':
+			return upstream(worktree, request);
 	}
 }
 
@@ -183,7 +186,7 @@ async function handle(message: ForgeMessage) {
 
 		case 'request':
 			try {
-				send({ type: 'response', id: message.id, result: answer(message.request) });
+				send({ type: 'response', id: message.id, result: await answer(message.request) });
 			} catch (error) {
 				send({ type: 'response', id: message.id, error: errorMessage(error) });
 			}

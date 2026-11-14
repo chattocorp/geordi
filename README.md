@@ -79,14 +79,15 @@ authenticate each other with a shared token that the forge creates in its data d
 
 ### Daemon
 
-| Variable                        | Default                  | Purpose                                                            |
-| ------------------------------- | ------------------------ | ------------------------------------------------------------------ |
-| `GEORDI_FORGE_URL`              | `ws://127.0.0.1:7700`    | Forge to connect to                                                |
-| `GEORDI_FORGE_HTTP_URL`         | `http://127.0.0.1:3000`  | Where agents reach the forge's agent API                           |
-| `GEORDI_DAEMON_TOKEN_FILE`      | `~/.geordi/daemon-token` | Forge's shared secret (the forge creates it in its data directory) |
-| `GEORDI_DAEMON_TOKEN`           |                          | The secret itself, instead of the file                             |
-| `GEORDI_WORKTREES_DIR`          | `~/.geordi/worktrees`    | Where workspace worktrees are created                              |
-| `GEORDI_CLAUDE_PERMISSION_MODE` | `acceptEdits`            | `--permission-mode` for `claude -p`                                |
+| Variable                                                                                       | Default                  | Purpose                                                                                                                     |
+| ---------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `GEORDI_FORGE_URL`                                                                             | `ws://127.0.0.1:7700`    | Forge to connect to                                                                                                         |
+| `GEORDI_FORGE_HTTP_URL`                                                                        | `http://127.0.0.1:3000`  | Where agents reach the forge's agent API                                                                                    |
+| `GEORDI_DAEMON_TOKEN_FILE`                                                                     | `~/.geordi/daemon-token` | Forge's shared secret (the forge creates it in its data directory)                                                          |
+| `GEORDI_DAEMON_TOKEN`                                                                          |                          | The secret itself, instead of the file                                                                                      |
+| `GEORDI_WORKTREES_DIR`                                                                         | `~/.geordi/worktrees`    | Where workspace worktrees are created                                                                                       |
+| `GEORDI_CLAUDE_PERMISSION_MODE`                                                                | `acceptEdits`            | `--permission-mode` for `claude -p`                                                                                         |
+| `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables) |                          | Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset |
 
 Codex runs in its `workspace-write` sandbox. So that it can commit, the sandbox may also write
 the repository's Git objects, refs, and logs, plus the worktree's own Git metadata. It can't

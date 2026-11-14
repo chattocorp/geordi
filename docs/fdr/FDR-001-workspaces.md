@@ -18,6 +18,7 @@ A workspace is where a piece of work happens: a Git worktree on its own branch i
   - Closing a window never ends or deletes a session.
 - The sidebar on the right has two panes, resizable against each other and against the window area.
   - **Changes** lists every file that differs from where the workspace branched off, with lines added and removed: committed, uncommitted and untracked work alike. Selecting a file opens its diff as a window. The list keeps itself up to date.
+  - Above the list, the pane shows how the workspace's branch stands on the forge the repository is hosted on: not pushed yet, pushed without a pull request (with a link to open one), or its pull request with state, checks, reviews and target branch, linking to the forge. It appears only for repositories hosted on a forge Geordi knows, and is at most a minute old.
   - **Terminals** are shells in the workspace's directory, as tabs that can be split like windows. None runs until asked for: a shell starts when a terminal is opened with "+", or on a key press in one that isn't running. Closing a terminal ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
 - The window arrangement and pane sizes are remembered per browser.
 - Sessions from before workspaces existed each appear as a workspace of their own.
@@ -68,7 +69,7 @@ A workspace is where a piece of work happens: a Git worktree on its own branch i
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-002, ADR-003
+- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006
 
 ## Open Questions
 

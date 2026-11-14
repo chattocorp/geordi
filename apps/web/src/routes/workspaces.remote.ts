@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, type FileChange } from '@geordi/protocol';
+import { AGENTS, type FileChange, type Upstream } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
 import { hub, terminals, workspaces } from '#lib/server/app.ts';
 
@@ -60,6 +60,22 @@ export const getChanges = query(
 			return { files, unavailable: null };
 		} catch (error) {
 			return { files: [], unavailable: message(error) };
+		}
+	}
+);
+
+/**
+ * How the workspace's branch stands on the forge its repository is hosted on: pushed or not,
+ * and its pull request. `upstream` is `null` for repositories without such a forge.
+ */
+export const getUpstream = query(
+	v.string(),
+	async (id): Promise<{ upstream: Upstream | null; unavailable: string | null }> => {
+		try {
+			const upstream = await hub().request({ kind: 'upstream', ...workspaces().ref(id) });
+			return { upstream, unavailable: null };
+		} catch (error) {
+			return { upstream: null, unavailable: message(error) };
 		}
 	}
 );
