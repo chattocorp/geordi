@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { close, move, open, resize, type Layout, type Zone } from '#lib/layout.ts';
+	import Button from './Button.svelte';
 	import Split from './Split.svelte';
 
 	type Props = {
@@ -67,7 +68,7 @@
 			<div
 				role="tablist"
 				tabindex="-1"
-				class="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-sidebar px-2"
+				class="pane-bar gap-1 overflow-x-auto px-2"
 				ondragover={(event) => over(event, n.id, 'center')}
 				ondrop={drop}
 			>
@@ -88,38 +89,34 @@
 							if (event.key === 'Enter' || event.key === ' ') onchange(open(layout, id));
 						}}
 						class={[
-							'group/tab flex h-7 max-w-56 min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md pr-1 pl-2 text-sm select-none',
-							active
-								? 'bg-surface font-medium text-ink shadow-soft'
-								: 'text-muted hover:bg-surface/60 hover:text-ink'
+							'group/tab item h-7 max-w-56 min-w-0 shrink-0 cursor-default pr-1 pl-2 select-none',
+							active && 'item-active font-medium'
 						]}
 					>
 						{@render tab(id)}
-						<button
-							type="button"
-							aria-label="Close"
+						<Button
+							variant="ghost"
+							size="sm"
+							icon="icon-[lucide--x]"
+							label="Close"
 							onclick={(event) => {
 								event.stopPropagation();
 								onchange(close(layout, id));
 							}}
 							class={[
-								'grid size-5 shrink-0 place-items-center rounded text-muted opacity-0 group-hover/tab:opacity-100 hover:bg-sunken hover:text-ink focus-visible:opacity-100',
+								'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100',
 								active && 'opacity-60'
 							]}
-						>
-							<span class="icon-[lucide--x] size-3.5"></span>
-						</button>
+						/>
 					</div>
 				{/each}
-				<button
-					type="button"
-					aria-label={newLabel}
-					title={newLabel}
+				<Button
+					variant="ghost"
+					size="sm"
+					icon="icon-[lucide--plus]"
+					label={newLabel}
 					onclick={() => onchange(open(layout, newTab(), n.id))}
-					class="grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-surface/60 hover:text-ink"
-				>
-					<span class="icon-[lucide--plus] size-4"></span>
-				</button>
+				/>
 			</div>
 
 			<div
@@ -143,7 +140,7 @@
 				{#if dragging && target?.group === n.id}
 					<div
 						class={[
-							'pointer-events-none absolute z-20 rounded-lg bg-accent/15 ring-2 ring-accent/60 ring-inset',
+							'pointer-events-none absolute z-20 rounded-control bg-accent/15 ring-2 ring-accent/60 ring-inset',
 							overlay[target.zone]
 						]}
 					></div>

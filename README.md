@@ -31,13 +31,17 @@ pnpm install
 pnpm dev
 ```
 
-| Command       | Purpose                   |
-| ------------- | ------------------------- |
-| `pnpm dev`    | Start all apps            |
-| `pnpm check`  | Type-check all packages   |
-| `pnpm lint`   | Check formatting and lint |
-| `pnpm format` | Format all files          |
-| `pnpm test`   | Run all tests             |
+| Command                               | Purpose                   |
+| ------------------------------------- | ------------------------- |
+| `pnpm dev`                            | Start all apps            |
+| `pnpm check`                          | Type-check all packages   |
+| `pnpm lint`                           | Check formatting and lint |
+| `pnpm format`                         | Format all files          |
+| `pnpm test`                           | Run all tests             |
+| `pnpm --filter @geordi/web storybook` | Browse the design system  |
+
+The tests render the UI's stories in a real browser; install it once with
+`pnpm --filter @geordi/web exec playwright install chromium`.
 
 `pnpm dev` starts the forge on http://localhost:5173 and a daemon that connects to it. In
 development, forge data is stored in `./.data`.

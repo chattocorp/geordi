@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import Button from './Button.svelte';
 
 	let dark = $state(false);
 
@@ -19,12 +20,9 @@
 	}
 </script>
 
-<button
-	type="button"
+<Button
+	variant="ghost"
+	icon={dark ? 'icon-[lucide--sun]' : 'icon-[lucide--moon]'}
+	label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
 	onclick={toggle}
-	class="grid size-8 place-items-center rounded-md text-muted hover:bg-sunken hover:text-ink"
-	aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-	title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
->
-	<span class={['size-4', dark ? 'icon-[lucide--sun]' : 'icon-[lucide--moon]']}></span>
-</button>
+/>

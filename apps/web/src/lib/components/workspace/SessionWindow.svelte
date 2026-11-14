@@ -3,9 +3,11 @@
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
-	import { submitOnEnter } from '#lib/keys.ts';
 	import type { Session } from '#lib/server/workspaces.ts';
 	import { toBlocks } from '#lib/transcript.ts';
+	import Button from '#lib/ui/Button.svelte';
+	import Composer from '#lib/ui/Composer.svelte';
+	import Notice from '#lib/ui/Notice.svelte';
 	import { sendMessage, stopSession } from '../../../routes/workspaces.remote';
 
 	let { session, cwd }: { session: Session; cwd?: string } = $props();
@@ -44,7 +46,7 @@
 				<li>
 					{#if block.kind === 'user'}
 						<div
-							class="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 whitespace-pre-wrap"
+							class="ml-auto w-fit max-w-[85%] rounded-card rounded-br-control bg-bubble px-4 py-2.5 whitespace-pre-wrap"
 						>
 							{block.text}
 						</div>
@@ -58,12 +60,7 @@
 									{:else if part.kind === 'tools'}
 										<ToolGroup tools={part.tools} {cwd} />
 									{:else}
-										<div
-											class="flex items-start gap-2.5 rounded-xl bg-danger-soft px-3.5 py-2.5 text-sm text-danger"
-										>
-											<span class="mt-0.5 icon-[lucide--triangle-alert] size-4 shrink-0"></span>
-											<p>{part.error}</p>
-										</div>
+										<Notice>{part.error}</Notice>
 									{/if}
 								{/each}
 							</div>
@@ -76,56 +73,47 @@
 
 	<div class="relative shrink-0">
 		{#if !following}
-			<button
-				type="button"
+			<Button
+				icon="icon-[lucide--arrow-down]"
 				onclick={toLatest}
-				class="absolute -top-10 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-surface py-1.5 pr-3.5 pl-3 text-sm font-medium shadow-float ring-1 ring-line/60 hover:text-accent-ink"
+				class="absolute -top-12 left-1/2 -translate-x-1/2 bg-surface shadow-float"
 			>
-				<span class="icon-[lucide--arrow-down] size-3.5"></span>
 				Jump to latest
-			</button>
+			</Button>
 		{/if}
-		<form {...form} class="mx-auto max-w-3xl px-5 pb-4">
-			<input {...form.fields.sessionId.as('hidden', session.id)} />
-			<div
-				class="rounded-2xl bg-surface shadow-float ring-1 ring-line/60 focus-within:ring-accent/60"
+		<div class="mx-auto max-w-3xl px-5 pb-4">
+			<Composer
+				{form}
+				rows={2}
+				placeholder={running ? 'The agent is working…' : 'Reply to the agent'}
+				field={form.fields.text.as('text')}
+				disabled={running}
+				problems={form.fields.text.issues()?.map((problem) => problem.message)}
 			>
-				<textarea
-					{...form.fields.text.as('text')}
-					rows="2"
-					aria-label="Reply to the agent"
-					placeholder={running ? 'The agent is working…' : 'Reply to the agent'}
-					disabled={running}
-					onkeydown={submitOnEnter}
-					class="block w-full resize-none bg-transparent px-4 pt-3.5 pb-1 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed"
-				></textarea>
-				<div class="flex items-center gap-2 px-3 pb-3">
-					{#each form.fields.text.issues() ?? [] as problem (problem.message)}
-						<p class="text-sm text-danger">{problem.message}</p>
-					{:else}
-						<p class="hidden text-xs text-muted sm:block">
-							Enter to send, Shift+Enter for a new line
-						</p>
-					{/each}
+				{#snippet header()}<input {...form.fields.sessionId.as('hidden', session.id)} />{/snippet}
+				{#snippet footer()}
+					<p class="hidden pl-1 text-xs text-muted sm:block">
+						Enter to send, Shift+Enter for a new line
+					</p>
 					{#if running}
-						<button
-							type="button"
+						<Button
+							icon="icon-[lucide--square]"
+							class="ml-auto"
 							onclick={() => stopSession(session.id)}
-							class="ml-auto flex items-center gap-2 rounded-full bg-sunken py-1.5 pr-3.5 pl-3 text-sm font-medium ring-1 ring-line hover:bg-line/50"
 						>
-							<span class="icon-[lucide--square] size-3.5"></span>
 							Stop
-						</button>
+						</Button>
 					{:else}
-						<button
-							class="ml-auto grid size-8 place-items-center rounded-full bg-accent text-on-accent shadow-soft hover:brightness-105"
-							aria-label="Send"
-						>
-							<span class="icon-[lucide--arrow-up] size-4.5"></span>
-						</button>
+						<Button
+							type="submit"
+							variant="primary"
+							icon="icon-[lucide--arrow-up]"
+							label="Send"
+							class="ml-auto"
+						/>
 					{/if}
-				</div>
-			</div>
-		</form>
+				{/snippet}
+			</Composer>
+		</div>
 	</div>
 </div>

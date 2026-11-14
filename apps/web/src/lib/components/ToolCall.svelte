@@ -21,16 +21,16 @@
 	>
 		<span
 			class={[
-				'grid size-6 shrink-0 place-items-center rounded-md',
+				'grid size-6 shrink-0 place-items-center rounded-control',
 				isError ? 'bg-danger-soft text-danger' : 'bg-sunken text-muted'
 			]}
 		>
 			<span class={['size-3.5', toolIcon(name)]}></span>
 		</span>
 		<span class="shrink-0 font-medium">{name}</span>
-		<span class="min-w-0 flex-1 truncate font-mono text-sm text-muted">{summary}</span>
+		<span class="min-w-0 flex-1 truncate code-dense text-muted">{summary}</span>
 		{#if pending}
-			<span class="size-1.5 shrink-0 rounded-full bg-accent"></span>
+			<span class="dot dot-live"></span>
 			<span class="sr-only">Running</span>
 		{:else if isError}
 			<span class="sr-only">Failed</span>
@@ -40,7 +40,7 @@
 		></span>
 	</summary>
 
-	<div class="mx-3.5 mb-3 overflow-hidden rounded-lg bg-sunken font-mono text-sm leading-normal">
+	<div class="mx-3.5 mb-3 overflow-hidden rounded-control bg-sunken code-dense">
 		{#if input && input !== summary}
 			<pre class="overflow-x-auto p-3 whitespace-pre-wrap">{input}</pre>
 		{/if}

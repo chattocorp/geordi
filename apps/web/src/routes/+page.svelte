@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import Badge from '#lib/ui/Badge.svelte';
+	import Button from '#lib/ui/Button.svelte';
+	import Page from '#lib/ui/Page.svelte';
 	import { getNavigation } from './nav.remote';
 	import { registerRepo } from './repos.remote';
 
@@ -7,68 +10,54 @@
 	const { path } = registerRepo.fields;
 </script>
 
-<svelte:head><title>Overview · Geordi</title></svelte:head>
-
-<main class="mx-auto w-full max-w-5xl space-y-8 px-6 py-10">
-	<header class="space-y-1">
-		<h1 class="text-2xl font-semibold tracking-tight">Overview</h1>
-		<p class="text-muted">Pick a repository to start a workspace in it.</p>
-	</header>
+<Page title="Overview" wide>
+	{#snippet description()}Pick a repository to start a workspace in it.{/snippet}
 
 	<ul class="grid gap-4 sm:grid-cols-2">
 		{#each (await nav).repos as repo (repo.id)}
 			<li>
 				<a
 					href={resolve('/repos/[id]', { id: repo.id })}
-					class="flex h-full flex-col gap-4 rounded-2xl bg-surface p-5 shadow-soft ring-1 ring-line/60 transition-shadow hover:shadow-float"
+					class="flex h-full flex-col gap-4 card p-5 card-link"
 				>
 					<div class="flex items-center gap-3">
 						<span
-							class="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-ink"
+							class="grid size-10 shrink-0 place-items-center rounded-control bg-accent-soft text-accent-ink"
 						>
 							<span class="icon-[lucide--folder-git-2] size-5"></span>
 						</span>
 						<div class="min-w-0">
-							<p class="font-semibold">{repo.name}</p>
-							<p class="truncate font-mono text-xs text-muted" title={repo.path}>{repo.path}</p>
+							<p class="heading">{repo.name}</p>
+							<p class="truncate code-dense text-muted" title={repo.path}>{repo.path}</p>
 						</div>
 					</div>
-					<div class="mt-auto flex items-center gap-2 text-sm">
-						<span class="rounded-full bg-sunken px-2.5 py-0.5 text-muted">
+					<div class="mt-auto flex items-center gap-2">
+						<Badge>
 							{repo.workspaceCount}
 							{repo.workspaceCount === 1 ? 'workspace' : 'workspaces'}
-						</span>
+						</Badge>
 						{#if repo.working > 0}
-							<span
-								class="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-0.5 font-medium text-accent-ink"
-							>
-								<span class="size-1.5 rounded-full bg-accent"></span>
-								{repo.working} working
-							</span>
+							<Badge tone="accent" dot>{repo.working} working</Badge>
 						{/if}
 					</div>
 				</a>
 			</li>
 		{/each}
 
-		<li class="rounded-2xl border border-dashed border-line p-5">
+		<li class="rounded-card border border-dashed border-line p-5">
 			<form {...registerRepo} class="flex h-full flex-col gap-3">
 				<div>
-					<p class="font-semibold">Register a repository</p>
+					<p class="heading">Register a repository</p>
 					<p class="text-sm text-muted">The path to a Git repository on this machine.</p>
 				</div>
-				<div class="mt-auto flex gap-2">
+				<div class="mt-auto flex items-center gap-2">
 					<input
 						{...path.as('text')}
 						placeholder="~/src/my-project"
 						aria-label="Repository path"
-						class="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2 font-mono text-sm shadow-soft ring-1 ring-line/60 placeholder:text-muted/70"
+						class="min-w-0 flex-1 input code"
 					/>
-					<button
-						class="rounded-lg bg-ink px-3.5 py-2 text-sm font-medium text-bg hover:opacity-90"
-					>
-						Register
-					</button>
+					<Button type="submit" variant="primary">Register</Button>
 				</div>
 				{#each path.issues() ?? [] as problem (problem.message)}
 					<p class="text-sm text-danger">{problem.message}</p>
@@ -76,4 +65,4 @@
 			</form>
 		</li>
 	</ul>
-</main>
+</Page>

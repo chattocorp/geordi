@@ -1,6 +1,7 @@
 import prettier from 'eslint-config-prettier';
 import path from 'node:path';
 import js from '@eslint/js';
+import storybook from 'eslint-plugin-storybook';
 import svelte from 'eslint-plugin-svelte';
 import { defineConfig, includeIgnoreFile } from 'eslint/config';
 import globals from 'globals';
@@ -13,6 +14,7 @@ export default defineConfig(
 	js.configs.recommended,
 	ts.configs.recommended,
 	svelte.configs.recommended,
+	storybook.configs['flat/recommended'],
 	prettier,
 	svelte.configs.prettier,
 	{

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
-	import Panes from '#lib/components/Panes.svelte';
+	import Panes from '#lib/ui/Panes.svelte';
 	import { singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { closeTerminal } from '../../../routes/workspaces.remote';

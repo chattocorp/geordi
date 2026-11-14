@@ -3,7 +3,8 @@
 	import favicon from '#lib/assets/favicon.svg';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
+	import Badge from '#lib/ui/Badge.svelte';
+	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
 	import { getNavigation } from './nav.remote';
 	import type { LayoutProps } from './$types';
 
@@ -42,7 +43,7 @@
 	<a href={resolve('/')} class="flex items-center gap-3" aria-label="Geordi home">
 		<!-- The visor: Geordi's mark. -->
 		<span class="h-2 w-6 rounded-full bg-accent shadow-[0_0_14px_var(--accent)]"></span>
-		<span class="text-base font-semibold tracking-tight">Geordi</span>
+		<span class="heading">Geordi</span>
 	</a>
 {/snippet}
 
@@ -70,13 +71,13 @@
 
 			{#if tree.of(null).length > 0}
 				<div>
-					<p class="px-2.5 pb-1 text-xs font-medium text-muted">Workspaces</p>
+					<p class="px-2.5 pb-1 label">Workspaces</p>
 					{@render workspaces(null)}
 				</div>
 			{/if}
 
 			<div class="space-y-0.5">
-				<p class="px-2.5 pb-1 text-xs font-medium text-muted">Repositories</p>
+				<p class="px-2.5 pb-1 label">Repositories</p>
 				{#each (await nav).repos as repo (repo.id)}
 					{@render link(
 						resolve('/repos/[id]', { id: repo.id }),
@@ -114,18 +115,10 @@
 			<li>
 				<a
 					href={resolve('/workspaces/[id]', { id: workspace.id })}
-					class={[
-						'flex items-center gap-2 rounded-md px-2.5 py-1 text-sm',
-						current ? 'bg-surface text-ink shadow-soft' : 'text-muted hover:text-ink'
-					]}
+					class={['item px-2.5 py-1', current && 'item-active']}
 					aria-current={current ? 'page' : undefined}
 				>
-					<span
-						class={[
-							'size-1.5 shrink-0 rounded-full',
-							tree.working(workspace) ? 'bg-accent' : 'bg-line'
-						]}
-					></span>
+					<span class={['dot', tree.working(workspace) && 'dot-live']}></span>
 					<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
 					{#if !parent}
 						<span class="max-w-20 shrink-0 truncate text-xs text-muted/80">
@@ -145,21 +138,13 @@
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- callers pass resolve()d hrefs -->
 	<a
 		{href}
-		class={[
-			'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm',
-			current
-				? 'bg-surface font-medium text-ink shadow-soft'
-				: 'text-muted hover:bg-surface/60 hover:text-ink'
-		]}
+		class={['item gap-2.5 px-2.5 py-1.5', current && 'item-active font-medium']}
 		aria-current={current ? 'page' : undefined}
 	>
 		<span class={['size-4 shrink-0', icon]}></span>
 		<span class="truncate">{label}</span>
 		{#if working > 0}
-			<span
-				class="ml-auto rounded-full bg-accent-soft px-1.5 text-xs font-medium text-accent-ink"
-				title="{working} working">{working}</span
-			>
+			<span class="ml-auto" title="{working} working"><Badge tone="accent">{working}</Badge></span>
 		{/if}
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->

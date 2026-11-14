@@ -29,6 +29,7 @@ Run from the repository root:
 - `pnpm lint` / `pnpm format`
 - `pnpm test`: run all tests
 - `pnpm --filter @geordi/web <script>`: run a script in one package
+- `pnpm --filter @geordi/web storybook`: the design system, on http://localhost:6006
 
 Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 
@@ -38,8 +39,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   turns, terminals and future long-running things must survive a forge restart unchanged.
   The forge may keep live state in memory only if it can rebuild it from the event log or
   from what a reconnecting daemon reports. Test new features by restarting the forge.
-- **Keep the UI calm.** Four font sizes only (`text-xs`, `text-sm`, `text-base`, `text-2xl`,
-  defined in `layout.css`); never arbitrary sizes. Hierarchy comes from weight and colour.
+- **Keep the UI calm.** Four font sizes only (`text-xs` 13px, `text-sm` 15px, `text-base`
+  17px, `text-2xl` for page titles; defined in `layout.css`), three radii, one accent.
+  Never arbitrary sizes. Hierarchy comes from weight and colour.
 
 ## Architecture
 
@@ -86,15 +88,29 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - Server-only code lives in `src/lib/server/`; import it as `#lib/server/<file>.ts`.
   - Env vars are declared in `src/env.ts` and imported from `$app/env/private` (SvelteKit 3;
     `$env/*` is deprecated).
-- **UI design:** colours are semantic tokens defined in `apps/web/src/routes/layout.css`
-  (`bg`, `sidebar`, `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`,
-  `accent-soft`, `accent-ink`, `on-accent`, `danger`, `ok`, plus `claude`/`codex` for agent
-  colours), switching for light and dark mode. Dark mode is deliberately mid-tone, not
-  near-black. Use tokens instead of raw Tailwind colours. Gold `accent` is for primary actions
-  and things that are live; the `.visor` sweep is the only ambient motion. Surfaces use
-  `shadow-soft`/`shadow-float` with a `ring-line/60` rather than hard borders. Icons: Iconify
-  via `icon-[lucide--name]`. Fonts: Geist and Geist Mono from Fontsource (no remote loading);
-  mono only for actual code (paths, branches, commands, output).
+- **Design system (ADR-005).** Three layers; use them in this order before writing raw
+  Tailwind:
+  - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `sidebar`,
+    `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`, `accent-soft`,
+    `accent-ink`, `on-accent`, `danger`, `ok`, plus `claude`/`codex`) for light and dark
+    mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
+  - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
+    `pane-bar`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
+    `item-active`, `empty`, `dot`, `dot-live`.
+  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`,
+    `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in
+    `#lib/components/`.
+  - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
+    utility (styling only) or a component (behaviour or structure). Never use arbitrary
+    values or raw colours.
+  - Every `lib/ui` component has a `*.stories.svelte` next to it (Svelte CSF; use
+    `<Story name="…" asChild>` to render your own markup). `pnpm test` renders every story
+    in a browser. Add or update stories with every UI change.
+- **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
+  the primary action and things that are live; the `.visor` sweep is the only ambient
+  motion. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
+  `icon-[lucide--name]`. Fonts: IBM Plex Sans and IBM Plex Mono from Fontsource (no remote
+  loading); mono only for actual code (paths, branches, commands, output).
 - **Workspace UI:** components in `#lib/components/workspace/`. Windows are tabs in a tree of
   splits (`#lib/layout.ts`, pure functions; rendered by `Panes.svelte`), named after what
   they show (`session:<id>`, `diff:<path>`, `new`). Layout and pane sizes are per-browser

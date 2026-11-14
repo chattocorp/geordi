@@ -7,7 +7,7 @@
 
 <span
 	class={[
-		'grid shrink-0 place-items-center rounded-lg',
+		'grid shrink-0 place-items-center rounded-control',
 		size === 'sm' ? 'size-6' : 'size-8',
 		agent === 'claude' ? 'bg-claude/15 text-claude' : 'bg-codex/15 text-codex'
 	]}

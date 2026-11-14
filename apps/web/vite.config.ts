@@ -1,4 +1,6 @@
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 import tailwindcss from '@tailwindcss/vite';
+import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -29,6 +31,22 @@ export default defineConfig({
 					environment: 'node',
 					include: ['src/**/*.{test,spec}.{js,ts}'],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
+				}
+			},
+			{
+				// Every story is also a test: it must render (in a real browser) without errors.
+				extends: true,
+				plugins: [storybookTest({ configDir: `${import.meta.dirname}/.storybook` })],
+				test: {
+					name: 'storybook',
+					// Stories render; they don't need to assert anything themselves.
+					expect: { requireAssertions: false },
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright({}),
+						instances: [{ browser: 'chromium' }]
+					}
 				}
 			}
 		]

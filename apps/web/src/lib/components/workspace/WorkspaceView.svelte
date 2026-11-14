@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
-	import Panes from '#lib/components/Panes.svelte';
-	import Split from '#lib/components/Split.svelte';
+	import Panes from '#lib/ui/Panes.svelte';
+	import Split from '#lib/ui/Split.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import { untrack } from 'svelte';
 	import { add, open, prune, replace, singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
@@ -76,11 +76,11 @@
 		{/if}
 		<span class="truncate">{session.title}</span>
 		{#if session.status === 'running'}
-			<span class="size-1.5 shrink-0 rounded-full bg-accent" title="Working"></span>
+			<span class="dot dot-live" title="Working"></span>
 		{/if}
 	{:else if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
-		<span class="truncate font-mono text-sm" title={path}>{path.split('/').at(-1)}</span>
+		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
 	{:else}
 		<span class="icon-[lucide--plus] size-3.5 shrink-0"></span>
 		<span class="truncate">New session</span>
@@ -106,7 +106,7 @@
 <main class="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col md:h-dvh">
 	<header class="flex h-14 shrink-0 items-center gap-3 border-b border-line px-5">
 		<div class="min-w-0 flex-1">
-			<h1 class="truncate font-semibold tracking-tight" title={workspace.title}>
+			<h1 class="truncate heading" title={workspace.title}>
 				{workspace.title}
 			</h1>
 			<div class="flex items-center gap-3 text-xs text-muted">
@@ -130,7 +130,7 @@
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
-						<span class="truncate font-mono">{workspace.worktree.branch}</span>
+						<span class="truncate code-dense">{workspace.worktree.branch}</span>
 					</span>
 				{/if}
 				{#if !query.connected}

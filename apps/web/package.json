@@ -14,11 +14,18 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest --run",
-		"start": "HOST=${HOST:-127.0.0.1} node build"
+		"start": "HOST=${HOST:-127.0.0.1} node build",
+		"storybook": "storybook dev -p 6006",
+		"build-storybook": "storybook build"
 	},
 	"devDependencies": {
 		"@iconify-json/lucide": "^1.2.154",
 		"@iconify/tailwind4": "^1.2.3",
+		"@storybook/addon-a11y": "^10.6.7",
+		"@storybook/addon-docs": "^10.6.7",
+		"@storybook/addon-svelte-csf": "^5.1.6",
+		"@storybook/addon-vitest": "^10.6.7",
+		"@storybook/sveltekit": "^10.6.7",
 		"@sveltejs/adapter-node": "^6.0.0",
 		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.2.0",
@@ -27,6 +34,9 @@
 		"@types/markdown-it": "^14.2.0",
 		"@types/node": "catalog:",
 		"@types/ws": "^8.18.2",
+		"@vitest/browser-playwright": "catalog:",
+		"playwright": "^1.65.0",
+		"storybook": "^10.6.7",
 		"svelte": "^5.57.2",
 		"svelte-check": "^4.6.0",
 		"tailwindcss": "^4.3.0",
@@ -35,8 +45,8 @@
 		"vitest": "catalog:"
 	},
 	"dependencies": {
-		"@fontsource-variable/geist": "^5.3.0",
-		"@fontsource-variable/geist-mono": "^5.3.0",
+		"@fontsource-variable/ibm-plex-sans": "^5.3.0",
+		"@fontsource/ibm-plex-mono": "^5.3.0",
 		"@geordi/protocol": "workspace:*",
 		"@valibot/to-json-schema": "^1.8.0",
 		"@xterm/addon-fit": "^0.11.0",
