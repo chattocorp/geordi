@@ -42,6 +42,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 - **Keep the UI calm.** Four font sizes only (`text-xs` 13px, `text-sm` 15px, `text-base`
   17px, `text-2xl` for page titles; defined in `layout.css`), three radii, one accent.
   Never arbitrary sizes. Hierarchy comes from weight and colour.
+- **Interactive elements have a pointer cursor.** `layout.css` gives it to links, buttons,
+  tabs, summaries and labels of inputs; anything else made clickable needs `cursor-pointer`
+  (or the right `role`). Never `cursor-default` on something you can click.
 
 ## Architecture
 

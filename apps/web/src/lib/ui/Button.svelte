@@ -43,7 +43,7 @@
 	aria-label={children ? undefined : label}
 	title={label}
 	class={[
-		'inline-flex shrink-0 items-center justify-center select-none disabled:cursor-not-allowed disabled:opacity-60',
+		'inline-flex shrink-0 items-center justify-center select-none disabled:opacity-60',
 		tones[variant],
 		shapes[size][children ? 0 : 1],
 		children && (icon ? 'pr-4 pl-3' : 'px-4'),

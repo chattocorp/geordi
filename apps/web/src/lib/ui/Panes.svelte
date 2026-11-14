@@ -89,7 +89,7 @@
 							if (event.key === 'Enter' || event.key === ' ') onchange(open(layout, id));
 						}}
 						class={[
-							'group/tab item h-7 max-w-56 min-w-0 shrink-0 cursor-default pr-1 pl-2 select-none',
+							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pr-1 pl-2 select-none',
 							active && 'item-active font-medium'
 						]}
 					>

@@ -191,6 +191,23 @@
 		@apply bg-bg font-sans text-base text-ink antialiased;
 	}
 
+	/* Everything you can click says so. (Tailwind leaves buttons with the default cursor.) */
+	:where(
+		a[href],
+		button,
+		summary,
+		select,
+		label[for],
+		label:has(input),
+		[role='button'],
+		[role='tab']
+	) {
+		cursor: pointer;
+	}
+	:where(button, select):disabled {
+		cursor: not-allowed;
+	}
+
 	:focus-visible {
 		@apply outline-2 outline-offset-2 outline-accent;
 	}
