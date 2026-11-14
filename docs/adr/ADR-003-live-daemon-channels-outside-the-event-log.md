@@ -23,5 +23,6 @@ Storing either in the event log would bloat it with data that is derived (Git al
 - The event log stays small and meaningful; changes are always as fresh as Git.
 - Changes and the terminal need a connected daemon, and say so when there is none.
 - Terminal history is lost when the forge restarts, and shells don't survive a reconnect.
-- The daemon runs Git in worktrees that agents can write to. It must never trust the worktree's own Git metadata (it passes the directories explicitly) and never run repository-defined diff drivers.
+- The daemon runs Git in worktrees that agents can write to. It must never trust the worktree's own Git metadata or per-worktree config (it runs Git against the repository's own `.git` with the worktree's files and index) and never run repository-defined diff drivers.
+- The terminal is the user's own unsandboxed shell in such a worktree. The daemon re-checks the worktree's Git metadata before passing on any input, and ends the shell if it was tampered with.
 - A terminal gives whoever can reach the forge a shell on the daemon's machine. That is the same trust as running agents there, and stays gated by the forge only listening locally until authentication exists.

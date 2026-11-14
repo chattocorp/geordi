@@ -23,7 +23,7 @@ export type Worktree = {
  * afterwards trusts them: repointing one at a directory with its own git config or hooks
  * would run the agent's code outside its sandbox.
  */
-function verifyLinks({ path, adminDir, commonDir }: Worktree) {
+export function verifyLinks({ path, adminDir, commonDir }: Worktree) {
 	try {
 		const intact =
 			same(resolve(adminDir, read(join(adminDir, 'commondir'))), commonDir) &&
@@ -85,13 +85,31 @@ export function ensureWorktree(baseDir: string, repoPath: string, workspaceId: s
 }
 
 /**
- * Runs git in a worktree. The directories are passed explicitly, so git never follows the
- * agent-writable links (see `verifyLinks`) and only reads the repository's own config.
+ * What the worktree has checked out, as a revision: a branch ref or a commit ID. Read from
+ * the admin directory's HEAD by hand, because `gitIn` deliberately doesn't use that directory.
+ */
+export function headOf({ path, adminDir }: Worktree): string {
+	const head = read(join(adminDir, 'HEAD'));
+	const match = /^ref: (refs\/heads\/[\w./-]+)$/.exec(head) ?? /^([0-9a-f]{40,64})$/.exec(head);
+	if (!match) throw new Error(`Worktree ${path} has an unreadable HEAD`);
+	return match[1];
+}
+
+/**
+ * Runs git on a worktree's files without trusting anything an agent can write. Git uses the
+ * repository's own .git directory (so only its config, hooks and filters apply, never the
+ * worktree's `config.worktree` or repointed links), the worktree's files, and the worktree's
+ * index. `HEAD` therefore means the repository's HEAD here: use `headOf` for the worktree's.
  */
 export function gitIn({ path, adminDir, commonDir }: Worktree, ...args: string[]): string {
 	return execFileSync('git', ['--literal-pathspecs', ...args], {
 		cwd: path,
-		env: { ...process.env, GIT_DIR: adminDir, GIT_COMMON_DIR: commonDir, GIT_WORK_TREE: path },
+		env: {
+			...process.env,
+			GIT_DIR: commonDir,
+			GIT_WORK_TREE: path,
+			GIT_INDEX_FILE: join(adminDir, 'index')
+		},
 		encoding: 'utf8',
 		stdio: ['ignore', 'pipe', 'pipe'],
 		maxBuffer: 64 * 1024 * 1024

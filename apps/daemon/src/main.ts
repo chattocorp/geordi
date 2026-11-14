@@ -13,7 +13,7 @@ import { adapterFor } from './agents/adapter.ts';
 import { changes, diff } from './changes.ts';
 import { closeTerminals, openTerminal, resizeTerminal, writeTerminal } from './terminals.ts';
 import { runTurn, type Turn } from './turn.ts';
-import { ensureWorktree, locateWorktree } from './worktree.ts';
+import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
@@ -174,8 +174,9 @@ async function handle(message: ForgeMessage) {
 			const output = (data: string) => sendLive({ type: 'terminal.output', workspaceId, data });
 			const exit = () => sendLive({ type: 'terminal.exit', workspaceId });
 			try {
-				const { path } = locateWorktree(worktreesDir, message.repoPath, workspaceId);
-				openTerminal(workspaceId, path, message, output, exit);
+				const worktree = locateWorktree(worktreesDir, message.repoPath, workspaceId);
+				const guard = () => verifyLinks(worktree);
+				openTerminal(workspaceId, worktree.path, message, guard, output, exit);
 			} catch (error) {
 				output(`${errorMessage(error)}\r\n`);
 				exit();

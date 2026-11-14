@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changes, diff } from './changes.ts';
-import { ensureWorktree, gitIn, locateWorktree } from './worktree.ts';
+import { ensureWorktree, locateWorktree } from './worktree.ts';
 
 function repo() {
 	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-wt-')));
@@ -89,8 +89,9 @@ describe('changes', () => {
 
 		// committed in the workspace
 		writeFileSync(join(worktree.path, 'committed.txt'), 'a\n');
-		gitIn(worktree, 'add', '.');
-		gitIn(worktree, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'work');
+		const git = (...args: string[]) => execFileSync('git', ['-C', worktree.path, ...args]);
+		git('add', '.');
+		git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'work');
 		// uncommitted, and untracked
 		writeFileSync(join(worktree.path, 'kept.txt'), 'one\nTWO\nthree\n');
 		writeFileSync(join(worktree.path, 'new.txt'), 'x\ny\n');
@@ -103,5 +104,22 @@ describe('changes', () => {
 		expect(diff(worktree, repoPath, 'kept.txt')).toContain('+TWO');
 		expect(diff(worktree, repoPath, 'new.txt')).toContain('+x\n+y\n');
 		expect(() => diff(worktree, repoPath, '../outside')).toThrow(/outside repository/);
+	});
+
+	it("ignores config an agent plants in the worktree's admin directory", () => {
+		const repoPath = repo();
+		execFileSync('git', ['-C', repoPath, 'config', 'extensions.worktreeConfig', 'true']);
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+
+		const marker = join(base, 'pwned');
+		writeFileSync(
+			join(worktree.adminDir, 'config.worktree'),
+			`[core]\n\tfsmonitor = "touch ${marker}; false"\n`
+		);
+		writeFileSync(join(worktree.path, 'new.txt'), 'x\n');
+
+		expect(changes(worktree, repoPath)).toEqual([{ path: 'new.txt', added: 1, removed: 0 }]);
+		expect(existsSync(marker)).toBe(false);
 	});
 });

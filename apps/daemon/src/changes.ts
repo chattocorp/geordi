@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FileChange } from '@geordi/protocol';
-import { gitIn, type Worktree } from './worktree.ts';
+import { gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** Diffs are for reading; beyond this they are cut off. */
 const MAX_DIFF = 400_000;
@@ -15,7 +15,7 @@ const SAFE = ['--no-ext-diff', '--no-textconv', '--no-renames'];
  */
 function base(worktree: Worktree, repoPath: string): string {
 	const head = execFileSync('git', ['-C', repoPath, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
-	return gitIn(worktree, 'merge-base', 'HEAD', head.trim()).trim();
+	return gitIn(worktree, 'merge-base', headOf(worktree), head.trim()).trim();
 }
 
 const untracked = (worktree: Worktree) =>
