@@ -209,7 +209,7 @@
 						/>
 					{/snippet}
 					{#snippet b()}
-						<Terminals workspaceId={id} />
+						<Terminals workspaceId={id} running={workspace.terminals} />
 					{/snippet}
 				</Split>
 			{:else}

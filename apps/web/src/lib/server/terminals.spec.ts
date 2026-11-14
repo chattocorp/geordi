@@ -118,6 +118,28 @@ describe('terminals', () => {
 		expect(sent.at(-1)).toMatchObject({ cols: 50, rows: 10 });
 	});
 
+	it('knows which terminals of a workspace are running, and says when that changes', () => {
+		const { terminals } = setup();
+		let changes = 0;
+		terminals.subscribe(() => changes++);
+
+		terminals.start(at, size);
+		terminals.start({ workspaceId: 'w', terminal: 'second' }, size);
+		terminals.start({ workspaceId: 'other', terminal: 't' }, size);
+		expect(terminals.running('w')).toEqual(['t', 'second']);
+		expect(changes).toBe(3);
+
+		terminals.exit('w:t');
+		expect(terminals.running('w')).toEqual(['second']);
+		terminals.close({ workspaceId: 'w', terminal: 'second' });
+		expect(terminals.running('w')).toEqual([]);
+		expect(changes).toBe(5);
+
+		// a fresh forge learns of running shells from the daemon
+		terminals.reconcile(['w:t']);
+		expect(terminals.running('w')).toEqual(['t']);
+	});
+
 	it('ends the shell when the terminal is closed', () => {
 		const { terminals, sent } = setup();
 		terminals.start(at, size);

@@ -20,7 +20,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
   - **Changes** lists every file that differs from where the workspace branched off, with lines added and removed: committed, uncommitted and untracked work alike. Selecting a file opens its diff as a window. The list updates as files change.
   - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
   - Above the list, the pane shows how the workspace's branch stands on the forge the repository is hosted on: not pushed yet, pushed without a pull request (with a link to open one), or its pull request with state, checks, reviews and target branch, linking to the forge. It appears only for repositories hosted on a forge Geordi knows, and is at most a minute old.
-  - **Terminals** are shells in the workspace's directory, as tabs that can be split like windows. None runs until asked for: a shell starts when a terminal is opened with "+", or on a key press in one that isn't running. Closing a terminal ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
+  - **Terminals** are shells in the workspace's directory, as tabs that can be split like windows. The pane starts empty: a shell starts only when a terminal is opened with "+". There is a tab for every running shell and none for any other, so a tab goes away when its shell exits or is closed. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
 - A workspace can be archived when it is done with. That ends its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. Archiving refuses if the worktree has uncommitted or untracked files, and offers to discard them.
 - The window arrangement and pane sizes are remembered per browser.
 
@@ -70,9 +70,9 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ### 8. Shells start only on request
 
-**Decision:** Opening a workspace never starts a shell; only opening a terminal or pressing a key in a stopped one does.
+**Decision:** Opening a workspace never starts a shell; only opening a terminal does.
 **Why:** A shell is the user's own process in a directory agents write to (ADR-003). It should exist only when someone wants it.
-**Tradeoff:** After a daemon restart, remembered terminals wait for a key press instead of coming back by themselves.
+**Tradeoff:** After a daemon restart the terminals are gone, tabs and all, and have to be opened again.
 
 ### 9. Archiving keeps the branch and the conversation
 

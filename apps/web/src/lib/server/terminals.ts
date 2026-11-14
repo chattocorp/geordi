@@ -38,6 +38,10 @@ export function createTerminals(
 
 	const idOf = ({ workspaceId, terminal }: TerminalRef) => `${workspaceId}:${terminal}`;
 
+	/** Called whenever a shell starts or ends, so viewers can show the terminals there are. */
+	const listeners = new Set<() => void>();
+	const changed = () => listeners.forEach((listener) => listener());
+
 	function get(id: string): Terminal {
 		let terminal = terminals.get(id);
 		if (!terminal) {
@@ -63,13 +67,15 @@ export function createTerminals(
 			...ref(at.workspaceId),
 			...terminal.size
 		});
-		if (!terminal.running) tell(terminal, 'No daemon connected. Press any key to retry.');
+		if (terminal.running) changed();
+		else tell(terminal, 'No daemon connected. Press any key to retry.');
 	}
 
 	function exit(terminal: Terminal) {
 		if (!terminal.running) return;
 		terminal.running = false;
 		tell(terminal, 'The shell exited. Press any key to start a new one.');
+		changed();
 	}
 
 	return {
@@ -104,7 +110,10 @@ export function createTerminals(
 					// A daemon that has scrollback is running the shell, whatever we thought (we
 					// may have just restarted). The reverse doesn't hold: the shell may have been
 					// started after we asked.
-					if (replay) terminal.running = true;
+					if (replay && !terminal.running) {
+						terminal.running = true;
+						changed();
+					}
 					if (replay?.data) listener(replay.data, true);
 					for (const { data, offset } of early ?? [])
 						if (offset >= (replay?.end ?? 0)) listener(data, false);
@@ -134,7 +143,21 @@ export function createTerminals(
 		close(at: TerminalRef) {
 			const terminalId = idOf(at);
 			if (terminals.get(terminalId)?.running) dispatch({ type: 'terminal.close', terminalId });
-			terminals.delete(terminalId);
+			if (terminals.delete(terminalId)) changed();
+		},
+
+		/** The names of a workspace's terminals whose shells are running. */
+		running(workspaceId: string): string[] {
+			const prefix = `${workspaceId}:`;
+			return [...terminals]
+				.filter(([id, terminal]) => id.startsWith(prefix) && terminal.running)
+				.map(([id]) => id.slice(prefix.length));
+		},
+
+		/** Calls `listener` whenever a shell starts or ends. Returns a function that stops it. */
+		subscribe(listener: () => void): () => void {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
 		},
 
 		/** Ends every shell of a workspace, e.g. because its directory is about to go. */
@@ -144,6 +167,7 @@ export function createTerminals(
 				if (terminal.running) dispatch({ type: 'terminal.close', terminalId });
 				terminals.delete(terminalId);
 			}
+			changed();
 		},
 
 		output(terminalId: string, data: string, offset: number) {
@@ -163,6 +187,7 @@ export function createTerminals(
 		reconcile(running: string[]) {
 			for (const [id, terminal] of terminals) if (!running.includes(id)) exit(terminal);
 			for (const id of running) get(id).running = true;
+			changed();
 		}
 	};
 }

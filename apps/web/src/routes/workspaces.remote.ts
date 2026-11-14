@@ -18,6 +18,7 @@ export const getWorkspaces = query.live(v.string(), async function* (repoId) {
  *
  * While someone has this open, a daemon watches the workspace's files; `filesRevision` is
  * different after every change to them, which is the cue to ask for the changes again.
+ * `terminals` names the workspace's terminals whose shells are running.
  */
 export const getWorkspace = query.live(v.string(), async function* (id) {
 	yield* store().live(
@@ -27,10 +28,18 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 			return {
 				...workspace,
 				parent: parent && { id: parent.id, title: parent.title },
-				filesRevision: watchers().revision()
+				filesRevision: watchers().revision(),
+				terminals: terminals().running(id)
 			};
 		},
-		(changed) => watchers().watch(workspaces().summary(id).worktreeId, changed)
+		(changed) => {
+			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
+			const unsubscribe = terminals().subscribe(changed);
+			return () => {
+				unwatch();
+				unsubscribe();
+			};
+		}
 	);
 });
 
