@@ -1,0 +1,4 @@
+[tools]
+"github:hmans/means" = "latest"
+node = "lts"
+pnpm = "latest"

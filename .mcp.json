@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"planning": {
+			"command": "mise",
+			"args": ["exec", "--", "means", "mcp", "--path", "./planning"]
+		}
+	}
+}
