@@ -37,7 +37,7 @@
 	}
 </script>
 
-<div class="min-h-0 flex-1 overflow-y-auto">
+<div class="scroller">
 	<div class="page max-w-2xl">
 		<Composer
 			form={{ onsubmit: start }}

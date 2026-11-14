@@ -141,6 +141,14 @@
 	@apply flex h-10 shrink-0 items-center border-b border-line bg-sidebar;
 }
 
+/*
+ * A region that scrolls inside a pane. Positioned, so that absolutely placed things inside
+ * it (such as screen-reader-only text) scroll with it instead of stretching the page.
+ */
+@utility scroller {
+	@apply relative min-h-0 flex-1 overflow-auto;
+}
+
 /* A page's column of content, and its title. */
 @utility page {
 	@apply mx-auto w-full max-w-3xl space-y-8 px-6 py-10;

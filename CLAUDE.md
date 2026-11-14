@@ -103,7 +103,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     `accent-ink`, `on-accent`, `danger`, `ok`, plus `claude`/`codex`) for light and dark
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `pane-bar`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
+    `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
     `item-active`, `empty`, `dot`, `dot-live`.
   - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`,
     `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in

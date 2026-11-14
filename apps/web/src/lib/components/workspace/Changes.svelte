@@ -49,7 +49,7 @@
 		<UpstreamStatus upstream={upstream.current.upstream} />
 	{/if}
 
-	<div class="min-h-0 flex-1 overflow-y-auto py-1.5">
+	<div class="scroller py-1.5">
 		{#if !changes.current}
 			<p class="px-3.5 py-2 text-sm text-muted">Loading…</p>
 		{:else if changes.current.unavailable}

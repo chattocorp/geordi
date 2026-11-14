@@ -103,7 +103,7 @@
 	{/if}
 {/snippet}
 
-<main class="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col md:h-dvh">
+<main class="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col overflow-hidden md:h-dvh">
 	<header class="flex h-14 shrink-0 items-center gap-3 border-b border-line px-5">
 		<div class="min-w-0 flex-1">
 			<h1 class="truncate heading" title={workspace.title}>

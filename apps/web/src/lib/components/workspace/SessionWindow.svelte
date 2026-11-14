@@ -39,7 +39,7 @@
 		bind:this={scroller}
 		onscroll={() =>
 			(following = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80)}
-		class="min-h-0 flex-1 overflow-y-auto"
+		class="scroller"
 	>
 		<ol class="mx-auto w-full max-w-3xl space-y-8 px-5 py-6">
 			{#each blocks as block, i (i)}

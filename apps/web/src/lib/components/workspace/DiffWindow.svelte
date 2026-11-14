@@ -24,7 +24,7 @@
 	};
 </script>
 
-<div class="min-h-0 flex-1 overflow-auto code-dense">
+<div class="scroller code-dense">
 	{#if diff.current === undefined}
 		<p class="p-5 font-sans text-sm text-muted">Loading…</p>
 	{:else if diff.current === ''}
