@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { command, form, query } from '$app/server';
 import { store } from '#lib/server/events/index.ts';
-import { issues } from '#lib/server/issues.ts';
+import { issues } from '#lib/server/app.ts';
 
 export const getIssues = query.live(async function* () {
 	yield* store().live(() => issues().list());

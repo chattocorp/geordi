@@ -1,6 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { lazy } from './lazy';
-import { store, type EventStore, type GeordiEvent } from './events';
+import type { EventStore, GeordiEvent } from './events/index.ts';
 
 type IssueStream = `issue:${number}`;
 
@@ -88,5 +87,3 @@ export function createIssues(store: EventStore<GeordiEvent>) {
 		reopen: (number: number, actor: string | null = null) => setState(number, 'open', actor)
 	};
 }
-
-export const issues = lazy(() => createIssues(store()));

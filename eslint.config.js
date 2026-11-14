@@ -34,8 +34,9 @@ export default defineConfig(
 		}
 	},
 	{
-		// Override or add rule settings here, such as:
-		// 'svelte/button-has-type': 'error'
-		rules: {}
+		rules: {
+			// Allow omitting properties via rest destructuring: `const { omitted, ...rest } = obj`.
+			'@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }]
+		}
 	}
 );

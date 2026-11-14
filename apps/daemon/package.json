@@ -3,15 +3,17 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "node --watch src/main.ts",
+		"dev": "GEORDI_DAEMON_TOKEN_FILE=../../.data/daemon-token node --watch src/main.ts",
 		"start": "node src/main.ts",
-		"check": "tsc"
+		"check": "tsc",
+		"test": "vitest --run"
 	},
 	"dependencies": {
 		"@geordi/protocol": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"vitest": "catalog:"
 	}
 }

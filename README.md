@@ -37,20 +37,43 @@ pnpm dev
 | `pnpm format` | Format all files          |
 | `pnpm test`   | Run all tests             |
 
-In development, data is stored in `./.data`.
+`pnpm dev` starts the forge on http://localhost:5173 and a daemon that connects to it. In
+development, forge data is stored in `./.data`.
+
+Register a repository on the home page, open it, and start an agent session. Each session
+gets its own Git worktree on a new branch (`geordi/<id>`).
 
 ## Running in production
 
 ```sh
 pnpm --filter @geordi/web build
 ORIGIN=http://localhost:3000 node apps/web/build
+node apps/daemon/src/main.ts
 ```
 
-| Variable          | Default     | Purpose                                              |
-| ----------------- | ----------- | ---------------------------------------------------- |
-| `GEORDI_DATA_DIR` | `~/.geordi` | Where Geordi stores its data                         |
-| `ORIGIN`          |             | Public URL; required, or forms/commands are rejected |
-| `PORT`            | `3000`      | HTTP port                                            |
+The daemon connects once the forge has served its first request.
+
+### Forge
+
+| Variable             | Default     | Purpose                                              |
+| -------------------- | ----------- | ---------------------------------------------------- |
+| `GEORDI_DATA_DIR`    | `~/.geordi` | Where Geordi stores its data                         |
+| `GEORDI_DAEMON_PORT` | `7700`      | Port on 127.0.0.1 where daemons connect              |
+| `ORIGIN`             |             | Public URL; required, or forms/commands are rejected |
+| `PORT`               | `3000`      | HTTP port                                            |
+
+### Daemon
+
+| Variable                        | Default                  | Purpose                                                            |
+| ------------------------------- | ------------------------ | ------------------------------------------------------------------ |
+| `GEORDI_FORGE_URL`              | `ws://127.0.0.1:7700`    | Forge to connect to                                                |
+| `GEORDI_DAEMON_TOKEN_FILE`      | `~/.geordi/daemon-token` | Forge's shared secret (the forge creates it in its data directory) |
+| `GEORDI_DAEMON_TOKEN`           |                          | The secret itself, instead of the file                             |
+| `GEORDI_WORKTREES_DIR`          | `~/.geordi/worktrees`    | Where session worktrees are created                                |
+| `GEORDI_CLAUDE_PERMISSION_MODE` | `acceptEdits`            | `--permission-mode` for `claude -p`                                |
+
+Codex runs in its `workspace-write` sandbox, extended to the repository's `.git` so it can
+commit.
 
 ## Project docs
 

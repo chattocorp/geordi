@@ -43,7 +43,15 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - Domains are factories (`createIssues(store)`) so tests can use `new EventStore(':memory:')`.
   - Record `actor` on events; authentication comes later.
 - **Forge and daemon (ADR-002).** The daemon connects to the forge over one WebSocket carrying
-  JSON: commands down, events up. The forge stores all session history.
+  JSON (`packages/protocol`): commands down, session events up. The forge stores all session
+  history; the daemon holds nothing but running processes.
+  - Forge: `daemons.ts` (WebSocket server) and `sessions.ts` (domain) in
+    `apps/web/src/lib/server/`, wired together in `app.ts`.
+  - Daemon: one adapter per agent CLI in `apps/daemon/src/agents/` maps the CLI's JSON output
+    to `SessionEvent`s. `turn.ts` runs one CLI invocation per turn and guarantees exactly one
+    terminal event. Follow-up turns resume the CLI's own session (`resumeId`).
+  - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
+    `adapterFor`, and add parser tests based on real captured CLI output.
 
 ## Conventions
 
