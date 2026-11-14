@@ -3,7 +3,8 @@ import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ensureWorktree } from './worktree.ts';
+import { changes, diff } from './changes.ts';
+import { ensureWorktree, gitIn, locateWorktree } from './worktree.ts';
 
 function repo() {
 	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-wt-')));
@@ -41,6 +42,14 @@ describe('ensureWorktree', () => {
 		expect(() => ensureWorktree(base, repoPath, '12345678-aaaa')).toThrow(/was modified/);
 	});
 
+	it('locates only worktrees that exist', () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		expect(() => locateWorktree(base, repoPath, '12345678-aaaa')).toThrow(/no worktree/);
+		const { path } = ensureWorktree(base, repoPath, '12345678-aaaa');
+		expect(locateWorktree(base, repoPath, '12345678-aaaa').path).toBe(path);
+	});
+
 	it('never makes hooks or config writable', () => {
 		const { writableRoots } = ensureWorktree(
 			realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-'))),
@@ -54,5 +63,45 @@ describe('ensureWorktree', () => {
 			`${gitDir}/logs`,
 			`${gitDir}/worktrees/abcdefgh`
 		]);
+	});
+});
+
+describe('changes', () => {
+	it('reports committed, uncommitted and untracked changes against the fork point', () => {
+		const repoPath = repo();
+		writeFileSync(join(repoPath, 'kept.txt'), 'one\ntwo\n');
+		execFileSync('git', ['-C', repoPath, 'add', '.']);
+		execFileSync('git', [
+			'-C',
+			repoPath,
+			'-c',
+			'user.name=t',
+			'-c',
+			'user.email=t@t',
+			'commit',
+			'-qm',
+			'base'
+		]);
+
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		expect(changes(worktree, repoPath)).toEqual([]);
+
+		// committed in the workspace
+		writeFileSync(join(worktree.path, 'committed.txt'), 'a\n');
+		gitIn(worktree, 'add', '.');
+		gitIn(worktree, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'work');
+		// uncommitted, and untracked
+		writeFileSync(join(worktree.path, 'kept.txt'), 'one\nTWO\nthree\n');
+		writeFileSync(join(worktree.path, 'new.txt'), 'x\ny\n');
+
+		expect(changes(worktree, repoPath)).toEqual([
+			{ path: 'committed.txt', added: 1, removed: 0 },
+			{ path: 'kept.txt', added: 2, removed: 1 },
+			{ path: 'new.txt', added: 2, removed: 0 }
+		]);
+		expect(diff(worktree, repoPath, 'kept.txt')).toContain('+TWO');
+		expect(diff(worktree, repoPath, 'new.txt')).toContain('+x\n+y\n');
+		expect(() => diff(worktree, repoPath, '../outside')).toThrow(/outside repository/);
 	});
 });

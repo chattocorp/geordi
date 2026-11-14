@@ -4,8 +4,8 @@ A self-hostable code forge and agent orchestrator.
 
 - Browse and manage Git repositories
 - Issues, pull requests, reviews
-- Run coding agents (`claude -p`, `codex`) in isolated Git worktrees, tightly integrated
-  with the forge
+- Run coding agents (`claude -p`, `codex`) in workspaces: isolated Git worktrees with
+  several agent sessions side by side, a live view of their changes, and a terminal
 
 Geordi is in early development.
 
@@ -40,8 +40,9 @@ pnpm dev
 `pnpm dev` starts the forge on http://localhost:5173 and a daemon that connects to it. In
 development, forge data is stored in `./.data`.
 
-Register a repository on the home page, open it, and start an agent session. Each session
-gets its own Git worktree on a new branch (`geordi/<id>`).
+Register a repository on the home page, open it, and start a workspace. Each workspace
+gets its own Git worktree on a new branch (`geordi/<id>`) and can run several agent
+sessions in it (see [FDR-001](docs/fdr/FDR-001-workspaces.md)).
 
 ## Running in production
 
@@ -75,7 +76,7 @@ authenticate each other with a shared token that the forge creates in its data d
 | `GEORDI_FORGE_URL`              | `ws://127.0.0.1:7700`    | Forge to connect to                                                |
 | `GEORDI_DAEMON_TOKEN_FILE`      | `~/.geordi/daemon-token` | Forge's shared secret (the forge creates it in its data directory) |
 | `GEORDI_DAEMON_TOKEN`           |                          | The secret itself, instead of the file                             |
-| `GEORDI_WORKTREES_DIR`          | `~/.geordi/worktrees`    | Where session worktrees are created                                |
+| `GEORDI_WORKTREES_DIR`          | `~/.geordi/worktrees`    | Where workspace worktrees are created                              |
 | `GEORDI_CLAUDE_PERMISSION_MODE` | `acceptEdits`            | `--permission-mode` for `claude -p`                                |
 
 Codex runs in its `workspace-write` sandbox. So that it can commit, the sandbox may also write

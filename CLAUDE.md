@@ -45,13 +45,21 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 - **Forge and daemon (ADR-002).** The daemon connects to the forge over one WebSocket carrying
   JSON (`packages/protocol`): commands down, session events up. The forge stores all session
   history; the daemon holds nothing but running processes.
-  - Forge: `daemons.ts` (WebSocket server) and `sessions.ts` (domain) in
+  - Forge: `daemons.ts` (WebSocket server) and `workspaces.ts` (domain) in
     `apps/web/src/lib/server/`, wired together in `app.ts`.
+  - A **workspace** (FDR-001) is a worktree on its own branch plus the agent sessions working
+    in it. The daemon derives the worktree from the workspace ID (`worktree.ts`).
+  - The daemon runs git in agent-writable worktrees: always through `gitIn`, which never
+    trusts the worktree's own Git metadata.
   - Daemon: one adapter per agent CLI in `apps/daemon/src/agents/` maps the CLI's JSON output
     to `SessionEvent`s. `turn.ts` runs one CLI invocation per turn and guarantees exactly one
     terminal event. Follow-up turns resume the CLI's own session (`resumeId`).
   - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
     `adapterFor`, and add parser tests based on real captured CLI output.
+- **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
+  forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
+  terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers read it as
+  server-sent events, since `query.live` drops intermediate values).
 
 ## Conventions
 
@@ -72,6 +80,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   `shadow-soft`/`shadow-float` with a `ring-line/60` rather than hard borders. Icons: Iconify
   via `icon-[lucide--name]`. Fonts: Geist and Geist Mono from Fontsource (no remote loading);
   mono only for actual code (paths, branches, commands, output).
+- **Workspace UI:** components in `#lib/components/workspace/`. Windows are tabs in a tree of
+  splits (`#lib/layout.ts`, pure functions; rendered by `Panes.svelte`), named after what
+  they show (`session:<id>`, `diff:<path>`, `new`). Layout and pane sizes are per-browser
+  preferences (`persisted`), not events.
 - **Agent output** is rendered as Markdown with `markdown-it` (raw HTML disabled), via
   `#lib/components/Markdown.svelte`.
 - Shared tool versions live in the pnpm catalog (`pnpm-workspace.yaml`); reference them as

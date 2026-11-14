@@ -3,7 +3,7 @@ import type { Agent, SessionEvent } from '@geordi/protocol';
 export type TurnOptions = {
 	sessionId: string;
 	prompt: string;
-	/** The session's worktree. */
+	/** The workspace's worktree. */
 	cwd: string;
 	/**
 	 * Paths outside `cwd` an agent needs write access to so it can commit: the parts of the

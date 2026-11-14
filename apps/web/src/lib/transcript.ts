@@ -1,4 +1,4 @@
-import type { TranscriptItem } from '#lib/server/sessions.ts';
+import type { TranscriptItem } from '#lib/server/workspaces.ts';
 
 type Tool = Extract<TranscriptItem, { kind: 'tool' }>;
 

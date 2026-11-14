@@ -1,5 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import { PROTOCOL_VERSION, type DaemonMessage, type ForgeMessage } from '@geordi/protocol';
+import {
+	PROTOCOL_VERSION,
+	type DaemonMessage,
+	type DaemonRequest,
+	type DaemonResults,
+	type ForgeMessage
+} from '@geordi/protocol';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 
@@ -12,6 +19,8 @@ const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
 
 /** How long a new connection may take to authenticate. */
 const HELLO_TIMEOUT_MS = 5000;
+/** How long a daemon may take to answer a request. */
+const REQUEST_TIMEOUT_MS = 15_000;
 
 /**
  * Accepts daemon connections (ADR-002). Listens on 127.0.0.1 only. Forge and daemon
@@ -40,6 +49,18 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	const daemons = new Map<WebSocket, string>();
 	/** Which daemon each session's turns were sent to; only it may report on the session. */
 	const assigned = new Map<string, string>();
+	/** Requests awaiting a daemon's answer, by request ID. */
+	const pending = new Map<string, (response: { result?: unknown; error?: string }) => void>();
+
+	/** Sends to a connected daemon (the first one, for now). Returns false if there is none. */
+	function send(message: ForgeMessage): boolean {
+		const entry = [...daemons].find(([socket]) => socket.readyState === socket.OPEN);
+		if (!entry) return false;
+		const [socket, daemonId] = entry;
+		if (message.type === 'turn.start') assigned.set(message.sessionId, daemonId);
+		socket.send(JSON.stringify(message));
+		return true;
+	}
 
 	server.on('connection', (socket) => {
 		const timeout = setTimeout(
@@ -81,7 +102,8 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				return;
 			}
 
-			if (message.type === 'session.event' && assigned.get(message.sessionId) === daemonId)
+			if (message.type === 'response') pending.get(message.id)?.(message);
+			else if (message.type !== 'session.event' || assigned.get(message.sessionId) === daemonId)
 				handlers.onMessage(message);
 		});
 
@@ -94,14 +116,27 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	});
 
 	return {
-		/** Sends to a connected daemon (the first one, for now). Returns false if there is none. */
-		send(message: ForgeMessage): boolean {
-			const entry = [...daemons].find(([socket]) => socket.readyState === socket.OPEN);
-			if (!entry) return false;
-			const [socket, daemonId] = entry;
-			if (message.type === 'turn.start') assigned.set(message.sessionId, daemonId);
-			socket.send(JSON.stringify(message));
-			return true;
+		send,
+
+		/** Asks a daemon a question about a workspace. Rejects if none answers in time. */
+		request<K extends DaemonRequest['kind']>(
+			request: Extract<DaemonRequest, { kind: K }>
+		): Promise<DaemonResults[K]> {
+			const id = randomUUID();
+			return new Promise<DaemonResults[K]>((resolve, reject) => {
+				const timeout = setTimeout(
+					() => settle({ error: 'The daemon did not answer' }),
+					REQUEST_TIMEOUT_MS
+				);
+				const settle = ({ result, error }: { result?: unknown; error?: string }) => {
+					clearTimeout(timeout);
+					pending.delete(id);
+					if (error === undefined) resolve(result as DaemonResults[K]);
+					else reject(new Error(error));
+				};
+				pending.set(id, settle);
+				if (!send({ type: 'request', id, request })) settle({ error: 'No daemon connected' });
+			});
 		},
 
 		connected: () => [...daemons.values()]

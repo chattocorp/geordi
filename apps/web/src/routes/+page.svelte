@@ -12,7 +12,7 @@
 <main class="mx-auto w-full max-w-5xl space-y-8 px-6 py-10">
 	<header class="space-y-1">
 		<h1 class="text-3xl font-semibold tracking-tight">Overview</h1>
-		<p class="text-muted">Pick a repository to start an agent session in it.</p>
+		<p class="text-muted">Pick a repository to start a workspace in it.</p>
 	</header>
 
 	<ul class="grid gap-4 sm:grid-cols-2">
@@ -35,8 +35,8 @@
 					</div>
 					<div class="mt-auto flex items-center gap-2 text-sm">
 						<span class="rounded-full bg-sunken px-2.5 py-0.5 text-muted">
-							{repo.sessionCount}
-							{repo.sessionCount === 1 ? 'session' : 'sessions'}
+							{repo.workspaceCount}
+							{repo.workspaceCount === 1 ? 'workspace' : 'workspaces'}
 						</span>
 						{#if repo.working > 0}
 							<span

@@ -11,7 +11,7 @@
 
 	const nav = getNavigation();
 
-	/** The repository the current page belongs to (directly, or via one of its sessions). */
+	/** The repository the current page belongs to (directly, or via one of its workspaces). */
 	const activeRepo = $derived.by(() => {
 		const id = page.params.id;
 		if (!id) return null;
@@ -67,11 +67,11 @@
 					)}
 					{#if activeRepo === repo.id && repo.recent.length > 0}
 						<ul class="my-1 ml-[1.2rem] space-y-px border-l border-line pl-2">
-							{#each repo.recent as session (session.id)}
-								{@const current = page.url.pathname === `/sessions/${session.id}`}
+							{#each repo.recent as workspace (workspace.id)}
+								{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
 								<li>
 									<a
-										href={resolve('/sessions/[id]', { id: session.id })}
+										href={resolve('/workspaces/[id]', { id: workspace.id })}
 										class={[
 											'flex items-center gap-2 rounded-md px-2 py-1 text-[13px]',
 											current ? 'bg-surface text-ink shadow-soft' : 'text-muted hover:text-ink'
@@ -81,10 +81,10 @@
 										<span
 											class={[
 												'size-1.5 shrink-0 rounded-full',
-												session.status === 'running' ? 'bg-accent' : 'bg-line'
+												workspace.status === 'running' ? 'bg-accent' : 'bg-line'
 											]}
 										></span>
-										<span class="truncate">{session.title}</span>
+										<span class="truncate">{workspace.title}</span>
 									</a>
 								</li>
 							{/each}

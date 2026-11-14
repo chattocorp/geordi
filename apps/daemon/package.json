@@ -9,7 +9,8 @@
 		"test": "vitest --run"
 	},
 	"dependencies": {
-		"@geordi/protocol": "workspace:*"
+		"@geordi/protocol": "workspace:*",
+		"@lydell/node-pty": "1.2.0-beta.18"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
