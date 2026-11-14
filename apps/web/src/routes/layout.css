@@ -128,6 +128,32 @@
 	:where(a) {
 		@apply decoration-accent underline-offset-2;
 	}
+
+	/* Highlighted code (see markdown.ts): our own background, the theme's colours per mode. */
+	.shiki span {
+		color: var(--shiki-light);
+	}
+	&:where(.dark, .dark *) .shiki span {
+		color: var(--shiki-dark);
+	}
+
+	.code-block {
+		@apply relative;
+	}
+	[data-copy] {
+		@apply absolute top-2 right-2 grid size-7 place-items-center rounded-md bg-surface text-muted opacity-0 shadow-soft ring-1 ring-line/60 hover:text-ink focus-visible:opacity-100;
+
+		&::before {
+			content: '';
+			@apply icon-[lucide--copy] size-3.5;
+		}
+		&[data-copied]::before {
+			@apply icon-[lucide--check] text-ok;
+		}
+	}
+	.code-block:hover [data-copy] {
+		@apply opacity-100;
+	}
 }
 
 /*

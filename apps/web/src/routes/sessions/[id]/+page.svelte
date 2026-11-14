@@ -1,20 +1,40 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import { submitOnEnter } from '#lib/keys.ts';
 	import { toBlocks } from '#lib/transcript.ts';
+	import { getRepo } from '../../repos.remote';
 	import { getSession, sendMessage, stopSession } from '../../sessions.remote';
 
 	let { params } = $props();
 
 	const query = $derived(getSession(params.id));
 	const session = $derived(await query);
+	const repo = $derived(await getRepo(session.repoId));
 	const running = $derived(session.status === 'running');
 	const blocks = $derived(toBlocks(session.transcript));
 	const { sessionId, text } = sendMessage.fields;
+
+	// Follow new output while the reader is at the bottom; leave them alone once they scroll up.
+	let following = $state(true);
+	const atBottom = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 80;
+	const toLatest = () => {
+		following = true;
+		scrollTo({ top: document.documentElement.scrollHeight });
+	};
+	afterNavigate(toLatest);
+	$effect(() => {
+		void blocks;
+		if (untrack(() => following)) toLatest();
+	});
 </script>
+
+<svelte:window onscroll={() => (following = atBottom())} />
 
 <svelte:head><title>{session.title} · Geordi</title></svelte:head>
 
@@ -25,6 +45,13 @@
 			<div class="min-w-0 flex-1">
 				<h1 class="truncate font-semibold tracking-tight" title={session.title}>{session.title}</h1>
 				<div class="flex items-center gap-3 text-xs text-muted">
+					<a
+						href={resolve('/repos/[id]', { id: repo.id })}
+						class="flex shrink-0 items-center gap-1 hover:text-ink"
+					>
+						<span class="icon-[lucide--folder-git-2] size-3.5"></span>
+						{repo.name}
+					</a>
 					{#if session.worktree}
 						<span class="flex min-w-0 items-center gap-1" title={session.worktree.path}>
 							<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
@@ -81,6 +108,16 @@
 	</ol>
 
 	<div class="sticky bottom-0 bg-linear-to-t from-bg from-60% to-transparent pt-6">
+		{#if !following}
+			<button
+				type="button"
+				onclick={toLatest}
+				class="absolute -top-5 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-surface py-1.5 pr-3.5 pl-3 text-sm font-medium shadow-float ring-1 ring-line/60 hover:text-accent-ink"
+			>
+				<span class="icon-[lucide--arrow-down] size-3.5"></span>
+				Jump to latest
+			</button>
+		{/if}
 		<form {...sendMessage} class="mx-auto max-w-3xl px-6 pb-5">
 			<input {...sessionId.as('hidden', session.id)} />
 			<div

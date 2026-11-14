@@ -14,6 +14,8 @@ export default defineConfig({
 				experimental: { async: true }
 			},
 			adapter: adapter(),
+			// Agent output is untrusted: never load images from other origins (data exfiltration).
+			csp: { directives: { 'img-src': ['self', 'data:'] } },
 			experimental: { remoteFunctions: true }
 		})
 	],
