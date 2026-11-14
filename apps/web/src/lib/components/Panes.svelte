@@ -67,7 +67,7 @@
 			<div
 				role="tablist"
 				tabindex="-1"
-				class="flex h-10 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-line bg-sidebar px-1.5"
+				class="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-sidebar px-2"
 				ondragover={(event) => over(event, n.id, 'center')}
 				ondrop={drop}
 			>
@@ -88,9 +88,9 @@
 							if (event.key === 'Enter' || event.key === ' ') onchange(open(layout, id));
 						}}
 						class={[
-							'group/tab flex h-8 max-w-56 min-w-0 shrink-0 cursor-default items-center gap-2 rounded-t-lg pr-1.5 pl-2.5 text-sm select-none',
+							'group/tab flex h-7 max-w-56 min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md pr-1 pl-2 text-sm select-none',
 							active
-								? 'bg-bg font-medium text-ink shadow-[0_1px_0_var(--bg)] ring-1 ring-line'
+								? 'bg-surface font-medium text-ink shadow-soft'
 								: 'text-muted hover:bg-surface/60 hover:text-ink'
 						]}
 					>
@@ -103,8 +103,8 @@
 								onchange(close(layout, id));
 							}}
 							class={[
-								'grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-sunken hover:text-ink',
-								!active && 'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100'
+								'grid size-5 shrink-0 place-items-center rounded text-muted opacity-0 group-hover/tab:opacity-100 hover:bg-sunken hover:text-ink focus-visible:opacity-100',
+								active && 'opacity-60'
 							]}
 						>
 							<span class="icon-[lucide--x] size-3.5"></span>
@@ -116,7 +116,7 @@
 					aria-label={newLabel}
 					title={newLabel}
 					onclick={() => onchange(open(layout, newTab(), n.id))}
-					class="mb-1 ml-0.5 grid size-6 shrink-0 place-items-center rounded-md text-muted hover:bg-surface hover:text-ink"
+					class="grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-surface/60 hover:text-ink"
 				>
 					<span class="icon-[lucide--plus] size-4"></span>
 				</button>
