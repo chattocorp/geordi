@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync } from 'node:fs';
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -22,6 +22,23 @@ describe('ensureWorktree', () => {
 
 		expect(first).toMatchObject({ created: true, branch: 'geordi/12345678' });
 		expect(second).toMatchObject({ created: false, path: first.path });
+	});
+
+	it('refuses a worktree whose Git metadata was repointed', () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const { path, writableRoots } = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const evil = mkdtempSync(join(tmpdir(), 'geordi-evil-'));
+
+		const commondir = join(writableRoots.at(-1)!, 'commondir');
+		writeFileSync(commondir, evil);
+		expect(() => ensureWorktree(base, repoPath, '12345678-aaaa')).toThrow(/was modified/);
+
+		writeFileSync(commondir, '../..');
+		expect(() => ensureWorktree(base, repoPath, '12345678-aaaa')).not.toThrow();
+
+		writeFileSync(join(path, '.git'), `gitdir: ${evil}`);
+		expect(() => ensureWorktree(base, repoPath, '12345678-aaaa')).toThrow(/was modified/);
 	});
 
 	it('never makes hooks or config writable', () => {
