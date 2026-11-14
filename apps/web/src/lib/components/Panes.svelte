@@ -88,7 +88,7 @@
 							if (event.key === 'Enter' || event.key === ' ') onchange(open(layout, id));
 						}}
 						class={[
-							'group/tab flex h-8 max-w-56 min-w-0 shrink-0 cursor-default items-center gap-2 rounded-t-lg pr-1.5 pl-2.5 text-[13px] select-none',
+							'group/tab flex h-8 max-w-56 min-w-0 shrink-0 cursor-default items-center gap-2 rounded-t-lg pr-1.5 pl-2.5 text-sm select-none',
 							active
 								? 'bg-bg font-medium text-ink shadow-[0_1px_0_var(--bg)] ring-1 ring-line'
 								: 'text-muted hover:bg-surface/60 hover:text-ink'

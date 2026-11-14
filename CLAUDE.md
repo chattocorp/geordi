@@ -32,6 +32,15 @@ Run from the repository root:
 
 Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 
+## Invariants
+
+- **Everything that runs lives in the daemon; the forge only shows it** (ADR-003). Agent
+  turns, terminals and future long-running things must survive a forge restart unchanged.
+  The forge may keep live state in memory only if it can rebuild it from the event log or
+  from what a reconnecting daemon reports. Test new features by restarting the forge.
+- **Keep the UI calm.** Four font sizes only (`text-xs`, `text-sm`, `text-base`, `text-2xl`,
+  defined in `layout.css`); never arbitrary sizes. Hierarchy comes from weight and colour.
+
 ## Architecture
 
 - **Event sourcing (ADR-001).** All state is event-sourced. Core: `apps/web/src/lib/server/events/`.
@@ -57,14 +66,15 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
     `adapterFor`, and add parser tests based on real captured CLI output.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
-  server on the forge (`mcp.ts`, served at `/mcp`). The forge issues a token per turn; the
+  server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per turn; the
   daemon hands URL and token to the CLI. The calling session is the parent of what it starts
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers read it as
-  server-sent events, since `query.live` drops intermediate values).
+  server-sent events, since `query.live` drops intermediate values). Shells and scrollback
+  live in the daemon (`apps/daemon/src/terminals.ts`).
 
 ## Conventions
 

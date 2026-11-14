@@ -1,16 +1,15 @@
-import type { TerminalSize, WorkspaceRef } from '@geordi/protocol';
+import type { DaemonResults, TerminalSize, WorkspaceRef } from '@geordi/protocol';
 import type { Dispatch } from './workspaces.ts';
 
-/** How much output (in characters) is kept for browsers that connect later. */
-const SCROLLBACK = 200_000;
-
 type Terminal = {
-	scrollback: string;
 	/** Whether a daemon is running this terminal's shell. */
 	running: boolean;
 	size: TerminalSize;
-	listeners: Set<Listener>;
+	viewers: Set<Viewer>;
 };
+
+/** Gets live output; `offset` is its position in the shell's whole output. */
+type Viewer = (data: string, offset: number) => void;
 
 /** `replay` marks old output, sent to catch a new viewer up. */
 type Listener = (data: string, replay: boolean) => void;
@@ -21,12 +20,19 @@ export type TerminalRef = { workspaceId: string; terminal: string };
 const notice = (text: string) => `\r\n\x1b[2m${text}\x1b[0m\r\n`;
 
 /**
- * Relays the shells of workspaces between browsers and the daemon running them. A shell
- * only ever starts because a person asked for it: by opening a terminal, or by pressing a
- * key in one that isn't running. Terminal I/O is deliberately not event-sourced (ADR-003):
- * only recent output is kept, in memory.
+ * Relays the shells of workspaces between browsers and the daemon running them. Shells and
+ * their scrollback live in the daemon (ADR-003); the forge keeps nothing it couldn't learn
+ * again from a daemon, so it can restart without disturbing them.
+ *
+ * A shell only ever starts because a person asked for it: by opening a terminal, or by
+ * pressing a key in one that isn't running.
  */
-export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) => WorkspaceRef) {
+export function createTerminals(
+	dispatch: Dispatch,
+	/** Asks the daemon for a terminal's recent output. */
+	scrollback: (terminalId: string) => Promise<DaemonResults['scrollback']>,
+	ref: (workspaceId: string) => WorkspaceRef
+) {
 	/** By terminal ID, which is what daemons know a terminal as. */
 	const terminals = new Map<string, Terminal>();
 
@@ -35,21 +41,17 @@ export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) =
 	function get(id: string): Terminal {
 		let terminal = terminals.get(id);
 		if (!terminal) {
-			terminal = {
-				scrollback: '',
-				running: false,
-				size: { cols: 80, rows: 24 },
-				listeners: new Set()
-			};
+			terminal = { running: false, size: { cols: 80, rows: 24 }, viewers: new Set() };
 			terminals.set(id, terminal);
 		}
 		return terminal;
 	}
 
-	function emit(terminal: Terminal, data: string) {
-		terminal.scrollback = (terminal.scrollback + data).slice(-SCROLLBACK);
-		for (const listener of terminal.listeners) listener(data, false);
-	}
+	const emit = (terminal: Terminal, data: string, offset: number) => {
+		for (const viewer of terminal.viewers) viewer(data, offset);
+	};
+	/** Something the forge has to say; it belongs after any output. */
+	const tell = (terminal: Terminal, text: string) => emit(terminal, notice(text), Infinity);
 
 	function start(at: TerminalRef) {
 		const terminalId = idOf(at);
@@ -61,13 +63,13 @@ export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) =
 			...ref(at.workspaceId),
 			...terminal.size
 		});
-		if (!terminal.running) emit(terminal, notice('No daemon connected. Press any key to retry.'));
+		if (!terminal.running) tell(terminal, 'No daemon connected. Press any key to retry.');
 	}
 
 	function exit(terminal: Terminal) {
 		if (!terminal.running) return;
 		terminal.running = false;
-		emit(terminal, notice('The shell exited. Press any key to start a new one.'));
+		tell(terminal, 'The shell exited. Press any key to start a new one.');
 	}
 
 	return {
@@ -78,17 +80,40 @@ export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) =
 		},
 
 		/**
-		 * Connects a viewer: replays recent output to `listener` and keeps it updated. Never
-		 * starts a shell. Returns a function that disconnects the viewer.
+		 * Connects a viewer: replays the terminal's recent output to `listener`, then keeps it
+		 * updated. Never starts a shell. Returns a function that disconnects the viewer.
 		 */
 		attach(at: TerminalRef, listener: Listener): () => void {
 			ref(at.workspaceId); // 404s for unknown workspaces
-			const terminal = get(idOf(at));
-			if (terminal.scrollback) listener(terminal.scrollback, true);
-			if (!terminal.running)
-				listener(notice('This terminal is not running. Press any key to start it.'), false);
-			terminal.listeners.add(listener);
-			return () => terminal.listeners.delete(listener);
+			const terminalId = idOf(at);
+			const terminal = get(terminalId);
+
+			// Output that arrives while we wait for the scrollback may or may not be part of
+			// it. Hold it back, then pass on only what the scrollback doesn't have yet.
+			let early: { data: string; offset: number }[] | null = [];
+			const viewer: Viewer = (data, offset) => {
+				if (early) early.push({ data, offset });
+				else listener(data, false);
+			};
+			terminal.viewers.add(viewer);
+
+			scrollback(terminalId)
+				.catch(() => null)
+				.then((replay) => {
+					if (!terminal.viewers.has(viewer)) return;
+					// A daemon that has scrollback is running the shell, whatever we thought (we
+					// may have just restarted). The reverse doesn't hold: the shell may have been
+					// started after we asked.
+					if (replay) terminal.running = true;
+					if (replay?.data) listener(replay.data, true);
+					for (const { data, offset } of early ?? [])
+						if (offset >= (replay?.end ?? 0)) listener(data, false);
+					early = null;
+					if (!terminal.running)
+						listener(notice('This terminal is not running. Press any key to start it.'), false);
+				});
+
+			return () => terminal.viewers.delete(viewer);
 		},
 
 		/** Passes input on. A key press in a terminal that isn't running starts it instead. */
@@ -112,9 +137,9 @@ export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) =
 			terminals.delete(terminalId);
 		},
 
-		output(terminalId: string, data: string) {
+		output(terminalId: string, data: string, offset: number) {
 			const terminal = terminals.get(terminalId);
-			if (terminal) emit(terminal, data);
+			if (terminal) emit(terminal, data, offset);
 		},
 
 		exit(terminalId: string) {
@@ -122,9 +147,13 @@ export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) =
 			if (terminal) exit(terminal);
 		},
 
-		/** A daemon (re)connected. Daemons end their shells when the connection drops. */
-		reset() {
-			for (const terminal of terminals.values()) exit(terminal);
+		/**
+		 * A daemon (re)connected and says which terminals it is running. Others have ended
+		 * while we weren't connected; ones we don't know are from before we restarted.
+		 */
+		reconcile(running: string[]) {
+			for (const [id, terminal] of terminals) if (!running.includes(id)) exit(terminal);
+			for (const id of running) get(id).running = true;
 		}
 	};
 }

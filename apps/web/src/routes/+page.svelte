@@ -11,7 +11,7 @@
 
 <main class="mx-auto w-full max-w-5xl space-y-8 px-6 py-10">
 	<header class="space-y-1">
-		<h1 class="text-3xl font-semibold tracking-tight">Overview</h1>
+		<h1 class="text-2xl font-semibold tracking-tight">Overview</h1>
 		<p class="text-muted">Pick a repository to start a workspace in it.</p>
 	</header>
 

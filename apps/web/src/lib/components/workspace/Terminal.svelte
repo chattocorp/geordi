@@ -39,7 +39,7 @@
 
 				const term = new Terminal({
 					fontFamily: "'Geist Mono Variable', ui-monospace, monospace",
-					fontSize: 12.5,
+					fontSize: 13,
 					cursorBlink: true,
 					theme: theme()
 				});

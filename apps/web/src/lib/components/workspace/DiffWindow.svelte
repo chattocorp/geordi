@@ -24,7 +24,7 @@
 	};
 </script>
 
-<div class="min-h-0 flex-1 overflow-auto font-mono text-[12.5px] leading-relaxed">
+<div class="min-h-0 flex-1 overflow-auto font-mono text-sm leading-relaxed">
 	{#if diff.current === undefined}
 		<p class="p-5 font-sans text-sm text-muted">Loading…</p>
 	{:else if diff.current === ''}

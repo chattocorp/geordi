@@ -11,7 +11,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 
 type Handlers = {
-	onHello(daemonId: string, running: string[]): void;
+	/** A daemon (re)connected, running these sessions' turns and these terminals. */
+	onHello(daemonId: string, running: string[], terminals: string[]): void;
 	onMessage(message: DaemonMessage): void;
 };
 
@@ -98,7 +99,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				// After a forge restart we don't know assignments; trust what the daemon is running.
 				for (const id of message.running) if (!assigned.has(id)) assigned.set(id, message.daemonId);
 				console.log(`[daemons] ${message.daemonId} connected`);
-				handlers.onHello(message.daemonId, message.running);
+				handlers.onHello(message.daemonId, message.running, message.terminals);
 				return;
 			}
 

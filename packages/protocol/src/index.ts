@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -31,9 +31,19 @@ export type DaemonRequest =
 	/** Every file changed since the workspace branched off, committed or not. */
 	| ({ kind: 'changes' } & WorkspaceRef)
 	/** The unified diff of one of those files. */
-	| ({ kind: 'diff'; path: string } & WorkspaceRef);
+	| ({ kind: 'diff'; path: string } & WorkspaceRef)
+	/** A running terminal's recent output, to catch a new viewer up. */
+	| { kind: 'scrollback'; terminalId: string };
 
-export type DaemonResults = { changes: FileChange[]; diff: string };
+export type DaemonResults = {
+	changes: FileChange[];
+	diff: string;
+	/**
+	 * `end` is the terminal's output position after `data`: output with a lower `offset` is
+	 * already part of it. `null` if the terminal isn't running.
+	 */
+	scrollback: { data: string; end: number } | null;
+};
 
 export type TerminalSize = { cols: number; rows: number };
 
@@ -90,9 +100,12 @@ export type DaemonMessage =
 			proof: string;
 			/** Sessions with a turn currently running on this daemon. */
 			running: string[];
+			/** Terminals currently running on this daemon. */
+			terminals: string[];
 	  }
 	| { type: 'session.event'; sessionId: string; event: SessionEvent }
 	/** Answers a `request`, with either a result (see `DaemonResults`) or an error. */
 	| { type: 'response'; id: string; result?: unknown; error?: string }
-	| { type: 'terminal.output'; terminalId: string; data: string }
+	/** `offset` counts the characters this terminal's shell had put out before `data`. */
+	| { type: 'terminal.output'; terminalId: string; data: string; offset: number }
 	| { type: 'terminal.exit'; terminalId: string };

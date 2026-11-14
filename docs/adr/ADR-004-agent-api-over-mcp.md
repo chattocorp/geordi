@@ -16,7 +16,7 @@ We considered:
 
 - The forge serves Geordi's agent API as an **MCP server over HTTP**. Both supported CLIs accept MCP servers per invocation (`claude --mcp-config`, `codex -c mcp_servers.…`), so nothing is installed or changed on the user's system.
 - With every turn, the forge issues a **token scoped to that session**, and the daemon passes server URL and token to the CLI. The forge resolves the token to the calling session; that session is the `actor` of every event the call causes, and the parent of anything it starts.
-- Tokens are valid only while their turn runs. An agent can only act on the sessions and workspaces it started itself (its descendants).
+- Tokens are valid only while their turn runs. They are derived (signed with a key in the forge's data directory) rather than stored, so a running agent keeps its access when the forge restarts (ADR-003). An agent can only act on the sessions and workspaces it started itself (its descendants).
 - The API is a small set of tools: start a child, send it a message, wait until it is idle, read its latest reply, stop it. Waiting is a first-class tool so supervision needs no polling loops.
 - Limits on nesting depth and on concurrently running children are enforced by the forge.
 

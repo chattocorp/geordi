@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { error } from '@sveltejs/kit';
 import type {
 	Agent,
@@ -166,11 +166,15 @@ export function createWorkspaces(
 	store: EventStore<GeordiEvent>,
 	repos: ReturnType<typeof createRepos>,
 	dispatch: Dispatch,
-	limits: Limits = { depth: 3, children: 5 }
+	{
+		limits = { depth: 3, children: 5 },
+		secret = randomBytes(32).toString('base64url')
+	}: {
+		limits?: Limits;
+		/** Signs agent API tokens. Must be the same after a restart, or running agents lose access. */
+		secret?: string;
+	} = {}
 ) {
-	/** Agent API tokens of the turns running right now, with the session each belongs to. */
-	const tokens = new Map<string, string>();
-
 	// Mutates in place (O(1) per event during replay); readers get copies. Sessions are
 	// indexed by ID as well; a workspace's `sessions` holds the same objects.
 	const projection = store.project(
@@ -251,13 +255,30 @@ export function createWorkspaces(
 	/** Records daemon output for a session. Unknown sessions are ignored. */
 	function record(id: string, event: SessionEvent) {
 		if (!projection.get().sessions.has(id)) return;
-		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') revoke(id);
 		store.append({ type: 'session.output', stream: `session:${id}`, data: { id, event } });
 	}
 
-	/** Ends the validity of a session's agent API token: its turn is over. */
-	function revoke(sessionId: string) {
-		for (const [token, owner] of tokens) if (owner === sessionId) tokens.delete(token);
+	/** A session's turns so far, including a running one. */
+	const turnsOf = (session: Session) =>
+		session.transcript.filter((item) => item.kind === 'user').length;
+
+	/**
+	 * The agent API token for a session's current turn. Tokens are derived, not stored: one is
+	 * valid exactly while the turn it was made for is running, which the event log knows. So
+	 * agents keep their access across a restart of the forge.
+	 */
+	function tokenFor(session: Session): string {
+		const turn = `${session.id}.${turnsOf(session)}`;
+		return `${turn}.${createHmac('sha256', secret).update(turn).digest('base64url')}`;
+	}
+
+	/** The session a valid agent API token belongs to, or `null`. */
+	function authenticate(token: string): string | null {
+		const session = projection.get().sessions.get(token.split('.')[0]);
+		if (session?.status !== 'running') return null;
+		const expected = Buffer.from(tokenFor(session));
+		const given = Buffer.from(token);
+		return given.length === expected.length && timingSafeEqual(given, expected) ? session.id : null;
 	}
 
 	/** Appends the user's message and asks a daemon to run the turn. */
@@ -268,15 +289,12 @@ export function createWorkspaces(
 			{ actor }
 		);
 
-		const apiToken = randomBytes(32).toString('base64url');
-		tokens.set(apiToken, id);
-
 		const sent = dispatch({
 			type: 'turn.start',
 			sessionId: id,
 			...ref(session.workspaceId),
 			agent: session.agent,
-			apiToken,
+			apiToken: tokenFor(session),
 			resumeId: session.resumeId,
 			prompt: text
 		});
@@ -333,6 +351,15 @@ export function createWorkspaces(
 		return session;
 	}
 
+	/** Refuses to set another of a session's agents to work while too many already are. */
+	function ensureCapacity(parentId: string) {
+		const running = [...projection.get().sessions.values()].filter(
+			(child) => child.parentSessionId === parentId && child.status === 'running'
+		);
+		if (running.length >= limits.children)
+			error(429, `${limits.children} agents are already running; wait for one to finish`);
+	}
+
 	function report(session: Session): AgentReport {
 		const turn = session.transcript.slice(
 			session.transcript.findLastIndex((item) => item.kind === 'user') + 1
@@ -356,8 +383,7 @@ export function createWorkspaces(
 	 * session, which is also recorded as the actor of what it causes.
 	 */
 	const agents = {
-		/** The session a valid agent API token belongs to, or `null`. */
-		authenticate: (token: string): string | null => tokens.get(token) ?? null,
+		authenticate,
 
 		/**
 		 * Starts an agent on the caller's behalf: in the caller's workspace (`shared`), or in
@@ -373,11 +399,7 @@ export function createWorkspaces(
 
 			if (depthOf(caller) + 1 > limits.depth)
 				error(403, `Agents can only be nested ${limits.depth} deep`);
-			const running = [...projection.get().sessions.values()].filter(
-				(child) => child.parentSessionId === callerId && child.status === 'running'
-			);
-			if (running.length >= limits.children)
-				error(429, `You already have ${limits.children} agents running; wait for one to finish`);
+			ensureCapacity(callerId);
 
 			if (worktree === 'shared')
 				return report(findSession(addSession(workspace.id, session, callerId, callerId)));
@@ -409,6 +431,7 @@ export function createWorkspaces(
 		send(callerId: string, sessionId: string, text: string) {
 			const session = findControlled(callerId, sessionId);
 			if (session.status === 'running') error(409, 'That agent is still working');
+			if (session.parentSessionId) ensureCapacity(session.parentSessionId);
 			startTurn(session, text, callerId);
 		},
 

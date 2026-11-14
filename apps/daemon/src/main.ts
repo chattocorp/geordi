@@ -16,6 +16,8 @@ import {
 	closeTerminals,
 	openTerminal,
 	resizeTerminal,
+	runningTerminals,
+	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
 import { runTurn, type Turn } from './turn.ts';
@@ -29,12 +31,17 @@ const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
 const daemonId = hostname();
 
-// Unencrypted connections are only acceptable on this machine.
+// Unencrypted connections are only acceptable on this machine. Both carry secrets: the
+// daemon's token, and the agents' API tokens.
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
-if (forgeUrl.protocol !== 'wss:' && !LOOPBACK.has(forgeUrl.hostname)) {
-	console.error(`Refusing unencrypted connection to ${forgeUrl.host}; use wss://`);
-	process.exit(1);
-}
+for (const [url, secure] of [
+	[forgeUrl, 'wss:'],
+	[new URL(apiUrl), 'https:']
+] as const)
+	if (url.protocol !== secure && !LOOPBACK.has(url.hostname)) {
+		console.error(`Refusing unencrypted connection to ${url.host}; use ${secure}//`);
+		process.exit(1);
+	}
 
 /** The forge's shared secret. Read on every connect: the forge creates it on first start. */
 function readToken(): string | null {
@@ -60,7 +67,10 @@ function send(message: DaemonMessage) {
 	else outbox.push(message);
 }
 
-/** For messages that only matter to a forge that is listening right now (terminal I/O). */
+/**
+ * For messages that only matter to a forge that is listening right now: terminal output
+ * (kept in the terminal's scrollback) and exits (reported with the next `hello`).
+ */
 function sendLive(message: DaemonMessage) {
 	if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
@@ -95,7 +105,8 @@ function connect(delay = 500) {
 				daemonId,
 				nonce,
 				proof: prove(token, 'daemon', message.nonce),
-				running: [...turns.keys()]
+				running: [...turns.keys()],
+				terminals: runningTerminals()
 			};
 			ws.send(JSON.stringify(hello));
 		} else if (message.type === 'welcome' && verify(token, 'forge', nonce, message.proof)) {
@@ -112,11 +123,8 @@ function connect(delay = 500) {
 	ws.onclose = (event) => {
 		if (socket === ws) console.log('disconnected; reconnecting');
 		else if (event.reason) console.log(`connection refused: ${event.reason}`);
-		if (socket === ws) {
-			socket = null;
-			// The forge keeps the scrollback; without it, running shells are unreachable.
-			closeTerminals();
-		}
+		// Turns and terminals keep running: the forge picks them up again when it is back.
+		if (socket === ws) socket = null;
 		retry();
 	};
 }
@@ -126,6 +134,8 @@ function connect(delay = 500) {
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 function answer(request: DaemonRequest) {
+	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
+
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.workspaceId);
 	switch (request.kind) {
 		case 'changes':
@@ -181,7 +191,8 @@ async function handle(message: ForgeMessage) {
 
 		case 'terminal.open': {
 			const { terminalId } = message;
-			const output = (data: string) => sendLive({ type: 'terminal.output', terminalId, data });
+			const output = (data: string, offset = 0) =>
+				sendLive({ type: 'terminal.output', terminalId, data, offset });
 			const exit = () => sendLive({ type: 'terminal.exit', terminalId });
 			try {
 				const worktree = locateWorktree(worktreesDir, message.repoPath, message.workspaceId);

@@ -51,7 +51,7 @@
 				rows="3"
 				placeholder="What should the agent do in this workspace?"
 				onkeydown={submitOnEnter}
-				class="block w-full resize-none bg-transparent px-5 py-2 text-lg placeholder:text-muted/60 focus-visible:outline-none"
+				class="block w-full resize-none bg-transparent px-5 py-2 text-base placeholder:text-muted/60 focus-visible:outline-none"
 			></textarea>
 			{#if problem}
 				<p class="px-5 text-sm text-danger">{problem}</p>

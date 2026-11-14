@@ -174,14 +174,36 @@ describe('agents starting agents', () => {
 		return { ...context, id, lead: sessionId, agents: context.workspaces.agents };
 	}
 
+	const tokenOf = (message: ForgeMessage | undefined) =>
+		(message as Extract<ForgeMessage, { type: 'turn.start' }>).apiToken;
+
 	it('identifies an agent by the token of its running turn only', () => {
 		const { workspaces, agents, sent, lead: caller } = lead();
-		const { apiToken } = sent[0] as Extract<ForgeMessage, { type: 'turn.start' }>;
+		const first = tokenOf(sent[0]);
 
-		expect(agents.authenticate(apiToken)).toBe(caller);
+		expect(agents.authenticate(first)).toBe(caller);
 		expect(agents.authenticate('made-up')).toBeNull();
+		expect(agents.authenticate(`${caller}.1.forged`)).toBeNull();
 		workspaces.record(caller, { kind: 'turn.completed' });
-		expect(agents.authenticate(apiToken)).toBeNull();
+		expect(agents.authenticate(first)).toBeNull();
+
+		// the next turn has a token of its own; the old one stays dead
+		workspaces.send(caller, 'More');
+		expect(agents.authenticate(tokenOf(sent.at(-1)))).toBe(caller);
+		expect(agents.authenticate(first)).toBeNull();
+	});
+
+	it('keeps tokens valid across a restart, given the same secret', () => {
+		const { store, repos, repo, dispatch, sent } = setup();
+		const options = { secret: 'the-secret' };
+		const before = createWorkspaces(store, repos, dispatch, options);
+		const id = before.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
+		const caller = before.get(id).sessions[0].id;
+
+		const restarted = createWorkspaces(store, repos, dispatch, options);
+		expect(restarted.agents.authenticate(tokenOf(sent.at(-1)))).toBe(caller);
+		const stranger = createWorkspaces(store, repos, dispatch, { secret: 'another' });
+		expect(stranger.agents.authenticate(tokenOf(sent.at(-1)))).toBeNull();
 	});
 
 	it('starts a child in the same workspace', () => {
@@ -268,9 +290,17 @@ describe('agents starting agents', () => {
 
 		const first = limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'a' });
 		limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'b' });
-		expect(() => limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'c' })).toThrow(
-			refusal(/already have 2/)
+		const start = () => limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'c' });
+		expect(start).toThrow(refusal(/2 agents are already running/));
+
+		// a finished agent frees a slot, and waking it up again takes one
+		limited.workspaces.record(first.sessionId, { kind: 'turn.completed' });
+		const third = start();
+		expect(() => limited.agents.send(limited.caller, first.sessionId, 'Again')).toThrow(
+			refusal(/already running/)
 		);
+		limited.workspaces.record(third.sessionId, { kind: 'turn.completed' });
+		limited.agents.send(limited.caller, first.sessionId, 'Again');
 		expect(() =>
 			limited.agents.start(first.sessionId, { worktree: 'shared', prompt: 'd' })
 		).toThrow(refusal(/nested/));
@@ -278,8 +308,8 @@ describe('agents starting agents', () => {
 
 	function createWorkspacesWith(limits: { depth: number; children: number }) {
 		const { store, repos, repo, dispatch } = setup();
-		const workspaces = createWorkspaces(store, repos, dispatch, limits);
+		const workspaces = createWorkspaces(store, repos, dispatch, { limits });
 		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
-		return { agents: workspaces.agents, caller: workspaces.get(id).sessions[0].id };
+		return { workspaces, agents: workspaces.agents, caller: workspaces.get(id).sessions[0].id };
 	}
 });

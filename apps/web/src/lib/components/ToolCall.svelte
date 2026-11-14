@@ -28,7 +28,7 @@
 			<span class={['size-3.5', toolIcon(name)]}></span>
 		</span>
 		<span class="shrink-0 font-medium">{name}</span>
-		<span class="min-w-0 flex-1 truncate font-mono text-[12.5px] text-muted">{summary}</span>
+		<span class="min-w-0 flex-1 truncate font-mono text-sm text-muted">{summary}</span>
 		{#if pending}
 			<span class="size-1.5 shrink-0 rounded-full bg-accent"></span>
 			<span class="sr-only">Running</span>
@@ -40,9 +40,7 @@
 		></span>
 	</summary>
 
-	<div
-		class="mx-3.5 mb-3 overflow-hidden rounded-lg bg-sunken font-mono text-[12.5px] leading-normal"
-	>
+	<div class="mx-3.5 mb-3 overflow-hidden rounded-lg bg-sunken font-mono text-sm leading-normal">
 		{#if input && input !== summary}
 			<pre class="overflow-x-auto p-3 whitespace-pre-wrap">{input}</pre>
 		{/if}

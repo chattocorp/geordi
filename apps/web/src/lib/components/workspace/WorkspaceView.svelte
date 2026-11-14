@@ -80,7 +80,7 @@
 		{/if}
 	{:else if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
-		<span class="truncate font-mono text-[12.5px]" title={path}>{path.split('/').at(-1)}</span>
+		<span class="truncate font-mono text-sm" title={path}>{path.split('/').at(-1)}</span>
 	{:else}
 		<span class="icon-[lucide--plus] size-3.5 shrink-0"></span>
 		<span class="truncate">New session</span>

@@ -63,6 +63,17 @@
 	--font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
 	--font-mono: 'Geist Mono Variable', ui-monospace, monospace;
 
+	/*
+	 * The whole type scale. Four sizes keep the UI calm: xs for captions and counts, sm for
+	 * chrome (tabs, lists, code), base for reading and writing, 2xl for page titles. Don't
+	 * add sizes; use weight and colour for hierarchy instead.
+	 */
+	--text-xs: 0.75rem;
+	--text-sm: 0.8125rem;
+	--text-sm--line-height: 1.55;
+	--text-base: 0.9375rem;
+	--text-base--line-height: 1.625;
+
 	--color-bg: var(--bg);
 	--color-sidebar: var(--sidebar);
 	--color-surface: var(--surface);
@@ -87,7 +98,7 @@
 
 @layer base {
 	body {
-		@apply bg-bg font-sans text-[15px] leading-relaxed text-ink antialiased;
+		@apply bg-bg font-sans text-base leading-relaxed text-ink antialiased;
 		font-feature-settings: 'ss01', 'cv11';
 	}
 
@@ -100,8 +111,21 @@
 	}
 }
 
-/* Markdown in agent output: typography plugin, coloured by our tokens (works in both modes). */
+/*
+ * Markdown in agent output: typography plugin, coloured by our tokens (works in both modes)
+ * and held to our type scale: headings differ by weight, not size.
+ */
 .prose {
+	font-size: var(--text-base);
+	line-height: var(--text-base--line-height);
+
+	:where(h1, h2, h3, h4) {
+		font-size: 1em;
+	}
+	:where(code, pre) {
+		font-size: var(--text-sm);
+	}
+
 	--tw-prose-body: var(--ink);
 	--tw-prose-headings: var(--ink);
 	--tw-prose-lead: var(--muted);

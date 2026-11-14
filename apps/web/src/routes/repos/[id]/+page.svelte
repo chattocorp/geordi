@@ -19,7 +19,7 @@
 
 <main class="mx-auto w-full max-w-3xl space-y-10 px-6 py-10">
 	<header class="space-y-1">
-		<h1 class="text-3xl font-semibold tracking-tight">{repo.name}</h1>
+		<h1 class="text-2xl font-semibold tracking-tight">{repo.name}</h1>
 		<p class="truncate font-mono text-xs text-muted" title={repo.path}>{repo.path}</p>
 	</header>
 
@@ -35,7 +35,7 @@
 			rows="3"
 			placeholder="What should the agent do?"
 			onkeydown={submitOnEnter}
-			class="block w-full resize-none bg-transparent px-5 py-2 text-lg placeholder:text-muted/60 focus-visible:outline-none"
+			class="block w-full resize-none bg-transparent px-5 py-2 text-base placeholder:text-muted/60 focus-visible:outline-none"
 		></textarea>
 		{#each prompt.issues() ?? [] as problem (problem.message)}
 			<p class="px-5 text-sm text-danger">{problem.message}</p>
@@ -52,7 +52,7 @@
 	</form>
 
 	<section class="space-y-3">
-		<h2 class="text-lg font-semibold tracking-tight">Workspaces</h2>
+		<h2 class="text-base font-semibold tracking-tight">Workspaces</h2>
 		<ul class="space-y-2">
 			{#each await workspaces as workspace (workspace.id)}
 				<li>

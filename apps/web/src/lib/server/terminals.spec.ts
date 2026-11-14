@@ -1,74 +1,111 @@
-import type { ForgeMessage } from '@geordi/protocol';
+import type { DaemonResults, ForgeMessage } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
 import { createTerminals } from './terminals.ts';
 
 const at = { workspaceId: 'w', terminal: 't' };
 const size = { cols: 100, rows: 30 };
+/** Lets pending scrollback requests settle. */
+const settled = () => new Promise((resolve) => setTimeout(resolve));
 
 function setup({ connected = true } = {}) {
 	const sent: ForgeMessage[] = [];
+	/** What the daemon would answer when asked for a terminal's scrollback. */
+	const daemon: { scrollback: DaemonResults['scrollback'] } = { scrollback: null };
 	const terminals = createTerminals(
 		(message) => (sent.push(message), connected),
+		async () => daemon.scrollback,
 		(workspaceId) => ({ workspaceId, repoPath: '/repo' })
 	);
-	return { terminals, sent, types: () => sent.map((message) => message.type) };
+	const watch = (terminal = at) => {
+		const seen: [string, boolean][] = [];
+		const detach = terminals.attach(terminal, (...args) => seen.push(args));
+		return { seen, detach, text: () => seen.map(([data]) => data).join('') };
+	};
+	return { terminals, sent, daemon, watch, types: () => sent.map((message) => message.type) };
 }
 
 describe('terminals', () => {
-	it('never starts a shell just because someone is watching', () => {
-		const { terminals, sent } = setup();
-		const seen: string[] = [];
-		terminals.attach(at, (data) => seen.push(data));
+	it('never starts a shell just because someone is watching', async () => {
+		const { terminals, sent, watch } = setup();
+		const { text } = watch();
 		terminals.resize(at, size);
+		await settled();
 
 		expect(sent).toEqual([]);
-		expect(seen.join('')).toContain('not running');
+		expect(text()).toContain('not running');
 	});
 
-	it('starts on request and relays output and input', () => {
-		const { terminals, sent } = setup();
-		const seen: string[] = [];
-		const detach = terminals.attach(at, (data) => seen.push(data));
-		seen.length = 0;
-
+	it('starts on request and relays output and input', async () => {
+		const { terminals, sent, watch } = setup();
 		terminals.start(at, size);
 		expect(sent).toEqual([
 			{ type: 'terminal.open', terminalId: 'w:t', workspaceId: 'w', repoPath: '/repo', ...size }
 		]);
 
-		terminals.output('w:t', 'hello');
+		const { seen, detach } = watch();
+		await settled();
+		seen.length = 0;
+
+		terminals.output('w:t', 'hello', 0);
 		terminals.input(at, 'ls\r');
-		expect(seen).toEqual(['hello']);
+		expect(seen).toEqual([['hello', false]]);
 		expect(sent.at(-1)).toEqual({ type: 'terminal.input', terminalId: 'w:t', data: 'ls\r' });
 
 		detach();
-		terminals.output('w:t', ' world');
-		expect(seen).toEqual(['hello']);
+		terminals.output('w:t', ' world', 5);
+		expect(seen).toHaveLength(1);
 	});
 
-	it('keeps the terminals of a workspace apart', () => {
-		const { terminals } = setup();
-		const seen: string[] = [];
-		terminals.start(at, size);
-		terminals.start({ ...at, terminal: 'other' }, size);
-		terminals.attach(at, (data) => seen.push(data));
-		terminals.output('w:other', 'elsewhere');
+	it('keeps the terminals of a workspace apart', async () => {
+		const { terminals, daemon, watch } = setup();
+		daemon.scrollback = { data: '', end: 0 };
+		const { seen } = watch();
+		await settled();
+		terminals.output('w:other', 'elsewhere', 0);
 		expect(seen).toEqual([]);
 	});
 
-	it('replays recent output to viewers that connect later', () => {
-		const { terminals } = setup();
-		terminals.start(at, size);
-		terminals.output('w:t', 'one');
-		terminals.output('w:t', 'two');
+	it("catches a new viewer up from the daemon's scrollback, without gaps or repeats", async () => {
+		const { terminals, daemon, watch } = setup();
+		daemon.scrollback = { data: 'onetwo', end: 6 };
+		const { seen } = watch();
 
-		const seen: [string, boolean][] = [];
-		terminals.attach(at, (...args) => seen.push(args));
-		terminals.output('w:t', 'three');
+		// arrives while the scrollback is on its way: one piece it contains, one it doesn't
+		terminals.output('w:t', 'two', 3);
+		terminals.output('w:t', 'three', 6);
+		await settled();
+		terminals.output('w:t', 'four', 11);
+
 		expect(seen).toEqual([
 			['onetwo', true],
-			['three', false]
+			['three', false],
+			['four', false]
 		]);
+	});
+
+	it('picks running terminals up again after a restart', async () => {
+		const { terminals, daemon, sent, watch } = setup();
+		// a fresh forge: it has never heard of this terminal, but the daemon is running it
+		terminals.reconcile(['w:t']);
+		daemon.scrollback = { data: 'before the restart', end: 18 };
+		const { text } = watch();
+		await settled();
+
+		expect(text()).toBe('before the restart');
+		terminals.input(at, 'x');
+		expect(sent).toEqual([{ type: 'terminal.input', terminalId: 'w:t', data: 'x' }]);
+	});
+
+	it('notices shells that ended while the daemon was away', async () => {
+		const { terminals, watch, types } = setup();
+		terminals.start(at, size);
+		const { text } = watch();
+		await settled();
+
+		terminals.reconcile([]);
+		expect(text()).toContain('The shell exited');
+		terminals.input(at, 'x');
+		expect(types()).toEqual(['terminal.open', 'terminal.open']);
 	});
 
 	it('restarts an exited shell on the next key press, at its last size', () => {
@@ -88,11 +125,11 @@ describe('terminals', () => {
 		expect(sent.at(-1)).toEqual({ type: 'terminal.close', terminalId: 'w:t' });
 	});
 
-	it('says so when no daemon is connected', () => {
-		const { terminals } = setup({ connected: false });
-		const seen: string[] = [];
-		terminals.attach(at, (data) => seen.push(data));
+	it('says so when no daemon is connected', async () => {
+		const { terminals, watch } = setup({ connected: false });
+		const { text } = watch();
+		await settled();
 		terminals.start(at, size);
-		expect(seen.join('')).toContain('No daemon connected');
+		expect(text()).toContain('No daemon connected');
 	});
 });

@@ -30,9 +30,9 @@
 
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
 	<header class="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-sidebar px-3.5">
-		<h2 class="text-[13px] font-medium">Changes</h2>
+		<h2 class="text-sm font-medium">Changes</h2>
 		{#if files.length > 0}
-			<span class="rounded-full bg-sunken px-1.5 text-[11px] font-medium text-muted">
+			<span class="rounded-full bg-sunken px-1.5 text-xs font-medium text-muted">
 				{files.length}
 			</span>
 			<span class="ml-auto">{@render stats(total('added'), total('removed'))}</span>
@@ -53,7 +53,7 @@
 							type="button"
 							onclick={() => onopen(file.path)}
 							title={file.path}
-							class="flex w-full items-center gap-3 px-3.5 py-1 text-left font-mono text-[12.5px] hover:bg-sunken"
+							class="flex w-full items-center gap-3 px-3.5 py-1 text-left font-mono text-sm hover:bg-sunken"
 						>
 							<span class="min-w-0 flex-1 truncate">
 								<span class="text-muted">{file.path.slice(0, slash)}</span>{file.path.slice(slash)}

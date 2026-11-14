@@ -8,7 +8,7 @@
 <svelte:head><title>Issues · Geordi</title></svelte:head>
 
 <main class="mx-auto w-full max-w-3xl space-y-8 px-6 py-10">
-	<h1 class="text-3xl font-semibold tracking-tight">Issues</h1>
+	<h1 class="text-2xl font-semibold tracking-tight">Issues</h1>
 
 	<form
 		{...openIssue}
@@ -58,7 +58,7 @@
 				<span class={['min-w-0 flex-1 truncate', issue.state === 'closed' && 'text-muted']}>
 					{issue.title}
 				</span>
-				<span class="font-mono text-[13px] text-muted">#{issue.number}</span>
+				<span class="font-mono text-sm text-muted">#{issue.number}</span>
 				<button
 					class="rounded-md px-2.5 py-1 text-sm text-muted hover:bg-sunken hover:text-ink"
 					onclick={() => (issue.state === 'open' ? closeIssue : reopenIssue)(issue.number)}

@@ -42,7 +42,7 @@
 	<a href={resolve('/')} class="flex items-center gap-3" aria-label="Geordi home">
 		<!-- The visor: Geordi's mark. -->
 		<span class="h-2 w-6 rounded-full bg-accent shadow-[0_0_14px_var(--accent)]"></span>
-		<span class="text-[17px] font-semibold tracking-tight">Geordi</span>
+		<span class="text-base font-semibold tracking-tight">Geordi</span>
 	</a>
 {/snippet}
 
@@ -86,13 +86,13 @@
 						repo.working
 					)}
 				{:else}
-					<p class="px-2.5 text-[13px] text-muted">None yet.</p>
+					<p class="px-2.5 text-sm text-muted">None yet.</p>
 				{/each}
 			</div>
 		</nav>
 
 		<div class="flex items-center justify-between border-t border-line px-4 py-2.5">
-			<span class="text-[13px] text-muted">Appearance</span>
+			<span class="text-sm text-muted">Appearance</span>
 			<ThemeToggle />
 		</div>
 	</aside>
@@ -115,7 +115,7 @@
 				<a
 					href={resolve('/workspaces/[id]', { id: workspace.id })}
 					class={[
-						'flex items-center gap-2 rounded-md px-2.5 py-1 text-[13px]',
+						'flex items-center gap-2 rounded-md px-2.5 py-1 text-sm',
 						current ? 'bg-surface text-ink shadow-soft' : 'text-muted hover:text-ink'
 					]}
 					aria-current={current ? 'page' : undefined}
@@ -128,7 +128,7 @@
 					></span>
 					<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
 					{#if !parent}
-						<span class="max-w-20 shrink-0 truncate text-[11px] text-muted/80">
+						<span class="max-w-20 shrink-0 truncate text-xs text-muted/80">
 							{repoName(workspace.repoId)}
 						</span>
 					{/if}
@@ -157,7 +157,7 @@
 		<span class="truncate">{label}</span>
 		{#if working > 0}
 			<span
-				class="ml-auto rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent-ink"
+				class="ml-auto rounded-full bg-accent-soft px-1.5 text-xs font-medium text-accent-ink"
 				title="{working} working">{working}</span
 			>
 		{/if}
