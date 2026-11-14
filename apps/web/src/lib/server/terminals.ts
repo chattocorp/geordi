@@ -6,7 +6,7 @@ const SCROLLBACK = 200_000;
 
 type Terminal = {
 	scrollback: string;
-	/** Whether a daemon is running this workspace's shell. */
+	/** Whether a daemon is running this terminal's shell. */
 	running: boolean;
 	size: TerminalSize;
 	listeners: Set<Listener>;
@@ -15,14 +15,22 @@ type Terminal = {
 /** `replay` marks old output, sent to catch a new viewer up. */
 type Listener = (data: string, replay: boolean) => void;
 
+/** Which of a workspace's terminals; the name is chosen by the browser that opened it. */
+export type TerminalRef = { workspaceId: string; terminal: string };
+
 const notice = (text: string) => `\r\n\x1b[2m${text}\x1b[0m\r\n`;
 
 /**
- * Relays each workspace's shell between browsers and the daemon running it. Terminal I/O
- * is deliberately not event-sourced (ADR-003): only recent output is kept, in memory.
+ * Relays the shells of workspaces between browsers and the daemon running them. A shell
+ * only ever starts because a person asked for it: by opening a terminal, or by pressing a
+ * key in one that isn't running. Terminal I/O is deliberately not event-sourced (ADR-003):
+ * only recent output is kept, in memory.
  */
 export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) => WorkspaceRef) {
+	/** By terminal ID, which is what daemons know a terminal as. */
 	const terminals = new Map<string, Terminal>();
+
+	const idOf = ({ workspaceId, terminal }: TerminalRef) => `${workspaceId}:${terminal}`;
 
 	function get(id: string): Terminal {
 		let terminal = terminals.get(id);
@@ -43,9 +51,16 @@ export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) =
 		for (const listener of terminal.listeners) listener(data, false);
 	}
 
-	/** Asks a daemon to start the shell (or, if it is running, to resize it). */
-	function open(id: string, terminal: Terminal) {
-		terminal.running = dispatch({ type: 'terminal.open', ...ref(id), ...terminal.size });
+	function start(at: TerminalRef) {
+		const terminalId = idOf(at);
+		const terminal = get(terminalId);
+		if (terminal.running) return;
+		terminal.running = dispatch({
+			type: 'terminal.open',
+			terminalId,
+			...ref(at.workspaceId),
+			...terminal.size
+		});
 		if (!terminal.running) emit(terminal, notice('No daemon connected. Press any key to retry.'));
 	}
 
@@ -56,38 +71,54 @@ export function createTerminals(dispatch: Dispatch, ref: (workspaceId: string) =
 	}
 
 	return {
+		/** Starts the terminal's shell, at the given size. */
+		start(at: TerminalRef, size: TerminalSize) {
+			get(idOf(at)).size = size;
+			start(at);
+		},
+
 		/**
-		 * Connects a viewer: starts the shell if needed, replays recent output to `listener`
-		 * and keeps it updated. Returns a function that disconnects it.
+		 * Connects a viewer: replays recent output to `listener` and keeps it updated. Never
+		 * starts a shell. Returns a function that disconnects the viewer.
 		 */
-		attach(id: string, size: TerminalSize, listener: Listener): () => void {
-			const terminal = get(id);
-			terminal.size = size;
-			open(id, terminal);
+		attach(at: TerminalRef, listener: Listener): () => void {
+			ref(at.workspaceId); // 404s for unknown workspaces
+			const terminal = get(idOf(at));
 			if (terminal.scrollback) listener(terminal.scrollback, true);
+			if (!terminal.running)
+				listener(notice('This terminal is not running. Press any key to start it.'), false);
 			terminal.listeners.add(listener);
 			return () => terminal.listeners.delete(listener);
 		},
 
-		input(id: string, data: string) {
-			const terminal = get(id);
-			if (terminal.running) dispatch({ type: 'terminal.input', workspaceId: id, data });
-			else open(id, terminal);
+		/** Passes input on. A key press in a terminal that isn't running starts it instead. */
+		input(at: TerminalRef, data: string) {
+			const terminalId = idOf(at);
+			if (get(terminalId).running) dispatch({ type: 'terminal.input', terminalId, data });
+			else start(at);
 		},
 
-		resize(id: string, size: TerminalSize) {
-			const terminal = get(id);
+		resize(at: TerminalRef, size: TerminalSize) {
+			const terminalId = idOf(at);
+			const terminal = get(terminalId);
 			terminal.size = size;
-			if (terminal.running) dispatch({ type: 'terminal.resize', workspaceId: id, ...size });
+			if (terminal.running) dispatch({ type: 'terminal.resize', terminalId, ...size });
 		},
 
-		output(id: string, data: string) {
-			const terminal = terminals.get(id);
+		/** Ends the shell and forgets the terminal. */
+		close(at: TerminalRef) {
+			const terminalId = idOf(at);
+			if (terminals.get(terminalId)?.running) dispatch({ type: 'terminal.close', terminalId });
+			terminals.delete(terminalId);
+		},
+
+		output(terminalId: string, data: string) {
+			const terminal = terminals.get(terminalId);
 			if (terminal) emit(terminal, data);
 		},
 
-		exit(id: string) {
-			const terminal = terminals.get(id);
+		exit(terminalId: string) {
+			const terminal = terminals.get(terminalId);
 			if (terminal) exit(terminal);
 		},
 

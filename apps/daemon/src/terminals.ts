@@ -3,25 +3,25 @@ import type { TerminalSize } from '@geordi/protocol';
 
 type Terminal = { pty: IPty; write(data: string): void };
 
-/** One interactive shell per workspace, by workspace ID. */
+/** Running shells, by terminal ID. */
 const terminals = new Map<string, Terminal>();
 
 /**
- * Starts the workspace's shell in `cwd`; if it is already running, only resizes it.
+ * Starts a shell in `cwd`; if this terminal is already running, only resizes it.
  *
  * `guard` runs before every piece of input and throws if the directory can no longer be
  * trusted. The shell is the user's own, unsandboxed: a key press typically makes it run git
  * (for the prompt), so it must not get that far in a worktree an agent has tampered with.
  */
 export function openTerminal(
-	workspaceId: string,
+	id: string,
 	cwd: string,
 	{ cols, rows }: TerminalSize,
 	guard: () => void,
 	onOutput: (data: string) => void,
 	onExit: () => void
 ) {
-	const running = terminals.get(workspaceId);
+	const running = terminals.get(id);
 	if (running) return running.pty.resize(cols, rows);
 
 	const pty = spawn(process.env.SHELL || '/bin/sh', [], {
@@ -43,20 +43,21 @@ export function openTerminal(
 			pty.write(data);
 		}
 	};
-	terminals.set(workspaceId, terminal);
+	terminals.set(id, terminal);
 	pty.onData(onOutput);
 	pty.onExit(() => {
 		// a restarted shell may already have taken this one's place
-		if (terminals.get(workspaceId) === terminal) terminals.delete(workspaceId);
+		if (terminals.get(id) === terminal) terminals.delete(id);
 		onExit();
 	});
 }
 
-export const writeTerminal = (workspaceId: string, data: string) =>
-	terminals.get(workspaceId)?.write(data);
+export const writeTerminal = (id: string, data: string) => terminals.get(id)?.write(data);
 
-export const resizeTerminal = (workspaceId: string, { cols, rows }: TerminalSize) =>
-	terminals.get(workspaceId)?.pty.resize(cols, rows);
+export const resizeTerminal = (id: string, { cols, rows }: TerminalSize) =>
+	terminals.get(id)?.pty.resize(cols, rows);
+
+export const closeTerminal = (id: string) => terminals.get(id)?.pty.kill();
 
 export function closeTerminals() {
 	for (const { pty } of terminals.values()) pty.kill();

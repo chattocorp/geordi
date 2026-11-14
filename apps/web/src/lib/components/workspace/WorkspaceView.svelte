@@ -12,7 +12,7 @@
 	import DiffWindow from './DiffWindow.svelte';
 	import NewWindow from './NewWindow.svelte';
 	import SessionWindow from './SessionWindow.svelte';
-	import Terminal from './Terminal.svelte';
+	import Terminals from './Terminals.svelte';
 
 	let { id }: { id: string } = $props();
 
@@ -121,7 +121,13 @@
 		}
 	>
 		{#snippet a()}
-			<Panes {layout} onchange={(next) => (custom.current = next)} {tab} {window} newTab={NEW} />
+			<Panes
+				{layout}
+				onchange={(next) => (custom.current = next)}
+				{tab}
+				{window}
+				newTab={() => NEW}
+			/>
 		{/snippet}
 		{#snippet b()}
 			{#if workspace.worktree}
@@ -139,7 +145,7 @@
 						/>
 					{/snippet}
 					{#snippet b()}
-						<Terminal workspaceId={id} />
+						<Terminals workspaceId={id} />
 					{/snippet}
 				</Split>
 			{:else}

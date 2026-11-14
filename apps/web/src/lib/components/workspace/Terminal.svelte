@@ -3,9 +3,16 @@
 	import type { ITheme } from '@xterm/xterm';
 	import type { Attachment } from 'svelte/attachments';
 	import { resolve } from '$app/paths';
-	import { terminalInput, terminalResize } from '../../../routes/workspaces.remote';
+	import { startTerminal, terminalInput, terminalResize } from '../../../routes/workspaces.remote';
 
-	let { workspaceId }: { workspaceId: string } = $props();
+	type Props = {
+		workspaceId: string;
+		/** This terminal's name within the workspace. */
+		terminal: string;
+		/** Whether the user just asked for this terminal: start its shell right away. */
+		start: boolean;
+	};
+	let { workspaceId, terminal, start }: Props = $props();
 
 	/** xterm paints its own colours; take them from our tokens. */
 	function theme(): ITheme {
@@ -20,7 +27,8 @@
 		};
 	}
 
-	const terminal: Attachment<HTMLElement> = (node) => {
+	const xterm: Attachment<HTMLElement> = (node) => {
+		const at = { workspaceId, terminal };
 		let dispose = () => {};
 		let disposed = false;
 
@@ -44,8 +52,9 @@
 				// Old output may contain questions to the terminal (e.g. "what are you?") that
 				// were answered long ago; answering them again would type into the shell.
 				let replaying = false;
-				const url = resolve('/workspaces/[id]/terminal', { id: workspaceId });
-				const source = new EventSource(`${url}?cols=${term.cols}&rows=${term.rows}`);
+				const source = new EventSource(
+					resolve('/workspaces/[id]/terminals/[terminal]', { id: workspaceId, terminal })
+				);
 				source.onopen = () => term.reset();
 				source.onmessage = (event) => term.write(JSON.parse(event.data));
 				source.addEventListener('replay', (event) => {
@@ -62,7 +71,7 @@
 					while (pending) {
 						const data = pending;
 						pending = '';
-						await terminalInput({ workspaceId, data }).catch(() => {});
+						await terminalInput({ ...at, data }).catch(() => {});
 					}
 					sending = false;
 				}
@@ -72,8 +81,12 @@
 					flush();
 				});
 
+				// A shell starts only on request: now, if the user just opened this terminal,
+				// or later on a key press. Either way the forge needs to know our size.
+				const size = { cols: term.cols, rows: term.rows };
+				(start ? startTerminal : terminalResize)({ ...at, ...size }).catch(() => {});
 				term.onResize(({ cols, rows }) => {
-					terminalResize({ workspaceId, cols, rows }).catch(() => {});
+					terminalResize({ ...at, cols, rows }).catch(() => {});
 				});
 				const resized = new ResizeObserver(() => fit.fit());
 				resized.observe(node);
@@ -97,9 +110,4 @@
 	};
 </script>
 
-<section class="flex min-h-0 flex-1 flex-col" aria-label="Terminal">
-	<header class="flex h-10 shrink-0 items-center border-b border-line bg-sidebar px-3.5">
-		<h2 class="text-[13px] font-medium">Terminal</h2>
-	</header>
-	<div class="min-h-0 flex-1 overflow-hidden py-2 pl-3" {@attach terminal}></div>
-</section>
+<div class="min-h-0 flex-1 overflow-hidden py-2 pl-3" {@attach xterm}></div>

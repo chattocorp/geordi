@@ -10,10 +10,14 @@
 		tab: Snippet<[string]>;
 		/** A tab's content. */
 		window: Snippet<[string]>;
-		/** The tab the "+" button of a group opens. */
-		newTab: string;
+		/** Names the tab the "+" button of a group opens. */
+		newTab: () => string;
+		/** Label of the "+" button. */
+		newLabel?: string;
+		/** Shown in a group without tabs. */
+		empty?: Snippet;
 	};
-	let { layout, onchange, tab, window, newTab }: Props = $props();
+	let { layout, onchange, tab, window, newTab, newLabel = 'New window', empty }: Props = $props();
 
 	/** The tab being dragged, and where it would land if dropped now. */
 	let dragging = $state<string | null>(null);
@@ -109,9 +113,9 @@
 				{/each}
 				<button
 					type="button"
-					aria-label="New window"
-					title="New window"
-					onclick={() => onchange(open(layout, newTab, n.id))}
+					aria-label={newLabel}
+					title={newLabel}
+					onclick={() => onchange(open(layout, newTab(), n.id))}
 					class="mb-1 ml-0.5 grid size-6 shrink-0 place-items-center rounded-md text-muted hover:bg-surface hover:text-ink"
 				>
 					<span class="icon-[lucide--plus] size-4"></span>
@@ -132,7 +136,9 @@
 						{@render window(id)}
 					</div>
 				{:else}
-					<p class="grid h-full place-items-center text-sm text-muted">Nothing open here.</p>
+					<div class="grid h-full place-items-center text-sm text-muted">
+						{#if empty}{@render empty()}{:else}Nothing open here.{/if}
+					</div>
 				{/each}
 				{#if dragging && target?.group === n.id}
 					<div

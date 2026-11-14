@@ -66,14 +66,26 @@ export const getDiff = query(
 	}
 );
 
-const size = { cols: v.pipe(v.number(), v.integer()), rows: v.pipe(v.number(), v.integer()) };
+const dimension = v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(500));
+const size = { cols: dimension, rows: dimension };
+/** One of a workspace's terminals; the browser that opens a terminal names it. */
+const terminal = {
+	workspaceId: v.string(),
+	terminal: v.pipe(v.string(), v.regex(/^[\w-]{1,40}$/))
+};
+
+/** Starts a terminal's shell. Only ever called because a person asked for a terminal. */
+export const startTerminal = command(v.object({ ...terminal, ...size }), ({ cols, rows, ...at }) =>
+	terminals().start(at, { cols, rows })
+);
 
 export const terminalInput = command(
-	v.object({ workspaceId: v.string(), data: v.string() }),
-	({ workspaceId, data }) => terminals().input(workspaceId, data)
+	v.object({ ...terminal, data: v.string() }),
+	({ data, ...at }) => terminals().input(at, data)
 );
 
-export const terminalResize = command(
-	v.object({ workspaceId: v.string(), ...size }),
-	({ workspaceId, ...size }) => terminals().resize(workspaceId, size)
+export const terminalResize = command(v.object({ ...terminal, ...size }), ({ cols, rows, ...at }) =>
+	terminals().resize(at, { cols, rows })
 );
+
+export const closeTerminal = command(v.object(terminal), (at) => terminals().close(at));

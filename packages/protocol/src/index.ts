@@ -59,10 +59,12 @@ export type ForgeMessage =
 	  }
 	| { type: 'turn.stop'; sessionId: string }
 	| { type: 'request'; id: string; request: DaemonRequest }
-	/** Starts the workspace's shell, or resizes it if it is already running. */
-	| ({ type: 'terminal.open' } & WorkspaceRef & TerminalSize)
-	| { type: 'terminal.input'; workspaceId: string; data: string }
-	| ({ type: 'terminal.resize'; workspaceId: string } & TerminalSize);
+	/** Starts a shell in the workspace's directory. A workspace can have several terminals. */
+	| ({ type: 'terminal.open'; terminalId: string } & WorkspaceRef & TerminalSize)
+	| { type: 'terminal.input'; terminalId: string; data: string }
+	| ({ type: 'terminal.resize'; terminalId: string } & TerminalSize)
+	/** Ends the shell. */
+	| { type: 'terminal.close'; terminalId: string };
 
 /** Daemon → forge. */
 export type DaemonMessage =
@@ -80,5 +82,5 @@ export type DaemonMessage =
 	| { type: 'session.event'; sessionId: string; event: SessionEvent }
 	/** Answers a `request`, with either a result (see `DaemonResults`) or an error. */
 	| { type: 'response'; id: string; result?: unknown; error?: string }
-	| { type: 'terminal.output'; workspaceId: string; data: string }
-	| { type: 'terminal.exit'; workspaceId: string };
+	| { type: 'terminal.output'; terminalId: string; data: string }
+	| { type: 'terminal.exit'; terminalId: string };

@@ -11,7 +11,13 @@ import {
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { changes, diff } from './changes.ts';
-import { closeTerminals, openTerminal, resizeTerminal, writeTerminal } from './terminals.ts';
+import {
+	closeTerminal,
+	closeTerminals,
+	openTerminal,
+	resizeTerminal,
+	writeTerminal
+} from './terminals.ts';
 import { runTurn, type Turn } from './turn.ts';
 import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
 
@@ -170,13 +176,13 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'terminal.open': {
-			const { workspaceId } = message;
-			const output = (data: string) => sendLive({ type: 'terminal.output', workspaceId, data });
-			const exit = () => sendLive({ type: 'terminal.exit', workspaceId });
+			const { terminalId } = message;
+			const output = (data: string) => sendLive({ type: 'terminal.output', terminalId, data });
+			const exit = () => sendLive({ type: 'terminal.exit', terminalId });
 			try {
-				const worktree = locateWorktree(worktreesDir, message.repoPath, workspaceId);
+				const worktree = locateWorktree(worktreesDir, message.repoPath, message.workspaceId);
 				const guard = () => verifyLinks(worktree);
-				openTerminal(workspaceId, worktree.path, message, guard, output, exit);
+				openTerminal(terminalId, worktree.path, message, guard, output, exit);
 			} catch (error) {
 				output(`${errorMessage(error)}\r\n`);
 				exit();
@@ -185,11 +191,15 @@ async function handle(message: ForgeMessage) {
 		}
 
 		case 'terminal.input':
-			writeTerminal(message.workspaceId, message.data);
+			writeTerminal(message.terminalId, message.data);
 			break;
 
 		case 'terminal.resize':
-			resizeTerminal(message.workspaceId, message);
+			resizeTerminal(message.terminalId, message);
+			break;
+
+		case 'terminal.close':
+			closeTerminal(message.terminalId);
 			break;
 
 		case 'turn.stop':
