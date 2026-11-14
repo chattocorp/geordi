@@ -40,24 +40,34 @@ const untracked = (worktree: Worktree) =>
 
 /**
  * The text of a file in the worktree, or `null` if it is not a readable, regular text file
- * that really is inside the worktree. An agent can swap any part of the path for a symlink
- * at any moment, so the path must resolve to itself, the file is opened without following a
- * link, and everything after that happens on the opened file, not on the path.
+ * that really is inside the worktree.
+ *
+ * An agent can swap any part of the path for a symlink at any moment. So the path must
+ * resolve to itself both before and after opening, the file is opened without following a
+ * link, and what we opened must be what the path names afterwards. Size and type are
+ * checked on the open file, not on the path. Opening never waits (a named pipe would block
+ * the whole daemon otherwise).
  */
-function readText(worktree: Worktree, path: string): string | null {
+export function readText(worktree: Worktree, path: string): string | null {
 	let fd: number;
+	let file: string;
 	try {
-		const file = join(realpathSync(worktree.path), path);
+		file = join(realpathSync(worktree.path), path);
 		if (realpathSync(file) !== file) return null;
-		fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+		fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
 	} catch {
 		return null;
 	}
 	try {
-		const stat = fstatSync(fd);
-		if (!stat.isFile() || stat.size > MAX_FILE) return null;
+		const opened = fstatSync(fd);
+		const named = lstatSync(file);
+		const same = opened.dev === named.dev && opened.ino === named.ino;
+		if (!same || realpathSync(file) !== file) return null;
+		if (!opened.isFile() || opened.size > MAX_FILE) return null;
 		const text = readFileSync(fd, 'utf8');
 		return text.includes('\0') ? null : text;
+	} catch {
+		return null;
 	} finally {
 		closeSync(fd);
 	}

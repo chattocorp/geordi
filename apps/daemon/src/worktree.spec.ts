@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changes, versions } from './changes.ts';
+import { changes, readText, versions } from './changes.ts';
 import { ensureWorktree, locateWorktree } from './worktree.ts';
 
 function repo() {
@@ -155,6 +155,11 @@ describe('changes', () => {
 		expect(versions(worktree, origin, secret)).toEqual(none);
 		expect(versions(worktree, origin, 'elsewhere/secret.txt')).toEqual(none);
 		expect(versions(worktree, origin, 'README.md')).toEqual(none);
+		// a named pipe must not make us wait for a writer that never comes
+		execFileSync('mkfifo', [join(worktree.path, 'pipe')]);
+		expect(readText(worktree, 'pipe')).toBeNull();
+		rmSync(join(worktree.path, 'pipe'));
+
 		// a tracked file whose directory was swapped for a link to somewhere else: git reports
 		// the file as changed (deleted), while the path now leads out of the worktree
 		rmSync(join(worktree.path, 'sub'), { recursive: true });
