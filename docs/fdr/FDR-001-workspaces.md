@@ -18,6 +18,7 @@ A workspace is where a piece of work happens: a Git worktree on its own branch i
   - Closing a window never ends or deletes a session.
 - The sidebar on the right has two panes, resizable against each other and against the window area.
   - **Changes** lists every file that differs from where the workspace branched off, with lines added and removed: committed, uncommitted and untracked work alike. Selecting a file opens its diff as a window. The list keeps itself up to date.
+  - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
   - Above the list, the pane shows how the workspace's branch stands on the forge the repository is hosted on: not pushed yet, pushed without a pull request (with a link to open one), or its pull request with state, checks, reviews and target branch, linking to the forge. It appears only for repositories hosted on a forge Geordi knows, and is at most a minute old.
   - **Terminals** are shells in the workspace's directory, as tabs that can be split like windows. None runs until asked for: a shell starts when a terminal is opened with "+", or on a key press in one that isn't running. Closing a terminal ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
 - The window arrangement and pane sizes are remembered per browser.
@@ -55,13 +56,19 @@ A workspace is where a piece of work happens: a Git worktree on its own branch i
 **Why:** It is a personal view of the workspace, differs per screen, and changes constantly while dragging.
 **Tradeoff:** The arrangement doesn't follow a person to another browser or device.
 
-### 6. Shells start only on request
+### 6. Diffs are made from whole files
+
+**Decision:** A diff window gets both versions of the file (at the fork point and now) and works out the diff itself, instead of being handed a patch.
+**Why:** A patch only carries a few lines around each change, so there would be nothing to expand into. With both versions, any amount of context is one click away.
+**Tradeoff:** Two whole files travel to the browser for every diff. Files that are binary or very large are not shown at all.
+
+### 7. Shells start only on request
 
 **Decision:** Opening a workspace never starts a shell; only opening a terminal or pressing a key in a stopped one does.
 **Why:** A shell is the user's own, unsandboxed process in a directory agents write to (ADR-003). It should exist only when someone wants it.
 **Tradeoff:** After a daemon restart, remembered terminals wait for a key press instead of coming back by themselves.
 
-### 7. Changes and terminal are live, not recorded
+### 8. Changes and terminal are live, not recorded
 
 **Decision:** Neither changes nor terminal output become part of the workspace's history.
 **Why:** See ADR-003.

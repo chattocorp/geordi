@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -25,6 +25,13 @@ export type WorktreeMode = (typeof WORKTREE_MODES)[number];
 
 /** A file that differs from the workspace's base. Line counts are `null` for binary files. */
 export type FileChange = { path: string; added: number | null; removed: number | null };
+
+/**
+ * Both versions of a changed file: where the workspace branched off (`old`) and now (`new`),
+ * `null` where the file doesn't exist. Whole files rather than a patch, so that a viewer can
+ * show more context around a change on demand. `unavailable` says why there is nothing to show.
+ */
+export type FileVersions = { old: string | null; new: string | null } | { unavailable: string };
 
 /** A pull request (or merge request, or whatever the forge calls it) for a workspace's branch. */
 export type PullRequest = {
@@ -68,7 +75,7 @@ export type Upstream = {
 export type DaemonRequest =
 	/** Every file changed since the workspace branched off, committed or not. */
 	| ({ kind: 'changes' } & WorkspaceRef)
-	/** The unified diff of one of those files. */
+	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorkspaceRef)
 	/** The workspace's branch on the repository's upstream forge. */
 	| ({ kind: 'upstream' } & WorkspaceRef)
@@ -77,7 +84,7 @@ export type DaemonRequest =
 
 export type DaemonResults = {
 	changes: FileChange[];
-	diff: string;
+	diff: FileVersions;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/**

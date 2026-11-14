@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { FileChange } from '@geordi/protocol';
+import type { FileChange, FileVersions } from '@geordi/protocol';
 import { branchRef, gitIn, headOf, type Worktree } from './worktree.ts';
 
-/** Diffs are for reading; beyond this they are cut off. */
-const MAX_DIFF = 400_000;
+/** Files are for reading; beyond this size (in characters) they are not shown. */
+const MAX_FILE = 1_000_000;
 /**
  * Never run code the worktree can supply: no diff drivers, and no looking inside submodules
  * (git would run itself in them, under whatever config the agent put there).
@@ -34,7 +34,7 @@ const untracked = (worktree: Worktree) =>
 function readText(worktree: Worktree, path: string): string | null {
 	const file = join(worktree.path, path);
 	// lstat: a symlink could point anywhere on this machine
-	if (!lstatSync(file).isFile() || lstatSync(file).size > MAX_DIFF) return null;
+	if (!lstatSync(file).isFile() || lstatSync(file).size > MAX_FILE) return null;
 	const text = readFileSync(file, 'utf8');
 	return text.includes('\0') ? null : text;
 }
@@ -63,14 +63,25 @@ export function changes(worktree: Worktree, origin: Origin): FileChange[] {
 	return [...tracked, ...added].sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export function diff(worktree: Worktree, origin: Origin, path: string): string {
-	const tracked = gitIn(worktree, 'diff', ...SAFE, forkPoint(worktree, origin), '--', path);
-	if (tracked) return tracked.slice(0, MAX_DIFF);
+/**
+ * Both versions of a changed file, for a diff viewer. Only files that `changes` lists: that
+ * keeps `path` inside the worktree, and away from whatever a symlink in it points to.
+ */
+export function versions(worktree: Worktree, origin: Origin, path: string): FileVersions {
+	if (!changes(worktree, origin).some((file) => file.path === path))
+		return { unavailable: 'This file has no changes any more.' };
 
-	// Only files git itself lists as untracked, so `path` can't escape the worktree.
-	if (!untracked(worktree).includes(path)) return '';
-	const text = readText(worktree, path);
-	if (text === null) return `Binary or special file ${path}\n`;
-	const body = lines(text).map((line) => `+${line}`);
-	return [`new file ${path}`, `@@ -0,0 +1,${body.length} @@`, ...body].join('\n') + '\n';
+	let old: string | null;
+	try {
+		old = gitIn(worktree, 'cat-file', 'blob', `${forkPoint(worktree, origin)}:${path}`);
+	} catch {
+		old = null; // not there at the fork point: the file is new
+	}
+
+	const exists = lstatSync(join(worktree.path, path), { throwIfNoEntry: false });
+	const now = exists ? readText(worktree, path) : null;
+	if ((exists && now === null) || old?.includes('\0') || (old?.length ?? 0) > MAX_FILE)
+		return { unavailable: 'This file is binary, too large or not a regular file.' };
+
+	return { old, new: now };
 }

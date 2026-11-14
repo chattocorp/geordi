@@ -10,7 +10,7 @@ import {
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
-import { changes, diff } from './changes.ts';
+import { changes, versions } from './changes.ts';
 import {
 	closeTerminal,
 	closeTerminals,
@@ -142,7 +142,7 @@ async function answer(request: DaemonRequest) {
 		case 'changes':
 			return changes(worktree, request);
 		case 'diff':
-			return diff(worktree, request, request.path);
+			return versions(worktree, request, request.path);
 		case 'upstream':
 			return upstream(worktree, request);
 	}

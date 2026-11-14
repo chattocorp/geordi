@@ -123,6 +123,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   splits (`#lib/layout.ts`, pure functions; rendered by `Panes.svelte`), named after what
   they show (`session:<id>`, `diff:<path>`, `new`). Layout and pane sizes are per-browser
   preferences (`persisted`), not events.
+- **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
+  (https://diffs.com) from both whole file versions, which is what makes context
+  expandable. It renders into a shadow root; style it through its `--diffs-*` properties.
 - **Agent output** is rendered as Markdown with `markdown-it` (raw HTML disabled), via
   `#lib/components/Markdown.svelte`.
 - Shared tool versions live in the pnpm catalog (`pnpm-workspace.yaml`); reference them as

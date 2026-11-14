@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changes, diff } from './changes.ts';
+import { changes, versions } from './changes.ts';
 import { ensureWorktree, locateWorktree } from './worktree.ts';
 
 function repo() {
@@ -101,9 +101,42 @@ describe('changes', () => {
 			{ path: 'kept.txt', added: 2, removed: 1 },
 			{ path: 'new.txt', added: 2, removed: 0 }
 		]);
-		expect(diff(worktree, { repoPath }, 'kept.txt')).toContain('+TWO');
-		expect(diff(worktree, { repoPath }, 'new.txt')).toContain('+x\n+y\n');
-		expect(() => diff(worktree, { repoPath }, '../outside')).toThrow(/outside repository/);
+		const origin = { repoPath };
+		expect(versions(worktree, origin, 'kept.txt')).toEqual({
+			old: 'one\ntwo\n',
+			new: 'one\nTWO\nthree\n'
+		});
+		expect(versions(worktree, origin, 'new.txt')).toEqual({ old: null, new: 'x\ny\n' });
+		expect(versions(worktree, origin, 'committed.txt')).toEqual({ old: null, new: 'a\n' });
+
+		// deleted, and binary
+		rmSync(join(worktree.path, 'kept.txt'));
+		writeFileSync(join(worktree.path, 'blob.bin'), Buffer.from([1, 0, 2]));
+		expect(versions(worktree, origin, 'kept.txt')).toEqual({ old: 'one\ntwo\n', new: null });
+		expect(versions(worktree, origin, 'blob.bin')).toEqual({
+			unavailable: expect.stringMatching(/binary/)
+		});
+	});
+
+	it('only shows files that changed, never what a path or a symlink leads to', () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const secret = join(base, 'secret.txt');
+		writeFileSync(secret, 'do not show');
+		symlinkSync(base, join(worktree.path, 'elsewhere'));
+		symlinkSync(secret, join(worktree.path, 'link.txt'));
+
+		const none = { unavailable: expect.stringMatching(/no changes/) };
+		const origin = { repoPath };
+		expect(versions(worktree, origin, '../secret.txt')).toEqual(none);
+		expect(versions(worktree, origin, secret)).toEqual(none);
+		expect(versions(worktree, origin, 'elsewhere/secret.txt')).toEqual(none);
+		expect(versions(worktree, origin, 'README.md')).toEqual(none);
+		// the link itself changed (it is new), but what it points to is not ours to show
+		expect(versions(worktree, origin, 'link.txt')).toEqual({
+			unavailable: expect.stringMatching(/not a regular file/)
+		});
 	});
 
 	it('branches sub-workspaces off their parent and measures changes against it', () => {

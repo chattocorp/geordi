@@ -1,39 +1,26 @@
 <script lang="ts">
+	import DiffView from '#lib/components/DiffView.svelte';
 	import { getChanges, getDiff } from '../../../routes/workspaces.remote';
 
 	let { workspaceId, path }: { workspaceId: string; path: string } = $props();
 
-	const diff = $derived(getDiff({ workspaceId, path }));
+	const versions = $derived(getDiff({ workspaceId, path }));
 
 	// Reload whenever the changes pane (which polls) sees this file change.
 	const changes = $derived(getChanges(workspaceId));
 	const stats = $derived(changes.current?.files.find((file) => file.path === path));
 	$effect(() => {
 		void [stats?.added, stats?.removed];
-		diff.refresh();
+		versions.refresh();
 	});
-
-	const tone = (line: string) => {
-		if (line.startsWith('@@')) return 'bg-accent-soft/60 text-accent-ink';
-		if (line.startsWith('+++') || line.startsWith('---')) return 'text-muted';
-		if (line.startsWith('+')) return 'bg-ok/10 text-ok';
-		if (line.startsWith('-')) return 'bg-danger/10 text-danger';
-		if (/^(diff|index|new file|deleted file|old mode|new mode|similarity|rename) /.test(line))
-			return 'text-muted';
-		return '';
-	};
 </script>
 
-<div class="scroller code-dense">
-	{#if diff.current === undefined}
-		<p class="p-5 font-sans text-sm text-muted">Loading…</p>
-	{:else if diff.current === ''}
-		<p class="p-5 font-sans text-sm text-muted">This file has no changes any more.</p>
+<div class="scroller">
+	{#if !versions.current}
+		<p class="p-5 text-sm text-muted">Loading…</p>
+	{:else if 'unavailable' in versions.current}
+		<p class="p-5 text-sm text-muted">{versions.current.unavailable}</p>
 	{:else}
-		<div class="w-max min-w-full py-3">
-			{#each diff.current.replace(/\n$/, '').split('\n') as line, i (i)}
-				<div class={['px-5 whitespace-pre', tone(line)]}>{line || ' '}</div>
-			{/each}
-		</div>
+		<DiffView {path} old={versions.current.old} new={versions.current.new} />
 	{/if}
 </div>

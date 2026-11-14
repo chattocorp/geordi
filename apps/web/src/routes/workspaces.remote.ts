@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, type FileChange, type Upstream } from '@geordi/protocol';
+import { AGENTS, type FileChange, type FileVersions, type Upstream } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
 import { hub, terminals, workspaces } from '#lib/server/app.ts';
 import { webUrl } from '#lib/url.ts';
@@ -88,13 +88,14 @@ export const getUpstream = query(
 	}
 );
 
+/** Both versions of a changed file, for the diff viewer. */
 export const getDiff = query(
 	v.object({ workspaceId: v.string(), path: v.string() }),
-	async ({ workspaceId, path }) => {
+	async ({ workspaceId, path }): Promise<FileVersions> => {
 		try {
 			return await hub().request({ kind: 'diff', path, ...workspaces().ref(workspaceId) });
 		} catch (error) {
-			return `Could not load the diff: ${message(error)}\n`;
+			return { unavailable: `Could not load the file: ${message(error)}` };
 		}
 	}
 );
