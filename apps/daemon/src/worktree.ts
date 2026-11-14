@@ -40,7 +40,7 @@ export function verifyLinks({ path, adminDir, commonDir }: Worktree) {
  * Where a workspace's worktree lives. Everything is derived from the repository and the
  * workspace ID, never by asking git inside the worktree (its metadata is agent-writable).
  */
-function describe(baseDir: string, repoPath: string, workspaceId: string): Worktree {
+export function describe(baseDir: string, repoPath: string, workspaceId: string): Worktree {
 	const short = workspaceId.slice(0, 8);
 	const commonDir = resolve(repoPath, git(repoPath, 'rev-parse', '--git-common-dir'));
 	return {
@@ -106,39 +106,6 @@ export function headOf({ path, adminDir }: Worktree): string {
 	const match = /^ref: (refs\/heads\/[\w./-]+)$/.exec(head) ?? /^([0-9a-f]{40,64})$/.exec(head);
 	if (!match) throw new Error(`Worktree ${path} has an unreadable HEAD`);
 	return match[1];
-}
-
-/**
- * Removes a workspace's worktree; its branch stays. Git refuses while the worktree has
- * uncommitted or untracked files, unless `force` says to discard them. A worktree that is
- * already gone is fine.
- */
-export function removeWorktree(
-	baseDir: string,
-	repoPath: string,
-	worktreeId: string,
-	force: boolean
-) {
-	const { path } = describe(baseDir, repoPath, worktreeId);
-	if (!existsSync(path)) return;
-	try {
-		execFileSync(
-			'git',
-			['-C', repoPath, 'worktree', 'remove', ...(force ? ['--force'] : []), path],
-			{
-				encoding: 'utf8',
-				stdio: ['ignore', 'pipe', 'pipe']
-			}
-		);
-	} catch (error) {
-		const reason = (error as { stderr?: string }).stderr?.trim();
-		throw new Error(
-			/modified or untracked/.test(reason ?? '')
-				? 'The worktree has uncommitted or untracked files.'
-				: reason || 'Could not remove the worktree',
-			{ cause: error }
-		);
-	}
 }
 
 /**

@@ -97,14 +97,21 @@ export function changes(worktree: Worktree, origin: Origin): FileChange[] {
 	return [...tracked, ...added].sort((a, b) => a.path.localeCompare(b.path));
 }
 
-/** The workspace's changes, and how far they have got: committed? pushed? */
-export function status(worktree: Worktree, origin: Origin): Changes {
-	// Not `git status`: `gitIn` runs against the repository's own .git, whose HEAD is not ours.
-	const head = headOf(worktree);
-	const modified = gitIn(worktree, 'diff', '--name-only', '-z', ...SAFE, head)
+/**
+ * The files with changes that are not committed: modified, staged, or new. Not `git
+ * status`: `gitIn` runs against the repository's own .git, whose HEAD is not the worktree's.
+ */
+export function uncommittedFiles(worktree: Worktree): string[] {
+	const modified = gitIn(worktree, 'diff', '--name-only', '-z', ...SAFE, headOf(worktree))
 		.split('\0')
 		.filter(Boolean);
-	const uncommitted = modified.length + untracked(worktree).length;
+	return [...modified, ...untracked(worktree)];
+}
+
+/** The workspace's changes, and how far they have got: committed? pushed? */
+export function status(worktree: Worktree, origin: Origin): Changes {
+	const head = headOf(worktree);
+	const uncommitted = uncommittedFiles(worktree).length;
 
 	// What is on the remote, as far as this machine knows: the remote-tracking branch.
 	let unpushed: number | null = null;

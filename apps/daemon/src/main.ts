@@ -20,10 +20,11 @@ import {
 	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
+import { removeWorktree } from './remove.ts';
 import { runTurn, type Turn } from './turn.ts';
 import { upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
-import { ensureWorktree, locateWorktree, removeWorktree, verifyLinks } from './worktree.ts';
+import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 /** Where agents on this machine reach the forge's agent API (ADR-004). */

@@ -12,7 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changes, readText, status, versions } from './changes.ts';
-import { ensureWorktree, locateWorktree, removeWorktree } from './worktree.ts';
+import { removeWorktree } from './remove.ts';
+import { ensureWorktree, locateWorktree } from './worktree.ts';
 
 function repo() {
 	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-wt-')));
@@ -292,11 +293,31 @@ describe('status', () => {
 		const branches = execFileSync('git', ['-C', repoPath, 'branch', '--list', 'geordi/*']);
 		expect(String(branches)).toContain('geordi/abcdefgh');
 
+		// git has forgotten it too
+		const listed = execFileSync('git', ['-C', repoPath, 'worktree', 'list']);
+		expect(String(listed)).not.toContain('abcdefgh');
+
 		// already gone is fine; and force discards
 		removeWorktree(base, repoPath, 'abcdefgh-1', false);
 		const second = ensureWorktree(base, repoPath, 'second00-1');
 		writeFileSync(join(second.path, 'junk.txt'), 'x\n');
 		removeWorktree(base, repoPath, 'second00-1', true);
 		expect(existsSync(second.path)).toBe(false);
+	});
+
+	it('never runs git on a worktree whose metadata an agent rewired', () => {
+		const { repoPath, base, worktree } = workspace();
+		const evil = mkdtempSync(join(tmpdir(), 'geordi-evil-'));
+		const marker = join(base, 'pwned');
+		// a fake Git directory with a hostile config, and the worktree pointed at it
+		execFileSync('git', ['init', '-q', evil]);
+		execFileSync('git', ['-C', evil, 'config', 'core.fsmonitor', `touch ${marker}; false`]);
+		writeFileSync(join(worktree.path, '.git'), `gitdir: ${join(evil, '.git')}`);
+
+		expect(() => removeWorktree(base, repoPath, 'abcdefgh-1', false)).toThrow(/was modified/);
+		expect(existsSync(worktree.path)).toBe(true);
+		removeWorktree(base, repoPath, 'abcdefgh-1', true);
+		expect(existsSync(worktree.path)).toBe(false);
+		expect(existsSync(marker)).toBe(false);
 	});
 });
