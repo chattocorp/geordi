@@ -4,6 +4,7 @@ import { command, form, query } from '$app/server';
 import { AGENTS, type FileChange, type Upstream } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
 import { hub, terminals, workspaces } from '#lib/server/app.ts';
+import { webUrl } from '#lib/url.ts';
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 const newSession = { agent: v.picklist(AGENTS), prompt: text };
@@ -73,6 +74,13 @@ export const getUpstream = query(
 	async (id): Promise<{ upstream: Upstream | null; unavailable: string | null }> => {
 		try {
 			const upstream = await hub().request({ kind: 'upstream', ...workspaces().ref(id) });
+			// These end up in links. They come from a daemon and, before that, another forge.
+			if (upstream) {
+				upstream.repoUrl = webUrl(upstream.repoUrl);
+				upstream.createUrl = webUrl(upstream.createUrl);
+				if (upstream.pull) upstream.pull.url = webUrl(upstream.pull.url);
+				if (upstream.pull?.checks) upstream.pull.checks.url = webUrl(upstream.pull.checks.url);
+			}
 			return { upstream, unavailable: null };
 		} catch (error) {
 			return { upstream: null, unavailable: message(error) };
