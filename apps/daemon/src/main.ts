@@ -6,7 +6,7 @@ import {
 	type DaemonMessage,
 	type DaemonRequest,
 	type ForgeMessage,
-	type SessionEvent
+	type AgentEvent
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
@@ -59,8 +59,8 @@ const turns = new Map<string, Turn>();
 
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
 const watches = createWatches(
-	({ repoPath, workspaceId }) => locateWorktree(worktreesDir, repoPath, workspaceId),
-	(workspaceId) => sendLive({ type: 'workspace.changed', workspaceId })
+	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
+	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
 );
 
 // --- Connection to the forge --------------------------------------------------------------
@@ -145,7 +145,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 async function answer(request: DaemonRequest) {
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 
-	const worktree = locateWorktree(worktreesDir, request.repoPath, request.workspaceId);
+	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
 			return changes(worktree, request);
@@ -159,14 +159,14 @@ async function answer(request: DaemonRequest) {
 async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'turn.start': {
-			const { sessionId, workspaceId, agent, repoPath, base, resumeId, prompt } = message;
-			const emit = (event: SessionEvent) => send({ type: 'session.event', sessionId, event });
+			const { workspaceId, worktreeId, agent, repoPath, base, resumeId, prompt } = message;
+			const emit = (event: AgentEvent) => send({ type: 'workspace.event', workspaceId, event });
 
-			if (turns.has(sessionId))
+			if (turns.has(workspaceId))
 				return emit({ kind: 'turn.failed', error: 'A turn is already running' });
 
 			try {
-				const worktree = ensureWorktree(worktreesDir, repoPath, workspaceId, base);
+				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base);
 				if (worktree.created) {
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
 					watches.refresh();
@@ -176,7 +176,7 @@ async function handle(message: ForgeMessage) {
 				const turn = runTurn(
 					adapter,
 					{
-						sessionId,
+						sessionId: workspaceId,
 						prompt,
 						resumeId,
 						cwd: worktree.path,
@@ -186,8 +186,8 @@ async function handle(message: ForgeMessage) {
 					emit,
 					message.apiToken
 				);
-				turns.set(sessionId, turn);
-				turn.done.then(() => turns.delete(sessionId));
+				turns.set(workspaceId, turn);
+				turn.done.then(() => turns.delete(workspaceId));
 			} catch (error) {
 				emit({ kind: 'turn.failed', error: errorMessage(error) });
 			}
@@ -203,7 +203,7 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'watch':
-			watches.set(message.workspaces);
+			watches.set(message.worktrees);
 			break;
 
 		case 'terminal.open': {
@@ -212,7 +212,7 @@ async function handle(message: ForgeMessage) {
 				sendLive({ type: 'terminal.output', terminalId, data, offset });
 			const exit = () => sendLive({ type: 'terminal.exit', terminalId });
 			try {
-				const worktree = locateWorktree(worktreesDir, message.repoPath, message.workspaceId);
+				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
 				openTerminal(terminalId, worktree.path, message, guard, output, exit);
 			} catch (error) {
@@ -235,7 +235,7 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'turn.stop':
-			turns.get(message.sessionId)?.stop();
+			turns.get(message.workspaceId)?.stop();
 			break;
 
 		default:

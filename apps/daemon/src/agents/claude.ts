@@ -1,7 +1,11 @@
-import type { SessionEvent } from '@geordi/protocol';
+import type { AgentEvent } from '@geordi/protocol';
 import { API_SERVER, API_TOKEN_ENV, truncate, type AgentAdapter } from './adapter.ts';
 
-const permissionMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE || 'acceptEdits';
+/**
+ * Agents run unattended and need to commit, push and use `gh`, so by default nothing asks
+ * for permission. `auto` or `acceptEdits` restrict that again.
+ */
+const permissionMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE || 'bypassPermissions';
 
 type Block =
 	| { type: 'text'; text: string }
@@ -22,7 +26,7 @@ function stringify(content: unknown): string {
 	return JSON.stringify(content);
 }
 
-function parseBlock(block: Block): SessionEvent[] {
+function parseBlock(block: Block): AgentEvent[] {
 	if (block.type === 'text' && 'text' in block) return [{ kind: 'text', text: block.text }];
 	if (block.type === 'tool_use' && 'name' in block)
 		return [{ kind: 'tool', id: block.id, name: block.name, input: JSON.stringify(block.input) }];

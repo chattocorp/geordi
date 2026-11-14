@@ -48,11 +48,12 @@ export const hub = lazy(() =>
 			watchers().resync();
 		},
 		onMessage: (message) => {
-			if (message.type === 'session.event') workspaces().record(message.sessionId, message.event);
+			if (message.type === 'workspace.event')
+				workspaces().record(message.workspaceId, message.event);
 			else if (message.type === 'terminal.output')
 				terminals().output(message.terminalId, message.data, message.offset);
 			else if (message.type === 'terminal.exit') terminals().exit(message.terminalId);
-			else if (message.type === 'workspace.changed') watchers().changed(message.workspaceId);
+			else if (message.type === 'worktree.changed') watchers().changed(message.worktreeId);
 		}
 	})
 );

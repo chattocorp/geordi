@@ -47,11 +47,7 @@
 						href={resolve('/workspaces/[id]', { id: workspace.id })}
 						class="flex items-center gap-3.5 card px-4 py-3 card-link"
 					>
-						<div class="flex shrink-0 -space-x-1.5">
-							{#each workspace.agents as name (name)}
-								<AgentAvatar agent={name} />
-							{/each}
-						</div>
+						<AgentAvatar agent={workspace.agent} />
 						<div class="min-w-0 flex-1">
 							<p class="truncate font-medium">{workspace.title}</p>
 							<p class="text-xs text-muted">{timeAgo(workspace.updatedAt)}</p>

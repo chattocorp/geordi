@@ -1,6 +1,7 @@
-import type { Agent, SessionEvent } from '@geordi/protocol';
+import type { Agent, AgentEvent } from '@geordi/protocol';
 
 export type TurnOptions = {
+	/** The workspace's ID, for CLIs that let us name their session (so a first turn needs no round trip). */
 	sessionId: string;
 	prompt: string;
 	/** The workspace's worktree. */
@@ -31,7 +32,7 @@ export const API_SERVER = 'geordi';
 export type AgentAdapter = {
 	command(options: TurnOptions): { cmd: string; args: string[] };
 	/** Maps one line of the CLI's JSON output to session events. */
-	parse(line: unknown): SessionEvent[];
+	parse(line: unknown): AgentEvent[];
 };
 
 /** Tool output can be huge (whole files); keep the event log lean. */

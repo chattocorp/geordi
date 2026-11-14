@@ -3,23 +3,26 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
 
-/** Where a workspace lives: its worktree is derived from the repository and the workspace ID. */
-export type WorkspaceRef = {
-	workspaceId: string;
+/**
+ * Where a workspace's files are: a worktree, derived from the repository and an ID. That ID
+ * is the workspace's own, unless the workspace works in another one's worktree.
+ */
+export type WorktreeRef = {
+	worktreeId: string;
 	repoPath: string;
 	/**
-	 * The branch the workspace started from, and that its changes are measured against.
-	 * Absent for workspaces started from whatever the repository had checked out.
+	 * The branch the worktree started from, and that its changes are measured against.
+	 * Absent for worktrees started from whatever the repository had checked out.
 	 */
 	base?: string;
 };
 
-/** How (and whether) agents can start other agents; see `WORKTREE_MODES`. */
+/** Where an agent started by another agent works: in a worktree of its `own`, or `shared` with its parent. */
 export const WORKTREE_MODES = ['own', 'shared'] as const;
 export type WorktreeMode = (typeof WORKTREE_MODES)[number];
 
@@ -74,11 +77,11 @@ export type Upstream = {
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
 export type DaemonRequest =
 	/** Every file changed since the workspace branched off, committed or not. */
-	| ({ kind: 'changes' } & WorkspaceRef)
+	| ({ kind: 'changes' } & WorktreeRef)
 	/** Both versions of one of those files. */
-	| ({ kind: 'diff'; path: string } & WorkspaceRef)
+	| ({ kind: 'diff'; path: string } & WorktreeRef)
 	/** The workspace's branch on the repository's upstream forge. */
-	| ({ kind: 'upstream' } & WorkspaceRef)
+	| ({ kind: 'upstream' } & WorktreeRef)
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'scrollback'; terminalId: string };
 
@@ -97,10 +100,10 @@ export type DaemonResults = {
 export type TerminalSize = { cols: number; rows: number };
 
 /**
- * What happens in an agent session, normalised across agent CLIs. The daemon emits these;
- * the forge stores them verbatim in its event log.
+ * What happens in a workspace's conversation with its agent, normalised across agent CLIs.
+ * The daemon emits these; the forge stores them verbatim in its event log.
  */
-export type SessionEvent =
+export type AgentEvent =
 	/** The workspace's worktree is ready. */
 	| { kind: 'worktree'; path: string; branch: string }
 	/** The agent CLI's own session ID, needed to resume the conversation in the next turn. */
@@ -120,23 +123,23 @@ export type ForgeMessage =
 	| { type: 'welcome'; proof: string }
 	| ({
 			type: 'turn.start';
-			sessionId: string;
+			workspaceId: string;
 			agent: Agent;
-			/** Lets the agent call Geordi's agent API (ADR-004) as this session, for this turn. */
+			/** Lets the agent call Geordi's agent API (ADR-004) as this workspace, for this turn. */
 			apiToken: string;
 			/** `null` on the first turn. */
 			resumeId: string | null;
 			prompt: string;
-	  } & WorkspaceRef)
-	| { type: 'turn.stop'; sessionId: string }
+	  } & WorktreeRef)
+	| { type: 'turn.stop'; workspaceId: string }
 	| { type: 'request'; id: string; request: DaemonRequest }
 	/**
-	 * The workspaces someone is looking at right now, all of them: the daemon watches their
+	 * The worktrees someone is looking at right now, all of them: the daemon watches their
 	 * files and reports changes, and stops watching any that are no longer listed.
 	 */
-	| { type: 'watch'; workspaces: WorkspaceRef[] }
+	| { type: 'watch'; worktrees: WorktreeRef[] }
 	/** Starts a shell in the workspace's directory. A workspace can have several terminals. */
-	| ({ type: 'terminal.open'; terminalId: string } & WorkspaceRef & TerminalSize)
+	| ({ type: 'terminal.open'; terminalId: string } & WorktreeRef & TerminalSize)
 	| { type: 'terminal.input'; terminalId: string; data: string }
 	| ({ type: 'terminal.resize'; terminalId: string } & TerminalSize)
 	/** Ends the shell. */
@@ -152,16 +155,16 @@ export type DaemonMessage =
 			nonce: string;
 			/** Answer to the forge's challenge. */
 			proof: string;
-			/** Sessions with a turn currently running on this daemon. */
+			/** Workspaces with a turn currently running on this daemon. */
 			running: string[];
 			/** Terminals currently running on this daemon. */
 			terminals: string[];
 	  }
-	| { type: 'session.event'; sessionId: string; event: SessionEvent }
+	| { type: 'workspace.event'; workspaceId: string; event: AgentEvent }
 	/** Answers a `request`, with either a result (see `DaemonResults`) or an error. */
 	| { type: 'response'; id: string; result?: unknown; error?: string }
 	/** `offset` counts the characters this terminal's shell had put out before `data`. */
 	| { type: 'terminal.output'; terminalId: string; data: string; offset: number }
 	| { type: 'terminal.exit'; terminalId: string }
-	/** Something changed in a watched workspace's files or Git state. */
-	| { type: 'workspace.changed'; workspaceId: string };
+	/** Something changed in a watched worktree's files or Git state. */
+	| { type: 'worktree.changed'; worktreeId: string };

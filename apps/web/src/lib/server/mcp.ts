@@ -7,14 +7,14 @@ import type { createWorkspaces } from './workspaces.ts';
 /**
  * Geordi's agent API (ADR-004, FDR-002) as a Model Context Protocol server: the tools that
  * let an agent start and supervise other agents. Stateless JSON-RPC over HTTP; the caller
- * is the session its token belongs to.
+ * is the workspace its token belongs to.
  */
 
 type Agents = ReturnType<typeof createWorkspaces>['agents'];
 
-const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent, then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you.`;
+const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you.`;
 
-const sessionId = v.pipe(v.string(), v.description('The session_id of an agent you started'));
+const agentId = v.pipe(v.string(), v.description('The id of an agent you started'));
 
 /** Each tool: what agents are told about it, its input, and what it does for a caller. */
 const tools = {
@@ -50,14 +50,14 @@ const tools = {
 		description:
 			'Wait for an agent you started to finish its current turn, and return its status and reply. If it is still "running" when the timeout ends, call this again.',
 		input: v.object({
-			session_id: sessionId,
+			agent_id: agentId,
 			timeout_seconds: v.pipe(
 				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), 45),
 				v.description('How long to wait at most. Defaults to 45.')
 			)
 		}),
-		run: (agents: Agents, caller: string, input: { session_id: string; timeout_seconds: number }) =>
-			agents.wait(caller, input.session_id, input.timeout_seconds * 1000)
+		run: (agents: Agents, caller: string, input: { agent_id: string; timeout_seconds: number }) =>
+			agents.wait(caller, input.agent_id, input.timeout_seconds * 1000)
 	},
 	list_agents: {
 		description:
@@ -68,18 +68,18 @@ const tools = {
 	send_message: {
 		description:
 			'Send a follow-up message to an idle agent you started. It keeps its conversation so far. Returns immediately; use wait_for_agent to get its reply.',
-		input: v.object({ session_id: sessionId, message: v.pipe(v.string(), v.minLength(1)) }),
-		run: (agents: Agents, caller: string, input: { session_id: string; message: string }) => {
-			agents.send(caller, input.session_id, input.message);
-			return agents.get(caller, input.session_id);
+		input: v.object({ agent_id: agentId, message: v.pipe(v.string(), v.minLength(1)) }),
+		run: (agents: Agents, caller: string, input: { agent_id: string; message: string }) => {
+			agents.send(caller, input.agent_id, input.message);
+			return agents.get(caller, input.agent_id);
 		}
 	},
 	stop_agent: {
 		description: 'Stop an agent you started, if it is running.',
-		input: v.object({ session_id: sessionId }),
-		run: (agents: Agents, caller: string, input: { session_id: string }) => {
-			agents.stop(caller, input.session_id);
-			return agents.get(caller, input.session_id);
+		input: v.object({ agent_id: agentId }),
+		run: (agents: Agents, caller: string, input: { agent_id: string }) => {
+			agents.stop(caller, input.agent_id);
+			return agents.get(caller, input.agent_id);
 		}
 	}
 };
@@ -109,14 +109,14 @@ async function callTool(agents: Agents, caller: string, params: unknown) {
 		const run = tool.run as (agents: Agents, caller: string, input: unknown) => unknown;
 		return content(JSON.stringify(await run(agents, caller, input.output), null, 2));
 	} catch (error) {
-		// Domain errors (limits, unknown sessions) are for the agent; anything else is a bug.
+		// Domain errors (limits, unknown agents) are for the agent; anything else is a bug.
 		if (isHttpError(error)) return content(error.body.message, true);
 		throw error;
 	}
 }
 
 /**
- * Answers one JSON-RPC message from the agent whose session is `caller`. Returns `null`
+ * Answers one JSON-RPC message from the agent of the workspace `caller`. Returns `null`
  * for notifications, which get no answer.
  */
 export async function handleMcp(agents: Agents, caller: string, message: Request) {

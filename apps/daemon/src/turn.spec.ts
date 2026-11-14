@@ -1,4 +1,4 @@
-import type { SessionEvent } from '@geordi/protocol';
+import type { AgentEvent } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
 import type { AgentAdapter } from './agents/adapter.ts';
 import { runTurn } from './turn.ts';
@@ -6,7 +6,7 @@ import { runTurn } from './turn.ts';
 /** An adapter that runs a Node one-liner and passes its JSON lines through as events. */
 const fake = (script: string): AgentAdapter => ({
 	command: () => ({ cmd: process.execPath, args: ['-e', script] }),
-	parse: (line) => [line as SessionEvent]
+	parse: (line) => [line as AgentEvent]
 });
 
 const options = {
@@ -19,7 +19,7 @@ const options = {
 };
 
 async function collect(adapter: AgentAdapter) {
-	const events: SessionEvent[] = [];
+	const events: AgentEvent[] = [];
 	await runTurn(adapter, options, (e) => events.push(e)).done;
 	return events;
 }
@@ -54,7 +54,7 @@ describe('runTurn', () => {
 	});
 
 	it('reports stopped turns', async () => {
-		const events: SessionEvent[] = [];
+		const events: AgentEvent[] = [];
 		const turn = runTurn(fake('setTimeout(() => {}, 10000)'), options, (e) => events.push(e));
 		turn.stop();
 		await turn.done;

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import type { SessionEvent } from '@geordi/protocol';
+import type { AgentEvent } from '@geordi/protocol';
 import { API_TOKEN_ENV, type AgentAdapter, type TurnOptions } from './agents/adapter.ts';
 
 export type Turn = { stop(): void; done: Promise<void> };
@@ -12,7 +12,7 @@ export type Turn = { stop(): void; done: Promise<void> };
 export function runTurn(
 	adapter: AgentAdapter,
 	options: TurnOptions,
-	emit: (event: SessionEvent) => void,
+	emit: (event: AgentEvent) => void,
 	/** For Geordi's agent API; only passed on if `options.api` is set. */
 	apiToken?: string
 ): Turn {
@@ -27,7 +27,7 @@ export function runTurn(
 	let stopped = false;
 	let stderr = '';
 
-	const send = (event: SessionEvent) => {
+	const send = (event: AgentEvent) => {
 		if (ended) return;
 		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') ended = true;
 		emit(event);

@@ -16,11 +16,11 @@ function setup() {
 	git(repoPath, 'init', '-q');
 	git(repoPath, 'commit', '-q', '--allow-empty', '-m', 'init');
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-	const ref = { workspaceId: 'abcdefgh-1', repoPath };
+	const ref = { worktreeId: 'abcdefgh-1', repoPath };
 
 	const seen: string[] = [];
 	const watches = createWatches(
-		({ repoPath, workspaceId }) => locateWorktree(base, repoPath, workspaceId),
+		({ repoPath, worktreeId }) => locateWorktree(base, repoPath, worktreeId),
 		(id) => seen.push(id)
 	);
 	return { base, ref, git, seen, watches };
@@ -29,14 +29,14 @@ function setup() {
 describe('watching workspaces', () => {
 	it('reports a burst of file changes once, and commits too', async () => {
 		const { base, ref, git, seen, watches } = setup();
-		const worktree = ensureWorktree(base, ref.repoPath, ref.workspaceId);
+		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
 		watches.set([ref]);
 		await wait(100); // let the watchers start
 
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
 		writeFileSync(join(worktree.path, 'b.txt'), 'two\n');
 		await wait(600);
-		expect(seen).toEqual([ref.workspaceId]);
+		expect(seen).toEqual([ref.worktreeId]);
 
 		git(worktree.path, 'add', '.');
 		git(worktree.path, 'commit', '-qm', 'work');
@@ -48,7 +48,7 @@ describe('watching workspaces', () => {
 
 	it('is not set off by looking at the changes', async () => {
 		const { base, ref, seen, watches } = setup();
-		const worktree = ensureWorktree(base, ref.repoPath, ref.workspaceId);
+		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
 		watches.set([ref]);
 		await wait(100);
@@ -63,7 +63,7 @@ describe('watching workspaces', () => {
 	it('stops watching workspaces nobody looks at, and picks up worktrees created later', async () => {
 		const { base, ref, seen, watches } = setup();
 		watches.set([ref]); // no worktree yet
-		const worktree = ensureWorktree(base, ref.repoPath, ref.workspaceId);
+		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
 		watches.refresh();
 		await wait(100);
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');

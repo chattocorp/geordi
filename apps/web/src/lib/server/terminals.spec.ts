@@ -14,7 +14,7 @@ function setup({ connected = true } = {}) {
 	const terminals = createTerminals(
 		(message) => (sent.push(message), connected),
 		async () => daemon.scrollback,
-		(workspaceId) => ({ workspaceId, repoPath: '/repo' })
+		(worktreeId) => ({ worktreeId, repoPath: '/repo' })
 	);
 	const watch = (terminal = at) => {
 		const seen: [string, boolean][] = [];
@@ -39,7 +39,7 @@ describe('terminals', () => {
 		const { terminals, sent, watch } = setup();
 		terminals.start(at, size);
 		expect(sent).toEqual([
-			{ type: 'terminal.open', terminalId: 'w:t', workspaceId: 'w', repoPath: '/repo', ...size }
+			{ type: 'terminal.open', terminalId: 'w:t', worktreeId: 'w', repoPath: '/repo', ...size }
 		]);
 
 		const { seen, detach } = watch();

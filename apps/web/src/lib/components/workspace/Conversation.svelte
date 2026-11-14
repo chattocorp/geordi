@@ -3,19 +3,22 @@
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
-	import type { Session } from '#lib/server/workspaces.ts';
+	import type { Workspace } from '#lib/server/workspaces.ts';
 	import { toBlocks } from '#lib/transcript.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
-	import { sendMessage, stopSession } from '../../../routes/workspaces.remote';
+	import { sendMessage, stopAgent } from '../../../routes/workspaces.remote';
 
-	let { session, cwd }: { session: Session; cwd?: string } = $props();
+	/** A workspace's conversation with its agent, and the box to reply in. */
+	let { workspace }: { workspace: Workspace } = $props();
 
-	const running = $derived(session.status === 'running');
-	const blocks = $derived(toBlocks(session.transcript));
-	// Several sessions are on screen at once; each needs its own instance of the form.
-	const form = $derived(sendMessage.for(session.id));
+	const cwd = $derived(workspace.worktree?.path);
+
+	const running = $derived(workspace.status === 'running');
+	const blocks = $derived(toBlocks(workspace.transcript));
+	// Each workspace needs its own instance of the form.
+	const form = $derived(sendMessage.for(workspace.id));
 
 	// Follow new output while the reader is at the bottom; leave them alone once they scroll up.
 	let scroller: HTMLElement;
@@ -52,7 +55,7 @@
 						</div>
 					{:else}
 						<div class="flex gap-3.5">
-							<AgentAvatar agent={session.agent} />
+							<AgentAvatar agent={workspace.agent} />
 							<div class="min-w-0 flex-1 space-y-3 pt-0.5">
 								{#each block.parts as part, j (j)}
 									{#if part.kind === 'text'}
@@ -90,7 +93,9 @@
 				disabled={running}
 				problems={form.fields.text.issues()?.map((problem) => problem.message)}
 			>
-				{#snippet header()}<input {...form.fields.sessionId.as('hidden', session.id)} />{/snippet}
+				{#snippet header()}
+					<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
+				{/snippet}
 				{#snippet footer()}
 					<p class="hidden pl-1 text-xs text-muted sm:block">
 						Enter to send, Shift+Enter for a new line
@@ -99,7 +104,7 @@
 						<Button
 							icon="icon-[lucide--square]"
 							class="ml-auto"
-							onclick={() => stopSession(session.id)}
+							onclick={() => stopAgent(workspace.id)}
 						>
 							Stop
 						</Button>

@@ -18,25 +18,24 @@ function setup({ connected = true } = {}) {
 	const dispatch = (message: ForgeMessage) => (sent.push(message), connected);
 	const workspaces = createWorkspaces(store, repos, dispatch);
 	const repo = repos.register(repoPath);
-
-	/** Creates a workspace; returns its ID and the ID of its first session. */
-	const create = (prompt: string, agent: 'claude' | 'codex' = 'claude') => {
-		const id = workspaces.create({ repoId: repo.id, agent, prompt });
-		return { id, sessionId: workspaces.get(id).sessions[0].id };
-	};
+	const create = (prompt: string, agent: 'claude' | 'codex' = 'claude') =>
+		workspaces.create({ repoId: repo.id, agent, prompt });
 	return { store, repos, workspaces, sent, repo, create, dispatch };
 }
+
+const tokenOf = (message: ForgeMessage | undefined) =>
+	(message as Extract<ForgeMessage, { type: 'turn.start' }>).apiToken;
 
 describe('workspaces', () => {
 	it('starts a turn on creation and records daemon output', () => {
 		const { workspaces, sent, repo, create } = setup();
-		const { id, sessionId } = create('Fix the bug\nplease');
+		const id = create('Fix the bug\nplease');
 
 		expect(sent).toEqual([
 			{
 				type: 'turn.start',
-				sessionId,
 				workspaceId: id,
+				worktreeId: id,
 				agent: 'claude',
 				repoPath: repo.path,
 				apiToken: expect.any(String),
@@ -46,63 +45,48 @@ describe('workspaces', () => {
 		]);
 		expect(workspaces.get(id)).toMatchObject({
 			title: 'Fix the bug',
-			sessions: [{ title: 'Fix the bug', status: 'running' }]
+			status: 'running',
+			parentId: null,
+			worktreeId: id
 		});
 
-		workspaces.record(sessionId, { kind: 'worktree', path: '/wt', branch: 'geordi/x' });
-		workspaces.record(sessionId, { kind: 'resume', id: 'cli-session' });
-		workspaces.record(sessionId, { kind: 'tool', id: 't1', name: 'Read', input: '{}' });
-		workspaces.record(sessionId, {
-			kind: 'tool.result',
-			id: 't1',
-			output: 'contents',
-			isError: false
-		});
-		workspaces.record(sessionId, { kind: 'text', text: 'Done.' });
-		workspaces.record(sessionId, { kind: 'turn.completed' });
+		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/x' });
+		workspaces.record(id, { kind: 'resume', id: 'cli-session' });
+		workspaces.record(id, { kind: 'tool', id: 't1', name: 'Read', input: '{}' });
+		workspaces.record(id, { kind: 'tool.result', id: 't1', output: 'contents', isError: false });
+		workspaces.record(id, { kind: 'text', text: 'Done.' });
+		workspaces.record(id, { kind: 'turn.completed' });
 
 		const workspace = workspaces.get(id);
-		expect(workspace.worktree).toEqual({ path: '/wt', branch: 'geordi/x' });
-		const [session] = workspace.sessions;
-		expect(session).toMatchObject({ status: 'idle', resumeId: 'cli-session' });
-		expect(session.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text']);
-		expect(session.transcript[1]).toMatchObject({ output: 'contents', isError: false });
-	});
-
-	it('runs several sessions in one workspace', () => {
-		const { workspaces, sent, create } = setup();
-		const { id, sessionId } = create('One');
-		const second = workspaces.addSession(id, { agent: 'codex', prompt: 'Two' });
-
-		expect(sent[1]).toMatchObject({ sessionId: second, workspaceId: id, agent: 'codex' });
-		expect(workspaces.get(id).sessions.map((session) => session.id)).toEqual([sessionId, second]);
-		expect(workspaces.list(workspaces.get(id).repoId)[0]).toMatchObject({
-			status: 'running',
-			agents: ['claude', 'codex']
+		expect(workspace).toMatchObject({
+			status: 'idle',
+			resumeId: 'cli-session',
+			worktree: { path: '/wt', branch: 'geordi/x' }
 		});
+		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text']);
+		expect(workspace.transcript[1]).toMatchObject({ output: 'contents', isError: false });
 	});
 
 	it('resumes the CLI session on follow-up messages', () => {
 		const { workspaces, sent, create } = setup();
-		const { sessionId } = create('One', 'codex');
-		workspaces.record(sessionId, { kind: 'resume', id: 'thread-1' });
-		workspaces.record(sessionId, { kind: 'turn.completed' });
+		const id = create('One', 'codex');
+		workspaces.record(id, { kind: 'resume', id: 'thread-1' });
+		workspaces.record(id, { kind: 'turn.completed' });
 
-		workspaces.send(sessionId, 'Two');
+		workspaces.send(id, 'Two');
 		expect(sent[1]).toMatchObject({ type: 'turn.start', resumeId: 'thread-1', prompt: 'Two' });
 	});
 
 	it('rejects messages while a turn is running', () => {
 		const { workspaces, create } = setup();
-		const { sessionId } = create('One');
-		expect(() => workspaces.send(sessionId, 'Two')).toThrow();
+		expect(() => workspaces.send(create('One'), 'Two')).toThrow();
 	});
 
 	it('fails the turn when no daemon is connected', () => {
 		const { workspaces, create } = setup({ connected: false });
-		const [session] = workspaces.get(create('One').id).sessions;
-		expect(session.status).toBe('idle');
-		expect(session.transcript.at(-1)).toMatchObject({
+		const workspace = workspaces.get(create('One'));
+		expect(workspace.status).toBe('idle');
+		expect(workspace.transcript.at(-1)).toMatchObject({
 			kind: 'error',
 			error: 'No daemon connected'
 		});
@@ -113,48 +97,91 @@ describe('workspaces', () => {
 		const lost = create('One');
 		const alive = create('Two');
 
-		workspaces.reconcile([alive.sessionId]);
+		workspaces.reconcile([alive]);
 		expect(workspaces.list(repo.id).map((workspace) => [workspace.id, workspace.status])).toEqual([
-			[alive.id, 'running'],
-			[lost.id, 'idle']
+			[alive, 'running'],
+			[lost, 'idle']
 		]);
 	});
 
-	it('lists workspaces per repository without their sessions', () => {
+	it('lists workspaces per repository without their transcripts', () => {
 		const { workspaces, repo, create } = setup();
 		create('One');
 		const [summary] = workspaces.list(repo.id);
-		expect(summary).not.toHaveProperty('sessions');
+		expect(summary).not.toHaveProperty('transcript');
 	});
+});
 
-	it('turns sessions from before workspaces into workspaces of their own', () => {
-		const { store, repos, workspaces, repo, sent, dispatch } = setup();
+describe('event logs from before a workspace had one conversation', () => {
+	it('turns a session without a workspace into a workspace', () => {
+		const { store, workspaces, repo, sent } = setup();
 		store.append({
 			type: 'session.created',
 			stream: 'session:old',
 			data: { id: 'old', repoId: repo.id, agent: 'claude', title: 'Legacy' }
 		});
+		store.append({
+			type: 'session.output',
+			stream: 'session:old',
+			data: { id: 'old', event: { kind: 'text', text: 'Hello' } }
+		});
 
 		expect(workspaces.get('old')).toMatchObject({
 			repoId: repo.id,
 			title: 'Legacy',
-			sessions: [{ id: 'old', workspaceId: 'old' }]
+			agent: 'claude',
+			worktreeId: 'old',
+			transcript: [{ kind: 'text', text: 'Hello' }]
 		});
 		// the worktree keeps its name: it was derived from the session ID
 		workspaces.send('old', 'Continue');
-		expect(sent[0]).toMatchObject({ sessionId: 'old', workspaceId: 'old' });
-
-		// and it survives a replay
-		expect(createWorkspaces(store, repos, dispatch).get('old').sessions).toHaveLength(1);
+		expect(sent[0]).toMatchObject({ workspaceId: 'old', worktreeId: 'old' });
 	});
-});
 
-describe('repos', () => {
-	it('registers a repository once and rejects non-repositories', () => {
-		const { repos, repo } = setup();
-		expect(repos.register(repo.path)).toEqual(repo);
-		expect(repos.list()).toHaveLength(1);
-		expect(() => repos.register(tmpdir())).toThrow();
+	it('makes the first session of a workspace its conversation, and further ones workspaces sharing its worktree', () => {
+		const { store, repos, workspaces, repo, dispatch } = setup();
+		// a workspace as it used to be recorded: created without an agent, then its sessions
+		store.append({
+			type: 'workspace.created',
+			stream: 'workspace:w',
+			data: { id: 'w', repoId: repo.id, title: 'Build it' } as never
+		});
+		const session = (id: string, agent: 'claude' | 'codex', parentSessionId?: string) =>
+			store.append({
+				type: 'session.created',
+				stream: `session:${id}`,
+				data: { id, workspaceId: 'w', agent, title: `Session ${id}`, parentSessionId }
+			});
+		const output = (id: string, event: Parameters<typeof workspaces.record>[1]) =>
+			store.append({ type: 'session.output', stream: `session:${id}`, data: { id, event } });
+
+		session('s1', 'claude');
+		store.append({ type: 'session.message', stream: 'session:s1', data: { id: 's1', text: 'Go' } });
+		output('s1', { kind: 'worktree', path: '/wt', branch: 'geordi/w' });
+		session('s2', 'codex', 's1');
+		output('s2', { kind: 'text', text: 'Reviewed.' });
+
+		const check = (all: typeof workspaces) => {
+			expect(all.get('w')).toMatchObject({
+				title: 'Build it',
+				agent: 'claude',
+				status: 'running',
+				worktreeId: 'w',
+				transcript: [{ kind: 'user', text: 'Go' }]
+			});
+			expect(all.get('s2')).toMatchObject({
+				title: 'Session s2',
+				agent: 'codex',
+				parentId: 'w',
+				worktreeId: 'w',
+				worktree: { path: '/wt', branch: 'geordi/w' },
+				transcript: [{ kind: 'text', text: 'Reviewed.' }]
+			});
+			expect(all.list(repo.id)).toHaveLength(2);
+		};
+		check(workspaces);
+		// and it survives a replay
+		check(createWorkspaces(store, repos, dispatch));
 	});
 });
 
@@ -169,13 +196,10 @@ describe('agents starting agents', () => {
 
 	function lead(options?: Parameters<typeof setup>[0]) {
 		const context = setup(options);
-		const { id, sessionId } = context.create('Lead');
-		context.workspaces.record(sessionId, worktree);
-		return { ...context, id, lead: sessionId, agents: context.workspaces.agents };
+		const id = context.create('Lead');
+		context.workspaces.record(id, worktree);
+		return { ...context, lead: id, agents: context.workspaces.agents };
 	}
-
-	const tokenOf = (message: ForgeMessage | undefined) =>
-		(message as Extract<ForgeMessage, { type: 'turn.start' }>).apiToken;
 
 	it('identifies an agent by the token of its running turn only', () => {
 		const { workspaces, agents, sent, lead: caller } = lead();
@@ -197,8 +221,7 @@ describe('agents starting agents', () => {
 		const { store, repos, repo, dispatch, sent } = setup();
 		const options = { secret: 'the-secret' };
 		const before = createWorkspaces(store, repos, dispatch, options);
-		const id = before.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
-		const caller = before.get(id).sessions[0].id;
+		const caller = before.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
 
 		const restarted = createWorkspaces(store, repos, dispatch, options);
 		expect(restarted.agents.authenticate(tokenOf(sent.at(-1)))).toBe(caller);
@@ -206,71 +229,79 @@ describe('agents starting agents', () => {
 		expect(stranger.agents.authenticate(tokenOf(sent.at(-1)))).toBeNull();
 	});
 
-	it('starts a child in the same workspace', () => {
-		const { workspaces, agents, sent, id, lead: caller } = lead();
-		const child = agents.start(caller, { worktree: 'shared', prompt: 'Review this' });
-
-		expect(child).toMatchObject({ workspaceId: id, parentSessionId: caller, agent: 'claude' });
-		expect(workspaces.get(id).sessions.map((session) => session.id)).toEqual([
-			caller,
-			child.sessionId
-		]);
-		expect(sent.at(-1)).toMatchObject({ sessionId: child.sessionId, workspaceId: id });
-		expect(sent.at(-1)).not.toHaveProperty('base');
-	});
-
-	it('starts a child in a sub-workspace branched from its own', () => {
-		const { workspaces, agents, sent, repo, id, lead: caller } = lead();
+	it('starts a child that works in its own worktree, branched from the parent', () => {
+		const { workspaces, agents, sent, repo, lead: caller } = lead();
 		const child = agents.start(caller, { worktree: 'own', agent: 'codex', prompt: 'Build it' });
 
-		expect(child.workspaceId).not.toBe(id);
-		expect(workspaces.get(child.workspaceId)).toMatchObject({
+		expect(child).toMatchObject({ parentId: caller, agent: 'codex', sharesWorktree: false });
+		expect(workspaces.get(child.id)).toMatchObject({
 			repoId: repo.id,
-			parentSessionId: caller,
-			parentWorkspaceId: id,
-			base: 'geordi/parent'
+			parentId: caller,
+			worktreeId: child.id,
+			base: 'geordi/parent',
+			worktree: null
 		});
 		expect(sent.at(-1)).toMatchObject({
 			type: 'turn.start',
-			agent: 'codex',
-			workspaceId: child.workspaceId,
+			workspaceId: child.id,
+			worktreeId: child.id,
 			base: 'geordi/parent'
 		});
-		expect(workspaces.ref(child.workspaceId).base).toBe('geordi/parent');
+	});
+
+	it('starts a child that works in the parent’s worktree', () => {
+		const { workspaces, agents, sent, lead: caller } = lead();
+		const child = agents.start(caller, { worktree: 'shared', prompt: 'Review this' });
+
+		expect(child).toMatchObject({
+			parentId: caller,
+			agent: 'claude',
+			sharesWorktree: true,
+			branch: 'geordi/parent'
+		});
+		// a workspace of its own, with its own conversation, in the same directory
+		expect(workspaces.get(child.id)).toMatchObject({
+			worktreeId: caller,
+			worktree: { path: '/wt', branch: 'geordi/parent' },
+			transcript: [{ kind: 'user', text: 'Review this' }]
+		});
+		expect(sent.at(-1)).toMatchObject({ workspaceId: child.id, worktreeId: caller });
+		expect(sent.at(-1)).not.toHaveProperty('base');
+		expect(workspaces.ref(child.id)).toEqual(workspaces.ref(caller));
 	});
 
 	it('reports what a child said in its latest turn', async () => {
 		const { workspaces, agents, lead: caller } = lead();
-		const { sessionId } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
-		workspaces.record(sessionId, { kind: 'text', text: 'Looking.' });
+		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
+		workspaces.record(id, { kind: 'text', text: 'Looking.' });
 
-		const waiting = agents.wait(caller, sessionId, 5000);
-		workspaces.record(sessionId, { kind: 'text', text: 'Done.' });
-		workspaces.record(sessionId, { kind: 'turn.completed' });
+		const waiting = agents.wait(caller, id, 5000);
+		workspaces.record(id, { kind: 'text', text: 'Done.' });
+		workspaces.record(id, { kind: 'turn.completed' });
 		expect(await waiting).toMatchObject({
 			status: 'idle',
 			reply: 'Looking.\n\nDone.',
 			error: null
 		});
 
-		agents.send(caller, sessionId, 'More');
-		workspaces.record(sessionId, { kind: 'turn.failed', error: 'boom' });
-		expect(agents.get(caller, sessionId)).toMatchObject({ reply: '', error: 'boom' });
+		agents.send(caller, id, 'More');
+		workspaces.record(id, { kind: 'turn.failed', error: 'boom' });
+		expect(agents.get(caller, id)).toMatchObject({ reply: '', error: 'boom' });
 	});
 
 	it('gives up waiting after the timeout', async () => {
 		const { agents, lead: caller } = lead();
-		const { sessionId } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
-		expect(await agents.wait(caller, sessionId, 10)).toMatchObject({ status: 'running' });
+		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
+		expect(await agents.wait(caller, id, 10)).toMatchObject({ status: 'running' });
 	});
 
 	it('only lets an agent control the agents it started', () => {
 		const { agents, create, lead: caller } = lead();
-		const stranger = create('Unrelated').sessionId;
-		const child = agents.start(caller, { worktree: 'shared', prompt: 'Go' }).sessionId;
-		const grandchild = agents.start(child, { worktree: 'shared', prompt: 'Deeper' }).sessionId;
+		const stranger = create('Unrelated');
+		const child = agents.start(caller, { worktree: 'shared', prompt: 'Go' }).id;
+		const grandchild = agents.start(child, { worktree: 'shared', prompt: 'Deeper' }).id;
 
-		expect(agents.list(caller).map((agent) => agent.sessionId)).toEqual([child, grandchild]);
+		expect(agents.list(caller).map((agent) => agent.id)).toEqual([child, grandchild]);
 		expect(() => agents.get(caller, stranger)).toThrow();
 		expect(() => agents.stop(child, caller)).toThrow();
 		expect(() => agents.get(grandchild, child)).toThrow();
@@ -278,38 +309,40 @@ describe('agents starting agents', () => {
 
 	it('limits nesting depth and concurrent children', () => {
 		const { agents, lead: caller } = lead();
-		const limited = createWorkspacesWith({ depth: 1, children: 2 });
+		const shared = (prompt: string) => ({ worktree: 'shared', prompt }) as const;
 
 		// defaults: 3 deep
-		const one = agents.start(caller, { worktree: 'shared', prompt: '1' }).sessionId;
-		const two = agents.start(one, { worktree: 'shared', prompt: '2' }).sessionId;
-		const three = agents.start(two, { worktree: 'shared', prompt: '3' }).sessionId;
-		expect(() => agents.start(three, { worktree: 'shared', prompt: '4' })).toThrow(
-			refusal(/nested/)
-		);
+		const one = agents.start(caller, shared('1')).id;
+		const two = agents.start(one, shared('2')).id;
+		const three = agents.start(two, shared('3')).id;
+		expect(() => agents.start(three, shared('4'))).toThrow(refusal(/nested/));
 
-		const first = limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'a' });
-		limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'b' });
-		const start = () => limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'c' });
+		const limited = lead();
+		const strict = createWorkspaces(limited.store, limited.repos, limited.dispatch, {
+			limits: { depth: 1, children: 2 }
+		});
+		const first = strict.agents.start(limited.lead, shared('a'));
+		strict.agents.start(limited.lead, shared('b'));
+		const start = () => strict.agents.start(limited.lead, shared('c'));
 		expect(start).toThrow(refusal(/2 agents are already running/));
 
 		// a finished agent frees a slot, and waking it up again takes one
-		limited.workspaces.record(first.sessionId, { kind: 'turn.completed' });
+		strict.record(first.id, { kind: 'turn.completed' });
 		const third = start();
-		expect(() => limited.agents.send(limited.caller, first.sessionId, 'Again')).toThrow(
+		expect(() => strict.agents.send(limited.lead, first.id, 'Again')).toThrow(
 			refusal(/already running/)
 		);
-		limited.workspaces.record(third.sessionId, { kind: 'turn.completed' });
-		limited.agents.send(limited.caller, first.sessionId, 'Again');
-		expect(() =>
-			limited.agents.start(first.sessionId, { worktree: 'shared', prompt: 'd' })
-		).toThrow(refusal(/nested/));
+		strict.record(third.id, { kind: 'turn.completed' });
+		strict.agents.send(limited.lead, first.id, 'Again');
+		expect(() => strict.agents.start(first.id, shared('d'))).toThrow(refusal(/nested/));
 	});
+});
 
-	function createWorkspacesWith(limits: { depth: number; children: number }) {
-		const { store, repos, repo, dispatch } = setup();
-		const workspaces = createWorkspaces(store, repos, dispatch, { limits });
-		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
-		return { workspaces, agents: workspaces.agents, caller: workspaces.get(id).sessions[0].id };
-	}
+describe('repos', () => {
+	it('registers a repository once and rejects non-repositories', () => {
+		const { repos, repo } = setup();
+		expect(repos.register(repo.path)).toEqual(repo);
+		expect(repos.list()).toHaveLength(1);
+		expect(() => repos.register(tmpdir())).toThrow();
+	});
 });

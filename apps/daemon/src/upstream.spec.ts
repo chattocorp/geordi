@@ -61,7 +61,7 @@ describe('upstream', () => {
 		if (remote) git('remote', 'add', 'origin', remote);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
 		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
-		return { worktree, ref: { repoPath, workspaceId: 'abcdefgh-1' } };
+		return { worktree, ref: { repoPath, worktreeId: 'abcdefgh-1' } };
 	}
 
 	it('is nothing for repositories without a remote, or on a forge we do not know', async () => {

@@ -11,7 +11,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 
 type Handlers = {
-	/** A daemon (re)connected, running these sessions' turns and these terminals. */
+	/** A daemon (re)connected, running these workspaces' turns and these terminals. */
 	onHello(daemonId: string, running: string[], terminals: string[]): void;
 	onMessage(message: DaemonMessage): void;
 };
@@ -48,7 +48,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 	/** Authenticated daemons, by socket. */
 	const daemons = new Map<WebSocket, string>();
-	/** Which daemon each session's turns were sent to; only it may report on the session. */
+	/** Which daemon each workspace's turns were sent to; only it may report on the workspace. */
 	const assigned = new Map<string, string>();
 	/** Requests awaiting a daemon's answer, by request ID. */
 	const pending = new Map<string, (response: { result?: unknown; error?: string }) => void>();
@@ -58,7 +58,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		const entry = [...daemons].find(([socket]) => socket.readyState === socket.OPEN);
 		if (!entry) return false;
 		const [socket, daemonId] = entry;
-		if (message.type === 'turn.start') assigned.set(message.sessionId, daemonId);
+		if (message.type === 'turn.start') assigned.set(message.workspaceId, daemonId);
 		socket.send(JSON.stringify(message));
 		return true;
 	}
@@ -104,7 +104,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			}
 
 			if (message.type === 'response') pending.get(message.id)?.(message);
-			else if (message.type !== 'session.event' || assigned.get(message.sessionId) === daemonId)
+			else if (message.type !== 'workspace.event' || assigned.get(message.workspaceId) === daemonId)
 				handlers.onMessage(message);
 		});
 

@@ -7,15 +7,14 @@ import { hub, terminals, watchers, workspaces } from '#lib/server/app.ts';
 import { webUrl } from '#lib/url.ts';
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
-const newSession = { agent: v.picklist(AGENTS), prompt: text };
 
 export const getWorkspaces = query.live(v.string(), async function* (repoId) {
 	yield* store().live(() => workspaces().list(repoId));
 });
 
 /**
- * One workspace with all of its sessions, so a page needs a single live connection. `parent`
- * is the workspace whose agent started this one, if any.
+ * One workspace with its conversation. `parent` is the workspace whose agent started this
+ * one, if any.
  *
  * While someone has this open, a daemon watches the workspace's files; `filesRevision` is
  * different after every change to them, which is the cue to ask for the changes again.
@@ -24,38 +23,34 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 	yield* store().live(
 		() => {
 			const workspace = workspaces().get(id);
-			const parent = workspace.parentWorkspaceId
-				? workspaces().summary(workspace.parentWorkspaceId)
-				: null;
+			const parent = workspace.parentId ? workspaces().summary(workspace.parentId) : null;
 			return {
 				...workspace,
 				parent: parent && { id: parent.id, title: parent.title },
 				filesRevision: watchers().revision()
 			};
 		},
-		(changed) => watchers().watch(id, changed)
+		(changed) => watchers().watch(workspaces().summary(id).worktreeId, changed)
 	);
 });
 
-export const createWorkspace = form(v.object({ repoId: v.string(), ...newSession }), (data) => {
-	const id = workspaces().create(data);
-	redirect(303, `/workspaces/${id}`);
-});
-
-/** Starts another agent session in a workspace. Returns the session's ID. */
-export const createSession = command(
-	v.object({ workspaceId: v.string(), ...newSession }),
-	({ workspaceId, ...session }) => workspaces().addSession(workspaceId, session)
-);
-
-export const sendMessage = form(
-	v.object({ sessionId: v.string(), text }),
-	({ sessionId, text }) => {
-		workspaces().send(sessionId, text);
+export const createWorkspace = form(
+	v.object({ repoId: v.string(), agent: v.picklist(AGENTS), prompt: text }),
+	(data) => {
+		const id = workspaces().create(data);
+		redirect(303, `/workspaces/${id}`);
 	}
 );
 
-export const stopSession = command(v.string(), (id) => workspaces().stop(id));
+export const sendMessage = form(
+	v.object({ workspaceId: v.string(), text }),
+	({ workspaceId, text }) => {
+		workspaces().send(workspaceId, text);
+	}
+);
+
+/** Stops the workspace's agent, if it is working. */
+export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

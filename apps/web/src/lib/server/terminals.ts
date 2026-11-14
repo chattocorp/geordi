@@ -1,4 +1,4 @@
-import type { DaemonResults, TerminalSize, WorkspaceRef } from '@geordi/protocol';
+import type { DaemonResults, TerminalSize, WorktreeRef } from '@geordi/protocol';
 import type { Dispatch } from './workspaces.ts';
 
 type Terminal = {
@@ -31,7 +31,7 @@ export function createTerminals(
 	dispatch: Dispatch,
 	/** Asks the daemon for a terminal's recent output. */
 	scrollback: (terminalId: string) => Promise<DaemonResults['scrollback']>,
-	ref: (workspaceId: string) => WorkspaceRef
+	ref: (workspaceId: string) => WorktreeRef
 ) {
 	/** By terminal ID, which is what daemons know a terminal as. */
 	const terminals = new Map<string, Terminal>();

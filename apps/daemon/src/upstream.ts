@@ -147,7 +147,7 @@ const cache = new Map<string, Cached>();
  */
 export async function upstream(
 	worktree: Worktree,
-	{ repoPath, workspaceId }: { repoPath: string; workspaceId: string },
+	{ repoPath, worktreeId }: { repoPath: string; worktreeId: string },
 	now = Date.now()
 ): Promise<Upstream | null> {
 	const remote = git(repoPath, 'remote', 'get-url', 'origin');
@@ -178,7 +178,7 @@ export async function upstream(
 
 	// Pushing, or switching branches, changes the answer at once; otherwise reuse it for a while.
 	const key = `${remote} ${branch}`;
-	const cached = cache.get(workspaceId);
+	const cached = cache.get(worktreeId);
 	const fresh = provider === anonymous ? FRESH_ANONYMOUS_MS : FRESH_MS;
 	if (cached?.key === key && now - cached.at < fresh) return cached.value;
 
@@ -195,6 +195,6 @@ export async function upstream(
 				})) ||
 			null
 	};
-	cache.set(workspaceId, { key, at: now, value });
+	cache.set(worktreeId, { key, at: now, value });
 	return value;
 }

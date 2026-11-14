@@ -14,12 +14,11 @@ function setup() {
 	const store = new EventStore<GeordiEvent>(':memory:');
 	const repos = createRepos(store);
 	const workspaces = createWorkspaces(store, repos, () => true);
-	const id = workspaces.create({
+	const caller = workspaces.create({
 		repoId: repos.register(repoPath).id,
 		agent: 'claude',
 		prompt: 'Lead'
 	});
-	const caller = workspaces.get(id).sessions[0].id;
 
 	let next = 0;
 	const rpc = async (method: string, params?: unknown) =>
@@ -37,7 +36,7 @@ function setup() {
 		};
 		return isError ? { error: content[0].text } : JSON.parse(content[0].text);
 	};
-	return { workspaces, id, caller, rpc, call };
+	return { workspaces, caller, rpc, call };
 }
 
 describe('the agent API as an MCP server', () => {
@@ -75,13 +74,14 @@ describe('the agent API as an MCP server', () => {
 	});
 
 	it('starts, lists and waits for agents through tools', async () => {
-		const { workspaces, id, caller, call } = setup();
+		const { workspaces, caller, call } = setup();
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
 		const child = await call('start_agent', { prompt: 'Review', worktree: 'shared' });
-		expect(child).toMatchObject({ workspaceId: id, parentSessionId: caller, status: 'running' });
+		expect(child).toMatchObject({ parentId: caller, sharesWorktree: true, status: 'running' });
 
-		workspaces.record(child.sessionId, { kind: 'text', text: 'LGTM' });
-		workspaces.record(child.sessionId, { kind: 'turn.completed' });
-		expect(await call('wait_for_agent', { session_id: child.sessionId })).toMatchObject({
+		workspaces.record(child.id, { kind: 'text', text: 'LGTM' });
+		workspaces.record(child.id, { kind: 'turn.completed' });
+		expect(await call('wait_for_agent', { agent_id: child.id })).toMatchObject({
 			status: 'idle',
 			reply: 'LGTM'
 		});
@@ -95,7 +95,7 @@ describe('the agent API as an MCP server', () => {
 			error: 'Your workspace has no worktree yet'
 		});
 		expect((await call('start_agent', {})).error).toMatch(/Invalid input/);
-		expect((await call('wait_for_agent', { session_id: 'nope' })).error).toMatch(/not started/);
+		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not started/);
 		expect((await call('launch_missiles')).error).toMatch(/Unknown tool/);
 	});
 });

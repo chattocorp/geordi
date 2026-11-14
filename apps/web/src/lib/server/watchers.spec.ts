@@ -6,15 +6,15 @@ function setup() {
 	const sent: ForgeMessage[] = [];
 	const watchers = createWatchers(
 		(message) => (sent.push(message), true),
-		(workspaceId) => {
-			if (workspaceId === 'missing') throw new Error('Workspace missing not found');
-			return { workspaceId, repoPath: '/repo' };
+		(worktreeId) => {
+			if (worktreeId === 'missing') throw new Error('Workspace missing not found');
+			return { worktreeId, repoPath: '/repo' };
 		}
 	);
 	/** The workspaces the daemon was last told to watch. */
 	const watching = () => {
 		const last = sent.at(-1);
-		return last?.type === 'watch' ? last.workspaces.map((ref) => ref.workspaceId) : null;
+		return last?.type === 'watch' ? last.worktrees.map((ref) => ref.worktreeId) : null;
 	};
 	return { watchers, sent, watching };
 }

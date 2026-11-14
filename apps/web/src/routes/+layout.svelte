@@ -22,7 +22,7 @@
 		const all = nav.current?.workspaces ?? [];
 		const ids = new Set(all.map((workspace) => workspace.id));
 		const children = Object.groupBy(all, (workspace: Item) =>
-			ids.has(workspace.parentWorkspaceId ?? '') ? workspace.parentWorkspaceId! : ''
+			ids.has(workspace.parentId ?? '') ? workspace.parentId! : ''
 		);
 		const of = (id: string | null) => children[id ?? ''] ?? [];
 		/** A workspace counts as working while anything beneath it is. */

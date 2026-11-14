@@ -1,4 +1,4 @@
-import type { SessionEvent } from '@geordi/protocol';
+import type { AgentEvent } from '@geordi/protocol';
 import { API_SERVER, API_TOKEN_ENV, truncate, type AgentAdapter } from './adapter.ts';
 
 /** A `codex exec --json` line. Fields vary by `type`; we read the ones we know about. */
@@ -25,13 +25,20 @@ type Line = {
 
 type Item = NonNullable<Line['item']>;
 
-function started(item: Item): SessionEvent[] {
+/**
+ * Agents run unattended and need to commit, push and use `gh` (which needs the network), so
+ * by default Codex runs without its sandbox. `GEORDI_CODEX_SANDBOX=workspace-write` puts it
+ * back in: it can then only write to the worktree, and has no network.
+ */
+const sandboxed = process.env.GEORDI_CODEX_SANDBOX === 'workspace-write';
+
+function started(item: Item): AgentEvent[] {
 	if (item.type === 'command_execution')
 		return [{ kind: 'tool', id: item.id, name: 'shell', input: item.command ?? '' }];
 	return [];
 }
 
-function completed(item: Item): SessionEvent[] {
+function completed(item: Item): AgentEvent[] {
 	switch (item.type) {
 		case 'agent_message':
 			return [{ kind: 'text', text: item.text ?? '' }];
@@ -75,17 +82,23 @@ function completed(item: Item): SessionEvent[] {
 /** `codex exec --json`. */
 export const codex: AgentAdapter = {
 	command({ prompt, cwd, writableRoots, resumeId, api }) {
-		const config = [
-			'sandbox_mode="workspace-write"',
-			// Commits in a worktree write to parts of the main repository's .git, outside the workspace.
-			`sandbox_workspace_write.writable_roots=${JSON.stringify(writableRoots)}`
-		];
+		const config = sandboxed
+			? [
+					'sandbox_mode="workspace-write"',
+					// Commits in a worktree write to parts of the main repository's .git, outside the workspace.
+					`sandbox_workspace_write.writable_roots=${JSON.stringify(writableRoots)}`
+				]
+			: [];
 		if (api)
 			config.push(
 				`mcp_servers.${API_SERVER}.url=${JSON.stringify(api.url)}`,
 				`mcp_servers.${API_SERVER}.bearer_token_env_var="${API_TOKEN_ENV}"`
 			);
-		const options = ['--json', ...config.flatMap((entry) => ['-c', entry])];
+		const options = [
+			'--json',
+			...(sandboxed ? [] : ['--dangerously-bypass-approvals-and-sandbox']),
+			...config.flatMap((entry) => ['-c', entry])
+		];
 		// `--` keeps user-provided values starting with `-` from being parsed as flags.
 		const args = resumeId
 			? ['exec', 'resume', ...options, '--', resumeId, prompt]

@@ -11,14 +11,25 @@
 		tab: Snippet<[string]>;
 		/** A tab's content. */
 		window: Snippet<[string]>;
-		/** Names the tab the "+" button of a group opens. */
-		newTab: () => string;
+		/** Names the tab the "+" button of a group opens. Without it, there is no such button. */
+		newTab?: () => string;
+		/** Which tabs can be closed. All of them, unless said otherwise. */
+		closable?: (tab: string) => boolean;
 		/** Label of the "+" button. */
 		newLabel?: string;
 		/** Shown in a group without tabs. */
 		empty?: Snippet;
 	};
-	let { layout, onchange, tab, window, newTab, newLabel = 'New window', empty }: Props = $props();
+	let {
+		layout,
+		onchange,
+		tab,
+		window,
+		newTab,
+		closable = () => true,
+		newLabel = 'New window',
+		empty
+	}: Props = $props();
 
 	/** The tab being dragged, and where it would land if dropped now. */
 	let dragging = $state<string | null>(null);
@@ -89,34 +100,39 @@
 							if (event.key === 'Enter' || event.key === ' ') onchange(open(layout, id));
 						}}
 						class={[
-							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pr-1 pl-2 select-none',
+							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
+							closable(id) ? 'pr-1' : 'pr-2.5',
 							active && 'item-active font-medium'
 						]}
 					>
 						{@render tab(id)}
-						<Button
-							variant="ghost"
-							size="sm"
-							icon="icon-[lucide--x]"
-							label="Close"
-							onclick={(event) => {
-								event.stopPropagation();
-								onchange(close(layout, id));
-							}}
-							class={[
-								'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100',
-								active && 'opacity-60'
-							]}
-						/>
+						{#if closable(id)}
+							<Button
+								variant="ghost"
+								size="sm"
+								icon="icon-[lucide--x]"
+								label="Close"
+								onclick={(event) => {
+									event.stopPropagation();
+									onchange(close(layout, id));
+								}}
+								class={[
+									'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100',
+									active && 'opacity-60'
+								]}
+							/>
+						{/if}
 					</div>
 				{/each}
-				<Button
-					variant="ghost"
-					size="sm"
-					icon="icon-[lucide--plus]"
-					label={newLabel}
-					onclick={() => onchange(open(layout, newTab(), n.id))}
-				/>
+				{#if newTab}
+					<Button
+						variant="ghost"
+						size="sm"
+						icon="icon-[lucide--plus]"
+						label={newLabel}
+						onclick={() => onchange(open(layout, newTab(), n.id))}
+					/>
+				{/if}
 			</div>
 
 			<div

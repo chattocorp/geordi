@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
-import type { WorkspaceRef } from '@geordi/protocol';
+import type { WorktreeRef } from '@geordi/protocol';
 import type { Worktree } from './worktree.ts';
 
 /** Changes come in bursts (a save, a checkout, an install); report each burst once. */
@@ -46,21 +46,21 @@ export function watchWorktree(worktree: Worktree, onChange: () => void): () => v
  * finds a workspace's worktree (and throws if it has none yet).
  */
 export function createWatches(
-	locate: (ref: WorkspaceRef) => Worktree,
-	onChange: (workspaceId: string) => void
+	locate: (ref: WorktreeRef) => Worktree,
+	onChange: (worktreeId: string) => void
 ) {
-	let wanted: WorkspaceRef[] = [];
+	let wanted: WorktreeRef[] = [];
 	const watching = new Map<string, () => void>();
 
 	function apply() {
-		const ids = new Set(wanted.map((ref) => ref.workspaceId));
+		const ids = new Set(wanted.map((ref) => ref.worktreeId));
 		for (const [id, stop] of watching)
 			if (!ids.has(id)) {
 				stop();
 				watching.delete(id);
 			}
 		for (const ref of wanted) {
-			const id = ref.workspaceId;
+			const id = ref.worktreeId;
 			if (watching.has(id)) continue;
 			try {
 				watching.set(
@@ -75,8 +75,8 @@ export function createWatches(
 
 	return {
 		/** Replaces the set of watched workspaces. */
-		set(workspaces: WorkspaceRef[]) {
-			wanted = workspaces;
+		set(worktrees: WorktreeRef[]) {
+			wanted = worktrees;
 			apply();
 		},
 		/** Call when a worktree was created: a wanted workspace may have been waiting for it. */

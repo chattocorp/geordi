@@ -17,11 +17,11 @@ export const getNavigation = query.live(async function* () {
 						working: own.filter((workspace) => workspace.status === 'running').length
 					};
 				}),
-			workspaces: all.map(({ id, title, repoId, parentWorkspaceId, status }) => ({
+			workspaces: all.map(({ id, title, repoId, parentId, status }) => ({
 				id,
 				title,
 				repoId,
-				parentWorkspaceId,
+				parentId,
 				status
 			}))
 		};

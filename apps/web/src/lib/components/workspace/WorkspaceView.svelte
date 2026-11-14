@@ -1,18 +1,16 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import StatusBadge from '#lib/components/StatusBadge.svelte';
+	import { open, singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
+	import { persisted } from '#lib/persisted.svelte.ts';
 	import Panes from '#lib/ui/Panes.svelte';
 	import Split from '#lib/ui/Split.svelte';
-	import StatusBadge from '#lib/components/StatusBadge.svelte';
-	import { untrack } from 'svelte';
-	import { add, open, prune, replace, singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
-	import { persisted } from '#lib/persisted.svelte.ts';
 	import { getRepo } from '../../../routes/repos.remote';
 	import { getWorkspace } from '../../../routes/workspaces.remote';
 	import Changes from './Changes.svelte';
+	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
-	import NewWindow from './NewWindow.svelte';
-	import SessionWindow from './SessionWindow.svelte';
 	import Terminals from './Terminals.svelte';
 
 	let { id }: { id: string } = $props();
@@ -20,41 +18,21 @@
 	const query = $derived(getWorkspace(id));
 	const workspace = $derived(await query);
 	const repo = $derived(await getRepo(workspace.repoId));
-	const running = $derived(workspace.sessions.some((session) => session.status === 'running'));
+	const running = $derived(workspace.status === 'running');
 
-	// Windows are tabs named after what they show: `session:<id>`, `diff:<path>`, or `new`.
-	const NEW = 'new';
-	const sessionTab = (sessionId: string) => `session:${sessionId}`;
-	const sessionOf = (tab: string) =>
-		tab.startsWith('session:')
-			? workspace.sessions.find((session) => sessionTab(session.id) === tab)
-			: undefined;
+	// Windows are tabs named after what they show: the conversation, or `diff:<path>`.
+	const CHAT = 'chat';
 	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
 
-	// The layout lives in this browser. Until it is customised, every session has a tab.
+	// The layout lives in this browser. The conversation is always part of it.
 	// (`id` never changes: the page creates a new view per workspace.)
 	// svelte-ignore state_referenced_locally
 	const custom = persisted<Layout | null>(`geordi:layout:${id}`, null);
-	const layout = $derived(
-		custom.current
-			? prune(custom.current, (tab) => !tab.startsWith('session:') || !!sessionOf(tab))
-			: singleGroup(workspace.sessions.map((session) => sessionTab(session.id)))
-	);
-	const closed = $derived(
-		workspace.sessions.filter((session) => !tabsOf(layout).includes(sessionTab(session.id)))
-	);
-
-	// Sessions that appear while the page is open (started by an agent, or elsewhere) get a
-	// tab, in the background. Sessions closed earlier stay closed.
-	let known: Set<string> | null = null;
-	$effect(() => {
-		const ids = workspace.sessions.map((session) => session.id);
-		untrack(() => {
-			if (known && custom.current)
-				for (const id of ids)
-					if (!known.has(id)) custom.current = add(custom.current, sessionTab(id));
-		});
-		known = new Set(ids);
+	const layout = $derived.by(() => {
+		const stored = custom.current;
+		if (!stored) return singleGroup([CHAT]);
+		const known = tabsOf(stored).every((tab) => tab === CHAT || pathOf(tab));
+		return known && tabsOf(stored).includes(CHAT) ? stored : singleGroup([CHAT]);
 	});
 
 	const sidebar = persisted('geordi:sidebar', { width: 0.3, changes: 0.45 });
@@ -63,43 +41,23 @@
 <svelte:head><title>{workspace.title} · Geordi</title></svelte:head>
 
 {#snippet tab(tab: string)}
-	{@const session = sessionOf(tab)}
 	{@const path = pathOf(tab)}
-	{#if session}
-		{@const parent = workspace.sessions.find((other) => other.id === session.parentSessionId)}
-		<AgentAvatar agent={session.agent} size="sm" />
-		{#if session.parentSessionId}
-			<span
-				class="icon-[lucide--corner-down-right] size-3.5 shrink-0 text-muted"
-				title={parent ? `Started by "${parent.title}"` : 'Started by an agent'}
-			></span>
-		{/if}
-		<span class="truncate">{session.title}</span>
-		{#if session.status === 'running'}
-			<span class="dot dot-live" title="Working"></span>
-		{/if}
-	{:else if path}
+	{#if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
 	{:else}
-		<span class="icon-[lucide--plus] size-3.5 shrink-0"></span>
-		<span class="truncate">New session</span>
+		<AgentAvatar agent={workspace.agent} size="sm" />
+		<span class="truncate">Conversation</span>
+		{#if running}<span class="dot dot-live" title="Working"></span>{/if}
 	{/if}
 {/snippet}
 
 {#snippet window(tab: string)}
-	{@const session = sessionOf(tab)}
 	{@const path = pathOf(tab)}
-	{#if session}
-		<SessionWindow {session} cwd={workspace.worktree?.path} />
-	{:else if path}
+	{#if path}
 		<DiffWindow workspaceId={id} {path} />
 	{:else}
-		<NewWindow
-			workspaceId={id}
-			{closed}
-			onopen={(sessionId) => (custom.current = replace(layout, NEW, sessionTab(sessionId)))}
-		/>
+		<Conversation {workspace} />
 	{/if}
 {/snippet}
 
@@ -121,7 +79,9 @@
 					<a
 						href={resolve('/workspaces/[id]', { id: workspace.parent.id })}
 						class="flex min-w-0 items-center gap-1 hover:text-ink"
-						title="This workspace was started by an agent in {workspace.parent.title}"
+						title={workspace.worktreeId === workspace.id
+							? `Started by the agent in "${workspace.parent.title}"`
+							: `Started by the agent in "${workspace.parent.title}", and working in its directory`}
 					>
 						<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0"></span>
 						<span class="truncate">{workspace.parent.title}</span>
@@ -157,7 +117,7 @@
 				onchange={(next) => (custom.current = next)}
 				{tab}
 				{window}
-				newTab={() => NEW}
+				closable={(tab) => tab !== CHAT}
 			/>
 		{/snippet}
 		{#snippet b()}
