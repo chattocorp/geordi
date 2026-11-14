@@ -52,6 +52,12 @@ function describe(baseDir: string, repoPath: string, workspaceId: string): Workt
 	};
 }
 
+/** A branch name as an unambiguous revision. Rejects anything git could read as an option. */
+export function branchRef(branch: string): string {
+	if (!/^[\w][\w./-]*$/.test(branch)) throw new Error(`Not a branch name: ${branch}`);
+	return `refs/heads/${branch}`;
+}
+
 /** The workspace's existing worktree. Throws if there is none yet, or it was tampered with. */
 export function locateWorktree(baseDir: string, repoPath: string, workspaceId: string): Worktree {
 	const worktree = describe(baseDir, repoPath, workspaceId);
@@ -61,16 +67,23 @@ export function locateWorktree(baseDir: string, repoPath: string, workspaceId: s
 }
 
 /**
- * Ensures the workspace's worktree exists, creating it (on a new branch off the repository's
- * current HEAD) on first use. Paths are derived from the workspace ID, so this is idempotent.
+ * Ensures the workspace's worktree exists, creating it on first use: on a new branch off
+ * `base` (a branch name), or off the repository's current HEAD. Paths are derived from the
+ * workspace ID, so this is idempotent.
  */
-export function ensureWorktree(baseDir: string, repoPath: string, workspaceId: string) {
+export function ensureWorktree(
+	baseDir: string,
+	repoPath: string,
+	workspaceId: string,
+	base?: string
+) {
 	const worktree = describe(baseDir, repoPath, workspaceId);
 
 	const created = !existsSync(worktree.path);
 	if (created) {
 		mkdirSync(join(baseDir, basename(repoPath)), { recursive: true });
-		git(repoPath, 'worktree', 'add', '-b', worktree.branch, worktree.path, 'HEAD');
+		const start = base ? branchRef(base) : 'HEAD';
+		git(repoPath, 'worktree', 'add', '-b', worktree.branch, worktree.path, start);
 	}
 	verifyLinks(worktree);
 

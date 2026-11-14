@@ -3,13 +3,25 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
 
 /** Where a workspace lives: its worktree is derived from the repository and the workspace ID. */
-export type WorkspaceRef = { workspaceId: string; repoPath: string };
+export type WorkspaceRef = {
+	workspaceId: string;
+	repoPath: string;
+	/**
+	 * The branch the workspace started from, and that its changes are measured against.
+	 * Absent for workspaces started from whatever the repository had checked out.
+	 */
+	base?: string;
+};
+
+/** How (and whether) agents can start other agents; see `WORKTREE_MODES`. */
+export const WORKTREE_MODES = ['own', 'shared'] as const;
+export type WorktreeMode = (typeof WORKTREE_MODES)[number];
 
 /** A file that differs from the workspace's base. Line counts are `null` for binary files. */
 export type FileChange = { path: string; added: number | null; removed: number | null };
@@ -47,16 +59,16 @@ export type ForgeMessage =
 	| { type: 'challenge'; nonce: string }
 	/** Reply to a valid `hello`; the daemon trusts the forge only after verifying it. */
 	| { type: 'welcome'; proof: string }
-	| {
+	| ({
 			type: 'turn.start';
 			sessionId: string;
-			workspaceId: string;
 			agent: Agent;
-			repoPath: string;
+			/** Lets the agent call Geordi's agent API (ADR-004) as this session, for this turn. */
+			apiToken: string;
 			/** `null` on the first turn. */
 			resumeId: string | null;
 			prompt: string;
-	  }
+	  } & WorkspaceRef)
 	| { type: 'turn.stop'; sessionId: string }
 	| { type: 'request'; id: string; request: DaemonRequest }
 	/** Starts a shell in the workspace's directory. A workspace can have several terminals. */

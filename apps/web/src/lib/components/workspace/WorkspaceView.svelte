@@ -4,7 +4,8 @@
 	import Panes from '#lib/components/Panes.svelte';
 	import Split from '#lib/components/Split.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
-	import { open, prune, replace, singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
+	import { untrack } from 'svelte';
+	import { add, open, prune, replace, singleGroup, tabsOf, type Layout } from '#lib/layout.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { getRepo } from '../../../routes/repos.remote';
 	import { getWorkspace } from '../../../routes/workspaces.remote';
@@ -43,6 +44,19 @@
 		workspace.sessions.filter((session) => !tabsOf(layout).includes(sessionTab(session.id)))
 	);
 
+	// Sessions that appear while the page is open (started by an agent, or elsewhere) get a
+	// tab, in the background. Sessions closed earlier stay closed.
+	let known: Set<string> | null = null;
+	$effect(() => {
+		const ids = workspace.sessions.map((session) => session.id);
+		untrack(() => {
+			if (known && custom.current)
+				for (const id of ids)
+					if (!known.has(id)) custom.current = add(custom.current, sessionTab(id));
+		});
+		known = new Set(ids);
+	});
+
 	const sidebar = persisted('geordi:sidebar', { width: 0.3, changes: 0.45 });
 </script>
 
@@ -52,7 +66,14 @@
 	{@const session = sessionOf(tab)}
 	{@const path = pathOf(tab)}
 	{#if session}
+		{@const parent = workspace.sessions.find((other) => other.id === session.parentSessionId)}
 		<AgentAvatar agent={session.agent} size="sm" />
+		{#if session.parentSessionId}
+			<span
+				class="icon-[lucide--corner-down-right] size-3.5 shrink-0 text-muted"
+				title={parent ? `Started by "${parent.title}"` : 'Started by an agent'}
+			></span>
+		{/if}
 		<span class="truncate">{session.title}</span>
 		{#if session.status === 'running'}
 			<span class="size-1.5 shrink-0 rounded-full bg-accent" title="Working"></span>
@@ -96,6 +117,16 @@
 					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
 					{repo.name}
 				</a>
+				{#if workspace.parent}
+					<a
+						href={resolve('/workspaces/[id]', { id: workspace.parent.id })}
+						class="flex min-w-0 items-center gap-1 hover:text-ink"
+						title="This workspace was started by an agent in {workspace.parent.title}"
+					>
+						<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0"></span>
+						<span class="truncate">{workspace.parent.title}</span>
+					</a>
+				{/if}
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>

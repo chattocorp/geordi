@@ -11,13 +11,26 @@
 
 	const nav = getNavigation();
 
-	/** The repository the current page belongs to (directly, or via one of its workspaces). */
-	const activeRepo = $derived.by(() => {
-		const id = page.params.id;
-		if (!id) return null;
-		if (page.route.id === '/repos/[id]') return id;
-		return nav.current?.find((repo) => repo.recent.some((s) => s.id === id))?.id ?? null;
+	type Item = NonNullable<typeof nav.current>['workspaces'][number];
+
+	/**
+	 * Workspaces as a tree of who started what (FDR-002): the ones people started at the top,
+	 * the ones their agents started beneath them.
+	 */
+	const tree = $derived.by(() => {
+		const all = nav.current?.workspaces ?? [];
+		const ids = new Set(all.map((workspace) => workspace.id));
+		const children = Object.groupBy(all, (workspace: Item) =>
+			ids.has(workspace.parentWorkspaceId ?? '') ? workspace.parentWorkspaceId! : ''
+		);
+		const of = (id: string | null) => children[id ?? ''] ?? [];
+		/** A workspace counts as working while anything beneath it is. */
+		const working = (workspace: Item): boolean =>
+			workspace.status === 'running' || of(workspace.id).some(working);
+		return { of, working };
 	});
+
+	const repoName = (id: string) => nav.current?.repos.find((repo) => repo.id === id)?.name;
 </script>
 
 <svelte:head>
@@ -55,9 +68,16 @@
 				)}
 			</div>
 
+			{#if tree.of(null).length > 0}
+				<div>
+					<p class="px-2.5 pb-1 text-xs font-medium text-muted">Workspaces</p>
+					{@render workspaces(null)}
+				</div>
+			{/if}
+
 			<div class="space-y-0.5">
 				<p class="px-2.5 pb-1 text-xs font-medium text-muted">Repositories</p>
-				{#each await nav as repo (repo.id)}
+				{#each (await nav).repos as repo (repo.id)}
 					{@render link(
 						resolve('/repos/[id]', { id: repo.id }),
 						'icon-[lucide--folder-git-2]',
@@ -65,31 +85,6 @@
 						page.url.pathname === `/repos/${repo.id}`,
 						repo.working
 					)}
-					{#if activeRepo === repo.id && repo.recent.length > 0}
-						<ul class="my-1 ml-[1.2rem] space-y-px border-l border-line pl-2">
-							{#each repo.recent as workspace (workspace.id)}
-								{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
-								<li>
-									<a
-										href={resolve('/workspaces/[id]', { id: workspace.id })}
-										class={[
-											'flex items-center gap-2 rounded-md px-2 py-1 text-[13px]',
-											current ? 'bg-surface text-ink shadow-soft' : 'text-muted hover:text-ink'
-										]}
-										aria-current={current ? 'page' : undefined}
-									>
-										<span
-											class={[
-												'size-1.5 shrink-0 rounded-full',
-												workspace.status === 'running' ? 'bg-accent' : 'bg-line'
-											]}
-										></span>
-										<span class="truncate">{workspace.title}</span>
-									</a>
-								</li>
-							{/each}
-						</ul>
-					{/if}
 				{:else}
 					<p class="px-2.5 text-[13px] text-muted">None yet.</p>
 				{/each}
@@ -111,6 +106,40 @@
 		{@render children()}
 	</div>
 </div>
+
+{#snippet workspaces(parent: string | null)}
+	<ul class={['space-y-px', parent && 'ml-3.5 border-l border-line pl-1.5']}>
+		{#each tree.of(parent) as workspace (workspace.id)}
+			{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
+			<li>
+				<a
+					href={resolve('/workspaces/[id]', { id: workspace.id })}
+					class={[
+						'flex items-center gap-2 rounded-md px-2.5 py-1 text-[13px]',
+						current ? 'bg-surface text-ink shadow-soft' : 'text-muted hover:text-ink'
+					]}
+					aria-current={current ? 'page' : undefined}
+				>
+					<span
+						class={[
+							'size-1.5 shrink-0 rounded-full',
+							tree.working(workspace) ? 'bg-accent' : 'bg-line'
+						]}
+					></span>
+					<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
+					{#if !parent}
+						<span class="max-w-20 shrink-0 truncate text-[11px] text-muted/80">
+							{repoName(workspace.repoId)}
+						</span>
+					{/if}
+				</a>
+				{#if tree.of(workspace.id).length > 0}
+					{@render workspaces(workspace.id)}
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/snippet}
 
 {#snippet link(href: string, icon: string, label: string, current: boolean, working = 0)}
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- callers pass resolve()d hrefs -->

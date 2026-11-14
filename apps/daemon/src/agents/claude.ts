@@ -1,5 +1,5 @@
 import type { SessionEvent } from '@geordi/protocol';
-import { truncate, type AgentAdapter } from './adapter.ts';
+import { API_SERVER, API_TOKEN_ENV, truncate, type AgentAdapter } from './adapter.ts';
 
 const permissionMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE || 'acceptEdits';
 
@@ -40,9 +40,17 @@ function parseBlock(block: Block): SessionEvent[] {
 
 /** `claude -p` with `--output-format stream-json`. */
 export const claude: AgentAdapter = {
-	command({ sessionId, prompt, resumeId }) {
+	command({ sessionId, prompt, resumeId, api }) {
 		const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 		args.push('--permission-mode', permissionMode);
+		if (api) {
+			// Claude expands ${VAR} in MCP configs itself.
+			const headers = { Authorization: `Bearer \${${API_TOKEN_ENV}}` };
+			const servers = { [API_SERVER]: { type: 'http', url: api.url, headers } };
+			args.push('--mcp-config', JSON.stringify({ mcpServers: servers }));
+			// Non-interactive runs can't ask for permission; these tools are ours.
+			args.push('--allowedTools', `mcp__${API_SERVER}`);
+		}
 		// Claude accepts our own UUID as its session ID, so the first turn doesn't need to wait for one.
 		args.push(...(resumeId ? ['--resume', resumeId] : ['--session-id', sessionId]));
 		// `--` keeps prompts starting with `-` from being parsed as flags.

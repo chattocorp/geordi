@@ -12,9 +12,18 @@ export const getWorkspaces = query.live(v.string(), async function* (repoId) {
 	yield* store().live(() => workspaces().list(repoId));
 });
 
-/** One workspace with all of its sessions, so a page needs a single live connection. */
+/**
+ * One workspace with all of its sessions, so a page needs a single live connection. `parent`
+ * is the workspace whose agent started this one, if any.
+ */
 export const getWorkspace = query.live(v.string(), async function* (id) {
-	yield* store().live(() => workspaces().get(id));
+	yield* store().live(() => {
+		const workspace = workspaces().get(id);
+		const parent = workspace.parentWorkspaceId
+			? workspaces().summary(workspace.parentWorkspaceId)
+			: null;
+		return { ...workspace, parent: parent && { id: parent.id, title: parent.title } };
+	});
 });
 
 export const createWorkspace = form(v.object({ repoId: v.string(), ...newSession }), (data) => {

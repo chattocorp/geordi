@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	add,
 	close,
 	groupsOf,
 	move,
@@ -24,6 +25,12 @@ describe('layout', () => {
 	it('opens new tabs in a group and activates existing ones', () => {
 		expect(shape(open(start, 'd'))).toBe('a b c d*');
 		expect(shape(open(start, 'b'))).toBe('a b* c');
+	});
+
+	it('adds tabs in the background', () => {
+		expect(shape(add(start, 'd'))).toBe('a* b c d');
+		expect(add(start, 'b')).toBe(start);
+		expect(shape(add(singleGroup([]), 'a'))).toBe('a*');
 	});
 
 	it('closes tabs, activating a neighbour', () => {

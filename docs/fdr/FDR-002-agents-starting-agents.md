@@ -1,6 +1,6 @@
 # FDR-002: Agents starting and supervising agents
 
-**Status:** Planned
+**Status:** Active
 **Last reviewed:** 2026-11-14
 
 ## Overview
@@ -9,14 +9,14 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 
 ## Behavior
 
-- An agent can start a child agent in one of two ways, and chooses per child:
+- An agent can start a child agent (of the same kind as itself, or another) in one of two ways, and chooses per child:
   - **In the same workspace:** the child is another session sharing the parent's files, for work that needs to see uncommitted state (reviewing, pairing).
   - **In a sub-workspace:** the child gets its own worktree and branch, branched from the parent workspace's branch, for work that should not interfere (parallel tasks).
 - The parent can message a child, wait until it has finished its turn, read its latest reply, and stop it. Children can start children of their own, up to a limit.
 - An agent can only see and control the agents it started, directly or indirectly.
 - Work from a sub-workspace comes back by the parent merging the child's branch. Geordi does not merge on its own.
 - The sidebar shows workspaces as a tree by who started what, not grouped by repository. The repository is shown on each workspace. A parent shows as working while any of its descendants is.
-- Inside a workspace, sessions started by an agent are marked as such and name their parent.
+- Inside a workspace, sessions started by an agent are marked as such and name their parent. They get a tab as they appear, without taking focus. A sub-workspace links back to the workspace it was started from, and its changes are measured against that workspace's branch.
 - People can open, message and stop any child like any other session.
 - Limits on nesting depth and on the number of children running at once stop runaway delegation; hitting one is reported to the calling agent as an error it can act on.
 
@@ -48,7 +48,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 
 ## Gates
 
-- Nesting depth limit and concurrent-children limit, both set by the person running the forge.
+- Nesting depth limit (3 by default) and concurrent-children limit per agent (5 by default), both set by the person running the forge. A depth limit of 0 turns the feature off.
 
 ## Related
 

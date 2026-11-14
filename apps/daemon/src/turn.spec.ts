@@ -14,7 +14,8 @@ const options = {
 	prompt: '',
 	cwd: process.cwd(),
 	writableRoots: [],
-	resumeId: null
+	resumeId: null,
+	api: null
 };
 
 async function collect(adapter: AgentAdapter) {

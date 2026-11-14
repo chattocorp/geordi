@@ -1,5 +1,5 @@
 import type { SessionEvent } from '@geordi/protocol';
-import { truncate, type AgentAdapter } from './adapter.ts';
+import { API_SERVER, API_TOKEN_ENV, truncate, type AgentAdapter } from './adapter.ts';
 
 /** A `codex exec --json` line. Fields vary by `type`; we read the ones we know about. */
 type Line = {
@@ -14,6 +14,12 @@ type Line = {
 		aggregated_output?: string;
 		exit_code?: number | null;
 		changes?: { path: string; kind: string }[];
+		/** `mcp_tool_call` */
+		server?: string;
+		tool?: string;
+		arguments?: unknown;
+		result?: { content?: { type: string; text?: string }[] } | null;
+		error?: { message?: string } | null;
 	};
 };
 
@@ -45,6 +51,16 @@ function completed(item: Item): SessionEvent[] {
 				{ kind: 'tool.result', id: item.id, output: summary, isError: false }
 			];
 		}
+		case 'mcp_tool_call': {
+			// Named like Claude names MCP tools, so both agents' calls read the same.
+			const name = `mcp__${item.server}__${item.tool}`;
+			const texts = (item.result?.content ?? []).flatMap((part) => part.text ?? []);
+			const output = item.error?.message ?? texts.join('\n');
+			return [
+				{ kind: 'tool', id: item.id, name, input: JSON.stringify(item.arguments ?? {}) },
+				{ kind: 'tool.result', id: item.id, output: truncate(output), isError: !!item.error }
+			];
+		}
 		case 'reasoning':
 		case 'error': // non-fatal warnings, e.g. config problems
 			return [];
@@ -58,24 +74,22 @@ function completed(item: Item): SessionEvent[] {
 
 /** `codex exec --json`. */
 export const codex: AgentAdapter = {
-	command({ prompt, cwd, writableRoots, resumeId }) {
-		// Commits in a worktree write to parts of the main repository's .git, outside the workspace.
-		const writable = `sandbox_workspace_write.writable_roots=${JSON.stringify(writableRoots)}`;
+	command({ prompt, cwd, writableRoots, resumeId, api }) {
+		const config = [
+			'sandbox_mode="workspace-write"',
+			// Commits in a worktree write to parts of the main repository's .git, outside the workspace.
+			`sandbox_workspace_write.writable_roots=${JSON.stringify(writableRoots)}`
+		];
+		if (api)
+			config.push(
+				`mcp_servers.${API_SERVER}.url=${JSON.stringify(api.url)}`,
+				`mcp_servers.${API_SERVER}.bearer_token_env_var="${API_TOKEN_ENV}"`
+			);
+		const options = ['--json', ...config.flatMap((entry) => ['-c', entry])];
 		// `--` keeps user-provided values starting with `-` from being parsed as flags.
 		const args = resumeId
-			? [
-					'exec',
-					'resume',
-					'--json',
-					'-c',
-					'sandbox_mode="workspace-write"',
-					'-c',
-					writable,
-					'--',
-					resumeId,
-					prompt
-				]
-			: ['exec', '--json', '-s', 'workspace-write', '-c', writable, '-C', cwd, '--', prompt];
+			? ['exec', 'resume', ...options, '--', resumeId, prompt]
+			: ['exec', ...options, '-C', cwd, '--', prompt];
 		return { cmd: 'codex', args };
 	},
 

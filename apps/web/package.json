@@ -38,6 +38,7 @@
 		"@fontsource-variable/geist": "^5.3.0",
 		"@fontsource-variable/geist-mono": "^5.3.0",
 		"@geordi/protocol": "workspace:*",
+		"@valibot/to-json-schema": "^1.8.0",
 		"@xterm/addon-fit": "^0.11.0",
 		"@xterm/xterm": "^6.0.0",
 		"markdown-it": "^15.0.3",

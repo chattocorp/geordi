@@ -56,10 +56,10 @@ function without(group: Group, tab: string): Group | null {
 	return { ...group, tabs, active };
 }
 
-const withTab = (group: Group, tab: string): Group => ({
+const withTab = (group: Group, tab: string, activate = true): Group => ({
 	...group,
 	tabs: group.tabs.includes(tab) ? group.tabs : [...group.tabs, tab],
-	active: tab
+	active: activate || !group.active ? tab : group.active
 });
 
 /** Shows `tab`: activates it if it is open, else adds it to the given (or first) group. */
@@ -68,6 +68,13 @@ export function open(layout: Layout, tab: string, groupId?: string): Layout {
 	const target =
 		groups.find((g) => g.tabs.includes(tab)) ?? groups.find((g) => g.id === groupId) ?? groups[0];
 	return mapGroups(layout, (g) => (g === target ? withTab(g, tab) : g))!;
+}
+
+/** Adds `tab` to the first group, unless it is open already, without bringing it to the front. */
+export function add(layout: Layout, tab: string): Layout {
+	const [first, ...others] = groupsOf(layout);
+	if ([first, ...others].some((g) => g.tabs.includes(tab))) return layout;
+	return mapGroups(layout, (g) => (g === first ? withTab(g, tab, false) : g))!;
 }
 
 export function close(layout: Layout, tab: string): Layout {

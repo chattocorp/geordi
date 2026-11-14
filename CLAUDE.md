@@ -56,6 +56,11 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     terminal event. Follow-up turns resume the CLI's own session (`resumeId`).
   - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
     `adapterFor`, and add parser tests based on real captured CLI output.
+- **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
+  server on the forge (`mcp.ts`, served at `/mcp`). The forge issues a token per turn; the
+  daemon hands URL and token to the CLI. The calling session is the parent of what it starts
+  and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
+  adding an entry to `tools` in `mcp.ts`.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers read it as

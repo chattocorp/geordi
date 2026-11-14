@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { SessionEvent } from '@geordi/protocol';
-import type { AgentAdapter, TurnOptions } from './agents/adapter.ts';
+import { API_TOKEN_ENV, type AgentAdapter, type TurnOptions } from './agents/adapter.ts';
 
 export type Turn = { stop(): void; done: Promise<void> };
 
@@ -12,10 +12,16 @@ export type Turn = { stop(): void; done: Promise<void> };
 export function runTurn(
 	adapter: AgentAdapter,
 	options: TurnOptions,
-	emit: (event: SessionEvent) => void
+	emit: (event: SessionEvent) => void,
+	/** For Geordi's agent API; only passed on if `options.api` is set. */
+	apiToken?: string
 ): Turn {
 	const { cmd, args } = adapter.command(options);
-	const child = spawn(cmd, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+	const child = spawn(cmd, args, {
+		cwd: options.cwd,
+		stdio: ['ignore', 'pipe', 'pipe'],
+		env: options.api && apiToken ? { ...process.env, [API_TOKEN_ENV]: apiToken } : process.env
+	});
 
 	let ended = false;
 	let stopped = false;

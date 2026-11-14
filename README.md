@@ -6,6 +6,8 @@ A self-hostable code forge and agent orchestrator.
 - Issues, pull requests, reviews
 - Run coding agents (`claude -p`, `codex`) in workspaces: isolated Git worktrees with
   several agent sessions side by side, a live view of their changes, and a terminal
+- Let agents start and supervise other agents, in the same workspace or in sub-workspaces
+  of their own, and see who is controlling what
 
 Geordi is in early development.
 
@@ -60,20 +62,23 @@ authenticate each other with a shared token that the forge creates in its data d
 
 ### Forge
 
-| Variable               | Default                     | Purpose                                              |
-| ---------------------- | --------------------------- | ---------------------------------------------------- |
-| `GEORDI_DATA_DIR`      | `~/.geordi`                 | Where Geordi stores its data                         |
-| `GEORDI_DAEMON_PORT`   | `7700`                      | Port on 127.0.0.1 where daemons connect              |
-| `GEORDI_ALLOWED_HOSTS` | `localhost,127.0.0.1,[::1]` | Hostnames the forge answers to (DNS rebinding guard) |
-| `HOST`                 | `127.0.0.1`                 | Interface to listen on                               |
-| `ORIGIN`               |                             | Public URL; required, or forms/commands are rejected |
-| `PORT`                 | `3000`                      | HTTP port                                            |
+| Variable                    | Default                     | Purpose                                                   |
+| --------------------------- | --------------------------- | --------------------------------------------------------- |
+| `GEORDI_DATA_DIR`           | `~/.geordi`                 | Where Geordi stores its data                              |
+| `GEORDI_DAEMON_PORT`        | `7700`                      | Port on 127.0.0.1 where daemons connect                   |
+| `GEORDI_AGENT_MAX_DEPTH`    | `3`                         | How deep agents starting agents may nest (0 turns it off) |
+| `GEORDI_AGENT_MAX_CHILDREN` | `5`                         | How many agents one agent may have running at once        |
+| `GEORDI_ALLOWED_HOSTS`      | `localhost,127.0.0.1,[::1]` | Hostnames the forge answers to (DNS rebinding guard)      |
+| `HOST`                      | `127.0.0.1`                 | Interface to listen on                                    |
+| `ORIGIN`                    |                             | Public URL; required, or forms/commands are rejected      |
+| `PORT`                      | `3000`                      | HTTP port                                                 |
 
 ### Daemon
 
 | Variable                        | Default                  | Purpose                                                            |
 | ------------------------------- | ------------------------ | ------------------------------------------------------------------ |
 | `GEORDI_FORGE_URL`              | `ws://127.0.0.1:7700`    | Forge to connect to                                                |
+| `GEORDI_FORGE_HTTP_URL`         | `http://127.0.0.1:3000`  | Where agents reach the forge's agent API                           |
 | `GEORDI_DAEMON_TOKEN_FILE`      | `~/.geordi/daemon-token` | Forge's shared secret (the forge creates it in its data directory) |
 | `GEORDI_DAEMON_TOKEN`           |                          | The secret itself, instead of the file                             |
 | `GEORDI_WORKTREES_DIR`          | `~/.geordi/worktrees`    | Where workspace worktrees are created                              |

@@ -85,7 +85,7 @@ describe('changes', () => {
 
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
 		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
-		expect(changes(worktree, repoPath)).toEqual([]);
+		expect(changes(worktree, { repoPath })).toEqual([]);
 
 		// committed in the workspace
 		writeFileSync(join(worktree.path, 'committed.txt'), 'a\n');
@@ -96,14 +96,37 @@ describe('changes', () => {
 		writeFileSync(join(worktree.path, 'kept.txt'), 'one\nTWO\nthree\n');
 		writeFileSync(join(worktree.path, 'new.txt'), 'x\ny\n');
 
-		expect(changes(worktree, repoPath)).toEqual([
+		expect(changes(worktree, { repoPath })).toEqual([
 			{ path: 'committed.txt', added: 1, removed: 0 },
 			{ path: 'kept.txt', added: 2, removed: 1 },
 			{ path: 'new.txt', added: 2, removed: 0 }
 		]);
-		expect(diff(worktree, repoPath, 'kept.txt')).toContain('+TWO');
-		expect(diff(worktree, repoPath, 'new.txt')).toContain('+x\n+y\n');
-		expect(() => diff(worktree, repoPath, '../outside')).toThrow(/outside repository/);
+		expect(diff(worktree, { repoPath }, 'kept.txt')).toContain('+TWO');
+		expect(diff(worktree, { repoPath }, 'new.txt')).toContain('+x\n+y\n');
+		expect(() => diff(worktree, { repoPath }, '../outside')).toThrow(/outside repository/);
+	});
+
+	it('branches sub-workspaces off their parent and measures changes against it', () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const parent = ensureWorktree(base, repoPath, 'parent00-1');
+		const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args]);
+		writeFileSync(join(parent.path, 'parent.txt'), 'p\n');
+		git(parent.path, 'add', '.');
+		git(parent.path, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'parent');
+
+		const child = ensureWorktree(base, repoPath, 'child000-1', parent.branch);
+		expect(existsSync(join(child.path, 'parent.txt'))).toBe(true);
+		writeFileSync(join(child.path, 'child.txt'), 'c\n');
+
+		// against the parent: only the child's own work; against the repository: both
+		const origin = { repoPath, base: parent.branch };
+		expect(changes(child, origin).map((file) => file.path)).toEqual(['child.txt']);
+		expect(changes(child, { repoPath }).map((file) => file.path)).toEqual([
+			'child.txt',
+			'parent.txt'
+		]);
+		expect(() => ensureWorktree(base, repoPath, 'evil0000-1', '--detach')).toThrow(/branch name/);
 	});
 
 	it("ignores config an agent plants in the worktree's admin directory", () => {
@@ -119,7 +142,7 @@ describe('changes', () => {
 		);
 		writeFileSync(join(worktree.path, 'new.txt'), 'x\n');
 
-		expect(changes(worktree, repoPath)).toEqual([{ path: 'new.txt', added: 1, removed: 0 }]);
+		expect(changes(worktree, { repoPath })).toEqual([{ path: 'new.txt', added: 1, removed: 0 }]);
 		expect(existsSync(marker)).toBe(false);
 	});
 
@@ -139,7 +162,7 @@ describe('changes', () => {
 		git(nested, 'config', 'core.fsmonitor', `touch ${marker}; false`);
 		writeFileSync(join(nested, 'dirty.txt'), 'x\n');
 
-		changes(worktree, repoPath);
+		changes(worktree, { repoPath });
 		expect(existsSync(marker)).toBe(false);
 	});
 });

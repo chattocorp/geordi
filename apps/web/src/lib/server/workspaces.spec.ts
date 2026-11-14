@@ -39,6 +39,7 @@ describe('workspaces', () => {
 				workspaceId: id,
 				agent: 'claude',
 				repoPath: repo.path,
+				apiToken: expect.any(String),
 				resumeId: null,
 				prompt: 'Fix the bug\nplease'
 			}
@@ -155,4 +156,130 @@ describe('repos', () => {
 		expect(repos.list()).toHaveLength(1);
 		expect(() => repos.register(tmpdir())).toThrow();
 	});
+});
+
+describe('agents starting agents', () => {
+	/** Matches the error a refused request throws, by its message. */
+	const refusal = (message: RegExp) =>
+		expect.objectContaining({
+			body: expect.objectContaining({ message: expect.stringMatching(message) })
+		});
+
+	const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/parent' } as const;
+
+	function lead(options?: Parameters<typeof setup>[0]) {
+		const context = setup(options);
+		const { id, sessionId } = context.create('Lead');
+		context.workspaces.record(sessionId, worktree);
+		return { ...context, id, lead: sessionId, agents: context.workspaces.agents };
+	}
+
+	it('identifies an agent by the token of its running turn only', () => {
+		const { workspaces, agents, sent, lead: caller } = lead();
+		const { apiToken } = sent[0] as Extract<ForgeMessage, { type: 'turn.start' }>;
+
+		expect(agents.authenticate(apiToken)).toBe(caller);
+		expect(agents.authenticate('made-up')).toBeNull();
+		workspaces.record(caller, { kind: 'turn.completed' });
+		expect(agents.authenticate(apiToken)).toBeNull();
+	});
+
+	it('starts a child in the same workspace', () => {
+		const { workspaces, agents, sent, id, lead: caller } = lead();
+		const child = agents.start(caller, { worktree: 'shared', prompt: 'Review this' });
+
+		expect(child).toMatchObject({ workspaceId: id, parentSessionId: caller, agent: 'claude' });
+		expect(workspaces.get(id).sessions.map((session) => session.id)).toEqual([
+			caller,
+			child.sessionId
+		]);
+		expect(sent.at(-1)).toMatchObject({ sessionId: child.sessionId, workspaceId: id });
+		expect(sent.at(-1)).not.toHaveProperty('base');
+	});
+
+	it('starts a child in a sub-workspace branched from its own', () => {
+		const { workspaces, agents, sent, repo, id, lead: caller } = lead();
+		const child = agents.start(caller, { worktree: 'own', agent: 'codex', prompt: 'Build it' });
+
+		expect(child.workspaceId).not.toBe(id);
+		expect(workspaces.get(child.workspaceId)).toMatchObject({
+			repoId: repo.id,
+			parentSessionId: caller,
+			parentWorkspaceId: id,
+			base: 'geordi/parent'
+		});
+		expect(sent.at(-1)).toMatchObject({
+			type: 'turn.start',
+			agent: 'codex',
+			workspaceId: child.workspaceId,
+			base: 'geordi/parent'
+		});
+		expect(workspaces.ref(child.workspaceId).base).toBe('geordi/parent');
+	});
+
+	it('reports what a child said in its latest turn', async () => {
+		const { workspaces, agents, lead: caller } = lead();
+		const { sessionId } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
+		workspaces.record(sessionId, { kind: 'text', text: 'Looking.' });
+
+		const waiting = agents.wait(caller, sessionId, 5000);
+		workspaces.record(sessionId, { kind: 'text', text: 'Done.' });
+		workspaces.record(sessionId, { kind: 'turn.completed' });
+		expect(await waiting).toMatchObject({
+			status: 'idle',
+			reply: 'Looking.\n\nDone.',
+			error: null
+		});
+
+		agents.send(caller, sessionId, 'More');
+		workspaces.record(sessionId, { kind: 'turn.failed', error: 'boom' });
+		expect(agents.get(caller, sessionId)).toMatchObject({ reply: '', error: 'boom' });
+	});
+
+	it('gives up waiting after the timeout', async () => {
+		const { agents, lead: caller } = lead();
+		const { sessionId } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
+		expect(await agents.wait(caller, sessionId, 10)).toMatchObject({ status: 'running' });
+	});
+
+	it('only lets an agent control the agents it started', () => {
+		const { agents, create, lead: caller } = lead();
+		const stranger = create('Unrelated').sessionId;
+		const child = agents.start(caller, { worktree: 'shared', prompt: 'Go' }).sessionId;
+		const grandchild = agents.start(child, { worktree: 'shared', prompt: 'Deeper' }).sessionId;
+
+		expect(agents.list(caller).map((agent) => agent.sessionId)).toEqual([child, grandchild]);
+		expect(() => agents.get(caller, stranger)).toThrow();
+		expect(() => agents.stop(child, caller)).toThrow();
+		expect(() => agents.get(grandchild, child)).toThrow();
+	});
+
+	it('limits nesting depth and concurrent children', () => {
+		const { agents, lead: caller } = lead();
+		const limited = createWorkspacesWith({ depth: 1, children: 2 });
+
+		// defaults: 3 deep
+		const one = agents.start(caller, { worktree: 'shared', prompt: '1' }).sessionId;
+		const two = agents.start(one, { worktree: 'shared', prompt: '2' }).sessionId;
+		const three = agents.start(two, { worktree: 'shared', prompt: '3' }).sessionId;
+		expect(() => agents.start(three, { worktree: 'shared', prompt: '4' })).toThrow(
+			refusal(/nested/)
+		);
+
+		const first = limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'a' });
+		limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'b' });
+		expect(() => limited.agents.start(limited.caller, { worktree: 'shared', prompt: 'c' })).toThrow(
+			refusal(/already have 2/)
+		);
+		expect(() =>
+			limited.agents.start(first.sessionId, { worktree: 'shared', prompt: 'd' })
+		).toThrow(refusal(/nested/));
+	});
+
+	function createWorkspacesWith(limits: { depth: number; children: number }) {
+		const { store, repos, repo, dispatch } = setup();
+		const workspaces = createWorkspaces(store, repos, dispatch, limits);
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
+		return { agents: workspaces.agents, caller: workspaces.get(id).sessions[0].id };
+	}
 });

@@ -42,7 +42,13 @@ describe('claude adapter', () => {
 	});
 
 	it('starts with our session ID and resumes with the CLI one', () => {
-		const base = { sessionId: 'abc', prompt: 'hi', cwd: '/w', writableRoots: ['/r/.git/objects'] };
+		const base = {
+			sessionId: 'abc',
+			prompt: 'hi',
+			cwd: '/w',
+			writableRoots: ['/r/.git/objects'],
+			api: null
+		};
 		expect(claude.command({ ...base, resumeId: null }).args).toContain('--session-id');
 		expect(claude.command({ ...base, resumeId: 'abc' }).args).toContain('--resume');
 	});
@@ -91,12 +97,47 @@ describe('codex adapter', () => {
 	});
 });
 
+describe('codex MCP tool calls', () => {
+	it('maps a call to a tool with its arguments and text result', () => {
+		// captured from codex-cli 0.169.0 calling Geordi's agent API
+		const events = parseAll(codex, [
+			{
+				type: 'item.completed',
+				item: {
+					id: 'item_3',
+					type: 'mcp_tool_call',
+					server: 'geordi',
+					tool: 'wait_for_agent',
+					arguments: { session_id: 'ec38cd48', timeout_seconds: 45 },
+					result: {
+						content: [{ type: 'text', text: '{\n  "status": "idle"\n}' }],
+						structured_content: null
+					},
+					error: null,
+					status: 'completed'
+				}
+			}
+		]);
+
+		expect(events).toEqual([
+			{
+				kind: 'tool',
+				id: 'item_3',
+				name: 'mcp__geordi__wait_for_agent',
+				input: '{"session_id":"ec38cd48","timeout_seconds":45}'
+			},
+			{ kind: 'tool.result', id: 'item_3', output: '{\n  "status": "idle"\n}', isError: false }
+		]);
+	});
+});
+
 describe('prompt handling', () => {
 	const base = {
 		sessionId: 's',
 		prompt: '--dangerously-bypass-approvals-and-sandbox',
 		cwd: '/w',
-		writableRoots: ['/r/.git/objects']
+		writableRoots: ['/r/.git/objects'],
+		api: { url: 'http://forge/mcp' }
 	};
 
 	it.each([

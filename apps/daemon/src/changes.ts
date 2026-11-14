@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FileChange } from '@geordi/protocol';
-import { gitIn, headOf, type Worktree } from './worktree.ts';
+import { branchRef, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** Diffs are for reading; beyond this they are cut off. */
 const MAX_DIFF = 400_000;
@@ -12,13 +12,19 @@ const MAX_DIFF = 400_000;
  */
 const SAFE = ['--no-ext-diff', '--no-textconv', '--no-renames', '--ignore-submodules=all'];
 
+/** Where a workspace's changes are measured from: its repository, and the branch it started from. */
+type Origin = { repoPath: string; base?: string };
+
 /**
  * The commit the workspace's changes are measured against: where its branch forked off the
- * repository's checked-out branch. Committed and uncommitted work both count as changes.
+ * branch it started from (by default, whatever the repository has checked out). Committed
+ * and uncommitted work both count as changes.
  */
-function base(worktree: Worktree, repoPath: string): string {
-	const head = execFileSync('git', ['-C', repoPath, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
-	return gitIn(worktree, 'merge-base', headOf(worktree), head.trim()).trim();
+function forkPoint(worktree: Worktree, { repoPath, base }: Origin): string {
+	const from = base
+		? branchRef(base)
+		: execFileSync('git', ['-C', repoPath, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+	return gitIn(worktree, 'merge-base', headOf(worktree), from).trim();
 }
 
 const untracked = (worktree: Worktree) =>
@@ -35,8 +41,8 @@ function readText(worktree: Worktree, path: string): string | null {
 
 const lines = (text: string) => (text ? text.replace(/\n$/, '').split('\n') : []);
 
-export function changes(worktree: Worktree, repoPath: string): FileChange[] {
-	const tracked = gitIn(worktree, 'diff', '--numstat', '-z', ...SAFE, base(worktree, repoPath))
+export function changes(worktree: Worktree, origin: Origin): FileChange[] {
+	const tracked = gitIn(worktree, 'diff', '--numstat', '-z', ...SAFE, forkPoint(worktree, origin))
 		.split('\0')
 		.filter(Boolean)
 		.map((entry): FileChange => {
@@ -57,8 +63,8 @@ export function changes(worktree: Worktree, repoPath: string): FileChange[] {
 	return [...tracked, ...added].sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export function diff(worktree: Worktree, repoPath: string, path: string): string {
-	const tracked = gitIn(worktree, 'diff', ...SAFE, base(worktree, repoPath), '--', path);
+export function diff(worktree: Worktree, origin: Origin, path: string): string {
+	const tracked = gitIn(worktree, 'diff', ...SAFE, forkPoint(worktree, origin), '--', path);
 	if (tracked) return tracked.slice(0, MAX_DIFF);
 
 	// Only files git itself lists as untracked, so `path` can't escape the worktree.

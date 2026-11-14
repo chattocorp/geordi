@@ -1,5 +1,10 @@
 import { join } from 'node:path';
-import { GEORDI_DAEMON_PORT, GEORDI_DATA_DIR } from '$app/env/private';
+import {
+	GEORDI_AGENT_MAX_CHILDREN,
+	GEORDI_AGENT_MAX_DEPTH,
+	GEORDI_DAEMON_PORT,
+	GEORDI_DATA_DIR
+} from '$app/env/private';
 import { store } from './events/index.ts';
 import { loadDaemonToken } from './daemon-token.ts';
 import { createHub } from './daemons.ts';
@@ -14,7 +19,10 @@ import { createWorkspaces } from './workspaces.ts';
 export const issues = lazy(() => createIssues(store()));
 export const repos = lazy(() => createRepos(store()));
 export const workspaces = lazy(() =>
-	createWorkspaces(store(), repos(), (message) => hub().send(message))
+	createWorkspaces(store(), repos(), (message) => hub().send(message), {
+		depth: GEORDI_AGENT_MAX_DEPTH,
+		children: GEORDI_AGENT_MAX_CHILDREN
+	})
 );
 export const terminals = lazy(() =>
 	createTerminals(

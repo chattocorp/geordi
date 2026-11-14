@@ -16,7 +16,7 @@
 	</header>
 
 	<ul class="grid gap-4 sm:grid-cols-2">
-		{#each await nav as repo (repo.id)}
+		{#each (await nav).repos as repo (repo.id)}
 			<li>
 				<a
 					href={resolve('/repos/[id]', { id: repo.id })}

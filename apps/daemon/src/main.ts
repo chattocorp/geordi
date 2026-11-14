@@ -22,6 +22,8 @@ import { runTurn, type Turn } from './turn.ts';
 import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
+/** Where agents on this machine reach the forge's agent API (ADR-004). */
+const apiUrl = new URL('/mcp', process.env.GEORDI_FORGE_HTTP_URL || 'http://127.0.0.1:3000').href;
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
@@ -127,23 +129,23 @@ function answer(request: DaemonRequest) {
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.workspaceId);
 	switch (request.kind) {
 		case 'changes':
-			return changes(worktree, request.repoPath);
+			return changes(worktree, request);
 		case 'diff':
-			return diff(worktree, request.repoPath, request.path);
+			return diff(worktree, request, request.path);
 	}
 }
 
 async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'turn.start': {
-			const { sessionId, workspaceId, agent, repoPath, resumeId, prompt } = message;
+			const { sessionId, workspaceId, agent, repoPath, base, resumeId, prompt } = message;
 			const emit = (event: SessionEvent) => send({ type: 'session.event', sessionId, event });
 
 			if (turns.has(sessionId))
 				return emit({ kind: 'turn.failed', error: 'A turn is already running' });
 
 			try {
-				const worktree = ensureWorktree(worktreesDir, repoPath, workspaceId);
+				const worktree = ensureWorktree(worktreesDir, repoPath, workspaceId, base);
 				if (worktree.created)
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
 
@@ -155,9 +157,11 @@ async function handle(message: ForgeMessage) {
 						prompt,
 						resumeId,
 						cwd: worktree.path,
-						writableRoots: worktree.writableRoots
+						writableRoots: worktree.writableRoots,
+						api: { url: apiUrl }
 					},
-					emit
+					emit,
+					message.apiToken
 				);
 				turns.set(sessionId, turn);
 				turn.done.then(() => turns.delete(sessionId));

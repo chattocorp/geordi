@@ -2,19 +2,28 @@ import { query } from '$app/server';
 import { store } from '#lib/server/events/index.ts';
 import { repos, workspaces } from '#lib/server/app.ts';
 
-/** Everything the sidebar and overview show: repositories with their recent workspaces. */
+/** Everything the sidebar and overview show: repositories, and all workspaces (newest first). */
 export const getNavigation = query.live(async function* () {
-	yield* store().live(() =>
-		repos()
-			.list()
-			.map((repo) => {
-				const all = workspaces().list(repo.id);
-				return {
-					...repo,
-					workspaceCount: all.length,
-					working: all.filter((workspace) => workspace.status === 'running').length,
-					recent: all.slice(0, 12)
-				};
-			})
-	);
+	yield* store().live(() => {
+		const all = workspaces().all();
+		return {
+			repos: repos()
+				.list()
+				.map((repo) => {
+					const own = all.filter((workspace) => workspace.repoId === repo.id);
+					return {
+						...repo,
+						workspaceCount: own.length,
+						working: own.filter((workspace) => workspace.status === 'running').length
+					};
+				}),
+			workspaces: all.map(({ id, title, repoId, parentWorkspaceId, status }) => ({
+				id,
+				title,
+				repoId,
+				parentWorkspaceId,
+				status
+			}))
+		};
+	});
 });
