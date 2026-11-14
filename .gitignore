@@ -24,3 +24,6 @@ vite.config.ts.timestamp-*
 
 # means caches
 .means/
+
+# Local dev data
+/.data/

@@ -2,3 +2,6 @@
 "github:hmans/means" = "latest"
 node = "lts"
 pnpm = "latest"
+
+[env]
+GEORDI_DATA_DIR = "{{config_root}}/.data"
