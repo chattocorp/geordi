@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { lstatSync, readFileSync } from 'node:fs';
+import {
+	closeSync,
+	constants,
+	fstatSync,
+	lstatSync,
+	openSync,
+	readFileSync,
+	realpathSync
+} from 'node:fs';
 import { join } from 'node:path';
 import type { FileChange, FileVersions } from '@geordi/protocol';
 import { branchRef, gitIn, headOf, type Worktree } from './worktree.ts';
@@ -30,13 +38,29 @@ function forkPoint(worktree: Worktree, { repoPath, base }: Origin): string {
 const untracked = (worktree: Worktree) =>
 	gitIn(worktree, 'ls-files', '--others', '--exclude-standard', '-z').split('\0').filter(Boolean);
 
-/** The text of an untracked file, or `null` if it is not a readable, regular text file. */
+/**
+ * The text of a file in the worktree, or `null` if it is not a readable, regular text file
+ * that really is inside the worktree. An agent can swap any part of the path for a symlink
+ * at any moment, so the path must resolve to itself, the file is opened without following a
+ * link, and everything after that happens on the opened file, not on the path.
+ */
 function readText(worktree: Worktree, path: string): string | null {
-	const file = join(worktree.path, path);
-	// lstat: a symlink could point anywhere on this machine
-	if (!lstatSync(file).isFile() || lstatSync(file).size > MAX_FILE) return null;
-	const text = readFileSync(file, 'utf8');
-	return text.includes('\0') ? null : text;
+	let fd: number;
+	try {
+		const file = join(realpathSync(worktree.path), path);
+		if (realpathSync(file) !== file) return null;
+		fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+	} catch {
+		return null;
+	}
+	try {
+		const stat = fstatSync(fd);
+		if (!stat.isFile() || stat.size > MAX_FILE) return null;
+		const text = readFileSync(fd, 'utf8');
+		return text.includes('\0') ? null : text;
+	} finally {
+		closeSync(fd);
+	}
 }
 
 const lines = (text: string) => (text ? text.replace(/\n$/, '').split('\n') : []);

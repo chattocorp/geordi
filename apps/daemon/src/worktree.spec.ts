@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -120,6 +128,20 @@ describe('changes', () => {
 
 	it('only shows files that changed, never what a path or a symlink leads to', () => {
 		const repoPath = repo();
+		mkdirSync(join(repoPath, 'sub'));
+		writeFileSync(join(repoPath, 'sub', 'secret.txt'), 'ours');
+		execFileSync('git', ['-C', repoPath, 'add', '.']);
+		execFileSync('git', [
+			'-C',
+			repoPath,
+			'-c',
+			'user.name=t',
+			'-c',
+			'user.email=t@t',
+			'commit',
+			'-qm',
+			'sub'
+		]);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
 		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
 		const secret = join(base, 'secret.txt');
@@ -133,6 +155,15 @@ describe('changes', () => {
 		expect(versions(worktree, origin, secret)).toEqual(none);
 		expect(versions(worktree, origin, 'elsewhere/secret.txt')).toEqual(none);
 		expect(versions(worktree, origin, 'README.md')).toEqual(none);
+		// a tracked file whose directory was swapped for a link to somewhere else: git reports
+		// the file as changed (deleted), while the path now leads out of the worktree
+		rmSync(join(worktree.path, 'sub'), { recursive: true });
+		symlinkSync(base, join(worktree.path, 'sub'));
+		expect(changes(worktree, origin).map((file) => file.path)).toContain('sub/secret.txt');
+		expect(JSON.stringify(versions(worktree, origin, 'sub/secret.txt'))).not.toContain(
+			'do not show'
+		);
+
 		// the link itself changed (it is new), but what it points to is not ours to show
 		expect(versions(worktree, origin, 'link.txt')).toEqual({
 			unavailable: expect.stringMatching(/not a regular file/)
