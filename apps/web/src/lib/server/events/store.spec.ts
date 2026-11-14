@@ -112,4 +112,24 @@ describe('EventStore', () => {
 		await live.return(undefined);
 		expect(listening).toBe(false);
 	});
+
+	it('lets go of the store when the other reason cannot be set up', async () => {
+		const store = new EventStore<TestEvent>(':memory:');
+		let subscribed = 0;
+		const subscribe = store.subscribe.bind(store);
+		store.subscribe = (listener) => {
+			subscribed++;
+			const unsubscribe = subscribe(listener);
+			return () => (subscribed--, unsubscribe());
+		};
+
+		const live = store.live(
+			() => 1,
+			() => {
+				throw new Error('no such thing');
+			}
+		);
+		await expect(live.next()).rejects.toThrow('no such thing');
+		expect(subscribed).toBe(0);
+	});
 });

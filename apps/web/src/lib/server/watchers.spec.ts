@@ -6,7 +6,10 @@ function setup() {
 	const sent: ForgeMessage[] = [];
 	const watchers = createWatchers(
 		(message) => (sent.push(message), true),
-		(workspaceId) => ({ workspaceId, repoPath: '/repo' })
+		(workspaceId) => {
+			if (workspaceId === 'missing') throw new Error('Workspace missing not found');
+			return { workspaceId, repoPath: '/repo' };
+		}
 	);
 	/** The workspaces the daemon was last told to watch. */
 	const watching = () => {
@@ -50,6 +53,16 @@ describe('watchers', () => {
 		watchers.changed('b');
 		watchers.changed('unknown');
 		expect(seen).toEqual(['a1', 'a2']);
+	});
+
+	it('refuses unknown workspaces without breaking watching for everyone else', () => {
+		const { watchers, sent, watching } = setup();
+		expect(() => watchers.watch('missing', () => {})).toThrow();
+		expect(sent).toEqual([]);
+
+		watchers.watch('a', () => {});
+		watchers.resync();
+		expect(watching()).toEqual(['a']);
 	});
 
 	it('tells a reconnecting daemon what to watch', () => {

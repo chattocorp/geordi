@@ -110,9 +110,11 @@ export class EventStore<E extends EventInput = EventInput> {
 	async *live<T>(read: () => T, also?: (changed: () => void) => () => void): AsyncGenerator<T> {
 		let notify = () => {};
 		const unsubscribe = this.subscribe(() => notify());
-		const unsubscribeAlso = also?.(() => notify());
+		let unsubscribeAlso: (() => void) | undefined;
 
 		try {
+			// inside the `try`, so that a failure here still lets go of the store
+			unsubscribeAlso = also?.(() => notify());
 			while (true) {
 				// Created before reading, so appends during or after the read are never missed.
 				const changed = new Promise<void>((resolve) => (notify = resolve));

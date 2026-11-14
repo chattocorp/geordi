@@ -12,8 +12,20 @@ export function createWatchers(dispatch: Dispatch, ref: (workspaceId: string) =>
 	/** Grows with every change, so viewers can tell that there was one. */
 	let revision = 0;
 
-	/** Tells the daemon the whole set; it works out what to start and stop watching. */
-	const sync = () => dispatch({ type: 'watch', workspaces: [...watched.keys()].map(ref) });
+	/**
+	 * Tells the daemon the whole set; it works out what to start and stop watching. One
+	 * workspace that can't be resolved must not keep the others from being watched.
+	 */
+	function sync() {
+		const workspaces = [...watched.keys()].flatMap((id) => {
+			try {
+				return [ref(id)];
+			} catch {
+				return [];
+			}
+		});
+		dispatch({ type: 'watch', workspaces });
+	}
 
 	return {
 		/**
@@ -21,6 +33,7 @@ export function createWatchers(dispatch: Dispatch, ref: (workspaceId: string) =>
 		 * function that ends it. Watching starts with the first viewer and ends with the last.
 		 */
 		watch(workspaceId: string, changed: () => void): () => void {
+			ref(workspaceId); // throws for unknown workspaces, before anything is registered
 			let viewers = watched.get(workspaceId);
 			if (!viewers) watched.set(workspaceId, (viewers = new Set()));
 			viewers.add(changed);
