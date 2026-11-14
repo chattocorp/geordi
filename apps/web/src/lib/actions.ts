@@ -109,3 +109,50 @@ export function actionsFor({ changes, upstream }: State): WorkspaceAction[] {
 
 	return actions;
 }
+
+/** Where a workspace stands, in a few words, with a tone for how that should feel. */
+export type WorkspaceStanding = {
+	label: string;
+	/** `ok`: nothing in the way. `danger`: something is wrong. `accent`: something to do. */
+	tone: 'ok' | 'danger' | 'accent' | 'neutral';
+	/** An Iconify class. */
+	icon: string;
+};
+
+/**
+ * The state the actions follow from, put into words: what the workspace's top bar says
+ * next to the actions. `null` when there is nothing worth saying.
+ */
+export function standingOf({ changes, upstream }: State): WorkspaceStanding | null {
+	if (!changes) return null;
+	const uncommitted = changes.uncommitted > 0;
+	const unpushed = changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
+	const pull = upstream?.pull;
+	const todo = (label: string): WorkspaceStanding => ({
+		label,
+		tone: 'accent',
+		icon: 'icon-[lucide--circle-dot]'
+	});
+
+	if (!upstream) return uncommitted ? todo('Uncommitted changes') : null;
+	if (!pull || pull.state === 'unknown')
+		return uncommitted || unpushed ? todo('Changes to publish') : null;
+
+	if (pull.state === 'merged')
+		return { label: 'Merged', tone: 'ok', icon: 'icon-[lucide--git-merge]' };
+	if (pull.state === 'closed')
+		return { label: 'Closed', tone: 'neutral', icon: 'icon-[lucide--circle-slash]' };
+	if (pull.checks?.state === 'failure')
+		return { label: 'Checks failing', tone: 'danger', icon: 'icon-[lucide--circle-x]' };
+	if (pull.review === 'changes_requested')
+		return {
+			label: 'Changes requested',
+			tone: 'danger',
+			icon: 'icon-[lucide--message-square-warning]'
+		};
+	if (uncommitted || unpushed) return todo('Unpublished changes');
+	if (pull.checks?.state === 'pending')
+		return { label: 'Checks running', tone: 'neutral', icon: 'icon-[lucide--circle-dashed]' };
+	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };
+	return { label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' };
+}

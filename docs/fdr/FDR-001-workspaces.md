@@ -9,7 +9,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ## Behavior
 
-- A workspace is started from a repository with a first prompt and an agent. It gets its own worktree and branch, and is named after the first line of that prompt.
+- A workspace is started with a first prompt, an agent and a repository: from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch, and is named after the first line of that prompt.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - A message sent while the agent is working waits and goes out when the agent has finished its turn. Waiting messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something, and then go first.
 - A workspace has a fixed frame: the main area, and beside it the changes above the dock. The lines between them can be dragged to resize, and that is all that can be changed about the frame.

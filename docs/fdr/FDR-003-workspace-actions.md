@@ -9,6 +9,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 
 ## Behavior
 
+- The top bar says where the workspace stands in a few words ("Changes to publish", "Checks failing", "Ready to merge", "Merged"), coloured by how that should feel, with a link to the pull request if there is one, and the actions right beside it as one unit.
 - The actions follow from where the workspace's changes and its pull request stand. The most pressing one is shown as the next step; others are offered beside it.
 
   | When                                                                                                     | Action         |

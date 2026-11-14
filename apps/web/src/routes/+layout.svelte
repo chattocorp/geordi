@@ -67,6 +67,12 @@
 					'Issues',
 					page.url.pathname.startsWith('/issues')
 				)}
+				{@render link(
+					resolve('/workspaces/new'),
+					'icon-[lucide--plus]',
+					'New workspace',
+					page.url.pathname === '/workspaces/new'
+				)}
 			</div>
 
 			{#if tree.of(null).length > 0}

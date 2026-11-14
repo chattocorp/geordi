@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { actionsFor, type WorkspaceAction } from '#lib/actions.ts';
+	import { actionsFor, standingOf, type WorkspaceAction } from '#lib/actions.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -124,11 +124,13 @@
 	// These are the same queries the changes pane shows and keeps fresh.
 	const changes = $derived(getChanges(id));
 	const upstream = $derived(getUpstream(id));
-	const actions = $derived(
+	const standingState = $derived(
 		workspace.archivedAt || !changes.current || changes.current.unavailable
-			? []
-			: actionsFor({ changes: changes.current, upstream: upstream.current?.upstream ?? null })
+			? null
+			: { changes: changes.current, upstream: upstream.current?.upstream ?? null }
 	);
+	const actions = $derived(standingState ? actionsFor(standingState) : []);
+	const standing = $derived(standingState && standingOf(standingState));
 	// An action is under way while its message waits, or is what the agent is working on.
 	const pending = $derived.by(() => {
 		const asked = [...workspace.queue];
@@ -232,7 +234,13 @@
 				{/if}
 			</div>
 		</div>
-		<WorkspaceActions {actions} {pending} onaction={act} />
+		<WorkspaceActions
+			{standing}
+			pull={standingState?.upstream?.pull}
+			{actions}
+			{pending}
+			onaction={act}
+		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
 		{:else}

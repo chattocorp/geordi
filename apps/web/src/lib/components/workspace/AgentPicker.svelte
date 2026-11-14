@@ -14,9 +14,7 @@
 <fieldset class="flex gap-1.5">
 	<legend class="sr-only">Agent</legend>
 	{#each AGENTS as agent (agent)}
-		<label
-			class="flex items-center gap-2 rounded-full py-1 pr-3 pl-1 text-sm text-muted ring-1 ring-line has-checked:bg-sunken has-checked:text-ink has-checked:ring-ink/20 has-focus-visible:outline-2 has-focus-visible:outline-accent"
-		>
+		<label class="choice">
 			{#if attributes}
 				<input {...attributes(agent)} class="sr-only" />
 			{:else}

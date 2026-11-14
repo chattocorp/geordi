@@ -136,6 +136,11 @@
 	@apply rounded-control bg-surface px-3 py-2 shadow-soft ring-1 ring-line/60 placeholder:text-muted/70;
 }
 
+/* One of a few options to pick from: the label around a (visually hidden) radio input. */
+@utility choice {
+	@apply flex items-center gap-2 rounded-full py-1 pr-3 pl-1 text-sm text-muted ring-1 ring-line has-checked:bg-sunken has-checked:text-ink has-checked:ring-ink/20 has-focus-visible:outline-2 has-focus-visible:outline-accent;
+}
+
 /* The bar at the top of a pane: tabs, or a title. */
 @utility pane-bar {
 	@apply flex h-10 shrink-0 items-center border-b border-line bg-sidebar;

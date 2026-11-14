@@ -1,6 +1,6 @@
 import type { PullRequest, Upstream } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
-import { actionsFor } from './actions.ts';
+import { actionsFor, standingOf } from './actions.ts';
 
 const clean = { files: [], uncommitted: 0, unpushed: 0 };
 const file = { path: 'a.txt', added: 1, removed: 0 };
@@ -84,5 +84,48 @@ describe('actionsFor', () => {
 			expect(actions.map((action) => action.id)).toEqual(['archive']);
 			expect(actions[0].prompt).toBeUndefined();
 		}
+	});
+});
+
+describe('standingOf', () => {
+	const changes = { files: [file], uncommitted: 0, unpushed: 0 };
+	const label = (...args: Parameters<typeof standingOf>) => standingOf(...args)?.label ?? null;
+
+	it('says nothing when there is nothing to say', () => {
+		expect(label({ changes: null, upstream: upstream({}) })).toBeNull();
+		expect(label({ changes: clean, upstream: upstream() })).toBeNull();
+		expect(label({ changes: clean, upstream: null })).toBeNull();
+	});
+
+	it('names what there is to do', () => {
+		const dirty = { files: [file], uncommitted: 1, unpushed: 0 };
+		expect(label({ changes: dirty, upstream: null })).toBe('Uncommitted changes');
+		expect(label({ changes: dirty, upstream: upstream() })).toBe('Changes to publish');
+		expect(label({ changes: dirty, upstream: upstream({}) })).toBe('Unpublished changes');
+	});
+
+	it('puts what is wrong before what is merely unfinished', () => {
+		const failing = { state: 'failure', total: 3, failed: 1, url: null } as const;
+		const pending = { state: 'pending', total: 3, failed: 0, url: null } as const;
+		const dirty = { files: [file], uncommitted: 1, unpushed: 0 };
+
+		expect(standingOf({ changes: dirty, upstream: upstream({ checks: failing }) })).toMatchObject({
+			label: 'Checks failing',
+			tone: 'danger'
+		});
+		expect(label({ changes, upstream: upstream({ review: 'changes_requested' }) })).toBe(
+			'Changes requested'
+		);
+		expect(label({ changes, upstream: upstream({ checks: pending }) })).toBe('Checks running');
+		expect(label({ changes, upstream: upstream({ draft: true }) })).toBe('Draft');
+	});
+
+	it('says when a pull request is ready, merged or closed', () => {
+		expect(standingOf({ changes, upstream: upstream({}) })).toMatchObject({
+			label: 'Ready to merge',
+			tone: 'ok'
+		});
+		expect(label({ changes, upstream: upstream({ state: 'merged' }) })).toBe('Merged');
+		expect(label({ changes, upstream: upstream({ state: 'closed' }) })).toBe('Closed');
 	});
 });

@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest, Upstream } from '@geordi/protocol';
-	import { actionsFor } from '#lib/actions.ts';
+	import { actionsFor, standingOf } from '#lib/actions.ts';
 	import WorkspaceActions from './WorkspaceActions.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace actions', component: WorkspaceActions });
@@ -33,36 +33,44 @@
 	const onaction = () => {};
 </script>
 
-<!-- Each story is a state a workspace can be in; the buttons are what `actionsFor` makes of it. -->
-<Story name="Work to publish" asChild>
-	<WorkspaceActions actions={actionsFor({ changes: dirty, upstream: upstream(null) })} {onaction} />
-</Story>
-
-<Story name="Ready to merge" asChild>
-	<WorkspaceActions actions={actionsFor({ changes: pushed, upstream: upstream({}) })} {onaction} />
-</Story>
-
-<Story name="Blocked three ways" asChild>
+{#snippet bar(state: Parameters<typeof actionsFor>[0], pending: 'fix-checks'[] = [])}
+	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
-		actions={actionsFor({
-			changes: dirty,
-			upstream: upstream({ checks: failing, review: 'changes_requested' })
-		})}
+		standing={standingOf(state)}
+		pull={pull && { number: pull.number, url: 'https://example.com/pull/42' }}
+		actions={actionsFor(state)}
+		{pending}
 		{onaction}
 	/>
+{/snippet}
+
+<!-- Each story is a state a workspace can be in; the bar is what `standingOf` and `actionsFor` make of it. -->
+<Story name="Work to publish" asChild
+	>{@render bar({ changes: dirty, upstream: upstream(null) })}</Story
+>
+
+<Story name="Ready to merge" asChild
+	>{@render bar({ changes: pushed, upstream: upstream({}) })}</Story
+>
+
+<Story name="Blocked three ways" asChild>
+	{@render bar({
+		changes: dirty,
+		upstream: upstream({ checks: failing, review: 'changes_requested' })
+	})}
 </Story>
 
 <Story name="Asked for, not done yet" asChild>
-	<WorkspaceActions
-		actions={actionsFor({ changes: pushed, upstream: upstream({ checks: failing }) })}
-		pending={['fix-checks']}
-		{onaction}
-	/>
+	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'])}
+</Story>
+
+<Story name="Checks running" asChild>
+	{@render bar({
+		changes: pushed,
+		upstream: upstream({ checks: { state: 'pending', total: 3, failed: 0, url: null } })
+	})}
 </Story>
 
 <Story name="Merged" asChild>
-	<WorkspaceActions
-		actions={actionsFor({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
-		{onaction}
-	/>
+	{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
 </Story>
