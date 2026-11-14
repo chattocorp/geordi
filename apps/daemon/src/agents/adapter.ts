@@ -5,8 +5,12 @@ export type TurnOptions = {
 	prompt: string;
 	/** The session's worktree. */
 	cwd: string;
-	/** The main repository's `.git` directory, which worktree commits write to. */
-	gitDir: string;
+	/**
+	 * Paths outside `cwd` an agent needs write access to so it can commit: the parts of the
+	 * main repository's `.git` that commits touch. Never `hooks/` or `config`, which would
+	 * let a sandboxed agent run code outside its sandbox.
+	 */
+	writableRoots: string[];
 	resumeId: string | null;
 };
 

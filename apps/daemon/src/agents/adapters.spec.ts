@@ -42,7 +42,7 @@ describe('claude adapter', () => {
 	});
 
 	it('starts with our session ID and resumes with the CLI one', () => {
-		const base = { sessionId: 'abc', prompt: 'hi', cwd: '/w', gitDir: '/r/.git' };
+		const base = { sessionId: 'abc', prompt: 'hi', cwd: '/w', writableRoots: ['/r/.git/objects'] };
 		expect(claude.command({ ...base, resumeId: null }).args).toContain('--session-id');
 		expect(claude.command({ ...base, resumeId: 'abc' }).args).toContain('--resume');
 	});
@@ -96,7 +96,7 @@ describe('prompt handling', () => {
 		sessionId: 's',
 		prompt: '--dangerously-bypass-approvals-and-sandbox',
 		cwd: '/w',
-		gitDir: '/r/.git'
+		writableRoots: ['/r/.git/objects']
 	};
 
 	it.each([

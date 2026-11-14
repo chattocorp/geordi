@@ -1,2 +1,162 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
 @plugin '@tailwindcss/typography';
+@plugin '@iconify/tailwind4';
+
+/* Dark mode follows the `dark` class on <html>, set before first paint in app.html. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Palette: violet-tinted neutrals with one vivid gold accent (Geordi's visor), used for
+ * primary actions and things that are live. Dark mode is a mid-tone, not near-black:
+ * easy on the eyes, with clearly lifted surfaces.
+ */
+:root {
+	color-scheme: light;
+	--bg: #f6f6f9;
+	--sidebar: #eeeef4;
+	--surface: #ffffff;
+	--sunken: #f0f0f5;
+	--ink: #1b1c24;
+	--muted: #6a6c7b;
+	--line: #e2e2ea;
+	--accent: #f5b021;
+	--accent-ink: #9a6400;
+	--accent-soft: #fdf1d6;
+	--bubble: #fcefd2;
+	--on-accent: #2a1c00;
+	--danger: #d03b36;
+	--danger-soft: #fde7e5;
+	--ok: #1f9d7a;
+	--claude: #8b5cf6;
+	--codex: #0ea5a4;
+	--shadow: 0 1px 2px rgb(20 20 40 / 0.04), 0 4px 16px rgb(20 20 40 / 0.06);
+	--shadow-lg: 0 2px 6px rgb(20 20 40 / 0.05), 0 16px 40px rgb(20 20 40 / 0.1);
+}
+
+.dark {
+	color-scheme: dark;
+	--bg: #23252f;
+	--sidebar: #1d1f28;
+	--surface: #2c2f3b;
+	--sunken: #262833;
+	--ink: #eceef4;
+	--muted: #a0a3b4;
+	--line: #3a3d4b;
+	--accent: #f7b733;
+	--accent-ink: #fac95f;
+	--accent-soft: #433822;
+	--bubble: #383c4b;
+	--on-accent: #2a1c00;
+	--danger: #ff7b72;
+	--danger-soft: #45292b;
+	--ok: #4fd1a5;
+	--claude: #a78bfa;
+	--codex: #2dd4bf;
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 16px rgb(0 0 0 / 0.18);
+	--shadow-lg: 0 2px 6px rgb(0 0 0 / 0.2), 0 16px 40px rgb(0 0 0 / 0.3);
+}
+
+@theme inline {
+	--font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+
+	--color-bg: var(--bg);
+	--color-sidebar: var(--sidebar);
+	--color-surface: var(--surface);
+	--color-sunken: var(--sunken);
+	--color-ink: var(--ink);
+	--color-muted: var(--muted);
+	--color-line: var(--line);
+	--color-accent: var(--accent);
+	--color-accent-ink: var(--accent-ink);
+	--color-accent-soft: var(--accent-soft);
+	--color-bubble: var(--bubble);
+	--color-on-accent: var(--on-accent);
+	--color-danger: var(--danger);
+	--color-danger-soft: var(--danger-soft);
+	--color-ok: var(--ok);
+	--color-claude: var(--claude);
+	--color-codex: var(--codex);
+
+	--shadow-soft: var(--shadow);
+	--shadow-float: var(--shadow-lg);
+}
+
+@layer base {
+	body {
+		@apply bg-bg font-sans text-[15px] leading-relaxed text-ink antialiased;
+		font-feature-settings: 'ss01', 'cv11';
+	}
+
+	:focus-visible {
+		@apply outline-2 outline-offset-2 outline-accent;
+	}
+
+	::selection {
+		@apply bg-accent/35;
+	}
+}
+
+/* Markdown in agent output: typography plugin, coloured by our tokens (works in both modes). */
+.prose {
+	--tw-prose-body: var(--ink);
+	--tw-prose-headings: var(--ink);
+	--tw-prose-lead: var(--muted);
+	--tw-prose-links: var(--ink);
+	--tw-prose-bold: var(--ink);
+	--tw-prose-counters: var(--muted);
+	--tw-prose-bullets: var(--muted);
+	--tw-prose-hr: var(--line);
+	--tw-prose-quotes: var(--muted);
+	--tw-prose-quote-borders: var(--line);
+	--tw-prose-code: var(--ink);
+	--tw-prose-pre-code: var(--ink);
+	--tw-prose-pre-bg: var(--sunken);
+	--tw-prose-th-borders: var(--line);
+	--tw-prose-td-borders: var(--line);
+
+	:where(code):not(:where(pre *)) {
+		@apply rounded bg-sunken px-1 py-0.5 font-normal;
+	}
+	:where(code):not(:where(pre *))::before,
+	:where(code):not(:where(pre *))::after {
+		content: none;
+	}
+	:where(a) {
+		@apply decoration-accent underline-offset-2;
+	}
+}
+
+/*
+ * The visor: a thin amber sweep shown while an agent is working. The only ambient motion
+ * in the app; static when the user prefers reduced motion.
+ */
+.visor {
+	@apply relative h-0.5 overflow-hidden bg-line/60;
+
+	&::after {
+		content: '';
+		@apply absolute inset-y-0 w-1/4;
+		background: linear-gradient(90deg, transparent, var(--accent), transparent);
+		animation: visor-sweep 1.8s ease-in-out infinite;
+	}
+}
+
+@keyframes visor-sweep {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(400%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.visor::after {
+		@apply w-full opacity-60;
+		animation: none;
+	}
+}

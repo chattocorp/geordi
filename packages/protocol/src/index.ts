@@ -1,7 +1,7 @@
 /**
  * Messages exchanged between the forge (apps/web) and daemons (apps/daemon).
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
- * See ADR-002.
+ * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
 export const PROTOCOL_VERSION = 1;
 
@@ -26,6 +26,10 @@ export type SessionEvent =
 
 /** Forge → daemon. */
 export type ForgeMessage =
+	/** First message on every connection. */
+	| { type: 'challenge'; nonce: string }
+	/** Reply to a valid `hello`; the daemon trusts the forge only after verifying it. */
+	| { type: 'welcome'; proof: string }
 	| {
 			type: 'turn.start';
 			sessionId: string;
@@ -42,9 +46,11 @@ export type DaemonMessage =
 	| {
 			type: 'hello';
 			protocol: number;
-			/** Shared secret issued by the forge (stored in its data directory). */
-			token: string;
 			daemonId: string;
+			/** The daemon's challenge for the forge. */
+			nonce: string;
+			/** Answer to the forge's challenge. */
+			proof: string;
 			/** Sessions with a turn currently running on this daemon. */
 			running: string[];
 	  }

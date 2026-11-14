@@ -63,6 +63,17 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - Server-only code lives in `src/lib/server/`; import it as `#lib/server/<file>.ts`.
   - Env vars are declared in `src/env.ts` and imported from `$app/env/private` (SvelteKit 3;
     `$env/*` is deprecated).
+- **UI design:** colours are semantic tokens defined in `apps/web/src/routes/layout.css`
+  (`bg`, `sidebar`, `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`,
+  `accent-soft`, `accent-ink`, `on-accent`, `danger`, `ok`, plus `claude`/`codex` for agent
+  colours), switching for light and dark mode. Dark mode is deliberately mid-tone, not
+  near-black. Use tokens instead of raw Tailwind colours. Gold `accent` is for primary actions
+  and things that are live; the `.visor` sweep is the only ambient motion. Surfaces use
+  `shadow-soft`/`shadow-float` with a `ring-line/60` rather than hard borders. Icons: Iconify
+  via `icon-[lucide--name]`. Fonts: Geist and Geist Mono from Fontsource (no remote loading);
+  mono only for actual code (paths, branches, commands, output).
+- **Agent output** is rendered as Markdown with `markdown-it` (raw HTML disabled), via
+  `#lib/components/Markdown.svelte`.
 - Shared tool versions live in the pnpm catalog (`pnpm-workspace.yaml`); reference them as
   `"catalog:"`.
 - Conventional commits; mention planning item IDs and ADRs where relevant.

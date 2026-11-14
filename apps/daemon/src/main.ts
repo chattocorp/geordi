@@ -7,15 +7,23 @@ import {
 	type ForgeMessage,
 	type SessionEvent
 } from '@geordi/protocol';
+import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { runTurn, type Turn } from './turn.ts';
 import { ensureWorktree } from './worktree.ts';
 
-const forgeUrl = process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700';
+const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
 const daemonId = hostname();
+
+// Unencrypted connections are only acceptable on this machine.
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+if (forgeUrl.protocol !== 'wss:' && !LOOPBACK.has(forgeUrl.hostname)) {
+	console.error(`Refusing unencrypted connection to ${forgeUrl.host}; use wss://`);
+	process.exit(1);
+}
 
 /** The forge's shared secret. Read on every connect: the forge creates it on first start. */
 function readToken(): string | null {
@@ -31,8 +39,9 @@ const turns = new Map<string, Turn>();
 
 // --- Connection to the forge --------------------------------------------------------------
 
+/** The current connection, set only once the forge has proven it knows the token. */
 let socket: WebSocket | null = null;
-/** Messages produced while disconnected; sent after the next `hello`. */
+/** Messages produced while disconnected; sent once the next connection is authenticated. */
 const outbox: DaemonMessage[] = [];
 
 function send(message: DaemonMessage) {
@@ -50,28 +59,44 @@ function connect(delay = 500) {
 	}
 
 	const ws = new WebSocket(forgeUrl);
+	const nonce = createNonce();
 
-	ws.onopen = () => {
-		console.log(`connected to ${forgeUrl}`);
-		socket = ws;
-		delay = 500;
-		const hello: DaemonMessage = {
-			type: 'hello',
-			protocol: PROTOCOL_VERSION,
-			token,
-			daemonId,
-			running: [...turns.keys()]
-		};
-		ws.send(JSON.stringify(hello));
-		for (const message of outbox.splice(0)) ws.send(JSON.stringify(message));
+	ws.onmessage = (event) => {
+		let message: ForgeMessage;
+		try {
+			message = JSON.parse(String(event.data));
+		} catch {
+			return ws.close(4000, 'Invalid JSON');
+		}
+
+		if (socket === ws) return handle(message);
+
+		// Handshake (see @geordi/protocol/auth): answer the challenge, then verify the forge.
+		if (message.type === 'challenge') {
+			const hello: DaemonMessage = {
+				type: 'hello',
+				protocol: PROTOCOL_VERSION,
+				daemonId,
+				nonce,
+				proof: prove(token, 'daemon', message.nonce),
+				running: [...turns.keys()]
+			};
+			ws.send(JSON.stringify(hello));
+		} else if (message.type === 'welcome' && verify(token, 'forge', nonce, message.proof)) {
+			console.log(`connected to ${forgeUrl}`);
+			socket = ws;
+			delay = 500;
+			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));
+		} else {
+			console.error('the forge failed to authenticate; disconnecting');
+			ws.close(4001, 'Unauthorized');
+		}
 	};
-
-	ws.onmessage = (event) => handle(JSON.parse(String(event.data)) as ForgeMessage);
 
 	ws.onclose = (event) => {
 		if (socket === ws) console.log('disconnected; reconnecting');
 		else if (event.reason) console.log(`connection refused: ${event.reason}`);
-		socket = null;
+		if (socket === ws) socket = null;
 		retry();
 	};
 }
@@ -95,7 +120,13 @@ async function handle(message: ForgeMessage) {
 				const adapter = await adapterFor(agent);
 				const turn = runTurn(
 					adapter,
-					{ sessionId, prompt, resumeId, cwd: worktree.path, gitDir: worktree.gitDir },
+					{
+						sessionId,
+						prompt,
+						resumeId,
+						cwd: worktree.path,
+						writableRoots: worktree.writableRoots
+					},
 					emit
 				);
 				turns.set(sessionId, turn);
@@ -112,6 +143,9 @@ async function handle(message: ForgeMessage) {
 		case 'turn.stop':
 			turns.get(message.sessionId)?.stop();
 			break;
+
+		default:
+			break; // handshake messages are handled in connect()
 	}
 }
 

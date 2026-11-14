@@ -13,7 +13,6 @@ export function ensureWorktree(baseDir: string, repoPath: string, sessionId: str
 	const short = sessionId.slice(0, 8);
 	const path = join(baseDir, basename(repoPath), short);
 	const branch = `geordi/${short}`;
-	const gitDir = resolve(repoPath, git(repoPath, 'rev-parse', '--git-common-dir'));
 
 	const created = !existsSync(path);
 	if (created) {
@@ -21,5 +20,13 @@ export function ensureWorktree(baseDir: string, repoPath: string, sessionId: str
 		git(repoPath, 'worktree', 'add', '-b', branch, path, 'HEAD');
 	}
 
-	return { path, branch, gitDir, created };
+	// What a commit writes outside the worktree: objects, refs and reflogs in the shared
+	// .git, plus the worktree's own admin directory (HEAD, index). Not hooks/ or config.
+	const commonDir = resolve(repoPath, git(repoPath, 'rev-parse', '--git-common-dir'));
+	const adminDir = resolve(path, git(path, 'rev-parse', '--git-dir'));
+	const writableRoots = ['objects', 'refs', 'logs'].map((dir) => join(commonDir, dir));
+	for (const dir of writableRoots) mkdirSync(dir, { recursive: true });
+	writableRoots.push(adminDir);
+
+	return { path, branch, writableRoots, created };
 }

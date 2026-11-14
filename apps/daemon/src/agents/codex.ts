@@ -58,9 +58,9 @@ function completed(item: Item): SessionEvent[] {
 
 /** `codex exec --json`. */
 export const codex: AgentAdapter = {
-	command({ prompt, cwd, gitDir, resumeId }) {
-		// Commits in a worktree write to the main repository's .git, outside the sandbox's workspace.
-		const writable = `sandbox_workspace_write.writable_roots=${JSON.stringify([gitDir])}`;
+	command({ prompt, cwd, writableRoots, resumeId }) {
+		// Commits in a worktree write to parts of the main repository's .git, outside the workspace.
+		const writable = `sandbox_workspace_write.writable_roots=${JSON.stringify(writableRoots)}`;
 		// `--` keeps user-provided values starting with `-` from being parsed as flags.
 		const args = resumeId
 			? [
@@ -75,7 +75,7 @@ export const codex: AgentAdapter = {
 					resumeId,
 					prompt
 				]
-			: ['exec', '--json', '-s', 'workspace-write', '--add-dir', gitDir, '-C', cwd, '--', prompt];
+			: ['exec', '--json', '-s', 'workspace-write', '-c', writable, '-C', cwd, '--', prompt];
 		return { cmd: 'codex', args };
 	},
 

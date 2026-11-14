@@ -1,7 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 import { PROTOCOL_VERSION, type DaemonMessage, type ForgeMessage } from '@geordi/protocol';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { tokensMatch } from './daemon-token.ts';
+import { createNonce, prove, verify } from '@geordi/protocol/auth';
 
 type Handlers = {
 	onHello(daemonId: string, running: string[]): void;
@@ -14,9 +14,10 @@ const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
 const HELLO_TIMEOUT_MS = 5000;
 
 /**
- * Accepts daemon connections (ADR-002). Listens on 127.0.0.1 only. Daemons authenticate
- * with a shared token in their `hello`; browsers are refused outright, so web pages can't
- * pose as daemons (cross-site WebSocket hijacking).
+ * Accepts daemon connections (ADR-002). Listens on 127.0.0.1 only. Forge and daemon
+ * authenticate each other by challenge-response on a shared token (see protocol `auth.ts`);
+ * browsers are refused outright, so web pages can't pose as daemons (cross-site WebSocket
+ * hijacking).
  */
 export function createHub(port: number, token: string, handlers: Handlers) {
 	// Dev-mode module reloads re-create the hub; release the port first. Daemons reconnect.
@@ -45,6 +46,9 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			() => socket.close(1008, 'Authentication timeout'),
 			HELLO_TIMEOUT_MS
 		);
+		const nonce = createNonce();
+		const challenge: ForgeMessage = { type: 'challenge', nonce };
+		socket.send(JSON.stringify(challenge));
 
 		socket.on('message', (data) => {
 			let message: DaemonMessage;
@@ -57,12 +61,18 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			const daemonId = daemons.get(socket);
 
 			if (!daemonId) {
-				if (message.type !== 'hello' || !tokensMatch(token, message.token))
+				if (message.type !== 'hello' || !verify(token, 'daemon', nonce, message.proof))
 					return socket.close(1008, 'Unauthorized');
 				if (message.protocol !== PROTOCOL_VERSION)
 					return socket.close(1002, `Protocol ${message.protocol} not supported`);
 
 				clearTimeout(timeout);
+				const welcome: ForgeMessage = {
+					type: 'welcome',
+					proof: prove(token, 'forge', message.nonce)
+				};
+				socket.send(JSON.stringify(welcome));
+
 				daemons.set(socket, message.daemonId);
 				// After a forge restart we don't know assignments; trust what the daemon is running.
 				for (const id of message.running) if (!assigned.has(id)) assigned.set(id, message.daemonId);

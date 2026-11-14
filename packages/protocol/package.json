@@ -2,7 +2,10 @@
 	"name": "@geordi/protocol",
 	"private": true,
 	"type": "module",
-	"exports": "./src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./auth": "./src/auth.ts"
+	},
 	"scripts": {
 		"check": "tsc"
 	},

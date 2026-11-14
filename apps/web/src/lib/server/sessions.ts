@@ -167,7 +167,8 @@ export function createSessions(
 		) {
 			repos.get(repoId); // 404s for unknown repos
 			const id = randomUUID();
-			const title = prompt.split('\n')[0].slice(0, 80);
+			// The first line; the UI clamps long titles visually.
+			const title = prompt.split('\n')[0].trim().slice(0, 300);
 			store.append(
 				{ type: 'session.created', stream: `session:${id}`, data: { id, repoId, agent, title } },
 				{ actor }

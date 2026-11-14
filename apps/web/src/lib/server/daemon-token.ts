@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -12,11 +12,4 @@ export function loadDaemonToken(path: string): string {
 		writeFileSync(path, randomBytes(32).toString('base64url'), { mode: 0o600, flag: 'wx' });
 	}
 	return readFileSync(path, 'utf8').trim();
-}
-
-export function tokensMatch(expected: string, actual: unknown): boolean {
-	if (typeof actual !== 'string') return false;
-	const a = Buffer.from(expected);
-	const b = Buffer.from(actual);
-	return a.length === b.length && timingSafeEqual(a, b);
 }

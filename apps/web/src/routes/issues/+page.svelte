@@ -5,40 +5,76 @@
 	const { title, body } = openIssue.fields;
 </script>
 
-<main class="mx-auto max-w-2xl space-y-8 p-8">
-	<h1 class="text-2xl font-bold">Issues</h1>
+<svelte:head><title>Issues · Geordi</title></svelte:head>
 
-	<form {...openIssue} class="space-y-2">
-		<input {...title.as('text')} placeholder="Title" class="w-full rounded border p-2" />
-		{#each title.issues() ?? [] as problem (problem.message)}
-			<p class="text-sm text-red-600">{problem.message}</p>
-		{/each}
-		<textarea {...body.as('text')} placeholder="Description" class="w-full rounded border p-2"
+<main class="mx-auto w-full max-w-3xl space-y-8 px-6 py-10">
+	<h1 class="text-3xl font-semibold tracking-tight">Issues</h1>
+
+	<form
+		{...openIssue}
+		class="rounded-2xl bg-surface shadow-float ring-1 ring-line/60 focus-within:ring-accent/60"
+	>
+		<label for="issue-title" class="sr-only">Title</label>
+		<input
+			{...title.as('text')}
+			id="issue-title"
+			placeholder="Title"
+			class="block w-full rounded-t-2xl bg-transparent px-5 pt-4 pb-1 font-medium placeholder:text-muted/70 focus-visible:outline-none"
+		/>
+		<label for="issue-body" class="sr-only">Description</label>
+		<textarea
+			{...body.as('text')}
+			id="issue-body"
+			rows="3"
+			placeholder="Description (optional)"
+			class="block w-full resize-y bg-transparent px-5 py-2 placeholder:text-muted/70 focus-visible:outline-none"
 		></textarea>
-		<button class="rounded bg-black px-4 py-2 text-white">Open issue</button>
+		<div class="flex items-center px-4 pb-4">
+			{#each title.issues() ?? [] as problem (problem.message)}
+				<p class="text-sm text-danger">{problem.message}</p>
+			{/each}
+			<button
+				class="ml-auto rounded-full bg-accent px-4 py-2 text-sm font-semibold text-on-accent shadow-soft hover:brightness-105"
+			>
+				Open issue
+			</button>
+		</div>
 	</form>
 
-	<ul class="divide-y">
+	<ul
+		class="divide-y divide-line/70 overflow-hidden rounded-2xl bg-surface shadow-soft ring-1 ring-line/60"
+	>
 		{#each await issues as issue (issue.number)}
-			<li class="flex items-center justify-between py-2">
-				<span class={issue.state === 'closed' ? 'text-gray-400 line-through' : ''}>
-					#{issue.number}
+			<li class="flex items-center gap-4 px-5 py-3">
+				<span
+					class={[
+						'size-4 shrink-0',
+						issue.state === 'open'
+							? 'icon-[lucide--circle-dot] text-ok'
+							: 'icon-[lucide--circle-check] text-muted'
+					]}
+					title={issue.state === 'open' ? 'Open' : 'Closed'}
+				></span>
+				<span class={['min-w-0 flex-1 truncate', issue.state === 'closed' && 'text-muted']}>
 					{issue.title}
 				</span>
+				<span class="font-mono text-[13px] text-muted">#{issue.number}</span>
 				<button
-					class="text-sm text-gray-500 hover:underline"
+					class="rounded-md px-2.5 py-1 text-sm text-muted hover:bg-sunken hover:text-ink"
 					onclick={() => (issue.state === 'open' ? closeIssue : reopenIssue)(issue.number)}
 				>
 					{issue.state === 'open' ? 'Close' : 'Reopen'}
 				</button>
 			</li>
 		{:else}
-			<li class="py-2 text-gray-500">No issues yet.</li>
+			<li class="px-4 py-10 text-center text-muted">No issues yet. Open one above.</li>
 		{/each}
 	</ul>
 
-	<p class="font-mono text-xs text-gray-400">
-		<span class={issues.connected ? 'text-green-600' : 'text-red-600'}>●</span>
-		{issues.connected ? 'live' : 'disconnected'}
+	<p class="text-sm text-muted">
+		<span
+			class={['mr-1 inline-block size-2 rounded-full', issues.connected ? 'bg-ok' : 'bg-danger']}
+		></span>
+		{issues.connected ? 'Updating live' : 'Reconnecting'}
 	</p>
 </main>

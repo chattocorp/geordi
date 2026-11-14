@@ -9,7 +9,13 @@ const fake = (script: string): AgentAdapter => ({
 	parse: (line) => [line as SessionEvent]
 });
 
-const options = { sessionId: 's', prompt: '', cwd: process.cwd(), gitDir: '', resumeId: null };
+const options = {
+	sessionId: 's',
+	prompt: '',
+	cwd: process.cwd(),
+	writableRoots: [],
+	resumeId: null
+};
 
 async function collect(adapter: AgentAdapter) {
 	const events: SessionEvent[] = [];
