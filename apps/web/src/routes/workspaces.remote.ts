@@ -49,6 +49,12 @@ export const sendMessage = form(
 	}
 );
 
+/** Takes back a message that is waiting for the agent to finish its turn. */
+export const removeQueued = command(
+	v.object({ workspaceId: v.string(), index: v.pipe(v.number(), v.integer(), v.minValue(0)) }),
+	({ workspaceId, index }) => workspaces().dequeue(workspaceId, index)
+);
+
 /** Stops the workspace's agent, if it is working. */
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 

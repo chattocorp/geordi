@@ -77,9 +77,60 @@ describe('workspaces', () => {
 		expect(sent[1]).toMatchObject({ type: 'turn.start', resumeId: 'thread-1', prompt: 'Two' });
 	});
 
-	it('rejects messages while a turn is running', () => {
-		const { workspaces, create } = setup();
-		expect(() => workspaces.send(create('One'), 'Two')).toThrow();
+	it('queues messages sent while the agent works, and sends them one turn at a time', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		workspaces.send(id, 'Two');
+		workspaces.send(id, 'Three');
+		expect(sent).toHaveLength(1);
+		expect(workspaces.get(id)).toMatchObject({ status: 'running', queue: ['Two', 'Three'] });
+
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', prompt: 'Two' });
+		expect(workspaces.get(id)).toMatchObject({ status: 'running', queue: ['Three'] });
+
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ prompt: 'Three' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.get(id)).toMatchObject({ status: 'idle', queue: [] });
+		expect(sent).toHaveLength(3);
+		expect(
+			workspaces.get(id).transcript.flatMap((item) => (item.kind === 'user' ? [item.text] : []))
+		).toEqual(['One', 'Two', 'Three']);
+	});
+
+	it('lets a waiting message be taken back', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		workspaces.send(id, 'Two');
+		workspaces.send(id, 'Three');
+		workspaces.dequeue(id, 0);
+		workspaces.dequeue(id, 7);
+		expect(workspaces.get(id).queue).toEqual(['Three']);
+
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ prompt: 'Three' });
+	});
+
+	it('holds waiting messages after a failed turn, until the user says something', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		workspaces.send(id, 'Two');
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		expect(sent).toHaveLength(1);
+		expect(workspaces.get(id)).toMatchObject({ status: 'idle', queue: ['Two'] });
+
+		// what was waiting goes first, in order
+		workspaces.send(id, 'Three');
+		expect(sent.at(-1)).toMatchObject({ prompt: 'Two' });
+		expect(workspaces.get(id).queue).toEqual(['Three']);
+	});
+
+	it('keeps the queue across a restart', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('One');
+		workspaces.send(id, 'Two');
+		expect(createWorkspaces(store, repos, dispatch).get(id).queue).toEqual(['Two']);
 	});
 
 	it('fails the turn when no daemon is connected', () => {

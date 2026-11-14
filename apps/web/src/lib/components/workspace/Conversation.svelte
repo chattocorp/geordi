@@ -8,7 +8,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
-	import { sendMessage, stopAgent } from '../../../routes/workspaces.remote';
+	import { removeQueued, sendMessage, stopAgent } from '../../../routes/workspaces.remote';
 
 	/** A workspace's conversation with its agent, and the box to reply in. */
 	let { workspace }: { workspace: Workspace } = $props();
@@ -71,6 +71,24 @@
 					{/if}
 				</li>
 			{/each}
+			{#each workspace.queue as text, index (index)}
+				<li class="flex items-start justify-end gap-2">
+					<Button
+						variant="ghost"
+						size="sm"
+						icon="icon-[lucide--x]"
+						label="Don't send this"
+						onclick={() => removeQueued({ workspaceId: workspace.id, index })}
+						class="mt-1.5"
+					/>
+					<div
+						class="w-fit max-w-[85%] rounded-card rounded-br-control px-4 py-2.5 ring-1 ring-line"
+					>
+						<p class="label">Queued</p>
+						<p class="whitespace-pre-wrap text-muted">{text}</p>
+					</div>
+				</li>
+			{/each}
 		</ol>
 	</div>
 
@@ -88,9 +106,8 @@
 			<Composer
 				{form}
 				rows={2}
-				placeholder={running ? 'The agent is working…' : 'Reply to the agent'}
+				placeholder={running ? 'Queue a message for when the agent is done' : 'Reply to the agent'}
 				field={form.fields.text.as('text')}
-				disabled={running}
 				problems={form.fields.text.issues()?.map((problem) => problem.message)}
 			>
 				{#snippet header()}
@@ -100,23 +117,19 @@
 					<p class="hidden pl-1 text-xs text-muted sm:block">
 						Enter to send, Shift+Enter for a new line
 					</p>
-					{#if running}
-						<Button
-							icon="icon-[lucide--square]"
-							class="ml-auto"
-							onclick={() => stopAgent(workspace.id)}
-						>
-							Stop
-						</Button>
-					{:else}
+					<div class="ml-auto flex items-center gap-2">
+						{#if running}
+							<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
+								Stop
+							</Button>
+						{/if}
 						<Button
 							type="submit"
-							variant="primary"
-							icon="icon-[lucide--arrow-up]"
-							label="Send"
-							class="ml-auto"
+							variant={running ? 'secondary' : 'primary'}
+							icon={running ? 'icon-[lucide--list-plus]' : 'icon-[lucide--arrow-up]'}
+							label={running ? 'Queue' : 'Send'}
 						/>
-					{/if}
+					</div>
 				{/snippet}
 			</Composer>
 		</div>

@@ -24,8 +24,19 @@ export type WorkspacesEvent =
 				base?: string;
 			};
 	  }
-	/** Something the user (or another agent) said to the workspace's agent. */
-	| { type: 'workspace.message'; stream: WorkspaceStream; data: { id: string; text: string } }
+	/**
+	 * Something the user (or another agent) said to the workspace's agent, starting a turn.
+	 * `queued` marks a message that had been waiting: it is the first one in the queue.
+	 */
+	| {
+			type: 'workspace.message';
+			stream: WorkspaceStream;
+			data: { id: string; text: string; queued?: boolean };
+	  }
+	/** A message to send once the agent has finished what it is doing. */
+	| { type: 'workspace.queued'; stream: WorkspaceStream; data: { id: string; text: string } }
+	/** A waiting message was taken back; `index` is its place in the queue at the time. */
+	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
 	/** Whatever the daemon reports, stored verbatim. */
 	| {
 			type: 'workspace.output';
@@ -69,6 +80,8 @@ export type Workspace = {
 	worktree: { path: string; branch: string } | null;
 	/** The agent CLI's session ID, for resuming the conversation. */
 	resumeId: string | null;
+	/** Messages waiting for the agent to finish its turn, in the order they will be sent. */
+	queue: string[];
 	createdAt: string;
 	updatedAt: string;
 	transcript: TranscriptItem[];
@@ -129,6 +142,7 @@ export function createWorkspaces(
 				base,
 				worktree: null,
 				resumeId: null,
+				queue: [],
 				createdAt: at,
 				updatedAt: at,
 				transcript: []
@@ -141,7 +155,16 @@ export function createWorkspaces(
 		workspace.updatedAt = at;
 		const { transcript } = workspace;
 
+		if (event.type === 'workspace.queued') {
+			workspace.queue.push(event.data.text);
+			return;
+		}
+		if (event.type === 'workspace.dequeued') {
+			workspace.queue.splice(event.data.index, 1);
+			return;
+		}
 		if (event.type === 'workspace.message') {
+			if (event.data.queued) workspace.queue.shift();
 			workspace.status = 'running';
 			transcript.push({ kind: 'user', text: event.data.text, at });
 			return;
@@ -215,10 +238,17 @@ export function createWorkspaces(
 		return { worktreeId, repoPath: repos.get(repoId).path, ...(base && { base }) };
 	}
 
-	/** Records daemon output for a workspace. Unknown workspaces are ignored. */
+	/**
+	 * Records daemon output for a workspace. Unknown workspaces are ignored. When a turn
+	 * completes, the next waiting message goes out. After a failed or stopped turn, waiting
+	 * messages stay put: sending more into a conversation that just broke would be a guess.
+	 */
 	function record(id: string, event: AgentEvent) {
-		if (!projection.get().has(id)) return;
+		const workspace = projection.get().get(id);
+		if (!workspace) return;
 		store.append({ type: 'workspace.output', stream: `workspace:${id}`, data: { id, event } });
+		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
+			startTurn(workspace, workspace.queue[0], null, true);
 	}
 
 	/** A workspace's turns so far, including a running one. */
@@ -247,10 +277,14 @@ export function createWorkspaces(
 	}
 
 	/** Appends a message to the workspace's agent and asks a daemon to run the turn. */
-	function startTurn(workspace: Workspace, text: string, actor: string | null) {
+	function startTurn(workspace: Workspace, text: string, actor: string | null, queued = false) {
 		const { id } = workspace;
 		store.append(
-			{ type: 'workspace.message', stream: `workspace:${id}`, data: { id, text } },
+			{
+				type: 'workspace.message',
+				stream: `workspace:${id}`,
+				data: { id, text, ...(queued && { queued }) }
+			},
 			{ actor }
 		);
 
@@ -428,10 +462,29 @@ export function createWorkspaces(
 		/** Starts a workspace with a first message to its agent. Returns the workspace's ID. */
 		create: (workspace: NewWorkspace, actor: string | null = null) => create(workspace, actor),
 
+		/**
+		 * Says something to the workspace's agent: at once if it is idle (and nothing is
+		 * waiting to go first), otherwise once it has finished what it is doing.
+		 */
 		send(id: string, text: string, actor: string | null = null) {
 			const workspace = find(id);
-			if (workspace.status === 'running') error(409, 'The agent is still working');
-			startTurn(workspace, text, actor);
+			if (workspace.status === 'idle' && workspace.queue.length === 0)
+				return startTurn(workspace, text, actor);
+			store.append(
+				{ type: 'workspace.queued', stream: `workspace:${id}`, data: { id, text } },
+				{ actor }
+			);
+			// idle with messages waiting: the turn before failed, and this is the nudge to go on
+			if (workspace.status === 'idle') startTurn(workspace, workspace.queue[0], actor, true);
+		},
+
+		/** Takes back a waiting message, by its place in the queue. */
+		dequeue(id: string, index: number, actor: string | null = null) {
+			if (!(index in find(id).queue)) return;
+			store.append(
+				{ type: 'workspace.dequeued', stream: `workspace:${id}`, data: { id, index } },
+				{ actor }
+			);
 		},
 
 		stop,

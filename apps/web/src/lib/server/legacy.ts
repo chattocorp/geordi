@@ -111,6 +111,8 @@ export function createUpcaster() {
 
 			case 'workspace.message':
 			case 'workspace.output':
+			case 'workspace.queued':
+			case 'workspace.dequeued':
 				return [event as CurrentEvent];
 
 			default:
