@@ -39,6 +39,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   turns, terminals and future long-running things must survive a forge restart unchanged.
   The forge may keep live state in memory only if it can rebuild it from the event log or
   from what a reconnecting daemon reports. Test new features by restarting the forge.
+- **Geordi is opinionated.** One good, fixed way of doing something beats a configurable
+  one. Don't add freedom (movable panels, options, modes) unless it earns its place; when
+  in doubt, decide for the user.
 - **Keep the UI calm.** Four font sizes only (`text-xs` 13px, `text-sm` 15px, `text-base`
   17px, `text-2xl` for page titles; defined in `layout.css`), three radii, one accent.
   Never arbitrary sizes. Hierarchy comes from weight and colour.
@@ -128,12 +131,13 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   motion. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and IBM Plex Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output).
-- **Workspace UI:** components in `#lib/components/workspace/`. Everything in a workspace is
-  a window, and every window a tab in one tree of splits (`#lib/layout.ts`, pure functions;
-  rendered by `Panes.svelte`), named after what it shows: `chat`, `changes`, `diff:<path>`,
-  `terminal:<name>`. There is no fixed sidebar: any tab can be dragged into any group. Which
-  windows exist follows from the workspace's state; only their arrangement is a per-browser
-  preference (`persisted`), not an event.
+- **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed: main
+  area | changes above dock. Main area and dock are each a `Panes` with its own layout tree
+  (`#lib/layout.ts`, pure functions). Windows are tabs named after what they show: `chat`
+  (pinned to the main area), `diff:<path>` and `terminal:<name>`, which can be dragged
+  between the two (`Panes` props `accepts`/`onreceive`, shared drag state in
+  `drag.svelte.ts`). Which windows exist follows from the workspace's state; only their
+  arrangement is a per-browser preference (`persisted`), not an event.
 - **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
   (https://diffs.com) from both whole file versions, which is what makes context
   expandable. It renders into a shadow root; style it through its `--diffs-*` properties.

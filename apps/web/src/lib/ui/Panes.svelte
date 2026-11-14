@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { close, move, open, resize, type Layout, type Zone } from '#lib/layout.ts';
 	import Button from './Button.svelte';
+	import { drag, endDrag } from './drag.svelte.ts';
 	import Split from './Split.svelte';
 
 	type Props = {
@@ -15,6 +16,10 @@
 		newTab?: () => string;
 		/** Which tabs can be closed. All of them, unless said otherwise. */
 		closable?: (tab: string) => boolean;
+		/** Which tabs dragged over from another `Panes` may be dropped here. None, by default. */
+		accepts?: (tab: string) => boolean;
+		/** A tab from another `Panes` was dropped here: on a group, or one of its sides. */
+		onreceive?: (tab: string, groupId: string, zone: Zone) => void;
 		/** Label of the "+" button. */
 		newLabel?: string;
 		/** Shown in a group without tabs. */
@@ -27,13 +32,21 @@
 		window,
 		newTab,
 		closable = () => true,
+		accepts = () => false,
+		onreceive,
 		newLabel = 'New window',
 		empty
 	}: Props = $props();
 
-	/** The tab being dragged, and where it would land if dropped now. */
-	let dragging = $state<string | null>(null);
+	/** Tells our own tabs from ones dragged over from another `Panes`. */
+	const self = Symbol('panes');
+	/** Where the dragged tab would land if dropped now. */
 	let target = $state<{ group: string; zone: Zone } | null>(null);
+	const droppable = $derived(!!drag.tab && (drag.source === self || accepts(drag.tab)));
+	// the drag ended, or moved on to another `Panes`
+	$effect(() => {
+		if (drag.over !== self) target = null;
+	});
 
 	/** Near an edge, a drop splits the group on that side; elsewhere it joins the group. */
 	function zoneAt(event: DragEvent & { currentTarget: HTMLElement }): Zone {
@@ -48,15 +61,19 @@
 	}
 
 	function over(event: DragEvent, group: string, zone: Zone) {
-		if (!dragging) return;
+		if (!droppable) return;
 		event.preventDefault();
+		drag.over = self;
 		if (target?.group !== group || target.zone !== zone) target = { group, zone };
 	}
 
 	function drop(event: DragEvent) {
 		event.preventDefault();
-		if (dragging && target) onchange(move(layout, dragging, target.group, target.zone));
-		dragging = target = null;
+		if (drag.tab && target && droppable) {
+			if (drag.source === self) onchange(move(layout, drag.tab, target.group, target.zone));
+			else onreceive?.(drag.tab, target.group, target.zone);
+		}
+		endDrag();
 	}
 
 	const overlay: Record<Zone, string> = {
@@ -91,10 +108,11 @@
 						aria-selected={active}
 						draggable="true"
 						ondragstart={(event) => {
-							dragging = id;
+							drag.tab = id;
+							drag.source = self;
 							event.dataTransfer?.setData('text/plain', id);
 						}}
-						ondragend={() => (dragging = target = null)}
+						ondragend={endDrag}
 						onclick={() => onchange(open(layout, id))}
 						onkeydown={(event) => {
 							if (event.key === 'Enter' || event.key === ' ') onchange(open(layout, id));
@@ -153,7 +171,7 @@
 						{#if empty}{@render empty()}{:else}Nothing open here.{/if}
 					</div>
 				{/each}
-				{#if dragging && target?.group === n.id}
+				{#if droppable && target?.group === n.id}
 					<div
 						class={[
 							'pointer-events-none absolute z-20 rounded-control bg-accent/15 ring-2 ring-accent/60 ring-inset',

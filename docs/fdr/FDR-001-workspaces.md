@@ -12,17 +12,16 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - A workspace is started from a repository with a first prompt and an agent. It gets its own worktree and branch, and is named after the first line of that prompt.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - A message sent while the agent is working waits and goes out when the agent has finished its turn. Waiting messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something, and then go first.
-- Everything in a workspace is a window, and every window is a tab that can be dragged anywhere: the conversation, the changes, each diff and each terminal.
-  - To begin with, the conversation takes most of the room, with the changes beside it and a pane for terminals below those.
-  - Tabs can be dragged onto another group of tabs to move them there, or towards an edge of a group to split it and place the window beside, above or below. That works between any two groups: a terminal can sit next to the conversation, a diff can go into the terminal pane.
-  - Splits are resized by dragging the line between them.
-  - The conversation and the changes can be moved but not closed.
+- A workspace has a fixed frame: the main area, and beside it the changes above the dock. The lines between them can be dragged to resize, and that is all that can be changed about the frame.
+- The main area holds the conversation, which is always there and stays there. Diffs open next to it as further windows.
+- The dock holds terminals. It starts empty.
+- Windows are tabs. Within the main area and within the dock, a tab can be dragged onto another group of tabs to move it there, or towards an edge of a group to split it and place the window beside, above or below.
+- Diffs and terminals can also be dragged between the two: a terminal out of the dock to sit beside the conversation, a diff into the dock. The conversation cannot leave the main area, and the changes are not a window at all.
 - The top bar shows what could happen next (FDR-003).
 - **Changes** lists every file that differs from where the workspace branched off, with lines added and removed: committed, uncommitted and untracked work alike. Selecting a file opens its diff as a window next to the conversation. The list updates as files change.
   - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
   - Above the list is how the workspace's branch stands on the forge the repository is hosted on: not pushed yet, pushed without a pull request (with a link to open one), or its pull request with state, checks, reviews and target branch, linking to the forge. It appears only for repositories hosted on a forge Geordi knows, and is at most a minute old.
-- **Terminals** are shells in the workspace's directory. "+" in any group of tabs opens one there. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
-  - The terminal pane stays where it is when it is empty, as a place to open or drop a window.
+- **Terminals** are shells in the workspace's directory. "+" in the dock opens one. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
 - A workspace can be archived when it is done with. That ends its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. Archiving refuses if the worktree has uncommitted or untracked files, and offers to discard them.
 - The window arrangement and pane sizes are remembered per browser.
 
@@ -52,11 +51,11 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 **Why:** People want the workspace's total effect, regardless of whether an agent has committed yet.
 **Tradeoff:** There is no notion of a target branch other than the pull request's. If the repository's main checkout is on an unrelated branch, the comparison is against that.
 
-### 5. One layout for everything
+### 5. A fixed frame, with freedom only inside it
 
-**Decision:** The conversation, changes, diffs and terminals are all windows in a single tree of splits and tab groups, built in-house rather than with a docking library. There is no fixed sidebar.
-**Why:** People arrange a workspace around what they are doing: a terminal beside the conversation while debugging, a diff full width while reviewing. One layout makes every such arrangement the same gesture. The model is small enough to own and test, where the available libraries are large and bring their own look.
-**Tradeoff:** A window can be dragged somewhere unhelpful, and there is no "reset layout" yet. No tab reordering within a group, floating windows or keyboard-driven docking either.
+**Decision:** The frame (main area, changes, dock) is fixed. Tabs and splits exist inside the main area and inside the dock, and only diffs and terminals move between the two. The conversation is pinned to the main area and the changes are not movable.
+**Why:** Geordi is opinionated: a workspace should look the same every time, so that people know where things are without arranging anything. The one freedom that earns its place is putting a terminal or a diff where the work is. An earlier version made everything a freely movable window; it could do more and was worse for it, because any drag could dismantle the workspace.
+**Tradeoff:** No way to give the changes more room than their pane, or to move the conversation aside. No tab reordering within a group, floating windows or keyboard-driven docking either.
 
 ### 6. Layout is a browser preference, not shared state
 

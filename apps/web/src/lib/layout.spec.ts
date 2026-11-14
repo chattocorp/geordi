@@ -3,6 +3,7 @@ import {
 	add,
 	close,
 	groupsOf,
+	insert,
 	move,
 	open,
 	prune,
@@ -85,6 +86,12 @@ describe('layout', () => {
 		// and its only tab can be dragged out to elsewhere
 		const [first] = groupsOf(layout);
 		expect(shape(move(layout, 't', first.id, 'center'))).toEqual(['column', 'a t*', '']);
+	});
+
+	it('takes in a tab from elsewhere, into a group or beside it', () => {
+		expect(shape(insert(start, 'x', first.id, 'center'))).toBe('a b c x*');
+		expect(shape(insert(start, 'x', first.id, 'bottom'))).toEqual(['column', 'a* b c', 'x*']);
+		expect(insert(start, 'x', 'no-such-group', 'center')).toBe(start);
 	});
 
 	it('replaces and prunes tabs', () => {

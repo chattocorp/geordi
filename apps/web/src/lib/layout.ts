@@ -120,6 +120,25 @@ export function replace(layout: Layout, tab: string, next: string): Layout {
 	)!;
 }
 
+/**
+ * Puts a tab that is not in the layout yet into a group (`center`), or into a new group on
+ * one of its sides. Does nothing if there is no such group.
+ */
+export function insert(layout: Layout, tab: string, groupId: string, zone: Zone): Layout {
+	return mapGroups(layout, (g) => {
+		if (g.id !== groupId) return g;
+		if (zone === 'center') return withTab(g, tab);
+		const fresh = group([tab]);
+		const first = zone === 'left' || zone === 'top';
+		return splitOf(
+			zone === 'left' || zone === 'right' ? 'row' : 'column',
+			0.5,
+			first ? fresh : g,
+			first ? g : fresh
+		);
+	})!;
+}
+
 /** Moves a tab into another group (`center`), or into a new group on one of its sides. */
 export function move(layout: Layout, tab: string, groupId: string, zone: Zone): Layout {
 	const source = groupsOf(layout).find((g) => g.tabs.includes(tab));
@@ -128,20 +147,7 @@ export function move(layout: Layout, tab: string, groupId: string, zone: Zone): 
 	if (source.id === groupId && (zone === 'center' || source.tabs.length === 1)) return layout;
 
 	const removed = mapGroups(layout, (g) => (g === source ? without(g, tab) : g))!;
-	return mapGroups(removed, (g) => {
-		if (g.id !== groupId) return g;
-		if (zone === 'center') return withTab(g, tab);
-		const fresh = group([tab]);
-		const first = zone === 'left' || zone === 'top';
-		return {
-			kind: 'split',
-			id: uid(),
-			dir: zone === 'left' || zone === 'right' ? 'row' : 'column',
-			ratio: 0.5,
-			a: first ? fresh : g,
-			b: first ? g : fresh
-		};
-	})!;
+	return insert(removed, tab, groupId, zone);
 }
 
 export function resize(layout: Layout, splitId: string, ratio: number): Layout {
