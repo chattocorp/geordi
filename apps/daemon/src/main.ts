@@ -120,7 +120,8 @@ function sendLive(message: DaemonMessage) {
 }
 
 function connect(delay = 500) {
-	const retry = () => setTimeout(() => connect(Math.min(delay * 2, 5000)), delay);
+	// never long: until we are connected, nobody can start an agent
+	const retry = () => setTimeout(() => connect(Math.min(delay * 2, 2000)), delay);
 
 	const token = readToken();
 	if (!token) {

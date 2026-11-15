@@ -51,6 +51,9 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	const daemons = new Map<WebSocket, string>();
 	/** What each connected daemon's agent CLIs offer, as it said when it connected. */
 	const offers = new Map<WebSocket, Harness[]>();
+	/** Told when a daemon connects or goes away. */
+	const watching = new Set<() => void>();
+	const changed = () => watching.forEach((tell) => tell());
 	/** Which daemon each workspace's turns were sent to; only it may report on the workspace. */
 	const assigned = new Map<string, string>();
 	/** Requests awaiting a daemon's answer, by request ID. */
@@ -100,6 +103,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 				daemons.set(socket, message.daemonId);
 				offers.set(socket, message.harnesses);
+				changed();
 				// After a forge restart we don't know assignments; trust what the daemon is running.
 				for (const id of message.running) if (!assigned.has(id)) assigned.set(id, message.daemonId);
 				console.log(`[daemons] ${message.daemonId} connected`);
@@ -118,6 +122,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			if (daemonId) console.log(`[daemons] ${daemonId} disconnected`);
 			daemons.delete(socket);
 			offers.delete(socket);
+			changed();
 		});
 	});
 
@@ -143,9 +148,18 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			});
 		},
 
-		/** The models and effort levels on offer: those of the daemon that turns are sent to. */
-		harnesses: (): Harness[] =>
-			[...offers].find(([socket]) => socket.readyState === socket.OPEN)?.[1] ?? [],
+		/**
+		 * The models and effort levels on offer: those of the daemon that turns are sent to.
+		 * `null` while no daemon is connected.
+		 */
+		harnesses: (): Harness[] | null =>
+			[...offers].find(([socket]) => socket.readyState === socket.OPEN)?.[1] ?? null,
+
+		/** Calls `tell` whenever a daemon connects or goes away. Returns a function that ends it. */
+		subscribe(tell: () => void): () => void {
+			watching.add(tell);
+			return () => watching.delete(tell);
+		},
 
 		connected: () => [...daemons.values()]
 	};

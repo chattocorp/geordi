@@ -51,13 +51,13 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 
 /**
  * What each agent can be asked to run: its models and their effort levels, as the
- * connected daemon reports them. Without a daemon, just the agents.
+ * connected daemon reports them. `null` while no daemon is connected; live, so that they
+ * are there the moment one is.
  */
-export const getHarnesses = query((): Harness[] => {
-	const known = hub().harnesses();
-	return AGENTS.map(
-		(agent) =>
-			known.find((harness) => harness.agent === agent) ?? { agent, models: [], efforts: [] }
+export const getHarnesses = query.live(async function* () {
+	yield* store().live(
+		(): Harness[] | null => hub().harnesses(),
+		(changed) => hub().subscribe(changed)
 	);
 });
 

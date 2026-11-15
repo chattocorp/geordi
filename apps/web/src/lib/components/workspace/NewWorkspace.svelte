@@ -24,10 +24,12 @@
 			repos[0]
 	);
 
-	const harnesses = $derived(await getHarnesses());
+	// `undefined` until loaded, `null` while no daemon is connected: nothing to choose from
+	const offered = getHarnesses();
+	const harnesses = $derived(offered.current);
 	// The next workspace starts out the way the last one was set up.
 	const choice = persisted<HarnessChoice>('geordi:harness', { agent: 'claude', settings: {} });
-	const chosen = $derived(resolveChoice(harnesses, choice.current));
+	const chosen = $derived(harnesses ? resolveChoice(harnesses, choice.current) : null);
 </script>
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
@@ -40,10 +42,10 @@
 >
 	{#snippet header()}
 		<input {...repoId.as('hidden', repo?.id ?? '')} />
-		<input {...agent.as('hidden', chosen.harness.agent)} />
+		<input {...agent.as('hidden', chosen?.harness.agent ?? choice.current.agent)} />
 		<!-- empty leaves it to the agent's CLI -->
-		<input {...model.as('hidden', chosen.model?.id ?? '')} />
-		<input {...effort.as('hidden', chosen.effort ?? '')} />
+		<input {...model.as('hidden', chosen?.model?.id ?? '')} />
+		<input {...effort.as('hidden', chosen?.effort ?? '')} />
 	{/snippet}
 	{#snippet footer()}
 		<!-- where, who, how hard: three quiet choices -->
@@ -60,13 +62,27 @@
 					{/snippet}
 				</Select>
 			{/if}
-			<HarnessPicker
-				{harnesses}
-				choice={choice.current}
-				onchange={(next) => (choice.current = next)}
-			/>
+			{#if harnesses}
+				<HarnessPicker
+					{harnesses}
+					choice={choice.current}
+					onchange={(next) => (choice.current = next)}
+				/>
+			{:else if harnesses === null}
+				<!-- agents run on a daemon: without one there is nobody to choose -->
+				<span class="flex h-8 items-center gap-1.5 px-2 text-sm text-muted">
+					<span class="icon-[lucide--unplug] size-3.5"></span>
+					Waiting for the daemon
+				</span>
+			{/if}
 		</div>
-		<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
+		<Button
+			type="submit"
+			variant="primary"
+			icon="icon-[lucide--arrow-up]"
+			class="ml-auto"
+			disabled={!harnesses}
+		>
 			Start workspace
 		</Button>
 	{/snippet}
