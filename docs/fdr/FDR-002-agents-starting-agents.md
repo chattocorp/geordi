@@ -19,6 +19,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - A workspace started by an agent links back to the one that started it, and says so if it works in that one's directory. Its changes are measured against the parent's branch.
 - People can open, message and stop any child like any other workspace.
 - Limits on nesting depth and on the number of children running at once stop runaway delegation; hitting one is reported to the calling agent as an error it can act on.
+- Archiving a workspace archives the workspaces its agent started along with it: they are part of the same piece of work.
 - A worktree that several workspaces work in is only removed once the last of them is archived.
 
 ## Design Decisions

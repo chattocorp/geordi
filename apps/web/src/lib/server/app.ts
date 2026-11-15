@@ -1,11 +1,11 @@
 import { join } from 'node:path';
-import { error } from '@sveltejs/kit';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
 	GEORDI_DAEMON_PORT,
 	GEORDI_DATA_DIR
 } from '$app/env/private';
+import { createArchiver } from './archive.ts';
 import { store } from './events/index.ts';
 import { loadSecret } from './secret.ts';
 import { createHub } from './daemons.ts';
@@ -106,23 +106,10 @@ export const hub = lazy(() =>
 	})
 );
 
-/**
- * Archives a workspace: ends its shells, removes its worktree (unless another workspace
- * still works in it) and takes it out of the lists. Its branch and conversation stay.
- * Fails if the worktree has uncommitted or untracked files, unless `discard` is set.
- */
-export async function archiveWorkspace(id: string, discard: boolean, actor: string | null = null) {
-	const workspace = workspaces().get(id);
-	if (workspace.archivedAt) return;
-	if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
-
-	terminals().closeAll(id);
-	if (workspace.worktree && !workspaces().worktreeInUse(id)) {
-		try {
-			await hub().request({ kind: 'removeWorktree', force: discard, ...workspaces().ref(id) });
-		} catch (problem) {
-			error(409, reason(problem));
-		}
-	}
-	workspaces().archive(id, actor);
-}
+/** Archives a workspace and the workspaces its agent started; see `createArchiver`. */
+export const archiveWorkspace = (id: string, discard: boolean, actor: string | null = null) =>
+	createArchiver({
+		workspaces: workspaces(),
+		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
+		removeWorktree: (ref, force) => hub().request({ kind: 'removeWorktree', force, ...ref })
+	})(id, discard, actor);

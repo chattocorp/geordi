@@ -9,7 +9,6 @@
 		"test": "vitest --run"
 	},
 	"dependencies": {
-		"@earendil-works/pi-coding-agent": "^1.5.2",
 		"@geordi/protocol": "workspace:*",
 		"@lydell/node-pty": "1.2.0-beta.18",
 		"forges": "^0.3.2"

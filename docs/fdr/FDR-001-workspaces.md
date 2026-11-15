@@ -9,7 +9,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ## Behavior
 
-- A workspace is started with a first prompt, an agent and a repository: from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch. It is named after the first line of that prompt at first, and a moment later gets a short title that says what the work is about, if the daemon can ask a model for one.
+- A workspace is started with a first prompt, an agent and a repository: from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch. It is named after the first line of that prompt at first, and a moment later gets a short title that says what the work is about, if the daemon has been given a key to ask a model for one.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - While the agent is working, Enter steers it: the agent is interrupted, and the message is the next thing it reads. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
 - The workspace's ID is shown in its header; a click copies it.
@@ -24,7 +24,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
   - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
   - Above the list is how the workspace's branch stands on the forge the repository is hosted on: not pushed yet, pushed without a pull request (with a link to open one), or its pull request with state, checks, reviews and target branch, linking to the forge. It appears only for repositories hosted on a forge Geordi knows, and is at most a minute old.
 - **Terminals** are shells in the workspace's directory. "+" in the dock opens one. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
-- A workspace can be archived when it is done with. That ends its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. Archiving refuses if the worktree has uncommitted or untracked files, and offers to discard them.
+- A workspace can be archived when it is done with. That ends its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. The workspaces its agent started (FDR-002) are archived along with it. Nothing is archived while any of them is still working, and archiving stops at a worktree with uncommitted or untracked files, saying which, and offers to discard them.
 - The window arrangement and pane sizes are remembered per browser.
 
 ## Design Decisions

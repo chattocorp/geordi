@@ -71,7 +71,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - A message to a working agent either steers it (`workspace.steered`: the turn is stopped
     and the message sent at once) or queues (`workspace.queued`: sent when the turn ends).
   - Workspaces get their titles from the daemon (`titles.ts`), which asks a small model on
-    OpenRouter through the Pi SDK (`OPENROUTER_API_KEY`).
+    OpenRouter with a plain HTTP request (`OPENROUTER_API_KEY`). No SDK: prefer a few lines
+    of our own over a heavy dependency.
   - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
     tested); most just `say` something to the agent.
   - Agents run without permission prompts by default (they must commit, push and use `gh`).
