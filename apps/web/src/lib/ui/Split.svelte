@@ -7,8 +7,10 @@
 		ratio: number;
 		a: Snippet;
 		b: Snippet;
+		/** Hides `b` (and the divider), giving `a` all the room. `b` stays alive meanwhile. */
+		collapsed?: boolean;
 	};
-	let { dir, ratio = $bindable(), a, b }: Props = $props();
+	let { dir, ratio = $bindable(), a, b, collapsed = false }: Props = $props();
 
 	const MIN = 0.12;
 	const clamp = (value: number) => Math.min(1 - MIN, Math.max(MIN, value));
@@ -41,7 +43,10 @@
 </script>
 
 <div bind:this={root} class={['flex min-h-0 min-w-0 flex-1', dir === 'column' && 'flex-col']}>
-	<div class="flex min-h-0 min-w-0 flex-col" style:flex="{ratio} 1 0">{@render a()}</div>
+	<!-- a share below 1 would leave room unused once `b` is hidden -->
+	<div class="flex min-h-0 min-w-0 flex-col" style:flex="{collapsed ? 1 : ratio} 1 0">
+		{@render a()}
+	</div>
 	<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_no_noninteractive_tabindex -->
 	<div
@@ -52,11 +57,17 @@
 		onpointerdown={drag}
 		onkeydown={nudge}
 		class={[
+			collapsed && 'hidden',
 			'relative z-10 shrink-0 touch-none bg-line transition-colors select-none after:absolute hover:bg-accent focus-visible:bg-accent',
 			dir === 'row'
 				? 'w-px cursor-col-resize after:-inset-x-1 after:inset-y-0'
 				: 'h-px cursor-row-resize after:inset-x-0 after:-inset-y-1'
 		]}
 	></div>
-	<div class="flex min-h-0 min-w-0 flex-col" style:flex="{1 - ratio} 1 0">{@render b()}</div>
+	<div
+		class={['min-h-0 min-w-0 flex-col', collapsed ? 'hidden' : 'flex']}
+		style:flex="{1 - ratio} 1 0"
+	>
+		{@render b()}
+	</div>
 </div>

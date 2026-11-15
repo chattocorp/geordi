@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { actionsFor, standingOf, type WorkspaceAction } from '#lib/actions.ts';
+	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -22,6 +23,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import { getRepo } from '../../../routes/repos.remote';
 	import {
@@ -58,7 +60,16 @@
 		`geordi:arrangement:${id}`,
 		{ main: null, dock: null }
 	);
-	const frame = persisted('geordi:frame', { side: 0.3, changes: 0.45 });
+	const frame = persisted('geordi:frame', { side: 0.3, changes: 0.45, open: true });
+	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
+
+	/** The workspace's ID was just copied: say so for a moment. */
+	let copied = $state(false);
+	async function copyId() {
+		await navigator.clipboard.writeText(id);
+		copied = true;
+		setTimeout(() => (copied = false), 1500);
+	}
 
 	/** Terminals asked for just now, whose shells are still starting. */
 	const starting = new SvelteSet<string>();
@@ -156,6 +167,14 @@
 
 <svelte:head><title>{workspace.title} · Geordi</title></svelte:head>
 
+<svelte:window
+	onkeydown={(event) => {
+		if (sidebarToggle(event) !== 'right') return;
+		event.preventDefault();
+		toggleSide();
+	}}
+/>
+
 {#snippet tab(tab: string)}
 	{@const path = pathOf(tab)}
 	{#if path}
@@ -168,7 +187,7 @@
 	{:else}
 		<AgentAvatar agent={workspace.agent} size="sm" />
 		<span class="truncate">Conversation</span>
-		{#if running}<span class="dot dot-live" title="Working"></span>{/if}
+		{#if running}<Spinner />{/if}
 	{/if}
 {/snippet}
 
@@ -221,6 +240,17 @@
 						<span class="truncate code-dense">{workspace.worktree.branch}</span>
 					</span>
 				{/if}
+				<!-- For telling someone (or an agent) exactly which workspace this is. -->
+				<button
+					type="button"
+					onclick={copyId}
+					class="flex shrink-0 items-center gap-1 hover:text-ink"
+					title="Copy this workspace's ID: {id}"
+				>
+					<span class={['size-3.5', copied ? 'icon-[lucide--check]' : 'icon-[lucide--hash]']}
+					></span>
+					<span class="code-dense">{id.slice(0, 8)}</span>
+				</button>
 				{#if !query.connected}
 					<span class="flex items-center gap-1 text-danger">
 						<span class="icon-[lucide--unplug] size-3.5"></span>
@@ -240,6 +270,16 @@
 			<Badge>Archived</Badge>
 		{:else}
 			<StatusBadge {running} />
+			<Button
+				variant="ghost"
+				icon={frame.current.open
+					? 'icon-[lucide--panel-right-close]'
+					: 'icon-[lucide--panel-right-open]'}
+				label="Toggle changes and terminals ({modifierKey()}{modifierKey() === '⌘'
+					? '⌥'
+					: 'Alt+'}B)"
+				onclick={toggleSide}
+			/>
 			<!-- Always possible, not only once it is the obvious next step. -->
 			{#if !actions.some((action) => action.id === 'archive')}
 				<Button
@@ -263,6 +303,7 @@
 
 	<Split
 		dir="row"
+		collapsed={!frame.current.open}
 		bind:ratio={
 			() => 1 - frame.current.side,
 			(ratio) => (frame.current = { ...frame.current, side: 1 - ratio })

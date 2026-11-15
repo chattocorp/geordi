@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { toolIcon, toolSummary } from '#lib/tools.ts';
+	import Spinner from '#lib/ui/Spinner.svelte';
 
 	type Props = {
 		name: string;
@@ -30,8 +31,7 @@
 		<span class="shrink-0 font-medium">{name}</span>
 		<span class="min-w-0 flex-1 truncate code-dense text-muted">{summary}</span>
 		{#if pending}
-			<span class="dot dot-live"></span>
-			<span class="sr-only">Running</span>
+			<Spinner label="Running" />
 		{:else if isError}
 			<span class="sr-only">Failed</span>
 		{/if}

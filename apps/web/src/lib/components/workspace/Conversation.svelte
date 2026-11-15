@@ -4,6 +4,7 @@
 	import Markdown from '#lib/components/Markdown.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
+	import { modifierKey } from '#lib/keys.ts';
 	import { toBlocks } from '#lib/transcript.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
@@ -27,9 +28,7 @@
 		following = true;
 		if (scroller) scroller.scrollTop = scroller.scrollHeight;
 	};
-	const modifier = $derived(
-		typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
-	);
+	const modifier = modifierKey();
 
 	/**
 	 * Enter says it now (steering the agent if it is working); with Cmd or Ctrl it waits for
@@ -60,7 +59,7 @@
 	{/if}
 
 	<div bind:this={scroller} onscroll={atBottom} class="scroller">
-		<ol class="mx-auto w-full max-w-3xl space-y-8 px-5 py-6">
+		<ol class="w-full space-y-8 px-5 py-6">
 			{#each blocks as block, i (i)}
 				<li>
 					{#if block.kind === 'user'}
@@ -119,7 +118,7 @@
 			</Button>
 		{/if}
 		{#if !workspace.archivedAt}
-			<div class="mx-auto max-w-3xl px-5 pb-4">
+			<div class="px-5 pb-4">
 				<Composer
 					{form}
 					rows={2}
