@@ -10,12 +10,13 @@
 
 	/**
 	 * What a choice comes to, given what is on offer now. What was chosen before may be gone
-	 * (another daemon, a CLI update): then it is back to the agent's own default.
+	 * (another daemon, a CLI update): then it is the agent's first model, and its own effort.
+	 * An agent that names no models has none to choose: its CLI decides.
 	 */
 	export function resolveChoice(harnesses: Harness[], choice: HarnessChoice) {
 		const harness = harnesses.find((harness) => harness.agent === choice.agent) ?? harnesses[0];
 		const wanted = choice.settings[harness?.agent] ?? {};
-		const model = harness?.models.find((model) => model.id === wanted.model);
+		const model = harness?.models.find((model) => model.id === wanted.model) ?? harness?.models[0];
 		const efforts = model?.efforts ?? harness?.efforts ?? [];
 		const effort = efforts.find((effort) => effort === wanted.effort);
 		return { harness, model, efforts, effort };
@@ -37,17 +38,19 @@
 
 	const { harness, model, efforts, effort } = $derived(resolveChoice(harnesses, choice));
 
-	// One list of everything that can do the work: each agent as it is set up, and its models.
+	// One list of everything that can do the work: every agent's models. An agent that names
+	// none is there itself.
 	const SEPARATOR = '/';
 	const options = $derived(
-		harnesses.flatMap(({ agent, models }): SelectOption[] => [
-			{ value: agent + SEPARATOR, label: agentName[agent] },
-			...models.map((model) => ({
-				value: agent + SEPARATOR + model.id,
-				label: model.name,
-				keywords: `${agentName[agent]} ${model.id}`
-			}))
-		])
+		harnesses.flatMap(({ agent, models }): SelectOption[] =>
+			models.length === 0
+				? [{ value: agent + SEPARATOR, label: agentName[agent] }]
+				: models.map((model) => ({
+						value: agent + SEPARATOR + model.id,
+						label: model.name,
+						keywords: `${agentName[agent]} ${model.id}`
+					}))
+		)
 	);
 	const agentOf = (option: SelectOption) => option.value.split(SEPARATOR)[0] as Agent;
 
@@ -64,11 +67,11 @@
 </script>
 
 <!--
-	Who does the work, and how hard it thinks: two quiet choices. An agent's own entry leaves
-	the model to its CLI. The effort levels are those of the model chosen; they differ.
+	Who does the work, and how hard it thinks: two quiet choices. The effort levels are those
+	of the model chosen; they differ.
 -->
 <Select
-	label="Agent and model"
+	label="Model"
 	{options}
 	bind:value={() => harness.agent + SEPARATOR + (model?.id ?? ''), pick}
 >

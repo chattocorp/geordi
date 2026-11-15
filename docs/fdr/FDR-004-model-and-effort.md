@@ -10,9 +10,9 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 ## Behavior
 
 - The new-workspace composer has up to three quiet choices under the text, in this order: the repository (where there are several), who does the work (the agent, or one of its models), and how hard it should think. Each opens a list.
-- The list holds every agent and, after each, its models, as the connected daemon reports them. Picking an agent itself leaves the model to the agent's CLI: its own default, or what the user configured for it. Typing a few letters searches the list ("g6l" finds "GPT-6-Luna", "codex" finds everything Codex can run).
-- The effort list holds the levels of the model picked, which differ from model to model, and "Default effort", which again leaves it to the CLI. An effort the newly picked model doesn't have falls back to the default. An agent that reports no levels has no effort to choose.
-- The browser remembers the choice, per agent: the next workspace starts out the way the last one was set up. A remembered model or effort that is no longer on offer falls back to the default.
+- The model list holds the models of every agent, as the connected daemon reports them, each with its agent's mark. There is always one chosen: at first, the first agent's first model. Typing a few letters searches the list ("g6l" finds "GPT-6-Luna", "codex" finds everything Codex can run). An agent that reports no models is in the list itself, and runs whatever its CLI is set to.
+- The effort list holds the levels of the model picked, which differ from model to model, and "Default effort", which leaves it to the agent's CLI. An effort the newly picked model doesn't have falls back to the default. An agent that reports no levels has no effort to choose.
+- The browser remembers the choice, per agent: the next workspace starts out the way the last one was set up. A remembered model that is no longer on offer falls back to the agent's first; an effort, to the default.
 - The choice belongs to the workspace and holds for all of its turns. The workspace's header shows it.
 - An agent started by another agent (FDR-002) runs with its parent's model and effort if it is the same kind of agent, and with the defaults otherwise.
 
@@ -24,11 +24,11 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 **Why:** Models change monthly, and what is available depends on the machine and the account. A list in Geordi's code would be wrong most of the time.
 **Tradeoff:** Codex's list is a file of its own, not an interface. If it moves or changes shape, Codex offers no models to choose from until the adapter is updated; it still runs, with its configured model.
 
-### 2. "Default" means nothing is passed
+### 2. A model is always chosen; effort may be left to the CLI
 
-**Decision:** Without a choice, Geordi passes no model or effort to the CLI, and records none.
-**Why:** People have set up their CLIs the way they like them. Geordi should not override that unasked.
-**Tradeoff:** A workspace with defaults doesn't say which model it actually ran.
+**Decision:** The list holds models only, with no "default" entry per agent, and Geordi always passes the chosen one. For effort, "Default effort" passes nothing and leaves it to the CLI.
+**Why:** "Claude Code" next to "Opus" in one list reads as two kinds of thing. Picking a model is picking the agent. Effort has a sensible default per model that the CLI knows better than we do.
+**Tradeoff:** Geordi overrides the model a user configured in their CLI, starting with the first one listed until they pick another.
 
 ### 3. Chosen once, for the workspace
 
