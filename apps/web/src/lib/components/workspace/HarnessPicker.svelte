@@ -65,7 +65,12 @@
 			label="Model"
 			options={[
 				{ value: '', label: 'Default model' },
-				...harness.models.map((model) => ({ value: model.id, label: model.name }))
+				...harness.models.map((model) => ({
+					value: model.id,
+					label: model.name,
+					// the name the CLI knows it by, where that says more than the label
+					hint: model.id.toLowerCase() === model.name.toLowerCase() ? undefined : model.id
+				}))
 			]}
 			bind:value={() => model?.id ?? '', (id) => set({ model: id || undefined })}
 		/>
@@ -73,7 +78,7 @@
 
 	{#if efforts.length}
 		<Select
-			label="Reasoning effort"
+			label="Effort"
 			options={[
 				{ value: '', label: 'Default effort' },
 				...efforts.map((effort) => ({ value: effort, label: effortName(effort) }))

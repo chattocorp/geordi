@@ -11,6 +11,7 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 
 - The new-workspace composer has, next to the agents, a model and a reasoning effort to choose. Both start at "Default", which leaves the decision to the agent's CLI: its own default, or what the user configured for it.
 - The models and effort levels on offer are those of the agent picked, as the connected daemon reports them. The effort levels are those of the model picked. An agent that reports none offers nothing to choose.
+- Both open a list that can be searched by typing a few letters of what is wanted.
 - The effort shows as a small meter: as many bars lit as the effort is high.
 - The browser remembers the choice, per agent: the next workspace starts out the way the last one was set up. A remembered model or effort that is no longer on offer falls back to "Default".
 - The choice belongs to the workspace and holds for all of its turns. The workspace's header shows it.
@@ -36,8 +37,8 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 **Why:** One conversation, one agent, one way of running it keeps the model simple (FDR-001). Wanting something else is a new workspace.
 **Tradeoff:** No switching to a stronger model midway when a task turns out to be hard.
 
-### 4. The browser's own select
+### 4. A select of our own, with search
 
-**Decision:** Model and effort are native selects, styled as quiet pills (`Select`).
-**Why:** They work with the keyboard and on touch without any code of ours, and cope with long lists.
-**Tradeoff:** The open list looks like the operating system's, not like Geordi.
+**Decision:** Model and effort are chosen with `Select` from the design system: a quiet pill that opens a list in Geordi's own look, with a search field that matches fuzzily ("g6l" finds "GPT-6-Luna"). Arrow keys and Enter pick, Escape closes. While the default is chosen, the pill just says what it is for ("Model", "Effort").
+**Why:** Codex alone offers ten models, and the list will grow; typing a few letters beats scanning it. The browser's own select looks like the operating system, not like Geordi.
+**Tradeoff:** Code of ours to keep accessible and working, where the browser's select needed none. It builds on the browser's popover, which handles the top layer, closing on outside clicks and Escape.
