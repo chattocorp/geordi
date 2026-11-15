@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { workspaces } from '#lib/server/app.ts';
+import { archiveWorkspace, workspaces } from '#lib/server/app.ts';
 import { handleMcp } from '#lib/server/mcp.ts';
 import type { RequestHandler } from './$types';
 
@@ -19,7 +19,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } });
 	}
 
-	const answer = await handleMcp(workspaces().agents, caller, message);
+	const agents = {
+		...workspaces().agents,
+		archive: (actor: string, id: string) => archiveWorkspace(id, false, actor)
+	};
+	const answer = await handleMcp(agents, caller, message);
 	return answer ? json(answer) : new Response(null, { status: 202 });
 };
 

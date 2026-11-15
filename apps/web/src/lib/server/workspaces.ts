@@ -367,8 +367,11 @@ export function createWorkspaces(
 		return parent ? depthOf(parent) + 1 : 0;
 	}
 
+	/** The workspaces a workspace's agent started that are still in use. */
 	const childrenOf = (id: string) =>
-		[...projection.get().values()].filter((workspace) => workspace.parentId === id);
+		[...projection.get().values()].filter(
+			(workspace) => workspace.parentId === id && !workspace.archivedAt
+		);
 
 	/** Every workspace the given one's agent started, directly or through the agents it started. */
 	const descendantsOf = (id: string): Workspace[] =>

@@ -20,9 +20,19 @@ function setup() {
 		prompt: 'Lead'
 	});
 
+	/** Archiving needs a daemon in real life; here it just happens, and is noted. */
+	const archived: string[] = [];
+	const agents = {
+		...workspaces.agents,
+		archive: async (actor: string, id: string) => {
+			workspaces.archive(id, actor);
+			archived.push(id);
+		}
+	};
+
 	let next = 0;
 	const rpc = async (method: string, params?: unknown) =>
-		(await handleMcp(workspaces.agents, caller, {
+		(await handleMcp(agents, caller, {
 			jsonrpc: '2.0',
 			id: ++next,
 			method,
@@ -36,7 +46,7 @@ function setup() {
 		};
 		return isError ? { error: content[0].text } : JSON.parse(content[0].text);
 	};
-	return { workspaces, caller, rpc, call };
+	return { workspaces, agents, archived, caller, rpc, call };
 }
 
 describe('the agent API as an MCP server', () => {
@@ -57,6 +67,7 @@ describe('the agent API as an MCP server', () => {
 			'wait_for_agent',
 			'list_agents',
 			'send_message',
+			'archive_agent',
 			'stop_agent'
 		]);
 		expect(tools[0].inputSchema).toMatchObject({
@@ -67,9 +78,9 @@ describe('the agent API as an MCP server', () => {
 	});
 
 	it('ignores notifications and rejects unknown methods', async () => {
-		const { workspaces, caller, rpc } = setup();
+		const { agents, caller, rpc } = setup();
 		const notification = { jsonrpc: '2.0', method: 'notifications/initialized' } as const;
-		expect(await handleMcp(workspaces.agents, caller, notification)).toBeNull();
+		expect(await handleMcp(agents, caller, notification)).toBeNull();
 		expect(await rpc('resources/list')).toMatchObject({ error: { code: -32601 } });
 	});
 
@@ -86,6 +97,22 @@ describe('the agent API as an MCP server', () => {
 			reply: 'LGTM'
 		});
 		expect(await call('list_agents')).toHaveLength(1);
+	});
+
+	it('lets an agent archive the agents it started, and no others', async () => {
+		const { workspaces, archived, caller, call } = setup();
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = await call('start_agent', { prompt: 'Build', worktree: 'own' });
+
+		// still working
+		expect((await call('archive_agent', { agent_id: child.id })).error).toMatch(/Stop the agent/);
+		workspaces.record(child.id, { kind: 'turn.completed' });
+		expect(await call('archive_agent', { agent_id: child.id })).toEqual({ archived: child.id });
+		expect(archived).toEqual([child.id]);
+		expect(await call('list_agents')).toEqual([]);
+
+		// not its own, and not itself
+		expect((await call('archive_agent', { agent_id: caller })).error).toMatch(/not started/);
 	});
 
 	it('reports problems as tool errors the agent can read', async () => {

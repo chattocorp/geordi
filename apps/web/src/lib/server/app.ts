@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { error } from '@sveltejs/kit';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
@@ -95,3 +96,24 @@ export const hub = lazy(() =>
 		}
 	})
 );
+
+/**
+ * Archives a workspace: ends its shells, removes its worktree (unless another workspace
+ * still works in it) and takes it out of the lists. Its branch and conversation stay.
+ * Fails if the worktree has uncommitted or untracked files, unless `discard` is set.
+ */
+export async function archiveWorkspace(id: string, discard: boolean, actor: string | null = null) {
+	const workspace = workspaces().get(id);
+	if (workspace.archivedAt) return;
+	if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
+
+	terminals().closeAll(id);
+	if (workspace.worktree && !workspaces().worktreeInUse(id)) {
+		try {
+			await hub().request({ kind: 'removeWorktree', force: discard, ...workspaces().ref(id) });
+		} catch (problem) {
+			error(409, reason(problem));
+		}
+	}
+	workspaces().archive(id, actor);
+}

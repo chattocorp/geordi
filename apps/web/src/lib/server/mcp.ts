@@ -10,7 +10,11 @@ import type { createWorkspaces } from './workspaces.ts';
  * is the workspace its token belongs to.
  */
 
-type Agents = ReturnType<typeof createWorkspaces>['agents'];
+/** What the tools work with: the agents API, and archiving (which needs a daemon). */
+type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
+	/** Archives a workspace on the caller's behalf. Never discards uncommitted work. */
+	archive(caller: string, id: string): Promise<void>;
+};
 
 const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you.`;
 
@@ -72,6 +76,16 @@ const tools = {
 		run: (agents: Agents, caller: string, input: { agent_id: string; message: string }) => {
 			agents.send(caller, input.agent_id, input.message);
 			return agents.get(caller, input.agent_id);
+		}
+	},
+	archive_agent: {
+		description:
+			'Archive an agent you started once you are done with it, e.g. after merging its branch. This removes its worktree (unless it shares yours) and takes it off the list; its branch and conversation are kept. Fails if the agent is still working, or if its worktree has uncommitted or untracked files.',
+		input: v.object({ agent_id: agentId }),
+		run: async (agents: Agents, caller: string, input: { agent_id: string }) => {
+			const agent = agents.get(caller, input.agent_id); // only agents the caller started
+			await agents.archive(caller, agent.id);
+			return { archived: agent.id };
 		}
 	},
 	stop_agent: {

@@ -1,9 +1,15 @@
 import * as v from 'valibot';
-import { error, redirect } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
 import { AGENTS, type FileVersions } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
-import { hub, terminals, watchers, workspaces } from '#lib/server/app.ts';
+import {
+	archiveWorkspace as archive,
+	hub,
+	terminals,
+	watchers,
+	workspaces
+} from '#lib/server/app.ts';
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 
@@ -79,20 +85,7 @@ export const say = command(v.object({ workspaceId: v.string(), text }), ({ works
  */
 export const archiveWorkspace = command(
 	v.object({ workspaceId: v.string(), discard: v.optional(v.boolean(), false) }),
-	async ({ workspaceId: id, discard }) => {
-		const workspace = workspaces().get(id);
-		if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
-
-		terminals().closeAll(id);
-		if (workspace.worktree && !workspaces().worktreeInUse(id)) {
-			try {
-				await hub().request({ kind: 'removeWorktree', force: discard, ...workspaces().ref(id) });
-			} catch (reason) {
-				error(409, message(reason));
-			}
-		}
-		workspaces().archive(id);
-	}
+	({ workspaceId, discard }) => archive(workspaceId, discard)
 );
 
 /** Takes back a message that is waiting for the agent to finish its turn. */
