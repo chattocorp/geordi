@@ -1,20 +1,36 @@
-import type { WorktreeRef } from '@geordi/protocol';
+import type { Changes, Upstream, WorktreeRef } from '@geordi/protocol';
 import type { Dispatch } from './workspaces.ts';
 
+/** What a worktree's files and branch look like right now, as far as a daemon could tell. */
+export type WorktreeState = {
+	/** `null` if the daemon couldn't say; `unavailable` then says why. */
+	changes: Changes | null;
+	unavailable: string | null;
+	/** The branch on the forge the repository is hosted on; `null` if there is none we know. */
+	upstream: Upstream | null;
+};
+
+/** How often what happens on upstream forges (checks, reviews) is asked for again. */
+const UPSTREAM_INTERVAL_MS = 60_000;
+
 /**
- * Knows which worktrees someone is looking at (through a workspace that works in them), has
- * a daemon watch their files, and tells the viewers when something changed. Nothing here is stored (ADR-003): a daemon that
- * reconnects is simply told again what to watch.
+ * Keeps the state of the worktrees someone is looking at, and tells the viewers when it
+ * changes. A daemon watches those worktrees' files and says when something changed; the
+ * state is then loaded once, here, for everyone looking, rather than by each browser.
+ * Nothing is stored (ADR-003): a daemon that reconnects is told again what to watch.
  */
-export function createWatchers(dispatch: Dispatch, ref: (worktreeId: string) => WorktreeRef) {
-	/** Viewers by worktree: each a function to call when its files change. */
-	const watched = new Map<string, Set<() => void>>();
-	/** Grows with every change, so viewers can tell that there was one. */
-	let revision = 0;
+export function createWatchers(
+	dispatch: Dispatch,
+	ref: (worktreeId: string) => WorktreeRef,
+	/** Asks a daemon for a worktree's state. Never rejects. */
+	load: (worktreeId: string) => Promise<WorktreeState>
+) {
+	type Watched = { viewers: Set<() => void>; state: WorktreeState | null; loads: number };
+	const watched = new Map<string, Watched>();
 
 	/**
 	 * Tells the daemon the whole set; it works out what to start and stop watching. One
-	 * workspace that can't be resolved must not keep the others from being watched.
+	 * worktree that can't be resolved must not keep the others from being watched.
 	 */
 	function sync() {
 		const worktrees = [...watched.keys()].flatMap((id) => {
@@ -27,37 +43,62 @@ export function createWatchers(dispatch: Dispatch, ref: (worktreeId: string) => 
 		dispatch({ type: 'watch', worktrees });
 	}
 
+	/** Loads a worktree's state afresh and tells its viewers. The latest load wins. */
+	function refresh(worktreeId: string) {
+		const entry = watched.get(worktreeId);
+		if (!entry) return;
+		const load_ = ++entry.loads;
+		load(worktreeId).then((state) => {
+			if (watched.get(worktreeId) !== entry || entry.loads !== load_) return;
+			entry.state = state;
+			for (const viewer of entry.viewers) viewer();
+		});
+	}
+
+	// Nothing tells us when a check finishes or a review comes in: ask now and then.
+	let timer: NodeJS.Timeout | undefined;
+	function keepUpstreamFresh() {
+		if (watched.size > 0 && !timer)
+			timer = setInterval(() => [...watched.keys()].forEach(refresh), UPSTREAM_INTERVAL_MS).unref();
+		if (watched.size === 0 && timer) timer = void clearInterval(timer);
+	}
+
 	return {
 		/**
-		 * Registers a viewer of a workspace, to be told of changes to its files. Returns a
+		 * Registers a viewer of a worktree, to be told when its state changes. Returns a
 		 * function that ends it. Watching starts with the first viewer and ends with the last.
 		 */
 		watch(worktreeId: string, changed: () => void): () => void {
 			ref(worktreeId); // throws for unknown worktrees, before anything is registered
-			let viewers = watched.get(worktreeId);
-			if (!viewers) watched.set(worktreeId, (viewers = new Set()));
-			viewers.add(changed);
-			if (viewers.size === 1) sync();
+			let entry = watched.get(worktreeId);
+			if (!entry) {
+				watched.set(worktreeId, (entry = { viewers: new Set(), state: null, loads: 0 }));
+				sync();
+				refresh(worktreeId);
+				keepUpstreamFresh();
+			}
+			entry.viewers.add(changed);
 
 			return () => {
-				viewers.delete(changed);
-				if (viewers.size === 0 && watched.get(worktreeId) === viewers) {
+				entry.viewers.delete(changed);
+				if (entry.viewers.size === 0 && watched.get(worktreeId) === entry) {
 					watched.delete(worktreeId);
 					sync();
+					keepUpstreamFresh();
 				}
 			};
 		},
 
-		/** A number that is different after every change to any watched workspace. */
-		revision: () => revision,
+		/** The worktree's state as last loaded; `null` if nobody is looking, or not loaded yet. */
+		state: (worktreeId: string): WorktreeState | null => watched.get(worktreeId)?.state ?? null,
 
-		/** A daemon reports that a workspace's files changed. */
-		changed(worktreeId: string) {
-			revision++;
-			for (const viewer of watched.get(worktreeId) ?? []) viewer();
-		},
+		/** A daemon reports that a worktree's files or Git state changed. */
+		changed: refresh,
 
-		/** A daemon (re)connected: it watches nothing until told. */
-		resync: sync
+		/** A daemon (re)connected: it watches nothing until told, and what we know may be stale. */
+		resync() {
+			sync();
+			[...watched.keys()].forEach(refresh);
+		}
 	};
 }

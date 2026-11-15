@@ -1,36 +1,19 @@
 <script lang="ts">
+	import type { WorktreeState } from '#lib/server/watchers.ts';
 	import Badge from '#lib/ui/Badge.svelte';
-	import { getChanges, getUpstream } from '../../../routes/workspaces.remote';
 	import UpstreamStatus from './UpstreamStatus.svelte';
 
 	type Props = {
-		workspaceId: string;
-		/** Different after every change to the workspace's files: the cue to look again. */
-		revision: number;
+		/**
+		 * How the workspace's files and its pull request stand, kept up to date by the forge
+		 * (see `getWorkspace`). `null` until first loaded.
+		 */
+		git: WorktreeState | null;
 		onopen(path: string): void;
 	};
-	let { workspaceId, revision, onopen }: Props = $props();
+	let { git, onopen }: Props = $props();
 
-	const changes = $derived(getChanges(workspaceId));
-	const files = $derived(changes.current?.files ?? []);
-
-	const upstream = $derived(getUpstream(workspaceId));
-
-	// The daemon watches the workspace's files and Git state while we look at it, so both
-	// are asked for again exactly when something changed there.
-	$effect(() => {
-		void revision;
-		changes.refresh();
-		upstream.refresh();
-	});
-
-	// What happens to the pull request on the upstream forge (checks, reviews) is not ours
-	// to see, so that is still asked for now and then. The daemon reuses answers for a while.
-	$effect(() => {
-		const query = upstream;
-		const timer = setInterval(() => !document.hidden && query.refresh(), 60_000);
-		return () => clearInterval(timer);
-	});
+	const files = $derived(git?.changes?.files ?? []);
 </script>
 
 {#snippet stats(added: number | null, removed: number | null)}
@@ -50,15 +33,15 @@
 		{#if files.length > 0}<Badge>{files.length}</Badge>{/if}
 	</header>
 
-	{#if upstream.current?.upstream}
-		<UpstreamStatus upstream={upstream.current.upstream} />
+	{#if git?.upstream}
+		<UpstreamStatus upstream={git.upstream} />
 	{/if}
 
 	<div class="scroller py-1.5">
-		{#if !changes.current}
+		{#if !git}
 			<p class="px-3.5 py-2 text-sm text-muted">Loading…</p>
-		{:else if changes.current.unavailable}
-			<p class="px-3.5 py-2 text-sm text-muted">{changes.current.unavailable}</p>
+		{:else if git.unavailable}
+			<p class="px-3.5 py-2 text-sm text-muted">{git.unavailable}</p>
 		{:else}
 			<ul>
 				{#each files as file (file.path)}

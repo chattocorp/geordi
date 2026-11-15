@@ -1,20 +1,24 @@
 <script lang="ts">
 	import DiffView from '#lib/components/DiffView.svelte';
-	import { getChanges, getDiff } from '../../../routes/workspaces.remote';
+	import { getDiff } from '../../../routes/workspaces.remote';
 
-	let { workspaceId, path }: { workspaceId: string; path: string } = $props();
+	type Props = {
+		workspaceId: string;
+		path: string;
+		/**
+		 * Something that is different whenever the file has changed (its line counts, say):
+		 * the cue to load it again.
+		 */
+		version: string;
+	};
+	let { workspaceId, path, version }: Props = $props();
 
 	const versions = $derived(getDiff({ workspaceId, path }));
 
-	// Reload when the changes pane (which polls) sees this file's line counts change. The
-	// counts are compared as one value: the list itself is new on every poll.
-	const changes = $derived(getChanges(workspaceId));
-	const counts = $derived.by(() => {
-		const file = changes.current?.files.find((file) => file.path === path);
-		return `${file?.added} ${file?.removed}`;
-	});
+	// Compared as a value: the data it is derived from is new with every update.
+	const current = $derived(version);
 	$effect(() => {
-		void counts;
+		void current;
 		versions.refresh();
 	});
 </script>

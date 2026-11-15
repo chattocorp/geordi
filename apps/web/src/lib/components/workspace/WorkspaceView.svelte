@@ -27,8 +27,6 @@
 	import {
 		archiveWorkspace,
 		closeTerminal,
-		getChanges,
-		getUpstream,
 		getWorkspace,
 		say
 	} from '../../../routes/workspaces.remote';
@@ -121,13 +119,9 @@
 	const chatGroup = $derived(groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id);
 
 	// What could happen next (FDR-003), from where the changes and the pull request stand.
-	// These are the same queries the changes pane shows and keeps fresh.
-	const changes = $derived(getChanges(id));
-	const upstream = $derived(getUpstream(id));
+	const git = $derived(workspace.git);
 	const standingState = $derived(
-		workspace.archivedAt || !changes.current || changes.current.unavailable
-			? null
-			: { changes: changes.current, upstream: upstream.current?.upstream ?? null }
+		workspace.archivedAt || !git?.changes ? null : { changes: git.changes, upstream: git.upstream }
 	);
 	const actions = $derived(standingState ? actionsFor(standingState) : []);
 	const standing = $derived(standingState && standingOf(standingState));
@@ -182,7 +176,8 @@
 	{@const path = pathOf(tab)}
 	{@const terminal = terminalOf(tab)}
 	{#if path}
-		<DiffWindow workspaceId={id} {path} />
+		{@const file = git?.changes?.files.find((file) => file.path === path)}
+		<DiffWindow workspaceId={id} {path} version="{file?.added} {file?.removed}" />
 	{:else if terminal}
 		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
 	{:else}
@@ -295,8 +290,7 @@
 				>
 					{#snippet a()}
 						<Changes
-							workspaceId={id}
-							revision={workspace.filesRevision}
+							{git}
 							onopen={(path) => arrange({ main: open(main, `diff:${path}`, chatGroup) })}
 						/>
 					{/snippet}

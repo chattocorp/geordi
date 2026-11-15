@@ -12,7 +12,8 @@ import { createIssues } from './issues.ts';
 import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
-import { createWatchers } from './watchers.ts';
+import { webUrl } from '../url.ts';
+import { createWatchers, type WorktreeState } from './watchers.ts';
 import { createWorkspaces } from './workspaces.ts';
 
 /** The forge's services, wired together. Everything is created on first use. */
@@ -33,10 +34,47 @@ export const terminals = lazy(() =>
 	)
 );
 
+const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/** Asks a daemon how a worktree's files and branch stand. Never rejects. */
+async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
+	const state: WorktreeState = { changes: null, unavailable: null, upstream: null };
+	let ref;
+	try {
+		ref = workspaces().ref(worktreeId);
+	} catch (error) {
+		return { ...state, unavailable: reason(error) };
+	}
+
+	const [changes, upstream] = await Promise.allSettled([
+		hub().request({ kind: 'changes', ...ref }),
+		hub().request({ kind: 'upstream', ...ref })
+	]);
+	if (changes.status === 'fulfilled') state.changes = changes.value;
+	else state.unavailable = reason(changes.reason);
+
+	if (upstream.status === 'fulfilled' && upstream.value) {
+		// These end up in links. They come from a daemon and, before that, another forge.
+		const { pull } = upstream.value;
+		state.upstream = {
+			...upstream.value,
+			repoUrl: webUrl(upstream.value.repoUrl),
+			createUrl: webUrl(upstream.value.createUrl),
+			pull: pull && {
+				...pull,
+				url: webUrl(pull.url),
+				checks: pull.checks && { ...pull.checks, url: webUrl(pull.checks.url) }
+			}
+		};
+	}
+	return state;
+}
+
 export const watchers = lazy(() =>
 	createWatchers(
 		(message) => hub().send(message),
-		(id) => workspaces().ref(id)
+		(id) => workspaces().ref(id),
+		loadWorktreeState
 	)
 );
 

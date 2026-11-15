@@ -1,10 +1,9 @@
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, type Changes, type FileVersions, type Upstream } from '@geordi/protocol';
+import { AGENTS, type FileVersions } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
 import { hub, terminals, watchers, workspaces } from '#lib/server/app.ts';
-import { webUrl } from '#lib/url.ts';
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 
@@ -16,8 +15,9 @@ export const getWorkspaces = query.live(v.string(), async function* (repoId) {
  * One workspace with its conversation. `parent` is the workspace whose agent started this
  * one, if any.
  *
- * While someone has this open, a daemon watches the workspace's files; `filesRevision` is
- * different after every change to them, which is the cue to ask for the changes again.
+ * While someone has this open, a daemon watches the workspace's files, and `git` is how
+ * its changes and its pull request stand: loaded here once for everyone looking, and again
+ * whenever something changes. `null` until first loaded.
  * `terminals` names the workspace's terminals whose shells are running.
  */
 export const getWorkspace = query.live(v.string(), async function* (id) {
@@ -28,7 +28,7 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 			return {
 				...workspace,
 				parent: parent && { id: parent.id, title: parent.title },
-				filesRevision: watchers().revision(),
+				git: watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id)
 			};
 		},
@@ -96,45 +96,6 @@ export const removeQueued = command(
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-/**
- * The files a workspace has changed since it branched off. Asked from the daemon each time
- * (the forge doesn't see the worktree); being unavailable is an expected state, not an error.
- */
-export const getChanges = query(
-	v.string(),
-	async (id): Promise<Changes & { unavailable: string | null }> => {
-		try {
-			const changes = await hub().request({ kind: 'changes', ...workspaces().ref(id) });
-			return { ...changes, unavailable: null };
-		} catch (error) {
-			return { files: [], uncommitted: 0, unpushed: null, unavailable: message(error) };
-		}
-	}
-);
-
-/**
- * How the workspace's branch stands on the forge its repository is hosted on: pushed or not,
- * and its pull request. `upstream` is `null` for repositories without such a forge.
- */
-export const getUpstream = query(
-	v.string(),
-	async (id): Promise<{ upstream: Upstream | null; unavailable: string | null }> => {
-		try {
-			const upstream = await hub().request({ kind: 'upstream', ...workspaces().ref(id) });
-			// These end up in links. They come from a daemon and, before that, another forge.
-			if (upstream) {
-				upstream.repoUrl = webUrl(upstream.repoUrl);
-				upstream.createUrl = webUrl(upstream.createUrl);
-				if (upstream.pull) upstream.pull.url = webUrl(upstream.pull.url);
-				if (upstream.pull?.checks) upstream.pull.checks.url = webUrl(upstream.pull.checks.url);
-			}
-			return { upstream, unavailable: null };
-		} catch (error) {
-			return { upstream: null, unavailable: message(error) };
-		}
-	}
-);
 
 /** Both versions of a changed file, for the diff viewer. */
 export const getDiff = query(
