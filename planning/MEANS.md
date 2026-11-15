@@ -28,9 +28,12 @@ schema:
   additionalProperties: false
 app:
   views:
-    - title: Open work
-      filter: data.status in ["todo", "in_progress"]
-      columns: [title, data.type, data.status, data.priority]
+    - title: In progress
+      filter: data.status == "in_progress"
+      columns: [title, data.type, data.priority]
+    - title: Todo
+      filter: data.status == "todo"
+      columns: [title, data.type, data.priority]
 ---
 
 # Working with Geordi planning
