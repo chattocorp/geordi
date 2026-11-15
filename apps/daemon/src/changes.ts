@@ -73,6 +73,9 @@ export function readText(worktree: Worktree, path: string): string | null {
 	}
 }
 
+/** How many untracked files get their lines counted. */
+const MAX_COUNTED = 200;
+
 const lines = (text: string) => (text ? text.replace(/\n$/, '').split('\n') : []);
 
 export function changes(worktree: Worktree, origin: Origin): FileChange[] {
@@ -85,8 +88,10 @@ export function changes(worktree: Worktree, origin: Origin): FileChange[] {
 			return { path: path.join('\t'), added: count(added), removed: count(removed) };
 		});
 
-	const added = untracked(worktree).map((path): FileChange => {
-		const text = readText(worktree, path);
+	// Reading files to count their lines is only worth it for a workspace's own handful of new
+	// files, not for a `node_modules` nobody ignored: beyond that, they are just listed.
+	const added = untracked(worktree).map((path, index): FileChange => {
+		const text = index < MAX_COUNTED ? readText(worktree, path) : null;
 		return {
 			path,
 			added: text === null ? null : lines(text).length,

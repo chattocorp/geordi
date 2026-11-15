@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changes, readText, status, versions } from './changes.ts';
 import { removeWorktree } from './remove.ts';
-import { ensureWorktree, locateWorktree } from './worktree.ts';
+import { ensureWorktree, locateWorktree, branchRef } from './worktree.ts';
 
 function repo() {
 	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-wt-')));
@@ -319,5 +319,32 @@ describe('status', () => {
 		removeWorktree(base, repoPath, 'abcdefgh-1', true);
 		expect(existsSync(worktree.path)).toBe(false);
 		expect(existsSync(marker)).toBe(false);
+	});
+});
+
+describe('branch names', () => {
+	it('accepts what git accepts', () => {
+		for (const name of ['main', 'fix/issue#12', 'release@2', 'c++-port', 'feature/grüße', 'a.b'])
+			expect(branchRef(name)).toBe(`refs/heads/${name}`);
+	});
+
+	it('refuses what could be read as an option or a revision expression', () => {
+		for (const name of [
+			'-x',
+			'--upload-pack=x',
+			'a..b',
+			'a b',
+			'a~1',
+			'a^',
+			'a:b',
+			'x@{1}',
+			'.hidden',
+			'a/',
+			'a//b',
+			'a.lock',
+			'a/.b',
+			''
+		])
+			expect(() => branchRef(name), name).toThrow('Not a branch name');
 	});
 });

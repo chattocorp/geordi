@@ -52,9 +52,17 @@ export function describe(baseDir: string, repoPath: string, workspaceId: string)
 	};
 }
 
+/**
+ * What git accepts as a branch name (`git check-ref-format`), which is a lot: `fix/issue#12`,
+ * `release@2`, `grüße`. Not accepted is what could be read as an option or as a revision
+ * expression.
+ */
+const BRANCH =
+	/^(?![-./])(?!.*(?:\.\.|@\{|\/\/|\/\.|\.lock(?:\/|$)))[^\x00-\x20\x7f~^:?*[\\]+(?<![./])$/;
+
 /** A branch name as an unambiguous revision. Rejects anything git could read as an option. */
 export function branchRef(branch: string): string {
-	if (!/^[\w][\w./-]*$/.test(branch)) throw new Error(`Not a branch name: ${branch}`);
+	if (!BRANCH.test(branch)) throw new Error(`Not a branch name: ${branch}`);
 	return `refs/heads/${branch}`;
 }
 
@@ -103,9 +111,11 @@ export function ensureWorktree(
  */
 export function headOf({ path, adminDir }: Worktree): string {
 	const head = read(join(adminDir, 'HEAD'));
-	const match = /^ref: (refs\/heads\/[\w./-]+)$/.exec(head) ?? /^([0-9a-f]{40,64})$/.exec(head);
-	if (!match) throw new Error(`Worktree ${path} has an unreadable HEAD`);
-	return match[1];
+	const branch = /^ref: refs\/heads\/(.+)$/.exec(head)?.[1];
+	if (branch && BRANCH.test(branch)) return `refs/heads/${branch}`;
+	const commit = /^([0-9a-f]{40,64})$/.exec(head)?.[1];
+	if (!commit) throw new Error(`Worktree ${path} has an unreadable HEAD`);
+	return commit;
 }
 
 /**

@@ -49,7 +49,9 @@ function ghToken(): string | null {
 	}
 }
 
-let registry: { forges: Forges; anonymous: ForgeProvider | null } | undefined;
+let registry: { forges: Forges; anonymous: ForgeProvider | null; at: number } | undefined;
+/** How long credentials are trusted: signing in to the GitHub CLI should not take a restart to notice. */
+const CREDENTIALS_MS = 10 * 60_000;
 
 /**
  * The forges we can talk to: every one configured through `FORGES_*` environment variables
@@ -57,7 +59,7 @@ let registry: { forges: Forges; anonymous: ForgeProvider | null } | undefined;
  * the GitHub CLI is, or anonymously (public repositories only).
  */
 function forges() {
-	if (registry) return registry;
+	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry;
 	const providers = providersFromEnv(process.env).flatMap((set) => set.provider ?? []);
 
 	let anonymous: ForgeProvider | null = null;
@@ -67,7 +69,7 @@ function forges() {
 		if (!token) anonymous = provider;
 		providers.push(provider);
 	}
-	return (registry = { forges: createForges(providers), anonymous });
+	return (registry = { forges: createForges(providers), anonymous, at: Date.now() });
 }
 
 /** Boils a pull request down to what the workspace shows. */
@@ -108,7 +110,8 @@ function isFor(thread: Thread, repo: Repo, branch: string): boolean {
 }
 
 /**
- * The most recently updated pull request for a branch, with its checks and reviews.
+ * The pull request for a branch, with its checks and reviews: the open one if there is one,
+ * otherwise the most recently updated.
  *
  * `forges` has no way to ask for a branch's pull request, so we search for it where the
  * forge's search understands `head:<branch>` (GitHub; one quick request), and otherwise go
@@ -126,8 +129,11 @@ async function findPull(
 		const found = await provider.search.threads({ ...query, ...order }).page();
 		const understood = !found.warnings?.some((warning) => warning.code === 'filter_unsupported');
 		if (understood) {
-			// search results are summaries, and `head:` may match more than the exact branch
-			for (const candidate of found.items) {
+			// Search results are summaries, and `head:` may match more than the exact branch.
+			// An open pull request counts for more than one that was closed, however recently
+			// someone commented on that.
+			const open = (thread: Thread) => (thread.state === 'open' ? 0 : 1);
+			for (const candidate of found.items.toSorted((a, b) => open(a) - open(b))) {
 				const thread = await provider.threads.get(candidate.ref);
 				if (isFor(thread, repo, branch)) return thread;
 			}
@@ -136,13 +142,17 @@ async function findPull(
 	}
 
 	let searched = 0;
+	let closed: Thread | undefined;
 	const recent = provider.threads.list(repo, { kind: 'pull_request', state: 'all', ...order });
 	for await (const thread of recent) {
-		// the list is a summary; checks and reviews come with the full pull request
-		if (isFor(thread, repo, branch)) return provider.threads.get(thread.ref);
+		if (isFor(thread, repo, branch)) {
+			// the list is a summary; checks and reviews come with the full pull request
+			if (thread.state === 'open') return provider.threads.get(thread.ref);
+			closed ??= thread;
+		}
 		if (++searched >= SEARCH_LIMIT) break;
 	}
-	return null;
+	return closed ? provider.threads.get(closed.ref) : null;
 }
 
 /**

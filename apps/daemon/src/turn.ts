@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import {
 	chmodSync,
 	closeSync,
@@ -8,6 +8,7 @@ import {
 	readdirSync,
 	readFileSync,
 	readSync,
+	renameSync,
 	rmSync,
 	statSync,
 	writeFileSync
@@ -23,7 +24,7 @@ import { API_TOKEN_ENV, type AgentAdapter, type TurnOptions } from './agents/ada
  * it (or it crashing) costs no work.
  *
  * A turn's directory holds:
- * - `meta.json`: which agent, and the process to signal
+ * - `meta.json`: which agent, and the process to signal (and when it started, to know it again)
  * - `out.jsonl`, `err.log`: what the agent's CLI writes
  * - `offset`: how much of `out.jsonl` has been passed on
  * - `exit`: the CLI's exit code, once it has ended
@@ -38,10 +39,25 @@ export type Turn = {
 	done: Promise<void>;
 };
 
-type Meta = { agent: Agent; cmd: string; pid: number };
+type Meta = { agent: Agent; cmd: string; pid: number; started?: string };
 
 /** How often a turn's files are looked at. */
 const POLL_MS = 100;
+/** How long a stopped agent gets to end by itself before it is killed. */
+const KILL_AFTER_MS = 10_000;
+
+/** When a process started, as `ps` puts it; `null` if there is no such process. */
+function startedAt(pid: number): string | null {
+	try {
+		const started = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], {
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'ignore']
+		}).trim();
+		return started || null;
+	} catch {
+		return null;
+	}
+}
 
 const alive = (pid: number) => {
 	try {
@@ -61,10 +77,30 @@ const alive = (pid: number) => {
  * session, for one, first deals with anything left over from before (a background task
  * that finished) and reports that as done, and only then turns to the new message. What
  * the CLI says about how things ended is kept, and the last word counts.
+ *
+ * Nothing is read while `ready()` says there is nobody to tell: the files are the queue,
+ * and an event only counts as passed on (`offset`) once it could be sent. So a daemon that
+ * goes away while the forge is away too loses nothing either.
  */
-function follow(dir: string, adapter: AgentAdapter, emit: (event: AgentEvent) => void): Turn {
-	const { cmd, pid } = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')) as Meta;
+function follow(
+	dir: string,
+	adapter: AgentAdapter,
+	emit: (event: AgentEvent) => void,
+	ready: () => boolean
+): Turn {
+	const { cmd, pid, started } = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')) as Meta;
 	const file = (name: string) => join(dir, name);
+	// Process IDs are reused, after a reboot at the latest: the process is only ours if it
+	// also started when ours did. Never signal, or wait for, somebody else's.
+	const ours = pid > 1 && startedAt(pid) === started;
+	const running = () => ours && alive(pid);
+	const signal = (name: NodeJS.Signals) => {
+		try {
+			if (running()) process.kill(-pid, name); // the whole group: the CLI and what it started
+		} catch {
+			// already gone
+		}
+	};
 	const out = openSync(file('out.jsonl'), 'r');
 
 	let offset = existsSync(file('offset')) ? Number(readFileSync(file('offset'), 'utf8')) : 0;
@@ -89,19 +125,28 @@ function follow(dir: string, adapter: AgentAdapter, emit: (event: AgentEvent) =>
 				} catch {
 					continue; // not JSON; CLIs occasionally print plain text
 				}
-				for (const event of adapter.parse(parsed)) {
+				let events: AgentEvent[] = [];
+				try {
+					events = adapter.parse(parsed);
+				} catch (error) {
+					// a line the adapter can't make sense of costs that line, not the daemon
+					console.error(`[turn] ${cmd} wrote something unexpected:`, error);
+				}
+				for (const event of events) {
 					if (event.kind === 'turn.completed' || event.kind === 'turn.failed') outcome = event;
 					else emit(event);
 				}
 			}
-			// after the events, so a restart in between repeats a line rather than losing it
-			writeFileSync(file('offset'), String(offset));
+			// After the events, so a restart in between repeats a line rather than losing it.
+			// Renamed into place: a half-written offset would replay the whole turn.
+			writeFileSync(file('offset.tmp'), String(offset));
+			renameSync(file('offset.tmp'), file('offset'));
 		}
 	}
 
 	function ended(): AgentEvent | null {
 		const exited = existsSync(file('exit'));
-		if (!exited && alive(pid)) return null;
+		if (!exited && running()) return null;
 		read(); // whatever it wrote last
 
 		if (existsSync(file('stopped'))) return { kind: 'turn.failed', error: 'Stopped' };
@@ -117,17 +162,27 @@ function follow(dir: string, adapter: AgentAdapter, emit: (event: AgentEvent) =>
 		return { kind: 'turn.failed', error: stderr ? `${reason}: ${stderr}` : reason };
 	}
 
+	let finished = false;
 	const done = new Promise<void>((resolve) => {
 		finish = () => {
+			if (finished) return;
+			finished = true;
 			clearInterval(timer);
 			closeSync(out);
 			resolve();
 		};
 		timer = setInterval(() => {
-			read();
-			const end = ended();
-			if (!end) return;
-			emit(end);
+			if (!ready()) return;
+			try {
+				read();
+				const end = ended();
+				if (!end) return;
+				emit(end);
+			} catch (error) {
+				// a full disk, say: try again rather than take the daemon down
+				console.error(`[turn] could not follow ${dir}:`, error);
+				return;
+			}
 			finish();
 			rmSync(dir, { recursive: true, force: true });
 		}, POLL_MS);
@@ -136,11 +191,9 @@ function follow(dir: string, adapter: AgentAdapter, emit: (event: AgentEvent) =>
 	return {
 		stop() {
 			writeFileSync(file('stopped'), '');
-			try {
-				process.kill(-pid, 'SIGTERM'); // the whole group: the CLI and what it started
-			} catch {
-				// already gone
-			}
+			signal('SIGTERM');
+			// an agent that won't end is ended
+			setTimeout(() => !finished && signal('SIGKILL'), KILL_AFTER_MS).unref();
 		},
 		detach: () => finish(),
 		done
@@ -158,7 +211,9 @@ export function runTurn(
 	emit: (event: AgentEvent) => void,
 	dir: string,
 	/** For Geordi's agent API; only passed on if `options.api` is set. */
-	apiToken?: string
+	apiToken?: string,
+	/** Whether there is somebody to report to right now; see `follow`. */
+	ready: () => boolean = () => true
 ): Turn {
 	const { cmd, args } = adapter.command(options);
 	rmSync(dir, { recursive: true, force: true });
@@ -168,26 +223,38 @@ export function runTurn(
 
 	const out = openSync(join(dir, 'out.jsonl'), 'a', 0o600);
 	const err = openSync(join(dir, 'err.log'), 'a', 0o600);
-	// A shell runs the CLI and notes how it ended, since we may not be around to see it.
+	// A shell runs the CLI and notes how it ended, since we may not be around to see it. It
+	// sits out a SIGTERM (which the CLI, in the same group, gets too), so that the turn is
+	// over when the CLI is, not when the shell is.
 	const script =
-		'"$@"; echo $? > "$GEORDI_TURN_DIR/exit.tmp"; mv "$GEORDI_TURN_DIR/exit.tmp" "$GEORDI_TURN_DIR/exit"';
-	const child = spawn('/bin/sh', ['-c', script, 'sh', cmd, ...args], {
-		cwd: options.cwd,
-		detached: true, // its own process group, which no signal meant for us reaches
-		stdio: ['ignore', out, err],
-		env: {
-			...process.env,
-			GEORDI_TURN_DIR: dir,
-			...(options.api && apiToken && { [API_TOKEN_ENV]: apiToken })
-		}
-	});
+		'trap : TERM; "$@"; echo $? > "$GEORDI_TURN_DIR/exit.tmp"; mv "$GEORDI_TURN_DIR/exit.tmp" "$GEORDI_TURN_DIR/exit"';
+	let child;
+	try {
+		child = spawn('/bin/sh', ['-c', script, 'sh', cmd, ...args], {
+			cwd: options.cwd,
+			detached: true, // its own process group, which no signal meant for us reaches
+			stdio: ['ignore', out, err],
+			env: {
+				...process.env,
+				GEORDI_TURN_DIR: dir,
+				...(options.api && apiToken && { [API_TOKEN_ENV]: apiToken })
+			}
+		});
+	} finally {
+		closeSync(out);
+		closeSync(err);
+	}
+	child.on('error', () => {}); // reported right below, or by whoever follows the turn
+	const { pid } = child;
+	if (pid === undefined) {
+		rmSync(dir, { recursive: true, force: true });
+		throw new Error(`Failed to start ${cmd}`);
+	}
 	child.unref();
-	closeSync(out);
-	closeSync(err);
 
-	const meta: Meta = { agent, cmd, pid: child.pid ?? -1 };
+	const meta: Meta = { agent, cmd, pid, started: startedAt(pid) ?? undefined };
 	writeFileSync(join(dir, 'meta.json'), JSON.stringify(meta));
-	return follow(dir, adapter, emit);
+	return follow(dir, adapter, emit, ready);
 }
 
 /**
@@ -197,7 +264,8 @@ export function runTurn(
 export async function resumeTurns(
 	turnsDir: string,
 	adapterFor: (agent: Agent) => Promise<AgentAdapter>,
-	emitFor: (workspaceId: string) => (event: AgentEvent) => void
+	emitFor: (workspaceId: string) => (event: AgentEvent) => void,
+	ready: () => boolean = () => true
 ): Promise<Map<string, Turn>> {
 	const turns = new Map<string, Turn>();
 	if (!existsSync(turnsDir)) return turns;
@@ -211,7 +279,7 @@ export async function resumeTurns(
 		const dir = join(turnsDir, workspaceId);
 		try {
 			const { agent } = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')) as Meta;
-			turns.set(workspaceId, follow(dir, await adapterFor(agent), emitFor(workspaceId)));
+			turns.set(workspaceId, follow(dir, await adapterFor(agent), emitFor(workspaceId), ready));
 		} catch {
 			rmSync(dir, { recursive: true, force: true }); // not a turn we can make sense of
 		}

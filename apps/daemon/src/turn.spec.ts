@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentEvent } from '@geordi/protocol';
@@ -107,7 +107,102 @@ describe('runTurn', () => {
 	});
 });
 
+describe('a turn that misbehaves', () => {
+	it('skips a line the adapter cannot make sense of, and carries on', async () => {
+		const adapter: AgentAdapter = {
+			...fake(`
+				console.log('null');
+				${say({ kind: 'text', text: 'still here' })}
+				${say({ kind: 'turn.completed' })}
+			`),
+			parse(line) {
+				if (line === null) throw new TypeError('unexpected');
+				return [line as AgentEvent];
+			}
+		};
+		expect(await collect(adapter)).toEqual([
+			{ kind: 'text', text: 'still here' },
+			{ kind: 'turn.completed' }
+		]);
+	});
+
+	it('is only over when the agent is, however long it takes to stop', async () => {
+		// an agent that takes its time to wind down
+		const slow = fake(`
+			process.on('SIGTERM', () => setTimeout(() => process.exit(0), 600));
+			setTimeout(() => {}, 10000);
+		`);
+		const events: AgentEvent[] = [];
+		const turn = runTurn(slow, 'claude', options, (e) => events.push(e), join(turnsDir(), 'w'));
+		await new Promise((resolve) => setTimeout(resolve, 300)); // let it install its handler
+		const stopped = Date.now();
+		turn.stop();
+		await turn.done;
+		expect(Date.now() - stopped).toBeGreaterThanOrEqual(500);
+		expect(events).toEqual([{ kind: 'turn.failed', error: 'Stopped' }]);
+	});
+
+	it('fails cleanly when the agent cannot be started at all', () => {
+		const dir = join(turnsDir(), 'w');
+		const nowhere = { ...options, cwd: '/no/such/directory' };
+		expect(() => runTurn(fake(''), 'claude', nowhere, () => {}, dir)).toThrow(/Failed to start/);
+		expect(existsSync(dir)).toBe(false);
+	});
+});
+
+describe('with nobody to report to', () => {
+	it("keeps everything in the turn's files until there is, even across a restart", async () => {
+		const dir = turnsDir();
+		const quick = fake(`${say({ kind: 'text', text: 'hi' })} ${say({ kind: 'turn.completed' })}`);
+		const unheard: AgentEvent[] = [];
+		const turn = runTurn(
+			quick,
+			'claude',
+			options,
+			(e) => unheard.push(e),
+			join(dir, 'w'),
+			'',
+			() => false
+		);
+		await new Promise((resolve) => setTimeout(resolve, 600));
+		turn.detach(); // the daemon goes away, having told nobody
+		expect(unheard).toEqual([]);
+
+		const heard: AgentEvent[] = [];
+		const turns = await resumeTurns(
+			dir,
+			async () => quick,
+			() => (e) => heard.push(e)
+		);
+		await turns.get('w')!.done;
+		expect(heard).toEqual([{ kind: 'text', text: 'hi' }, { kind: 'turn.completed' }]);
+	});
+});
+
 describe('a daemon restart', () => {
+	it("does not take somebody else's process for the agent, nor signal it", async () => {
+		const dir = turnsDir();
+		// what a reboot leaves behind: a turn whose process ID now belongs to another process
+		// (this one, here), which started at another time
+		mkdirSync(join(dir, 'w'));
+		writeFileSync(
+			join(dir, 'w', 'meta.json'),
+			JSON.stringify({ agent: 'claude', cmd: 'claude', pid: process.pid, started: 'long ago' })
+		);
+		writeFileSync(join(dir, 'w', 'out.jsonl'), '');
+		writeFileSync(join(dir, 'w', 'err.log'), '');
+
+		const events: AgentEvent[] = [];
+		const turns = await resumeTurns(
+			dir,
+			async () => fake(''),
+			() => (e) => events.push(e)
+		);
+		turns.get('w')!.stop(); // must not reach us
+		await turns.get('w')!.done;
+		expect(events).toEqual([{ kind: 'turn.failed', error: 'Stopped' }]);
+	});
+
 	const slow = fake(`
 		${say({ kind: 'text', text: 'one' })}
 		setTimeout(() => {

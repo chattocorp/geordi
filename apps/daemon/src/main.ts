@@ -88,7 +88,13 @@ const emitFor = (workspaceId: string) => (event: AgentEvent) =>
 	send({ type: 'workspace.event', workspaceId, event });
 
 /** The turns running right now, by workspace: ones we started, and ones we found running. */
-const turns = await resumeTurns(turnsDir, adapterFor, emitFor);
+/**
+ * Whether the forge is there to be told things. Turns are only followed while it is: what
+ * they write waits in their files, which survive us, rather than in the outbox, which doesn't.
+ */
+const connected = () => socket?.readyState === WebSocket.OPEN;
+
+const turns = await resumeTurns(turnsDir, adapterFor, emitFor, connected);
 for (const [workspaceId, turn] of turns) forget(workspaceId, turn);
 
 function forget(workspaceId: string, turn: Turn) {
@@ -97,15 +103,19 @@ function forget(workspaceId: string, turn: Turn) {
 	});
 }
 
+/** Workspaces whose next turn is about to start, once the one before it has gone. */
+const starting = new Set<string>();
+
 /**
- * The workspaces whose turn the forge has not heard the end of: those still running, and
- * those that ended while it was away, whose last events are waiting in the outbox. Leaving
+ * The workspaces whose turn the forge has not heard the end of: those still running, those
+ * about to start, and those with events waiting in the outbox. Leaving
  * the latter out would have the forge give them up as lost, a moment before their ending
  * arrives.
  */
 const unreported = () => [
 	...new Set([
 		...turns.keys(),
+		...starting,
 		...outbox.flatMap((m) => (m.type === 'workspace.event' ? [m.workspaceId] : []))
 	])
 ];
@@ -140,7 +150,10 @@ function connect(delay = 500) {
 			return ws.close(4000, 'Invalid JSON');
 		}
 
-		if (socket === ws) return handle(message);
+		if (socket === ws)
+			return handle(message).catch((error) =>
+				console.error('could not handle', message.type, error)
+			);
 
 		// Handshake (see @geordi/protocol/auth): answer the challenge, then verify the forge.
 		if (message.type === 'challenge') {
@@ -206,14 +219,24 @@ async function handle(message: ForgeMessage) {
 			const { workspaceId, worktreeId, agent, repoPath, base, resumeId, prompt } = message;
 			const emit = emitFor(workspaceId);
 
-			// The forge sends the next message as soon as the agent says it is done, which is a
-			// moment before its process has exited. Let it finish; if it won't, end it.
+			// The forge only starts a turn when it knows of none. If we still have one (the forge
+			// gave up on it while we were apart, say), it has to go first: two agents must never
+			// be at work in one conversation. It gets a moment to end, then is stopped, and if
+			// even that leads nowhere we let go of it.
 			const previous = turns.get(workspaceId);
 			if (previous) {
-				await Promise.race([previous.done, new Promise((resolve) => setTimeout(resolve, 10_000))]);
-				if (turns.get(workspaceId) === previous) {
-					previous.stop();
-					await previous.done;
+				starting.add(workspaceId);
+				try {
+					const within = (ms: number) =>
+						Promise.race([previous.done, new Promise((resolve) => setTimeout(resolve, ms))]);
+					await within(10_000);
+					if (turns.get(workspaceId) === previous) {
+						previous.stop();
+						await within(15_000);
+						previous.detach();
+					}
+				} finally {
+					starting.delete(workspaceId);
 				}
 			}
 
@@ -239,7 +262,8 @@ async function handle(message: ForgeMessage) {
 					},
 					emit,
 					join(turnsDir, workspaceId),
-					message.apiToken
+					message.apiToken,
+					connected
 				);
 				turns.set(workspaceId, turn);
 				forget(workspaceId, turn);
