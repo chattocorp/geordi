@@ -126,6 +126,47 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).queue).toEqual(['Three']);
 	});
 
+	it('steers a working agent: stops its turn and sends the message as soon as it has', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		workspaces.send(id, 'Later');
+		workspaces.steer(id, 'Not that, this');
+		workspaces.steer(id, 'And this');
+		expect(sent.at(-1)).toEqual({ type: 'turn.stop', workspaceId: id });
+		expect(workspaces.get(id)).toMatchObject({ steering: ['Not that, this', 'And this'] });
+
+		// the daemon reports the turn as stopped: the steering goes out, ahead of the queue
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		expect(sent.at(-1)).toMatchObject({
+			type: 'turn.start',
+			prompt: 'Not that, this\n\nAnd this'
+		});
+		const workspace = workspaces.get(id);
+		expect(workspace).toMatchObject({ status: 'running', steering: [], queue: ['Later'] });
+		// being stopped for this is not shown as a failure
+		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'user']);
+
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ prompt: 'Later' });
+	});
+
+	it('steering an idle agent is just saying something', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.steer(id, 'Two');
+		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', prompt: 'Two' });
+		expect(workspaces.get(id).steering).toEqual([]);
+	});
+
+	it('still sends the steering if the turn finished on its own first', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		workspaces.steer(id, 'Two');
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', prompt: 'Two' });
+	});
+
 	it('keeps the queue across a restart', () => {
 		const { store, repos, workspaces, dispatch, create } = setup();
 		const id = create('One');

@@ -51,10 +51,19 @@ export const createWorkspace = form(
 	}
 );
 
+/**
+ * Says something to the workspace's agent. While it is working, `steer` (the default)
+ * interrupts it with the message, and `queue` lets it finish first.
+ */
 export const sendMessage = form(
-	v.object({ workspaceId: v.string(), text }),
-	({ workspaceId, text }) => {
-		workspaces().send(workspaceId, text);
+	v.object({
+		workspaceId: v.string(),
+		text,
+		mode: v.optional(v.picklist(['steer', 'queue']), 'steer')
+	}),
+	({ workspaceId, text, mode }) => {
+		if (mode === 'queue') workspaces().send(workspaceId, text);
+		else workspaces().steer(workspaceId, text);
 	}
 );
 

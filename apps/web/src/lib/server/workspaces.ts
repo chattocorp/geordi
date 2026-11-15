@@ -27,12 +27,15 @@ export type WorkspacesEvent =
 	/**
 	 * Something the user (or another agent) said to the workspace's agent, starting a turn.
 	 * `queued` marks a message that had been waiting: it is the first one in the queue.
+	 * `steered` marks one that interrupted the agent: it is everything that was steered.
 	 */
 	| {
 			type: 'workspace.message';
 			stream: WorkspaceStream;
-			data: { id: string; text: string; queued?: boolean };
+			data: { id: string; text: string; queued?: boolean; steered?: boolean };
 	  }
+	/** A message that interrupts the working agent: it is sent as soon as its turn has stopped. */
+	| { type: 'workspace.steered'; stream: WorkspaceStream; data: { id: string; text: string } }
 	/** A message to send once the agent has finished what it is doing. */
 	| { type: 'workspace.queued'; stream: WorkspaceStream; data: { id: string; text: string } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
@@ -84,6 +87,8 @@ export type Workspace = {
 	resumeId: string | null;
 	/** Messages waiting for the agent to finish its turn, in the order they will be sent. */
 	queue: string[];
+	/** Messages that interrupted the agent and go out as soon as its turn has stopped. */
+	steering: string[];
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	createdAt: string;
@@ -147,6 +152,7 @@ export function createWorkspaces(
 				worktree: null,
 				resumeId: null,
 				queue: [],
+				steering: [],
 				archivedAt: null,
 				createdAt: at,
 				updatedAt: at,
@@ -173,8 +179,13 @@ export function createWorkspaces(
 			workspace.queue.splice(event.data.index, 1);
 			return;
 		}
+		if (event.type === 'workspace.steered') {
+			workspace.steering.push(event.data.text);
+			return;
+		}
 		if (event.type === 'workspace.message') {
 			if (event.data.queued) workspace.queue.shift();
+			if (event.data.steered) workspace.steering = [];
 			workspace.status = 'running';
 			transcript.push({ kind: 'user', text: event.data.text, at });
 			return;
@@ -208,7 +219,9 @@ export function createWorkspaces(
 				break;
 			case 'turn.failed':
 				workspace.status = 'idle';
-				transcript.push({ kind: 'error', error: output.error, at });
+				// stopped to make way for a steering message: that is not a failure worth showing
+				if (!(output.error === 'Stopped' && workspace.steering.length > 0))
+					transcript.push({ kind: 'error', error: output.error, at });
 				break;
 		}
 	}
@@ -257,8 +270,13 @@ export function createWorkspaces(
 		const workspace = projection.get().get(id);
 		if (!workspace) return;
 		store.append({ type: 'workspace.output', stream: `workspace:${id}`, data: { id, event } });
-		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
-			startTurn(workspace, workspace.queue[0], null, true);
+		if (event.kind !== 'turn.completed' && event.kind !== 'turn.failed') return;
+
+		// Whatever steered the agent goes first, however its turn ended.
+		if (workspace.steering.length > 0)
+			startTurn(workspace, workspace.steering.join('\n\n'), null, 'steered');
+		else if (event.kind === 'turn.completed' && workspace.queue.length > 0)
+			startTurn(workspace, workspace.queue[0], null, 'queued');
 	}
 
 	/** A workspace's turns so far, including a running one. */
@@ -287,13 +305,18 @@ export function createWorkspaces(
 	}
 
 	/** Appends a message to the workspace's agent and asks a daemon to run the turn. */
-	function startTurn(workspace: Workspace, text: string, actor: string | null, queued = false) {
+	function startTurn(
+		workspace: Workspace,
+		text: string,
+		actor: string | null,
+		from?: 'queued' | 'steered'
+	) {
 		const { id } = workspace;
 		store.append(
 			{
 				type: 'workspace.message',
 				stream: `workspace:${id}`,
-				data: { id, text, ...(queued && { queued }) }
+				data: { id, text, ...(from && { [from]: true }) }
 			},
 			{ actor }
 		);
@@ -490,7 +513,22 @@ export function createWorkspaces(
 				{ actor }
 			);
 			// idle with messages waiting: the turn before failed, and this is the nudge to go on
-			if (workspace.status === 'idle') startTurn(workspace, workspace.queue[0], actor, true);
+			if (workspace.status === 'idle') startTurn(workspace, workspace.queue[0], actor, 'queued');
+		},
+
+		/**
+		 * Says something to the workspace's agent now: if it is working, its turn is stopped
+		 * and the message goes out as soon as it has. Waiting messages keep waiting.
+		 */
+		steer(id: string, text: string, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (workspace.status === 'idle') return startTurn(workspace, text, actor);
+			store.append(
+				{ type: 'workspace.steered', stream: `workspace:${id}`, data: { id, text } },
+				{ actor }
+			);
+			stop(id);
 		},
 
 		/** Takes back a waiting message, by its place in the queue. */

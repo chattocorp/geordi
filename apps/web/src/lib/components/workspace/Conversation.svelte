@@ -27,6 +27,22 @@
 		following = true;
 		if (scroller) scroller.scrollTop = scroller.scrollHeight;
 	};
+	const modifier = $derived(
+		typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
+	);
+
+	/**
+	 * Enter says it now (steering the agent if it is working); with Cmd or Ctrl it waits for
+	 * the agent to finish. Each is one of the form's submit buttons, pressed for the user.
+	 */
+	function keys(event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
+		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+		event.preventDefault();
+		const { form } = event.currentTarget;
+		const mode = running && (event.metaKey || event.ctrlKey) ? 'queue' : 'steer';
+		form?.requestSubmit(form.querySelector<HTMLButtonElement>(`button[value=${mode}]`));
+	}
+
 	/** Scroll events can still arrive while the view is being taken down. */
 	const atBottom = () => {
 		if (scroller)
@@ -107,9 +123,8 @@
 				<Composer
 					{form}
 					rows={2}
-					placeholder={running
-						? 'Queue a message for when the agent is done'
-						: 'Reply to the agent'}
+					placeholder={running ? 'Steer the agent, or queue a message' : 'Reply to the agent'}
+					onkeydown={keys}
 					field={form.fields.text.as('text')}
 					problems={form.fields.text.issues()?.map((problem) => problem.message)}
 				>
@@ -118,19 +133,26 @@
 					{/snippet}
 					{#snippet footer()}
 						<p class="hidden pl-1 text-xs text-muted sm:block">
-							Enter to send, Shift+Enter for a new line
+							{running
+								? `Enter to steer, ${modifier}Enter to queue`
+								: 'Enter to send, Shift+Enter for a new line'}
 						</p>
 						<div class="ml-auto flex items-center gap-2">
 							{#if running}
 								<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
 									Stop
 								</Button>
+								<Button type="submit" name="mode" value="queue" icon="icon-[lucide--list-plus]">
+									Queue
+								</Button>
 							{/if}
 							<Button
 								type="submit"
-								variant={running ? 'secondary' : 'primary'}
-								icon={running ? 'icon-[lucide--list-plus]' : 'icon-[lucide--arrow-up]'}
-								label={running ? 'Queue' : 'Send'}
+								name="mode"
+								value="steer"
+								variant="primary"
+								icon={running ? 'icon-[lucide--corner-down-right]' : 'icon-[lucide--arrow-up]'}
+								label={running ? 'Steer: interrupt the agent with this' : 'Send'}
 							/>
 						</div>
 					{/snippet}

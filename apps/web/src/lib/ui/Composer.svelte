@@ -14,6 +14,8 @@
 		field?: HTMLTextareaAttributes;
 		value?: string;
 		disabled?: boolean;
+		/** Replaces what keys do in the text. By default, Enter submits. */
+		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
 		/** What is wrong with the input, if anything. */
 		problems?: string[];
 		/** Fields above the text (and hidden inputs). */
@@ -29,6 +31,7 @@
 		field,
 		value = $bindable(''),
 		disabled = false,
+		onkeydown = submitOnEnter,
 		problems = [],
 		header,
 		footer
@@ -49,7 +52,9 @@
 		get 'aria-label'() {
 			return label ? undefined : placeholder;
 		},
-		onkeydown: submitOnEnter,
+		get onkeydown() {
+			return onkeydown;
+		},
 		class:
 			'block w-full resize-none bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
 	};
