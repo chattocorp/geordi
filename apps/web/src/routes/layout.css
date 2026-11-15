@@ -2,6 +2,17 @@
 @import '@fontsource-variable/ibm-plex-sans';
 @import '@fontsource-variable/jetbrains-mono';
 
+/*
+ * The icons that shell prompts and terminal programs draw (Nerd Fonts, v3.5.1, symbols
+ * only). Not on Fontsource, so the file is in the repository. Only loaded where a terminal
+ * shows such a glyph.
+ */
+@font-face {
+	font-family: 'Symbols Nerd Font Mono';
+	src: url('../lib/fonts/SymbolsNerdFontMono-Regular.ttf') format('truetype');
+	font-display: swap;
+}
+
 @plugin '@tailwindcss/typography';
 @plugin '@iconify/tailwind4';
 
@@ -76,6 +87,8 @@
 	--font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 	/* No ligatures: code should show the characters that are there (`!=`, not `≠`). */
 	--font-mono--font-feature-settings: 'liga' 0, 'calt' 0;
+	/* For terminals: the code typeface, with icons for what it lacks. */
+	--font-terminal: 'JetBrains Mono Variable', 'Symbols Nerd Font Mono', ui-monospace, monospace;
 
 	--text-xs: 0.8125rem;
 	--text-xs--line-height: 1.5;

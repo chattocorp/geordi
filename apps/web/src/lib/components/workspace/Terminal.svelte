@@ -38,8 +38,8 @@
 				if (disposed) return;
 
 				const term = new Terminal({
-					// the design system's code typeface; xterm wants it spelled out
-					fontFamily: getComputedStyle(node).getPropertyValue('--font-mono'),
+					// the design system's terminal typeface; xterm wants it spelled out
+					fontFamily: getComputedStyle(node).getPropertyValue('--font-terminal'),
 					fontSize: 13,
 					cursorBlink: true,
 					theme: theme()
