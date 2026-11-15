@@ -106,20 +106,31 @@ export class EventStore<E extends EventInput = EventInput> {
 	 *
 	 * `also` adds another reason to read again, for state that isn't in the log: it is given
 	 * a function to call whenever that state changes, and returns one that stops it calling.
+	 *
+	 * `signal` ends it: a generator waiting for the next change can't be interrupted from
+	 * outside, so without it everything held here (and by `also`) would stay held after the
+	 * reader has gone, until something happens to be appended.
 	 */
-	async *live<T>(read: () => T, also?: (changed: () => void) => () => void): AsyncGenerator<T> {
+	async *live<T>(
+		read: () => T,
+		also?: (changed: () => void) => () => void,
+		signal?: AbortSignal
+	): AsyncGenerator<T> {
 		let notify = () => {};
+		const gone = new Promise<void>((resolve) =>
+			signal?.addEventListener('abort', () => resolve(), { once: true })
+		);
 		const unsubscribe = this.subscribe(() => notify());
 		let unsubscribeAlso: (() => void) | undefined;
 
 		try {
 			// inside the `try`, so that a failure here still lets go of the store
 			unsubscribeAlso = also?.(() => notify());
-			while (true) {
+			while (!signal?.aborted) {
 				// Created before reading, so appends during or after the read are never missed.
 				const changed = new Promise<void>((resolve) => (notify = resolve));
 				yield read();
-				await changed;
+				await Promise.race([changed, gone]);
 			}
 		} finally {
 			unsubscribe();

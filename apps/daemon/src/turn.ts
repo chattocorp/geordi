@@ -39,7 +39,7 @@ export type Turn = {
 	done: Promise<void>;
 };
 
-type Meta = { agent: Agent; cmd: string; pid: number; started?: string };
+type Meta = { agent: Agent; turn?: number; cmd: string; pid: number; started?: string };
 
 /** How often a turn's files are looked at. */
 const POLL_MS = 100;
@@ -206,7 +206,8 @@ function follow(
  */
 export function runTurn(
 	adapter: AgentAdapter,
-	agent: Agent,
+	/** Which agent, and which of the workspace's turns this is. */
+	{ agent, turn }: { agent: Agent; turn?: number },
 	options: TurnOptions,
 	emit: (event: AgentEvent) => void,
 	dir: string,
@@ -252,7 +253,7 @@ export function runTurn(
 	}
 	child.unref();
 
-	const meta: Meta = { agent, cmd, pid, started: startedAt(pid) ?? undefined };
+	const meta: Meta = { agent, turn, cmd, pid, started: startedAt(pid) ?? undefined };
 	writeFileSync(join(dir, 'meta.json'), JSON.stringify(meta));
 	return follow(dir, adapter, emit, ready);
 }
@@ -264,7 +265,7 @@ export function runTurn(
 export async function resumeTurns(
 	turnsDir: string,
 	adapterFor: (agent: Agent) => Promise<AgentAdapter>,
-	emitFor: (workspaceId: string) => (event: AgentEvent) => void,
+	emitFor: (workspaceId: string, turn?: number) => (event: AgentEvent) => void,
 	ready: () => boolean = () => true
 ): Promise<Map<string, Turn>> {
 	const turns = new Map<string, Turn>();
@@ -278,8 +279,11 @@ export async function resumeTurns(
 	for (const workspaceId of readdirSync(turnsDir)) {
 		const dir = join(turnsDir, workspaceId);
 		try {
-			const { agent } = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')) as Meta;
-			turns.set(workspaceId, follow(dir, await adapterFor(agent), emitFor(workspaceId), ready));
+			const { agent, turn } = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')) as Meta;
+			turns.set(
+				workspaceId,
+				follow(dir, await adapterFor(agent), emitFor(workspaceId, turn), ready)
+			);
 		} catch {
 			rmSync(dir, { recursive: true, force: true }); // not a turn we can make sense of
 		}

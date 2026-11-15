@@ -54,8 +54,14 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 			if (existing) return { ...existing };
 
 			const name = basename(toplevel);
-			let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-			for (let n = 2; repos.has(id); n++) id = `${name}-${n}`;
+			// ends up in URLs and stream names: lower case, digits and dashes only
+			const slug =
+				name
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, '-')
+					.replace(/^-|-$/g, '') || 'repo';
+			let id = slug;
+			for (let n = 2; repos.has(id); n++) id = `${slug}-${n}`;
 
 			store.append(
 				{ type: 'repo.registered', stream: `repo:${id}`, data: { id, name, path: toplevel } },

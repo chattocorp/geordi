@@ -1,10 +1,10 @@
 import { query } from '$app/server';
-import { store } from '#lib/server/events/index.ts';
+import { live } from '#lib/server/events/index.ts';
 import { repos, workspaces } from '#lib/server/app.ts';
 
 /** Everything the sidebar and overview show: repositories, and all workspaces (newest first). */
 export const getNavigation = query.live(async function* () {
-	yield* store().live(() => {
+	yield* live(() => {
 		const all = workspaces().all();
 		return {
 			repos: repos()

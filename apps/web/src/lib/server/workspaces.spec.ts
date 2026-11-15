@@ -37,6 +37,7 @@ describe('workspaces', () => {
 				workspaceId: id,
 				worktreeId: id,
 				agent: 'claude',
+				turn: 1,
 				settings: {},
 				repoPath: repo.path,
 				apiToken: expect.any(String),
@@ -132,8 +133,10 @@ describe('workspaces', () => {
 		const id = create('One');
 		workspaces.send(id, 'Two');
 		workspaces.send(id, 'Three');
-		workspaces.dequeue(id, 0);
-		workspaces.dequeue(id, 7);
+		workspaces.dequeue(id, 0, 'Two');
+		workspaces.dequeue(id, 7, 'Nothing');
+		// the queue moved on since it was looked at: nothing is taken back, rather than the wrong one
+		workspaces.dequeue(id, 0, 'Two');
 		expect(workspaces.get(id).queue).toEqual(['Three']);
 
 		workspaces.record(id, { kind: 'turn.completed' });
@@ -222,6 +225,38 @@ describe('workspaces', () => {
 			[alive, 'running'],
 			[lost, 'idle']
 		]);
+	});
+
+	it('stops turns a reconnecting daemon still runs but that were given up here', () => {
+		const { workspaces, sent, create } = setup({ connected: false });
+		const id = create('One'); // fails at once: no daemon
+		expect(workspaces.get(id).status).toBe('idle');
+
+		workspaces.reconcile([id]);
+		expect(sent.at(-1)).toEqual({ type: 'turn.stop', workspaceId: id });
+	});
+
+	it('takes the end of a turn only once, and only from the turn it is', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		workspaces.send(id, 'Two');
+		workspaces.send(id, 'Three');
+		const starts = () => sent.filter((message) => message.type === 'turn.start').length;
+
+		// said twice, as a daemon that was killed mid-report does
+		workspaces.record(id, { kind: 'turn.completed' }, 1);
+		workspaces.record(id, { kind: 'turn.completed' }, 1);
+		expect(starts()).toBe(2);
+		expect(workspaces.get(id).queue).toEqual(['Three']);
+
+		// the end, and the output, of a turn that is not the current one any more
+		workspaces.record(id, { kind: 'text', text: 'late' }, 1);
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' }, 1);
+		expect(workspaces.get(id).status).toBe('running');
+		expect(JSON.stringify(workspaces.get(id).transcript)).not.toContain('late');
+
+		workspaces.record(id, { kind: 'turn.completed' }, 2);
+		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', turn: 3, prompt: 'Three' });
 	});
 
 	it('lists workspaces per repository without their transcripts', () => {

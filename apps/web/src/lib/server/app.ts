@@ -97,7 +97,7 @@ export const hub = lazy(() =>
 		},
 		onMessage: (message) => {
 			if (message.type === 'workspace.event')
-				workspaces().record(message.workspaceId, message.event);
+				workspaces().record(message.workspaceId, message.event, message.turn);
 			else if (message.type === 'terminal.output')
 				terminals().output(message.terminalId, message.data, message.offset);
 			else if (message.type === 'terminal.exit') terminals().exit(message.terminalId);

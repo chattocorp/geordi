@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -180,6 +180,8 @@ export type ForgeMessage =
 			type: 'turn.start';
 			workspaceId: string;
 			agent: Agent;
+			/** Which of the workspace's turns this is, counting from 1. Events say which turn they are of. */
+			turn: number;
 			settings: AgentSettings;
 			/** Lets the agent call Geordi's agent API (ADR-004) as this workspace, for this turn. */
 			apiToken: string;
@@ -218,7 +220,8 @@ export type DaemonMessage =
 			/** The models and effort levels this daemon's agent CLIs offer. */
 			harnesses: Harness[];
 	  }
-	| { type: 'workspace.event'; workspaceId: string; event: AgentEvent }
+	/** `turn` is the turn the event is of; absent for turns from before they were numbered. */
+	| { type: 'workspace.event'; workspaceId: string; turn?: number; event: AgentEvent }
 	/** Answers a `request`, with either a result (see `DaemonResults`) or an error. */
 	| { type: 'response'; id: string; result?: unknown; error?: string }
 	/** `offset` counts the characters this terminal's shell had put out before `data`. */

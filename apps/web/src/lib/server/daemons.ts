@@ -114,6 +114,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			if (message.type === 'response') pending.get(message.id)?.(message);
 			else if (message.type !== 'workspace.event' || assigned.get(message.workspaceId) === daemonId)
 				handlers.onMessage(message);
+			// never silently: an agent working where nobody sees it is the worst that can happen
+			else
+				console.warn(
+					`[daemons] dropped ${message.event.kind} from ${daemonId} for workspace ${message.workspaceId}, which it was not given`
+				);
 		});
 
 		socket.on('close', () => {

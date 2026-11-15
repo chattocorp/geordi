@@ -10,6 +10,9 @@ export type WorktreeState = {
 	upstream: Upstream | null;
 };
 
+/** A worktree's state, and which look at it this is: it changes whenever the files may have. */
+export type WatchedState = WorktreeState & { version: number };
+
 /** How often what happens on upstream forges (checks, reviews) is asked for again. */
 const UPSTREAM_INTERVAL_MS = 60_000;
 
@@ -25,7 +28,7 @@ export function createWatchers(
 	/** Asks a daemon for a worktree's state. Never rejects. */
 	load: (worktreeId: string) => Promise<WorktreeState>
 ) {
-	type Watched = { viewers: Set<() => void>; state: WorktreeState | null; loads: number };
+	type Watched = { viewers: Set<() => void>; state: WatchedState | null; loads: number };
 	const watched = new Map<string, Watched>();
 
 	/**
@@ -50,7 +53,7 @@ export function createWatchers(
 		const load_ = ++entry.loads;
 		load(worktreeId).then((state) => {
 			if (watched.get(worktreeId) !== entry || entry.loads !== load_) return;
-			entry.state = state;
+			entry.state = { ...state, version: load_ };
 			for (const viewer of entry.viewers) viewer();
 		});
 	}
@@ -90,7 +93,7 @@ export function createWatchers(
 		},
 
 		/** The worktree's state as last loaded; `null` if nobody is looking, or not loaded yet. */
-		state: (worktreeId: string): WorktreeState | null => watched.get(worktreeId)?.state ?? null,
+		state: (worktreeId: string): WatchedState | null => watched.get(worktreeId)?.state ?? null,
 
 		/** A daemon reports that a worktree's files or Git state changed. */
 		changed: refresh,

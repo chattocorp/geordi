@@ -68,6 +68,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     branch. There are no sessions: a second agent is a second workspace, which may work in
     another's worktree (`worktreeId`). The daemon derives a worktree from that ID
     (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
+  - Turns are numbered. A daemon says which turn its events are of, and the forge drops
+    what is not of the workspace's current turn: a daemon may report late, or twice.
   - A message to a working agent either steers it (`workspace.steered`: the turn is stopped
     and the message sent at once) or queues (`workspace.queued`: sent when the turn ends).
   - Workspaces get their titles from the daemon (`titles.ts`), which asks a small model on

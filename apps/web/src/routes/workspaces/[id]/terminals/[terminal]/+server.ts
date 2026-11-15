@@ -1,3 +1,4 @@
+import { error } from '@sveltejs/kit';
 import { terminals } from '#lib/server/app.ts';
 import type { RequestHandler } from './$types';
 
@@ -7,6 +8,8 @@ import type { RequestHandler } from './$types';
  * a shell; starting, input and resizing go through remote functions.
  */
 export const GET: RequestHandler = ({ params }) => {
+	// the same names the remote functions accept
+	if (!/^[\w-]{1,40}$/.test(params.terminal)) error(404, 'No such terminal');
 	const encoder = new TextEncoder();
 	let detach = () => {};
 

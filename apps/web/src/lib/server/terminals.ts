@@ -51,6 +51,12 @@ export function createTerminals(
 		return terminal;
 	}
 
+	/** Lets go of a terminal that neither runs nor is looked at: there is nothing left to know. */
+	function forget(id: string) {
+		const terminal = terminals.get(id);
+		if (terminal && !terminal.running && terminal.viewers.size === 0) terminals.delete(id);
+	}
+
 	const emit = (terminal: Terminal, data: string, offset: number) => {
 		for (const viewer of terminal.viewers) viewer(data, offset);
 	};
@@ -122,7 +128,10 @@ export function createTerminals(
 						listener(notice('This terminal is not running. Press any key to start it.'), false);
 				});
 
-			return () => terminal.viewers.delete(viewer);
+			return () => {
+				terminal.viewers.delete(viewer);
+				forget(terminalId);
+			};
 		},
 
 		/** Passes input on. A key press in a terminal that isn't running starts it instead. */
@@ -134,16 +143,22 @@ export function createTerminals(
 
 		resize(at: TerminalRef, size: TerminalSize) {
 			const terminalId = idOf(at);
-			const terminal = get(terminalId);
+			// only terminals someone is looking at have a size to remember
+			const terminal = terminals.get(terminalId);
+			if (!terminal) return;
 			terminal.size = size;
 			if (terminal.running) dispatch({ type: 'terminal.resize', terminalId, ...size });
 		},
 
-		/** Ends the shell and forgets the terminal. */
+		/** Ends the shell. Whoever is still looking keeps looking, at a terminal that isn't running. */
 		close(at: TerminalRef) {
 			const terminalId = idOf(at);
-			if (terminals.get(terminalId)?.running) dispatch({ type: 'terminal.close', terminalId });
-			if (terminals.delete(terminalId)) changed();
+			const terminal = terminals.get(terminalId);
+			if (!terminal) return;
+			if (terminal.running) dispatch({ type: 'terminal.close', terminalId });
+			terminal.running = false;
+			forget(terminalId);
+			changed();
 		},
 
 		/** The names of a workspace's terminals whose shells are running. */
@@ -165,7 +180,8 @@ export function createTerminals(
 			for (const [terminalId, terminal] of terminals) {
 				if (!terminalId.startsWith(`${workspaceId}:`)) continue;
 				if (terminal.running) dispatch({ type: 'terminal.close', terminalId });
-				terminals.delete(terminalId);
+				terminal.running = false;
+				forget(terminalId);
 			}
 			changed();
 		},

@@ -220,8 +220,8 @@
 	{@const path = pathOf(tab)}
 	{@const terminal = terminalOf(tab)}
 	{#if path}
-		{@const file = git?.changes?.files.find((file) => file.path === path)}
-		<DiffWindow workspaceId={id} {path} version="{file?.added} {file?.removed}" />
+		<!-- loaded again whenever the worktree's files may have changed -->
+		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 	{:else if terminal}
 		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
 	{:else}
@@ -326,8 +326,10 @@
 
 	{#if archiveProblem}
 		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
-			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
-			<Button onclick={() => archive(true)}>Discard them and archive</Button>
+			<div class="min-w-0 flex-1"><Notice>{archiveProblem.message}</Notice></div>
+			{#if archiveProblem.discardable}
+				<Button onclick={() => archive(true)}>Discard them and archive</Button>
+			{/if}
 			<Button variant="ghost" onclick={() => delete archiveProblems[id]}>Cancel</Button>
 		</div>
 	{/if}

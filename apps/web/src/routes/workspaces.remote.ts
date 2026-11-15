@@ -2,7 +2,7 @@ import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
 import { AGENTS, type FileVersions, type Harness } from '@geordi/protocol';
-import { store } from '#lib/server/events/index.ts';
+import { live } from '#lib/server/events/index.ts';
 import {
 	archiveWorkspace as archive,
 	hub,
@@ -14,7 +14,7 @@ import {
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 
 export const getWorkspaces = query.live(v.string(), async function* (repoId) {
-	yield* store().live(() => workspaces().list(repoId));
+	yield* live(() => workspaces().list(repoId));
 });
 
 /**
@@ -27,7 +27,7 @@ export const getWorkspaces = query.live(v.string(), async function* (repoId) {
  * `terminals` names the workspace's terminals whose shells are running.
  */
 export const getWorkspace = query.live(v.string(), async function* (id) {
-	yield* store().live(
+	yield* live(
 		() => {
 			const workspace = workspaces().get(id);
 			const parent = workspace.parentId ? workspaces().summary(workspace.parentId) : null;
@@ -55,7 +55,7 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
  * are there the moment one is.
  */
 export const getHarnesses = query.live(async function* () {
-	yield* store().live(
+	yield* live(
 		(): Harness[] | null => hub().harnesses(),
 		(changed) => hub().subscribe(changed)
 	);
@@ -123,8 +123,13 @@ export const mergePull = command(v.string(), async (workspaceId) => {
 
 /** Takes back a message that is waiting for the agent to finish its turn. */
 export const removeQueued = command(
-	v.object({ workspaceId: v.string(), index: v.pipe(v.number(), v.integer(), v.minValue(0)) }),
-	({ workspaceId, index }) => workspaces().dequeue(workspaceId, index)
+	v.object({
+		workspaceId: v.string(),
+		index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+		/** The message that is meant, in case the queue has moved on. */
+		text: v.string()
+	}),
+	({ workspaceId, index, text }) => workspaces().dequeue(workspaceId, index, text)
 );
 
 /** Stops the workspace's agent, if it is working. */

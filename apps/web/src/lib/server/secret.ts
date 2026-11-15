@@ -12,5 +12,9 @@ export function loadSecret(path: string): string {
 		mkdirSync(dirname(path), { recursive: true });
 		writeFileSync(path, randomBytes(32).toString('base64url'), { mode: 0o600, flag: 'wx' });
 	}
-	return readFileSync(path, 'utf8').trim();
+	const secret = readFileSync(path, 'utf8').trim();
+	// An empty key would sign anything for anyone: better not to start than to start like that.
+	if (secret.length < 32)
+		throw new Error(`${path} does not hold a secret. Delete it to have a new one made.`);
+	return secret;
 }

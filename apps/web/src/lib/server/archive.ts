@@ -16,9 +16,12 @@ type Parts = {
  * has its shells ended, its worktree removed (unless a workspace that stays still works in
  * it) and is taken out of the lists. Branches and conversations stay.
  *
- * Nothing is archived while any of them is still working. A worktree with uncommitted or
- * untracked files stops the archiving there, unless `discard` is set; what was archived
- * before stays archived, and trying again carries on.
+ * Nothing is archived while any of them is still working, and none of them can be given
+ * anything to do while it goes on: removing a worktree means waiting for a daemon, and an
+ * agent must not start in a directory that is on its way out. A worktree with uncommitted
+ * or untracked files stops the archiving there (422), unless `discard` is set; what was
+ * archived before stays archived, and trying again carries on. Shells are only ended once
+ * the worktree is gone: a refusal costs nobody their terminals.
  */
 export function createArchiver({ workspaces, closeTerminals, removeWorktree }: Parts) {
 	return async function archive(id: string, discard: boolean, actor: string | null = null) {
@@ -28,18 +31,23 @@ export function createArchiver({ workspaces, closeTerminals, removeWorktree }: P
 		const busy = family.find((workspace) => workspace.status === 'running');
 		if (busy) error(409, `Stop the agent in “${busy.title}” before archiving`);
 
-		for (const workspace of family) {
-			if (workspace.archivedAt) continue;
-			closeTerminals(workspace.id);
-			if (workspace.worktree && !workspaces.worktreeInUse(workspace.id)) {
-				try {
-					await removeWorktree(workspaces.ref(workspace.id), discard);
-				} catch (problem) {
-					const reason = problem instanceof Error ? problem.message : String(problem);
-					error(409, workspace.id === id ? reason : `“${workspace.title}”: ${reason}`);
+		const release = workspaces.hold(family.map((workspace) => workspace.id));
+		try {
+			for (const workspace of family) {
+				if (workspace.archivedAt) continue;
+				if (workspace.worktree && !workspaces.worktreeInUse(workspace.id)) {
+					try {
+						await removeWorktree(workspaces.ref(workspace.id), discard);
+					} catch (problem) {
+						const reason = problem instanceof Error ? problem.message : String(problem);
+						error(422, workspace.id === id ? reason : `“${workspace.title}”: ${reason}`);
+					}
 				}
+				closeTerminals(workspace.id);
+				workspaces.archive(workspace.id, actor);
 			}
-			workspaces.archive(workspace.id, actor);
+		} finally {
+			release();
 		}
 	};
 }

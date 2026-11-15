@@ -6,10 +6,10 @@
 		workspaceId: string;
 		path: string;
 		/**
-		 * Something that is different whenever the file has changed (its line counts, say):
-		 * the cue to load it again.
+		 * Something that is different whenever the file may have changed: the cue to load it
+		 * again.
 		 */
-		version: string;
+		version: string | number;
 	};
 	let { workspaceId, path, version }: Props = $props();
 

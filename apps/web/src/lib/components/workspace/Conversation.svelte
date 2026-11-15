@@ -92,7 +92,7 @@
 						size="sm"
 						icon="icon-[lucide--x]"
 						label="Don't send this"
-						onclick={() => removeQueued({ workspaceId: workspace.id, index })}
+						onclick={() => removeQueued({ workspaceId: workspace.id, index, text })}
 						class="mt-1.5"
 					/>
 					<div class="message ring-1 ring-line">

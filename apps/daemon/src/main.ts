@@ -84,8 +84,8 @@ function send(message: DaemonMessage) {
 }
 
 /** Reports what a workspace's agent does. Queued while there is no forge to tell. */
-const emitFor = (workspaceId: string) => (event: AgentEvent) =>
-	send({ type: 'workspace.event', workspaceId, event });
+const emitFor = (workspaceId: string, turn?: number) => (event: AgentEvent) =>
+	send({ type: 'workspace.event', workspaceId, turn, event });
 
 /** The turns running right now, by workspace: ones we started, and ones we found running. */
 /**
@@ -217,7 +217,7 @@ async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'turn.start': {
 			const { workspaceId, worktreeId, agent, repoPath, base, resumeId, prompt } = message;
-			const emit = emitFor(workspaceId);
+			const emit = emitFor(workspaceId, message.turn);
 
 			// The forge only starts a turn when it knows of none. If we still have one (the forge
 			// gave up on it while we were apart, say), it has to go first: two agents must never
@@ -250,7 +250,7 @@ async function handle(message: ForgeMessage) {
 				const adapter = await adapterFor(agent);
 				const turn = runTurn(
 					adapter,
-					agent,
+					{ agent, turn: message.turn },
 					{
 						sessionId: workspaceId,
 						prompt,

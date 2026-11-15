@@ -97,4 +97,33 @@ describe('archiving', () => {
 		await archive(lead, true);
 		expect(workspaces.list(repo.id)).toEqual([]);
 	});
+
+	it('leaves the shells alone when it is refused', async () => {
+		const { archive, dirty, closed, lead } = setup();
+		dirty.add(lead);
+		await expect(archive(lead, false)).rejects.toMatchObject({ status: 422 });
+		expect(closed).toEqual([]);
+	});
+
+	it('lets nothing start in a workspace while its worktree is being removed', async () => {
+		const { workspaces, lead } = setup();
+		let sending: unknown;
+		const archive = createArchiver({
+			workspaces,
+			closeTerminals: () => {},
+			// while the daemon is at it, someone says something
+			removeWorktree: async () => {
+				try {
+					workspaces.send(lead, 'One more thing');
+				} catch (refused) {
+					sending = refused;
+				}
+			}
+		});
+
+		await archive(lead, false);
+		expect(sending).toEqual(refusal(/being archived/));
+		expect(workspaces.get(lead)).toMatchObject({ status: 'idle', queue: [] });
+		expect(workspaces.get(lead).archivedAt).not.toBeNull();
+	});
 });

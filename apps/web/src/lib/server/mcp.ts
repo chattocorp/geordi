@@ -134,6 +134,9 @@ async function callTool(agents: Agents, caller: string, params: unknown) {
  * for notifications, which get no answer.
  */
 export async function handleMcp(agents: Agents, caller: string, message: Request) {
+	// one request object at a time: no batches, nothing else
+	if (typeof message !== 'object' || message === null || Array.isArray(message))
+		return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
 	const { id, method, params } = message;
 	if (id === undefined) return null;
 

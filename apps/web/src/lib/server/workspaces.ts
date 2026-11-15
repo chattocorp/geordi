@@ -293,10 +293,18 @@ export function createWorkspaces(
 	 * Records daemon output for a workspace. Unknown workspaces are ignored. When a turn
 	 * completes, the next waiting message goes out. After a failed or stopped turn, waiting
 	 * messages stay put: sending more into a conversation that just broke would be a guess.
+	 *
+	 * `turn` says which turn the output is of. Output of a turn that is no longer the
+	 * workspace's current one is dropped, and so is the end of a turn that has ended already:
+	 * a daemon may say things twice, or late (after we gave a turn up while it was away), and
+	 * the end of an old turn must never end the new one.
 	 */
-	function record(id: string, event: AgentEvent) {
+	function record(id: string, event: AgentEvent, turn?: number) {
 		const workspace = projection.get().get(id);
 		if (!workspace) return;
+		if (turn !== undefined && turn !== turnsOf(workspace)) return;
+		const ends = event.kind === 'turn.completed' || event.kind === 'turn.failed';
+		if (ends && workspace.status !== 'running') return;
 		store.append({ type: 'workspace.output', stream: `workspace:${id}`, data: { id, event } });
 		if (event.kind !== 'turn.completed' && event.kind !== 'turn.failed') return;
 
@@ -332,6 +340,9 @@ export function createWorkspaces(
 			: null;
 	}
 
+	/** Workspaces that must not start a turn right now; see `hold`. */
+	const held = new Set<string>();
+
 	/** Appends a message to the workspace's agent and asks a daemon to run the turn. */
 	function startTurn(
 		workspace: Workspace,
@@ -354,6 +365,7 @@ export function createWorkspaces(
 			workspaceId: id,
 			...ref(id),
 			agent: workspace.agent,
+			turn: turnsOf(find(id)),
 			settings: workspace.settings,
 			apiToken: tokenFor(workspace),
 			resumeId: workspace.resumeId,
@@ -562,6 +574,7 @@ export function createWorkspaces(
 		send(id: string, text: string, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (held.has(id)) error(409, 'This workspace is being archived');
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
 				return startTurn(workspace, text, actor);
 			store.append(
@@ -579,6 +592,8 @@ export function createWorkspaces(
 		steer(id: string, text: string, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (held.has(id)) error(409, 'This workspace is being archived');
+
 			if (workspace.status === 'idle') return startTurn(workspace, text, actor);
 			store.append(
 				{ type: 'workspace.steered', stream: `workspace:${id}`, data: { id, text } },
@@ -587,13 +602,27 @@ export function createWorkspaces(
 			stop(id);
 		},
 
-		/** Takes back a waiting message, by its place in the queue. */
-		dequeue(id: string, index: number, actor: string | null = null) {
-			if (!(index in find(id).queue)) return;
+		/**
+		 * Takes back a waiting message, by its place in the queue. `text` is the message that
+		 * was meant: the queue may have moved on since it was looked at, and then nothing is
+		 * taken back rather than the wrong message.
+		 */
+		dequeue(id: string, index: number, text: string, actor: string | null = null) {
+			if (find(id).queue[index] !== text) return;
 			store.append(
 				{ type: 'workspace.dequeued', stream: `workspace:${id}`, data: { id, index } },
 				{ actor }
 			);
+		},
+
+		/**
+		 * Keeps workspaces from being given anything to do while something that takes time
+		 * is done to them (archiving, which waits for a daemon). Returns a function that ends
+		 * it. Not in the event log: it lasts no longer than the request that asked for it.
+		 */
+		hold(ids: string[]): () => void {
+			for (const id of ids) held.add(id);
+			return () => ids.forEach((id) => held.delete(id));
 		},
 
 		stop,
@@ -642,9 +671,13 @@ export function createWorkspaces(
 		/**
 		 * Called when a daemon (re)connects with the workspaces whose turns it is actually
 		 * running. Turns we think are running but the daemon doesn't know about were lost
-		 * (e.g. daemon restart).
+		 * (e.g. daemon restart). Turns it runs that we have given up (stopped while it was
+		 * away, say) are stopped now: no agent works on unseen.
 		 */
 		reconcile(running: string[]) {
+			for (const id of running)
+				if (projection.get().get(id)?.status !== 'running')
+					dispatch({ type: 'turn.stop', workspaceId: id });
 			for (const workspace of projection.get().values())
 				if (workspace.status === 'running' && !running.includes(workspace.id))
 					record(workspace.id, {

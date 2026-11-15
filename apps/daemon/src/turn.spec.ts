@@ -28,7 +28,8 @@ const say = (event: AgentEvent) => `console.log(JSON.stringify(${JSON.stringify(
 
 async function collect(adapter: AgentAdapter) {
 	const events: AgentEvent[] = [];
-	await runTurn(adapter, 'claude', options, (e) => events.push(e), join(turnsDir(), 'w')).done;
+	await runTurn(adapter, { agent: 'claude' }, options, (e) => events.push(e), join(turnsDir(), 'w'))
+		.done;
 	return events;
 }
 
@@ -96,7 +97,7 @@ describe('runTurn', () => {
 		const dir = join(turnsDir(), 'w');
 		const turn = runTurn(
 			fake('setTimeout(() => {}, 10000)'),
-			'claude',
+			{ agent: 'claude' },
 			options,
 			(e) => events.push(e),
 			dir
@@ -133,7 +134,13 @@ describe('a turn that misbehaves', () => {
 			setTimeout(() => {}, 10000);
 		`);
 		const events: AgentEvent[] = [];
-		const turn = runTurn(slow, 'claude', options, (e) => events.push(e), join(turnsDir(), 'w'));
+		const turn = runTurn(
+			slow,
+			{ agent: 'claude' },
+			options,
+			(e) => events.push(e),
+			join(turnsDir(), 'w')
+		);
 		await new Promise((resolve) => setTimeout(resolve, 300)); // let it install its handler
 		const stopped = Date.now();
 		turn.stop();
@@ -145,7 +152,9 @@ describe('a turn that misbehaves', () => {
 	it('fails cleanly when the agent cannot be started at all', () => {
 		const dir = join(turnsDir(), 'w');
 		const nowhere = { ...options, cwd: '/no/such/directory' };
-		expect(() => runTurn(fake(''), 'claude', nowhere, () => {}, dir)).toThrow(/Failed to start/);
+		expect(() => runTurn(fake(''), { agent: 'claude' }, nowhere, () => {}, dir)).toThrow(
+			/Failed to start/
+		);
 		expect(existsSync(dir)).toBe(false);
 	});
 });
@@ -157,7 +166,7 @@ describe('with nobody to report to', () => {
 		const unheard: AgentEvent[] = [];
 		const turn = runTurn(
 			quick,
-			'claude',
+			{ agent: 'claude' },
 			options,
 			(e) => unheard.push(e),
 			join(dir, 'w'),
@@ -216,7 +225,7 @@ describe('a daemon restart', () => {
 	it('leaves the agent working, and the next daemon carries on where the last one left off', async () => {
 		const dir = turnsDir();
 		const before: AgentEvent[] = [];
-		const turn = runTurn(slow, 'claude', options, (e) => before.push(e), join(dir, 'w'));
+		const turn = runTurn(slow, { agent: 'claude' }, options, (e) => before.push(e), join(dir, 'w'));
 		await wait(400);
 		turn.detach(); // the daemon goes away
 		expect(before).toEqual([{ kind: 'text', text: 'one' }]);
@@ -232,7 +241,7 @@ describe('a daemon restart', () => {
 
 	it('reports a turn that ended while no daemon was there to see it', async () => {
 		const dir = turnsDir();
-		runTurn(slow, 'claude', options, () => {}, join(dir, 'w')).detach();
+		runTurn(slow, { agent: 'claude' }, options, () => {}, join(dir, 'w')).detach();
 		await wait(1300);
 
 		const after: AgentEvent[] = [];
@@ -249,7 +258,7 @@ describe('a daemon restart', () => {
 		const dir = turnsDir();
 		runTurn(
 			fake('setTimeout(() => {}, 10000)'),
-			'claude',
+			{ agent: 'claude' },
 			options,
 			() => {},
 			join(dir, 'w')

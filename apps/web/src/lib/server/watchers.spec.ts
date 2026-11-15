@@ -62,7 +62,7 @@ describe('watchers', () => {
 
 		await settled();
 		expect(daemon.asked).toEqual(['a', 'b']);
-		expect(watchers.state('a')).toEqual(stateWith(0));
+		expect(watchers.state('a')).toMatchObject(stateWith(0));
 		expect(seen).toEqual(['a1', 'a2', 'b']);
 
 		daemon.uncommitted = 2;
@@ -70,8 +70,10 @@ describe('watchers', () => {
 		watchers.changed('unknown');
 		await settled();
 		expect(daemon.asked).toEqual(['a', 'b', 'a']);
-		expect(watchers.state('a')).toEqual(stateWith(2));
-		expect(watchers.state('b')).toEqual(stateWith(0));
+		expect(watchers.state('a')).toMatchObject(stateWith(2));
+		expect(watchers.state('b')).toMatchObject(stateWith(0));
+		// each look at a worktree is told apart from the one before, as the cue to load diffs again
+		expect(watchers.state('a')!.version).toBeGreaterThan(watchers.state('b')!.version);
 		expect(seen).toEqual(['a1', 'a2', 'b', 'a1', 'a2']);
 	});
 

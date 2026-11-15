@@ -132,4 +132,21 @@ describe('EventStore', () => {
 		await expect(live.next()).rejects.toThrow('no such thing');
 		expect(subscribed).toBe(0);
 	});
+
+	it('ends, and lets go of everything, when its signal says the reader has gone', async () => {
+		const store = new EventStore<TestEvent>(':memory:');
+		const gone = new AbortController();
+		let listening = true;
+		const live = store.live(
+			() => 1,
+			() => () => (listening = false),
+			gone.signal
+		);
+
+		await live.next();
+		const waiting = live.next(); // waits for a change that never comes
+		gone.abort();
+		expect((await waiting).done).toBe(true);
+		expect(listening).toBe(false);
+	});
 });
