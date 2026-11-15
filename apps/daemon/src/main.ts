@@ -21,6 +21,7 @@ import {
 	writeTerminal
 } from './terminals.ts';
 import { removeWorktree } from './remove.ts';
+import { titleFor } from './titles.ts';
 import { runTurn, type Turn } from './turn.ts';
 import { upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
@@ -145,6 +146,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 
 async function answer(request: DaemonRequest) {
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
+	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'removeWorktree') {
 		removeWorktree(worktreesDir, request.repoPath, request.worktreeId, request.force);
 		return null;

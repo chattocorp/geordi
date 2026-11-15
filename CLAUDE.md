@@ -68,7 +68,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     branch. There are no sessions: a second agent is a second workspace, which may work in
     another's worktree (`worktreeId`). The daemon derives a worktree from that ID
     (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
-  - Messages to a working agent queue (`workspace.queued`) and go out when its turn ends.
+  - A message to a working agent either steers it (`workspace.steered`: the turn is stopped
+    and the message sent at once) or queues (`workspace.queued`: sent when the turn ends).
+  - Workspaces get their titles from the daemon (`titles.ts`), which asks a small model on
+    OpenRouter through the Pi SDK (`OPENROUTER_API_KEY`).
   - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
     tested); most just `say` something to the agent.
   - Agents run without permission prompts by default (they must commit, push and use `gh`).
@@ -91,9 +94,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   adding an entry to `tools` in `mcp.ts`.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
-  learns when to ask again by push, never by polling: the daemon watches the workspaces
-  someone has open (`watch.ts`, `watchers.ts`) and the workspace live query carries a
-  `filesRevision` that changes with them. Also,
+  learns when to ask again by push, never by polling: the daemon watches the worktrees
+  someone has open (`watch.ts`), the forge then loads their state once for everyone
+  (`watchers.ts`) and sends it with the workspace live query (`git`). Browsers don't query
+  for it. Also,
   terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers read it as
   server-sent events, since `query.live` drops intermediate values). Shells and scrollback
   live in the daemon (`apps/daemon/src/terminals.ts`).
@@ -127,8 +131,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     `<Story name="…" asChild>` to render your own markup). `pnpm test` renders every story
     in a browser. Add or update stories with every UI change.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
-  the primary action and things that are live; the `.visor` sweep is the only ambient
-  motion. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
+  the primary action and things that are live. The only ambient motion is for agents at
+  work: the `.visor` sweep and the Braille `Spinner`. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and IBM Plex Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output).
 - **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed: main

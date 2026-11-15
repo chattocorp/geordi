@@ -141,14 +141,12 @@
 								<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
 									Stop
 								</Button>
-								<Button type="submit" name="mode" value="queue" icon="icon-[lucide--list-plus]">
+								<Button {...form.fields.mode.as('submit', 'queue')} icon="icon-[lucide--list-plus]">
 									Queue
 								</Button>
 							{/if}
 							<Button
-								type="submit"
-								name="mode"
-								value="steer"
+								{...form.fields.mode.as('submit', 'steer')}
 								variant="primary"
 								icon={running ? 'icon-[lucide--corner-down-right]' : 'icon-[lucide--arrow-up]'}
 								label={running ? 'Steer: interrupt the agent with this' : 'Send'}

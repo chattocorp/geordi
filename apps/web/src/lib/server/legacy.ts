@@ -113,6 +113,7 @@ export function createUpcaster() {
 			case 'workspace.output':
 			case 'workspace.queued':
 			case 'workspace.dequeued':
+			case 'workspace.titled':
 			case 'workspace.steered':
 			case 'workspace.archived':
 				return [event as CurrentEvent];

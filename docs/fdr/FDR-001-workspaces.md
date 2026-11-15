@@ -9,9 +9,11 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ## Behavior
 
-- A workspace is started with a first prompt, an agent and a repository: from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch, and is named after the first line of that prompt.
+- A workspace is started with a first prompt, an agent and a repository: from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch. It is named after the first line of that prompt at first, and a moment later gets a short title that says what the work is about, if the daemon can ask a model for one.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
-- A message sent while the agent is working waits and goes out when the agent has finished its turn. Waiting messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something, and then go first.
+- While the agent is working, Enter steers it: the agent is interrupted, and the message is the next thing it reads. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
+- The workspace's ID is shown in its header; a click copies it.
+- Cmd/Ctrl+B hides and shows the navigation on the left, and with Alt/Option the changes and dock on the right. Both also have a button, and the navigation's edge can be dragged to resize it.
 - A workspace has a fixed frame: the main area, and beside it the changes above the dock. The lines between them can be dragged to resize, and that is all that can be changed about the frame.
 - The main area holds the conversation, which is always there and stays there. Diffs open next to it as further windows.
 - The dock holds terminals. It starts empty.
@@ -39,11 +41,11 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 **Why:** It keeps the flow from "I have a task" to "an agent is on it" to one step, and gives the workspace a name without asking for one.
 **Tradeoff:** There are no empty workspaces for purely manual work.
 
-### 3. Messages queue instead of being refused
+### 3. A working agent can be steered or queued for, never refused
 
-**Decision:** A message to a working agent waits its turn; it does not interrupt and is not rejected.
-**Why:** People think of the next thing while the agent works, and the workspace's actions (FDR-003) must be usable at any time.
-**Tradeoff:** A queued message is written without knowing how the current turn ends. That is why the queue stops after a failed turn rather than pressing on.
+**Decision:** A message to a working agent either interrupts it (steering, the default) or waits its turn (queueing). Steering stops the agent's turn and starts a new one with the message; the agent keeps its conversation.
+**Why:** People see an agent go wrong and want to correct it now, or think of the next thing and want it done after. The workspace's actions (FDR-003) queue, so they can be used at any time.
+**Tradeoff:** Steering cuts off whatever the agent was in the middle of, which can leave a half-made change behind. A queued message is written without knowing how the current turn ends, which is why the queue stops after a failed turn rather than pressing on.
 
 ### 4. Changes are measured against the fork point
 

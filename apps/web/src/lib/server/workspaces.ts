@@ -38,6 +38,8 @@ export type WorkspacesEvent =
 	| { type: 'workspace.steered'; stream: WorkspaceStream; data: { id: string; text: string } }
 	/** A message to send once the agent has finished what it is doing. */
 	| { type: 'workspace.queued'; stream: WorkspaceStream; data: { id: string; text: string } }
+	/** The workspace got a better name than the first line of its first message. */
+	| { type: 'workspace.titled'; stream: WorkspaceStream; data: { id: string; title: string } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
@@ -133,11 +135,14 @@ export function createWorkspaces(
 	dispatch: Dispatch,
 	{
 		limits = { depth: 3, children: 5 },
-		secret = randomBytes(32).toString('base64url')
+		secret = randomBytes(32).toString('base64url'),
+		onCreated
 	}: {
 		limits?: Limits;
 		/** Signs agent API tokens. Must be the same after a restart, or running agents lose access. */
 		secret?: string;
+		/** Called with every new workspace and the message that started it, e.g. to name it. */
+		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
 	function apply(workspaces: Map<string, Workspace>, event: CurrentEvent, at: string) {
@@ -166,6 +171,10 @@ export function createWorkspaces(
 		workspace.updatedAt = at;
 		const { transcript } = workspace;
 
+		if (event.type === 'workspace.titled') {
+			workspace.title = event.data.title;
+			return;
+		}
 		if (event.type === 'workspace.archived') {
 			workspace.archivedAt = at;
 			workspace.queue = [];
@@ -350,6 +359,7 @@ export function createWorkspaces(
 			{ actor }
 		);
 		startTurn(find(id), prompt, actor);
+		onCreated?.(id, prompt);
 		return id;
 	}
 
@@ -554,6 +564,24 @@ export function createWorkspaces(
 			const { worktreeId } = find(id);
 			return [...projection.get().values()].some(
 				(other) => other.id !== id && other.worktreeId === worktreeId && !other.archivedAt
+			);
+		},
+
+		/**
+		 * Gives the workspace a new title. Whatever is passed is cut down to one modest line;
+		 * if nothing is left of it, the title stays.
+		 */
+		retitle(id: string, title: string, actor: string | null = null) {
+			const clean = title
+				.split('\n')[0]
+				.trim()
+				.replace(/^["'“‘]+|["'”’.]+$/g, '')
+				.slice(0, 80)
+				.trim();
+			if (!clean || clean === find(id).title) return;
+			store.append(
+				{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: clean } },
+				{ actor }
 			);
 		},
 

@@ -204,6 +204,36 @@ describe('workspaces', () => {
 	});
 });
 
+describe('titles', () => {
+	it('names a workspace after the first line of its first message, until told better', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('fix the login test\nit times out on CI');
+		expect(workspaces.get(id).title).toBe('fix the login test');
+
+		workspaces.retitle(id, '  "Fix flaky login test."\nand some more');
+		expect(workspaces.get(id).title).toBe('Fix flaky login test');
+		workspaces.retitle(id, '   ');
+		workspaces.retitle(id, 'x'.repeat(200));
+		expect(workspaces.get(id).title).toHaveLength(80);
+		expect(createWorkspaces(store, repos, dispatch).get(id).title).toHaveLength(80);
+	});
+
+	it('announces new workspaces, including ones agents start, with what started them', () => {
+		const { store, repos, repo, dispatch } = setup();
+		const created: [string, string][] = [];
+		const workspaces = createWorkspaces(store, repos, dispatch, {
+			onCreated: (id, prompt) => created.push([id, prompt])
+		});
+		const lead = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
+		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Build the thing' });
+		expect(created).toEqual([
+			[lead, 'Lead'],
+			[child.id, 'Build the thing']
+		]);
+	});
+});
+
 describe('archiving', () => {
 	it('takes a workspace out of the lists and keeps its conversation', () => {
 		const { store, repos, workspaces, repo, create, dispatch } = setup();

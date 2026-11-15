@@ -121,14 +121,12 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 		/** Asks a daemon a question about a workspace. Rejects if none answers in time. */
 		request<K extends DaemonRequest['kind']>(
-			request: Extract<DaemonRequest, { kind: K }>
+			request: Extract<DaemonRequest, { kind: K }>,
+			timeoutMs = REQUEST_TIMEOUT_MS
 		): Promise<DaemonResults[K]> {
 			const id = randomUUID();
 			return new Promise<DaemonResults[K]>((resolve, reject) => {
-				const timeout = setTimeout(
-					() => settle({ error: 'The daemon did not answer' }),
-					REQUEST_TIMEOUT_MS
-				);
+				const timeout = setTimeout(() => settle({ error: 'The daemon did not answer' }), timeoutMs);
 				const settle = ({ result, error }: { result?: unknown; error?: string }) => {
 					clearTimeout(timeout);
 					pending.delete(id);

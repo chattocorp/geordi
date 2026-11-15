@@ -14,7 +14,7 @@ Storing either in the event log would bloat it with data that is derived (Git al
 ## Decision
 
 - The forge may ask a daemon **requests** over the existing WebSocket: one question, one answer, matched by ID. Answers are never stored; the forge asks again when it needs fresh data.
-- Fresh data is **pushed, not polled**. The forge tells the daemon which workspaces someone is looking at; the daemon watches their files and Git state and reports each change, and the forge passes that on to the viewers, who then ask again. Workspaces nobody looks at are not watched.
+- Fresh data is **pushed, not polled**. The forge tells the daemon which workspaces someone is looking at; the daemon watches their files and Git state and reports each change. The forge then asks the daemon once, for everyone looking, and sends the result to the viewers over the connection they already have. Browsers don't ask. Workspaces nobody looks at are not watched.
 - **Terminal I/O** flows over the same WebSocket as plain messages, not events. Shells and a bounded scrollback per terminal live in the daemon; the forge relays, and asks the daemon for the scrollback when a viewer connects.
 - The event log remains the only place for durable state. Anything that must survive a restart, or that a projection depends on, still goes through `store().append(...)`.
 - **Everything that runs lives in the daemon; the forge only shows it.** Agent turns, terminals and whatever comes next keep running while the forge is restarted, and are as before when it is back. The forge may hold live state only if it can learn it again from the event log or from a daemon: on reconnecting, a daemon says what it is running.
