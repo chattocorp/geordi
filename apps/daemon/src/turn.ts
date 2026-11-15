@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import {
+	chmodSync,
 	closeSync,
 	existsSync,
 	mkdirSync,
@@ -8,6 +9,7 @@ import {
 	readFileSync,
 	readSync,
 	rmSync,
+	statSync,
 	writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
@@ -160,10 +162,12 @@ export function runTurn(
 ): Turn {
 	const { cmd, args } = adapter.command(options);
 	rmSync(dir, { recursive: true, force: true });
-	mkdirSync(dir, { recursive: true });
+	// Private to this user: the output holds everything the agent read and said.
+	mkdirSync(dir, { recursive: true, mode: 0o700 });
+	chmodSync(dir, 0o700);
 
-	const out = openSync(join(dir, 'out.jsonl'), 'a');
-	const err = openSync(join(dir, 'err.log'), 'a');
+	const out = openSync(join(dir, 'out.jsonl'), 'a', 0o600);
+	const err = openSync(join(dir, 'err.log'), 'a', 0o600);
 	// A shell runs the CLI and notes how it ended, since we may not be around to see it.
 	const script =
 		'"$@"; echo $? > "$GEORDI_TURN_DIR/exit.tmp"; mv "$GEORDI_TURN_DIR/exit.tmp" "$GEORDI_TURN_DIR/exit"';
@@ -197,6 +201,11 @@ export async function resumeTurns(
 ): Promise<Map<string, Turn>> {
 	const turns = new Map<string, Turn>();
 	if (!existsSync(turnsDir)) return turns;
+	// Turn directories name processes to signal and hold output we pass on as the agent's:
+	// only trust a directory that nobody else could have written to.
+	const { uid, mode } = statSync(turnsDir);
+	if (uid !== process.getuid?.() || mode & 0o022)
+		throw new Error(`${turnsDir} must belong to you and not be writable by others`);
 
 	for (const workspaceId of readdirSync(turnsDir)) {
 		const dir = join(turnsDir, workspaceId);
