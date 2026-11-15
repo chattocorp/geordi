@@ -58,7 +58,7 @@ export function describe(baseDir: string, repoPath: string, workspaceId: string)
  * expression.
  */
 const BRANCH =
-	/^(?![-./])(?!.*(?:\.\.|@\{|\/\/|\/\.|\.lock(?:\/|$)))[^\x00-\x20\x7f~^:?*[\\]+(?<![./])$/;
+	/^(?![-./])(?!.*(?:\.\.|@\{|\/\/|\/\.|\.lock(?:\/|$)))[^\p{Cc} ~^:?*[\\]+(?<![./])$/u;
 
 /** A branch name as an unambiguous revision. Rejects anything git could read as an option. */
 export function branchRef(branch: string): string {
