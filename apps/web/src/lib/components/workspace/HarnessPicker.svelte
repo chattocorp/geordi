@@ -1,8 +1,14 @@
 <script lang="ts" module>
-	import type { Agent, AgentSettings, Harness } from '@geordi/protocol';
+	import { SETTING, type Agent, type AgentSettings, type Harness } from '@geordi/protocol';
 
-	/** Who should do the work, and how each agent was last set up. */
-	export type HarnessChoice = { agent: Agent; settings: Partial<Record<Agent, AgentSettings>> };
+	/**
+	 * Who should do the work, and how each agent was last set up. `named` marks a model that
+	 * was typed in rather than picked from the agent's list.
+	 */
+	export type HarnessChoice = {
+		agent: Agent;
+		settings: Partial<Record<Agent, AgentSettings & { named?: boolean }>>;
+	};
 
 	const EFFORT_NAMES: Record<string, string> = { xhigh: 'Extra high' };
 	export const effortName = (effort: string) =>
@@ -11,12 +17,17 @@
 	/**
 	 * What a choice comes to, given what is on offer now. What was chosen before may be gone
 	 * (another daemon, a CLI update): then it is the agent's first model, and its own effort.
-	 * An agent that names no models has none to choose: its CLI decides.
+	 * An agent that names no models has none to choose: its CLI decides. A model that was
+	 * typed in is taken as it is: only the agent's CLI knows whether it exists.
 	 */
 	export function resolveChoice(harnesses: Harness[], choice: HarnessChoice) {
 		const harness = harnesses.find((harness) => harness.agent === choice.agent) ?? harnesses[0];
 		const wanted = choice.settings[harness?.agent] ?? {};
-		const model = harness?.models.find((model) => model.id === wanted.model) ?? harness?.models[0];
+		const model =
+			harness?.models.find((model) => model.id === wanted.model) ??
+			(wanted.named && wanted.model && SETTING.test(wanted.model)
+				? { id: wanted.model, name: wanted.model, efforts: harness.efforts }
+				: harness?.models[0]);
 		const efforts = model?.efforts ?? harness?.efforts ?? [];
 		const effort = efforts.find((effort) => effort === wanted.effort);
 		return { harness, model, efforts, effort };
@@ -42,19 +53,31 @@
 	// none is there itself.
 	const SEPARATOR = '/';
 	const options = $derived(
-		harnesses.flatMap(({ agent, models }): SelectOption[] =>
-			models.length === 0
+		harnesses.flatMap(({ agent, models }): SelectOption[] => {
+			// the chosen model is in the list even if it was typed in
+			const all =
+				agent === harness.agent && model && !models.includes(model) ? [...models, model] : models;
+			return all.length === 0
 				? [{ value: agent + SEPARATOR, label: agentName[agent] }]
-				: models.map((model) => ({
+				: all.map((model) => ({
 						value: agent + SEPARATOR + model.id,
 						label: model.name,
 						keywords: `${agentName[agent]} ${model.id}`
-					}))
-		)
+					}));
+		})
 	);
+
+	/** A model by a name we don't know (a specific version, say), for each agent to try. */
+	const named = (typed: string): SelectOption[] =>
+		SETTING.test(typed)
+			? harnesses.map(({ agent }) => ({
+					value: agent + SEPARATOR + typed,
+					label: `Use “${typed}” with ${agentName[agent]}`
+				}))
+			: [];
 	const agentOf = (option: SelectOption) => option.value.split(SEPARATOR)[0] as Agent;
 
-	const set = (agent: Agent, settings: AgentSettings) =>
+	const set = (agent: Agent, settings: HarnessChoice['settings'][Agent]) =>
 		onchange({
 			agent,
 			settings: { ...choice.settings, [agent]: { ...choice.settings[agent], ...settings } }
@@ -62,7 +85,8 @@
 
 	function pick(value: string) {
 		const [agent, id] = value.split(SEPARATOR) as [Agent, string];
-		set(agent, { model: id || undefined });
+		const listed = harnesses.find((h) => h.agent === agent)?.models.some((m) => m.id === id);
+		set(agent, { model: id || undefined, named: !!id && !listed });
 	}
 </script>
 
@@ -73,6 +97,7 @@
 <Select
 	label="Model"
 	{options}
+	create={named}
 	bind:value={() => harness.agent + SEPARATOR + (model?.id ?? ''), pick}
 >
 	{#snippet trigger()}

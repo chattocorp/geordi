@@ -21,8 +21,13 @@
 		trigger?: Snippet;
 		/** Something before an option's label: an icon, an avatar. */
 		icon?: Snippet<[Option]>;
+		/**
+		 * Options for something typed that matches nothing in the list, if that may be chosen
+		 * too. Once chosen, one has to be among `options`.
+		 */
+		create?: (typed: string) => Option[];
 	};
-	let { label, value = $bindable(), options, trigger, icon }: Props = $props();
+	let { label, value = $bindable(), options, trigger, icon, create }: Props = $props();
 
 	const id = $props.id();
 	let button: HTMLButtonElement;
@@ -37,14 +42,16 @@
 	let place = $state('');
 
 	const selected = $derived(options.find((option) => option.value === value) ?? options[0]);
-	const matches = $derived(
-		fuzzyFilter(
+	const matches = $derived.by(() => {
+		const found = fuzzyFilter(
 			query,
 			options,
 			(option) => option.label,
 			(option) => option.keywords
-		)
-	);
+		);
+		if (found.length > 0 || !create || !query.trim()) return found;
+		return create(query.trim()).map((item) => ({ item, indices: [] }));
+	});
 
 	/** Roughly the popup's size at its largest, to decide where it fits. */
 	const ROOM = { width: 320, height: 420 };

@@ -25,11 +25,24 @@
 
 <script lang="ts">
 	let size = $state('m');
+	let own = $state('XXL');
 	let star = $state('Luna');
 </script>
 
 <Story name="A few options" asChild>
 	<Select label="Size" options={sizes} bind:value={size} />
+</Story>
+
+<Story name="Anything typed may be chosen" asChild>
+	<Select
+		label="Size"
+		options={[
+			...sizes,
+			...(sizes.some((s) => s.value === own) ? [] : [{ value: own, label: own }])
+		]}
+		bind:value={own}
+		create={(typed) => [{ value: typed, label: `Use “${typed}”` }]}
+	/>
 </Story>
 
 <Story name="Many options, with icons" asChild>
