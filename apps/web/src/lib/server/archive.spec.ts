@@ -63,9 +63,9 @@ describe('archiving', () => {
 		await archive(lead, false);
 
 		expect(workspaces.list(repo.id).map((workspace) => workspace.id)).toEqual([other]);
-		expect(closed.sort()).toEqual([lead, child, grandchild, reviewer].sort());
+		expect([...closed].sort()).toEqual([lead, child, grandchild, reviewer].sort());
 		// each worktree once: the lead's only after the reviewer sharing it was archived
-		expect(removed.sort()).toEqual([lead, child, grandchild].sort());
+		expect([...removed].sort()).toEqual([lead, child, grandchild].sort());
 		expect(removed.indexOf(grandchild)).toBeLessThan(removed.indexOf(child));
 	});
 
