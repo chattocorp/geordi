@@ -6,8 +6,14 @@ import { API_TOKEN_ENV, type AgentAdapter, type TurnOptions } from './agents/ada
 export type Turn = { stop(): void; done: Promise<void> };
 
 /**
- * Runs one agent turn: spawns the CLI, maps its JSON output to session events, and
- * guarantees exactly one terminal event (`turn.completed` or `turn.failed`).
+ * Runs one agent turn: spawns the CLI, maps its JSON output to agent events, and
+ * guarantees exactly one terminal event (`turn.completed` or `turn.failed`), sent when the
+ * process has exited.
+ *
+ * A turn is over when the process is, not when the CLI first says so. A resumed Claude
+ * session, for one, first deals with anything left over from before (a background task
+ * that finished) and reports that as done, and only then turns to the new message. What
+ * the CLI says about how things ended is kept, and the last word counts.
  */
 export function runTurn(
 	adapter: AgentAdapter,
@@ -26,10 +32,16 @@ export function runTurn(
 	let ended = false;
 	let stopped = false;
 	let stderr = '';
+	/** How the CLI last said the turn ended, if it has. */
+	let outcome: AgentEvent | undefined;
 
-	const send = (event: AgentEvent) => {
+	const pass = (event: AgentEvent) => {
+		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') outcome = event;
+		else if (!ended) emit(event);
+	};
+	const end = (event: AgentEvent) => {
 		if (ended) return;
-		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') ended = true;
+		ended = true;
 		emit(event);
 	};
 
@@ -42,20 +54,24 @@ export function runTurn(
 		} catch {
 			return; // not JSON; CLIs occasionally print plain text
 		}
-		for (const event of adapter.parse(parsed)) send(event);
+		for (const event of adapter.parse(parsed)) pass(event);
 	});
 
 	const done = new Promise<void>((resolve) => {
 		child.on('error', (error) => {
-			send({ kind: 'turn.failed', error: `Failed to start ${cmd}: ${error.message}` });
+			end({ kind: 'turn.failed', error: `Failed to start ${cmd}: ${error.message}` });
 			resolve();
 		});
 		child.on('close', (code) => {
 			const reason = stopped ? 'Stopped' : `${cmd} exited with code ${code}`;
-			send({
-				kind: 'turn.failed',
-				error: stderr.trim() && !stopped ? `${reason}: ${stderr.trim()}` : reason
-			});
+			end(
+				stopped || !outcome
+					? {
+							kind: 'turn.failed',
+							error: stderr.trim() && !stopped ? `${reason}: ${stderr.trim()}` : reason
+						}
+					: outcome
+			);
 			resolve();
 		});
 	});
