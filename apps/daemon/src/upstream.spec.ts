@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Thread } from 'forges';
 import { describe, expect, it } from 'vitest';
-import { summarise, upstream } from './upstream.ts';
+import { MergeMethodRequiredError, type MergeOptions } from 'forges';
+import { merge, summarise, upstream } from './upstream.ts';
 import { ensureWorktree } from './worktree.ts';
 
 /** A pull request as `forges` reports it, with only the fields we read. */
@@ -82,5 +83,40 @@ describe('upstream', () => {
 			createUrl: null,
 			pull: null
 		});
+	});
+});
+
+describe('merge', () => {
+	const ref = pull().ref;
+	/** A forge that allows these ways of merging, and notes how it was asked to. */
+	const forge = (allowed: MergeOptions['method'][]) => {
+		const asked: MergeOptions[] = [];
+		return {
+			asked,
+			async merge(_ref: unknown, options: MergeOptions = {}) {
+				asked.push(options);
+				if (allowed.length > 1 && !options.method)
+					throw new MergeMethodRequiredError(allowed.flatMap((method) => method ?? []));
+				return { status: 'merged' as const };
+			}
+		};
+	};
+
+	it('merges the commit it was given, the one way the repository allows', async () => {
+		const threads = forge(['rebase']);
+		expect(await merge(threads, ref, 'abc')).toEqual({ status: 'merged' });
+		expect(threads.asked).toEqual([{ sha: 'abc' }]);
+	});
+
+	it('squashes where the repository allows several ways', async () => {
+		const threads = forge(['merge', 'rebase', 'squash']);
+		await merge(threads, ref, 'abc');
+		expect(threads.asked.at(-1)).toEqual({ sha: 'abc', method: 'squash' });
+	});
+
+	it('takes what there is where squashing is not allowed', async () => {
+		const threads = forge(['rebase', 'merge']);
+		await merge(threads, ref, 'abc');
+		expect(threads.asked.at(-1)).toEqual({ sha: 'abc', method: 'merge' });
 	});
 });

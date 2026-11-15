@@ -3,7 +3,7 @@ import type { Changes, Upstream } from '@geordi/protocol';
 /**
  * What could or should happen next in a workspace (FDR-003), worked out from where its
  * changes and its pull request stand. Most actions are a message to the workspace's agent;
- * a few are things Geordi does itself.
+ * merging and archiving are things Geordi does itself.
  */
 export type WorkspaceAction = {
 	id:
@@ -103,8 +103,7 @@ export function actionsFor({ changes, upstream }: State): WorkspaceAction[] {
 		actions.push({
 			id: 'merge-pull',
 			label: 'Merge PR',
-			icon: 'icon-[lucide--git-merge]',
-			prompt: `Merge ${number}, the way this repository usually merges pull requests.`
+			icon: 'icon-[lucide--git-merge]'
 		});
 
 	return actions;

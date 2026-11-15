@@ -1,8 +1,16 @@
 import { execFileSync } from 'node:child_process';
 import type { PullRequest, Upstream } from '@geordi/protocol';
-import { createForges, github, type ForgeProvider, type Forges, type Thread } from 'forges';
+import {
+	createForges,
+	github,
+	MergeMethodRequiredError,
+	type ForgeProvider,
+	type Forges,
+	type MergeMethod,
+	type Thread
+} from 'forges';
 import { providersFromEnv } from 'forges/env';
-import { headOf, type Worktree } from './worktree.ts';
+import { gitIn, headOf, type Worktree } from './worktree.ts';
 
 /**
  * Talks to the forge a repository is hosted on (ADR-006), through the `forges` library so
@@ -137,6 +145,24 @@ async function findPull(
 	return null;
 }
 
+/**
+ * Where a worktree's branch lives upstream. `null` if the repository has no `origin` remote
+ * on a forge we know, or the worktree is on no branch.
+ */
+function locate(worktree: Worktree, repoPath: string) {
+	const remote = git(repoPath, 'remote', 'get-url', 'origin');
+	if (!remote) return null;
+
+	const { forges: all, anonymous } = forges();
+	const parsed = all.parseUrl(remote);
+	if (!parsed) return null;
+
+	const head = headOf(worktree);
+	// a detached HEAD has no branch to have a pull request
+	if (!head.startsWith('refs/heads/')) return null;
+	return { remote, ...parsed, branch: head.slice('refs/heads/'.length), head, anonymous };
+}
+
 type Cached = { key: string; at: number; value: Upstream };
 const cache = new Map<string, Cached>();
 
@@ -150,18 +176,9 @@ export async function upstream(
 	{ repoPath, worktreeId }: { repoPath: string; worktreeId: string },
 	now = Date.now()
 ): Promise<Upstream | null> {
-	const remote = git(repoPath, 'remote', 'get-url', 'origin');
-	if (!remote) return null;
-
-	const { forges: all, anonymous } = forges();
-	const parsed = all.parseUrl(remote);
-	if (!parsed) return null;
-	const { provider, repo } = parsed;
-
-	const head = headOf(worktree);
-	// a detached HEAD has no branch to have a pull request
-	if (!head.startsWith('refs/heads/')) return null;
-	const branch = head.slice('refs/heads/'.length);
+	const found = locate(worktree, repoPath);
+	if (!found) return null;
+	const { remote, provider, repo, branch, anonymous } = found;
 	const pushed =
 		git(repoPath, 'rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`) !== null;
 
@@ -197,4 +214,52 @@ export async function upstream(
 	};
 	cache.set(worktreeId, { key, at: now, value });
 	return value;
+}
+
+/** How Geordi merges where a repository allows several ways: one commit per piece of work. */
+const PREFERRED: MergeMethod[] = ['squash', 'merge', 'rebase'];
+
+/**
+ * Merges a pull request, provided it is still at `sha`. Uses the repository's one way of
+ * merging, or the first of `PREFERRED` that it allows.
+ */
+export async function merge(
+	threads: Pick<ForgeProvider['threads'], 'merge'>,
+	ref: Thread['ref'],
+	sha: string
+) {
+	try {
+		return await threads.merge(ref, { sha });
+	} catch (error) {
+		if (!(error instanceof MergeMethodRequiredError)) throw error;
+		const method = PREFERRED.find((m) => error.allowed.includes(m)) ?? error.allowed[0];
+		if (!method) throw error;
+		return threads.merge(ref, { sha, method });
+	}
+}
+
+/**
+ * Merges the pull request for the workspace's branch. Only what the workspace has: the
+ * pull request must be open and at the commit checked out here, so that nothing unpushed
+ * is left behind and nothing unseen is merged.
+ */
+export async function mergePull(
+	worktree: Worktree,
+	{ repoPath, worktreeId }: { repoPath: string; worktreeId: string }
+): Promise<'merged' | 'queued'> {
+	const found = locate(worktree, repoPath);
+	if (!found) throw new Error('This workspace has no branch on a forge Geordi knows');
+	const { provider, repo, branch, head } = found;
+	if (!provider.can('threads.merge'))
+		throw new Error(`Geordi cannot merge pull requests on ${provider.forge}`);
+
+	const pull = await findPull(provider, repo, branch);
+	if (pull?.state !== 'open') throw new Error(`There is no open pull request for ${branch}`);
+	const commit = gitIn(worktree, 'rev-parse', '--verify', head).trim();
+	if (pull.branches?.head.sha !== commit)
+		throw new Error('The pull request is not at the commit this workspace is at; push first');
+
+	const { status } = await merge(provider.threads, pull.ref, commit);
+	cache.delete(worktreeId); // what we knew about it is no longer true
+	return status;
 }

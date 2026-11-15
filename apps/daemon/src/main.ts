@@ -23,7 +23,7 @@ import {
 import { removeWorktree } from './remove.ts';
 import { titleFor } from './titles.ts';
 import { resumeTurns, runTurn, type Turn } from './turn.ts';
-import { upstream } from './upstream.ts';
+import { mergePull, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
 
@@ -187,6 +187,8 @@ async function answer(request: DaemonRequest) {
 			return versions(worktree, request, request.path);
 		case 'upstream':
 			return upstream(worktree, request);
+		case 'mergePull':
+			return mergePull(worktree, request);
 	}
 }
 

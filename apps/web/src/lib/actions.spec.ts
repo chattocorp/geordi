@@ -56,6 +56,8 @@ describe('actionsFor', () => {
 	it('offers to merge once nothing stands in the way', () => {
 		const changes = { files: [file], uncommitted: 0, unpushed: 0 };
 		expect(ids({ changes, upstream: upstream({}) })).toEqual(['merge-pull']);
+		// Geordi merges itself; there is nothing to say to the agent
+		expect(actionsFor({ changes, upstream: upstream({}) })[0].prompt).toBeUndefined();
 		expect(ids({ changes, upstream: upstream({ checks: null }) })).toEqual(['merge-pull']);
 
 		const pending = { state: 'pending', total: 3, failed: 0, url: null } as const;

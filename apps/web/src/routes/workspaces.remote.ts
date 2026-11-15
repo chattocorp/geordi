@@ -1,5 +1,5 @@
 import * as v from 'valibot';
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
 import { AGENTS, type FileVersions } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
@@ -87,6 +87,20 @@ export const archiveWorkspace = command(
 	v.object({ workspaceId: v.string(), discard: v.optional(v.boolean(), false) }),
 	({ workspaceId, discard }) => archive(workspaceId, discard)
 );
+
+/**
+ * Merges the workspace's pull request on the forge it is hosted on. Geordi does this
+ * itself, through the daemon (ADR-006), rather than asking the agent to.
+ */
+export const mergePull = command(v.string(), async (workspaceId) => {
+	const ref = workspaces().ref(workspaceId);
+	try {
+		await hub().request({ kind: 'mergePull', ...ref }, 60_000);
+	} catch (cause) {
+		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+	}
+	watchers().changed(ref.worktreeId);
+});
 
 /** Takes back a message that is waiting for the agent to finish its turn. */
 export const removeQueued = command(

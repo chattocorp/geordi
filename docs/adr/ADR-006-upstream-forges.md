@@ -23,3 +23,4 @@ Two questions follow: how to talk to several forges without writing a client for
 - The library has no way to ask for a branch's pull request. We search for it where the forge's search understands `head:<branch>` (GitHub) and otherwise scan the most recent pull requests, which is slower and can miss an old one.
 - `forges` is young (0.x). Its API may change under us.
 - Polling means a pull request's state can be up to a minute old. Webhooks would fix that, and would need the forge to be reachable from outside.
+- Geordi also acts upstream where no judgement is needed: it merges a workspace's pull request itself (FDR-003), through the same library and credentials. That needs a token that may write; an anonymous connection can only look.

@@ -24,6 +24,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 
 - Most actions say something to the workspace's agent: the message appears in the conversation like any other, and the agent does the work. If the agent is busy, the message waits its turn (FDR-001).
 - An action that has been asked for and is not done yet is shown as under way and can't be asked for twice.
+- Merge PR is done by Geordi itself, through the upstream forge's API: at once, without an agent turn. It merges only a pull request that is at the very commit the workspace has, the one way the repository allows, or squashed where it allows several. If the forge refuses, the top bar says why.
 - Archive is done by Geordi itself, not by the agent. It is also always available as a quiet button, not only when it is the obvious next step.
 - Nothing is offered while Geordi doesn't know the workspace's changes (no daemon connected).
 
@@ -33,6 +34,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 
 **Decision:** An action sends a message to the workspace's agent instead of doing the thing itself.
 **Why:** The agent knows the work: it writes the commit message and the pull request's description, finds out why a check fails, follows the repository's conventions. It also keeps one thread of history: everything that happened in a workspace is in its conversation.
+**Exception:** Merging and archiving need no judgement, and a click on "Merge PR" should merge, not start a conversation about it. Geordi does those itself.
 **Tradeoff:** An action costs an agent turn and is only as reliable as the agent. It needs agents that may push and use the forge's tools, which is why they run without permission prompts by default.
 
 ### 2. One next step, derived, not configured

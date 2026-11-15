@@ -28,6 +28,7 @@
 	import { getRepo } from '../../../routes/repos.remote';
 	import {
 		archiveWorkspace,
+		mergePull,
 		closeTerminal,
 		getWorkspace,
 		say
@@ -142,7 +143,9 @@
 		const last = workspace.transcript.findLast((item) => item.kind === 'user');
 		if (running && last?.kind === 'user') asked.push(last.text);
 		return actions
-			.filter((action) => action.prompt && asked.includes(action.prompt))
+			.filter((action) =>
+				action.prompt ? asked.includes(action.prompt) : action.id === 'merge-pull' && merging
+			)
 			.map((a) => a.id);
 	});
 
@@ -159,8 +162,26 @@
 		}
 	}
 
+	/** The pull request is being merged right now. */
+	let merging = $state(false);
+	/** Why merging didn't work, if it didn't. */
+	let mergeProblem = $state<string | null>(null);
+
+	async function merge() {
+		mergeProblem = null;
+		merging = true;
+		try {
+			await mergePull(id);
+		} catch (error) {
+			mergeProblem = error instanceof Error ? error.message : 'Could not merge the pull request';
+		} finally {
+			merging = false;
+		}
+	}
+
 	function act(action: WorkspaceAction) {
 		if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		else if (action.id === 'merge-pull') merge();
 		else if (action.id === 'archive') archive();
 	}
 </script>
@@ -298,6 +319,13 @@
 			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
 			<Button onclick={() => archive(true)}>Discard them and archive</Button>
 			<Button variant="ghost" onclick={() => (archiveProblem = null)}>Cancel</Button>
+		</div>
+	{/if}
+
+	{#if mergeProblem}
+		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
+			<div class="min-w-0 flex-1"><Notice>{mergeProblem}</Notice></div>
+			<Button variant="ghost" onclick={() => (mergeProblem = null)}>Dismiss</Button>
 		</div>
 	{/if}
 
