@@ -19,6 +19,7 @@
 		type Zone
 	} from '#lib/layout.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
+	import { problemOf } from '#lib/problem.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
@@ -26,13 +27,8 @@
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import { getRepo } from '../../../routes/repos.remote';
-	import {
-		archiveWorkspace,
-		mergePull,
-		closeTerminal,
-		getWorkspace,
-		say
-	} from '../../../routes/workspaces.remote';
+	import { mergePull, closeTerminal, getWorkspace, say } from '../../../routes/workspaces.remote';
+	import { archive as archiveWorkspace, archiveProblems } from './archive.svelte.ts';
 	import Changes from './Changes.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
@@ -158,16 +154,11 @@
 	);
 
 	/** Why archiving didn't work, if it didn't: usually work that would be lost. */
-	let archiveProblem = $state<string | null>(null);
+	const archiveProblem = $derived(archiveProblems[id]);
 
 	async function archive(discard = false) {
-		archiveProblem = null;
-		try {
-			await archiveWorkspace({ workspaceId: id, discard });
+		if (await archiveWorkspace(id, discard))
 			await goto(resolve('/repos/[id]', { id: workspace.repoId }));
-		} catch (error) {
-			archiveProblem = error instanceof Error ? error.message : 'Could not archive the workspace';
-		}
 	}
 
 	/** The pull request is being merged right now. */
@@ -181,7 +172,7 @@
 		try {
 			await mergePull(id);
 		} catch (error) {
-			mergeProblem = error instanceof Error ? error.message : 'Could not merge the pull request';
+			mergeProblem = problemOf(error, 'Could not merge the pull request');
 		} finally {
 			merging = false;
 		}
@@ -332,7 +323,7 @@
 		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
 			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
 			<Button onclick={() => archive(true)}>Discard them and archive</Button>
-			<Button variant="ghost" onclick={() => (archiveProblem = null)}>Cancel</Button>
+			<Button variant="ghost" onclick={() => delete archiveProblems[id]}>Cancel</Button>
 		</div>
 	{/if}
 

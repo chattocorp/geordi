@@ -200,6 +200,14 @@
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
 
+/* A row in a popup list: a menu's item, a select's option. `menu-item-active` for the one in hand. */
+@utility menu-item {
+	@apply flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-left text-sm text-muted;
+}
+@utility menu-item-active {
+	@apply bg-sunken text-ink;
+}
+
 /* Where something will be once there is something. */
 @utility empty {
 	@apply rounded-card border border-dashed border-line px-4 py-10 text-center text-muted;

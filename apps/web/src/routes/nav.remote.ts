@@ -17,12 +17,13 @@ export const getNavigation = query.live(async function* () {
 						working: own.filter((workspace) => workspace.status === 'running').length
 					};
 				}),
-			workspaces: all.map(({ id, title, repoId, parentId, status }) => ({
+			workspaces: all.map(({ id, title, repoId, parentId, status, worktree }) => ({
 				id,
 				title,
 				repoId,
 				parentId,
-				status
+				status,
+				branch: worktree?.branch ?? null
 			}))
 		};
 	});

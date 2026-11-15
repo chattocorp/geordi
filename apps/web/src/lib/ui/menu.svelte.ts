@@ -1,0 +1,44 @@
+import type { Attachment } from 'svelte/attachments';
+
+/** One thing a menu offers, or a line between groups of them. */
+export type MenuItem =
+	| {
+			label: string;
+			/** An Iconify class. */
+			icon?: string;
+			/** Something that can't be taken back. */
+			danger?: boolean;
+			disabled?: boolean;
+			onselect(): void;
+	  }
+	| 'separator';
+
+/** The context menu that is open, if one is: there is only ever one. `ContextMenu` shows it. */
+export const contextMenus = $state<{ open: { x: number; y: number; items: MenuItem[] } | null }>({
+	open: null
+});
+
+/**
+ * Gives an element a context menu: `{@attach contextMenu(() => [...])}`. The items are
+ * worked out when the menu is asked for (a right-click, a long press, or the menu key), so
+ * they can follow from state. No items, no menu: the browser's own then shows.
+ */
+export function contextMenu(items: () => MenuItem[]): Attachment<HTMLElement> {
+	return (node) => {
+		const show = (event: MouseEvent) => {
+			const list = items();
+			if (list.length === 0) return;
+			event.preventDefault();
+			// asked for with the keyboard, there is no pointer: open at the element
+			const box = node.getBoundingClientRect();
+			const pointed = event.clientX !== 0 || event.clientY !== 0;
+			contextMenus.open = {
+				x: pointed ? event.clientX : box.left + 16,
+				y: pointed ? event.clientY : box.bottom,
+				items: list
+			};
+		};
+		node.addEventListener('contextmenu', show);
+		return () => node.removeEventListener('contextmenu', show);
+	};
+}

@@ -125,13 +125,15 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `choice`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
-    `item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`, `Select`,
+    `item-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
+  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `ContextMenu`, `Notice`, `Page`, `Panes`, `Select`,
     `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary
     values or raw colours.
+  - Context menus: `{@attach contextMenu(() => items)}` (`#lib/ui/menu.svelte.ts`) on the
+    element; the layout renders the one `ContextMenu` that shows them.
   - Every `lib/ui` component has a `*.stories.svelte` next to it (Svelte CSF; use
     `<Story name="…" asChild>` to render your own markup). `pnpm test` renders every story
     in a browser. Add or update stories with every UI change.

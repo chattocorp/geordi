@@ -164,10 +164,7 @@
 				aria-selected={item === selected}
 				onclick={() => choose(item)}
 				onpointermove={() => (active = index)}
-				class={[
-					'flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-left text-sm',
-					index === active ? 'bg-sunken text-ink' : 'text-muted'
-				]}
+				class={['menu-item', index === active && 'menu-item-active']}
 			>
 				{@render icon?.(item)}
 				<span class="min-w-0 flex-1 truncate">
