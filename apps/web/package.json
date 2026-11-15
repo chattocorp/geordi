@@ -46,7 +46,7 @@
 	},
 	"dependencies": {
 		"@fontsource-variable/ibm-plex-sans": "^5.3.0",
-		"@fontsource/ibm-plex-mono": "^5.3.0",
+		"@fontsource-variable/jetbrains-mono": "^5.3.0",
 		"@geordi/protocol": "workspace:*",
 		"@pierre/diffs": "^1.6.4",
 		"@valibot/to-json-schema": "^1.8.0",

@@ -10,7 +10,7 @@ The UI grew feature by feature, each view styling itself with raw Tailwind class
 
 The design system has three layers, each built on the one before, and all of it lives in the web app:
 
-1. **Tokens** in `apps/web/src/routes/layout.css`: semantic colours for light and dark mode, one text and one code typeface (IBM Plex Sans and Mono, 17px base), four font sizes, and two radii plus the pill.
+1. **Tokens** in `apps/web/src/routes/layout.css`: semantic colours for light and dark mode, one text and one code typeface (IBM Plex Sans and JetBrains Mono, 17px base), four font sizes, and two radii plus the pill.
 2. **Utilities** in the same file, declared with Tailwind's `@utility` and named for what a thing is (`card`, `item`, `pane-bar`, `title`, `code`, `dot`, …). They cover patterns that are only styling.
 3. **Components** in `apps/web/src/lib/ui/` for patterns with behaviour or structure (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`, `Split`). They know nothing about Geordi's domain; components that do live in `src/lib/components/`.
 

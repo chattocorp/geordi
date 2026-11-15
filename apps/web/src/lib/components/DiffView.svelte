@@ -74,6 +74,7 @@
 	/* The viewer lives in a shadow root; these custom properties are its styling API. */
 	.diff-view {
 		--diffs-font-family: var(--font-mono);
+		--diffs-font-features: 'liga' 0, 'calt' 0;
 		--diffs-font-size: var(--text-xs);
 		--diffs-line-height: 1.55;
 		--diffs-addition-color-override: var(--ok);

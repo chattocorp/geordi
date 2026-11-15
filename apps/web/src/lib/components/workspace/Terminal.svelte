@@ -38,7 +38,8 @@
 				if (disposed) return;
 
 				const term = new Terminal({
-					fontFamily: "'Geist Mono Variable', ui-monospace, monospace",
+					// the design system's code typeface; xterm wants it spelled out
+					fontFamily: getComputedStyle(node).getPropertyValue('--font-mono'),
 					fontSize: 13,
 					cursorBlink: true,
 					theme: theme()

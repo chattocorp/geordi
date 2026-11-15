@@ -138,7 +138,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
   the primary action and things that are live. The only ambient motion is for agents at
   work: the `.visor` sweep and the Braille `Spinner`. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
-  `icon-[lucide--name]`. Fonts: IBM Plex Sans and IBM Plex Mono from Fontsource (no remote
+  `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output).
 - **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed: main
   area | changes above dock. Main area and dock are each a `Panes` with its own layout tree
