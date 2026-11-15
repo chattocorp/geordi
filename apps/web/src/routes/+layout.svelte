@@ -41,6 +41,15 @@
 		return { of, working };
 	});
 
+	/** Archives a workspace from the sidebar, wherever we are. */
+	async function archiveFromHere(workspace: Item) {
+		const href = resolve('/workspaces/[id]', { id: workspace.id });
+		const here = page.url.pathname === href;
+		// Refused (work would be lost): the workspace's page says why, and what to do.
+		if (!(await archive(workspace.id))) await goto(href);
+		else if (here) await goto(resolve('/'));
+	}
+
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
@@ -74,12 +83,7 @@
 				icon: 'icon-[lucide--archive]',
 				danger: true,
 				disabled: running,
-				async onselect() {
-					const here = page.url.pathname === href;
-					// Refused (work would be lost): the workspace's page says why, and what to do.
-					if (!(await archive(workspace.id))) await goto(href);
-					else if (here) await goto(resolve('/'));
-				}
+				onselect: () => archiveFromHere(workspace)
 			}
 		];
 	}
@@ -250,21 +254,44 @@
 	<ul class={['space-y-px', parent && 'ml-3.5 border-l border-line pl-1.5']}>
 		{#each tree.of(parent) as workspace (workspace.id)}
 			{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
+			{@const working = tree.working(workspace)}
 			<li>
-				<a
-					href={resolve('/workspaces/[id]', { id: workspace.id })}
-					class={['item px-2.5 py-1', current && 'item-active']}
-					aria-current={current ? 'page' : undefined}
+				<!-- the whole row is the item: the link, and what appears beside it on hover -->
+				<div
+					class={['group item pr-1', current && 'item-active']}
 					{@attach contextMenu(() => workspaceMenu(workspace))}
 				>
-					{#if tree.working(workspace)}<Spinner />{:else}<span class="dot"></span>{/if}
-					<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
-					{#if !parent}
-						<span class="max-w-20 shrink-0 truncate text-xs text-muted/80">
-							{repoName(workspace.repoId)}
-						</span>
+					<a
+						href={resolve('/workspaces/[id]', { id: workspace.id })}
+						class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-2.5"
+						aria-current={current ? 'page' : undefined}
+					>
+						{#if working}<Spinner />{:else}<span class="dot"></span>{/if}
+						<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
+						{#if !parent}
+							<!-- makes way for the archive button, where there is one -->
+							<span
+								class={[
+									'max-w-20 shrink-0 truncate text-xs text-muted/80',
+									!working && 'group-focus-within:hidden group-hover:hidden'
+								]}
+							>
+								{repoName(workspace.repoId)}
+							</span>
+						{/if}
+					</a>
+					{#if !working}
+						<button
+							type="button"
+							class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-focus-within:grid group-hover:grid hover:bg-sunken hover:text-ink"
+							title="Archive workspace"
+							aria-label="Archive {workspace.title}"
+							onclick={() => archiveFromHere(workspace)}
+						>
+							<span class="icon-[lucide--archive] size-3.5"></span>
+						</button>
 					{/if}
-				</a>
+				</div>
 				{#if tree.of(workspace.id).length > 0}
 					{@render workspaces(workspace.id)}
 				{/if}
