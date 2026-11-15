@@ -26,7 +26,6 @@
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import { agentName } from '#lib/format.ts';
 	import Select, { type SelectOption } from '#lib/ui/Select.svelte';
-	import Steps from '#lib/ui/Steps.svelte';
 
 	type Props = {
 		/** What each agent can be asked to run. */
@@ -65,8 +64,8 @@
 </script>
 
 <!--
-	Who does the work, with which model, thinking how hard: one quiet line that opens a list.
-	An agent's own entry leaves the model to its CLI.
+	Who does the work, and how hard it thinks: two quiet choices. An agent's own entry leaves
+	the model to its CLI. The effort levels are those of the model chosen; they differ.
 -->
 <Select
 	label="Agent and model"
@@ -76,27 +75,23 @@
 	{#snippet trigger()}
 		<AgentAvatar agent={harness.agent} size="sm" />
 		<span class="truncate text-ink">{model?.name ?? agentName[harness.agent]}</span>
-		{#if effort}<span class="shrink-0">{effortName(effort)}</span>{/if}
 	{/snippet}
 	{#snippet icon(option)}
 		<AgentAvatar agent={agentOf(option)} size="sm" />
 	{/snippet}
-	{#snippet footer()}
-		{#if efforts.length}
-			<div class="flex items-center gap-2 px-2 py-1.5 text-sm">
-				<span class="flex-1">Effort</span>
-				<span class="text-muted">{effort ? effortName(effort) : 'Default'}</span>
-				<Steps
-					label="Reasoning effort"
-					steps={[
-						{ value: '', label: 'Default' },
-						...efforts.map((effort) => ({ value: effort, label: effortName(effort) }))
-					]}
-					bind:value={
-						() => effort ?? '', (level) => set(harness.agent, { effort: level || undefined })
-					}
-				/>
-			</div>
-		{/if}
-	{/snippet}
 </Select>
+
+{#if efforts.length}
+	<Select
+		label="Reasoning effort"
+		options={[
+			{ value: '', label: 'Default effort' },
+			...efforts.map((effort) => ({ value: effort, label: effortName(effort) }))
+		]}
+		bind:value={() => effort ?? '', (level) => set(harness.agent, { effort: level || undefined })}
+	>
+		{#snippet trigger()}
+			{#if effort}<span class="text-ink">{effortName(effort)}</span>{:else}Effort{/if}
+		{/snippet}
+	</Select>
+{/if}

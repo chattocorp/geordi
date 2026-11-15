@@ -32,15 +32,12 @@
 	<Select label="Size" options={sizes} bind:value={size} />
 </Story>
 
-<Story name="Icons and more to set" asChild>
+<Story name="Many options, with icons" asChild>
 	<Select label="Star" options={stars} bind:value={star}>
 		{#snippet trigger()}
 			<span class="icon-[lucide--star] size-3.5"></span>
 			{star}
 		{/snippet}
 		{#snippet icon()}<span class="icon-[lucide--star] size-3.5 shrink-0"></span>{/snippet}
-		{#snippet footer()}
-			<p class="px-2 py-1.5 text-sm text-muted">Something that goes with the choice</p>
-		{/snippet}
 	</Select>
 </Story>

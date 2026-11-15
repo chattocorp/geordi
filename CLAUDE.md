@@ -126,7 +126,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `choice`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
     `item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`, `Select`, `Steps`,
+  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`, `Select`,
     `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a

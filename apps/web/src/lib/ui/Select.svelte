@@ -21,10 +21,8 @@
 		trigger?: Snippet;
 		/** Something before an option's label: an icon, an avatar. */
 		icon?: Snippet<[Option]>;
-		/** More to set, under the list: things that go with the choice. */
-		footer?: Snippet;
 	};
-	let { label, value = $bindable(), options, trigger, icon, footer }: Props = $props();
+	let { label, value = $bindable(), options, trigger, icon }: Props = $props();
 
 	const id = $props.id();
 	let button: HTMLButtonElement;
@@ -178,5 +176,4 @@
 			<p class="px-2 py-1.5 text-sm text-muted">Nothing like that</p>
 		{/each}
 	</div>
-	{#if footer}<div class="border-t border-line pt-1">{@render footer()}</div>{/if}
 </div>

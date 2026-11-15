@@ -2,9 +2,9 @@
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
+	import Select from '#lib/ui/Select.svelte';
 	import { createWorkspace, getHarnesses } from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
-	import RepoPicker from './RepoPicker.svelte';
 
 	type Props = {
 		/** The repositories to choose from. With just one, there is nothing to choose. */
@@ -16,7 +16,13 @@
 	let { repos, preferred, label }: Props = $props();
 
 	const { repoId, agent, model, effort, prompt } = createWorkspace.fields;
-	const first = $derived(repos.find((repo) => repo.id === preferred)?.id ?? repos[0]?.id);
+	/** The repository picked here, if one was; otherwise the preferred one, or the first. */
+	let picked = $state<string>();
+	const repo = $derived(
+		repos.find((repo) => repo.id === picked) ??
+			repos.find((repo) => repo.id === preferred) ??
+			repos[0]
+	);
 
 	const harnesses = $derived(await getHarnesses());
 	// The next workspace starts out the way the last one was set up.
@@ -33,16 +39,26 @@
 	problems={prompt.issues()?.map((problem) => problem.message)}
 >
 	{#snippet header()}
-		{#if repos.length === 1}<input {...repoId.as('hidden', repos[0].id)} />{/if}
+		<input {...repoId.as('hidden', repo?.id ?? '')} />
 		<input {...agent.as('hidden', chosen.harness.agent)} />
 		<!-- empty leaves it to the agent's CLI -->
 		<input {...model.as('hidden', chosen.model?.id ?? '')} />
 		<input {...effort.as('hidden', chosen.effort ?? '')} />
 	{/snippet}
 	{#snippet footer()}
-		<div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+		<!-- where, who, how hard: three quiet choices -->
+		<div class="flex min-w-0 flex-wrap items-center gap-1">
 			{#if repos.length > 1}
-				<RepoPicker {repos} attributes={(id) => repoId.as('radio', id, id === first)} />
+				<Select
+					label="Repository"
+					options={repos.map((repo) => ({ value: repo.id, label: repo.name }))}
+					bind:value={() => repo.id, (id) => (picked = id)}
+				>
+					{#snippet trigger()}
+						<span class="icon-[lucide--folder-git-2] size-4 shrink-0"></span>
+						<span class="truncate text-ink">{repo.name}</span>
+					{/snippet}
+				</Select>
 			{/if}
 			<HarnessPicker
 				{harnesses}
