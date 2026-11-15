@@ -68,7 +68,13 @@ export const claude: AgentAdapter = {
 			return [{ kind: 'resume', id: line.session_id }];
 		if ((line.type === 'assistant' || line.type === 'user') && 'message' in line) {
 			const { content } = line.message;
-			return typeof content === 'string' ? [] : content.flatMap(parseBlock);
+			if (typeof content === 'string') return [];
+			// What Claude says is the assistant's. A `user` line carries tool results, and
+			// text the CLI hands the model on our behalf (a skill's instructions, say): that
+			// is context for the agent, not something it said.
+			const blocks =
+				line.type === 'user' ? content.filter((block) => block.type !== 'text') : content;
+			return blocks.flatMap(parseBlock);
 		}
 		if (line.type === 'result' && 'is_error' in line)
 			return [

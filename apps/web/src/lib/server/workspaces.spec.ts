@@ -298,6 +298,24 @@ describe('event logs from before a workspace had one conversation', () => {
 		expect(sent[0]).toMatchObject({ workspaceId: 'old', worktreeId: 'old' });
 	});
 
+	it('leaves out skill instructions that were once recorded as the agent talking', () => {
+		const { store, workspaces, create } = setup();
+		const id = create('Review it');
+		const text = (text: string) =>
+			store.append({
+				type: 'workspace.output',
+				stream: `workspace:${id}`,
+				data: { id, event: { kind: 'text', text } }
+			});
+		text('Base directory for this skill: /wt/.claude/skills/review\n\n# Review\n\nLots of text');
+		text('Reviewing now.');
+
+		expect(workspaces.get(id).transcript.map((item) => 'text' in item && item.text)).toEqual([
+			'Review it',
+			'Reviewing now.'
+		]);
+	});
+
 	it('makes the first session of a workspace its conversation, and further ones workspaces sharing its worktree', () => {
 		const { store, repos, workspaces, repo, dispatch } = setup();
 		// a workspace as it used to be recorded: created without an agent, then its sessions

@@ -59,7 +59,8 @@
 	{/if}
 
 	<div bind:this={scroller} onscroll={atBottom} class="scroller">
-		<ol class="w-full space-y-8 px-5 py-6">
+		<!-- Inset on the right by as much as the avatar insets the agent's text on the left. -->
+		<ol class="w-full space-y-8 py-6 pr-16.5 pl-5">
 			{#each blocks as block, i (i)}
 				<li>
 					{#if block.kind === 'user'}

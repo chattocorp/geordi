@@ -26,6 +26,15 @@ export type LegacyEvent =
 			data: { id: string; event: AgentEvent };
 	  };
 
+/**
+ * For a while, the instructions of a skill an agent read were recorded as if the agent had
+ * said them. They are told apart by how Claude Code introduces them.
+ */
+function isSkillText(event: { data: unknown }): boolean {
+	const output = (event.data as { event?: AgentEvent }).event;
+	return output?.kind === 'text' && output.text.startsWith('Base directory for this skill: ');
+}
+
 type Created = Extract<WorkspacesEvent, { type: 'workspace.created' }>['data'];
 /** A workspace as it used to be created: without an agent, which came with its first session. */
 type LegacyCreated = Omit<Created, 'agent'> & { agent?: Agent; parentSessionId?: string };
@@ -102,6 +111,7 @@ export function createUpcaster() {
 
 			case 'session.message':
 			case 'session.output': {
+				if (isSkillText(event)) return [];
 				const { id, ...rest } = (event as Extract<LegacyEvent, { data: { id: string } }>).data;
 				const workspaceId = workspaceOf.get(id);
 				if (!workspaceId) return [];
@@ -109,8 +119,10 @@ export function createUpcaster() {
 				return [{ type, data: { id: workspaceId, ...rest } } as CurrentEvent];
 			}
 
-			case 'workspace.message':
 			case 'workspace.output':
+				return isSkillText(event) ? [] : [event as CurrentEvent];
+
+			case 'workspace.message':
 			case 'workspace.queued':
 			case 'workspace.dequeued':
 			case 'workspace.titled':

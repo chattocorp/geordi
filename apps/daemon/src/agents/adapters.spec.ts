@@ -41,6 +41,43 @@ describe('claude adapter', () => {
 		]);
 	});
 
+	it("does not pass a skill's instructions off as something the agent said", () => {
+		// the shape `claude -p` reports a skill being read in: the tool call, its result, and
+		// then the skill's text as a user message for the model
+		const events = parseAll(claude, [
+			{
+				type: 'assistant',
+				message: {
+					content: [{ type: 'tool_use', id: 't1', name: 'Skill', input: { skill: 'review' } }]
+				}
+			},
+			{
+				type: 'user',
+				message: {
+					content: [{ type: 'tool_result', tool_use_id: 't1', content: 'Launching skill: review' }]
+				}
+			},
+			{
+				type: 'user',
+				message: {
+					content: [
+						{
+							type: 'text',
+							text: 'Base directory for this skill: /wt/.claude/skills/review\n\n# Review'
+						}
+					]
+				}
+			},
+			{ type: 'assistant', message: { content: [{ type: 'text', text: 'Reviewing now.' }] } }
+		]);
+
+		expect(events).toEqual([
+			{ kind: 'tool', id: 't1', name: 'Skill', input: '{"skill":"review"}' },
+			{ kind: 'tool.result', id: 't1', output: 'Launching skill: review', isError: false },
+			{ kind: 'text', text: 'Reviewing now.' }
+		]);
+	});
+
 	it('starts with our session ID and resumes with the CLI one', () => {
 		const base = {
 			sessionId: 'abc',
