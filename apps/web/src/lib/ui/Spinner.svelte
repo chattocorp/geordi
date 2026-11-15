@@ -7,6 +7,7 @@
 	useClock();
 </script>
 
-<span role="status" aria-label={label} title={label} class="shrink-0 font-mono text-accent-ink">
-	{FRAMES[clock.frame]}
+<!-- Not a live region: the frames would be read out, one after the other. -->
+<span role="img" aria-label={label} title={label} class="shrink-0 font-mono text-accent-ink">
+	<span aria-hidden="true">{FRAMES[clock.frame]}</span>
 </span>

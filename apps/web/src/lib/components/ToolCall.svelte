@@ -18,7 +18,7 @@
 
 <details class="group">
 	<summary
-		class="flex list-none items-center gap-3 px-3.5 py-2 text-sm select-none hover:bg-sunken/70 [&::-webkit-details-marker]:hidden"
+		class="flex list-none items-center gap-3 px-3.5 py-2 text-sm select-none hover:bg-sunken/70"
 	>
 		<span
 			class={[

@@ -38,6 +38,8 @@
 		empty
 	}: Props = $props();
 
+	const uid = $props.id();
+
 	/** Tells our own tabs from ones dragged over from another `Panes`. */
 	const self = Symbol('panes');
 	/** Where the dragged tab would land if dropped now. */
@@ -100,12 +102,11 @@
 				ondragover={(event) => over(event, n.id, 'center')}
 				ondrop={drop}
 			>
-				{#each n.tabs as id (id)}
+				{#each n.tabs as id, index (id)}
 					{@const active = id === n.active}
+					<!-- The tab and its close button are siblings: a tab can't hold another control. -->
 					<div
-						role="tab"
-						tabindex="0"
-						aria-selected={active}
+						role="presentation"
 						draggable="true"
 						ondragstart={(event) => {
 							drag.tab = id;
@@ -113,27 +114,30 @@
 							event.dataTransfer?.setData('text/plain', id);
 						}}
 						ondragend={endDrag}
-						onclick={() => onchange(open(layout, id))}
-						onkeydown={(event) => {
-							if (event.key === 'Enter' || event.key === ' ') onchange(open(layout, id));
-						}}
 						class={[
 							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
 							closable(id) ? 'pr-1' : 'pr-2.5',
 							active && 'item-active font-medium'
 						]}
 					>
-						{@render tab(id)}
+						<button
+							type="button"
+							role="tab"
+							id="{uid}-{n.id}-tab-{index}"
+							aria-selected={active}
+							aria-controls="{uid}-{n.id}-panel-{index}"
+							onclick={() => onchange(open(layout, id))}
+							class="flex min-w-0 flex-1 items-center gap-2 self-stretch"
+						>
+							{@render tab(id)}
+						</button>
 						{#if closable(id)}
 							<Button
 								variant="ghost"
 								size="sm"
 								icon="icon-[lucide--x]"
 								label="Close"
-								onclick={(event) => {
-									event.stopPropagation();
-									onchange(close(layout, id));
-								}}
+								onclick={() => onchange(close(layout, id))}
 								class={[
 									'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100',
 									active && 'opacity-60'
@@ -159,9 +163,11 @@
 				ondragover={(event) => over(event, n.id, zoneAt(event))}
 				ondrop={drop}
 			>
-				{#each n.tabs as id (id)}
+				{#each n.tabs as id, index (id)}
 					<div
 						role="tabpanel"
+						id="{uid}-{n.id}-panel-{index}"
+						aria-labelledby="{uid}-{n.id}-tab-{index}"
 						class={['absolute inset-0 flex flex-col', id !== n.active && 'invisible']}
 					>
 						{@render window(id)}

@@ -5,7 +5,7 @@ A self-hostable code forge and agent orchestrator.
 - Browse and manage Git repositories
 - Issues, pull requests, reviews
 - Run coding agents (`claude -p`, `codex`) in workspaces: isolated Git worktrees with
-  several agent sessions side by side, a live view of their changes, and a terminal
+  one conversation each, a live view of its changes, and terminals
 - Let agents start and supervise other agents, in the same directory or in worktrees of
   their own, and see who is controlling what
 - See each workspace's pull request, and move it along with one click: create it, fix its
@@ -99,10 +99,12 @@ authenticate each other with a shared token that the forge creates in its data d
 | `GEORDI_CODEX_SANDBOX`                                                                         |                              | Set to `workspace-write` to run Codex in its sandbox: no network, writes only in the worktree                                                                                  |
 | `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables) |                              | Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset                                                    |
 
-Codex runs in its `workspace-write` sandbox. So that it can commit, the sandbox may also write
+With `GEORDI_CODEX_SANDBOX=workspace-write`, Codex runs in its sandbox. So that it can commit, the sandbox may also write
 the repository's Git objects, refs, and logs, plus the worktree's own Git metadata. It can't
 write `.git/hooks` or `.git/config`. Claude runs without a sandbox, limited by its permission
 mode.
+
+Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
 
 ## Project docs
 

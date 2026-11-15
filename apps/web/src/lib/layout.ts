@@ -8,8 +8,6 @@ export type Group = {
 	id: string;
 	tabs: string[];
 	active: string | null;
-	/** A sticky group stays where it is when its last tab leaves, as a place to put tabs. */
-	sticky?: boolean;
 };
 export type Split = {
 	kind: 'split';
@@ -28,10 +26,12 @@ export type Zone = 'center' | 'left' | 'right' | 'top' | 'bottom';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 /** A group of tabs. Give it an `id` to find it again later. */
-export const singleGroup = (
-	tabs: string[],
-	{ id = uid(), sticky }: { id?: string; sticky?: boolean } = {}
-): Group => ({ kind: 'group', id, tabs, active: tabs[0] ?? null, ...(sticky && { sticky }) });
+export const singleGroup = (tabs: string[], { id = uid() }: { id?: string } = {}): Group => ({
+	kind: 'group',
+	id,
+	tabs,
+	active: tabs[0] ?? null
+});
 
 const group = (tabs: string[]) => singleGroup(tabs);
 
@@ -66,7 +66,7 @@ function mapGroups(layout: Layout, fn: (group: Group) => Layout | null): Layout 
 function without(group: Group, tab: string): Group | null {
 	const index = group.tabs.indexOf(tab);
 	const tabs = group.tabs.filter((other) => other !== tab);
-	if (tabs.length === 0) return group.sticky ? { ...group, tabs, active: null } : null;
+	if (tabs.length === 0) return null;
 	const active = group.active === tab ? tabs[Math.min(index, tabs.length - 1)] : group.active;
 	return { ...group, tabs, active };
 }
@@ -105,19 +105,6 @@ export function prune(layout: Layout, keep: (tab: string) => boolean): Layout {
 	return tabsOf(layout)
 		.filter((tab) => !keep(tab))
 		.reduce(close, layout);
-}
-
-/** Swaps one tab for another, in place. */
-export function replace(layout: Layout, tab: string, next: string): Layout {
-	return mapGroups(layout, (g) =>
-		g.tabs.includes(tab)
-			? {
-					...g,
-					tabs: g.tabs.map((other) => (other === tab ? next : other)),
-					active: g.active === tab ? next : g.active
-				}
-			: g
-	)!;
 }
 
 /**

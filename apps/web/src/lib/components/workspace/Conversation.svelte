@@ -64,9 +64,7 @@
 			{#each blocks as block, i (i)}
 				<li>
 					{#if block.kind === 'user'}
-						<div
-							class="ml-auto w-fit max-w-[85%] rounded-card rounded-br-control bg-bubble px-4 py-2.5 whitespace-pre-wrap"
-						>
+						<div class="ml-auto message bg-bubble whitespace-pre-wrap">
 							{block.text}
 						</div>
 					{:else}
@@ -97,9 +95,7 @@
 						onclick={() => removeQueued({ workspaceId: workspace.id, index })}
 						class="mt-1.5"
 					/>
-					<div
-						class="w-fit max-w-[85%] rounded-card rounded-br-control px-4 py-2.5 ring-1 ring-line"
-					>
+					<div class="message ring-1 ring-line">
 						<p class="label">Queued</p>
 						<p class="whitespace-pre-wrap text-muted">{text}</p>
 					</div>

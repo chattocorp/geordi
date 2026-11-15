@@ -54,6 +54,8 @@
 	function workspaceMenu(workspace: Item): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
+		// archiving takes the workspaces its agent started along: none of them may be working
+		const working = tree.working(workspace);
 		return [
 			{
 				label: 'Open in new tab',
@@ -82,7 +84,7 @@
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
 				danger: true,
-				disabled: running,
+				disabled: working,
 				onselect: () => archiveFromHere(workspace)
 			}
 		];

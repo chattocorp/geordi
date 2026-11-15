@@ -99,6 +99,9 @@
 			event.preventDefault();
 			const match = matches[active];
 			if (match) choose(match.item);
+		} else if (event.key === 'Tab') {
+			// focus moves on: the list must not stay open over what it moves to
+			popup.hidePopover();
 		}
 	}
 </script>

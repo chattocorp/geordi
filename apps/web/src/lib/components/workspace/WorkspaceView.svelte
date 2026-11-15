@@ -82,7 +82,9 @@
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
 		return tab === CHAT || !!pathOf(tab);
 	};
-	const main = $derived(add(prune(arrangement.current.main ?? singleGroup([CHAT]), exists), CHAT));
+	const main = $derived(
+		add(prune(arrangement.current.main ?? singleGroup([CHAT], { id: 'main' }), exists), CHAT)
+	);
 	const dock = $derived.by(() => {
 		const elsewhere = tabsOf(main);
 		const kept = (tab: string) => exists(tab) && tab !== CHAT && !elsewhere.includes(tab);
@@ -92,12 +94,13 @@
 			.filter((tab) => !elsewhere.includes(tab))
 			.reduce(
 				(layout, tab) => add(layout, tab),
-				prune(arrangement.current.dock ?? singleGroup([]), kept)
+				prune(arrangement.current.dock ?? singleGroup([], { id: 'dock' }), kept)
 			);
 	});
 
 	function newTerminal() {
-		const name = crypto.randomUUID().slice(0, 8);
+		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
+		const name = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 4)}`;
 		starting.add(name);
 		return `terminal:${name}`;
 	}
@@ -117,12 +120,14 @@
 	}
 
 	/** A window dragged from one area was dropped in the other. */
-	const receive = (to: 'main' | 'dock') => (tab: string, groupId: string, zone: Zone) =>
-		arrange(
-			to === 'main'
-				? { main: insert(main, tab, groupId, zone), dock: close(dock, tab) }
-				: { dock: insert(dock, tab, groupId, zone), main: close(main, tab) }
-		);
+	const receive = (to: 'main' | 'dock') => (tab: string, groupId: string, zone: Zone) => {
+		const [target, source] = to === 'main' ? [main, dock] : [dock, main];
+		const placed = insert(target, tab, groupId, zone);
+		// nowhere to put it (the group is gone): leave the window where it is
+		if (placed === target) return;
+		const left = close(source, tab);
+		arrange(to === 'main' ? { main: placed, dock: left } : { dock: placed, main: left });
+	};
 
 	/** The group the conversation is in: where diffs open. */
 	const chatGroup = $derived(groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id);
@@ -228,7 +233,7 @@
 	Open a terminal with +, or drag a window here.
 {/snippet}
 
-<main class="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col overflow-hidden md:h-dvh">
+<main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
 	<header class="flex h-14 shrink-0 items-center gap-3 border-b border-line px-5">
 		<div class="min-w-0 flex-1">
 			<h1 class="truncate heading" title={workspace.title}>

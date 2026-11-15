@@ -121,13 +121,13 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   Tailwind:
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `sidebar`,
     `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`, `accent-soft`,
-    `accent-ink`, `on-accent`, `danger`, `ok`, plus `claude`/`codex`) for light and dark
+    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, plus `claude`/`codex`) for light and dark
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `choice`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
+    `message`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
     `item-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
   - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `ContextMenu`, `Notice`, `Page`, `Panes`, `Select`,
-    `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in
+    `Spinner`, `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary

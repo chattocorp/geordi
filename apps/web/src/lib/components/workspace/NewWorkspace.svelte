@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { submitOnEnter } from '#lib/keys.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
@@ -38,6 +39,11 @@
 	{label}
 	placeholder="What should the agent do?"
 	field={prompt.as('text')}
+	onkeydown={(event) => {
+		// Enter starts the workspace, but not while there is no daemon to run it
+		if (harnesses) submitOnEnter(event);
+		else if (event.key === 'Enter' && !event.shiftKey) event.preventDefault();
+	}}
 	problems={prompt.issues()?.map((problem) => problem.message)}
 >
 	{#snippet header()}

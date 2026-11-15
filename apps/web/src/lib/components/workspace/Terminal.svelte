@@ -40,7 +40,8 @@
 				const term = new Terminal({
 					// the design system's terminal typeface; xterm wants it spelled out
 					fontFamily: getComputedStyle(node).getPropertyValue('--font-terminal'),
-					fontSize: 13,
+					// the design system's small size (`text-xs`, on the element), in pixels
+					fontSize: parseFloat(getComputedStyle(node).fontSize),
 					cursorBlink: true,
 					theme: theme()
 				});
@@ -111,4 +112,4 @@
 	};
 </script>
 
-<div class="min-h-0 flex-1 overflow-hidden py-2 pl-3" {@attach xterm}></div>
+<div class="min-h-0 flex-1 overflow-hidden py-2 pl-3 text-xs" {@attach xterm}></div>
