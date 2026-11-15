@@ -5,34 +5,42 @@
 	const { Story } = defineMeta({ title: 'UI/Select', component: Select });
 
 	const sizes = [
-		{ value: '', label: 'Default size' },
 		{ value: 's', label: 'Small' },
+		{ value: 'm', label: 'Medium' },
 		{ value: 'l', label: 'Large' }
 	];
-	// enough to scroll, with IDs to find them by
-	const models = [
-		{ value: '', label: 'Default model' },
-		...['Sol', 'Astra', 'Terra', 'Luna', 'Nova', 'Vega', 'Lyra', 'Orion', 'Rigel', 'Altair'].map(
-			(name) => ({ value: name, label: `GPT-6-${name}`, hint: `gpt-6-${name.toLowerCase()}` })
-		)
+	// enough to scroll, and some found by words that aren't shown
+	const stars = [
+		...['Sol', 'Astra', 'Terra', 'Luna', 'Nova', 'Vega'].map((name) => ({
+			value: name,
+			label: name,
+			keywords: 'near close'
+		})),
+		...['Lyra', 'Orion', 'Rigel', 'Altair', 'Deneb', 'Sirius'].map((name) => ({
+			value: name,
+			label: name
+		}))
 	];
 </script>
 
 <script lang="ts">
-	let size = $state('');
-	let other = $state('l');
-	let model = $state('Luna');
+	let size = $state('m');
+	let star = $state('Luna');
 </script>
 
-<Story name="Default and chosen" asChild>
-	<div class="flex flex-wrap items-center gap-3">
-		<Select label="Size" options={sizes} bind:value={size} />
-		<Select label="Size" options={sizes} bind:value={other}>
-			{#snippet leading()}<span class="icon-[lucide--ruler] size-3.5"></span>{/snippet}
-		</Select>
-	</div>
+<Story name="A few options" asChild>
+	<Select label="Size" options={sizes} bind:value={size} />
 </Story>
 
-<Story name="Many options, with hints" asChild>
-	<Select label="Model" options={models} bind:value={model} />
+<Story name="Icons and more to set" asChild>
+	<Select label="Star" options={stars} bind:value={star}>
+		{#snippet trigger()}
+			<span class="icon-[lucide--star] size-3.5"></span>
+			{star}
+		{/snippet}
+		{#snippet icon()}<span class="icon-[lucide--star] size-3.5 shrink-0"></span>{/snippet}
+		{#snippet footer()}
+			<p class="px-2 py-1.5 text-sm text-muted">Something that goes with the choice</p>
+		{/snippet}
+	</Select>
 </Story>

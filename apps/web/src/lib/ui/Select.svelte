@@ -1,26 +1,33 @@
+<script lang="ts" module>
+	export type SelectOption<T extends string = string> = {
+		value: T;
+		label: string;
+		/** Other words to find it by, not shown. */
+		keywords?: string;
+	};
+</script>
+
 <script lang="ts" generics="T extends string">
 	import { tick, type Snippet } from 'svelte';
 	import { fuzzyFilter, fuzzySegments } from '#lib/fuzzy.ts';
 
-	type Option = {
-		value: T;
-		label: string;
-		/** Something to tell similar options apart, or to find one by: an ID, say. */
-		hint?: string;
-	};
+	type Option = SelectOption<T>;
 	type Props = {
-		/** What is being chosen: shown while the default is, and the placeholder of the search. */
+		/** What is being chosen; read out, not shown. */
 		label: string;
 		value?: T;
-		/** The first option is the default: while it is chosen, the select is muted and shows `label`. */
 		options: Option[];
-		/** Something before the text: an icon, a meter. */
-		leading?: Snippet;
+		/** What the button says, instead of the chosen option's label. */
+		trigger?: Snippet;
+		/** Something before an option's label: an icon, an avatar. */
+		icon?: Snippet<[Option]>;
+		/** More to set, under the list: things that go with the choice. */
+		footer?: Snippet;
 	};
-	let { label, value = $bindable(), options, leading }: Props = $props();
+	let { label, value = $bindable(), options, trigger, icon, footer }: Props = $props();
 
 	const id = $props.id();
-	let trigger: HTMLButtonElement;
+	let button: HTMLButtonElement;
 	let popup: HTMLDivElement;
 	let search: HTMLInputElement;
 
@@ -37,23 +44,23 @@
 			query,
 			options,
 			(option) => option.label,
-			(option) => option.hint
+			(option) => option.keywords
 		)
 	);
 
 	/** Roughly the popup's size at its largest, to decide where it fits. */
-	const ROOM = { width: 320, height: 340 };
+	const ROOM = { width: 320, height: 420 };
 
 	function onbeforetoggle(event: ToggleEvent) {
 		if (event.newState !== 'open') return;
-		const button = trigger.getBoundingClientRect();
-		const below = innerHeight - button.bottom;
-		const left = Math.max(8, Math.min(button.left, innerWidth - ROOM.width - 8));
+		const from = button.getBoundingClientRect();
+		const below = innerHeight - from.bottom;
+		const left = Math.max(8, Math.min(from.left, innerWidth - ROOM.width - 8));
 		place =
-			`left: ${left}px; min-width: ${button.width}px; ` +
-			(below < ROOM.height && button.top > below
-				? `bottom: ${innerHeight - button.top + 6}px`
-				: `top: ${button.bottom + 6}px`);
+			`left: ${left}px; ` +
+			(below < ROOM.height && from.top > below
+				? `bottom: ${innerHeight - from.top + 6}px`
+				: `top: ${from.bottom + 6}px`);
 		query = '';
 		active = Math.max(0, options.indexOf(selected));
 	}
@@ -72,7 +79,7 @@
 	function choose(option: Option) {
 		value = option.value;
 		popup.hidePopover();
-		trigger.focus();
+		button.focus();
 	}
 
 	async function onkeydown(event: KeyboardEvent) {
@@ -87,8 +94,6 @@
 			event.preventDefault();
 			const match = matches[active];
 			if (match) choose(match.item);
-		} else if (event.key === 'Tab') {
-			popup.hidePopover();
 		}
 	}
 </script>
@@ -97,25 +102,23 @@
 <svelte:window onresize={() => open && popup.hidePopover()} />
 
 <!--
-	A choice among many, as a quiet pill that opens a list to search: type a few letters of
-	what you want ("g6l" finds "GPT-6-Luna"), arrow keys and Enter pick. While its first
-	option, the default, is chosen, it is muted and just says what it is for.
+	A choice among many: quiet text that opens a list to search. Type a few letters of what
+	you want ("g6l" finds "GPT-6-Luna"); arrow keys and Enter pick.
 -->
 <button
-	bind:this={trigger}
+	bind:this={button}
 	type="button"
 	popovertarget="{id}-popup"
 	aria-haspopup="listbox"
 	aria-expanded={open}
 	aria-label="{label}: {selected?.label}"
 	class={[
-		'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full pr-2 pl-3 text-sm ring-1 ring-line',
-		selected === options[0] ? 'text-muted' : 'bg-sunken text-ink ring-ink/20'
+		'inline-flex h-8 min-w-0 items-center gap-1.5 rounded-control px-2 text-sm hover:bg-sunken hover:text-ink',
+		open ? 'bg-sunken text-ink' : 'text-muted'
 	]}
 >
-	{@render leading?.()}
-	{selected === options[0] ? label : selected?.label}
-	<span class="icon-[lucide--chevron-down] size-3.5 text-muted"></span>
+	{#if trigger}{@render trigger()}{:else}{selected?.label}{/if}
+	<span class="icon-[lucide--chevron-down] size-3.5 shrink-0"></span>
 </button>
 
 <div
@@ -125,7 +128,7 @@
 	{onbeforetoggle}
 	{ontoggle}
 	style="inset: auto; {place}"
-	class="m-0 max-w-80 flex-col card-float p-1 text-ink open:flex"
+	class="m-0 w-72 flex-col card-float p-1 text-ink open:flex"
 >
 	<label class="flex items-center gap-2 border-b border-line px-2 pt-1 pb-2 text-muted">
 		<span class="icon-[lucide--search] size-3.5 shrink-0"></span>
@@ -142,11 +145,11 @@
 			aria-autocomplete="list"
 			autocomplete="off"
 			spellcheck="false"
-			placeholder={label}
+			placeholder="Search"
 			class="w-full min-w-0 bg-transparent text-sm text-ink placeholder:text-muted/70 focus-visible:outline-none"
 		/>
 	</label>
-	<div id="{id}-list" role="listbox" aria-label={label} class="scroller max-h-72 pt-1">
+	<div id="{id}-list" role="listbox" aria-label={label} class="scroller max-h-72 py-1">
 		{#each matches as { item, indices }, index (item.value)}
 			<button
 				type="button"
@@ -161,21 +164,19 @@
 					index === active ? 'bg-sunken text-ink' : 'text-muted'
 				]}
 			>
-				<span class={['icon-[lucide--check] size-3.5 shrink-0', item !== selected && 'invisible']}
-				></span>
-				<span class="whitespace-nowrap">
+				{@render icon?.(item)}
+				<span class="min-w-0 flex-1 truncate">
 					{#each fuzzySegments(item.label, indices) as segment, at (at)}
 						{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink"
 								>{segment.text}</mark
 							>{:else}{segment.text}{/if}
 					{/each}
 				</span>
-				{#if item.hint}
-					<span class="ml-auto pl-4 code-dense whitespace-nowrap text-muted">{item.hint}</span>
-				{/if}
+				{#if item === selected}<span class="icon-[lucide--check] size-3.5 shrink-0"></span>{/if}
 			</button>
 		{:else}
 			<p class="px-2 py-1.5 text-sm text-muted">Nothing like that</p>
 		{/each}
 	</div>
+	{#if footer}<div class="border-t border-line pt-1">{@render footer()}</div>{/if}
 </div>

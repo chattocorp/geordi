@@ -40,7 +40,7 @@
 		<input {...effort.as('hidden', chosen.effort ?? '')} />
 	{/snippet}
 	{#snippet footer()}
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+		<div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
 			{#if repos.length > 1}
 				<RepoPicker {repos} attributes={(id) => repoId.as('radio', id, id === first)} />
 			{/if}
