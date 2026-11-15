@@ -80,7 +80,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     trusts the worktree's own Git metadata.
   - Daemon: one adapter per agent CLI in `apps/daemon/src/agents/` maps the CLI's JSON output
     to `SessionEvent`s. `turn.ts` runs one CLI invocation per turn and guarantees exactly one
-    terminal event. Follow-up turns resume the CLI's own session (`resumeId`).
+    terminal event. Turns run detached from the daemon and are
+    followed through files, so they survive a daemon restart (ADR-007); only Ctrl+C stops
+    them. Test changes to turns by restarting the daemon mid-turn. Follow-up turns resume the CLI's own session (`resumeId`).
   - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
     `adapterFor`, and add parser tests based on real captured CLI output.
 - **Upstream forges (ADR-006).** The daemon talks to the forge a repository is hosted on

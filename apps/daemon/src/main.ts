@@ -22,7 +22,7 @@ import {
 } from './terminals.ts';
 import { removeWorktree } from './remove.ts';
 import { titleFor } from './titles.ts';
-import { runTurn, type Turn } from './turn.ts';
+import { resumeTurns, runTurn, type Turn } from './turn.ts';
 import { upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
@@ -31,6 +31,8 @@ const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 /** Where agents on this machine reach the forge's agent API (ADR-004). */
 const apiUrl = new URL('/mcp', process.env.GEORDI_FORGE_HTTP_URL || 'http://127.0.0.1:3000').href;
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
+/** Where running agent turns keep their output, so that they outlive this process (ADR-007). */
+const turnsDir = process.env.GEORDI_TURNS_DIR || join(homedir(), '.geordi', 'turns');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
 const daemonId = hostname();
@@ -57,8 +59,6 @@ function readToken(): string | null {
 	}
 }
 
-const turns = new Map<string, Turn>();
-
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
@@ -76,6 +76,33 @@ function send(message: DaemonMessage) {
 	if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 	else outbox.push(message);
 }
+
+/** Reports what a workspace's agent does. Queued while there is no forge to tell. */
+const emitFor = (workspaceId: string) => (event: AgentEvent) =>
+	send({ type: 'workspace.event', workspaceId, event });
+
+/** The turns running right now, by workspace: ones we started, and ones we found running. */
+const turns = await resumeTurns(turnsDir, adapterFor, emitFor);
+for (const [workspaceId, turn] of turns) forget(workspaceId, turn);
+
+function forget(workspaceId: string, turn: Turn) {
+	turn.done.then(() => {
+		if (turns.get(workspaceId) === turn) turns.delete(workspaceId);
+	});
+}
+
+/**
+ * The workspaces whose turn the forge has not heard the end of: those still running, and
+ * those that ended while it was away, whose last events are waiting in the outbox. Leaving
+ * the latter out would have the forge give them up as lost, a moment before their ending
+ * arrives.
+ */
+const unreported = () => [
+	...new Set([
+		...turns.keys(),
+		...outbox.flatMap((m) => (m.type === 'workspace.event' ? [m.workspaceId] : []))
+	])
+];
 
 /**
  * For messages that only matter to a forge that is listening right now: terminal output
@@ -116,7 +143,7 @@ function connect(delay = 500) {
 				daemonId,
 				nonce,
 				proof: prove(token, 'daemon', message.nonce),
-				running: [...turns.keys()],
+				running: unreported(),
 				terminals: runningTerminals()
 			};
 			ws.send(JSON.stringify(hello));
@@ -167,7 +194,7 @@ async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'turn.start': {
 			const { workspaceId, worktreeId, agent, repoPath, base, resumeId, prompt } = message;
-			const emit = (event: AgentEvent) => send({ type: 'workspace.event', workspaceId, event });
+			const emit = emitFor(workspaceId);
 
 			// The forge sends the next message as soon as the agent says it is done, which is a
 			// moment before its process has exited. Let it finish; if it won't, end it.
@@ -190,6 +217,7 @@ async function handle(message: ForgeMessage) {
 				const adapter = await adapterFor(agent);
 				const turn = runTurn(
 					adapter,
+					agent,
 					{
 						sessionId: workspaceId,
 						prompt,
@@ -199,12 +227,11 @@ async function handle(message: ForgeMessage) {
 						api: { url: apiUrl }
 					},
 					emit,
+					join(turnsDir, workspaceId),
 					message.apiToken
 				);
 				turns.set(workspaceId, turn);
-				turn.done.then(() => {
-					if (turns.get(workspaceId) === turn) turns.delete(workspaceId);
-				});
+				forget(workspaceId, turn);
 			} catch (error) {
 				emit({ kind: 'turn.failed', error: errorMessage(error) });
 			}
@@ -260,6 +287,8 @@ async function handle(message: ForgeMessage) {
 	}
 }
 
+// Ctrl+C is someone stopping Geordi: the agents stop with it. Any other way of going away
+// (a restart, a crash, being replaced) leaves them working for the next daemon to pick up.
 process.on('SIGINT', () => {
 	for (const turn of turns.values()) turn.stop();
 	closeTerminals();

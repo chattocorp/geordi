@@ -8,3 +8,4 @@
 | [ADR-004](ADR-004-agent-api-over-mcp.md)                         | An agent API over MCP, served by the forge          | 2026-11-14 |
 | [ADR-005](ADR-005-design-system.md)                              | A design system of tokens, utilities and components | 2026-11-14 |
 | [ADR-006](ADR-006-upstream-forges.md)                            | Upstream forges through `forges`, from the daemon   | 2026-11-14 |
+| [ADR-007](ADR-007-detached-agent-turns.md)                       | Agent turns run detached from the daemon            | 2026-11-15 |
