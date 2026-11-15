@@ -2,11 +2,13 @@ import { readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import {
+	AGENTS,
 	PROTOCOL_VERSION,
 	type DaemonMessage,
 	type DaemonRequest,
 	type ForgeMessage,
-	type AgentEvent
+	type AgentEvent,
+	type Harness
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
@@ -36,6 +38,10 @@ const turnsDir = process.env.GEORDI_TURNS_DIR || join(homedir(), '.geordi', 'tur
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
 const daemonId = hostname();
+/** The models and effort levels this machine's agent CLIs offer; told to the forge. */
+const harnesses: Harness[] = await Promise.all(
+	AGENTS.map(async (agent) => ({ agent, ...(await adapterFor(agent)).offers() }))
+);
 
 // Unencrypted connections are only acceptable on this machine. Both carry secrets: the
 // daemon's token, and the agents' API tokens.
@@ -144,7 +150,8 @@ function connect(delay = 500) {
 				nonce,
 				proof: prove(token, 'daemon', message.nonce),
 				running: unreported(),
-				terminals: runningTerminals()
+				terminals: runningTerminals(),
+				harnesses
 			};
 			ws.send(JSON.stringify(hello));
 		} else if (message.type === 'welcome' && verify(token, 'forge', nonce, message.proof)) {
@@ -224,6 +231,7 @@ async function handle(message: ForgeMessage) {
 						sessionId: workspaceId,
 						prompt,
 						resumeId,
+						settings: message.settings,
 						cwd: worktree.path,
 						writableRoots: worktree.writableRoots,
 						api: { url: apiUrl }

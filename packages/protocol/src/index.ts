@@ -3,10 +3,39 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
+
+/**
+ * How an agent is run, beyond which one it is. Whatever is absent is left to the agent's
+ * CLI: its own default, or what the user has configured for it.
+ */
+export type AgentSettings = {
+	/** A model, by the name its CLI knows it by. */
+	model?: string;
+	/** How hard the model should think; one of the model's `efforts`. */
+	effort?: string;
+};
+
+/** What model names and effort levels look like. They end up as CLI arguments. */
+export const SETTING = /^[A-Za-z0-9][\w.:[\]-]{0,79}$/;
+
+export type Model = {
+	id: string;
+	name: string;
+	/** The effort levels it can be asked for, the least first. */
+	efforts: string[];
+};
+
+/** What one agent CLI on a daemon's machine can be asked to run. */
+export type Harness = {
+	agent: Agent;
+	models: Model[];
+	/** The effort levels to offer while no model is chosen. */
+	efforts: string[];
+};
 
 /**
  * Where a workspace's files are: a worktree, derived from the repository and an ID. That ID
@@ -151,6 +180,7 @@ export type ForgeMessage =
 			type: 'turn.start';
 			workspaceId: string;
 			agent: Agent;
+			settings: AgentSettings;
 			/** Lets the agent call Geordi's agent API (ADR-004) as this workspace, for this turn. */
 			apiToken: string;
 			/** `null` on the first turn. */
@@ -185,6 +215,8 @@ export type DaemonMessage =
 			running: string[];
 			/** Terminals currently running on this daemon. */
 			terminals: string[];
+			/** The models and effort levels this daemon's agent CLIs offer. */
+			harnesses: Harness[];
 	  }
 	| { type: 'workspace.event'; workspaceId: string; event: AgentEvent }
 	/** Answers a `request`, with either a result (see `DaemonResults`) or an error. */

@@ -5,7 +5,8 @@ import {
 	type DaemonMessage,
 	type DaemonRequest,
 	type DaemonResults,
-	type ForgeMessage
+	type ForgeMessage,
+	type Harness
 } from '@geordi/protocol';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
@@ -48,6 +49,8 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 	/** Authenticated daemons, by socket. */
 	const daemons = new Map<WebSocket, string>();
+	/** What each connected daemon's agent CLIs offer, as it said when it connected. */
+	const offers = new Map<WebSocket, Harness[]>();
 	/** Which daemon each workspace's turns were sent to; only it may report on the workspace. */
 	const assigned = new Map<string, string>();
 	/** Requests awaiting a daemon's answer, by request ID. */
@@ -96,6 +99,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				socket.send(JSON.stringify(welcome));
 
 				daemons.set(socket, message.daemonId);
+				offers.set(socket, message.harnesses);
 				// After a forge restart we don't know assignments; trust what the daemon is running.
 				for (const id of message.running) if (!assigned.has(id)) assigned.set(id, message.daemonId);
 				console.log(`[daemons] ${message.daemonId} connected`);
@@ -113,6 +117,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			const daemonId = daemons.get(socket);
 			if (daemonId) console.log(`[daemons] ${daemonId} disconnected`);
 			daemons.delete(socket);
+			offers.delete(socket);
 		});
 	});
 
@@ -137,6 +142,10 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				if (!send({ type: 'request', id, request })) settle({ error: 'No daemon connected' });
 			});
 		},
+
+		/** The models and effort levels on offer: those of the daemon that turns are sent to. */
+		harnesses: (): Harness[] =>
+			[...offers].find(([socket]) => socket.readyState === socket.OPEN)?.[1] ?? [],
 
 		connected: () => [...daemons.values()]
 	};

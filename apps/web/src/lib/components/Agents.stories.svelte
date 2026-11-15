@@ -1,15 +1,33 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { Agent } from '@geordi/protocol';
+	import type { Harness } from '@geordi/protocol';
 	import AgentAvatar from './AgentAvatar.svelte';
 	import StatusBadge from './StatusBadge.svelte';
-	import AgentPicker from './workspace/AgentPicker.svelte';
+	import HarnessPicker, { type HarnessChoice } from './workspace/HarnessPicker.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Agents' });
+
+	const efforts = ['low', 'medium', 'high', 'xhigh', 'max'];
+	const harnesses: Harness[] = [
+		{
+			agent: 'claude',
+			models: ['Fable', 'Opus', 'Sonnet'].map((name) => ({
+				id: name.toLowerCase(),
+				name,
+				efforts
+			})),
+			efforts
+		},
+		// a CLI that says nothing about its models: there is nothing to choose
+		{ agent: 'codex', models: [], efforts: [] }
+	];
 </script>
 
 <script lang="ts">
-	let agent = $state<Agent>('claude');
+	let choice = $state<HarnessChoice>({
+		agent: 'claude',
+		settings: { claude: { model: 'opus', effort: 'high' } }
+	});
 </script>
 
 <Story name="Avatar and status" asChild>
@@ -24,5 +42,5 @@
 </Story>
 
 <Story name="Picker" asChild>
-	<AgentPicker bind:value={agent} />
+	<HarnessPicker {harnesses} {choice} onchange={(next) => (choice = next)} />
 </Story>

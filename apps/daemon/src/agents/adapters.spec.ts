@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { claude } from './claude.ts';
-import { codex } from './codex.ts';
+import { codex, modelsIn } from './codex.ts';
 
 const parseAll = (adapter: typeof claude, lines: unknown[]) =>
 	lines.flatMap((l) => adapter.parse(l));
@@ -84,7 +84,8 @@ describe('claude adapter', () => {
 			prompt: 'hi',
 			cwd: '/w',
 			writableRoots: ['/r/.git/objects'],
-			api: null
+			api: null,
+			settings: {}
 		};
 		expect(claude.command({ ...base, resumeId: null }).args).toContain('--session-id');
 		expect(claude.command({ ...base, resumeId: 'abc' }).args).toContain('--resume');
@@ -174,8 +175,44 @@ describe('prompt handling', () => {
 		prompt: '--dangerously-bypass-approvals-and-sandbox',
 		cwd: '/w',
 		writableRoots: ['/r/.git/objects'],
-		api: { url: 'http://forge/mcp' }
+		api: { url: 'http://forge/mcp' },
+		settings: {}
 	};
+
+	it('runs the model that was chosen, as hard as was chosen, on every turn', () => {
+		const settings = { model: 'opus', effort: 'high' };
+		for (const resumeId of [null, 'r1']) {
+			const args = (adapter: typeof claude) =>
+				adapter.command({ ...base, resumeId, settings }).args.join(' ');
+			expect(args(claude)).toContain('--model opus --effort high');
+			expect(args(codex)).toContain('-c model="opus" -c model_reasoning_effort="high"');
+		}
+	});
+
+	it('leaves model and effort to the CLI when nothing was chosen', () => {
+		for (const adapter of [claude, codex])
+			expect(adapter.command({ ...base, resumeId: null }).args.join(' ')).not.toMatch(
+				/model|effort/
+			);
+	});
+
+	it('reads the models Codex offers from its own list, and survives not finding it', () => {
+		const cache = JSON.stringify({
+			models: [
+				{
+					slug: 'gpt-x',
+					display_name: 'GPT-X',
+					visibility: 'list',
+					supported_reasoning_levels: [{ effort: 'low' }, { effort: 'high' }]
+				},
+				{ slug: 'internal', visibility: 'hide' },
+				{ slug: '--evil', visibility: 'list' }
+			]
+		});
+		expect(modelsIn(cache)).toEqual([{ id: 'gpt-x', name: 'GPT-X', efforts: ['low', 'high'] }]);
+		expect(modelsIn('')).toEqual([]);
+		expect(modelsIn('{"something":"else"}')).toEqual([]);
+	});
 
 	it.each([
 		['claude', claude],

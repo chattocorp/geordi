@@ -42,11 +42,23 @@ function parseBlock(block: Block): AgentEvent[] {
 	return []; // thinking blocks etc.
 }
 
+/** `--effort` levels, the least first. */
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+/** The CLI's aliases, each for the latest model of its kind. */
+const MODELS = ['Fable', 'Opus', 'Sonnet', 'Haiku'];
+
 /** `claude -p` with `--output-format stream-json`. */
 export const claude: AgentAdapter = {
-	command({ sessionId, prompt, resumeId, api }) {
+	offers: () => ({
+		models: MODELS.map((name) => ({ id: name.toLowerCase(), name, efforts: EFFORTS })),
+		efforts: EFFORTS
+	}),
+
+	command({ sessionId, prompt, resumeId, api, settings }) {
 		const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 		args.push('--permission-mode', permissionMode);
+		if (settings.model) args.push('--model', settings.model);
+		if (settings.effort) args.push('--effort', settings.effort);
 		if (api) {
 			// Claude expands ${VAR} in MCP configs itself.
 			const headers = { Authorization: `Bearer \${${API_TOKEN_ENV}}` };

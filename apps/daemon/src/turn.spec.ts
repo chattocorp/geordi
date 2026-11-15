@@ -8,6 +8,7 @@ import { resumeTurns, runTurn } from './turn.ts';
 
 /** An adapter that runs a Node one-liner and passes its JSON lines through as events. */
 const fake = (script: string): AgentAdapter => ({
+	offers: () => ({ models: [], efforts: [] }),
 	command: () => ({ cmd: process.execPath, args: ['-e', script] }),
 	parse: (line) => [line as AgentEvent]
 });
@@ -18,7 +19,8 @@ const options = {
 	cwd: process.cwd(),
 	writableRoots: [],
 	resumeId: null,
-	api: null
+	api: null,
+	settings: {}
 };
 
 const turnsDir = () => mkdtempSync(join(tmpdir(), 'geordi-turns-'));

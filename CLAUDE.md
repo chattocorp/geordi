@@ -83,6 +83,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     terminal event. Turns run detached from the daemon and are
     followed through files, so they survive a daemon restart (ADR-007); only Ctrl+C stops
     them. Test changes to turns by restarting the daemon mid-turn. Follow-up turns resume the CLI's own session (`resumeId`).
+  - A workspace runs with the model and effort chosen for it (FDR-004, `settings`). Each
+    adapter says what its CLI offers (`offers()`); the daemon tells the forge in its `hello`.
   - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
     `adapterFor`, and add parser tests based on real captured CLI output.
 - **Upstream forges (ADR-006).** The daemon talks to the forge a repository is hosted on
@@ -124,7 +126,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `choice`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
     `item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`,
+  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `Notice`, `Page`, `Panes`, `Select`,
     `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a

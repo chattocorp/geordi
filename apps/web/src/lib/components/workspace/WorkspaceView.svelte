@@ -36,6 +36,7 @@
 	import Changes from './Changes.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
+	import { effortName } from './HarnessPicker.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from './WorkspaceActions.svelte';
 
@@ -149,6 +150,13 @@
 			.map((a) => a.id);
 	});
 
+	/** The model and effort chosen for the agent, if any were. */
+	const settings = $derived(
+		[workspace.settings.model, workspace.settings.effort && effortName(workspace.settings.effort)]
+			.filter(Boolean)
+			.join(' · ')
+	);
+
 	/** Why archiving didn't work, if it didn't: usually work that would be lost. */
 	let archiveProblem = $state<string | null>(null);
 
@@ -259,6 +267,12 @@
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
 						<span class="truncate code-dense">{workspace.worktree.branch}</span>
+					</span>
+				{/if}
+				{#if settings}
+					<span class="flex shrink-0 items-center gap-1" title="The model and reasoning effort">
+						<span class="icon-[lucide--cpu] size-3.5"></span>
+						{settings}
 					</span>
 				{/if}
 				<!-- For telling someone (or an agent) exactly which workspace this is. -->

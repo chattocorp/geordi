@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, type FileVersions } from '@geordi/protocol';
+import { AGENTS, type FileVersions, type Harness } from '@geordi/protocol';
 import { store } from '#lib/server/events/index.ts';
 import {
 	archiveWorkspace as archive,
@@ -49,10 +49,29 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 	);
 });
 
+/**
+ * What each agent can be asked to run: its models and their effort levels, as the
+ * connected daemon reports them. Without a daemon, just the agents.
+ */
+export const getHarnesses = query((): Harness[] => {
+	const known = hub().harnesses();
+	return AGENTS.map(
+		(agent) =>
+			known.find((harness) => harness.agent === agent) ?? { agent, models: [], efforts: [] }
+	);
+});
+
 export const createWorkspace = form(
-	v.object({ repoId: v.string(), agent: v.picklist(AGENTS), prompt: text }),
-	(data) => {
-		const id = workspaces().create(data);
+	v.object({
+		repoId: v.string(),
+		agent: v.picklist(AGENTS),
+		/** Empty for "whatever the agent's CLI would use". */
+		model: v.optional(v.string()),
+		effort: v.optional(v.string()),
+		prompt: text
+	}),
+	({ model, effort, ...data }) => {
+		const id = workspaces().create({ ...data, settings: { model, effort } });
 		redirect(303, `/workspaces/${id}`);
 	}
 );

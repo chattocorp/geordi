@@ -1,6 +1,14 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { error } from '@sveltejs/kit';
-import type { Agent, AgentEvent, ForgeMessage, WorktreeMode, WorktreeRef } from '@geordi/protocol';
+import {
+	SETTING,
+	type Agent,
+	type AgentEvent,
+	type AgentSettings,
+	type ForgeMessage,
+	type WorktreeMode,
+	type WorktreeRef
+} from '@geordi/protocol';
 import type { EventStore, GeordiEvent } from './events/index.ts';
 import { createUpcaster, type CurrentEvent } from './legacy.ts';
 import type { createRepos } from './repos.ts';
@@ -16,6 +24,8 @@ export type WorkspacesEvent =
 				repoId: string;
 				title: string;
 				agent: Agent;
+				/** The model and effort chosen for it; absent where that is left to the agent's CLI. */
+				settings?: AgentSettings;
 				/** The workspace whose agent started this one (FDR-002). */
 				parentId?: string;
 				/** The workspace whose worktree this one works in, if not its own. */
@@ -77,6 +87,8 @@ export type Workspace = {
 	repoId: string;
 	title: string;
 	agent: Agent;
+	/** The model and effort it runs with; what is absent is left to the agent's CLI. */
+	settings: AgentSettings;
 	status: Status;
 	/** The workspace whose agent started this one; `null` if a person did. */
 	parentId: string | null;
@@ -127,7 +139,7 @@ export type Limits = {
 /** Sends a message to a daemon; returns false if none is connected. */
 export type Dispatch = (message: ForgeMessage) => boolean;
 
-type NewWorkspace = { repoId: string; agent: Agent; prompt: string };
+type NewWorkspace = { repoId: string; agent: Agent; settings?: AgentSettings; prompt: string };
 
 export function createWorkspaces(
 	store: EventStore<GeordiEvent>,
@@ -147,9 +159,16 @@ export function createWorkspaces(
 ) {
 	function apply(workspaces: Map<string, Workspace>, event: CurrentEvent, at: string) {
 		if (event.type === 'workspace.created') {
-			const { parentId = null, worktreeId = event.data.id, base = null, ...data } = event.data;
+			const {
+				parentId = null,
+				worktreeId = event.data.id,
+				base = null,
+				settings = {},
+				...data
+			} = event.data;
 			workspaces.set(data.id, {
 				...data,
+				settings,
 				status: 'idle',
 				parentId,
 				worktreeId,
@@ -335,6 +354,7 @@ export function createWorkspaces(
 			workspaceId: id,
 			...ref(id),
 			agent: workspace.agent,
+			settings: workspace.settings,
 			apiToken: tokenFor(workspace),
 			resumeId: workspace.resumeId,
 			prompt: text
@@ -346,16 +366,34 @@ export function createWorkspaces(
 	function create(
 		{
 			prompt,
+			settings = {},
 			...workspace
 		}: NewWorkspace & { parentId?: string; worktreeId?: string; base?: string },
 		actor: string | null = null
 	): string {
 		repos.get(workspace.repoId); // 404s for unknown repos
+		// Only what was chosen is recorded, and only what can safely be handed to a CLI.
+		const chosen: AgentSettings = {};
+		for (const key of ['model', 'effort'] as const) {
+			const value = settings[key];
+			if (!value) continue;
+			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
+			chosen[key] = value;
+		}
 		const id = randomUUID();
 		// The first line; the UI clamps long titles visually.
 		const title = prompt.split('\n')[0].trim().slice(0, 300);
 		store.append(
-			{ type: 'workspace.created', stream: `workspace:${id}`, data: { id, title, ...workspace } },
+			{
+				type: 'workspace.created',
+				stream: `workspace:${id}`,
+				data: {
+					id,
+					title,
+					...workspace,
+					...(Object.keys(chosen).length > 0 && { settings: chosen })
+				}
+			},
 			{ actor }
 		);
 		startTurn(find(id), prompt, actor);
@@ -445,6 +483,8 @@ export function createWorkspaces(
 				{
 					repoId: caller.repoId,
 					agent: agent ?? caller.agent,
+					// an agent of the same kind runs the way its parent does
+					...((agent ?? caller.agent) === caller.agent && { settings: caller.settings }),
 					prompt,
 					parentId: callerId,
 					...(worktree === 'shared'

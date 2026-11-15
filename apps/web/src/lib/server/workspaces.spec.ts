@@ -37,6 +37,7 @@ describe('workspaces', () => {
 				workspaceId: id,
 				worktreeId: id,
 				agent: 'claude',
+				settings: {},
 				repoPath: repo.path,
 				apiToken: expect.any(String),
 				resumeId: null,
@@ -65,6 +66,33 @@ describe('workspaces', () => {
 		});
 		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text']);
 		expect(workspace.transcript[1]).toMatchObject({ output: 'contents', isError: false });
+	});
+
+	it('runs every turn with the model and effort chosen, and hands them on to agents it starts', () => {
+		const { workspaces, sent, repo } = setup();
+		const settings = { model: 'opus', effort: 'high' };
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', settings, prompt: 'Go' });
+		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.send(id, 'More');
+		const same = workspaces.agents.start(id, { worktree: 'own', prompt: 'Help' });
+		const other = workspaces.agents.start(id, { worktree: 'own', agent: 'codex', prompt: 'Help' });
+
+		const turns = sent.filter((message) => message.type === 'turn.start');
+		expect(turns.map((turn) => turn.settings)).toEqual([settings, settings, settings, {}]);
+		expect(workspaces.get(same.id).settings).toEqual(settings);
+		// another kind of agent knows other models
+		expect(workspaces.get(other.id).settings).toEqual({});
+	});
+
+	it('refuses a model or effort that could be mistaken for a flag', () => {
+		const { workspaces, repo } = setup();
+		const create = (settings: { model?: string; effort?: string }) =>
+			workspaces.create({ repoId: repo.id, agent: 'claude', settings, prompt: 'Go' });
+		expect(() => create({ model: '--dangerously-skip-permissions' })).toThrow();
+		expect(() => create({ effort: 'high; rm -rf /' })).toThrow();
+		// nothing chosen is nothing recorded
+		expect(workspaces.get(create({ model: '', effort: undefined })).settings).toEqual({});
 	});
 
 	it('resumes the CLI session on follow-up messages', () => {

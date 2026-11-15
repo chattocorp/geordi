@@ -1,4 +1,7 @@
-import type { AgentEvent } from '@geordi/protocol';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { SETTING, type AgentEvent, type Model } from '@geordi/protocol';
 import { API_SERVER, API_TOKEN_ENV, truncate, type AgentAdapter } from './adapter.ts';
 
 /** A `codex exec --json` line. Fields vary by `type`; we read the ones we know about. */
@@ -79,9 +82,54 @@ function completed(item: Item): AgentEvent[] {
 	}
 }
 
+/**
+ * Reads the models Codex offers from the list it keeps for its own model picker. That file
+ * is Codex's business, not an interface: if it is missing or looks different, there are
+ * simply no models to choose from, and Codex runs with the one it is configured for.
+ */
+export function modelsIn(cache: string): Model[] {
+	try {
+		const { models } = JSON.parse(cache) as {
+			models: {
+				slug: string;
+				display_name?: string;
+				visibility?: string;
+				supported_reasoning_levels?: { effort: string }[];
+			}[];
+		};
+		return models
+			.filter((model) => model.visibility === 'list' && SETTING.test(model.slug))
+			.map((model) => ({
+				id: model.slug,
+				name: model.display_name ?? model.slug,
+				efforts: (model.supported_reasoning_levels ?? [])
+					.map((level) => level.effort)
+					.filter((effort) => SETTING.test(effort))
+			}));
+	} catch {
+		return [];
+	}
+}
+
 /** `codex exec --json`. */
 export const codex: AgentAdapter = {
-	command({ prompt, cwd, writableRoots, resumeId, api }) {
+	offers() {
+		let cache = '';
+		try {
+			const home = process.env.CODEX_HOME || join(homedir(), '.codex');
+			cache = readFileSync(join(home, 'models_cache.json'), 'utf8');
+		} catch {
+			// no list: nothing to choose from
+		}
+		const models = modelsIn(cache);
+		// without a model chosen, only what every model can do is safe to ask for
+		const efforts = (models[0]?.efforts ?? []).filter((effort) =>
+			models.every((model) => model.efforts.includes(effort))
+		);
+		return { models, efforts };
+	},
+
+	command({ prompt, cwd, writableRoots, resumeId, api, settings }) {
 		const config = sandboxed
 			? [
 					'sandbox_mode="workspace-write"',
@@ -89,6 +137,9 @@ export const codex: AgentAdapter = {
 					`sandbox_workspace_write.writable_roots=${JSON.stringify(writableRoots)}`
 				]
 			: [];
+		// as configuration rather than flags: `exec resume` takes these too
+		if (settings.model) config.push(`model=${JSON.stringify(settings.model)}`);
+		if (settings.effort) config.push(`model_reasoning_effort=${JSON.stringify(settings.effort)}`);
 		if (api)
 			config.push(
 				`mcp_servers.${API_SERVER}.url=${JSON.stringify(api.url)}`,
