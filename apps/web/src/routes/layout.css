@@ -47,6 +47,9 @@
 	--danger: #d03b36;
 	--danger-soft: #fde7e5;
 	--ok: #1f9d7a;
+	/* done and landed: a merged pull request, as forges show it */
+	--merged: #8250df;
+	--on-merged: #ffffff;
 	--claude: #8b5cf6;
 	--codex: #0ea5a4;
 	--shadow: 0 1px 2px rgb(20 20 40 / 0.04), 0 4px 16px rgb(20 20 40 / 0.06);
@@ -70,6 +73,8 @@
 	--danger: #ff7b72;
 	--danger-soft: #45292b;
 	--ok: #4fd1a5;
+	--merged: #a985f7;
+	--on-merged: #1c1330;
 	--claude: #a78bfa;
 	--codex: #2dd4bf;
 	--shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 16px rgb(0 0 0 / 0.18);
@@ -123,6 +128,8 @@
 	--color-danger: var(--danger);
 	--color-danger-soft: var(--danger-soft);
 	--color-ok: var(--ok);
+	--color-merged: var(--merged);
+	--color-on-merged: var(--on-merged);
 	--color-claude: var(--claude);
 	--color-codex: var(--codex);
 

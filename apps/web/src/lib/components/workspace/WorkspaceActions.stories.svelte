@@ -33,13 +33,18 @@
 	const onaction = () => {};
 </script>
 
-{#snippet bar(state: Parameters<typeof actionsFor>[0], pending: 'fix-checks'[] = [])}
+{#snippet bar(
+	state: Parameters<typeof actionsFor>[0],
+	pending: 'fix-checks'[] = [],
+	working = false
+)}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
 		standing={standingOf(state)}
 		pull={pull && { number: pull.number, url: 'https://example.com/pull/42' }}
 		actions={actionsFor(state)}
 		{pending}
+		{working}
 		{onaction}
 	/>
 {/snippet}
@@ -73,4 +78,12 @@
 
 <Story name="Merged" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
+</Story>
+
+<Story name="Agent at work, nothing else to say" asChild>
+	{@render bar({ changes: { files: [], uncommitted: 0, unpushed: 0 }, upstream: null }, [], true)}
+</Story>
+
+<Story name="Agent at work on failing checks" asChild>
+	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'], true)}
 </Story>

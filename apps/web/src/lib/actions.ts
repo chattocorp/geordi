@@ -113,8 +113,11 @@ export function actionsFor({ changes, upstream }: State): WorkspaceAction[] {
 /** Where a workspace stands, in a few words, with a tone for how that should feel. */
 export type WorkspaceStanding = {
 	label: string;
-	/** `ok`: nothing in the way. `danger`: something is wrong. `accent`: something to do. */
-	tone: 'ok' | 'danger' | 'accent' | 'neutral';
+	/**
+	 * `ok`: nothing in the way. `danger`: something is wrong. `accent`: something to do.
+	 * `merged`: done and landed.
+	 */
+	tone: 'ok' | 'danger' | 'accent' | 'merged' | 'neutral';
 	/** An Iconify class. */
 	icon: string;
 };
@@ -139,7 +142,7 @@ export function standingOf({ changes, upstream }: State): WorkspaceStanding | nu
 		return uncommitted || unpushed ? todo('Changes to publish') : null;
 
 	if (pull.state === 'merged')
-		return { label: 'Merged', tone: 'ok', icon: 'icon-[lucide--git-merge]' };
+		return { label: 'Merged', tone: 'merged', icon: 'icon-[lucide--git-merge]' };
 	if (pull.state === 'closed')
 		return { label: 'Closed', tone: 'neutral', icon: 'icon-[lucide--circle-slash]' };
 	if (pull.checks?.state === 'failure')

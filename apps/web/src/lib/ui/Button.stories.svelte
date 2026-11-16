@@ -16,6 +16,14 @@
 	</div>
 </Story>
 
+<Story name="Busy" asChild>
+	<div class="flex flex-wrap items-center gap-3">
+		<Button variant="primary" icon="icon-[lucide--git-merge]" busy>Merge PR</Button>
+		<Button icon="icon-[lucide--archive]" busy>Archive</Button>
+		<Button size="sm" variant="primary" icon="icon-[lucide--wrench]" busy>Fix errors</Button>
+	</div>
+</Story>
+
 <Story name="Icon only" asChild>
 	<div class="flex flex-wrap items-center gap-3">
 		<Button variant="primary" icon="icon-[lucide--arrow-up]" label="Send" />
