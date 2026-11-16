@@ -99,12 +99,11 @@
 			{@const next = action === actions.find((candidate) => !candidate.aside)}
 			<Button
 				size="sm"
-				variant={next ? 'primary' : 'secondary'}
+				variant={next ? 'primary' : 'soft'}
 				tone={standing?.tone === 'merged' ? 'merged' : 'accent'}
 				icon={action.icon}
 				busy={pending.includes(action.id)}
 				onclick={() => onaction(action)}
-				class={next ? '' : 'bg-surface text-ink'}
 			>
 				{action.label}
 			</Button>

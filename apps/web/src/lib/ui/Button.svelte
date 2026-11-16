@@ -6,9 +6,10 @@
 	type Props = {
 		/**
 		 * `primary` for the one main action of a view (gold), `secondary` for other actions,
-		 * `ghost` for quiet ones that sit inside something else (toolbars, rows, tabs).
+		 * `ghost` for quiet ones that sit inside something else (toolbars, rows, tabs), `soft`
+		 * for other actions inside something coloured: it takes that colour, faintly.
 		 */
-		variant?: 'primary' | 'secondary' | 'ghost';
+		variant?: 'primary' | 'secondary' | 'ghost' | 'soft';
 		/**
 		 * What a `primary` button is coloured in: the accent, as a rule. `merged` for the one
 		 * step left when work has landed, in the colour that says so.
@@ -45,7 +46,8 @@
 			tone === 'merged' ? 'bg-merged text-on-merged' : 'bg-accent text-on-accent'
 		],
 		secondary: 'rounded-full bg-sunken font-medium ring-1 ring-line hover:bg-line/50',
-		ghost: 'rounded-control font-medium text-muted hover:bg-sunken hover:text-ink'
+		ghost: 'rounded-control font-medium text-muted hover:bg-sunken hover:text-ink',
+		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20'
 	});
 	const shapes = {
 		// with text, and as a bare icon

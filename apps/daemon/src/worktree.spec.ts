@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { NO_WORKTREE } from '@geordi/protocol';
 import {
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -174,8 +175,18 @@ describe('ensureWorktree', () => {
 		// what was done before is still on its branch
 		expect(run(repoPath, 'log', '--format=%s', '-1', 'geordi/12345678')).toBe('my work');
 
-		// and again; and a worktree that goes missing comes back on the branch it was on
-		expect(continueOn(worktree, repoPath)).toBe('geordi/12345678-3');
+		// a HEAD the agent turned into a link is replaced, not written through
+		const elsewhere = join(base, 'not-the-agents-to-write.txt');
+		writeFileSync(elsewhere, 'precious\n');
+		rmSync(join(worktree.adminDir, 'HEAD'));
+		symlinkSync(elsewhere, join(worktree.adminDir, 'HEAD'));
+		writeFileSync(elsewhere, 'ref: refs/heads/geordi/12345678-2\n'); // what git would read through it
+		continueOn(worktree, repoPath);
+		expect(readFileSync(elsewhere, 'utf8')).toBe('ref: refs/heads/geordi/12345678-2\n');
+		expect(lstatSync(join(worktree.adminDir, 'HEAD')).isSymbolicLink()).toBe(false);
+
+		// and a worktree that goes missing comes back on the branch it was on
+		expect(run(worktree.path, 'branch', '--show-current')).toBe('geordi/12345678-3');
 		rmSync(worktree.path, { recursive: true });
 		const back = ensureWorktree(base, repoPath, '12345678-aaaa', undefined, 'geordi/12345678-3');
 		expect(back).toMatchObject({ restored: true, branch: 'geordi/12345678-3' });

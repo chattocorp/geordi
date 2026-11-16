@@ -1,6 +1,17 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { NO_WORKTREE } from '@geordi/protocol';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import {
+	closeSync,
+	constants,
+	existsSync,
+	mkdirSync,
+	openSync,
+	readFileSync,
+	realpathSync,
+	renameSync,
+	writeSync
+} from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
 const git = (cwd: string, ...args: string[]) =>
@@ -230,7 +241,23 @@ export function continueOn(worktree: Worktree, repoPath: string): string {
 		git(repoPath, 'branch', '-D', branch); // nothing is on it yet
 		throw error;
 	}
-	writeFileSync(join(worktree.adminDir, 'HEAD'), `ref: ${branchRef(branch)}\n`);
+	// The worktree's admin directory is the agent's to write: a HEAD turned into a link
+	// would have us write wherever it points. So the new HEAD is a new file (which fails
+	// rather than follow anything already there), moved into the old one's place (which
+	// replaces a link rather than follow it).
+	const head = join(worktree.adminDir, 'HEAD');
+	const fresh = `${head}.${randomUUID()}`;
+	const fd = openSync(
+		fresh,
+		constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+		0o644
+	);
+	try {
+		writeSync(fd, `ref: ${branchRef(branch)}\n`);
+	} finally {
+		closeSync(fd);
+	}
+	renameSync(fresh, head);
 	return branch;
 }
 
