@@ -192,7 +192,11 @@
 					{/snippet}
 					{#snippet footer()}
 						<!-- who answers next, and how hard it thinks: as where the workspace was started -->
-						<div class="flex min-w-0 flex-wrap items-center gap-1">
+						<!-- (Not while the agent works in a box too narrow for them and the buttons
+						     both: then it is the buttons that are needed, on one line.) -->
+						<div
+							class={['min-w-0 flex-wrap items-center gap-1', running ? 'hidden @lg:flex' : 'flex']}
+						>
 							{#if harnesses?.length}
 								<HarnessPicker {harnesses} {choice} onchange={configure} />
 							{/if}
