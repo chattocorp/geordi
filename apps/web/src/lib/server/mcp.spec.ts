@@ -65,6 +65,35 @@ function setup() {
 	return { workspaces, agents, archived, caller, rpc, call, read, config };
 }
 
+describe('naming workspaces', () => {
+	it('lets an agent name its own workspace, a few times at most', async () => {
+		const { workspaces, caller, call } = setup();
+		expect(await call('name_workspace', { title: '  "Speed up the test suite."  ' })).toEqual({
+			title: 'Speed up the test suite'
+		});
+		expect(workspaces.get(caller)).toMatchObject({ title: 'Speed up the test suite', named: true });
+
+		await call('name_workspace', { title: 'Second thoughts' });
+		await call('name_workspace', { title: 'Third time lucky' });
+		expect((await call('name_workspace', { title: 'And again' })).error).toMatch(/keeps its name/);
+		expect(workspaces.get(caller).title).toBe('Third time lucky');
+	});
+
+	it('lets an agent name the agents it starts', async () => {
+		const { workspaces, caller, call } = setup();
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const named = await call('start_agent', {
+			prompt: 'Look through the fixtures for anything that takes long to set up.',
+			title: 'Find slow fixtures'
+		});
+		expect(workspaces.get(named.id)).toMatchObject({ title: 'Find slow fixtures', named: true });
+
+		// without one, it is named after its task, until someone knows better
+		const unnamed = await call('start_agent', { prompt: 'Review the changes' });
+		expect(workspaces.get(unnamed.id)).toMatchObject({ title: 'Review the changes', named: false });
+	});
+});
+
 describe('configuring the repository', () => {
 	it('explains every setting there is, as plain text', async () => {
 		const { read } = setup();
@@ -118,6 +147,7 @@ describe('the agent API as an MCP server', () => {
 		};
 		expect(tools.map((tool) => tool.name)).toEqual([
 			'start_agent',
+			'name_workspace',
 			'wait_for_agent',
 			'list_agents',
 			'send_message',

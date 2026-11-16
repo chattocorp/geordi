@@ -69,13 +69,31 @@ const tools = {
 			agent: v.pipe(
 				v.optional(v.picklist(AGENTS)),
 				v.description('Which agent to start. Defaults to the same kind as you.')
+			),
+			title: v.pipe(
+				v.optional(v.pipe(v.string(), v.maxLength(80))),
+				v.description(
+					"A short name for the agent's work (a few words), by which the person finds it in their list. Give one: you know what you are handing over."
+				)
 			)
 		}),
 		run: (
 			agents: Agents,
 			caller: string,
-			input: { prompt: string; worktree: 'own' | 'shared'; agent?: (typeof AGENTS)[number] }
+			input: {
+				prompt: string;
+				worktree: 'own' | 'shared';
+				agent?: (typeof AGENTS)[number];
+				title?: string;
+			}
 		) => agents.start(caller, input)
+	},
+	name_workspace: {
+		description:
+			'Give your own workspace a short name that says what the work is about (a few words, no quotes, no full stop), by which the person finds it among their others. Call this once you know what the work is. Call it again only if the work turns out to be about something else.',
+		input: v.object({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
+		run: (agents: Agents, caller: string, input: { title: string }) =>
+			agents.name(caller, input.title)
 	},
 	wait_for_agent: {
 		description:

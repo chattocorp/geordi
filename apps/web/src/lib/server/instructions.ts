@@ -10,6 +10,8 @@ export function instructionsFor(workspace: {
 	parent: { title: string } | null;
 	/** Whether it works in that workspace's directory rather than in one of its own. */
 	sharesWorktree: boolean;
+	/** Whether it was given a name on purpose already. */
+	named: boolean;
 	/** Whether it may start agents itself: not when it is nested as deep as agents may go. */
 	mayDelegate: boolean;
 }): string {
@@ -28,7 +30,13 @@ export function instructionsFor(workspace: {
 		workspace.mayDelegate
 			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. Prefer it to your own built-in subagents for anything more than a quick lookup.'
 			: 'You cannot start further agents from here.',
+		// one that was started with a name has it from whoever knows what it is for
+		parent && workspace.named
+			? ''
+			: 'Once you know what the work is about, give this workspace a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name. Do that early, alongside your first steps, and again only if the work turns out to be about something else.',
 		"This workspace has network ports of its own, which stay the same for as long as it lives: `$GEORDI_PORT` is the first of them, `$GEORDI_PORTS` says how many there are, and each of the repository's jobs has its own in `$GEORDI_PORT_<NAME>`. When you start anything that listens on a port (a dev server, a database), use one of these, never a default like 3000 or 5173: other workspaces run the same project next to you.",
 		`The repository can tell Geordi how it wants to be treated (how the project is run, for one) in a \`${CONFIG_FILE}\` at its top level. Before creating or changing that file, call the \`geordi\` MCP server's \`configuration_reference\` tool; afterwards, \`check_configuration\`.`
-	].join('\n\n');
+	]
+		.filter(Boolean)
+		.join('\n\n');
 }

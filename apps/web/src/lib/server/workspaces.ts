@@ -93,6 +93,8 @@ export type Workspace = {
 	id: string;
 	repoId: string;
 	title: string;
+	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
+	named: boolean;
 	agent: Agent;
 	/** The model and effort it runs with; what is absent is left to the agent's CLI. */
 	settings: AgentSettings;
@@ -146,6 +148,9 @@ export type Limits = {
 /** Sends a message to a daemon; returns false if none is connected. */
 export type Dispatch = (message: ForgeMessage) => boolean;
 
+/** How often an agent may name its own workspace. */
+const MAX_NAMES = 3;
+
 type NewWorkspace = { repoId: string; agent: Agent; settings?: AgentSettings; prompt: string };
 
 export function createWorkspaces(
@@ -164,7 +169,12 @@ export function createWorkspaces(
 		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
-	function apply(workspaces: Map<string, Workspace>, event: CurrentEvent, at: string) {
+	function apply(
+		workspaces: Map<string, Workspace>,
+		event: CurrentEvent,
+		at: string,
+		actor: string | null
+	) {
 		if (event.type === 'workspace.created') {
 			const {
 				parentId = null,
@@ -175,6 +185,7 @@ export function createWorkspaces(
 			} = event.data;
 			workspaces.set(data.id, {
 				...data,
+				named: false,
 				settings,
 				status: 'idle',
 				parentId,
@@ -199,6 +210,8 @@ export function createWorkspaces(
 
 		if (event.type === 'workspace.titled') {
 			workspace.title = event.data.title;
+			// a title someone chose, as opposed to one a model made of the first message unasked
+			if (actor) workspace.named = true;
 			return;
 		}
 		if (event.type === 'workspace.configured') {
@@ -272,7 +285,7 @@ export function createWorkspaces(
 		'workspaces',
 		() => new Map<string, Workspace>(),
 		(workspaces, event) => {
-			for (const current of upcast(event)) apply(workspaces, current, event.at);
+			for (const current of upcast(event)) apply(workspaces, current, event.at, event.actor);
 			return workspaces;
 		}
 	);
@@ -383,6 +396,7 @@ export function createWorkspaces(
 			instructions: instructionsFor({
 				parent: (workspace.parentId && projection.get().get(workspace.parentId)) || null,
 				sharesWorktree: workspace.worktreeId !== id,
+				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
 			prompt: text
@@ -402,13 +416,32 @@ export function createWorkspaces(
 		return chosen;
 	}
 
+	/**
+	 * Gives the workspace a new title. Whatever is passed is cut down to one modest line;
+	 * if nothing is left of it, the title stays.
+	 */
+	function retitle(id: string, title: string, actor: string | null = null) {
+		const clean = title
+			.split('\n')[0]
+			.trim()
+			.replace(/^["'“‘]+|["'”’.]+$/g, '')
+			.slice(0, 80)
+			.trim();
+		if (!clean || clean === find(id).title) return;
+		store.append(
+			{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: clean } },
+			{ actor }
+		);
+	}
+
 	/** Creates a workspace and sends `prompt` to its agent. Returns the workspace's ID. */
 	function create(
 		{
 			prompt,
 			settings = {},
+			title: given,
 			...workspace
-		}: NewWorkspace & { parentId?: string; worktreeId?: string; base?: string },
+		}: NewWorkspace & { parentId?: string; worktreeId?: string; base?: string; title?: string },
 		actor: string | null = null
 	): string {
 		repos.get(workspace.repoId); // 404s for unknown repos
@@ -429,8 +462,10 @@ export function createWorkspaces(
 			},
 			{ actor }
 		);
+		// whoever starts it may name it; otherwise that is left to others (`onCreated`, its agent)
+		if (given && actor) retitle(id, given, actor);
 		startTurn(find(id), prompt, actor);
-		onCreated?.(id, prompt);
+		if (!find(id).named) onCreated?.(id, prompt);
 		return id;
 	}
 
@@ -497,12 +532,31 @@ export function createWorkspaces(
 		authenticate,
 
 		/**
+		 * Names the caller's own workspace, so that people can tell it from the others. A few
+		 * times at most: a name that keeps changing is no name.
+		 */
+		name(callerId: string, title: string) {
+			const mine = store
+				.readStream(`workspace:${callerId}`)
+				.filter((event) => event.type === 'workspace.titled' && event.actor === callerId);
+			if (mine.length >= MAX_NAMES)
+				error(429, `You have named this workspace ${MAX_NAMES} times already; it keeps its name`);
+			retitle(callerId, title, callerId);
+			return { title: find(callerId).title };
+		},
+
+		/**
 		 * Starts an agent on the caller's behalf, as a workspace of its own: in a new worktree
 		 * branched from the caller's (`own`), or working in the caller's worktree (`shared`).
 		 */
 		start(
 			callerId: string,
-			{ worktree, agent, prompt }: { worktree: WorktreeMode; agent?: Agent; prompt: string }
+			{
+				worktree,
+				agent,
+				prompt,
+				title
+			}: { worktree: WorktreeMode; agent?: Agent; prompt: string; title?: string }
 		): AgentReport {
 			const caller = find(callerId);
 			if (depthOf(caller) + 1 > limits.depth)
@@ -519,6 +573,7 @@ export function createWorkspaces(
 					// an agent of the same kind runs the way its parent does
 					...((agent ?? caller.agent) === caller.agent && { settings: caller.settings }),
 					prompt,
+					title,
 					parentId: callerId,
 					...(worktree === 'shared'
 						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
@@ -664,10 +719,6 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Gives the workspace a new title. Whatever is passed is cut down to one modest line;
-		 * if nothing is left of it, the title stays.
-		 */
-		/**
 		 * Has the workspace's agent run with another model or effort. A turn under way carries
 		 * on as it was started; the next one runs as chosen.
 		 */
@@ -683,18 +734,14 @@ export function createWorkspaces(
 			);
 		},
 
-		retitle(id: string, title: string, actor: string | null = null) {
-			const clean = title
-				.split('\n')[0]
-				.trim()
-				.replace(/^["'“‘]+|["'”’.]+$/g, '')
-				.slice(0, 80)
-				.trim();
-			if (!clean || clean === find(id).title) return;
-			store.append(
-				{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: clean } },
-				{ actor }
-			);
+		retitle,
+
+		/**
+		 * A title a model made of the workspace's first message. Only until someone has named
+		 * it on purpose: its agent knows better what the work is about.
+		 */
+		suggestTitle(id: string, title: string) {
+			if (!find(id).named) retitle(id, title);
 		},
 
 		/** Marks the workspace as done with. Its conversation stays readable. */

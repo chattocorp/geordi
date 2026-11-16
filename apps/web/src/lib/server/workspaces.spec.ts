@@ -302,6 +302,18 @@ describe('titles', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).title).toHaveLength(80);
 	});
 
+	it('prefers the name someone chose to one a model made of the first message', () => {
+		const { workspaces, create } = setup();
+		const id = create('Fix the bug in the login flow, it fails on Safari');
+		workspaces.suggestTitle(id, 'Fix Safari login');
+		expect(workspaces.get(id)).toMatchObject({ title: 'Fix Safari login', named: false });
+
+		// its agent names it: that holds, whatever a model comes up with later
+		workspaces.agents.name(id, 'Safari login cookie fix');
+		workspaces.suggestTitle(id, 'Login bug');
+		expect(workspaces.get(id)).toMatchObject({ title: 'Safari login cookie fix', named: true });
+	});
+
 	it('announces new workspaces, including ones agents start, with what started them', () => {
 		const { store, repos, repo, dispatch } = setup();
 		const created: [string, string][] = [];

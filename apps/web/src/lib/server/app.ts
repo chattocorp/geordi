@@ -32,7 +32,7 @@ export const workspaces = lazy(() =>
 			hub()
 				.request({ kind: 'title', text: prompt }, 60_000)
 				.then(
-					(title) => workspaces().retitle(id, title),
+					(title) => workspaces().suggestTitle(id, title),
 					(problem) => console.warn(`[titles] ${reason(problem)}`)
 				)
 	})

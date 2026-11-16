@@ -13,6 +13,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
   - **Its own worktree:** a new worktree and branch, branched from the parent workspace's branch, for work that should not interfere (parallel tasks).
   - **The parent's worktree:** the same directory as the parent, for work that needs to see uncommitted state (reviewing, pairing).
 - The parent can message a child, wait until it has finished its turn, read its latest reply, stop it, and archive it once it is done with it (after merging its branch, say). Archiving on an agent's behalf never discards uncommitted work. Children can start children of their own, up to a limit.
+- The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.
 - An agent can only see and control the agents it started, directly or indirectly.
 - Work from a child with its own worktree comes back by the parent merging the child's branch. Geordi does not merge on its own.
 - The sidebar lists every repository, and under each its workspaces, as a plain list. A workspace started by an agent is marked as such and comes right after the one that started it; pointing at it lights that one up.
