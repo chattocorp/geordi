@@ -164,12 +164,6 @@
 						page.url.pathname === '/'
 					)}
 					{@render link(
-						resolve('/issues'),
-						'icon-[lucide--circle-dot]',
-						'Issues',
-						page.url.pathname.startsWith('/issues')
-					)}
-					{@render link(
 						resolve('/workspaces/new'),
 						'icon-[lucide--plus]',
 						'New workspace',
@@ -243,7 +237,6 @@
 	<div class="flex min-w-0 flex-1 flex-col">
 		<header class="flex h-14 items-center gap-4 border-b border-line bg-sidebar px-4 md:hidden">
 			{@render logo()}
-			<a href={resolve('/issues')} class="text-sm text-muted">Issues</a>
 			<div class="ml-auto"><ThemeToggle /></div>
 		</header>
 		{@render children()}

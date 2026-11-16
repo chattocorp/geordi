@@ -53,11 +53,11 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 
 - **Event sourcing (ADR-001).** All state is event-sourced. Core: `apps/web/src/lib/server/events/`.
   - The only write is `store().append(...)`. Never write state elsewhere; no transactions.
-  - Each domain (e.g. `apps/web/src/lib/server/issues.ts`) defines its event union (added to
+  - Each domain (e.g. `apps/web/src/lib/server/repos.ts`) defines its event union (added to
     `GeordiEvent`), an in-memory projection via `store.project(...)`, and command functions
     that check the projection, then append. Keep check-then-append synchronous: no `await`
     in between.
-  - Domains are factories (`createIssues(store)`) so tests can use `new EventStore(':memory:')`.
+  - Domains are factories (`createRepos(store)`) so tests can use `new EventStore(':memory:')`.
   - Record `actor` on events; authentication comes later.
 - **Forge and daemon (ADR-002).** The daemon connects to the forge over one WebSocket carrying
   JSON (`packages/protocol`): commands down, agent events up. The forge stores all conversation

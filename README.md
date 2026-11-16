@@ -3,7 +3,6 @@
 A self-hostable code forge and agent orchestrator.
 
 - Browse and manage Git repositories
-- Issues, pull requests, reviews
 - Run coding agents (`claude -p`, `codex`) in workspaces: isolated Git worktrees with
   one conversation each, a live view of its changes, and terminals
 - Let agents start and supervise other agents, in the same directory or in worktrees of

@@ -6,7 +6,7 @@
 </script>
 
 <Story name="With a description" asChild>
-	<Page title="Issues">
+	<Page title="Repositories">
 		{#snippet description()}What needs doing, and what has been done.{/snippet}
 		<div class="card p-4">The page's content</div>
 	</Page>

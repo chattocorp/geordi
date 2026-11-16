@@ -9,7 +9,6 @@ import { createArchiver } from './archive.ts';
 import { store } from './events/index.ts';
 import { loadSecret } from './secret.ts';
 import { createHub } from './daemons.ts';
-import { createIssues } from './issues.ts';
 import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
@@ -19,7 +18,6 @@ import { createWorkspaces } from './workspaces.ts';
 
 /** The forge's services, wired together. Everything is created on first use. */
 
-export const issues = lazy(() => createIssues(store()));
 export const repos = lazy(() => createRepos(store()));
 export const workspaces = lazy(() =>
 	createWorkspaces(store(), repos(), (message) => hub().send(message), {
