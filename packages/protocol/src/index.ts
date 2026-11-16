@@ -226,11 +226,11 @@ export const CONFIG_SETTINGS = {
 		example: '[urls.app]\nurl = "http://localhost:{web}/"'
 	},
 	setup: {
-		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made, in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
+		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
 		example: 'setup = "pnpm install && cp ../.env .env"'
 	},
 	teardown: {
-		does: 'A command that cleans up after a workspace when it is archived, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
+		does: 'A command that cleans up after a workspace when a person archives it, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
 		example: 'teardown = "docker compose down --volumes"'
 	},
 	ports: {
@@ -337,10 +337,11 @@ export type DaemonRequest =
 	| ({ kind: 'changes' } & WorktreeRef)
 	/**
 	 * Removes the worktree (the branch stays). Refuses if it has uncommitted or untracked
-	 * files, unless `force` says to discard them. Runs the repository's teardown script
-	 * first, if a person agreed to it: give this `REMOVE_TIMEOUT_MS`.
+	 * files, unless `force` says to discard them. With `teardown`, runs the repository's
+	 * teardown script first, if a person agreed to it: give this `REMOVE_TIMEOUT_MS`. Only
+	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
-	| ({ kind: 'removeWorktree'; force: boolean } & WorktreeRef)
+	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**

@@ -22,14 +22,18 @@ const plain = (output: string) =>
  */
 export function setupNote(
 	setup: Script | null,
-	ran: { status: number | null; output: string } | null
+	/** How it went; or why it did not run: nobody agreed to it, or the directory is agents' work. */
+	ran: { status: number | null; output: string } | 'unagreed' | 'agents'
 ): string | null {
-	if (!setup || (ran && ran.status === 0)) return null;
+	if (!setup || (typeof ran === 'object' && ran.status === 0)) return null;
 	const note = (text: string) => `(A note from Geordi, not from the person: ${text})`;
 	const script = `this workspace's setup script (\`${setup.command}\`, from .geordi.toml)`;
-	if (!ran)
+	const yourself = `What it would do (installing dependencies, say) is not done; do what you need of it yourself.`;
+	if (ran === 'unagreed')
+		return note(`${script} did not run, as the person has not agreed to it yet. ${yourself}`);
+	if (ran === 'agents')
 		return note(
-			`${script} did not run, as the person has not agreed to it yet. What it would do (installing dependencies, say) may not be done; do what you need of it yourself.`
+			`${script} did not run: Geordi runs it by itself only in a directory made fresh from the main line, and this one holds an agent's work. ${yourself}`
 		);
 	if (ran.status === null)
 		return note(`${script} was stopped before it finished. What it does may be done only in part.`);

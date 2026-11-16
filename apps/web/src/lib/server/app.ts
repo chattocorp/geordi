@@ -243,8 +243,8 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 		workspaces: workspaces(),
 		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
 		// with the repository's teardown script first, which may take a while
-		removeWorktree: (ref, force) =>
-			hub().request({ kind: 'removeWorktree', force, ...ref }, REMOVE_TIMEOUT_MS)
+		removeWorktree: (ref, force, teardown) =>
+			hub().request({ kind: 'removeWorktree', force, teardown, ...ref }, REMOVE_TIMEOUT_MS)
 	})(id, discard, actor);
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */

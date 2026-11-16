@@ -40,11 +40,11 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 
 ### Setting up and tearing down
 
-- The setup script runs once, when the daemon makes a workspace's worktree (or brings back one that was removed behind Geordi's back), in the workspace's directory, with its ports. It runs in a terminal tab named `setup`, which shows up in the dock by itself. Continuing a workspace, or an agent working in another's worktree, makes no new directory and runs nothing.
+- The setup script runs once, by itself, when the daemon makes a workspace's worktree fresh from where work in the repository starts, in the workspace's directory, with its ports. It runs in a terminal tab named `setup`, which shows up in the dock by itself. Continuing a workspace, or an agent working in another's worktree, makes no new directory and runs nothing. A worktree that starts from an agent's branch (one an agent started with a worktree of its own) or is brought back from the workspace's branch gets no setup by itself: its tab says so, and its agent is told to do what it needs itself.
 - The agent's first turn waits for it. Stopping the agent meanwhile ends that turn; the setup goes on, and the next turn waits for it in turn.
 - However the setup ends, the agent then starts. If it failed, the agent is told so with its first message, with the end of what the script printed; if it was stopped (its tab closed), or nobody has agreed to it yet, the agent is told that too. A failed setup is the agent's to fix, or the person's: it does not stop the work.
 - A setup nobody has agreed to does not run: its tab says so, and where to run it. **Set up** in the dock's Run menu runs the setup script (again) by hand, after asking.
-- The teardown script runs when a workspace is archived, once it is clear that its worktree goes (it has no uncommitted work, or the person agreed to lose it), and before the worktree is removed: in the workspace's directory, with its ports, in a terminal tab named `teardown`. It has two minutes. Then, however it ended, the worktree is removed.
+- The teardown script runs when a person archives a workspace (with it, the workspaces its agent started), once it is clear that its worktree goes (it has no uncommitted work, or the person agreed to lose it), and before the worktree is removed: in the workspace's directory, with its ports, in a terminal tab named `teardown`. It has two minutes. Then, however it ended, the worktree is removed. An agent archiving an agent it started removes the worktree without a teardown.
 - A teardown runs only if a person has agreed to it. It has no moment of its own to be asked at, so it is asked about together with the first command a person agrees to run in the workspace: a job, or the setup.
 
 ### Agreeing to commands
@@ -113,7 +113,13 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 **Why:** One rule for which file applies. When a worktree is made, its file is the one on the branch it starts from anyway, unless an agent started it from a branch of its own; and what an agent can write to the file is held in check by approval, as for jobs (design decision 5), not by which file is read.
 **Tradeoff:** An agent can change its workspace's teardown to a command nobody agreed to, and so keep it from running. It cannot make anything run that nobody agreed to.
 
-### 10. Archiving does not wait for a teardown that fails
+### 10. Unasked, only on the person's work
+
+**Decision:** Setup runs by itself only in a directory made fresh from where work in the repository starts; teardown only when a person archives.
+**Why:** What a command runs is the directory's as much as the command's: `pnpm install` runs the package's scripts, `make clean` the Makefile. A job runs that too, but only when a person clicks. Setup and teardown run with nobody clicking, so where an agent wrote the directory (an agent's own branch, a worktree brought back from the workspace's branch) or asked for the archiving, they would run the agent's code outside its sandbox at the agent's word. There, installing is the agent's to do, in its sandbox.
+**Tradeoff:** Agents that agents start set themselves up, more slowly, and the worktrees agents archive are not cleaned up after (stopped services, dropped databases). Approval is still of a command, whatever slot of the file it is in.
+
+### 11. Archiving does not wait for a teardown that fails
 
 **Decision:** A teardown that fails, hangs past two minutes, or was never agreed to doesn't keep the worktree: archiving goes on.
 **Why:** Archiving is how a person is done with a workspace; a broken script must not make that impossible. What a failed teardown leaves behind (a container, a database) is less harm than a workspace that can't be put away.

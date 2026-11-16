@@ -113,7 +113,10 @@ async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeR
 const RUN_CHANGED = `echo 'This is not the command you agreed to run: ${CONFIG_FILE} has changed. Start it again to see and run what it says now.'; exit 1`;
 
 /** What the terminal of a script that did not run says instead. Words of ours, never the file's. */
-const SETUP_UNAGREED = `echo 'The setup script in ${CONFIG_FILE} did not run: nobody has agreed to it yet. Run it from the Run menu to see it and agree to it.'; exit 1`;
+const SETUP_NOT_RUN = {
+	unagreed: `echo 'The setup script in ${CONFIG_FILE} did not run: nobody has agreed to it yet. Run it from the Run menu to see it and agree to it.'; exit 1`,
+	agents: `echo 'The setup script in ${CONFIG_FILE} did not run by itself: this directory holds what an agent wrote (it starts from an agent'"'"'s branch, or was brought back from this workspace'"'"'s). Run it from the Run menu if you want it to.'; exit 1`
+};
 
 /** What a terminal's output and its end are sent as. */
 function relay(terminalId: string) {
@@ -172,17 +175,27 @@ function runScript(
  */
 const setups = new Map<string, Promise<string | null>>();
 
-/** Runs the repository's setup script in a worktree that was just made (or brought back). */
-function setUp(worktree: Worktree, ref: WorktreeRef) {
+/**
+ * Runs the repository's setup script in a worktree that was just made (or brought back).
+ *
+ * By itself, unseen, it runs only what is the person's: a command they agreed to, in a
+ * directory fresh from where their work starts. What it runs is the directory's as much as
+ * the command's (`pnpm install` runs the package's scripts), so in one that starts from an
+ * agent's branch (`base`), or comes back from the workspace's own, it would run what an
+ * agent wrote, outside its sandbox, with nobody asking for it. There it is the agent's to do,
+ * in its sandbox, or the person's, from the Run menu.
+ */
+function setUp(worktree: Worktree & { created: boolean }, ref: WorktreeRef) {
 	const terminalId = `${ref.worktreeId}:${JOB_TERMINAL}setup`;
 	const done = (async () => {
 		const { config, env } = await configFor(worktree, ref);
 		const { setup } = config;
 		if (!setup) return null;
-		// one nobody has agreed to doesn't run; its terminal says so, and where to run it
-		if (!setup.approved) {
-			void runScript(worktree, terminalId, SETUP_UNAGREED, env, { setup: setup.command });
-			return setupNote(setup, null);
+		// one that may not run by itself doesn't; its terminal says why, and where to run it
+		const reason = !setup.approved ? 'unagreed' : !worktree.created || ref.base ? 'agents' : null;
+		if (reason) {
+			void runScript(worktree, terminalId, SETUP_NOT_RUN[reason], env, { setup: setup.command });
+			return setupNote(setup, reason);
 		}
 		const ran = await runScript(worktree, terminalId, setup.command, env, {
 			setup: setup.command
@@ -353,7 +366,7 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;
 		const worktree = removable(worktreesDir, repoPath, worktreeId, force);
-		if (worktree) await tearDown(worktree, request);
+		if (worktree && request.teardown) await tearDown(worktree, request);
 		removeWorktree(worktreesDir, repoPath, worktreeId, force);
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again

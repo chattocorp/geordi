@@ -5,14 +5,15 @@ describe('setupNote', () => {
 	const setup = { command: 'pnpm install', approved: true };
 
 	it('says nothing where there is nothing to say', () => {
-		expect(setupNote(null, null)).toBeNull();
+		expect(setupNote(null, 'unagreed')).toBeNull();
 		expect(setupNote(setup, { status: 0, output: 'done' })).toBeNull();
 	});
 
 	it('tells the agent what did not run, what was stopped, and what failed with what output', () => {
-		expect(setupNote({ ...setup, approved: false }, null)).toMatch(
+		expect(setupNote({ ...setup, approved: false }, 'unagreed')).toMatch(
 			/`pnpm install`.*did not run.*not agreed/
 		);
+		expect(setupNote(setup, 'agents')).toMatch(/did not run.*an agent's work/);
 		expect(setupNote(setup, { status: null, output: '' })).toMatch(/stopped before it finished/);
 
 		const failed = setupNote(setup, {
