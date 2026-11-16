@@ -18,8 +18,11 @@
 	} from '../../../routes/workspaces.remote';
 	import HarnessPicker, { type HarnessChoice } from './HarnessPicker.svelte';
 
-	/** A workspace's conversation with its agent, and the box to reply in. */
-	let { workspace }: { workspace: Workspace } = $props();
+	/**
+	 * A workspace's conversation with its agent, and the box to reply in. `senders` names
+	 * the workspaces whose agents may have written here, by ID.
+	 */
+	let { workspace, senders }: { workspace: Workspace; senders?: Record<string, string> } = $props();
 
 	const cwd = $derived(workspace.worktree?.path);
 
@@ -95,6 +98,15 @@
 			{#each blocks as block, i (i)}
 				<li>
 					{#if block.kind === 'user'}
+						{#if block.from}
+							<!-- not the person's words: another agent's, and whose -->
+							<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
+								<span class="icon-[lucide--bot] size-3.5"></span>
+								{senders?.[block.from]
+									? `From the agent in “${senders[block.from]}”`
+									: 'From another agent'}
+							</p>
+						{/if}
 						<div class="ml-auto message bg-bubble whitespace-pre-wrap">
 							{block.text}
 						</div>

@@ -11,4 +11,4 @@
 	const workspace = $derived(await getWorkspace(id));
 </script>
 
-<Conversation {workspace} />
+<Conversation {workspace} senders={workspace.senders} />

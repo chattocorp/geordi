@@ -143,6 +143,29 @@ export function uncommittedFiles(worktree: Worktree): string[] {
 	return [...modified, ...untracked(worktree)];
 }
 
+/**
+ * Whether the branch has had commits of its own, all of which are in the branch it started
+ * from by now. The branch's own history (its reflog, in the repository) says where it was
+ * made: a branch still there has had no work to land.
+ */
+function landed(worktree: Worktree, { repoPath, base }: Origin, head: string): boolean {
+	if (!head.startsWith('refs/heads/')) return false;
+	try {
+		const tip = gitIn(worktree, 'rev-parse', head).trim();
+		const made = gitIn(worktree, 'reflog', 'show', '--format=%H', head).trim().split('\n').at(-1);
+		if (!made || made === tip) return false;
+		const start = execFileSync(
+			'git',
+			['-C', repoPath, 'rev-parse', base ? branchRef(base) : startOf(repoPath)],
+			{ encoding: 'utf8' }
+		).trim();
+		gitIn(worktree, 'merge-base', '--is-ancestor', tip, start); // throws if it is not
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 /** The workspace's changes, and how far they have got: committed? pushed? */
 export function status(worktree: Worktree, origin: Origin): Changes {
 	const head = headOf(worktree);
@@ -161,7 +184,12 @@ export function status(worktree: Worktree, origin: Origin): Changes {
 		}
 	}
 
-	return { files: changes(worktree, origin), uncommitted, unpushed };
+	return {
+		files: changes(worktree, origin),
+		uncommitted,
+		unpushed,
+		landed: landed(worktree, origin, head)
+	};
 }
 
 /**

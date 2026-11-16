@@ -430,7 +430,14 @@
 		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt
 	);
 	const standingState = $derived(
-		workspace.archivedAt || !git?.changes ? null : { changes: git.changes, upstream: git.upstream }
+		workspace.archivedAt || !git?.changes
+			? null
+			: {
+					changes: git.changes,
+					upstream: git.upstream,
+					failed: workspace.lastTurn === 'failed',
+					child: !!workspace.parentId
+				}
 	);
 	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
 	const actions = $derived<WorkspaceAction[]>(
@@ -682,7 +689,7 @@
 	{:else if aideOf(tab)}
 		<AgentConversation id={aideOf(tab)!.id} />
 	{:else}
-		<Conversation {workspace} />
+		<Conversation {workspace} senders={workspace.senders} />
 	{/if}
 {/snippet}
 

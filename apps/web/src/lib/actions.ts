@@ -14,6 +14,7 @@ export type WorkspaceAction = {
 		| 'address-review'
 		| 'merge-pull'
 		| 'restore-worktree'
+		| 'retry'
 		| 'continue'
 		| 'archive';
 	label: string;
@@ -27,17 +28,49 @@ export type WorkspaceAction = {
 
 type State = {
 	/** `null` while unknown (no daemon, or not asked yet). */
-	changes: Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> | null;
+	changes: (Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & { landed?: boolean }) | null;
 	/** `null` if the repository is not on a forge we know, or not asked yet. */
 	upstream: Upstream | null;
+	/** Whether the agent's latest turn failed (and was not just stopped). */
+	failed?: boolean;
+	/** Whether an agent started the workspace: its work goes back to that one. */
+	child?: boolean;
 };
+
+/** Whether everything the workspace did is in the branch it started from, with no pull request to say so. */
+const landedLocally = ({ changes, upstream }: State) =>
+	!!changes?.landed &&
+	changes.uncommitted === 0 &&
+	(!upstream?.pull || upstream.pull.state === 'unknown');
+
+/** A pushed branch with work on it, and no pull request for it. */
+const awaitsPull = ({ changes, upstream }: State) =>
+	!!changes &&
+	!!upstream?.pushed &&
+	(!upstream.pull || upstream.pull.state === 'unknown') &&
+	changes.files.length > 0;
 
 /**
  * The actions that make sense now, the most pressing first. The first one is what the UI
  * presents as *the* next step.
  */
-export function actionsFor({ changes, upstream }: State): WorkspaceAction[] {
+export function actionsFor(state: State): WorkspaceAction[] {
+	const { changes, upstream } = state;
 	if (!changes) return [];
+	// Before anything else: the agent did not get to the end of what it was doing.
+	if (state.failed)
+		return [
+			{
+				id: 'retry',
+				label: 'Retry',
+				icon: 'icon-[lucide--rotate-cw]',
+				prompt:
+					'Your last turn ended with an error before you were done. Carry on where you left off.'
+			}
+		];
+	// Its work is where it was headed, without a pull request: done with.
+	if (landedLocally(state))
+		return [{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }];
 	const uncommitted = changes.uncommitted > 0;
 	// committed work that the remote doesn't have: commits ahead of it, or a branch not there at all
 	const unpushed = changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
@@ -58,7 +91,7 @@ export function actionsFor({ changes, upstream }: State): WorkspaceAction[] {
 			: [];
 
 	if (!pull || pull.state === 'unknown')
-		return local
+		return local || awaitsPull(state)
 			? [
 					{
 						id: 'create-pull',
@@ -137,8 +170,17 @@ export type WorkspaceStanding = {
  * The state the actions follow from, put into words: what the workspace's top bar says
  * next to the actions. `null` when there is nothing worth saying.
  */
-export function standingOf({ changes, upstream }: State): WorkspaceStanding | null {
+export function standingOf(state: State): WorkspaceStanding | null {
+	const { changes, upstream } = state;
 	if (!changes) return null;
+	if (state.failed)
+		return { label: 'Turn failed', tone: 'danger', icon: 'icon-[lucide--triangle-alert]' };
+	if (landedLocally(state))
+		return {
+			label: state.child ? 'Merged into parent' : 'Merged',
+			tone: 'merged',
+			icon: 'icon-[lucide--git-merge]'
+		};
 	const uncommitted = changes.uncommitted > 0;
 	const unpushed = changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
 	const pull = upstream?.pull;
@@ -149,8 +191,13 @@ export function standingOf({ changes, upstream }: State): WorkspaceStanding | nu
 	});
 
 	if (!upstream) return uncommitted ? todo('Uncommitted changes') : null;
-	if (!pull || pull.state === 'unknown')
-		return uncommitted || unpushed ? todo('Changes to publish') : null;
+	if (!pull || pull.state === 'unknown') {
+		if (uncommitted || unpushed) return todo('Changes to publish');
+		// pushed, and that is as far as it got
+		return awaitsPull(state)
+			? { label: 'No pull request', tone: 'neutral', icon: 'icon-[lucide--git-pull-request-draft]' }
+			: null;
+	}
 
 	if (pull.state === 'merged')
 		return { label: 'Merged', tone: 'merged', icon: 'icon-[lucide--git-merge]' };

@@ -59,6 +59,12 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 			return {
 				...workspace,
 				parent: parent && relative(parent),
+				// who but the person may have written in its conversation: the agents above it
+				senders: Object.fromEntries(
+					workspaces()
+						.ancestors(id)
+						.map(({ id, title }) => [id, title])
+				),
 				// one that has not been told anything yet has no name: it is a new conversation
 				aides: aides.map(({ id, title, status, agent }) => ({
 					id,

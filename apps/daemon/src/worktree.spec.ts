@@ -429,9 +429,26 @@ describe('status', () => {
 		return { repoPath, base, worktree, git, origin: { repoPath } };
 	}
 
+	it('knows when all a branch did is in the branch it started from', () => {
+		const { repoPath, worktree, git, origin } = workspace();
+		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
+		git('add', 'a.txt');
+		git('commit', '-q', '-m', 'Add a');
+		expect(status(worktree, origin)).toMatchObject({ landed: false, files: [{ path: 'a.txt' }] });
+
+		// merged where it came from (as the agent that started this one does)
+		execFileSync('git', ['-C', repoPath, 'merge', '-q', '--ff-only', worktree.branch]);
+		expect(status(worktree, origin)).toMatchObject({ landed: true, files: [], uncommitted: 0 });
+	});
+
 	it('tells uncommitted from committed from pushed', () => {
 		const { repoPath, worktree, git, origin } = workspace();
-		expect(status(worktree, origin)).toEqual({ files: [], uncommitted: 0, unpushed: null });
+		expect(status(worktree, origin)).toEqual({
+			files: [],
+			uncommitted: 0,
+			unpushed: null,
+			landed: false
+		});
 
 		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
 		writeFileSync(join(worktree.path, 'b.txt'), 'b\n');

@@ -75,7 +75,8 @@ export type WorkspacesEvent =
 	  };
 
 export type TranscriptItem =
-	| { kind: 'user'; text: string; at: string }
+	/** `from`: the workspace whose agent said it, where it was not a person. */
+	| { kind: 'user'; text: string; at: string; from?: string }
 	| { kind: 'text'; text: string; at: string }
 	| {
 			kind: 'tool';
@@ -127,6 +128,8 @@ export type Workspace = {
 	 * happened to its workspace since it last looked.
 	 */
 	briefing: string | null;
+	/** Who sent the messages that wait or steer, in step with `queue` and for `steering`: workspace IDs, `null` for people. */
+	sentBy: { queue: (string | null)[]; steering: string | null };
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	createdAt: string;
@@ -218,6 +221,7 @@ export function createWorkspaces(
 				resumeId: null,
 				queue: [],
 				steering: [],
+				sentBy: { queue: [], steering: null },
 				briefing: null,
 				archivedAt: null,
 				createdAt: at,
@@ -262,23 +266,37 @@ export function createWorkspaces(
 		}
 		if (event.type === 'workspace.queued') {
 			workspace.queue.push(event.data.text);
+			workspace.sentBy.queue.push(actor);
 			return;
 		}
 		if (event.type === 'workspace.dequeued') {
 			workspace.queue.splice(event.data.index, 1);
+			workspace.sentBy.queue.splice(event.data.index, 1);
 			return;
 		}
 		if (event.type === 'workspace.steered') {
 			workspace.steering.push(event.data.text);
+			workspace.sentBy.steering = actor;
 			return;
 		}
 		if (event.type === 'workspace.message') {
-			if (event.data.queued) workspace.queue.shift();
-			if (event.data.steered) workspace.steering = [];
+			// said by whoever queued it, or steered with it, or says it now
+			let sender = actor;
+			if (event.data.queued) {
+				workspace.queue.shift();
+				sender = workspace.sentBy.queue.shift() ?? null;
+			}
+			if (event.data.steered) {
+				workspace.steering = [];
+				sender = workspace.sentBy.steering;
+				workspace.sentBy.steering = null;
+			}
 			workspace.status = 'running';
 			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
-			transcript.push({ kind: 'user', text: event.data.text, at });
+			// an agent's word is marked as such; a person's is the rule
+			const from = sender && workspaces.has(sender) ? sender : undefined;
+			transcript.push({ kind: 'user', text: event.data.text, at, ...(from && { from }) });
 			return;
 		}
 
@@ -653,11 +671,25 @@ export function createWorkspaces(
 
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
-		send(callerId: string, id: string, text: string) {
+		/**
+		 * Says something to an agent the caller started: at once if it is idle; otherwise once
+		 * it has finished what it is doing, or (`interrupt`) now, stopping what it is doing.
+		 */
+		send(callerId: string, id: string, text: string, interrupt = false) {
 			const workspace = findControlled(callerId, id);
-			if (workspace.status === 'running') error(409, 'That agent is still working');
-			if (workspace.parentId) ensureCapacity(workspace.parentId);
-			startTurn(workspace, text, callerId);
+			const stream = `workspace:${workspace.id}` as const;
+			const data = { id: workspace.id, text };
+			if (workspace.status === 'idle') {
+				if (workspace.parentId) ensureCapacity(workspace.parentId);
+				if (workspace.queue.length === 0) return startTurn(workspace, text, callerId);
+				// messages are waiting (its last turn failed): this one joins them, and sets them off
+				store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
+				return startTurn(workspace, workspace.queue[0], null, 'queued');
+			}
+			if (!interrupt)
+				return void store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
+			store.append({ type: 'workspace.steered', stream, data }, { actor: callerId });
+			stop(workspace.id);
 		},
 
 		stop(callerId: string, id: string) {
@@ -699,6 +731,18 @@ export function createWorkspaces(
 				.map(summarise),
 
 		get: (id: string): Workspace => view(find(id)),
+
+		/** The workspaces whose agents started this one, directly or not: the nearest first. */
+		ancestors(id: string): WorkspaceSummary[] {
+			const found: WorkspaceSummary[] = [];
+			for (let at = find(id).parentId; at;) {
+				const parent = projection.get().get(at);
+				if (!parent || found.some((other) => other.id === parent.id)) break;
+				found.push(summarise(parent));
+				at = parent.parentId;
+			}
+			return found;
+		},
 
 		/** The workspaces in use that this one's agent started itself, oldest first. */
 		children: (id: string): WorkspaceSummary[] => childrenOf(id).map(summarise),

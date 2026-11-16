@@ -12,9 +12,10 @@
 		variant?: 'primary' | 'secondary' | 'ghost' | 'soft';
 		/**
 		 * What a `primary` button is coloured in: the accent, as a rule. `merged` for the one
-		 * step left when work has landed, in the colour that says so.
+		 * step left when work has landed, `ok` for the step that is clear to take, each in the
+		 * colour that says so.
 		 */
-		tone?: 'accent' | 'merged';
+		tone?: 'accent' | 'merged' | 'ok';
 		size?: 'md' | 'sm';
 		/** An Iconify class, e.g. `icon-[lucide--plus]`. */
 		icon?: string;
@@ -43,7 +44,11 @@
 	const tones = $derived({
 		primary: [
 			'rounded-full font-semibold shadow-soft hover:brightness-105',
-			tone === 'merged' ? 'bg-merged text-on-merged' : 'bg-accent text-on-accent'
+			tone === 'merged'
+				? 'bg-merged text-on-merged'
+				: tone === 'ok'
+					? 'bg-ok text-on-ok'
+					: 'bg-accent text-on-accent'
 		],
 		secondary: 'rounded-full bg-sunken font-medium ring-1 ring-line hover:bg-line/50',
 		ghost: 'rounded-control font-medium text-muted hover:bg-sunken hover:text-ink',

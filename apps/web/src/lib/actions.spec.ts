@@ -49,8 +49,35 @@ describe('actionsFor', () => {
 		])
 			expect(ids({ changes, upstream: upstream(null, false) })).toEqual(['create-pull']);
 
-		// pushed, nothing new, but no pull request yet: nothing to create it from locally
-		expect(ids({ changes: { ...clean, files: [file] }, upstream: upstream() })).toEqual([]);
+		// pushed, nothing new, but no pull request yet: that is the step left
+		const pushed = { changes: { ...clean, files: [file] }, upstream: upstream() };
+		expect(ids(pushed)).toEqual(['create-pull']);
+		expect(standingOf(pushed)).toMatchObject({ label: 'No pull request', tone: 'neutral' });
+		// pushed with nothing on it: nothing to ask for
+		expect(ids({ changes: clean, upstream: upstream() })).toEqual([]);
+	});
+
+	it('says when the work is where it was headed without a pull request, and offers to archive', () => {
+		const landed = { files: [], uncommitted: 0, unpushed: null, landed: true };
+		const merged = { changes: landed, upstream: upstream(null, false) };
+		expect(ids(merged)).toEqual(['archive']);
+		expect(standingOf(merged)).toMatchObject({ label: 'Merged', tone: 'merged' });
+		expect(standingOf({ ...merged, child: true })?.label).toBe('Merged into parent');
+		// also where there is no forge at all
+		expect(ids({ changes: landed, upstream: null })).toEqual(['archive']);
+		// more was done since: that is not landed
+		expect(ids({ changes: { ...landed, uncommitted: 1 }, upstream: null })).toEqual(['commit']);
+		// a pull request says how it stands, where there is one
+		expect(standingOf({ changes: landed, upstream: upstream({ state: 'merged' }) })?.label).toBe(
+			'Merged'
+		);
+	});
+
+	it("says first when the agent's last turn failed, and offers to carry on", () => {
+		const state = { changes: { ...clean, files: [file] }, upstream: upstream({}), failed: true };
+		expect(ids(state)).toEqual(['retry']);
+		expect(standingOf(state)).toMatchObject({ label: 'Turn failed', tone: 'danger' });
+		expect(ids({ ...state, failed: false })).toEqual(['merge-pull']);
 	});
 
 	it('offers to merge once nothing stands in the way', () => {

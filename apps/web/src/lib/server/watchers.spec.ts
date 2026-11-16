@@ -6,7 +6,7 @@ import { createWatchers, type WorktreeState } from './watchers.ts';
 const settled = () => new Promise((resolve) => setTimeout(resolve));
 
 const stateWith = (uncommitted: number): WorktreeState => ({
-	changes: { files: [], uncommitted, unpushed: null },
+	changes: { files: [], uncommitted, unpushed: null, landed: false },
 	unavailable: null,
 	missing: false,
 	config: null,

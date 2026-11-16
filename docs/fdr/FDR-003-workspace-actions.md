@@ -1,7 +1,7 @@
 # FDR-003: Workspace actions
 
 **Status:** Active
-**Last reviewed:** 2026-11-14
+**Last reviewed:** 2026-11-16
 
 ## Overview
 
@@ -27,6 +27,9 @@ The top bar of a workspace shows what could or should happen next: publish the w
 - Merge PR is done by Geordi itself, through the upstream forge's API: at once, without an agent turn. It merges only a pull request that is at the very commit the workspace has, the one way the repository allows, or squashed where it allows several. If the forge refuses, the top bar says why.
 - Archive is done by Geordi itself, not by the agent. It is also always available as a quiet button, not only when it is the obvious next step.
 - Nothing is offered while Geordi doesn't know the workspace's changes (no daemon connected).
+- A workspace whose own commits are all in the branch it started from, with no pull request to say so (an agent's work, merged by the agent that started it), stands as merged, and can be archived.
+- A branch that is pushed and has work on it, but no pull request, says so, and offers to open one.
+- An agent's turn that failed comes before everything else: the workspace says so, and offers to have the agent carry on.
 
 ## Design Decisions
 

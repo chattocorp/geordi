@@ -711,3 +711,63 @@ describe('repos', () => {
 		expect(() => repos.register(tmpdir())).toThrow();
 	});
 });
+
+describe('agents talking to the agents they started', () => {
+	function family() {
+		const { workspaces, create } = setup();
+		const lead = create('Lead');
+		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Build' }).id;
+		const said = () =>
+			workspaces
+				.get(child)
+				.transcript.flatMap((item) => (item.kind === 'user' ? [[item.text, item.from]] : []));
+		return { workspaces, lead, child, said };
+	}
+
+	it('has a message to a working agent wait for its turn to end, and marks whose it is', () => {
+		const { workspaces, lead, child, said } = family();
+		workspaces.agents.send(lead, child, 'Also update the docs');
+		expect(workspaces.get(child)).toMatchObject({
+			status: 'running',
+			queue: ['Also update the docs']
+		});
+
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(workspaces.get(child)).toMatchObject({ status: 'running', queue: [] });
+		// what its parent said is the parent's; a person's words are nobody's in particular
+		expect(said()).toEqual([
+			['Build', lead],
+			['Also update the docs', lead]
+		]);
+		workspaces.record(child, { kind: 'turn.completed' });
+		workspaces.send(child, 'Thanks');
+		expect(said().at(-1)).toEqual(['Thanks', undefined]);
+	});
+
+	it('stops a working agent for a message that interrupts', () => {
+		const { workspaces, lead, child, said } = family();
+		workspaces.agents.send(lead, child, 'Stop: wrong directory', true);
+		expect(workspaces.get(child).steering).toEqual(['Stop: wrong directory']);
+
+		workspaces.record(child, { kind: 'turn.failed', error: 'Stopped' });
+		expect(workspaces.get(child)).toMatchObject({
+			status: 'running',
+			steering: [],
+			lastTurn: null
+		});
+		expect(said().at(-1)).toEqual(['Stop: wrong directory', lead]);
+	});
+
+	it('remembers a turn that failed until the agent is told something again', () => {
+		const { workspaces, lead, child } = family();
+		workspaces.record(child, { kind: 'turn.failed', error: 'boom' });
+		expect(workspaces.summary(child).lastTurn).toBe('failed');
+		workspaces.agents.send(lead, child, 'Again');
+		expect(workspaces.summary(child).lastTurn).toBeNull();
+		// stopped on purpose is not failed
+		workspaces.stop(child);
+		workspaces.record(child, { kind: 'turn.failed', error: 'Stopped' });
+		expect(workspaces.summary(child).lastTurn).toBe('stopped');
+	});
+});

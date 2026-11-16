@@ -27,9 +27,11 @@ export const getNavigation = query.live(async function* () {
 					working: status === 'running' || aides.some((aide) => aide.status === 'running'),
 					outcome: outcome([workspace, ...aides]),
 					// how its work stands, as far as is known: asked about in the background
-					standing: standingOf(
-						standings().get(workspace.worktreeId) ?? { changes: null, upstream: null }
-					),
+					standing: standingOf({
+						...(standings().get(workspace.worktreeId) ?? { changes: null, upstream: null }),
+						failed: workspace.lastTurn === 'failed',
+						child: !!parentId
+					}),
 					branch: worktree?.branch ?? null
 				};
 			});

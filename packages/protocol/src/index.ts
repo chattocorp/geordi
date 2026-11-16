@@ -87,6 +87,12 @@ export type Changes = {
 	uncommitted: number;
 	/** How many commits are not on the remote branch yet; `null` if the branch isn't there at all. */
 	unpushed: number | null;
+	/**
+	 * Whether the branch's own commits are all in the branch it started from by now: its
+	 * work was merged there (by the agent that started this one, say), and nothing differs
+	 * any more. Not so for a branch nothing was ever committed on.
+	 */
+	landed: boolean;
 };
 
 /**

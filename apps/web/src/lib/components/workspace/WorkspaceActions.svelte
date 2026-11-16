@@ -104,7 +104,7 @@
 				<Button
 					size="sm"
 					variant={next ? 'primary' : 'soft'}
-					tone={standing?.tone === 'merged' ? 'merged' : 'accent'}
+					tone={standing?.tone === 'merged' ? 'merged' : standing?.tone === 'ok' ? 'ok' : 'accent'}
 					icon={action.icon}
 					busy={pending.includes(action.id)}
 					onclick={() => onaction(action)}

@@ -43,7 +43,10 @@ export const configurationReference = () =>
 		`After changing the file, call \`check_configuration\`: it reads the file the way Geordi does, and says what it found or what is wrong with it.`
 	].join('\n\n');
 
-const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you.`;
+const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them.`;
+
+/** The longest one `wait_for_agent` call waits: safely under what agent CLIs allow a tool call. */
+const MAX_WAIT_SECONDS = 45;
 
 const agentId = v.pipe(v.string(), v.description('The id of an agent you started'));
 
@@ -97,16 +100,18 @@ const tools = {
 	},
 	wait_for_agent: {
 		description:
-			'Wait for an agent you started to finish its current turn, and return its status and reply. If it is still "running" when the timeout ends, call this again.',
+			'Wait for an agent you started to finish its current turn, and return its status and reply. One call waits 45 seconds at most: if the agent is still "running" then, call this again, for as long as it takes.',
 		input: v.object({
 			agent_id: agentId,
 			timeout_seconds: v.pipe(
 				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), 45),
-				v.description('How long to wait at most. Defaults to 45.')
+				v.description('How long to wait at most. Defaults to 45, which is also the most.')
 			)
 		}),
 		run: (agents: Agents, caller: string, input: { agent_id: string; timeout_seconds: number }) =>
-			agents.wait(caller, input.agent_id, input.timeout_seconds * 1000)
+			// Never longer than agent CLIs give a tool call (a minute): a wait that outlasts that
+			// comes back as a failure, and tells the caller nothing.
+			agents.wait(caller, input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
 	},
 	list_agents: {
 		description:
@@ -116,10 +121,23 @@ const tools = {
 	},
 	send_message: {
 		description:
-			'Send a follow-up message to an idle agent you started. It keeps its conversation so far. Returns immediately; use wait_for_agent to get its reply.',
-		input: v.object({ agent_id: agentId, message: v.pipe(v.string(), v.minLength(1)) }),
-		run: (agents: Agents, caller: string, input: { agent_id: string; message: string }) => {
-			agents.send(caller, input.agent_id, input.message);
+			'Send a message to an agent you started. It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt`. Returns immediately; use wait_for_agent to get its reply.',
+		input: v.object({
+			agent_id: agentId,
+			message: v.pipe(v.string(), v.minLength(1)),
+			interrupt: v.pipe(
+				v.optional(v.boolean(), false),
+				v.description(
+					'For an agent that is working: stop what it is doing and give it this message now. Use it to turn an agent around that is going the wrong way. What it was in the middle of (a file half written, a command running) is left as it is, so say what to do about that if it matters. Without it, the message waits for the turn to end.'
+				)
+			)
+		}),
+		run: (
+			agents: Agents,
+			caller: string,
+			input: { agent_id: string; message: string; interrupt: boolean }
+		) => {
+			agents.send(caller, input.agent_id, input.message, input.interrupt);
 			return agents.get(caller, input.agent_id);
 		}
 	},
