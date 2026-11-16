@@ -275,22 +275,28 @@ export function headOf({ path, adminDir }: Worktree): string {
 }
 
 /**
+ * The environment in which git, run by us or by a tool we run, looks at a worktree's files
+ * without trusting the worktree's own Git metadata (see `gitIn`).
+ */
+export const gitEnv = ({ path, adminDir, commonDir }: Worktree): NodeJS.ProcessEnv => ({
+	...process.env,
+	GIT_DIR: commonDir,
+	GIT_WORK_TREE: path,
+	GIT_INDEX_FILE: join(adminDir, 'index'),
+	// Looking must not write (git would refresh the index): we watch these files.
+	GIT_OPTIONAL_LOCKS: '0'
+});
+
+/**
  * Runs git on a worktree's files without trusting anything an agent can write. Git uses the
  * repository's own .git directory (so only its config, hooks and filters apply, never the
  * worktree's `config.worktree` or repointed links), the worktree's files, and the worktree's
  * index. `HEAD` therefore means the repository's HEAD here: use `headOf` for the worktree's.
  */
-export function gitIn({ path, adminDir, commonDir }: Worktree, ...args: string[]): string {
+export function gitIn(worktree: Worktree, ...args: string[]): string {
 	return execFileSync('git', ['--literal-pathspecs', ...args], {
-		cwd: path,
-		env: {
-			...process.env,
-			GIT_DIR: commonDir,
-			GIT_WORK_TREE: path,
-			GIT_INDEX_FILE: join(adminDir, 'index'),
-			// Looking must not write (git would refresh the index): we watch these files.
-			GIT_OPTIONAL_LOCKS: '0'
-		},
+		cwd: worktree.path,
+		env: gitEnv(worktree),
 		encoding: 'utf8',
 		stdio: ['ignore', 'pipe', 'pipe'],
 		maxBuffer: 64 * 1024 * 1024

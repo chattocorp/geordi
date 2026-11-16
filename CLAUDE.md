@@ -125,6 +125,11 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   once and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
   run only as a person saw and agreed to them (`approvals.ts`). The settings are described
   for agents in `CONFIG_SETTINGS`; a new one goes there and into `parseConfig`.
+- **Changesets (FDR-007).** In a repository that uses a release tool, a workspace shows the
+  change notes it adds and the versions they lead to. One adapter per tool in the daemon
+  (`releases.ts`; Sweet Release so far) says whether a repository uses it and asks the tool
+  what is pending; everything else deals in packages, versions and notes (`ReleasePlan`).
+  A tool is run with `gitEnv`, like our own git: never trusting the worktree's Git metadata.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees

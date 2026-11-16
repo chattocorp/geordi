@@ -16,7 +16,7 @@ import {
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
-import { status, uncommittedFiles, versions } from './changes.ts';
+import { changes, status, uncommittedFiles, versions } from './changes.ts';
 import { resolve, settingsOf } from './config.ts';
 import { createPorts, portEnv, waitForPort } from './ports.ts';
 import {
@@ -28,6 +28,7 @@ import {
 	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
+import { releasePlan } from './releases.ts';
 import { emptyTrash, removeWorktree } from './remove.ts';
 import { titleFor } from './titles.ts';
 import { resumeTurns, runTurn, type Turn } from './turn.ts';
@@ -279,6 +280,17 @@ async function answer(request: DaemonRequest) {
 	switch (request.kind) {
 		case 'changes':
 			return status(worktree, request);
+		case 'release':
+			// which notes are this workspace's: the files it has added
+			return releasePlan(
+				worktree,
+				() =>
+					new Set(
+						changes(worktree, request)
+							.filter((file) => file.status === 'added')
+							.map((file) => file.path)
+					)
+			);
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':

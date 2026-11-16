@@ -10,6 +10,7 @@ const stateWith = (uncommitted: number): WorktreeState => ({
 	unavailable: null,
 	missing: false,
 	config: null,
+	release: null,
 	upstream: null
 });
 

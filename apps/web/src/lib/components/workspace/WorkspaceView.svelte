@@ -49,6 +49,7 @@
 	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import Changes from './Changes.svelte';
+	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import Family from './Family.svelte';
@@ -77,7 +78,13 @@
 		`geordi:arrangement:${id}`,
 		{ main: null, dock: null }
 	);
-	const frame = persisted('geordi:frame', { side: 0.3, changes: 0.45, open: true });
+	const frame = persisted<{
+		side: number;
+		changes: number;
+		open: boolean;
+		/** Which of the tabs about the workspace's work is in front. */
+		tab?: 'changes' | 'release';
+	}>('geordi:frame', { side: 0.3, changes: 0.45, open: true });
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
 	/** The workspace's ID was just copied: say so for a moment. */
@@ -267,6 +274,9 @@
 		arrange(to === 'main' ? { main: placed, dock: left } : { dock: placed, main: left });
 	};
 
+	/** Opens a file's diff, next to the conversation. */
+	const openDiff = (path: string) => arrange({ main: open(main, `diff:${path}`, chatGroup) });
+
 	/** The group the conversation is in: where diffs open. */
 	const chatGroup = $derived(groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id);
 
@@ -453,6 +463,20 @@
 	{/if}
 {/snippet}
 
+{#snippet sideTab(id: 'changes' | 'release', label: string, count: number, live: boolean)}
+	{@const active = (git?.release ? (frame.current.tab ?? 'changes') : 'changes') === id}
+	<button
+		type="button"
+		role="tab"
+		aria-selected={active}
+		onclick={() => (frame.current = { ...frame.current, tab: id })}
+		class={['item h-7 gap-2 px-2.5', active && 'item-active font-medium']}
+	>
+		{label}
+		{#if count > 0}<Badge tone={live ? 'accent' : 'neutral'}>{count}</Badge>{/if}
+	</button>
+{/snippet}
+
 {#snippet tab(tab: string)}
 	{@const path = pathOf(tab)}
 	{#if path}
@@ -609,11 +633,28 @@
 					}
 				>
 					{#snippet a()}
-						<Changes
-							{git}
-							gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
-							onopen={(path) => arrange({ main: open(main, `diff:${path}`, chatGroup) })}
-						/>
+						<!-- What the workspace has done, in tabs: its changes, and what they mean for the next releases. -->
+						<div role="tablist" class="pane-bar gap-1 px-2" aria-label="About the workspace's work">
+							{@render sideTab('changes', 'Changes', git?.changes?.files.length ?? 0, false)}
+							{#if git?.release}
+								{@const notes = git.release.packages.flatMap((pkg) => pkg.notes)}
+								{@render sideTab(
+									'release',
+									'Changeset',
+									notes.filter((note) => note.added).length,
+									true
+								)}
+							{/if}
+						</div>
+						{#if git?.release && frame.current.tab === 'release'}
+							<Changeset plan={git.release} onopen={openDiff} />
+						{:else}
+							<Changes
+								{git}
+								gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
+								onopen={openDiff}
+							/>
+						{/if}
 					{/snippet}
 					{#snippet b()}
 						<Panes

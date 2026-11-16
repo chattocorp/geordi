@@ -55,7 +55,8 @@ async function loadWorktreeState(worktreeId: string, fresh = false): Promise<Wor
 		unavailable: null,
 		missing: false,
 		upstream: null,
-		config: null
+		config: null,
+		release: null
 	};
 	let ref;
 	try {
@@ -64,12 +65,14 @@ async function loadWorktreeState(worktreeId: string, fresh = false): Promise<Wor
 		return { ...state, unavailable: reason(error) };
 	}
 
-	const [changes, upstream, config] = await Promise.allSettled([
+	const [changes, upstream, config, release] = await Promise.allSettled([
 		hub().request({ kind: 'changes', ...ref }),
 		hub().request({ kind: 'upstream', fresh, ...ref }),
-		hub().request({ kind: 'config', ...ref })
+		hub().request({ kind: 'config', ...ref }),
+		hub().request({ kind: 'release', ...ref })
 	]);
 	if (config.status === 'fulfilled') state.config = config.value;
+	if (release.status === 'fulfilled') state.release = release.value;
 	if (changes.status === 'fulfilled') state.changes = changes.value;
 	else {
 		state.unavailable = reason(changes.reason);

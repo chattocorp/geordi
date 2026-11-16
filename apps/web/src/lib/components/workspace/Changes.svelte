@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { WorktreeState } from '#lib/server/watchers.ts';
-	import Badge from '#lib/ui/Badge.svelte';
 	import UpstreamStatus from './UpstreamStatus.svelte';
 
 	type Props = {
@@ -55,11 +54,6 @@
 {/snippet}
 
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
-	<header class="pane-bar gap-2 px-3.5">
-		<h2 class="text-sm font-medium">Changes</h2>
-		{#if files.length > 0}<Badge>{files.length}</Badge>{/if}
-	</header>
-
 	{#if git?.upstream}
 		<UpstreamStatus upstream={git.upstream} />
 	{/if}

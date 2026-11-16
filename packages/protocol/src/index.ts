@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -248,6 +248,47 @@ export const JOB_TERMINAL = 'run-';
 /** Names of jobs and links: they end up in terminal names, and in the names of environment variables. */
 export const CONFIG_NAME = /^[a-z][a-z0-9-]{0,30}$/;
 
+/** A note on a change, as a release tool keeps them until the next release: what changed, and how much it matters. */
+export type ReleaseNote = {
+	/** The note's file, from the top of the repository. */
+	path: string;
+	/** What kind of change it is, in the tool's (or the repository's) own words: `fix`, `feature`, … */
+	type: string;
+	breaking: boolean;
+	/** What it says, as Markdown. */
+	body: string;
+	/** Whether this workspace adds it: it is not on the branch the workspace started from. */
+	added: boolean;
+};
+
+/** One of a repository's packages, as its release tool sees it: where it stands, and where its pending notes take it. */
+export type ReleasePackage = {
+	/** Its directory, from the top of the repository. */
+	path: string;
+	name: string | null;
+	version: string;
+	/** How far the pending notes move the version: `major`, `minor`, `patch`, `none`; the tool's own word otherwise. */
+	bump: string;
+	/** The version the next release would have; `null` if the tool can't say. */
+	nextVersion: string | null;
+	notes: ReleaseNote[];
+	/** What the tool finds wrong with the package or its notes. */
+	problems: string[];
+};
+
+/**
+ * What a workspace's worktree holds for the repository's next releases (FDR-007), as its
+ * release tool reads it: once the workspace is merged, that is what the main branch holds.
+ */
+export type ReleasePlan = {
+	/** Which tool the repository uses, and what it is called. */
+	tool: string;
+	name: string;
+	packages: ReleasePackage[];
+	/** Why the tool couldn't be asked, if it couldn't. */
+	problem: string | null;
+};
+
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
 export type DaemonRequest =
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
@@ -276,6 +317,8 @@ export type DaemonRequest =
 	 * behind Geordi's back (which comes back from its branch). Answers where it is.
 	 */
 	| ({ kind: 'prepareWorktree' } & WorktreeRef)
+	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
+	| ({ kind: 'release' } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Both versions of one of those files. */
@@ -304,6 +347,7 @@ export type DaemonResults = {
 	approveRun: null;
 	portReady: boolean;
 	config: RepoConfig;
+	release: ReleasePlan | null;
 	title: string;
 	diff: FileVersions;
 	/** `null` if the repository has no remote on a forge we know. */
