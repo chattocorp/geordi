@@ -36,6 +36,24 @@ Run from the repository root:
 
 Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 
+## Working on Geordi inside Geordi
+
+The person runs the installed app (`/Applications/Geordi.app`) all day, and agents work in
+it, perhaps you.
+
+- `pnpm desktop:install` quits and replaces that app. Agents' turns go on (ADR-007), but
+  open terminals and running jobs end, and an agent waiting on another one sees a
+  connection error for a moment. Do it when a change is ready to be used, not to try
+  something out: for that, run a second instance on other ports with its own data
+  (`GEORDI_DATA_DIR`, `PORT`, `GEORDI_DAEMON_PORT`, and a daemon pointed at it).
+- When something misbehaves there, look before you change anything: the page's console
+  (clicks that do nothing were six connections used up, and it said so), the forge's and
+  daemon's log (`~/Library/Logs/Geordi/geordi.log`), and for macOS's own prompts
+  `/usr/bin/log show --predicate 'process == "tccd"'`, which names the process that asked.
+  A fix for a cause that was only guessed at costs the person a reinstall each time.
+- The installed app's data is `~/.geordi` (events in `events.db`, SQLite): reading it to
+  see what happened in a workspace is fine; never write to it.
+
 ## Invariants
 
 - **Everything that runs lives in the daemon; the forge only shows it** (ADR-003). Agent
@@ -118,11 +136,18 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
   room for the window's buttons and is what the window is dragged by (`window-drag`, on
   the bar itself; what can be used in it is exempt). The
   layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
+  What the page can ask of the app is in `preload.cjs` (`window.geordiDesktop`: the Dock
+  count, notifications). **The app never plays sound itself**: on macOS that has the system
+  ask for the microphone. Notifications are shown by the main process, with sounds that
+  are files in the bundle and that the system plays (FDR-008). Installing signs the bundle
+  (ad hoc), without which macOS shows none of its notifications; macOS may ask for
+  permissions again after an install.
 - **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names jobs to run
   (with what they need), links to open, and how many ports a workspace gets. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
   reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +
-  its name; the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
+  its name, and is running only until its command ends (`terminal.ended`; the terminal
+  stays, to be read); the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
   once and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
   run only as a person saw and agreed to them (`approvals.ts`). The daemon runs the `setup`
   script by itself when it makes a worktree (the first turn waits for it; `setUp` in
@@ -201,13 +226,17 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
   `openSettings(section?)` or Cmd/Ctrl+,. Preferences of this browser (the theme,
   `#lib/theme.svelte.ts`) live in localStorage; what belongs to the installation
   (repositories) is events.
-- **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed: main
-  area | changes above dock. Main area and dock are each a `Panes` with its own layout tree
-  (`#lib/layout.ts`, pure functions). Windows are tabs named after what they show: `chat`
-  (pinned to the main area), `diff:<path>` and `terminal:<name>`, which can be dragged
-  between the two (`Panes` props `accepts`/`onreceive`, shared drag state in
-  `drag.svelte.ts`). Which windows exist follows from the workspace's state; only their
-  arrangement is a per-browser preference (`persisted`), not an event.
+- **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed, three
+  areas: main | side above dock. Each is a `Panes` with its own layout tree (`#lib/layout.ts`,
+  pure functions); only the main area can be split, the two beside it are one row of tabs
+  each (`splits={false}`). Windows are tabs named after what they show: `chat` (pinned to
+  the main area), `agent:<id>` (an agent working alongside), `draft` (a conversation not
+  begun yet), `changes`, `changeset`, `diff:<path>` and `terminal:<name>`. All but `chat`
+  can be dragged to any area, and into another order (`Panes` props `accepts`/`onreceive`,
+  shared drag state in `drag.svelte.ts`). Which windows exist follows from the workspace's
+  state; only their arrangement is a per-browser preference (`persisted`), not an event.
+  The ribbon at the top (`WorkspaceActions`) says where the work stands and what to do
+  next, from `#lib/actions.ts`.
 - **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
   (https://diffs.com) from both whole file versions, which is what makes context
   expandable. It renders into a shadow root; style it through its `--diffs-*` properties.
