@@ -9,11 +9,13 @@
 		isError: boolean;
 		/** The session's worktree, so paths inside it can be shown relative to it. */
 		cwd?: string;
+		/** Whether it is running right now. One without output in a turn that is over never finished. */
+		running?: boolean;
 	};
-	let { name, input, output, isError, cwd }: Props = $props();
+	let { name, input, output, isError, cwd, running = false }: Props = $props();
 
 	const summary = $derived(toolSummary(input, cwd));
-	const pending = $derived(output === null);
+	const pending = $derived(running && output === null);
 </script>
 
 <details class="group">
@@ -51,7 +53,7 @@
 					isError && 'text-danger'
 				]}>{output}</pre>
 		{:else if !pending}
-			<p class="p-3 text-muted">No output.</p>
+			<p class="p-3 text-muted">{output === null ? 'It was interrupted.' : 'No output.'}</p>
 		{/if}
 	</div>
 </details>

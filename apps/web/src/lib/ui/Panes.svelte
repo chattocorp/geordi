@@ -120,6 +120,15 @@
 							event.dataTransfer?.setData('text/plain', id);
 						}}
 						ondragend={endDrag}
+						onmousedown={(event) => {
+							// the middle button closes; it is not for scrolling by here
+							if (event.button === 1) event.preventDefault();
+						}}
+						onauxclick={(event) => {
+							if (event.button !== 1 || !closable(id)) return;
+							event.preventDefault();
+							onchange(close(layout, id));
+						}}
 						class={[
 							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
 							closable(id) ? 'pr-1' : 'pr-2.5',

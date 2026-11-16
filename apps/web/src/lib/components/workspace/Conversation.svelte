@@ -106,7 +106,12 @@
 									{#if part.kind === 'text'}
 										<Markdown text={part.text} />
 									{:else if part.kind === 'tools'}
-										<ToolGroup tools={part.tools} {cwd} />
+										<!-- live: the agent is at work, and this is the last thing it did -->
+										<ToolGroup
+											tools={part.tools}
+											{cwd}
+											live={running && i === blocks.length - 1 && j === block.parts.length - 1}
+										/>
 									{:else}
 										<Notice>{part.error}</Notice>
 									{/if}

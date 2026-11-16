@@ -67,5 +67,10 @@
 
 <!-- Finished, failed and still-running tool calls. Open one to see its input and output. -->
 <Story name="Tool calls" asChild>
-	<div class="max-w-2xl"><ToolGroup {tools} cwd="/work" /></div>
+	<div class="max-w-2xl space-y-6">
+		<!-- over: what was used; a click shows the calls -->
+		<ToolGroup {tools} cwd="/work" />
+		<!-- under way: the tool that is running -->
+		<ToolGroup {tools} cwd="/work" live />
+	</div>
 </Story>
