@@ -124,7 +124,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +
   its name; the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
   once and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
-  run only as a person saw and agreed to them (`approvals.ts`). The settings are described
+  run only as a person saw and agreed to them (`approvals.ts`). The daemon runs the `setup`
+  script by itself when it makes a worktree (the first turn waits for it; `setUp` in
+  `main.ts`) and `teardown` before it removes one, each in a job-like terminal it tells the
+  forge of (`terminal.opened`). The settings are described
   for agents in `CONFIG_SETTINGS`; a new one goes there and into `parseConfig`.
 - **Changesets (FDR-007).** In a repository that uses a release tool, a workspace shows the
   change notes it adds and the versions they lead to. One adapter per tool in the daemon

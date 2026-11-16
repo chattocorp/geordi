@@ -86,6 +86,12 @@ export function createJobs(
 		start: (workspaceId: string, names: string[], seen: Record<string, string>) =>
 			start(workspaceId, names, seen),
 
+		/** Runs the setup script again, as `command`: the one the person asking saw. */
+		setUp(workspaceId: string, command: string) {
+			const at = terminalOf(workspaceId, 'setup');
+			if (!terminals.isRunning(at)) terminals.start(at, SIZE, { job: 'setup', command });
+		},
+
 		/** Stops a job, and the jobs that can't go on without it. */
 		async stop(workspaceId: string, name: string) {
 			const { jobs } = await configOf(workspaceId);

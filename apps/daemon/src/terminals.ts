@@ -4,6 +4,14 @@ import type { DaemonResults, TerminalSize } from '@geordi/protocol';
 /** How much output (in characters) is kept for viewers that connect later. */
 const SCROLLBACK = 200_000;
 
+/**
+ * What a command's terminal puts out when the command has ended, with its status: an escape
+ * sequence of our own, which terminals ignore. The command could print it too; all it would
+ * get by that is having its end noticed early.
+ */
+// eslint-disable-next-line no-control-regex -- an escape sequence is what it is
+const ENDED = /\x1b\]7717;(\d+)\x07/;
+
 type Terminal = {
 	pty: IPty;
 	write(data: string): void;
@@ -30,6 +38,8 @@ const terminals = new Map<string, Terminal>();
  * With `command`, the terminal runs that instead of a shell for typing into: in the user's
  * shell, as if typed there (so that it finds what their shell would). When the command
  * ends, the terminal says how and waits for Enter, so that what it printed can be read.
+ * `onEnded` hears of that moment, with the command's status (`null`: the terminal was
+ * closed first).
  */
 export function openTerminal(
 	id: string,
@@ -38,10 +48,12 @@ export function openTerminal(
 		cols,
 		rows,
 		command,
-		env = {}
+		env = {},
+		onEnded
 	}: TerminalSize & {
 		command?: string;
 		/** On top of our own environment. */ env?: Record<string, string>;
+		onEnded?: (status: number | null) => void;
 	},
 	guard: () => void,
 	onOutput: (data: string, offset: number) => void,
@@ -54,7 +66,7 @@ export function openTerminal(
 	// The command and the shell reach the script as arguments: nothing in them is parsed twice.
 	// `printf` makes the escapes into a new line and dim text.
 	const script =
-		'"$0" -l -i -c "$1"; printf "\\n\\033[2m[ended with status %s; press Enter to close]\\033[0m" "$?"; read -r _';
+		'"$0" -l -i -c "$1"; s=$?; printf "\\033]7717;%s\\007\\n\\033[2m[ended with status %s; press Enter to close]\\033[0m" "$s" "$s"; read -r _';
 	const [file, args] = command ? ['/bin/sh', ['-c', script, shell, command]] : [shell, []];
 	const pty = spawn(file, args, {
 		name: 'xterm-256color',
@@ -64,7 +76,21 @@ export function openTerminal(
 		env: { ...(process.env as Record<string, string>), ...env }
 	});
 
+	/** Calls `onEnded` once. */
+	let ended = onEnded;
+	const end = (status: number | null) => {
+		ended?.(status);
+		ended = undefined;
+	};
+	/** The end of the output so far: where the start of a sequence split across pieces is. */
+	let tail = '';
+
 	const output = (data: string) => {
+		if (ended) {
+			const found = ENDED.exec(tail + data);
+			if (found) end(Number(found[1]));
+			tail = data.slice(-16);
+		}
 		const offset = terminal.end;
 		terminal.end += data.length;
 		terminal.scrollback = (terminal.scrollback + data).slice(-SCROLLBACK);
@@ -90,6 +116,7 @@ export function openTerminal(
 	pty.onExit(() => {
 		// a restarted shell may already have taken this one's place
 		if (terminals.get(id) === terminal) terminals.delete(id);
+		end(null);
 		onExit();
 	});
 }

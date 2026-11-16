@@ -222,6 +222,12 @@ export const startJobs = command(
 	({ workspaceId, jobs: names, seen }) => jobs().start(workspaceId, names, seen)
 );
 
+/** Runs the repository's setup script in the workspace, as the person asking saw it. */
+export const runSetup = command(
+	v.object({ workspaceId: v.string(), command: v.pipe(v.string(), v.nonEmpty()) }),
+	({ workspaceId, command }) => jobs().setUp(workspaceId, command)
+);
+
 /** Stops a job, and the jobs that need it. */
 export const stopJob = command(
 	v.object({ workspaceId: v.string(), job: jobName }),

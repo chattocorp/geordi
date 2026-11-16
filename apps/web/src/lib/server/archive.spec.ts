@@ -20,13 +20,16 @@ function setup() {
 	const removed: string[] = [];
 	const dirty = new Set<string>();
 	const closed: string[] = [];
+	/** The worktrees whose teardown script was to run. */
+	const tornDown: string[] = [];
 	const archive = createArchiver({
 		workspaces,
 		closeTerminals: (id) => closed.push(id),
-		removeWorktree: async ({ worktreeId }, discard) => {
+		removeWorktree: async ({ worktreeId }, discard, teardown) => {
 			if (dirty.has(worktreeId) && !discard)
 				throw new Error('The worktree has uncommitted or untracked files.');
 			removed.push(worktreeId);
+			if (teardown) tornDown.push(worktreeId);
 		}
 	});
 
@@ -43,7 +46,7 @@ function setup() {
 		workspaces.record(parent, { kind: 'turn.completed' });
 		return settle(id);
 	};
-	return { workspaces, repo, archive, removed, dirty, closed, lead, start };
+	return { workspaces, repo, archive, removed, dirty, closed, tornDown, lead, start };
 }
 
 /** Matches the error a refused request throws, by its message. */
@@ -67,6 +70,16 @@ describe('archiving', () => {
 		// each worktree once: the lead's only after the reviewer sharing it was archived
 		expect([...removed].sort()).toEqual([lead, child, grandchild].sort());
 		expect(removed.indexOf(grandchild)).toBeLessThan(removed.indexOf(child));
+	});
+
+	it('tears down only what a person archives: an agent archiving leaves that to the person', async () => {
+		const { archive, tornDown, lead, start } = setup();
+		const child = start(lead, 'own', 'Build');
+		const other = start(lead, 'own', 'Build more');
+		await archive(child, false, lead);
+		expect(tornDown).toEqual([]);
+		await archive(other, false);
+		expect(tornDown).toEqual([other]);
 	});
 
 	it('leaves a shared worktree alone while a workspace that stays still works in it', async () => {

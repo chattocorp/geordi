@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 23;
+export const PROTOCOL_VERSION = 24;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -164,6 +164,22 @@ export type Job = {
 	approved: boolean;
 };
 
+/**
+ * A command a repository has run in a workspace at a moment of the workspace's life
+ * (FDR-006): `setup` when its worktree is made, `teardown` before it is removed.
+ */
+export type Script = {
+	command: string;
+	/** Whether a person has agreed to run this command in this repository. */
+	approved: boolean;
+};
+
+/**
+ * The names of the setup and teardown scripts. No job can be called that: the setup runs in
+ * a terminal named as a job's would be (`JOB_TERMINAL` + `setup`).
+ */
+export const SCRIPTS = ['setup', 'teardown'] as const;
+
 /** A place to look at what the jobs serve: a link, with the jobs that have to be up for it to lead anywhere. */
 export type Link = {
 	name: string;
@@ -179,6 +195,10 @@ export type Link = {
 export type RepoConfig = {
 	jobs: Job[];
 	urls: Link[];
+	/** Run once in a workspace's new worktree, before its agent starts. */
+	setup: Script | null;
+	/** Run when the workspace is archived, before its worktree is removed. */
+	teardown: Script | null;
 	/** The first of the workspace's ports, and how many it has. */
 	ports: { first: number; count: number } | null;
 	/** What is wrong with the file, if it can't be made sense of. */
@@ -204,6 +224,14 @@ export const CONFIG_SETTINGS = {
 	urls: {
 		does: "Places to open in the browser, each a `url` under a name. `{job}` stands for that job's port. Opening one first starts the jobs it mentions (and any listed under `needs`) and waits for them. Only addresses on this machine (`localhost`).",
 		example: '[urls.app]\nurl = "http://localhost:{web}/"'
+	},
+	setup: {
+		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
+		example: 'setup = "pnpm install && cp ../.env .env"'
+	},
+	teardown: {
+		does: 'A command that cleans up after a workspace when a person archives it, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
+		example: 'teardown = "docker compose down --volumes"'
 	},
 	ports: {
 		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. Never hard-code a port: two workspaces would collide.`,
@@ -242,6 +270,11 @@ export function dependentsOf(jobs: Pick<Job, 'name' | 'needs'>[], name: string):
 	visit(name);
 	return found;
 }
+
+/** How long a teardown script may take, before its worktree is removed regardless. */
+export const TEARDOWN_TIMEOUT_MS = 120_000;
+/** How long removing a worktree may take, with its teardown script. */
+export const REMOVE_TIMEOUT_MS = TEARDOWN_TIMEOUT_MS + 30_000;
 
 /** A job's terminal is named after it, so that it can be told from a shell someone opened. */
 export const JOB_TERMINAL = 'run-';
@@ -304,9 +337,11 @@ export type DaemonRequest =
 	| ({ kind: 'changes' } & WorktreeRef)
 	/**
 	 * Removes the worktree (the branch stays). Refuses if it has uncommitted or untracked
-	 * files, unless `force` says to discard them.
+	 * files, unless `force` says to discard them. With `teardown`, runs the repository's
+	 * teardown script first, if a person agreed to it: give this `REMOVE_TIMEOUT_MS`. Only
+	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
-	| ({ kind: 'removeWorktree'; force: boolean } & WorktreeRef)
+	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -421,7 +456,8 @@ export type ForgeMessage =
 	| { type: 'watch'; worktrees: WorktreeRef[] }
 	/**
 	 * Starts a shell in the workspace's directory. A workspace can have several terminals.
-	 * With `run`, it runs one of the repository's jobs instead: `command` is that job's
+	 * With `run`, it runs one of the repository's jobs instead (or, as job `setup`, its setup
+	 * script): `command` is that job's
 	 * command as the person who asked for it saw it. The daemon runs it only if the file
 	 * still says exactly that (the file is the agent's to change at any moment), and only if
 	 * a person has agreed to that command (`approveRun`).
@@ -461,5 +497,10 @@ export type DaemonMessage =
 	/** `offset` counts the characters this terminal's shell had put out before `data`. */
 	| { type: 'terminal.output'; terminalId: string; data: string; offset: number }
 	| { type: 'terminal.exit'; terminalId: string }
+	/**
+	 * The daemon started a terminal of its own accord: a new worktree's setup script. Those
+	 * the forge asks for, it knows of.
+	 */
+	| { type: 'terminal.opened'; terminalId: string; run?: { job: string; command: string } }
 	/** Something changed in a watched worktree's files or Git state. */
 	| { type: 'worktree.changed'; worktreeId: string };

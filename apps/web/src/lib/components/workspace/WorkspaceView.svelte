@@ -26,7 +26,7 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { JOB_TERMINAL, startOrder, type Job } from '@geordi/protocol';
+	import { JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
 	import { openMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
@@ -48,6 +48,7 @@
 		approveRun,
 		openLink,
 		restoreWorktree,
+		runSetup,
 		say,
 		startJobs,
 		stopJob
@@ -176,7 +177,19 @@
 	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
 	// per command and repository. The daemon keeps what was agreed to, and runs nothing else.
 	type Seen = Record<string, string>;
-	let asking = $state<{ jobs: Job[]; then: () => void } | null>(null);
+	type Command = Script & { name: string };
+	let asking = $state<{ jobs: Command[]; then: () => void } | null>(null);
+
+	/**
+	 * Does `then` once the person has agreed to `commands`, and to the teardown script that is
+	 * to clean up after what they run (it has no moment of its own to be asked in).
+	 */
+	function agreedTo(commands: Command[], then: () => void) {
+		const teardown: Command[] = config?.teardown ? [{ name: 'teardown', ...config.teardown }] : [];
+		const unseen = [...commands, ...teardown].filter((command) => !command.approved);
+		if (unseen.length === 0) return then();
+		asking = { jobs: unseen, then };
+	}
 
 	/**
 	 * Does `then` once the person has agreed to every command that starting `names` would
@@ -187,9 +200,25 @@
 		const needed = startOrder(jobs, names).flatMap(
 			(name) => jobs.find((job) => job.name === name) ?? []
 		);
-		const unseen = needed.filter((job) => !job.approved);
-		if (unseen.length === 0) return then(seen);
-		asking = { jobs: unseen, then: () => then(seen) };
+		agreedTo(needed, () => then(seen));
+	}
+
+	/** Runs the setup script (again): it ran by itself when the worktree was made, if agreed to. */
+	function setUp() {
+		const setup = config?.setup;
+		if (!setup) return;
+		agreedTo([{ name: 'setup', ...setup }], async () => {
+			if (!frame.current.open) toggleSide();
+			mergeProblem = null;
+			try {
+				await runSetup({ workspaceId: id, command: setup.command });
+				const front = jobTab('setup');
+				const at = areaOf(front) ?? 'dock';
+				arrange({ [at]: open(layouts[at], front) });
+			} catch (error) {
+				mergeProblem = problemOf(error, 'Could not set up');
+			}
+		});
 	}
 
 	async function agree() {
@@ -252,24 +281,39 @@
 
 	/** What the Run button offers where there is more than one thing to run. */
 	const jobMenu = (): MenuItem[] => [
+		...(config?.setup
+			? [
+					{
+						label: 'Set up',
+						icon: 'icon-[lucide--package-check]',
+						disabled: isUp('setup'),
+						onselect: setUp
+					} satisfies MenuItem,
+					...(jobs.length > 0 ? ['separator' as const] : [])
+				]
+			: []),
 		...jobs.map(({ name }): MenuItem =>
 			isUp(name)
 				? { label: `Stop ${name}`, icon: 'icon-[lucide--square]', onselect: () => stop(name) }
 				: { label: `Start ${name}`, icon: 'icon-[lucide--play]', onselect: () => start([name]) }
 		),
-		'separator',
-		{
-			label: 'Start all',
-			icon: 'icon-[lucide--list-video]',
-			disabled: jobs.every((job) => isUp(job.name)),
-			onselect: () => start(jobs.map((job) => job.name))
-		},
-		{
-			label: 'Stop all',
-			icon: 'icon-[lucide--circle-stop]',
-			disabled: !jobs.some((job) => isUp(job.name)),
-			onselect: () => jobs.filter((job) => isUp(job.name)).forEach((job) => stop(job.name))
-		}
+		...(jobs.length === 0
+			? []
+			: [
+					'separator' as const,
+					{
+						label: 'Start all',
+						icon: 'icon-[lucide--list-video]',
+						disabled: jobs.every((job) => isUp(job.name)),
+						onselect: () => start(jobs.map((job) => job.name))
+					},
+					{
+						label: 'Stop all',
+						icon: 'icon-[lucide--circle-stop]',
+						disabled: !jobs.some((job) => isUp(job.name)),
+						onselect: () => jobs.filter((job) => isUp(job.name)).forEach((job) => stop(job.name))
+					}
+				])
 	];
 	const linkMenu = (): MenuItem[] =>
 		links.map((link) => ({
@@ -496,7 +540,7 @@
 
 <!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
 {#snippet runActions()}
-	{#if jobs.length === 1 && links.length === 0}
+	{#if jobs.length === 1 && links.length === 0 && !config?.setup}
 		<!-- one thing to run: a button says it all -->
 		{@const [job] = jobs}
 		{#if isUp(job.name) || launching.has(job.name)}
@@ -520,8 +564,8 @@
 				Run
 			</Button>
 		{/if}
-	{:else if jobs.length > 0 || links.length > 0}
-		{#if jobs.length > 0}
+	{:else if jobs.length > 0 || links.length > 0 || config?.setup}
+		{#if jobs.length > 0 || config?.setup}
 			<Button
 				variant="ghost"
 				size="sm"
@@ -811,7 +855,9 @@
 			{#each asking?.jobs ?? [] as job (job.name)}
 				<li class="space-y-1">
 					{#if (asking?.jobs.length ?? 0) > 1 || job.name !== 'run'}
-						<p class="label">{job.name}</p>
+						<p class="label">
+							{job.name === 'teardown' ? 'teardown, when the workspace is archived' : job.name}
+						</p>
 					{/if}
 					<pre
 						class="rounded-control bg-sunken p-3 code-dense break-all whitespace-pre-wrap">{job.command}</pre>
