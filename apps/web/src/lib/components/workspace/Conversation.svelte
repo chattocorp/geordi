@@ -9,9 +9,9 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
+	import { getNavigation } from '../../../routes/nav.remote';
 	import {
 		configureWorkspace,
-		getHarnesses,
 		removeQueued,
 		sendMessage,
 		stopAgent
@@ -33,9 +33,9 @@
 
 	// The agent of a conversation is who it is; which of its models answers next, and how hard
 	// it thinks, can be chosen with every message (FDR-004). Only this agent's are on offer.
-	const offered = getHarnesses();
+	const offered = getNavigation();
 	const harnesses = $derived(
-		offered.current?.filter((harness) => harness.agent === workspace.agent)
+		offered.current?.harnesses?.filter((harness) => harness.agent === workspace.agent)
 	);
 	const choice = $derived.by((): HarnessChoice => {
 		const { model } = workspace.settings;

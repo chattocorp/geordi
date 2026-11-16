@@ -13,7 +13,12 @@ import { createNonce, prove, verify } from '@geordi/protocol/auth';
 
 type Handlers = {
 	/** A daemon (re)connected, running these workspaces' turns and these terminals. */
-	onHello(daemonId: string, running: string[], terminals: string[]): void;
+	onHello(
+		daemonId: string,
+		running: string[],
+		terminals: string[],
+		ended: Record<string, number>
+	): void;
 	onMessage(message: DaemonMessage): void;
 };
 
@@ -107,7 +112,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				// After a forge restart we don't know assignments; trust what the daemon is running.
 				for (const id of message.running) if (!assigned.has(id)) assigned.set(id, message.daemonId);
 				console.log(`[daemons] ${message.daemonId} connected`);
-				handlers.onHello(message.daemonId, message.running, message.terminals);
+				handlers.onHello(message.daemonId, message.running, message.terminals, message.ended ?? {});
 				return;
 			}
 

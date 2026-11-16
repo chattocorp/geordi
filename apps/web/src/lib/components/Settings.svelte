@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { notifications } from '#lib/notifications.svelte.ts';
+	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
@@ -15,8 +15,12 @@
 
 	const sections: { id: Section; label: string; icon: string }[] = [
 		{ id: 'general', label: 'General', icon: 'icon-[lucide--sliders-horizontal]' },
+		{ id: 'notifications', label: 'Notifications', icon: 'icon-[lucide--bell]' },
 		{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' }
 	];
+
+	/** What came of the last test notification, if one was sent. */
+	let tested = $state<Awaited<ReturnType<typeof test>>>();
 
 	let path = $state('');
 	let problem = $state<string>();
@@ -40,11 +44,11 @@
 
 	// what went wrong belongs to the visit it happened in
 	$effect(() => {
-		if (!settings.open) problem = undefined;
+		if (!settings.open) problem = tested = undefined;
 	});
 </script>
 
-<!-- Geordi's settings (FDR-005): how it looks, and the repositories it knows. -->
+<!-- Geordi's settings (FDR-005): how it looks, what it tells of, and the repositories it knows. -->
 <Dialog bind:open={settings.open} label="Settings" class="h-112">
 	<div class="flex h-full">
 		<div class="w-48 shrink-0 space-y-3 border-r border-line bg-sidebar p-2.5">
@@ -98,16 +102,16 @@
 						]}
 					/>
 				</div>
-				<div class="flex items-center justify-between gap-4 pt-6">
+			{:else if settings.section === 'notifications'}
+				<h2 class="heading">Notifications</h2>
+				<p class="pb-4 text-sm text-muted">
+					Geordi tells you when an agent is done, or ran into a problem, in a workspace you are not
+					looking at.
+				</p>
+				<div class="flex items-center justify-between gap-4">
 					<div>
-						<p class="text-sm font-medium">Notifications</p>
-						<p class="text-sm text-muted">
-							{#if notifications.on && notifications.permission === 'denied'}
-								This browser blocks Geordi's notifications: only the sound plays.
-							{:else}
-								A notification and a quiet sound when an agent is done out of sight.
-							{/if}
-						</p>
+						<p class="text-sm font-medium">Notify me</p>
+						<p class="text-sm text-muted">A notification and a quiet sound.</p>
 					</div>
 					<Segmented
 						label="Notifications"
@@ -120,6 +124,27 @@
 							{ value: 'off', label: 'Off' }
 						]}
 					/>
+				</div>
+				<div class="flex items-center justify-between gap-4 pt-6">
+					<div>
+						<p class="text-sm font-medium">Try it</p>
+						<p class="text-sm text-muted">
+							{#if tested === 'sent'}
+								Sent. If nothing showed, your system is holding it back: look for Geordi in its
+								notification settings, and for a focus mode that is on.
+							{:else if tested === 'blocked' || notifications.permission === 'denied'}
+								Geordi may not show notifications here: only the sound plays. Allow them in your
+								system's notification settings.
+							{:else if tested === 'unsupported' || notifications.permission === 'unsupported'}
+								There are no notifications to be had here: only the sound plays.
+							{:else}
+								Shows a notification and plays the sound, as when an agent is done.
+							{/if}
+						</p>
+					</div>
+					<Button icon="icon-[lucide--bell-ring]" onclick={async () => (tested = await test())}>
+						Send a test
+					</Button>
 				</div>
 			{:else}
 				<h2 class="heading">Repositories</h2>

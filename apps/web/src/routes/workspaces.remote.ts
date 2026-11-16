@@ -2,13 +2,7 @@ import { withAides } from '#lib/family.ts';
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import {
-	AGENTS,
-	CONFIG_NAME,
-	JOB_TERMINAL,
-	type FileVersions,
-	type Harness
-} from '@geordi/protocol';
+import { AGENTS, CONFIG_NAME, JOB_TERMINAL, type FileVersions } from '@geordi/protocol';
 import { live } from '#lib/server/events/index.ts';
 import { UNTITLED, type WorkspaceSummary } from '#lib/server/workspaces.ts';
 import {
@@ -65,19 +59,22 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 						.ancestors(id)
 						.map(({ id, title }) => [id, title])
 				),
-				// one that has not been told anything yet has no name: it is a new conversation
-				aides: aides.map(({ id, title, status, agent }) => ({
-					id,
-					title: title === UNTITLED ? 'New conversation' : title,
-					status,
-					agent
+				// Whole, with their conversations: they are shown in this workspace, and come with it
+				// in the one connection it has. (A browser has six to a server: one each would
+				// soon leave none for anything else.) One that has not been told anything yet has
+				// no name: it is a new conversation.
+				aides: aides.map((aide) => ({
+					...workspaces().get(aide.id),
+					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
 				children: workspaces()
 					.children(id)
 					.filter((child) => !aides.some((aide) => aide.id === child.id))
 					.map(relative),
 				git: watchers().state(workspace.worktreeId),
-				terminals: terminals().running(id)
+				terminals: terminals().running(id),
+				// the jobs among them that are over: their terminals are still there to be read
+				finished: terminals().finished(id)
 			};
 		},
 		(changed) => {
@@ -88,18 +85,6 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 				unsubscribe();
 			};
 		}
-	);
-});
-
-/**
- * What each agent can be asked to run: its models and their effort levels, as the
- * connected daemon reports them. `null` while no daemon is connected; live, so that they
- * are there the moment one is.
- */
-export const getHarnesses = query.live(async function* () {
-	yield* live(
-		(): Harness[] | null => hub().harnesses(),
-		(changed) => hub().subscribe(changed)
 	);
 });
 

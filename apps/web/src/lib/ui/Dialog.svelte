@@ -14,7 +14,13 @@
 	let dialog: HTMLDialogElement;
 
 	$effect(() => {
-		if (open && !dialog.open) dialog.showModal();
+		if (open && !dialog.open) {
+			dialog.showModal();
+			// The browser puts the focus on the first thing in it, ringed when the dialog was
+			// opened from the keyboard: a mark on something nobody chose. It starts on the
+			// dialog itself; Tab goes on from there, and shows where it is.
+			dialog.focus();
+		}
 		if (!open && dialog.open) dialog.close();
 	});
 </script>
@@ -26,10 +32,11 @@
 <dialog
 	bind:this={dialog}
 	aria-label={label}
+	tabindex="-1"
 	onclose={() => (open = false)}
 	onclick={(event) => event.target === dialog && (open = false)}
 	class={[
-		'm-auto max-h-5/6 w-full max-w-2xl overflow-hidden card-float p-0 text-ink backdrop:bg-bg/70',
+		'm-auto max-h-5/6 w-full max-w-2xl overflow-hidden card-float p-0 text-ink outline-none backdrop:bg-bg/70',
 		extra
 	]}
 >

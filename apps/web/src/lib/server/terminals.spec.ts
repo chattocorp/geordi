@@ -107,6 +107,33 @@ describe('terminals', () => {
 		]);
 	});
 
+	it('knows a job that has ended from one that runs, and starts it again on request', () => {
+		const { terminals, types } = setup();
+		const job = { workspaceId: 'w', terminal: 'run-play' };
+		const run = { job: 'play', command: './play' };
+		terminals.start(job, size, run);
+		expect(terminals.isRunning(job)).toBe(true);
+		expect(terminals.finished('w')).toEqual({});
+
+		// its command is over; its terminal is still there to be read
+		terminals.ended('w:run-play', 3);
+		expect(terminals.running('w')).toEqual(['run-play']);
+		expect(terminals.finished('w')).toEqual({ 'run-play': 3 });
+		expect(terminals.isRunning(job)).toBe(false);
+
+		// started again, it is asked of the daemon anew, and runs
+		terminals.start(job, size, run);
+		expect(types()).toEqual(['terminal.open', 'terminal.open']);
+		expect(terminals.finished('w')).toEqual({});
+		expect(terminals.isRunning(job)).toBe(true);
+
+		// a daemon that reconnects says which have ended
+		terminals.reconcile(['w:run-play'], { 'w:run-play': 0 });
+		expect(terminals.finished('w')).toEqual({ 'run-play': 0 });
+		terminals.exit('w:run-play');
+		expect(terminals.finished('w')).toEqual({});
+	});
+
 	it('picks running terminals up again after a restart', async () => {
 		const { terminals, daemon, sent, watch } = setup();
 		// a fresh forge: it has never heard of this terminal, but the daemon is running it

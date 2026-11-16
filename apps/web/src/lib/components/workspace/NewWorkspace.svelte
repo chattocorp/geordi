@@ -4,7 +4,8 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 	import Select from '#lib/ui/Select.svelte';
-	import { createWorkspace, getHarnesses } from '../../../routes/workspaces.remote';
+	import { getNavigation } from '../../../routes/nav.remote';
+	import { createWorkspace } from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
 
 	type Props = {
@@ -37,8 +38,8 @@
 	);
 
 	// `undefined` until loaded, `null` while no daemon is connected: nothing to choose from
-	const offered = getHarnesses();
-	const harnesses = $derived(offered.current);
+	const offered = getNavigation();
+	const harnesses = $derived(offered.current?.harnesses);
 	// The next workspace starts out the way the last one was set up.
 	const choice = persisted<HarnessChoice>('geordi:harness', { agent: 'claude', settings: {} });
 	const chosen = $derived(harnesses ? resolveChoice(harnesses, choice.current) : null);

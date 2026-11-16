@@ -18,6 +18,8 @@ type Terminal = {
 	scrollback: string;
 	/** How many characters the shell has put out so far. */
 	end: number;
+	/** The status the command it was opened to run ended with, once it has. */
+	ended?: number;
 };
 
 /**
@@ -60,7 +62,12 @@ export function openTerminal(
 	onExit: () => void
 ) {
 	const running = terminals.get(id);
-	if (running) return running.pty.resize(cols, rows);
+	// one whose command has ended makes way for a new one: that is how a job is started again
+	if (running && running.ended === undefined) return running.pty.resize(cols, rows);
+	if (running) {
+		terminals.delete(id);
+		running.pty.kill();
+	}
 
 	const shell = process.env.SHELL || '/bin/sh';
 	// The command and the shell reach the script as arguments: nothing in them is parsed twice.
@@ -85,10 +92,17 @@ export function openTerminal(
 	/** The end of the output so far: where the start of a sequence split across pieces is. */
 	let tail = '';
 
+	/** Whether there is a command whose end is still to come. */
+	let awaited = !!command;
+
 	const output = (data: string) => {
-		if (ended) {
+		if (awaited) {
 			const found = ENDED.exec(tail + data);
-			if (found) end(Number(found[1]));
+			if (found) {
+				awaited = false;
+				terminal.ended = Number(found[1]);
+				end(terminal.ended);
+			}
 			tail = data.slice(-16);
 		}
 		const offset = terminal.end;
@@ -114,10 +128,12 @@ export function openTerminal(
 	terminals.set(id, terminal);
 	pty.onData(output);
 	pty.onExit(() => {
-		// a restarted shell may already have taken this one's place
-		if (terminals.get(id) === terminal) terminals.delete(id);
+		// a restarted shell may already have taken this one's place: then it is not this
+		// terminal that has gone, and nobody is told that it has
+		const current = terminals.get(id) === terminal;
+		if (current) terminals.delete(id);
 		end(null);
-		onExit();
+		if (current) onExit();
 	});
 }
 
@@ -129,6 +145,12 @@ export const resizeTerminal = (id: string, { cols, rows }: TerminalSize) =>
 export const closeTerminal = (id: string) => terminals.get(id)?.pty.kill();
 
 export const runningTerminals = () => [...terminals.keys()];
+
+/** The running terminals whose command has ended, with the status it ended with. */
+export const endedTerminals = (): Record<string, number> =>
+	Object.fromEntries(
+		[...terminals].flatMap(([id, { ended }]) => (ended === undefined ? [] : [[id, ended]]))
+	);
 
 export function scrollbackOf(id: string): DaemonResults['scrollback'] {
 	const terminal = terminals.get(id);

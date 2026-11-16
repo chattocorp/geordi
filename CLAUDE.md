@@ -141,6 +141,13 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 - **Repository icons.** The sidebar shows the picture a repository has of itself (a tracked
   favicon or logo): the daemon finds it (`icon.ts`), the forge keeps it a while and serves
   it at `/repos/[id]/icon`. Live data, like everything derived: never stored.
+- **A page holds few connections.** A browser has six to a server, and every live query and
+  every event stream holds one for as long as it is on screen; once they are used up, no
+  navigation and no click gets through, though the page looks alive. So what is live comes
+  in as few of them as possible: everything every page needs in `getNavigation`, a
+  workspace with the conversations in it in `getWorkspace`, all of a workspace's terminals
+  in one stream (`terminal-stream.ts`). Never a connection per tab, row or item; and never
+  `await` a query inside a component within a page (follow it with `.current`).
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees
@@ -148,7 +155,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
   (`watchers.ts`) and sends it with the workspace live query (`git`). Browsers don't query
   for it. Also,
   terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers read it as
-  server-sent events, since `query.live` drops intermediate values). Shells and scrollback
+  server-sent events, one stream for all of a workspace's terminals, since `query.live` drops intermediate values). Shells and scrollback
   live in the daemon (`apps/daemon/src/terminals.ts`).
 
 ## Conventions

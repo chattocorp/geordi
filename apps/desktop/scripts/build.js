@@ -33,6 +33,16 @@ writeFileSync(
 	})
 );
 cpSync(join(root, 'src/main.js'), join(stage, 'main.js'));
+cpSync(join(root, 'src/preload.cjs'), join(stage, 'preload.cjs'));
+
+// The sounds of its notifications: made by the web app's own code, as files for the system
+// to play (see main.js). Louder than in a browser, where they play over whatever else does.
+const { chimeWav } = await import(join(repo, 'apps/web/src/lib/chime.ts'));
+const sounds = ['done', 'failed'].map((name) => {
+	const file = join(stage, `geordi-${name}.wav`);
+	writeFileSync(file, chimeWav(name === 'failed', 0.3));
+	return file;
+});
 
 // The forge: its production build, which needs nothing but Node.
 run('pnpm', ['--filter', '@geordi/web', 'build'], { cwd: repo });
@@ -79,7 +89,17 @@ if (install || process.argv.includes('--package')) {
 		overwrite: true,
 		prune: false, // the stage holds exactly what is needed
 		asar: false, // forge and daemon run as processes of their own, from plain files
-		quiet: true
+		quiet: true,
+		extraResource: sounds, // where the system looks for an app's notification sounds
+		// What macOS says when something asks for these. Geordi itself uses none of them: what
+		// it runs (an agent's CLI, a job, a shell) does so in its name, and the person should
+		// know that this is who is asking.
+		usageDescription: Object.fromEntries(
+			['Microphone', 'Camera', 'AudioCapture'].map((what) => [
+				what,
+				'Geordi itself does not use this. A program running inside it (an agent, a job, or something in a terminal) is asking for it.'
+			])
+		)
 	});
 	const packaged = join(built, 'Geordi.app');
 	console.log(`packaged ${packaged}`);
@@ -97,6 +117,9 @@ if (install || process.argv.includes('--package')) {
 		for (let n = 0; n < 50 && running(); n++) await new Promise((r) => setTimeout(r, 200));
 		rmSync(installed, { recursive: true, force: true });
 		run('ditto', [packaged, installed]);
+		// Signed as a whole, if only by ourselves: macOS takes an app it cannot tell from another
+		// for nobody, and shows none of its notifications.
+		run('codesign', ['--force', '--deep', '--sign', '-', installed]);
 		run('open', [installed]);
 		console.log(`installed ${installed}`);
 	}

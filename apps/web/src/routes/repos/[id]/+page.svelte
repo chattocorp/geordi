@@ -4,14 +4,17 @@
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import NewWorkspace from '#lib/components/workspace/NewWorkspace.svelte';
 	import { timeAgo } from '#lib/format.ts';
+	import { ownParam } from '#lib/route.svelte.ts';
 	import Page from '#lib/ui/Page.svelte';
 	import { getRepo } from '../../repos.remote';
 	import { getWorkspaces } from '../../workspaces.remote';
 
 	let { params } = $props();
+	// not another route's `id`, which this page sees while it is being left (see `ownParam`)
+	const id = ownParam('/repos/[id]', () => params.id);
 
-	const repo = $derived(await getRepo(params.id));
-	const workspaces = $derived(getWorkspaces(params.id));
+	const repo = $derived(await getRepo(id.current));
+	const workspaces = $derived(getWorkspaces(id.current));
 </script>
 
 <Page title={repo.name}>

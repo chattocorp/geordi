@@ -2,8 +2,8 @@
 	import '@xterm/xterm/css/xterm.css';
 	import type { ITheme } from '@xterm/xterm';
 	import type { Attachment } from 'svelte/attachments';
-	import { resolve } from '$app/paths';
 	import { startTerminal, terminalInput, terminalResize } from '../../../routes/workspaces.remote';
+	import { follow } from './terminal-stream.ts';
 
 	type Props = {
 		workspaceId: string;
@@ -54,14 +54,13 @@
 				// Old output may contain questions to the terminal (e.g. "what are you?") that
 				// were answered long ago; answering them again would type into the shell.
 				let replaying = false;
-				const source = new EventSource(
-					resolve('/workspaces/[id]/terminals/[terminal]', { id: workspaceId, terminal })
-				);
-				source.onopen = () => term.reset();
-				source.onmessage = (event) => term.write(JSON.parse(event.data));
-				source.addEventListener('replay', (event) => {
-					replaying = true;
-					term.write(JSON.parse(event.data), () => (replaying = false));
+				const unfollow = follow(workspaceId, terminal, {
+					open: () => term.reset(),
+					data(data, replay) {
+						if (!replay) return term.write(data);
+						replaying = true;
+						term.write(data, () => (replaying = false));
+					}
 				});
 
 				// Input: one request at a time, so keystrokes can't overtake each other.
@@ -97,7 +96,7 @@
 				themed.observe(document.documentElement, { attributeFilter: ['class'] });
 
 				dispose = () => {
-					source.close();
+					unfollow();
 					resized.disconnect();
 					themed.disconnect();
 					term.dispose();

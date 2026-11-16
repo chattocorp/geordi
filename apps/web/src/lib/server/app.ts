@@ -203,9 +203,9 @@ export const watchers = lazy(() =>
 
 export const hub = lazy(() =>
 	createHub(GEORDI_DAEMON_PORT, loadSecret(join(GEORDI_DATA_DIR, 'daemon-token')), {
-		onHello: (_daemonId, running, runningTerminals) => {
+		onHello: (_daemonId, running, runningTerminals, ended) => {
 			workspaces().reconcile(running);
-			terminals().reconcile(runningTerminals);
+			terminals().reconcile(runningTerminals, ended);
 			watchers().resync();
 			// a daemon is there to ask: how the workspaces stand is wanted right away
 			void standings().tick();
@@ -220,6 +220,8 @@ export const hub = lazy(() =>
 			} else if (message.type === 'terminal.output')
 				terminals().output(message.terminalId, message.data, message.offset);
 			else if (message.type === 'terminal.exit') terminals().exit(message.terminalId);
+			else if (message.type === 'terminal.ended')
+				terminals().ended(message.terminalId, message.status);
 			else if (message.type === 'terminal.opened')
 				terminals().opened(message.terminalId, message.run);
 			else if (message.type === 'worktree.changed') watchers().changed(message.worktreeId);

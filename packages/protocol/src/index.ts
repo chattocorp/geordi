@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -493,6 +493,8 @@ export type DaemonMessage =
 			running: string[];
 			/** Terminals currently running on this daemon. */
 			terminals: string[];
+			/** Those of them whose command has ended (see `terminal.ended`), with its status. */
+			ended?: Record<string, number>;
 			/** The models and effort levels this daemon's agent CLIs offer. */
 			harnesses: Harness[];
 	  }
@@ -503,6 +505,11 @@ export type DaemonMessage =
 	/** `offset` counts the characters this terminal's shell had put out before `data`. */
 	| { type: 'terminal.output'; terminalId: string; data: string; offset: number }
 	| { type: 'terminal.exit'; terminalId: string }
+	/**
+	 * The command a terminal was opened to run (a job, a script) has ended, with this status.
+	 * The terminal is still there, for its output to be read, until someone closes it.
+	 */
+	| { type: 'terminal.ended'; terminalId: string; status: number }
 	/**
 	 * The daemon started a terminal of its own accord: a new worktree's setup script. Those
 	 * the forge asks for, it knows of.

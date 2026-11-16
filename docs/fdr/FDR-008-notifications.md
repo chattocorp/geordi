@@ -18,10 +18,17 @@ Agents work for minutes at a time, and people do other things meanwhile. Geordi 
 - No notification for a turn someone stopped, or for a message that steers the agent: they know. No notification between a turn and a waiting message it goes straight on to.
 - A workspace started by an agent notifies only once that agent has stopped working too. While its agent is waiting for it, the reply goes to the agent, not the person.
 - Geordi asks the browser's permission the first time the person sends something to an agent (or turns notifications on). Where the browser refuses, or has no notifications (a forge not served over HTTPS or localhost), the sound and the bold still work, and Settings says so.
-- **Settings → General → Notifications** turns all of it (notification, sound, bold and Dock count) on or off for this browser. It is on by default.
+- **Settings → Notifications** turns all of it (notification, sound, bold and Dock count) on or off for this browser. It is on by default.
+- "Send a test" there shows a notification and plays the sound at once, and says what came of it: sent, not allowed, or not to be had. A notification that was sent and did not show is held back by the system (its own settings, a focus mode), which Geordi cannot tell.
 - In the desktop app, notifications are the system's own.
 
 ## Design Decisions
+
+### 0. In the desktop app, the system plays the sound
+
+**Decision:** In the desktop app, notifications are the app's own (shown by its main process, not by the page), and their sound is a file in the app that the system plays with them: Geordi's two notes, rising for done and falling for failed. The app plays no sound itself. In a browser, notifications are silent and the page plays the notes.
+**Why:** On macOS, sound an app plays itself (through the browser's audio engine, or a player it starts) goes through the system's audio daemon, which checks whether the app may use the microphone wherever sound goes out through a device that also takes it in. The person is then asked for the microphone by an app that never listens. A notification's sound is the system's to play, and asks for nothing.
+**Tradeoff:** In the app there is no sound where its notifications are not allowed, and a second way of showing notifications to keep working.
 
 ### 1. Only when the agents stop
 

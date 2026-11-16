@@ -54,7 +54,6 @@
 		stopJob
 	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
-	import AgentConversation from './AgentConversation.svelte';
 	import Changes from './Changes.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
@@ -171,7 +170,9 @@
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
 	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
-	const isUp = (job: string) => workspace.terminals.includes(JOB_TERMINAL + job);
+	/** A job runs while its terminal is there and its command has not ended in it. */
+	const isUp = (job: string) =>
+		workspace.terminals.includes(JOB_TERMINAL + job) && !(JOB_TERMINAL + job in workspace.finished);
 
 	// The commands are in a file the agent can write, and run as the user, outside any
 	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
@@ -279,9 +280,15 @@
 		});
 	}
 
+	/**
+	 * A setup script nobody has agreed to yet: it has not run, and this is where it is seen
+	 * and agreed to. One that was agreed to runs by itself, and is not something to offer.
+	 */
+	const setupPending = $derived(!!config?.setup && !config.setup.approved);
+
 	/** What the Run button offers where there is more than one thing to run. */
 	const jobMenu = (): MenuItem[] => [
-		...(config?.setup
+		...(setupPending
 			? [
 					{
 						label: 'Set up',
@@ -547,7 +554,7 @@
 
 <!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
 {#snippet runActions()}
-	{#if jobs.length === 1 && links.length === 0 && !config?.setup}
+	{#if jobs.length === 1 && links.length === 0 && !setupPending}
 		<!-- one thing to run: a button says it all -->
 		{@const [job] = jobs}
 		{#if isUp(job.name) || launching.has(job.name)}
@@ -571,8 +578,8 @@
 				Run
 			</Button>
 		{/if}
-	{:else if jobs.length > 0 || links.length > 0 || config?.setup}
-		{#if jobs.length > 0 || config?.setup}
+	{:else if jobs.length > 0 || links.length > 0 || setupPending}
+		{#if jobs.length > 0 || setupPending}
 			<Button
 				variant="ghost"
 				size="sm"
@@ -629,7 +636,18 @@
 	{:else if terminalOf(tab)}
 		{@const job = jobOf(terminalOf(tab))}
 		{#if job}
-			<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
+			{@const status = workspace.finished[terminalOf(tab) ?? '']}
+			<!-- running; or over, and how it went: its output is still there to be read -->
+			{#if status === undefined}
+				<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
+			{:else if status === 0}
+				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
+			{:else}
+				<span
+					class="icon-[lucide--x] size-3.5 shrink-0 text-danger"
+					title="Ended with status {status}"
+				></span>
+			{/if}
 			<span class="truncate">{job}</span>
 		{:else}
 			{@const terminals = everywhere()
@@ -687,7 +705,11 @@
 			</div>
 		</div>
 	{:else if aideOf(tab)}
-		<AgentConversation id={aideOf(tab)!.id} />
+		<!-- what its own agent said there is that one's; and so on up -->
+		<Conversation
+			workspace={aideOf(tab)!}
+			senders={{ ...workspace.senders, [workspace.id]: workspace.title }}
+		/>
 	{:else}
 		<Conversation {workspace} senders={workspace.senders} />
 	{/if}

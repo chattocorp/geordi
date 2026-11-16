@@ -1,7 +1,17 @@
 import { execFileSync } from 'node:child_process';
 import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, Menu, screen, shell, utilityProcess } from 'electron';
+import {
+	app,
+	BrowserWindow,
+	dialog,
+	ipcMain,
+	Menu,
+	Notification,
+	screen,
+	shell,
+	utilityProcess
+} from 'electron';
 
 /**
  * Geordi as a desktop app (ADR-008): a window onto a forge and a daemon that this process
@@ -168,7 +178,8 @@ function open() {
 		// makes room for (and makes draggable) where `data-desktop` is set; see `app.html`.
 		titleBarStyle: 'hiddenInset',
 		trafficLightPosition: { x: 14, y: 21 },
-		backgroundColor: '#2c2f3b'
+		backgroundColor: '#2c2f3b',
+		webPreferences: { preload: join(import.meta.dirname, 'preload.cjs') }
 	});
 	window.on('close', () => {
 		try {
@@ -264,6 +275,40 @@ else {
 		if (BrowserWindow.getAllWindows().length === 0) open();
 	});
 	app.on('before-quit', () => (quitting = true));
+
+	// How many workspaces are unread, as the web app counts them: a number on the app's icon.
+	ipcMain.on('geordi:badge', (_event, count) =>
+		app.setBadgeCount(Number.isInteger(count) && count > 0 ? count : 0)
+	);
+
+	// The web app's notifications, as the app's own. Their sound is a file in the app that
+	// the system plays with them: the app plays no sound itself, which on macOS would have
+	// the system ask whether it may use the microphone.
+	const notified = new Map();
+	ipcMain.on('geordi:notify', (event, { id, title, body, failed } = {}) => {
+		if (typeof id !== 'string' || !Notification.isSupported()) return;
+		notified.get(id)?.close();
+		const notification = new Notification({
+			title: String(title).slice(0, 200),
+			body: String(body).slice(0, 300),
+			sound: failed ? 'geordi-failed.wav' : 'geordi-done.wav'
+		});
+		notification.on('click', () => {
+			const window = BrowserWindow.fromWebContents(event.sender);
+			if (!window) return;
+			if (window.isMinimized()) window.restore();
+			window.show();
+			window.focus();
+			event.sender.send('geordi:open', id);
+		});
+		notification.on('close', () => notified.get(id) === notification && notified.delete(id));
+		notified.set(id, notification);
+		notification.show();
+	});
+	ipcMain.on('geordi:dismiss', (_event, id) => {
+		notified.get(id)?.close();
+		notified.delete(id);
+	});
 
 	app.whenReady().then(async () => {
 		menu();

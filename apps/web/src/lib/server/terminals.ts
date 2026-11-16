@@ -9,6 +9,11 @@ import type { Dispatch } from './workspaces.ts';
 type Terminal = {
 	/** Whether a daemon is running this terminal's shell. */
 	running: boolean;
+	/**
+	 * The status the command it runs (a job, a script) ended with, once it has. The terminal
+	 * goes on running until someone closes it: its output is there to be read.
+	 */
+	ended?: number;
 	size: TerminalSize;
 	viewers: Set<Viewer>;
 	/** For a job's terminal: the job, and its command as the person who started it saw it. */
@@ -73,7 +78,9 @@ export function createTerminals(
 	function start(at: TerminalRef) {
 		const terminalId = idOf(at);
 		const terminal = get(terminalId);
-		if (terminal.running) return;
+		// one whose command has ended is started again: the daemon puts a new one in its place
+		if (terminal.running && terminal.ended === undefined) return;
+		delete terminal.ended;
 		terminal.running = dispatch({
 			type: 'terminal.open',
 			terminalId,
@@ -93,6 +100,7 @@ export function createTerminals(
 	function exit(terminal: Terminal) {
 		if (!terminal.running) return;
 		terminal.running = false;
+		delete terminal.ended;
 		tell(terminal, 'The shell exited. Press any key to start a new one.');
 		changed();
 	}
@@ -110,7 +118,11 @@ export function createTerminals(
 		},
 
 		/** Whether the terminal's shell is running. */
-		isRunning: (at: TerminalRef) => terminals.get(idOf(at))?.running === true,
+		/** Whether the terminal's shell is running, and (for a job's) the job in it still is. */
+		isRunning(at: TerminalRef) {
+			const terminal = terminals.get(idOf(at));
+			return terminal?.running === true && terminal.ended === undefined;
+		},
 
 		/**
 		 * Connects a viewer: replays the terminal's recent output to `listener`, then keeps it
@@ -190,6 +202,29 @@ export function createTerminals(
 				.map(([id]) => id.slice(prefix.length));
 		},
 
+		/**
+		 * The workspace's running terminals whose command has ended, with its status: a job
+		 * that is over, though its terminal is still there to be read.
+		 */
+		finished(workspaceId: string): Record<string, number> {
+			const prefix = `${workspaceId}:`;
+			return Object.fromEntries(
+				[...terminals].flatMap(([id, terminal]) =>
+					id.startsWith(prefix) && terminal.running && terminal.ended !== undefined
+						? [[id.slice(prefix.length), terminal.ended]]
+						: []
+				)
+			);
+		},
+
+		/** A daemon says the command a terminal runs has ended. */
+		ended(terminalId: string, status: number) {
+			const terminal = terminals.get(terminalId);
+			if (!terminal?.running) return;
+			terminal.ended = status;
+			changed();
+		},
+
 		/** Calls `listener` whenever a shell starts or ends. Returns a function that stops it. */
 		subscribe(listener: () => void): () => void {
 			listeners.add(listener);
@@ -216,6 +251,7 @@ export function createTerminals(
 		opened(terminalId: string, run?: Terminal['run']) {
 			const terminal = get(terminalId);
 			if (run) terminal.run = run;
+			delete terminal.ended;
 			if (terminal.running) return;
 			terminal.running = true;
 			changed();
@@ -230,9 +266,14 @@ export function createTerminals(
 		 * A daemon (re)connected and says which terminals it is running. Others have ended
 		 * while we weren't connected; ones we don't know are from before we restarted.
 		 */
-		reconcile(running: string[]) {
+		reconcile(running: string[], ended: Record<string, number> = {}) {
 			for (const [id, terminal] of terminals) if (!running.includes(id)) exit(terminal);
-			for (const id of running) get(id).running = true;
+			for (const id of running) {
+				const terminal = get(id);
+				terminal.running = true;
+				if (id in ended) terminal.ended = ended[id];
+				else delete terminal.ended;
+			}
 			changed();
 		}
 	};

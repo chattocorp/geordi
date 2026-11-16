@@ -1,5 +1,6 @@
 import { SvelteSet } from 'svelte/reactivity';
 import { cameToRest, type TurnEnd, type Watched } from './attention.ts';
+import { chimeWav } from './chime.ts';
 
 /**
  * Telling the person when a workspace needs them (FDR-008): a system notification and a
@@ -10,6 +11,21 @@ import { cameToRest, type TurnEnd, type Watched } from './attention.ts';
  */
 
 const browser = typeof window !== 'undefined';
+
+/**
+ * What the desktop app does for its page (see its `preload.cjs`). There, notifications are
+ * the app's own, shown by the system with a sound of ours that the system plays. The app
+ * never plays sound itself: on macOS that has the system check, and ask, whether the app
+ * may use the microphone, wherever sound goes out through a device that also takes it in.
+ */
+type Desktop = {
+	badge(count: number): void;
+	notify(notification: { id: string; title: string; body: string; failed: boolean }): void;
+	dismiss(id: string): void;
+	/** Calls back with the ID of a notification that was clicked. */
+	onOpen(opened: (id: string) => void): void;
+};
+const desktop = browser ? (window as { geordiDesktop?: Desktop }).geordiDesktop : undefined;
 
 function load(key: string): string | null {
 	try {
@@ -58,7 +74,10 @@ if (browser)
  */
 export function badge() {
 	const count = unread.size;
-	if (!browser || !('setAppBadge' in navigator)) return;
+	if (!browser) return;
+	// the desktop app counts on its icon itself: what the browser's own way shows there is a dot
+	if (desktop) return desktop.badge(count);
+	if (!('setAppBadge' in navigator)) return;
 	void (count ? navigator.setAppBadge(count) : navigator.clearAppBadge()).catch(() => {
 		// not allowed here (not installed, or no permission): the sidebar still says
 	});
@@ -66,7 +85,12 @@ export function badge() {
 
 /** What the browser lets us do; `unsupported` where there are no notifications (not https). */
 let permission = $state<NotificationPermission | 'unsupported'>(
-	browser && 'Notification' in window ? Notification.permission : 'unsupported'
+	// the desktop app's notifications are the system's to allow, not the page's
+	desktop
+		? 'granted'
+		: browser && 'Notification' in window
+			? Notification.permission
+			: 'unsupported'
 );
 
 export const notifications = {
@@ -111,6 +135,7 @@ const shown = new Map<string, Notification>();
 
 /** The person has seen the workspace: it is read, and its notification is old news. */
 export function seen(id: string) {
+	desktop?.dismiss(id);
 	shown.get(id)?.close();
 	shown.delete(id);
 	if (unread.delete(id)) saveUnread();
@@ -148,12 +173,24 @@ export function watch(all: Listed[], viewed: string | null, open: (id: string) =
 	}
 }
 
+/** Where a click on one of the desktop app's notifications leads: said by `watch`. */
+let opens: (id: string) => void = () => {};
+desktop?.onOpen((id) => {
+	if (id !== TEST) opens(id);
+});
+const TEST = 'geordi:test';
+
 function show(workspace: Listed, open: (id: string) => void) {
 	if (permission !== 'granted') return;
-	shown.get(workspace.id)?.close();
 	const failed = workspace.outcome === 'failed';
+	const body = failed ? 'The agent ran into a problem.' : 'The agent is done.';
+	if (desktop) {
+		opens = open;
+		return desktop.notify({ id: workspace.id, title: workspace.title, body, failed });
+	}
+	shown.get(workspace.id)?.close();
 	const notification = new Notification(workspace.title, {
-		body: failed ? 'The agent ran into a problem.' : 'The agent is done.',
+		body,
 		tag: workspace.id, // one per workspace, also across tabs
 		silent: true // the sound is our own
 	});
@@ -167,30 +204,43 @@ function show(workspace: Listed, open: (id: string) => void) {
 	shown.set(workspace.id, notification);
 }
 
-let audio: AudioContext | null = null;
+/**
+ * Shows a notification and plays the sound, as when an agent is done: to see and hear what
+ * they are like, and whether they get through. Asks for leave first where that is still
+ * open. Says what came of it: the system may still keep a notification to itself (its own
+ * settings, a focus mode), which nothing here can tell.
+ */
+export async function test(): Promise<'sent' | 'blocked' | 'unsupported'> {
+	const body = 'This is what it looks like when an agent is done.';
+	if (desktop) {
+		desktop.notify({ id: TEST, title: 'Geordi', body, failed: false });
+		return 'sent';
+	}
+	chime(false);
+	if (permission === 'unsupported') return 'unsupported';
+	if (permission === 'default') permission = await Notification.requestPermission();
+	if (permission !== 'granted') return 'blocked';
+	const notification = new Notification('Geordi', { body, tag: TEST, silent: true });
+	notification.onclick = () => {
+		window.focus();
+		notification.close();
+	};
+	return 'sent';
+}
 
 /**
  * Two soft notes, made on the spot rather than loaded: rising when done, falling when
- * something went wrong. Quiet enough to be heard, not startled by.
+ * something went wrong. Quiet enough to be heard, not startled by. In a browser only: in
+ * the desktop app the system plays them, with the notification (see `desktop`).
  */
 function chime(failed: boolean) {
+	if (desktop) return;
 	try {
-		audio ??= new AudioContext();
-		void audio.resume();
-		const notes = failed ? [659.25, 493.88] : [659.25, 880];
-		notes.forEach((frequency, index) => {
-			const at = audio!.currentTime + index * 0.13;
-			const tone = audio!.createOscillator();
-			const gain = audio!.createGain();
-			tone.type = 'sine';
-			tone.frequency.value = frequency;
-			gain.gain.setValueAtTime(0, at);
-			gain.gain.linearRampToValueAtTime(0.06, at + 0.01);
-			gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.45);
-			tone.connect(gain).connect(audio!.destination);
-			tone.start(at);
-			tone.stop(at + 0.5);
-		});
+		const wav = chimeWav(failed);
+		const url = URL.createObjectURL(new Blob([wav.buffer as ArrayBuffer], { type: 'audio/wav' }));
+		const audio = new Audio(url);
+		audio.onended = audio.onerror = () => URL.revokeObjectURL(url);
+		void audio.play().catch(() => URL.revokeObjectURL(url));
 	} catch {
 		// no sound to be had here: the notification has to do
 	}

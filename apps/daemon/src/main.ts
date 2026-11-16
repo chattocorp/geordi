@@ -27,6 +27,7 @@ import {
 	closeTerminals,
 	openTerminal,
 	resizeTerminal,
+	endedTerminals,
 	runningTerminals,
 	scrollbackOf,
 	writeTerminal
@@ -115,7 +116,7 @@ const RUN_CHANGED = `echo 'This is not the command you agreed to run: ${CONFIG_F
 /** What the terminal of a script that did not run says instead. Words of ours, never the file's. */
 const SETUP_NOT_RUN = {
 	unagreed: `echo 'The setup script in ${CONFIG_FILE} did not run: nobody has agreed to it yet. Run it from the Run menu to see it and agree to it.'; exit 1`,
-	agents: `echo 'The setup script in ${CONFIG_FILE} did not run by itself: this directory holds what an agent wrote (it starts from an agent'"'"'s branch, or was brought back from this workspace'"'"'s). Run it from the Run menu if you want it to.'; exit 1`
+	agents: `echo 'The setup script in ${CONFIG_FILE} did not run by itself: this directory holds what an agent wrote (it starts from an agent'"'"'s branch, or was brought back from this workspace'"'"'s). To run it all the same: press Enter here, then any key.'; exit 1`
 };
 
 /** What a terminal's output and its end are sent as. */
@@ -153,6 +154,7 @@ function runScript(
 				env,
 				onEnded: (status) => {
 					clearTimeout(timer);
+					if (status !== null) sendLive({ type: 'terminal.ended', terminalId, status });
 					resolve({ status, output: scrollbackOf(terminalId)?.data ?? '' });
 				}
 			},
@@ -332,6 +334,7 @@ function connect(delay = 500) {
 				proof: prove(token, 'daemon', message.nonce),
 				running: unreported(),
 				terminals: runningTerminals(),
+				ended: endedTerminals(),
 				harnesses
 			};
 			ws.send(JSON.stringify(hello));
@@ -566,7 +569,10 @@ async function handle(message: ForgeMessage) {
 						...message,
 						command: asked && (agreed ? job.command : RUN_CHANGED),
 						// every terminal knows the workspace's ports; a job also which one is its own
-						env: { ...env, ...(agreed && job.port !== null && { PORT: String(job.port) }) }
+						env: { ...env, ...(agreed && job.port !== null && { PORT: String(job.port) }) },
+						// a job that has ended is no longer running, though its terminal is still there
+						onEnded: (status) =>
+							status !== null && sendLive({ type: 'terminal.ended', terminalId, status })
 					},
 					guard,
 					output,
