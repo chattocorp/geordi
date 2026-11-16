@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { NO_WORKTREE } from '@geordi/protocol';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
@@ -46,7 +47,7 @@ const reason = (error: unknown) => (error instanceof Error ? error.message : Str
 
 /** Asks a daemon how a worktree's files and branch stand. Never rejects. */
 async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
-	const state: WorktreeState = { changes: null, unavailable: null, upstream: null };
+	const state: WorktreeState = { changes: null, unavailable: null, missing: false, upstream: null };
 	let ref;
 	try {
 		ref = workspaces().ref(worktreeId);
@@ -59,7 +60,10 @@ async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
 		hub().request({ kind: 'upstream', ...ref })
 	]);
 	if (changes.status === 'fulfilled') state.changes = changes.value;
-	else state.unavailable = reason(changes.reason);
+	else {
+		state.unavailable = reason(changes.reason);
+		state.missing = state.unavailable === NO_WORKTREE;
+	}
 
 	if (upstream.status === 'fulfilled' && upstream.value) {
 		// These end up in links. They come from a daemon and, before that, another forge.

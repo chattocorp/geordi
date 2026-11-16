@@ -6,6 +6,8 @@ export type WorktreeState = {
 	/** `null` if the daemon couldn't say; `unavailable` then says why. */
 	changes: Changes | null;
 	unavailable: string | null;
+	/** The daemon says the worktree's directory is not there: not made yet, or removed. */
+	missing: boolean;
 	/** The branch on the forge the repository is hosted on; `null` if there is none we know. */
 	upstream: Upstream | null;
 };

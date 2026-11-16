@@ -1,7 +1,7 @@
 # FDR-004: Choosing the agent, its model and its effort
 
 **Status:** Active
-**Last reviewed:** 2026-11-15
+**Last reviewed:** 2026-11-16
 
 ## Overview
 
@@ -15,7 +15,7 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 - The effort list holds the levels of the model picked, which differ from model to model, and "Default effort", which leaves it to the agent's CLI. An effort the newly picked model doesn't have falls back to the default. An agent that reports no levels has no effort to choose.
 - What is on offer comes from the daemon, pushed to the page: the moment a daemon connects, the choices are there. While none is connected the composer says "Waiting for the daemon" in their place, and a workspace can't be started.
 - The browser remembers the choice, per agent: the next workspace starts out the way the last one was set up. A remembered model that is no longer on offer falls back to the agent's first; an effort, to the default.
-- The choice belongs to the workspace and holds for all of its turns. The workspace's header shows it.
+- The choice belongs to the workspace, and can be changed there: the box for replying to the agent has the same two choices, for the workspace's agent only. A change holds from the agent's next turn on; a turn under way carries on as it was started.
 - An agent started by another agent (FDR-002) runs with its parent's model and effort if it is the same kind of agent, and with the defaults otherwise.
 
 ## Design Decisions
@@ -32,11 +32,11 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 **Why:** "Claude Code" next to "Opus" in one list reads as two kinds of thing. Picking a model is picking the agent. Effort has a sensible default per model that the CLI knows better than we do.
 **Tradeoff:** Geordi overrides the model a user configured in their CLI, starting with the first one listed until they pick another.
 
-### 3. Chosen once, for the workspace
+### 3. One agent per workspace; its model and effort can change
 
-**Decision:** Model and effort are chosen when the workspace starts, and can't be changed afterwards.
-**Why:** One conversation, one agent, one way of running it keeps the model simple (FDR-001). Wanting something else is a new workspace.
-**Tradeoff:** No switching to a stronger model midway when a task turns out to be hard.
+**Decision:** Which agent a workspace has is chosen when it starts and stays. Its model and effort can be changed at any time, in the reply box, and apply from the next turn.
+**Why:** A conversation belongs to one CLI's session, which another CLI can't carry on (FDR-001). Within it, a task can turn out harder or easier than it looked: one should be able to bring in a stronger model midway, or stop paying for one.
+**Tradeoff:** A conversation can be the work of several models, and nothing in it says which wrote what.
 
 ### 4. Two quiet choices
 

@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import type { Changes, FileChange, FileVersions } from '@geordi/protocol';
-import { branchRef, gitIn, headOf, type Worktree } from './worktree.ts';
+import { branchRef, gitIn, headOf, startOf, type Worktree } from './worktree.ts';
 
 /** Files are for reading; beyond this size (in characters) they are not shown. */
 const MAX_FILE = 1_000_000;
@@ -18,20 +18,21 @@ const MAX_FILE = 1_000_000;
  * Never run code the worktree can supply: no diff drivers, and no looking inside submodules
  * (git would run itself in them, under whatever config the agent put there).
  */
-const SAFE = ['--no-ext-diff', '--no-textconv', '--no-renames', '--ignore-submodules=all'];
+const SAFE = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
 
 /** Where a workspace's changes are measured from: its repository, and the branch it started from. */
 type Origin = { repoPath: string; base?: string };
 
 /**
  * The commit the workspace's changes are measured against: where its branch forked off the
- * branch it started from (by default, whatever the repository has checked out). Committed
+ * branch it started from (by default, the upstream's main branch; see `startOf`). Committed
  * and uncommitted work both count as changes.
  */
 function forkPoint(worktree: Worktree, { repoPath, base }: Origin): string {
-	const from = base
-		? branchRef(base)
-		: execFileSync('git', ['-C', repoPath, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+	const start = base ? branchRef(base) : startOf(repoPath);
+	const from = execFileSync('git', ['-C', repoPath, 'rev-parse', start], {
+		encoding: 'utf8'
+	}).trim();
 	return gitIn(worktree, 'merge-base', headOf(worktree), from).trim();
 }
 
@@ -78,15 +79,35 @@ const MAX_COUNTED = 200;
 
 const lines = (text: string) => (text ? text.replace(/\n$/, '').split('\n') : []);
 
+const STATUS: Record<string, FileChange['status']> = { A: 'added', D: 'deleted', R: 'renamed' };
+
 export function changes(worktree: Worktree, origin: Origin): FileChange[] {
-	const tracked = gitIn(worktree, 'diff', '--numstat', '-z', ...SAFE, forkPoint(worktree, origin))
-		.split('\0')
-		.filter(Boolean)
-		.map((entry): FileChange => {
-			const [added, removed, ...path] = entry.split('\t');
-			const count = (value: string) => (value === '-' ? null : Number(value));
-			return { path: path.join('\t'), added: count(added), removed: count(removed) };
+	// With renames found (`-M`), so that a moved file is one change and not two. Git does
+	// that by comparing contents itself: nothing of the worktree's gets to run.
+	const diff = (format: string) =>
+		gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, forkPoint(worktree, origin)).split('\0');
+
+	// `--name-status -z`: a status, then the path; a rename has the old path and the new.
+	const states = new Map<string, Pick<FileChange, 'status' | 'from'>>();
+	for (let fields = diff('--name-status'); fields.length > 1;) {
+		const [status, path] = fields.splice(0, 2);
+		if (status.startsWith('R')) states.set(fields.shift()!, { status: 'renamed', from: path });
+		else states.set(path, { status: STATUS[status] ?? 'modified' });
+	}
+
+	// `--numstat -z`: counts and the path; a rename has no path there, but two after it.
+	const tracked: FileChange[] = [];
+	for (let fields = diff('--numstat'); fields.length > 1;) {
+		const [added, removed, ...rest] = fields.shift()!.split('\t');
+		const path = rest.join('\t') || fields.splice(0, 2)[1];
+		const count = (value: string) => (value === '-' ? null : Number(value));
+		tracked.push({
+			path,
+			...(states.get(path) ?? { status: 'modified' }),
+			added: count(added),
+			removed: count(removed)
 		});
+	}
 
 	// Reading files to count their lines is only worth it for a workspace's own handful of new
 	// files, not for a `node_modules` nobody ignored: beyond that, they are just listed.
@@ -94,6 +115,7 @@ export function changes(worktree: Worktree, origin: Origin): FileChange[] {
 		const text = index < MAX_COUNTED ? readText(worktree, path) : null;
 		return {
 			path,
+			status: 'added',
 			added: text === null ? null : lines(text).length,
 			removed: text === null ? null : 0
 		};
@@ -107,7 +129,15 @@ export function changes(worktree: Worktree, origin: Origin): FileChange[] {
  * status`: `gitIn` runs against the repository's own .git, whose HEAD is not the worktree's.
  */
 export function uncommittedFiles(worktree: Worktree): string[] {
-	const modified = gitIn(worktree, 'diff', '--name-only', '-z', ...SAFE, headOf(worktree))
+	const modified = gitIn(
+		worktree,
+		'diff',
+		'--name-only',
+		'--no-renames',
+		'-z',
+		...SAFE,
+		headOf(worktree)
+	)
 		.split('\0')
 		.filter(Boolean);
 	return [...modified, ...untracked(worktree)];
@@ -137,12 +167,14 @@ export function status(worktree: Worktree, origin: Origin): Changes {
  * keeps `path` inside the worktree, and away from whatever a symlink in it points to.
  */
 export function versions(worktree: Worktree, origin: Origin, path: string): FileVersions {
-	if (!changes(worktree, origin).some((file) => file.path === path))
-		return { unavailable: 'This file has no changes any more.' };
+	const change = changes(worktree, origin).find((file) => file.path === path);
+	if (!change) return { unavailable: 'This file has no changes any more.' };
 
 	let old: string | null;
 	try {
-		old = gitIn(worktree, 'cat-file', 'blob', `${forkPoint(worktree, origin)}:${path}`);
+		// a renamed file's old version is under its old name
+		const before = `${forkPoint(worktree, origin)}:${change.from ?? path}`;
+		old = gitIn(worktree, 'cat-file', 'blob', before);
 	} catch {
 		old = null; // not there at the fork point: the file is new
 	}

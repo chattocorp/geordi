@@ -9,7 +9,14 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
-	import { removeQueued, sendMessage, stopAgent } from '../../../routes/workspaces.remote';
+	import {
+		configureWorkspace,
+		getHarnesses,
+		removeQueued,
+		sendMessage,
+		stopAgent
+	} from '../../../routes/workspaces.remote';
+	import HarnessPicker, { type HarnessChoice } from './HarnessPicker.svelte';
 
 	/** A workspace's conversation with its agent, and the box to reply in. */
 	let { workspace }: { workspace: Workspace } = $props();
@@ -20,6 +27,25 @@
 	const blocks = $derived(toBlocks(workspace.transcript));
 	// Each workspace needs its own instance of the form.
 	const form = $derived(sendMessage.for(workspace.id));
+
+	// The agent of a conversation is who it is; which of its models answers next, and how hard
+	// it thinks, can be chosen with every message (FDR-004). Only this agent's are on offer.
+	const offered = getHarnesses();
+	const harnesses = $derived(
+		offered.current?.filter((harness) => harness.agent === workspace.agent)
+	);
+	const choice = $derived.by((): HarnessChoice => {
+		const { model } = workspace.settings;
+		const listed = harnesses?.[0]?.models.some((known) => known.id === model);
+		return {
+			agent: workspace.agent,
+			settings: { [workspace.agent]: { ...workspace.settings, named: !!model && !listed } }
+		};
+	});
+	const configure = ({ settings }: HarnessChoice) => {
+		const { model, effort } = settings[workspace.agent] ?? {};
+		return configureWorkspace({ workspaceId: workspace.id, model, effort });
+	};
 
 	// Follow new output while the reader is at the bottom; leave them alone once they scroll up.
 	let scroller: HTMLElement | undefined;
@@ -60,8 +86,11 @@
 	{/if}
 
 	<div bind:this={scroller} onscroll={atBottom} class="scroller">
-		<!-- Inset on the right by as much as the avatar insets the agent's text on the left. -->
-		<ol class="w-full space-y-8 py-6 pr-16.5 pl-5">
+		<!--
+			No wider than reads well, in the middle of whatever room there is. Inset on the right
+			by as much as the avatar insets the agent's text on the left.
+		-->
+		<ol class="mx-auto w-full max-w-5xl space-y-8 py-6 pr-16.5 pl-5">
 			{#each blocks as block, i (i)}
 				<li>
 					{#if block.kind === 'user'}
@@ -117,7 +146,7 @@
 		{/if}
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
-			<div class="px-5 pb-4" onsubmit={toLatest}>
+			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
 				<Composer
 					{form}
 					rows={2}
@@ -130,12 +159,18 @@
 						<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
 					{/snippet}
 					{#snippet footer()}
-						<p class="hidden pl-1 text-xs text-muted sm:block">
+						<!-- who answers next, and how hard it thinks: as where the workspace was started -->
+						<div class="flex min-w-0 flex-wrap items-center gap-1">
+							{#if harnesses?.length}
+								<HarnessPicker {harnesses} {choice} onchange={configure} />
+							{/if}
+						</div>
+						<p class="ml-auto hidden pl-1 text-xs text-muted lg:block">
 							{running
 								? `Enter to steer, ${modifier}Enter to queue`
 								: 'Enter to send, Shift+Enter for a new line'}
 						</p>
-						<div class="ml-auto flex items-center gap-2">
+						<div class="flex items-center gap-2">
 							{#if running}
 								<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
 									Stop

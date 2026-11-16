@@ -27,6 +27,26 @@ const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'turn.start' }>).apiToken;
 
 describe('workspaces', () => {
+	it('runs the next turn with the model and effort chosen since', () => {
+		const { workspaces, sent, create, store } = setup();
+		const id = create('Fix the bug');
+		workspaces.record(id, { kind: 'turn.completed' }, 1);
+
+		workspaces.configure(id, { model: 'opus', effort: 'high' });
+		workspaces.configure(id, { model: 'opus', effort: 'high' }); // nothing new: nothing recorded
+		expect(store.readAll().filter((event) => event.type === 'workspace.configured')).toHaveLength(
+			1
+		);
+		expect(() => workspaces.configure(id, { model: '--evil' })).toThrow();
+
+		workspaces.send(id, 'And the other one');
+		expect(sent.at(-1)).toMatchObject({ turn: 2, settings: { model: 'opus', effort: 'high' } });
+
+		// taking a choice back leaves it to the agent's CLI again
+		workspaces.configure(id, { model: 'opus' });
+		expect(workspaces.get(id).settings).toEqual({ model: 'opus' });
+	});
+
 	it('starts a turn on creation and records daemon output', () => {
 		const { workspaces, sent, repo, create } = setup();
 		const id = create('Fix the bug\nplease');

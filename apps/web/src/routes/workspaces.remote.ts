@@ -66,6 +66,17 @@ export const getHarnesses = query.live(async function* () {
 	);
 });
 
+/** Chooses the model and effort a workspace's agent runs with from its next turn on. */
+export const configureWorkspace = command(
+	v.object({
+		workspaceId: v.string(),
+		/** Absent for "whatever the agent's CLI would use". */
+		model: v.optional(v.string()),
+		effort: v.optional(v.string())
+	}),
+	({ workspaceId, ...settings }) => workspaces().configure(workspaceId, settings)
+);
+
 export const createWorkspace = form(
 	v.object({
 		repoId: v.string(),
@@ -122,6 +133,20 @@ export const mergePull = command(v.string(), async (workspaceId) => {
 		await hub().request({ kind: 'mergePull', ...ref }, 60_000);
 	} catch (cause) {
 		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+	}
+	watchers().changed(ref.worktreeId);
+});
+
+/** Brings back a workspace's worktree that was removed outside Geordi, from its branch. */
+export const restoreWorktree = command(v.string(), async (workspaceId) => {
+	const ref = workspaces().ref(workspaceId);
+	try {
+		await hub().request({ kind: 'restoreWorktree', ...ref }, 60_000);
+	} catch (cause) {
+		error(
+			502,
+			`Could not restore the worktree: ${cause instanceof Error ? cause.message : String(cause)}`
+		);
 	}
 	watchers().changed(ref.worktreeId);
 });

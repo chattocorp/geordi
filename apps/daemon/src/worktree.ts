@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { NO_WORKTREE } from '@geordi/protocol';
 import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
@@ -67,17 +68,82 @@ export function branchRef(branch: string): string {
 }
 
 /** The workspace's existing worktree. Throws if there is none yet, or it was tampered with. */
+/** Whether the workspace's worktree is there already. */
+export const hasWorktree = (baseDir: string, repoPath: string, workspaceId: string) =>
+	existsSync(describe(baseDir, repoPath, workspaceId).path);
+
 export function locateWorktree(baseDir: string, repoPath: string, workspaceId: string): Worktree {
 	const worktree = describe(baseDir, repoPath, workspaceId);
-	if (!existsSync(worktree.path)) throw new Error('This workspace has no worktree yet');
+	if (!existsSync(worktree.path)) throw new Error(NO_WORKTREE);
 	verifyLinks(worktree);
 	return worktree;
 }
 
+const quietly = (cwd: string, ...args: string[]) => {
+	try {
+		return execFileSync('git', ['-C', cwd, ...args], {
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'ignore']
+		}).trim();
+	} catch {
+		return null;
+	}
+};
+
+/**
+ * Where work in a repository starts from, as a revision: the branch its upstream calls its
+ * main one (`origin/main`, say), as far as this machine knows it. Work is meant to end up
+ * there, so that is where it should branch off, whatever the repository's own checkout
+ * happens to be on. `HEAD` for a repository without an upstream.
+ */
+export function startOf(repoPath: string): string {
+	const upstream = quietly(repoPath, 'symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD');
+	return upstream && quietly(repoPath, 'rev-parse', '--verify', '--quiet', upstream)
+		? upstream
+		: 'HEAD';
+}
+
+/** How long fetching may take before a workspace starts from what is already known. */
+const FETCH_TIMEOUT_MS = 30_000;
+
+/**
+ * Brings what this machine knows of the repository's upstream up to date, so that new work
+ * starts from where things stand now. Never in the way: without an upstream, without a
+ * network or without credentials, the workspace starts from what is known. Resolves to why
+ * it didn't work, if it didn't.
+ */
+export function fetchUpstream(repoPath: string): Promise<string | null> {
+	if (quietly(repoPath, 'remote', 'get-url', 'origin') === null) return Promise.resolve(null);
+	const run = (...args: string[]) =>
+		new Promise<string | null>((resolve) =>
+			execFile(
+				'git',
+				['-C', repoPath, ...args],
+				{
+					timeout: FETCH_TIMEOUT_MS,
+					// nobody is there to answer a question about a password
+					env: {
+						GIT_SSH_COMMAND: 'ssh -oBatchMode=yes',
+						...process.env,
+						GIT_TERMINAL_PROMPT: '0'
+					}
+				},
+				(error, _stdout, stderr) => resolve(error ? stderr.trim() || error.message : null)
+			)
+		);
+	return run('fetch', '--quiet', 'origin').then(async (problem) => {
+		// a remote added by hand has no idea which branch is the main one until asked
+		if (!problem && startOf(repoPath) === 'HEAD')
+			await run('remote', 'set-head', 'origin', '--auto');
+		return problem;
+	});
+}
+
 /**
  * Ensures the workspace's worktree exists, creating it on first use: on a new branch off
- * `base` (a branch name), or off the repository's current HEAD. Paths are derived from the
- * workspace ID, so this is idempotent.
+ * `base` (a branch name), or off where work in the repository starts (`startOf`). Paths are
+ * derived from the workspace ID, so this is idempotent. A worktree that went missing is
+ * brought back from its branch (`restored`).
  */
 export function ensureWorktree(
 	baseDir: string,
@@ -87,12 +153,26 @@ export function ensureWorktree(
 ) {
 	const worktree = describe(baseDir, repoPath, workspaceId);
 
-	const created = !existsSync(worktree.path);
-	if (created) {
+	const missing = !existsSync(worktree.path);
+	// A branch without its worktree: the worktree was removed behind our back (or the
+	// workspace archived and brought back). The branch has all that was committed, so the
+	// worktree comes back from it; what wasn't committed is gone with the directory.
+	const restored =
+		missing &&
+		quietly(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(worktree.branch)) !== null;
+	if (missing) {
 		mkdirSync(join(baseDir, basename(repoPath)), { recursive: true });
-		const start = base ? branchRef(base) : 'HEAD';
-		git(repoPath, 'worktree', 'add', '-b', worktree.branch, worktree.path, start);
+		// git still lists a worktree whose directory is gone, and won't add it again until told
+		git(repoPath, 'worktree', 'prune');
+		if (restored) git(repoPath, 'worktree', 'add', worktree.path, worktree.branch);
+		else {
+			const start = base ? branchRef(base) : startOf(repoPath);
+			// `--no-track`: the new branch is its own, not a local name for the upstream's main
+			// one (which is where a plain `git push` would otherwise try to send it)
+			git(repoPath, 'worktree', 'add', '--no-track', '-b', worktree.branch, worktree.path, start);
+		}
 	}
+	const created = missing && !restored;
 	verifyLinks(worktree);
 
 	// What a commit writes outside the worktree: objects, refs and reflogs in the shared
@@ -102,7 +182,7 @@ export function ensureWorktree(
 	for (const dir of writableRoots) mkdirSync(dir, { recursive: true });
 	writableRoots.push(worktree.adminDir);
 
-	return { ...worktree, writableRoots, created };
+	return { ...worktree, writableRoots, created, restored };
 }
 
 /**

@@ -51,6 +51,12 @@ export type WorkspacesEvent =
 	| { type: 'workspace.queued'; stream: WorkspaceStream; data: { id: string; text: string } }
 	/** The workspace got a better name than the first line of its first message. */
 	| { type: 'workspace.titled'; stream: WorkspaceStream; data: { id: string; title: string } }
+	/** The agent is to run with another model or effort from its next turn on; all of what is chosen. */
+	| {
+			type: 'workspace.configured';
+			stream: WorkspaceStream;
+			data: { id: string; settings: AgentSettings };
+	  }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
@@ -193,6 +199,10 @@ export function createWorkspaces(
 
 		if (event.type === 'workspace.titled') {
 			workspace.title = event.data.title;
+			return;
+		}
+		if (event.type === 'workspace.configured') {
+			workspace.settings = event.data.settings;
 			return;
 		}
 		if (event.type === 'workspace.archived') {
@@ -380,6 +390,18 @@ export function createWorkspaces(
 		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });
 	}
 
+	/** Only what was chosen, and only what can safely be handed to a CLI. */
+	function chosenOf(settings: AgentSettings): AgentSettings {
+		const chosen: AgentSettings = {};
+		for (const key of ['model', 'effort'] as const) {
+			const value = settings[key];
+			if (!value) continue;
+			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
+			chosen[key] = value;
+		}
+		return chosen;
+	}
+
 	/** Creates a workspace and sends `prompt` to its agent. Returns the workspace's ID. */
 	function create(
 		{
@@ -390,14 +412,7 @@ export function createWorkspaces(
 		actor: string | null = null
 	): string {
 		repos.get(workspace.repoId); // 404s for unknown repos
-		// Only what was chosen is recorded, and only what can safely be handed to a CLI.
-		const chosen: AgentSettings = {};
-		for (const key of ['model', 'effort'] as const) {
-			const value = settings[key];
-			if (!value) continue;
-			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
-			chosen[key] = value;
-		}
+		const chosen = chosenOf(settings);
 		const id = randomUUID();
 		// The first line; the UI clamps long titles visually.
 		const title = prompt.split('\n')[0].trim().slice(0, 300);
@@ -652,6 +667,22 @@ export function createWorkspaces(
 		 * Gives the workspace a new title. Whatever is passed is cut down to one modest line;
 		 * if nothing is left of it, the title stays.
 		 */
+		/**
+		 * Has the workspace's agent run with another model or effort. A turn under way carries
+		 * on as it was started; the next one runs as chosen.
+		 */
+		configure(id: string, settings: AgentSettings, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			const chosen = chosenOf(settings);
+			const { model, effort } = workspace.settings;
+			if (chosen.model === model && chosen.effort === effort) return;
+			store.append(
+				{ type: 'workspace.configured', stream: `workspace:${id}`, data: { id, settings: chosen } },
+				{ actor }
+			);
+		},
+
 		retitle(id: string, title: string, actor: string | null = null) {
 			const clean = title
 				.split('\n')[0]

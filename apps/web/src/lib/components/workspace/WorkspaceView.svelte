@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { actionsFor, standingOf, type WorkspaceAction } from '#lib/actions.ts';
+	import {
+		actionsFor,
+		standingOf,
+		type WorkspaceAction,
+		type WorkspaceStanding
+	} from '#lib/actions.ts';
 	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
@@ -28,13 +33,18 @@
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import { getRepo } from '../../../routes/repos.remote';
-	import { mergePull, closeTerminal, getWorkspace, say } from '../../../routes/workspaces.remote';
+	import {
+		mergePull,
+		closeTerminal,
+		getWorkspace,
+		restoreWorktree,
+		say
+	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems } from './archive.svelte.ts';
 	import Changes from './Changes.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import Family from './Family.svelte';
-	import { effortName } from './HarnessPicker.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from './WorkspaceActions.svelte';
 
@@ -136,11 +146,29 @@
 
 	// What could happen next (FDR-003), from where the changes and the pull request stand.
 	const git = $derived(workspace.git);
+	/**
+	 * The workspace had a worktree, and it is no longer there: removed outside Geordi. Not
+	 * while the agent is at work, which is when it comes back.
+	 */
+	const worktreeGone = $derived(
+		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt
+	);
 	const standingState = $derived(
 		workspace.archivedAt || !git?.changes ? null : { changes: git.changes, upstream: git.upstream }
 	);
-	const actions = $derived(standingState ? actionsFor(standingState) : []);
-	const standing = $derived(standingState && standingOf(standingState));
+	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
+	const actions = $derived<WorkspaceAction[]>(
+		worktreeGone
+			? [{ id: 'restore-worktree', label: 'Restore', icon: 'icon-[lucide--rotate-ccw]' }]
+			: standingState
+				? actionsFor(standingState)
+				: []
+	);
+	const standing = $derived<WorkspaceStanding | null>(
+		worktreeGone
+			? { label: 'Worktree removed', tone: 'neutral', icon: 'icon-[lucide--folder-x]' }
+			: standingState && standingOf(standingState)
+	);
 	// An action is under way while its message waits, or is what the agent is working on.
 	const pending = $derived.by(() => {
 		const asked = [...workspace.queue];
@@ -153,13 +181,6 @@
 			.map((a) => a.id);
 	});
 
-	/** The model and effort chosen for the agent, if any were. */
-	const settings = $derived(
-		[workspace.settings.model, workspace.settings.effort && effortName(workspace.settings.effort)]
-			.filter(Boolean)
-			.join(' · ')
-	);
-
 	/** Why archiving didn't work, if it didn't: usually work that would be lost. */
 	const archiveProblem = $derived(archiveProblems[id]);
 
@@ -170,7 +191,7 @@
 
 	/** The pull request is being merged right now. */
 	let merging = $state(false);
-	/** Why merging didn't work, if it didn't. */
+	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
 	async function merge() {
@@ -185,9 +206,19 @@
 		}
 	}
 
+	async function restore() {
+		mergeProblem = null;
+		try {
+			await restoreWorktree(id);
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not restore the worktree');
+		}
+	}
+
 	function act(action: WorkspaceAction) {
 		if (action.prompt) say({ workspaceId: id, text: action.prompt });
 		else if (action.id === 'merge-pull') merge();
+		else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'archive') archive();
 	}
 </script>
@@ -249,12 +280,6 @@
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
 						<span class="truncate code-dense">{workspace.worktree.branch}</span>
-					</span>
-				{/if}
-				{#if settings}
-					<span class="flex shrink-0 items-center gap-1" title="The model and reasoning effort">
-						<span class="icon-[lucide--cpu] size-3.5"></span>
-						{settings}
 					</span>
 				{/if}
 				<!-- For telling someone (or an agent) exactly which workspace this is. -->
@@ -332,8 +357,10 @@
 		</div>
 	{/if}
 
+	<!-- room for a conversation to be read in, and for file names beside their line counts -->
 	<Split
 		dir="row"
+		min={[320, 260]}
 		collapsed={!frame.current.open}
 		bind:ratio={
 			() => 1 - frame.current.side,
@@ -355,6 +382,7 @@
 			{#if workspace.worktree}
 				<Split
 					dir="column"
+					min={[120, 120]}
 					bind:ratio={
 						() => frame.current.changes,
 						(changes) => (frame.current = { ...frame.current, changes })
@@ -363,6 +391,7 @@
 					{#snippet a()}
 						<Changes
 							{git}
+							gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 							onopen={(path) => arrange({ main: open(main, `diff:${path}`, chatGroup) })}
 						/>
 					{/snippet}

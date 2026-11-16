@@ -9,7 +9,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ## Behavior
 
-- A workspace is started with a first prompt, an agent and a repository: from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch. It is named after the first line of that prompt at first, and a moment later gets a short title that says what the work is about, if the daemon has been given a key to ask a model for one.
+- A workspace is started with a first prompt, an agent and a repository: from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first, and a moment later gets a short title that says what the work is about, if the daemon has been given a key to ask a model for one.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - While the agent is working, Enter steers it: the agent is interrupted, and the message is the next thing it reads. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
 - The workspace's ID is shown in its header; a click copies it.
@@ -24,6 +24,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
   - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
   - Above the list is how the workspace's branch stands on the forge the repository is hosted on: not pushed yet, pushed without a pull request (with a link to open one), or its pull request with state, checks, reviews and target branch, linking to the forge. It appears only for repositories hosted on a forge Geordi knows, and is at most a minute old.
 - **Terminals** are shells in the workspace's directory. "+" in the dock opens one. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
+- A worktree that was removed outside Geordi (tidied away while it wasn't running, say) doesn't break its workspace: the workspace says so where it says how it stands ("Worktree removed"), with "Restore" as the next step. Restoring, or simply the next message to its agent, brings the worktree back from the workspace's branch, with everything that was committed. What wasn't committed is gone, and the workspace says that too. If the branch is gone as well, the worktree starts afresh.
 - A workspace can be archived when it is done with. That ends its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. The workspaces its agent started (FDR-002) are archived along with it. Nothing is archived while any of them is still working, and archiving stops at a worktree with uncommitted or untracked files, saying which, and offers to discard them.
 - The window arrangement and pane sizes are remembered per browser.
 
@@ -51,7 +52,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 **Decision:** The changes pane compares the working directory with the commit where the workspace's branch left the branch it started from.
 **Why:** People want the workspace's total effect, regardless of whether an agent has committed yet.
-**Tradeoff:** There is no notion of a target branch other than the pull request's. If the repository's main checkout is on an unrelated branch, the comparison is against that.
+**Tradeoff:** There is no notion of a target branch other than the pull request's and the upstream's main one. In a repository without an upstream, the comparison is against whatever its main checkout is on.
 
 ### 5. A fixed frame, with freedom only inside it
 

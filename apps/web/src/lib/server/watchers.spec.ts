@@ -8,6 +8,7 @@ const settled = () => new Promise((resolve) => setTimeout(resolve));
 const stateWith = (uncommitted: number): WorktreeState => ({
 	changes: { files: [], uncommitted, unpushed: null },
 	unavailable: null,
+	missing: false,
 	upstream: null
 });
 

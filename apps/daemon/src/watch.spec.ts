@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -67,7 +67,7 @@ describe('watching workspaces', () => {
 		const { base, ref, seen, watches } = setup();
 		watches.set([ref]); // no worktree yet
 		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
-		watches.refresh();
+		watches.restart(ref.worktreeId);
 		await wait(100);
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
 		await wait(600);
@@ -77,5 +77,22 @@ describe('watching workspaces', () => {
 		writeFileSync(join(worktree.path, 'b.txt'), 'two\n');
 		await wait(600);
 		expect(seen).toHaveLength(1);
+	});
+
+	it('watches a worktree that was removed and came back', async () => {
+		const { base, ref, seen, watches } = setup();
+		const { path } = ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		watches.set([ref]);
+		rmSync(path, { recursive: true });
+		await wait(600);
+
+		ensureWorktree(base, ref.repoPath, ref.worktreeId); // from its branch
+		watches.restart(ref.worktreeId);
+		await wait(600);
+		seen.length = 0;
+		writeFileSync(join(path, 'a.txt'), 'one\n');
+		await wait(600);
+		expect(seen).toHaveLength(1);
+		watches.stop();
 	});
 });

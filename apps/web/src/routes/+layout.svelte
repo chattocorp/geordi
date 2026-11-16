@@ -93,7 +93,8 @@
 	const toggleSidebar = () =>
 		(sidebar.current = { ...sidebar.current, open: !sidebar.current.open });
 	setTitleBarLead(() => (sidebar.current.open ? undefined : lead));
-	const clampWidth = (width: number) => Math.round(Math.min(480, Math.max(200, width)));
+	// wide enough for a workspace's title to say something, and no wider than is of use
+	const clampWidth = (width: number) => Math.round(Math.min(480, Math.max(240, width)));
 	const toggleHint = `Toggle the sidebar (${modifierKey()}B)`;
 	const settingsHint = `${modifierKey()},`;
 
@@ -171,7 +172,7 @@
 	{#if sidebar.current.open}
 		<aside
 			class="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-sidebar md:flex"
-			style:width="{sidebar.current.width}px"
+			style:width="{clampWidth(sidebar.current.width)}px"
 		>
 			<!--
 				The sidebar's part of the title bar. In the desktop app the window's buttons are on

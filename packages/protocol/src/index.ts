@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -38,6 +38,12 @@ export type Harness = {
 };
 
 /**
+ * What a daemon answers when asked about a worktree whose directory isn't there: not made
+ * yet, or removed behind Geordi's back.
+ */
+export const NO_WORKTREE = 'This workspace has no worktree';
+
+/**
  * Where a workspace's files are: a worktree, derived from the repository and an ID. That ID
  * is the workspace's own, unless the workspace works in another one's worktree.
  */
@@ -56,7 +62,16 @@ export const WORKTREE_MODES = ['own', 'shared'] as const;
 export type WorktreeMode = (typeof WORKTREE_MODES)[number];
 
 /** A file that differs from the workspace's base. Line counts are `null` for binary files. */
-export type FileChange = { path: string; added: number | null; removed: number | null };
+export type FileChange = {
+	path: string;
+	/** What became of the file since the workspace branched off, as Git sees it. */
+	status: 'added' | 'modified' | 'deleted' | 'renamed';
+	/** Where a renamed file was before. */
+	from?: string;
+	/** Lines added and removed; `null` for a file that isn't text. */
+	added: number | null;
+	removed: number | null;
+};
 
 /** What a workspace has changed, and how far that has got. */
 export type Changes = {
@@ -127,6 +142,8 @@ export type DaemonRequest =
 	 * files, unless `force` says to discard them.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean } & WorktreeRef)
+	/** Brings back a worktree that was removed behind Geordi's back, from its branch. */
+	| ({ kind: 'restoreWorktree' } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
 	/** The workspace's branch on the repository's upstream forge. */
@@ -144,6 +161,7 @@ export type DaemonRequest =
 export type DaemonResults = {
 	changes: Changes;
 	removeWorktree: null;
+	restoreWorktree: null;
 	title: string;
 	diff: FileVersions;
 	/** `null` if the repository has no remote on a forge we know. */

@@ -27,7 +27,13 @@ import { titleFor } from './titles.ts';
 import { resumeTurns, runTurn, type Turn } from './turn.ts';
 import { mergePull, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
-import { ensureWorktree, locateWorktree, verifyLinks } from './worktree.ts';
+import {
+	ensureWorktree,
+	fetchUpstream,
+	hasWorktree,
+	locateWorktree,
+	verifyLinks
+} from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 /** Where agents on this machine reach the forge's agent API (ADR-004). */
@@ -199,6 +205,13 @@ async function answer(request: DaemonRequest) {
 		removeWorktree(worktreesDir, request.repoPath, request.worktreeId, request.force);
 		return null;
 	}
+	if (request.kind === 'restoreWorktree') {
+		const { repoPath, worktreeId, base } = request;
+		ensureWorktree(worktreesDir, repoPath, worktreeId, base);
+		watches.restart(worktreeId);
+		sendLive({ type: 'worktree.changed', worktreeId });
+		return null;
+	}
 
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
@@ -241,10 +254,19 @@ async function handle(message: ForgeMessage) {
 			}
 
 			try {
+				// A workspace of its own starts from where its upstream stands now. (One started
+				// by an agent starts from that agent's branch, which is here already.)
+				if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+					const problem = await fetchUpstream(repoPath);
+					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
+				}
 				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base);
-				if (worktree.created) {
+				if (worktree.created)
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
-					watches.refresh();
+				if (worktree.created || worktree.restored) {
+					// there is a directory to watch now (again), and to look at
+					watches.restart(worktreeId);
+					sendLive({ type: 'worktree.changed', worktreeId });
 				}
 
 				const adapter = await adapterFor(agent);

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { actionsFor, standingOf } from './actions.ts';
 
 const clean = { files: [], uncommitted: 0, unpushed: 0 };
-const file = { path: 'a.txt', added: 1, removed: 0 };
+const file = { path: 'a.txt', status: 'modified' as const, added: 1, removed: 0 };
 
 const upstream = (pull: Partial<PullRequest> | null = null, pushed = true): Upstream => ({
 	forge: 'github',

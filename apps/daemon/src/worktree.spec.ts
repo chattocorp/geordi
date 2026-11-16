@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process';
+import { NO_WORKTREE } from '@geordi/protocol';
 import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readFileSync,
 	realpathSync,
 	rmSync,
 	symlinkSync,
@@ -13,7 +15,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changes, readText, status, versions } from './changes.ts';
 import { removeWorktree } from './remove.ts';
-import { ensureWorktree, locateWorktree, branchRef } from './worktree.ts';
+import { branchRef, ensureWorktree, fetchUpstream, locateWorktree, startOf } from './worktree.ts';
 
 function repo() {
 	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-wt-')));
@@ -32,6 +34,70 @@ describe('ensureWorktree', () => {
 
 		expect(first).toMatchObject({ created: true, branch: 'geordi/12345678' });
 		expect(second).toMatchObject({ created: false, path: first.path });
+	});
+
+	it('starts from where the upstream stands now, not from what is checked out', async () => {
+		// an upstream, a clone of it, and work that reached the upstream since
+		const upstream = repo();
+		const git = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8'
+			}).trim();
+		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
+		execFileSync('git', ['clone', '-q', upstream, repoPath]);
+		git(upstream, 'commit', '-q', '--allow-empty', '-m', 'landed upstream');
+		git(repoPath, 'commit', '-q', '--allow-empty', '-m', 'local only');
+
+		expect(await fetchUpstream(repoPath)).toBeNull();
+		expect(startOf(repoPath)).toMatch(/^refs\/remotes\/origin\//);
+
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+		expect(git(worktree.path, 'rev-parse', 'HEAD')).toBe(git(upstream, 'rev-parse', 'HEAD'));
+		// a branch of its own: nothing it would push to by default
+		expect(() => git(worktree.path, 'rev-parse', '--abbrev-ref', '@{upstream}')).toThrow();
+		expect(changes(worktree, { repoPath })).toEqual([]);
+	});
+
+	it('starts from what is checked out where there is no upstream, or no reaching it', async () => {
+		const repoPath = repo();
+		expect(await fetchUpstream(repoPath)).toBeNull();
+		expect(startOf(repoPath)).toBe('HEAD');
+
+		execFileSync('git', ['-C', repoPath, 'remote', 'add', 'origin', '/no/such/upstream']);
+		expect(await fetchUpstream(repoPath)).toEqual(expect.any(String));
+		expect(startOf(repoPath)).toBe('HEAD');
+	});
+
+	it('brings a worktree that was removed back from its branch, with what was committed', () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const { path } = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const git = (...args: string[]) =>
+			execFileSync('git', ['-C', path, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
+		writeFileSync(join(path, 'committed.txt'), 'kept\n');
+		git('add', '.');
+		git('commit', '-qm', 'work');
+		writeFileSync(join(path, 'uncommitted.txt'), 'lost\n');
+
+		rmSync(path, { recursive: true }); // someone tidied up behind Geordi's back
+		expect(() => locateWorktree(base, repoPath, '12345678-aaaa')).toThrow(NO_WORKTREE);
+
+		const again = ensureWorktree(base, repoPath, '12345678-aaaa');
+		expect(again).toMatchObject({ path, created: false, restored: true });
+		expect(readFileSync(join(path, 'committed.txt'), 'utf8')).toBe('kept\n');
+		expect(existsSync(join(path, 'uncommitted.txt'))).toBe(false);
+		expect(ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({ restored: false });
+
+		// with its branch gone too, there is nothing to bring back: it starts afresh
+		rmSync(path, { recursive: true });
+		execFileSync('git', ['-C', repoPath, 'worktree', 'prune']);
+		execFileSync('git', ['-C', repoPath, 'branch', '-qD', 'geordi/12345678']);
+		expect(ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({
+			created: true,
+			restored: false
+		});
+		expect(existsSync(join(path, 'committed.txt'))).toBe(false);
 	});
 
 	it('refuses a worktree whose Git metadata was repointed', () => {
@@ -106,9 +172,9 @@ describe('changes', () => {
 		writeFileSync(join(worktree.path, 'new.txt'), 'x\ny\n');
 
 		expect(changes(worktree, { repoPath })).toEqual([
-			{ path: 'committed.txt', added: 1, removed: 0 },
-			{ path: 'kept.txt', added: 2, removed: 1 },
-			{ path: 'new.txt', added: 2, removed: 0 }
+			{ path: 'committed.txt', status: 'added', added: 1, removed: 0 },
+			{ path: 'kept.txt', status: 'modified', added: 2, removed: 1 },
+			{ path: 'new.txt', status: 'added', added: 2, removed: 0 }
 		]);
 		const origin = { repoPath };
 		expect(versions(worktree, origin, 'kept.txt')).toEqual({
@@ -124,6 +190,19 @@ describe('changes', () => {
 		expect(versions(worktree, origin, 'kept.txt')).toEqual({ old: 'one\ntwo\n', new: null });
 		expect(versions(worktree, origin, 'blob.bin')).toEqual({
 			unavailable: expect.stringMatching(/binary/)
+		});
+		const kept = () => changes(worktree, origin).filter((file) => /kept/.test(file.path));
+		expect(kept()).toEqual([{ path: 'kept.txt', status: 'deleted', added: 0, removed: 2 }]);
+
+		// moved: one change, not a deletion and an addition, and its old version is the old file's
+		writeFileSync(join(worktree.path, 'kept.txt'), 'one\ntwo\n');
+		git('mv', 'kept.txt', 'kept elsewhere.txt');
+		expect(kept()).toEqual([
+			{ path: 'kept elsewhere.txt', status: 'renamed', from: 'kept.txt', added: 0, removed: 0 }
+		]);
+		expect(versions(worktree, origin, 'kept elsewhere.txt')).toEqual({
+			old: 'one\ntwo\n',
+			new: 'one\ntwo\n'
 		});
 	});
 
@@ -212,7 +291,9 @@ describe('changes', () => {
 		);
 		writeFileSync(join(worktree.path, 'new.txt'), 'x\n');
 
-		expect(changes(worktree, { repoPath })).toEqual([{ path: 'new.txt', added: 1, removed: 0 }]);
+		expect(changes(worktree, { repoPath })).toEqual([
+			{ path: 'new.txt', status: 'added', added: 1, removed: 0 }
+		]);
 		expect(existsSync(marker)).toBe(false);
 	});
 

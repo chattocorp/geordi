@@ -6,7 +6,7 @@
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace actions', component: WorkspaceActions });
 
-	const file = { path: 'a.txt', added: 1, removed: 0 };
+	const file = { path: 'a.txt', status: 'modified' as const, added: 1, removed: 0 };
 	const upstream = (pull: Partial<PullRequest> | null): Upstream => ({
 		forge: 'github',
 		repo: 'acme/widgets',

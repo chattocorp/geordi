@@ -7,8 +7,10 @@
 		/** The file before and after, `null` where it doesn't exist. */
 		old: string | null;
 		new: string | null;
+		/** Whether the diff is on screen yet: the viewer is loaded on first use, which takes a moment. */
+		ready?: boolean;
 	};
-	let { path, old, new: current }: Props = $props();
+	let { path, old, new: current, ready = $bindable(false) }: Props = $props();
 
 	// The diff is rendered afresh (losing any expanded context) when these change, so they
 	// must only change when the text really does, not whenever the data is fetched again.
@@ -28,6 +30,7 @@
 		const [was, is] = [before, after];
 		if (was === null && is === null) return;
 
+		ready = false;
 		let dispose = () => {};
 		let disposed = false;
 
@@ -51,6 +54,7 @@
 				is === null ? null : { name, contents: is }
 			);
 			view.render({ fileDiff, containerWrapper: node });
+			ready = true;
 
 			const themed = new MutationObserver(() => view.setThemeType(isDark() ? 'dark' : 'light'));
 			themed.observe(document.documentElement, { attributeFilter: ['class'] });

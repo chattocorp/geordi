@@ -13,6 +13,7 @@ export type WorkspaceAction = {
 		| 'fix-checks'
 		| 'address-review'
 		| 'merge-pull'
+		| 'restore-worktree'
 		| 'archive';
 	label: string;
 	/** An Iconify class. */

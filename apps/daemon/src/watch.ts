@@ -79,8 +79,15 @@ export function createWatches(
 			wanted = worktrees;
 			apply();
 		},
-		/** Call when a worktree was created: a wanted workspace may have been waiting for it. */
-		refresh: apply,
+		/**
+		 * Call when a worktree was created, or came back: a wanted workspace may have been
+		 * waiting for it, or still be watching a directory that is no longer the one there.
+		 */
+		restart(worktreeId: string) {
+			watching.get(worktreeId)?.();
+			watching.delete(worktreeId);
+			apply();
+		},
 		stop: () => {
 			wanted = [];
 			apply();
