@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TitleBar from './TitleBar.svelte';
 	import type { Snippet } from 'svelte';
 
 	type Props = {
@@ -14,6 +15,8 @@
 
 <svelte:head><title>{title} · Geordi</title></svelte:head>
 
+<!-- only there with a hidden sidebar, for the way back to it -->
+<TitleBar class="-mb-6 hidden md:flex" />
 <main class={['page', wide && 'max-w-5xl']}>
 	<header class="space-y-1">
 		<h1 class="title">{title}</h1>

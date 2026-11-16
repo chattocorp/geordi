@@ -3,11 +3,10 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
+	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { getNavigation } from './nav.remote';
-	import { registerRepo } from './repos.remote';
 
 	const nav = getNavigation();
-	const { path } = registerRepo.fields;
 </script>
 
 <Page title="Overview" wide>
@@ -42,27 +41,13 @@
 					</div>
 				</a>
 			</li>
+		{:else}
+			<li class="empty sm:col-span-2">
+				<p class="pb-4">Geordi doesn't know any repositories yet.</p>
+				<Button variant="primary" onclick={() => openSettings('repositories')}>
+					Add a repository
+				</Button>
+			</li>
 		{/each}
-
-		<li class="rounded-card border border-dashed border-line p-5">
-			<form {...registerRepo} class="flex h-full flex-col gap-3">
-				<div>
-					<p class="heading">Register a repository</p>
-					<p class="text-sm text-muted">The path to a Git repository on this machine.</p>
-				</div>
-				<div class="mt-auto flex items-center gap-2">
-					<input
-						{...path.as('text')}
-						placeholder="~/src/my-project"
-						aria-label="Repository path"
-						class="min-w-0 flex-1 input code"
-					/>
-					<Button type="submit" variant="primary">Register</Button>
-				</div>
-				{#each path.issues() ?? [] as problem (problem.message)}
-					<p class="text-sm text-danger">{problem.message}</p>
-				{/each}
-			</form>
-		</li>
 	</ul>
 </Page>

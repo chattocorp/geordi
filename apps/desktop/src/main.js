@@ -165,7 +165,30 @@ function open() {
 function menu() {
 	Menu.setApplicationMenu(
 		Menu.buildFromTemplate([
-			{ role: 'appMenu' },
+			{
+				role: 'appMenu',
+				submenu: [
+					{ role: 'about' },
+					{ type: 'separator' },
+					{
+						label: 'Settings…',
+						accelerator: 'CommandOrControl+,',
+						// the web app's own shortcut may have opened them already: asking is harmless
+						click: (_item, window) =>
+							window?.webContents.executeJavaScript(
+								"document.dispatchEvent(new Event('geordi:settings'))"
+							)
+					},
+					{ type: 'separator' },
+					{ role: 'services' },
+					{ type: 'separator' },
+					{ role: 'hide' },
+					{ role: 'hideOthers' },
+					{ role: 'unhide' },
+					{ type: 'separator' },
+					{ role: 'quit' }
+				]
+			},
 			{ role: 'fileMenu' },
 			{ role: 'editMenu' },
 			{ role: 'viewMenu' },

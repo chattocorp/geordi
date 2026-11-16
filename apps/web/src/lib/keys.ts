@@ -11,6 +11,13 @@ export function sidebarToggle(event: KeyboardEvent): 'left' | 'right' | null {
 	return event.altKey ? 'right' : 'left';
 }
 
+/** Whether a key press asks for the settings: Cmd+, (Ctrl+, elsewhere than on a Mac). */
+export function settingsShortcut(event: KeyboardEvent): boolean {
+	const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+	if (event.key !== ',' || event.altKey || event.shiftKey) return false;
+	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+}
+
 /** The modifier key for shortcuts, as people know it on their platform. */
 export const modifierKey = () =>
 	typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';

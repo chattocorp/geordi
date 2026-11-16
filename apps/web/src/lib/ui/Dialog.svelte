@@ -1,0 +1,38 @@
+<script lang="ts">
+	import type { Snippet } from 'svelte';
+
+	type Props = {
+		/** Whether it is showing. Escape and a click beside it close it. */
+		open: boolean;
+		/** What the dialog is, for those who can't see it. */
+		label: string;
+		class?: string;
+		children: Snippet;
+	};
+	let { open = $bindable(), label, class: extra, children }: Props = $props();
+
+	let dialog: HTMLDialogElement;
+
+	$effect(() => {
+		if (open && !dialog.open) dialog.showModal();
+		if (!open && dialog.open) dialog.close();
+	});
+</script>
+
+<!--
+	A window over the page that wants dealing with before anything else: the page behind it
+	can't be used meanwhile. For a set of choices rather than a single question.
+-->
+<dialog
+	bind:this={dialog}
+	aria-label={label}
+	onclose={() => (open = false)}
+	onclick={(event) => event.target === dialog && (open = false)}
+	class={[
+		'm-auto max-h-5/6 w-full max-w-2xl overflow-hidden card-float p-0 text-ink backdrop:bg-bg/70',
+		extra
+	]}
+>
+	<!-- the dialog's own box is all padding-free, so a click on it is a click beside this -->
+	{#if open}{@render children()}{/if}
+</dialog>

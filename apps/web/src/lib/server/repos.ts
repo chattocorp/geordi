@@ -4,11 +4,13 @@ import { basename, resolve } from 'node:path';
 import { error } from '@sveltejs/kit';
 import type { EventStore, GeordiEvent } from './events/index.ts';
 
-export type RepoEvent = {
-	type: 'repo.registered';
-	stream: `repo:${string}`;
-	data: { id: string; name: string; path: string };
-};
+export type RepoEvent =
+	| {
+			type: 'repo.registered';
+			stream: `repo:${string}`;
+			data: { id: string; name: string; path: string };
+	  }
+	| { type: 'repo.removed'; stream: `repo:${string}`; data: { id: string } };
 
 export type Repo = { id: string; name: string; path: string; registeredAt: string };
 
@@ -32,6 +34,7 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 		(repos, event) => {
 			if (event.type === 'repo.registered')
 				repos.set(event.data.id, { ...event.data, registeredAt: event.at });
+			if (event.type === 'repo.removed') repos.delete(event.data.id);
 			return repos;
 		}
 	);
@@ -68,6 +71,15 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 				{ actor }
 			);
 			return get(id);
+		},
+
+		/**
+		 * Forgets a repository. Nothing on disk changes, and registering it again brings it
+		 * back. Whoever calls this makes sure nothing still works in it.
+		 */
+		remove(id: string, actor: string | null = null) {
+			get(id);
+			store.append({ type: 'repo.removed', stream: `repo:${id}`, data: { id } }, { actor });
 		}
 	};
 }

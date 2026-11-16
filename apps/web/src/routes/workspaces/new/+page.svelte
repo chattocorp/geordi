@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import NewWorkspace from '#lib/components/workspace/NewWorkspace.svelte';
+	import Button from '#lib/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
 	import { getNavigation } from '../../nav.remote';
 
@@ -15,8 +16,11 @@
 	{#if nav.repos.length > 0}
 		<NewWorkspace repos={nav.repos} {preferred} />
 	{:else}
-		<p class="empty">
-			Register a repository on the <a href={resolve('/')} class="underline">overview</a> first.
-		</p>
+		<div class="empty">
+			<p class="pb-4">Agents work in a repository. Add one first.</p>
+			<Button variant="primary" onclick={() => openSettings('repositories')}>
+				Add a repository
+			</Button>
+		</div>
 	{/if}
 </Page>

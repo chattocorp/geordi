@@ -26,6 +26,7 @@
 	import Panes from '#lib/ui/Panes.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
+	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import { getRepo } from '../../../routes/repos.remote';
 	import { mergePull, closeTerminal, getWorkspace, say } from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems } from './archive.svelte.ts';
@@ -234,7 +235,7 @@
 {/snippet}
 
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
-	<header class="flex h-14 shrink-0 items-center gap-3 border-b border-line px-5">
+	<TitleBar class="border-b border-line">
 		<div class="min-w-0 flex-1">
 			<h1 class="truncate heading" title={workspace.title}>
 				{workspace.title}
@@ -322,7 +323,7 @@
 				/>
 			{/if}
 		{/if}
-	</header>
+	</TitleBar>
 
 	{#if archiveProblem}
 		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">

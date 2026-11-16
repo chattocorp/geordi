@@ -4,8 +4,11 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import HistoryButtons from '#lib/components/HistoryButtons.svelte';
 	import Logo from '#lib/components/Logo.svelte';
-	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
+	import Settings from '#lib/components/Settings.svelte';
+	import { openSettings } from '#lib/components/settings.svelte.ts';
+	import { modifierKey, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import { archive } from '#lib/components/workspace/archive.svelte.ts';
@@ -13,7 +16,7 @@
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
-	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
+	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { getNavigation } from './nav.remote';
 	import { stopAgent } from './workspaces.remote';
 	import type { LayoutProps } from './$types';
@@ -94,8 +97,10 @@
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
 	const toggleSidebar = () =>
 		(sidebar.current = { ...sidebar.current, open: !sidebar.current.open });
+	setTitleBarLead(() => (sidebar.current.open ? undefined : lead));
 	const clampWidth = (width: number) => Math.round(Math.min(480, Math.max(200, width)));
 	const toggleHint = `Toggle the sidebar (${modifierKey()}B)`;
+	const settingsHint = `${modifierKey()},`;
 
 	function resize(event: PointerEvent & { currentTarget: HTMLElement }) {
 		const handle = event.currentTarget;
@@ -126,11 +131,35 @@
 
 <svelte:window
 	onkeydown={(event) => {
-		if (sidebarToggle(event) !== 'left') return;
-		event.preventDefault();
-		toggleSidebar();
+		if (settingsShortcut(event)) {
+			event.preventDefault();
+			openSettings();
+		} else if (sidebarToggle(event) === 'left') {
+			event.preventDefault();
+			toggleSidebar();
+		}
 	}}
 />
+<!-- the desktop app's "Settings…" menu item asks for them this way -->
+<svelte:document
+	{@attach (document) => {
+		const open = () => openSettings();
+		document.addEventListener('geordi:settings', open);
+		return () => document.removeEventListener('geordi:settings', open);
+	}}
+/>
+
+{#snippet toggle(icon: string)}
+	<Button variant="ghost" {icon} label={toggleHint} onclick={toggleSidebar} />
+{/snippet}
+
+<!-- With the sidebar hidden, its part of the title bar is where every page's bar starts. -->
+{#snippet lead()}
+	<div class="hidden items-center gap-1 md:flex desktop:pl-17">
+		{@render toggle('icon-[lucide--panel-left-open]')}
+		<span class="hidden items-center gap-1 desktop:flex"><HistoryButtons /></span>
+	</div>
+{/snippet}
 
 {#snippet logo()}
 	<a href={resolve('/')} class="flex min-w-0 items-center gap-2.5" aria-label="Geordi home">
@@ -148,15 +177,18 @@
 			class="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-sidebar md:flex"
 			style:width="{sidebar.current.width}px"
 		>
-			<!-- in the desktop app, the window's buttons are on the left of this row -->
-			<div class="flex h-14 shrink-0 items-center justify-between pr-2.5 pl-4 desktop:pl-20">
-				{@render logo()}
-				<Button
-					variant="ghost"
-					icon="icon-[lucide--panel-left-close]"
-					label={toggleHint}
-					onclick={toggleSidebar}
-				/>
+			<!--
+				The sidebar's part of the title bar. In the desktop app the window's buttons are on
+				its left, so the logo makes way and the toggle moves up beside them.
+			-->
+			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 desktop:pl-22">
+				<span class="contents desktop:hidden">{@render logo()}</span>
+				<span class="flex-1 desktop:order-2"></span>
+				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
+				>
+				<span class="hidden items-center gap-1 desktop:order-3 desktop:flex"
+					><HistoryButtons /></span
+				>
 			</div>
 
 			<nav class="flex-1 space-y-6 overflow-y-auto px-2.5 pb-4" aria-label="Main">
@@ -181,26 +213,18 @@
 						{@render workspaces(null)}
 					</div>
 				{/if}
-
-				<div class="space-y-0.5">
-					<p class="px-2.5 pb-1 label">Repositories</p>
-					{#each (await nav).repos as repo (repo.id)}
-						{@render link(
-							resolve('/repos/[id]', { id: repo.id }),
-							'icon-[lucide--folder-git-2]',
-							repo.name,
-							page.url.pathname === `/repos/${repo.id}`,
-							repo.working
-						)}
-					{:else}
-						<p class="px-2.5 text-sm text-muted">None yet.</p>
-					{/each}
-				</div>
 			</nav>
 
-			<div class="flex items-center justify-between border-t border-line px-4 py-2.5">
-				<span class="text-sm text-muted">Appearance</span>
-				<ThemeToggle />
+			<div class="border-t border-line p-2.5">
+				<button
+					type="button"
+					class="item w-full gap-2.5 px-2.5 py-1.5"
+					onclick={() => openSettings()}
+				>
+					<span class="icon-[lucide--settings] size-4 shrink-0"></span>
+					Settings
+					<kbd class="ml-auto font-sans text-xs text-muted/80">{settingsHint}</kbd>
+				</button>
 			</div>
 
 			<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->
@@ -216,38 +240,25 @@
 				class="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none transition-colors select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-accent focus-visible:after:bg-accent"
 			></div>
 		</aside>
-	{:else}
-		<!-- Hidden, but not gone: a rail with the way back. -->
-		<aside
-			class="sticky top-0 hidden h-dvh w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-sidebar py-3 md:flex desktop:pt-14"
-		>
-			<Button
-				variant="ghost"
-				icon="icon-[lucide--panel-left-open]"
-				label={toggleHint}
-				onclick={toggleSidebar}
-			/>
-			<a
-				href={resolve('/workspaces/new')}
-				class="item size-8 justify-center"
-				aria-label="New workspace"
-				title="New workspace"
-			>
-				<span class="icon-[lucide--plus] size-4"></span>
-			</a>
-		</aside>
 	{/if}
 
 	<div class="flex min-w-0 flex-1 flex-col">
 		<header class="flex h-14 items-center gap-4 border-b border-line bg-sidebar px-4 md:hidden">
 			{@render logo()}
-			<div class="ml-auto"><ThemeToggle /></div>
+			<Button
+				variant="ghost"
+				icon="icon-[lucide--settings]"
+				label="Settings"
+				class="ml-auto"
+				onclick={() => openSettings()}
+			/>
 		</header>
 		{@render children()}
 	</div>
 </div>
 
 <ContextMenu />
+<Settings />
 
 {#snippet workspaces(parent: string | null)}
 	<ul class={['space-y-px', parent && 'ml-3.5 border-l border-line pl-1.5']}>

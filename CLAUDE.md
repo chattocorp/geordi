@@ -107,8 +107,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   keeps its data in `.data/`, so both can run at once. The app must not grow a second way of
   running anything: configure forge and daemon through their environment. The web app's
   packages are all `devDependencies`, so that its build needs nothing but Node. Its window has
-  no title bar: the web app makes room for the window's buttons with the `desktop:` variant, and
-  the top edge is what the window is dragged by (`window-drag`).
+  no title bar: every page starts with a `TitleBar`, which in the app (`desktop:` variant) makes
+  room for the window's buttons and is what the window is dragged by (`window-drag`). The
+  layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees
@@ -138,8 +139,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
     `item-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `ContextMenu`, `Notice`, `Page`, `Panes`, `Select`,
-    `Spinner`, `Split`, `ThemeToggle`): generic, no domain knowledge. Domain components live in
+  - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `Notice`, `Page`, `Panes`,
+    `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary
@@ -155,6 +156,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).
+- **Settings (FDR-005):** one dialog (`#lib/components/Settings.svelte`), opened with
+  `openSettings(section?)` or Cmd/Ctrl+,. Preferences of this browser (the theme,
+  `#lib/theme.svelte.ts`) live in localStorage; what belongs to the installation
+  (repositories) is events.
 - **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed: main
   area | changes above dock. Main area and dock are each a `Panes` with its own layout tree
   (`#lib/layout.ts`, pure functions). Windows are tabs named after what they show: `chat`
