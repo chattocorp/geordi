@@ -134,6 +134,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
   (`releases.ts`; Sweet Release so far) says whether a repository uses it and asks the tool
   what is pending; everything else deals in packages, versions and notes (`ReleasePlan`).
   A tool is run with `gitEnv`, like our own git: never trusting the worktree's Git metadata.
+- **Standings.** The sidebar shows how each workspace's work stands (its pull request, its
+  checks): `standings.ts` in the forge asks a daemon about the worktrees nobody has open,
+  the stalest first, and takes what open ones learn. In memory only; `standingOf` puts it
+  into an icon and words.
 - **Repository icons.** The sidebar shows the picture a repository has of itself (a tracked
   favicon or logo): the daemon finds it (`icon.ts`), the forge keeps it a while and serves
   it at `/repos/[id]/icon`. Live data, like everything derived: never stored.
@@ -167,7 +171,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
     `message`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
     `item-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
   - **Components** in `#lib/ui/` (`Button`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `Notice`, `Page`, `Panes`,
-    `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
+    `Ring`, `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary

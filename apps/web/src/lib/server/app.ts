@@ -1,3 +1,4 @@
+import { createStandings } from './standings.ts';
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
 import { NO_WORKTREE, REMOVE_TIMEOUT_MS, type RepoIcon } from '@geordi/protocol';
@@ -93,8 +94,41 @@ async function loadWorktreeState(worktreeId: string, fresh = false): Promise<Wor
 			}
 		};
 	}
+	// what a viewer learns, everyone knows: the sidebar shows how each workspace stands
+	if (state.changes) standings().note(worktreeId, state);
 	return state;
 }
+
+/**
+ * How every workspace in use stands (see `createStandings`): asked about in the background,
+ * the stalest first, for as long as the forge runs.
+ */
+export const standings = lazy(() => {
+	const standings = createStandings({
+		worktrees: () => [
+			...new Set(
+				workspaces()
+					.all()
+					.filter((workspace) => workspace.worktree)
+					.map((workspace) => workspace.worktreeId)
+			)
+		],
+		async load(worktreeId) {
+			const ref = workspaces().ref(worktreeId);
+			const [changes, upstream] = await Promise.all([
+				hub().request({ kind: 'changes', ...ref }),
+				hub()
+					.request({ kind: 'upstream', ...ref })
+					.catch(() => null)
+			]);
+			return { changes, upstream };
+		}
+	});
+	setInterval(() => void standings.tick(), STANDINGS_TICK_MS).unref();
+	void standings.tick();
+	return standings;
+});
+const STANDINGS_TICK_MS = 20_000;
 
 /**
  * Has a daemon make sure a workspace's worktree is there, and notes where it is: for a
@@ -141,7 +175,10 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 /** Has a workspace's worktree looked at afresh, including how it stands upstream. */
 function upstreamMayHaveChanged(workspaceId: string) {
 	try {
-		watchers().changed(workspaces().ref(workspaceId).worktreeId, true);
+		const { worktreeId } = workspaces().ref(workspaceId);
+		watchers().changed(worktreeId, true);
+		// nobody looking at it: the sidebar still shows how it stands
+		if (!watchers().state(worktreeId)) void standings().refresh(worktreeId);
 	} catch {
 		// no such workspace (any more): nobody to tell
 	}
@@ -170,6 +207,8 @@ export const hub = lazy(() =>
 			workspaces().reconcile(running);
 			terminals().reconcile(runningTerminals);
 			watchers().resync();
+			// a daemon is there to ask: how the workspaces stand is wanted right away
+			void standings().tick();
 		},
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {

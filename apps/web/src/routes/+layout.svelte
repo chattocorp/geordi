@@ -24,6 +24,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
+	import Ring from '#lib/ui/Ring.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { getNavigation } from './nav.remote';
@@ -59,6 +60,14 @@
 	});
 	$effect(badge);
 
+	/** The colour of how a workspace stands: what is fine, wrong, to do, done. */
+	const tones = {
+		ok: 'text-ok',
+		danger: 'text-danger',
+		accent: 'text-accent-ink',
+		merged: 'text-merged',
+		neutral: 'text-muted'
+	};
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
@@ -333,6 +342,8 @@
 	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
+	{@const standing = leaving ? null : workspace.standing}
+	{@const archivable = !busy && !leaving}
 	<li>
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
@@ -374,17 +385,50 @@
 				</span>
 				<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
 			</a>
-			{#if !busy && !leaving}
-				<button
-					type="button"
-					class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-focus-within:grid group-hover:grid hover:bg-sunken hover:text-ink"
-					title="Archive workspace"
-					aria-label="Archive {workspace.title}"
-					onclick={() => archiveFromHere(workspace)}
-				>
-					<span class="icon-[lucide--archive] size-3.5"></span>
-				</button>
-			{/if}
+			<!--
+				At its end: how its work stands, at a glance. Pointed at, that makes way for what
+				can be done with it; the two share one place, so that nothing moves.
+			-->
+			<span class="grid size-6 shrink-0 place-items-center">
+				{#if standing}
+					<span
+						class={[
+							'col-start-1 row-start-1 grid place-items-center',
+							archivable && 'group-focus-within:invisible group-hover:invisible',
+							tones[standing.tone]
+						]}
+						title={standing.label}
+					>
+						{#if standing.checks}
+							{@const { passed, failed, pending, skipped } = standing.checks}
+							<Ring
+								label="Checks: {pending} running, {passed} passed{failed
+									? `, ${failed} failed`
+									: ''}"
+								parts={[
+									{ size: failed, tone: 'danger' },
+									{ size: passed, tone: 'ok' },
+									{ size: skipped, tone: 'neutral' },
+									{ size: pending, tone: 'accent' }
+								]}
+							/>
+						{:else}
+							<span class={['size-4', standing.icon]} role="img" aria-label={standing.label}></span>
+						{/if}
+					</span>
+				{/if}
+				{#if archivable}
+					<button
+						type="button"
+						class="invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control text-muted group-focus-within:visible group-hover:visible hover:bg-sunken hover:text-ink"
+						title="Archive workspace"
+						aria-label="Archive {workspace.title}"
+						onclick={() => archiveFromHere(workspace)}
+					>
+						<span class="icon-[lucide--archive] size-3.5"></span>
+					</button>
+				{/if}
+			</span>
 		</div>
 	</li>
 {/snippet}

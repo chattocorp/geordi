@@ -129,6 +129,8 @@ export type WorkspaceStanding = {
 	tone: 'ok' | 'danger' | 'accent' | 'merged' | 'neutral';
 	/** An Iconify class. */
 	icon: string;
+	/** While checks run: how many of them stand how, where the forge says. */
+	checks?: { passed: number; failed: number; pending: number; skipped: number };
 };
 
 /**
@@ -164,7 +166,12 @@ export function standingOf({ changes, upstream }: State): WorkspaceStanding | nu
 		};
 	if (uncommitted || unpushed) return todo('Unpublished changes');
 	if (pull.checks?.state === 'pending')
-		return { label: 'Checks running', tone: 'neutral', icon: 'icon-[lucide--circle-dashed]' };
+		return {
+			label: 'Checks running',
+			tone: 'neutral',
+			icon: 'icon-[lucide--circle-dashed]',
+			checks: pull.checks.counts
+		};
 	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };
 	return { label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' };
 }
