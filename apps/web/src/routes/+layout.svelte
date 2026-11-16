@@ -12,7 +12,7 @@
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
 	import { modifierKey, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
-	import { ask, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
+	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import {
@@ -53,10 +53,11 @@
 		const all = nav.current?.workspaces;
 		if (all) untrack(() => watch(all, viewed, (id) => goto(resolve('/workspaces/[id]', { id }))));
 	});
-	// …and what they look at, they have seen.
+	// …and what they look at, they have seen. The rest is counted on the Dock.
 	$effect(() => {
 		if (viewed && isLooking()) seen(viewed);
 	});
+	$effect(badge);
 
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);

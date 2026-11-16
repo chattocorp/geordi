@@ -4,8 +4,9 @@ import { cameToRest, type TurnEnd, type Watched } from './attention.ts';
 /**
  * Telling the person when a workspace needs them (FDR-008): a system notification and a
  * short, quiet sound when its agents come to rest out of their sight, and the workspace in
- * bold in the sidebar until they have looked. All of it belongs to this browser: whether it
- * is on (`geordi:notify`), and what is unread (`geordi:unread`), both in localStorage.
+ * bold in the sidebar until they have looked, counted on the app's icon (the Dock, in the
+ * desktop app). All of it belongs to this browser: whether it is on (`geordi:notify`), and
+ * what is unread (`geordi:unread`, shared by its tabs and windows), both in localStorage.
  */
 
 const browser = typeof window !== 'undefined';
@@ -42,6 +43,27 @@ function stored(): string[] {
 }
 const saveUnread = () => save('geordi:unread', unread.size ? JSON.stringify([...unread]) : null);
 
+// another tab or window read or was told something: so has this one
+if (browser)
+	window.addEventListener('storage', ({ key }) => {
+		if (key !== 'geordi:unread' && key !== null) return;
+		const now = stored();
+		for (const id of unread) if (!now.includes(id)) unread.delete(id);
+		for (const id of now) unread.add(id);
+	});
+
+/**
+ * Shows how many workspaces are unread on the app's icon: the Dock in the desktop app, an
+ * installed web app's icon elsewhere. Browsers without it show nothing. Call in an effect.
+ */
+export function badge() {
+	const count = unread.size;
+	if (!browser || !('setAppBadge' in navigator)) return;
+	void (count ? navigator.setAppBadge(count) : navigator.clearAppBadge()).catch(() => {
+		// not allowed here (not installed, or no permission): the sidebar still says
+	});
+}
+
 /** What the browser lets us do; `unsupported` where there are no notifications (not https). */
 let permission = $state<NotificationPermission | 'unsupported'>(
 	browser && 'Notification' in window ? Notification.permission : 'unsupported'
@@ -56,6 +78,8 @@ export const notifications = {
 		on = next;
 		save('geordi:notify', next ? null : 'off');
 		if (next) ask();
+		// off means nothing to tell of, also of what was told before
+		else for (const id of [...unread]) seen(id);
 	},
 	get permission() {
 		return permission;
