@@ -6,6 +6,8 @@ import {
 	CONFIG_FILE,
 	DEFAULT_PORTS,
 	AGENTS,
+	JOB_TERMINAL,
+	TEARDOWN_TIMEOUT_MS,
 	PROTOCOL_VERSION,
 	type DaemonMessage,
 	type DaemonRequest,
@@ -30,7 +32,8 @@ import {
 	writeTerminal
 } from './terminals.ts';
 import { releasePlan } from './releases.ts';
-import { emptyTrash, removeWorktree } from './remove.ts';
+import { emptyTrash, removable, removeWorktree } from './remove.ts';
+import { setupNote } from './scripts.ts';
 import { titleFor } from './titles.ts';
 import { resumeTurns, runTurn, type Turn } from './turn.ts';
 import { mergePull, upstream } from './upstream.ts';
@@ -108,6 +111,113 @@ async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeR
 
 /** What a job's terminal runs when its command is not one that was seen and agreed to. */
 const RUN_CHANGED = `echo 'This is not the command you agreed to run: ${CONFIG_FILE} has changed. Start it again to see and run what it says now.'; exit 1`;
+
+/** What the terminal of a script that did not run says instead. Words of ours, never the file's. */
+const SETUP_UNAGREED = `echo 'The setup script in ${CONFIG_FILE} did not run: nobody has agreed to it yet. Run it from the Run menu to see it and agree to it.'; exit 1`;
+
+/** What a terminal's output and its end are sent as. */
+function relay(terminalId: string) {
+	return {
+		output: (data: string, offset = 0) =>
+			sendLive({ type: 'terminal.output', terminalId, data, offset }),
+		exit: () => sendLive({ type: 'terminal.exit', terminalId })
+	};
+}
+
+/**
+ * Runs a command of the repository's in a terminal of its own, for whoever looks to see,
+ * and resolves once the command has ended: with its status (`null` if the terminal was
+ * closed first, or it ran out of `timeoutMs`) and what it put out.
+ */
+function runScript(
+	worktree: Worktree,
+	terminalId: string,
+	command: string,
+	env: Record<string, string>,
+	{ timeoutMs, setup }: { timeoutMs?: number; setup?: string } = {}
+): Promise<{ status: number | null; output: string }> {
+	const { output, exit } = relay(terminalId);
+	return new Promise((resolve) => {
+		if (runningTerminals().includes(terminalId)) return resolve({ status: null, output: '' });
+		const timer = timeoutMs ? setTimeout(() => closeTerminal(terminalId), timeoutMs) : undefined;
+		openTerminal(
+			terminalId,
+			worktree.path,
+			{
+				cols: 120,
+				rows: 30,
+				command,
+				env,
+				onEnded: (status) => {
+					clearTimeout(timer);
+					resolve({ status, output: scrollbackOf(terminalId)?.data ?? '' });
+				}
+			},
+			() => verifyLinks(worktree),
+			output,
+			exit
+		);
+		// a setup's terminal, started again, runs the setup script again
+		sendLive({
+			type: 'terminal.opened',
+			terminalId,
+			...(setup && { run: { job: 'setup', command: setup } })
+		});
+	});
+}
+
+/**
+ * The setup scripts of worktrees made just now (FDR-006), by worktree: a turn there waits
+ * for it, and its agent is told how it went (what this resolves to; `null` for nothing).
+ */
+const setups = new Map<string, Promise<string | null>>();
+
+/** Runs the repository's setup script in a worktree that was just made (or brought back). */
+function setUp(worktree: Worktree, ref: WorktreeRef) {
+	const terminalId = `${ref.worktreeId}:${JOB_TERMINAL}setup`;
+	const done = (async () => {
+		const { config, env } = await configFor(worktree, ref);
+		const { setup } = config;
+		if (!setup) return null;
+		// one nobody has agreed to doesn't run; its terminal says so, and where to run it
+		if (!setup.approved) {
+			void runScript(worktree, terminalId, SETUP_UNAGREED, env, { setup: setup.command });
+			return setupNote(setup, null);
+		}
+		const ran = await runScript(worktree, terminalId, setup.command, env, {
+			setup: setup.command
+		});
+		return setupNote(setup, ran);
+	})().catch((error) => {
+		console.warn(`setup in ${worktree.path}: ${errorMessage(error)}`);
+		return null;
+	});
+	setups.set(ref.worktreeId, done);
+}
+
+/**
+ * Runs the repository's teardown script in a worktree about to be removed, if a person has
+ * agreed to it. However it ends, the worktree goes: a broken script must not keep it.
+ */
+async function tearDown(worktree: Worktree, ref: WorktreeRef) {
+	try {
+		verifyLinks(worktree); // it runs as the person, in a directory the agent could have rewired
+		const { config, env } = await configFor(worktree, ref);
+		const { teardown } = config;
+		if (!teardown?.approved) return;
+		const terminalId = `${ref.worktreeId}:${JOB_TERMINAL}teardown`;
+		const { status } = await runScript(worktree, terminalId, teardown.command, env, {
+			timeoutMs: TEARDOWN_TIMEOUT_MS
+		});
+		closeTerminal(terminalId);
+		if (status !== 0) console.warn(`teardown in ${worktree.path} ended with status ${status}`);
+	} catch (error) {
+		console.warn(`teardown in ${worktree.path}: ${errorMessage(error)}`);
+	}
+}
+
+/** Turns waiting for their worktree's setup, by workspace: what stops one. */
+const waiting = new Map<string, () => void>();
 
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
 const watches = createWatches(
@@ -241,7 +351,11 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
-		removeWorktree(worktreesDir, request.repoPath, request.worktreeId, request.force);
+		const { repoPath, worktreeId, force } = request;
+		const worktree = removable(worktreesDir, repoPath, worktreeId, force);
+		if (worktree) await tearDown(worktree, request);
+		removeWorktree(worktreesDir, repoPath, worktreeId, force);
+		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return null;
 	}
@@ -273,6 +387,7 @@ async function answer(request: DaemonRequest) {
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
 		const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
+		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { path: worktree.path, branch: worktree.branch };
@@ -308,7 +423,7 @@ async function answer(request: DaemonRequest) {
 async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'turn.start': {
-			const { workspaceId, worktreeId, agent, repoPath, base, resumeId, prompt } = message;
+			const { workspaceId, worktreeId, agent, repoPath, base, resumeId } = message;
 			const emit = emitFor(workspaceId, message.turn);
 
 			// The forge only starts a turn when it knows of none. If we still have one (the forge
@@ -346,6 +461,31 @@ async function handle(message: ForgeMessage) {
 					// there is a directory to watch now (again), and to look at
 					watches.restart(worktreeId);
 					sendLive({ type: 'worktree.changed', worktreeId });
+					setUp(worktree, message);
+				}
+
+				// The agent starts once the directory is set up, and hears how that went. Stopped
+				// meanwhile, the turn ends; the setup goes on, for the next one to wait for.
+				let prompt = message.prompt;
+				const setup = setups.get(worktreeId);
+				if (setup) {
+					starting.add(workspaceId);
+					const stopped = new Promise<'stopped'>((resolve) =>
+						waiting.set(workspaceId, () => resolve('stopped'))
+					);
+					let note;
+					try {
+						note = await Promise.race([setup, stopped]);
+					} finally {
+						starting.delete(workspaceId);
+						waiting.delete(workspaceId);
+					}
+					if (note === 'stopped') {
+						emit({ kind: 'turn.failed', error: 'Stopped' });
+						break;
+					}
+					if (setups.get(worktreeId) === setup) setups.delete(worktreeId);
+					if (note) prompt = `${note}\n\n${prompt}`;
 				}
 
 				const adapter = await adapterFor(agent);
@@ -390,9 +530,7 @@ async function handle(message: ForgeMessage) {
 
 		case 'terminal.open': {
 			const { terminalId } = message;
-			const output = (data: string, offset = 0) =>
-				sendLive({ type: 'terminal.output', terminalId, data, offset });
-			const exit = () => sendLive({ type: 'terminal.exit', terminalId });
+			const { output, exit } = relay(terminalId);
 			try {
 				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
@@ -402,7 +540,11 @@ async function handle(message: ForgeMessage) {
 				// the command and their asking for it. Otherwise the terminal says so, in words
 				// of ours, and nothing of the file's runs.
 				const asked = message.run;
-				const job = config.jobs.find((job) => job.name === asked?.job);
+				// the setup script can be run again by hand: as a job without a port
+				const job =
+					asked?.job === 'setup'
+						? config.setup && { ...config.setup, port: null }
+						: config.jobs.find((job) => job.name === asked?.job);
 				const agreed = job && job.command === asked?.command && job.approved;
 				openTerminal(
 					terminalId,
@@ -411,7 +553,7 @@ async function handle(message: ForgeMessage) {
 						...message,
 						command: asked && (agreed ? job.command : RUN_CHANGED),
 						// every terminal knows the workspace's ports; a job also which one is its own
-						env: { ...env, ...(agreed && { PORT: String(job.port) }) }
+						env: { ...env, ...(agreed && job.port !== null && { PORT: String(job.port) }) }
 					},
 					guard,
 					output,
@@ -438,6 +580,7 @@ async function handle(message: ForgeMessage) {
 
 		case 'turn.stop':
 			turns.get(message.workspaceId)?.stop();
+			waiting.get(message.workspaceId)?.();
 			break;
 
 		default:

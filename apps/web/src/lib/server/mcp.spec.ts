@@ -25,6 +25,8 @@ function setup() {
 		current: {
 			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000, approved: true }],
 			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }],
+			setup: { command: 'pnpm install', approved: true },
+			teardown: null,
 			ports: { first: 20000, count: 10 },
 			problem: null,
 			source: 'workspace'
@@ -113,14 +115,22 @@ describe('configuring the repository', () => {
 			problem: null,
 			ports: { first: 20000, count: 10 },
 			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000 }],
-			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }]
+			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }],
+			setup: 'pnpm install',
+			teardown: null
 		});
 
 		// a command nobody has agreed to yet: the agent is told that it can't do that itself
 		config.current.jobs[0].approved = false;
 		expect((await call('check_configuration')).note).toMatch(/cannot agree/);
 
-		const none = { jobs: [], urls: [], ports: { first: 20000, count: 10 } };
+		const none = {
+			jobs: [],
+			urls: [],
+			setup: null,
+			teardown: null,
+			ports: { first: 20000, count: 10 }
+		};
 		config.current = { ...none, problem: '.geordi.toml: invalid value', source: 'workspace' };
 		expect(await call('check_configuration')).toMatchObject({
 			problem: '.geordi.toml: invalid value',

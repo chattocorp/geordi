@@ -5,6 +5,7 @@ import {
 	CONFIG_FILE,
 	CONFIG_NAME,
 	DEFAULT_PORTS,
+	SCRIPTS,
 	startOrder,
 	type RepoConfig
 } from '@geordi/protocol';
@@ -27,6 +28,9 @@ export type Settings = {
 	ports: number;
 	jobs: { name: string; command: string; needs: string[] }[];
 	urls: { name: string; url: string; needs: string[] }[];
+	/** The commands run when a worktree is made, and before it is removed. */
+	setup: string | null;
+	teardown: string | null;
 };
 
 const fail = (message: string): never => {
@@ -66,6 +70,8 @@ export function parseConfig(text: string): Settings {
 	const jobs = [...commands].map(([name, { command, needs }]) => {
 		if (!CONFIG_NAME.test(name))
 			fail(`"${name}" is not a job name: lower case letters, digits and dashes`);
+		if ((SCRIPTS as readonly string[]).includes(name))
+			fail(`"${name}" is not a job name: say \`${name} = "…"\` for the ${name} script`);
 		if (typeof command !== 'string' || !command.trim() || command.length > MAX_COMMAND)
 			fail(
 				`${name === 'run' && !isTable(said.jobs) ? '`run`' : `jobs.${name}.command`} must be a command, as a string`
@@ -119,7 +125,14 @@ export function parseConfig(text: string): Settings {
 	const ports = said.ports ?? (jobs.length || DEFAULT_PORTS);
 	if (typeof ports !== 'number' || !Number.isInteger(ports) || ports < 1 || ports > MAX_PORTS)
 		fail(`\`ports\` must be a number from 1 to ${MAX_PORTS}`);
-	return { ports: Math.max(ports as number, jobs.length), jobs, urls };
+	const [setup, teardown] = SCRIPTS.map((script) => {
+		const command = said[script];
+		if (command === undefined) return null;
+		if (typeof command !== 'string' || !command.trim() || command.length > MAX_COMMAND)
+			fail(`\`${script}\` must be a command, as a string`);
+		return (command as string).trim();
+	});
+	return { ports: Math.max(ports as number, jobs.length), jobs, urls, setup, teardown };
 }
 
 /**
@@ -166,6 +179,9 @@ export function settingsOf(
 	}
 }
 
+const script = (command: string | null | undefined, approved: (command: string) => boolean) =>
+	command ? { command, approved: approved(command) } : null;
+
 /**
  * The configuration as the workspace gets it: every job with its port and whether a person
  * has agreed to run it, every link with the ports filled in.
@@ -189,6 +205,8 @@ export function resolve(
 			href: url.replace(PLACEHOLDER, (_, job: string) => String(port(job))),
 			needs
 		})),
+		setup: script(settings?.setup, approved),
+		teardown: script(settings?.teardown, approved),
 		ports: { first: portAt(assigned, 0), count },
 		problem,
 		source
