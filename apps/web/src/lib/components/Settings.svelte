@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { notifications } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
@@ -94,6 +95,29 @@
 							{ value: 'system', label: 'System' },
 							{ value: 'light', label: 'Light' },
 							{ value: 'dark', label: 'Dark' }
+						]}
+					/>
+				</div>
+				<div class="flex items-center justify-between gap-4 pt-6">
+					<div>
+						<p class="text-sm font-medium">Notifications</p>
+						<p class="text-sm text-muted">
+							{#if notifications.on && notifications.permission === 'denied'}
+								This browser blocks Geordi's notifications: only the sound plays.
+							{:else}
+								A notification and a quiet sound when an agent is done out of sight.
+							{/if}
+						</p>
+					</div>
+					<Segmented
+						label="Notifications"
+						bind:value={
+							() => (notifications.on ? 'on' : 'off'),
+							(value) => (notifications.on = value === 'on')
+						}
+						options={[
+							{ value: 'on', label: 'On' },
+							{ value: 'off', label: 'Off' }
 						]}
 					/>
 				</div>

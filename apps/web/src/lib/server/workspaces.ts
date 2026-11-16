@@ -9,6 +9,7 @@ import {
 	type WorktreeMode,
 	type WorktreeRef
 } from '@geordi/protocol';
+import type { TurnEnd } from '../attention.ts';
 import type { EventStore, GeordiEvent } from './events/index.ts';
 import { createUpcaster, type CurrentEvent } from './legacy.ts';
 import { instructionsFor } from './instructions.ts';
@@ -106,6 +107,8 @@ export type Workspace = {
 	/** The model and effort it runs with; what is absent is left to the agent's CLI. */
 	settings: AgentSettings;
 	status: Status;
+	/** How its latest turn ended; `null` while one is running, and before the first. */
+	lastTurn: TurnEnd | null;
 	/** The workspace whose agent started this one; `null` if a person did. */
 	parentId: string | null;
 	/** The workspace whose worktree this one works in: its own ID, unless it shares another's. */
@@ -207,6 +210,7 @@ export function createWorkspaces(
 				named: false,
 				settings,
 				status: 'idle',
+				lastTurn: null,
 				parentId,
 				worktreeId,
 				base,
@@ -272,6 +276,7 @@ export function createWorkspaces(
 			if (event.data.queued) workspace.queue.shift();
 			if (event.data.steered) workspace.steering = [];
 			workspace.status = 'running';
+			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
 			transcript.push({ kind: 'user', text: event.data.text, at });
 			return;
@@ -302,9 +307,11 @@ export function createWorkspaces(
 			}
 			case 'turn.completed':
 				workspace.status = 'idle';
+				workspace.lastTurn = 'completed';
 				break;
 			case 'turn.failed':
 				workspace.status = 'idle';
+				workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
 				// stopped to make way for a steering message: that is not a failure worth showing
 				if (!(output.error === 'Stopped' && workspace.steering.length > 0))
 					transcript.push({ kind: 'error', error: output.error, at });
