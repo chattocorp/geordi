@@ -15,7 +15,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changes, readText, status, versions } from './changes.ts';
 import { removeWorktree } from './remove.ts';
-import { branchRef, ensureWorktree, fetchUpstream, locateWorktree, startOf } from './worktree.ts';
+import {
+	branchRef,
+	ensureWorktree,
+	fetchUpstream,
+	locateWorktree,
+	startOf,
+	upstreamBranchOf
+} from './worktree.ts';
 
 function repo() {
 	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-wt-')));
@@ -98,6 +105,41 @@ describe('ensureWorktree', () => {
 			restored: false
 		});
 		expect(existsSync(join(path, 'committed.txt'))).toBe(false);
+	});
+
+	it('knows a branch by the name it was pushed under', () => {
+		// an upstream, and a clone of it in which a workspace's branch was pushed under another name
+		const upstream = repo();
+		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
+		execFileSync('git', ['clone', '-q', upstream, repoPath]);
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const git = (...args: string[]) =>
+			execFileSync('git', [
+				'-C',
+				worktree.path,
+				'-c',
+				'user.name=t',
+				'-c',
+				'user.email=t@t',
+				...args
+			]);
+		expect(upstreamBranchOf(repoPath, worktree.branch)).toBe('geordi/12345678');
+		expect(status(worktree, { repoPath }).unpushed).toBeNull();
+
+		git('commit', '-q', '--allow-empty', '-m', 'work');
+		git('push', '-q', '-u', 'origin', 'HEAD:a-better-name');
+		expect(upstreamBranchOf(repoPath, worktree.branch)).toBe('a-better-name');
+		expect(status(worktree, { repoPath }).unpushed).toBe(0);
+		git('commit', '-q', '--allow-empty', '-m', 'more work');
+		expect(status(worktree, { repoPath }).unpushed).toBe(1);
+
+		// merely set to follow the main branch, it has no place of its own upstream
+		const main = execFileSync('git', ['-C', upstream, 'branch', '--show-current'], {
+			encoding: 'utf8'
+		}).trim();
+		git('branch', '-q', `--set-upstream-to=origin/${main}`);
+		expect(upstreamBranchOf(repoPath, worktree.branch)).toBe('geordi/12345678');
 	});
 
 	it('refuses a worktree whose Git metadata was repointed', () => {

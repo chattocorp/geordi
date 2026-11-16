@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import type { Changes, FileChange, FileVersions } from '@geordi/protocol';
-import { branchRef, gitIn, headOf, startOf, type Worktree } from './worktree.ts';
+import { branchRef, gitIn, headOf, startOf, upstreamBranchOf, type Worktree } from './worktree.ts';
 
 /** Files are for reading; beyond this size (in characters) they are not shown. */
 const MAX_FILE = 1_000_000;
@@ -151,7 +151,9 @@ export function status(worktree: Worktree, origin: Origin): Changes {
 	// What is on the remote, as far as this machine knows: the remote-tracking branch.
 	let unpushed: number | null = null;
 	if (head.startsWith('refs/heads/')) {
-		const remote = `refs/remotes/origin/${head.slice('refs/heads/'.length)}`;
+		// under whatever name the branch was pushed
+		const branch = upstreamBranchOf(origin.repoPath, head.slice('refs/heads/'.length));
+		const remote = `refs/remotes/origin/${branch}`;
 		try {
 			unpushed = Number(gitIn(worktree, 'rev-list', '--count', `${remote}..${head}`).trim());
 		} catch {

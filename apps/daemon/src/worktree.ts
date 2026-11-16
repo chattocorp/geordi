@@ -103,6 +103,20 @@ export function startOf(repoPath: string): string {
 		: 'HEAD';
 }
 
+/**
+ * The name a branch goes by on the upstream. Its own, as a rule; but whoever pushed it may
+ * have given it another one there (`git push -u origin HEAD:a-better-name`, which agents
+ * like to do), and Git remembers that. Then that is where its pushed commits and its pull
+ * request are.
+ */
+export function upstreamBranchOf(repoPath: string, branch: string): string {
+	const config = (key: string) => quietly(repoPath, 'config', '--get', `branch.${branch}.${key}`);
+	const name = /^refs\/heads\/(.+)$/.exec(config('merge') ?? '')?.[1];
+	if (config('remote') !== 'origin' || !name || !BRANCH.test(name)) return branch;
+	// set to follow the main branch, it has not been pushed there: it has no place upstream yet
+	return `refs/remotes/origin/${name}` === startOf(repoPath) ? branch : name;
+}
+
 /** How long fetching may take before a workspace starts from what is already known. */
 const FETCH_TIMEOUT_MS = 30_000;
 

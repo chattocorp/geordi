@@ -11,7 +11,7 @@ import {
 	type Thread
 } from 'forges';
 import { providersFromEnv } from 'forges/env';
-import { gitIn, headOf, type Worktree } from './worktree.ts';
+import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /**
  * Talks to the forge a repository is hosted on (ADR-006), through the `forges` library so
@@ -199,7 +199,9 @@ function locate(worktree: Worktree, repoPath: string) {
 	const head = headOf(worktree);
 	// a detached HEAD has no branch to have a pull request
 	if (!head.startsWith('refs/heads/')) return null;
-	return { remote, ...parsed, branch: head.slice('refs/heads/'.length), head, anonymous };
+	// what the branch is called upstream, which is where its pull request is
+	const branch = upstreamBranchOf(repoPath, head.slice('refs/heads/'.length));
+	return { remote, ...parsed, branch, head, anonymous };
 }
 
 type Cached = { key: string; at: number; value: Upstream };
