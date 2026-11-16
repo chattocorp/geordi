@@ -131,6 +131,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   (`releases.ts`; Sweet Release so far) says whether a repository uses it and asks the tool
   what is pending; everything else deals in packages, versions and notes (`ReleasePlan`).
   A tool is run with `gitEnv`, like our own git: never trusting the worktree's Git metadata.
+- **Repository icons.** The sidebar shows the picture a repository has of itself (a tracked
+  favicon or logo): the daemon finds it (`icon.ts`), the forge keeps it a while and serves
+  it at `/repos/[id]/icon`. Live data, like everything derived: never stored.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees

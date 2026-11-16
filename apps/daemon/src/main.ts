@@ -1,3 +1,4 @@
+import { repoIcon } from './icon.ts';
 import { readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -238,6 +239,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 async function answer(request: DaemonRequest) {
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'title') return titleFor(request.text);
+	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
 		removeWorktree(worktreesDir, request.repoPath, request.worktreeId, request.force);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again

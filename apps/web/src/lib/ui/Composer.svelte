@@ -1,9 +1,12 @@
 <script lang="ts">
+	import type { Attachment } from 'svelte/attachments';
 	import type { Snippet } from 'svelte';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
 	import { submitOnEnter } from '#lib/keys.ts';
 
 	type Props = {
+		/** Whether to put the cursor in the text when it appears: where writing is what one came for. */
+		focused?: boolean;
 		/** Whoever this is written to is at work: a light goes round its edge. */
 		live?: boolean;
 		/** Attributes for the form: a remote form (`{...createThing}`), or `{ onsubmit }`. */
@@ -37,8 +40,13 @@
 		problems = [],
 		header,
 		footer,
-		live = false
+		live = false,
+		focused = false
 	}: Props = $props();
+
+	const focus: Attachment<HTMLTextAreaElement> = (node) => {
+		if (focused) node.focus();
+	};
 
 	const id = $props.id();
 	const textarea = {
@@ -64,13 +72,16 @@
 </script>
 
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
-<form {...form} class={['card-float pt-2 focus-within:ring-accent/60', live && 'edge-live']}>
+<form
+	{...form}
+	class={['group/composer card-float pt-2 focus-within:ring-accent/60', live && 'edge-live']}
+>
 	{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
 	{@render header?.()}
 	{#if field}
-		<textarea {...field} {...textarea}></textarea>
+		<textarea {...field} {...textarea} {@attach focus}></textarea>
 	{:else}
-		<textarea bind:value {...textarea}></textarea>
+		<textarea bind:value {...textarea} {@attach focus}></textarea>
 	{/if}
 	{#each problems as problem (problem)}
 		<p class="px-4 text-sm text-danger">{problem}</p>

@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	import HistoryButtons from '#lib/components/HistoryButtons.svelte';
 	import Logo from '#lib/components/Logo.svelte';
+	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import Settings from '#lib/components/Settings.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
@@ -221,33 +222,47 @@
 				</div>
 
 				<!-- every repository, also one nothing is going on in: its name is the way to its page -->
-				{#each (await nav).repos as repo (repo.id)}
-					<div>
-						<div class="group flex items-center pr-1 pb-1">
-							<a
-								href={resolve('/repos/[id]', { id: repo.id })}
-								class="min-w-0 flex-1 truncate px-2.5 label hover:text-ink"
-							>
-								{repo.name}
-							</a>
-							<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
-							<a
-								href="{resolve('/')}?repo={repo.id}"
-								class="hidden size-5 shrink-0 place-items-center rounded-control text-muted group-focus-within:grid group-hover:grid hover:bg-sunken hover:text-ink"
-								title="New workspace in {repo.name}"
-								aria-label="New workspace in {repo.name}"
-							>
-								<span class="icon-[lucide--plus] size-3.5"></span>
-							</a>
-							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+				<!--
+					Apart from each other by what is in them: repositories with nothing going on, one
+					after the other, stand close together as a list of names.
+				-->
+				<div>
+					{#each (await nav).repos as repo, index (repo.id)}
+						{@const quiet = (at: number) =>
+							!listed.get((nav.current?.repos ?? [])[at]?.id ?? '')?.length}
+						<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-0.5' : 'pt-4')]}>
+							<!--
+								A heading for what is under it: its picture, its name in full weight, and the
+								way to start something in it. What is under it lines up with it: icon under picture,
+								title under name.
+							-->
+							<div class="flex h-9 items-center pr-1.5">
+								<a
+									href={resolve('/repos/[id]', { id: repo.id })}
+									class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-base font-medium text-ink/85 hover:text-ink"
+								>
+									<RepoIcon id={repo.id} />
+									<span class="truncate">{repo.name}</span>
+								</a>
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
+								<a
+									href="{resolve('/')}?repo={repo.id}"
+									class="grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-sunken hover:text-ink"
+									title="New workspace in {repo.name}"
+									aria-label="New workspace in {repo.name}"
+								>
+									<span class="icon-[lucide--plus] size-4"></span>
+								</a>
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							</div>
+							<ul class="space-y-px">
+								{#each listed.get(repo.id) ?? [] as { workspace, parent } (workspace.id)}
+									{@render row(workspace, parent)}
+								{/each}
+							</ul>
 						</div>
-						<ul class="space-y-px">
-							{#each listed.get(repo.id) ?? [] as { workspace, parent } (workspace.id)}
-								{@render row(workspace, parent)}
-							{/each}
-						</ul>
-					</div>
-				{/each}
+					{/each}
+				</div>
 			</nav>
 
 			<div class="border-t border-line p-2.5">
@@ -314,7 +329,7 @@
 		>
 			<a
 				href={resolve('/workspaces/[id]', { id: workspace.id })}
-				class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-2.5"
+				class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-1.5"
 				aria-current={current ? 'page' : undefined}
 				title={parent ? `Started by the agent in "${parent.title}"` : undefined}
 				onpointerenter={() => (pointedAt = parent?.id ?? null)}
@@ -322,18 +337,21 @@
 				onfocus={() => (pointedAt = parent?.id ?? null)}
 				onblur={() => (pointedAt = null)}
 			>
-				{#if leaving}
-					<Spinner label="Archiving" />
-				{:else if workspace.working}
-					<!-- its agent, or one working alongside it -->
-					<Spinner />
-				{:else}
-					<span class="dot"></span>
-				{/if}
-				{#if workspace.parentId}
-					<!-- started by an agent: the one above it, where that is still around -->
-					<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0 text-muted/80"></span>
-				{/if}
+				<!-- what it is, or is doing, in one place: every title starts on the same edge -->
+				<!-- as wide as the repository's picture above, and right under it -->
+				<span class="grid size-5 shrink-0 place-items-center text-muted/80">
+					{#if leaving}
+						<Spinner label="Archiving" />
+					{:else if workspace.working}
+						<!-- its agent, or one working alongside it -->
+						<Spinner />
+					{:else if workspace.parentId}
+						<!-- started by an agent: the one above it, where that is still around -->
+						<span class="icon-[lucide--corner-down-right] size-4"></span>
+					{:else}
+						<span class="icon-[lucide--git-branch] size-4"></span>
+					{/if}
+				</span>
 				<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
 			</a>
 			{#if !busy && !leaving}

@@ -8,7 +8,7 @@ import { CONFIG_FILE } from '@geordi/protocol';
 export function instructionsFor(workspace: {
 	/** The workspace whose agent started this one, if one did. */
 	parent: { title: string } | null;
-	/** Whether it works in that workspace's directory rather than in one of its own. */
+	/** Whether it works in another workspace's directory rather than in one of its own. */
 	sharesWorktree: boolean;
 	/** Whether it was given a name on purpose already. */
 	named: boolean;
@@ -20,7 +20,7 @@ export function instructionsFor(workspace: {
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi workspace.',
 
 		workspace.sharesWorktree
-			? 'Your working directory is the Git worktree of the workspace that started you: its agent sees and changes the same files as you.'
+			? 'Your working directory is the Git worktree of another workspace, which you work alongside: its agent sees and changes the same files as you.'
 			: 'Your working directory is a Git worktree made for this workspace, on a branch of its own. Nothing you do here touches anyone else’s checkout.',
 
 		parent

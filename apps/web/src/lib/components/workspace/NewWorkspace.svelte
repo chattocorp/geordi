@@ -13,10 +13,21 @@
 		/** The repository picked to begin with; the first one, unless said otherwise. */
 		preferred?: string;
 		label?: string;
+		/** Whether the cursor starts in the text: on the page that is for starting a workspace. */
+		focused?: boolean;
+		/**
+		 * A workspace to start in instead: what is written starts another conversation in it,
+		 * with an agent that works in its directory.
+		 */
+		alongside?: string;
 	};
-	let { repos, preferred, label }: Props = $props();
+	let { repos, preferred, label, focused = false, alongside }: Props = $props();
 
-	const { repoId, agent, model, effort, prompt } = createWorkspace.fields;
+	const { repoId, agent, model, effort, prompt, alongside: within } = createWorkspace.fields;
+	// Each time this is begun, it is begun empty: the form is one for the whole app, and
+	// would otherwise still hold what the workspace before was started with.
+	prompt.set('');
+
 	/** The repository picked here, if one was; otherwise the preferred one, or the first. */
 	let picked = $state<string>();
 	const repo = $derived(
@@ -37,6 +48,7 @@
 <Composer
 	form={createWorkspace}
 	{label}
+	{focused}
 	placeholder="What should the agent do?"
 	field={prompt.as('text')}
 	onkeydown={(event) => {
@@ -48,6 +60,7 @@
 >
 	{#snippet header()}
 		<input {...repoId.as('hidden', repo?.id ?? '')} />
+		{#if alongside}<input {...within.as('hidden', alongside)} />{/if}
 		<input {...agent.as('hidden', chosen?.harness.agent ?? choice.current.agent)} />
 		<!-- empty leaves it to the agent's CLI -->
 		<input {...model.as('hidden', chosen?.model?.id ?? '')} />
@@ -82,14 +95,26 @@
 				</span>
 			{/if}
 		</div>
-		<Button
-			type="submit"
-			variant="primary"
-			icon="icon-[lucide--arrow-up]"
-			class="ml-auto"
-			disabled={!harnesses}
-		>
-			Start workspace
-		</Button>
+		{#if alongside}
+			<!-- a conversation like the others there: sent as they are -->
+			<Button
+				type="submit"
+				variant="primary"
+				icon="icon-[lucide--arrow-up]"
+				label="Send"
+				class="ml-auto"
+				disabled={!harnesses}
+			/>
+		{:else}
+			<Button
+				type="submit"
+				variant="primary"
+				icon="icon-[lucide--arrow-up]"
+				class="ml-auto"
+				disabled={!harnesses}
+			>
+				Start workspace
+			</Button>
+		{/if}
 	{/snippet}
 </Composer>

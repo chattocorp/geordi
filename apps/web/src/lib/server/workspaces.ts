@@ -165,7 +165,7 @@ const continuedBriefing = (branch: string) =>
 	`(A note from Geordi, not from the person: since your last turn, this workspace was continued. Its working directory is now on a new branch, \`${branch}\`, which starts from the latest state of the repository's main branch. What you did before is not on it unless it was merged; your earlier branch still exists. Look at the files as they are now before you rely on what you remember of them.)`;
 
 /** What a workspace is called until it is told what to do, or named. */
-const UNTITLED = 'New workspace';
+export const UNTITLED = 'New workspace';
 
 /** How often an agent may name its own workspace. */
 const MAX_NAMES = 3;
@@ -696,8 +696,51 @@ export function createWorkspaces(
 		/** The workspaces in use that this one's agent started itself, oldest first. */
 		children: (id: string): WorkspaceSummary[] => childrenOf(id).map(summarise),
 
-		/** The IDs of the workspaces in use that this one's agent started, and theirs: parents first. */
-		descendants: (id: string): string[] => descendantsOf(id).map((workspace) => workspace.id),
+		/**
+		 * The IDs of the workspaces in use that belong to this one, and go when it goes: those
+		 * its agent started, the agents working in its worktree (whoever started them), and
+		 * theirs. Parents first.
+		 */
+		descendants(id: string): string[] {
+			const alongside = [...projection.get().values()].filter(
+				(other) => other.id !== id && other.worktreeId === id && !other.archivedAt
+			);
+			const all = [
+				...descendantsOf(id),
+				...alongside.flatMap((workspace) => [workspace, ...descendantsOf(workspace.id)])
+			];
+			return [...new Set(all.map((workspace) => workspace.id))];
+		},
+
+		/**
+		 * Adds an agent to a workspace, at a person's word: a conversation of its own, working
+		 * in the workspace's worktree. With nothing to do yet, it waits to be told. Returns
+		 * its ID.
+		 */
+		join(
+			id: string,
+			{
+				agent,
+				settings,
+				prompt = ''
+			}: Partial<Pick<NewWorkspace, 'agent' | 'settings' | 'prompt'>> = {},
+			actor: string | null = null
+		): string {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			const owner = find(workspace.worktreeId);
+			return create(
+				{
+					repoId: owner.repoId,
+					agent: agent ?? owner.agent,
+					settings: settings ?? owner.settings,
+					prompt,
+					worktreeId: owner.worktreeId,
+					...(owner.base && { base: owner.base })
+				},
+				actor
+			);
+		},
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
 

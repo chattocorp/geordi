@@ -402,6 +402,31 @@ describe('archiving', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
 	});
 
+	it("adds an agent to a workspace at a person's word: in its worktree, and going when it goes", () => {
+		const { workspaces, create, sent } = setup();
+		const lead = create('Lead');
+		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const before = sent.length;
+		const second = workspaces.join(lead, { agent: 'codex' });
+
+		expect(workspaces.summary(second)).toMatchObject({
+			agent: 'codex',
+			worktreeId: lead,
+			parentId: null,
+			status: 'idle',
+			worktree: { path: '/wt', branch: 'geordi/lead' }
+		});
+		// it waits to be told what to do
+		expect(sent).toHaveLength(before);
+		// told what to do from the start, it sets off
+		const third = workspaces.join(lead, { prompt: 'Review this' });
+		expect(workspaces.summary(third)).toMatchObject({ status: 'running', worktreeId: lead });
+		// one added to it in turn works in the same place
+		expect(workspaces.summary(workspaces.join(second)).worktreeId).toBe(lead);
+		expect(workspaces.descendants(lead)).toContain(second);
+		expect(workspaces.descendants(second)).toEqual([]);
+	});
+
 	it('knows whether a worktree is still in use by another workspace', () => {
 		const { workspaces, create } = setup();
 		const lead = create('Lead');

@@ -183,7 +183,10 @@
 								<HarnessPicker {harnesses} {choice} onchange={configure} />
 							{/if}
 						</div>
-						<p class="ml-auto hidden pl-1 text-xs text-muted lg:block">
+						<!-- how to send: said while writing, not all the time -->
+						<p
+							class="invisible ml-auto hidden pl-1 text-xs text-muted group-focus-within/composer:visible lg:block"
+						>
 							{running
 								? `Enter to steer, ${modifier}Enter to queue`
 								: 'Enter to send, Shift+Enter for a new line'}

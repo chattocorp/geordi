@@ -36,7 +36,8 @@
 	came to read. While a tool runs, the line shows that tool. Afterwards it sums up what was
 	used; a click shows each call, with its input and output.
 -->
-<details class="group/tools">
+<!-- closer to what follows than to what came before: it led to it -->
+<details class="group/tools -mb-0.5 pt-1">
 	<summary
 		class="flex h-7 list-none items-center gap-2.5 rounded-control text-sm text-muted select-none hover:text-ink"
 	>

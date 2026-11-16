@@ -65,7 +65,7 @@ export function actionsFor({ changes, upstream }: State): WorkspaceAction[] {
 						label: 'Create PR',
 						icon: 'icon-[lucide--git-pull-request-create]',
 						prompt:
-							'Commit any uncommitted changes with clear commit messages, push this branch, and open a pull request for it. Give it a title and a description that explain the change and why. Reply with the pull request’s URL.'
+							'Commit any uncommitted changes with clear commit messages, push this branch, and open a pull request for it. Give it a title and a description that explain the change and why.'
 					}
 				]
 			: [];

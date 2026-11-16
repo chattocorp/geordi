@@ -15,7 +15,7 @@
 	{#snippet description()}Tell an agent what to do. It gets its own branch to do it on.{/snippet}
 
 	{#if nav.repos.length > 0}
-		<NewWorkspace repos={nav.repos} {preferred} />
+		<NewWorkspace repos={nav.repos} {preferred} focused />
 	{:else}
 		<div class="empty">
 			<p class="pb-4">Agents work in a repository. Add one first.</p>

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
-import { NO_WORKTREE } from '@geordi/protocol';
+import { NO_WORKTREE, type RepoIcon } from '@geordi/protocol';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
@@ -242,3 +242,24 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
 		removeWorktree: (ref, force) => hub().request({ kind: 'removeWorktree', force, ...ref })
 	})(id, discard, actor);
+
+/** How long a repository's picture is good for, found or not, before a daemon is asked again. */
+const ICON_MS = 10 * 60_000;
+const icons = new Map<string, { at: number; icon: Promise<RepoIcon | null> }>();
+
+/**
+ * The picture a repository has of itself, as a daemon finds it there (ADR-003: live data,
+ * asked for and kept a while, never stored). `null` if it has none, or no daemon can say.
+ */
+export function repoIcon(repoId: string): Promise<RepoIcon | null> {
+	const known = icons.get(repoId);
+	if (known && Date.now() - known.at < ICON_MS) return known.icon;
+	const icon = hub()
+		.request({ kind: 'repoIcon', repoPath: repos().get(repoId).path })
+		.catch(() => {
+			icons.delete(repoId); // nobody could say: ask again next time
+			return null;
+		});
+	icons.set(repoId, { at: Date.now(), icon });
+	return icon;
+}

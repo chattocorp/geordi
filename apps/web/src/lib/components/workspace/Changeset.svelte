@@ -23,7 +23,7 @@
 
 {#snippet release(pkg: ReleasePackage)}
 	{@const before = pkg.notes.length - mine(pkg).length}
-	<li class="space-y-3 px-5 py-5">
+	<li class="space-y-3 px-3.5 py-3">
 		<header class="flex items-center gap-3">
 			<div class="min-w-0 flex-1">
 				<h3 class="truncate heading" title={pkg.path}>{pkg.name ?? pkg.path}</h3>
@@ -87,33 +87,55 @@
 	What this workspace means for the repository's next releases (FDR-007): the change notes
 	it adds, and where they take each package's version. Not what was pending without it.
 -->
-<section class="scroller" aria-label="Changeset">
-	{#if plan.ask}
-		{@const ask = plan.ask}
-		<!-- asked once per repository: the tool runs as the person, where the agent can write -->
-		<div class="space-y-3 px-5 py-4 text-sm">
-			<p class="text-muted">
-				This repository uses {plan.name}. To show what this workspace means for its next releases,
-				Geordi runs this in the workspace's directory, as you:
+<!-- set like the changes beside it: a line that says how things stand, then what there is -->
+<section class="flex min-h-0 flex-1 flex-col" aria-label="Changeset">
+	<header class="flex items-center gap-2 border-b border-line px-3.5 py-2.5 text-sm text-muted">
+		<span class="icon-[lucide--package] size-4 shrink-0"></span>
+		<span class="min-w-0 flex-1 truncate">
+			{#if plan.ask}
+				{plan.name} hasn't been asked yet
+			{:else if plan.problem}
+				{plan.name} couldn't be asked
+			{:else if added === 0}
+				No change notes for {plan.name} yet
+			{:else}
+				{added}
+				{added === 1 ? 'change note' : 'change notes'} for {plan.name}, in
+				{touched.length}
+				{touched.length === 1 ? 'package' : 'packages'}
+			{/if}
+		</span>
+	</header>
+	<div class="scroller py-1.5">
+		{#if plan.ask}
+			{@const ask = plan.ask}
+			<!-- asked once per repository: the tool runs as the person, where the agent can write -->
+			<div class="space-y-3 px-3.5 py-2 text-sm">
+				<p class="text-muted">
+					This repository uses {plan.name}. To show what this workspace means for its next releases,
+					Geordi runs this in the workspace's directory, as you:
+				</p>
+				<pre class="rounded-control bg-sunken p-3 code-dense">{ask}</pre>
+				<Button size="sm" onclick={() => onallow(ask)}>Allow in this repository</Button>
+			</div>
+		{:else if plan.problem}
+			<p class="px-3.5 py-2 text-sm text-muted">
+				{plan.name} couldn't be asked: {plan.problem}.
 			</p>
-			<pre class="rounded-control bg-sunken p-3 code-dense">{ask}</pre>
-			<Button size="sm" onclick={() => onallow(ask)}>Allow in this repository</Button>
-		</div>
-	{:else if plan.problem}
-		<p class="px-5 py-4 text-sm text-muted">
-			{plan.name} couldn't be asked: {plan.problem}.
-		</p>
-	{:else}
-		{#if added === 0}
-			<p class="px-5 py-4 text-sm text-muted">This workspace adds no change notes yet.</p>
-		{/if}
-		<ul class="divide-y divide-line/60">
-			{#each touched as pkg (pkg.path)}{@render release(pkg)}{/each}
-		</ul>
-		{#each troubled as pkg (pkg.path)}
-			{#each pkg.problems as problem (problem)}
-				<p class="px-5 py-1 text-xs text-danger">{pkg.name ?? pkg.path}: {problem}</p>
+		{:else}
+			{#if added === 0}
+				<p class="px-3.5 py-2 text-sm text-muted">
+					Notes this workspace adds will show here, with the versions they lead to.
+				</p>
+			{/if}
+			<ul class="divide-y divide-line/60">
+				{#each touched as pkg (pkg.path)}{@render release(pkg)}{/each}
+			</ul>
+			{#each troubled as pkg (pkg.path)}
+				{#each pkg.problems as problem (problem)}
+					<p class="px-3.5 py-1 text-xs text-danger">{pkg.name ?? pkg.path}: {problem}</p>
+				{/each}
 			{/each}
-		{/each}
-	{/if}
+		{/if}
+	</div>
 </section>

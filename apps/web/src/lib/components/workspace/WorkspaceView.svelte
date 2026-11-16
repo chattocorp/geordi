@@ -18,6 +18,7 @@
 		flatten,
 		groupsOf,
 		insert,
+		move,
 		open,
 		prune,
 		singleGroup,
@@ -58,6 +59,7 @@
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import Family from './Family.svelte';
+	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from './WorkspaceActions.svelte';
 
@@ -76,6 +78,8 @@
 	const CHAT = 'chat';
 	const CHANGES = 'changes';
 	const CHANGESET = 'changeset';
+	/** A conversation that has not begun: there is one at most. */
+	const DRAFT = 'draft';
 	type Area = 'main' | 'side' | 'dock';
 	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
 	const terminalOf = (tab: string) => (tab.startsWith('terminal:') ? tab.slice(9) : undefined);
@@ -90,7 +94,7 @@
 		`geordi:arrangement:${id}`,
 		{}
 	);
-	const frame = persisted('geordi:frame', { side: 0.3, changes: 0.45, open: true });
+	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
 	/** The workspace's ID was just copied: say so for a moment. */
@@ -114,6 +118,7 @@
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
 		if (tab === CHANGESET) return !!workspace.git?.release;
+		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
 		return tab === CHAT || tab === CHANGES || !!pathOf(tab);
 	};
@@ -273,6 +278,15 @@
 			onselect: () => visit(link)
 		}));
 
+	// Another agent in this workspace: a conversation of its own, in the same directory. It
+	// begins as a window to write the first message in, and to say who it is for; the agent
+	// is there once that is sent.
+	let drafting = $state(false);
+	function newConversation() {
+		drafting = true;
+		return DRAFT;
+	}
+
 	function newTerminal() {
 		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
 		const name = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 4)}`;
@@ -280,10 +294,23 @@
 		return `terminal:${name}`;
 	}
 
+	// A workspace has a terminal to begin with: opened when it is, if it has none, where
+	// there is a directory to open one in.
+	let begun = false;
+	$effect(() => {
+		if (begun || !git || workspace.archivedAt || !workspace.worktree || worktreeGone) return;
+		begun = true;
+		untrack(() => {
+			if (workspace.terminals.length === 0 && starting.size === 0)
+				arrange({ dock: open(dock, newTerminal()) });
+		});
+	});
+
 	/** Remembers a new arrangement. A terminal whose window is gone from it has its shell ended. */
 	function arrange(next: Partial<Record<Area, Layout>>) {
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
+		if (!remaining.includes(DRAFT)) drafting = false;
 		for (const tab of everywhere()) {
 			const terminal = terminalOf(tab);
 			const aide = aideOf(tab);
@@ -325,12 +352,24 @@
 	/** Opens a file's diff, next to the conversation. */
 	const openDiff = (path: string) => arrange({ main: open(main, `diff:${path}`, chatGroup) });
 
-	// A link to an agent working alongside leads here, to its conversation (`?agent=`).
+	// A link to an agent working alongside leads here, to its conversation (`?agent=`). So
+	// does beginning one: it takes the place of the window it was begun in.
 	$effect(() => {
 		const tab = `agent:${page.url.searchParams.get('agent')}`;
 		untrack(() => {
 			const at = aideOf(tab) && areaOf(tab);
-			if (at) arrange({ [at]: open(layouts[at], tab) });
+			if (!at) return;
+			const begun = areaOf(DRAFT);
+			if (!begun) return arrange({ [at]: open(layouts[at], tab) });
+			const group = groupsOf(layouts[begun]).find((group) => group.tabs.includes(DRAFT))!.id;
+			arrange(
+				begun === at
+					? { [at]: close(move(layouts[at], tab, group, 'center', DRAFT), DRAFT) }
+					: {
+							[at]: close(layouts[at], tab),
+							[begun]: close(insert(layouts[begun], tab, group, 'center', DRAFT), DRAFT)
+						}
+			);
 		});
 	});
 
@@ -548,6 +587,9 @@
 			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 			<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
 		{/if}
+	{:else if tab === DRAFT}
+		<span class="icon-[lucide--message-square-plus] size-3.5 shrink-0"></span>
+		<span class="truncate">New conversation</span>
 	{:else if aideOf(tab)}
 		{@const aide = aideOf(tab)!}
 		<AgentAvatar agent={aide.agent} bare />
@@ -586,6 +628,13 @@
 		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 	{:else if terminal}
 		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
+	{:else if tab === DRAFT}
+		<!-- begun as a workspace is: say what to do, and who does it; where the reply box will be -->
+		<div class="flex min-h-0 flex-1 flex-col justify-end">
+			<div class="mx-auto w-full max-w-5xl px-5 pb-4">
+				<NewWorkspace repos={[repo]} alongside={id} focused />
+			</div>
+		</div>
 	{:else if aideOf(tab)}
 		<AgentConversation id={aideOf(tab)!.id} />
 	{:else}
@@ -698,6 +747,8 @@
 				{closable}
 				accepts={movable}
 				onreceive={receive('main')}
+				newTab={workspace.archivedAt ? undefined : newConversation}
+				newLabel="New conversation"
 			/>
 		{/snippet}
 		{#snippet b()}

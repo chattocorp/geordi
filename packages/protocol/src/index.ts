@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 23;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -296,6 +296,9 @@ export type ReleasePlan = {
 };
 
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
+/** A small picture, as it is served: its media type, and its bytes in base64. */
+export type RepoIcon = { type: string; data: string };
+
 export type DaemonRequest =
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
 	| ({ kind: 'changes' } & WorktreeRef)
@@ -342,6 +345,8 @@ export type DaemonRequest =
 	| ({ kind: 'mergePull' } & WorktreeRef)
 	/** A short title for a piece of work, from the request that starts it. */
 	| { kind: 'title'; text: string }
+	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
+	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'scrollback'; terminalId: string };
 
@@ -355,6 +360,7 @@ export type DaemonResults = {
 	config: RepoConfig;
 	release: ReleasePlan | null;
 	title: string;
+	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;

@@ -163,7 +163,9 @@
 						class={[
 							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
 							closable(id) ? 'pr-1' : 'pr-2.5',
-							active && 'item-active font-medium',
+							// told apart by its ground and colour alone: a heavier face would make it wider,
+							// and move every tab after it
+							active && 'item-active',
 							// where the dragged tab would go: a line before this one, or after the last
 							here && target?.before === id && 'tab-drop-before',
 							here && target?.before === null && index === n.tabs.length - 1 && 'tab-drop-after'
@@ -195,19 +197,19 @@
 						{/if}
 					</div>
 				{/each}
-				{#if newTab}
-					<Button
-						variant="ghost"
-						size="sm"
-						icon="icon-[lucide--plus]"
-						label={newLabel}
-						onclick={() => onchange(open(layout, newTab(), n.id))}
-					/>
-				{/if}
-				{#if actions && groupsOf(layout)[0]?.id === n.id}
-					<!-- stays in view however many tabs there are to scroll through -->
+				{#if newTab || (actions && groupsOf(layout)[0]?.id === n.id)}
+					<!-- at the far end, where it stays however many tabs there are to scroll through -->
 					<div class="sticky right-0 ml-auto flex shrink-0 items-center gap-1 bg-sidebar pl-2">
-						{@render actions()}
+						{#if actions && groupsOf(layout)[0]?.id === n.id}{@render actions()}{/if}
+						{#if newTab}
+							<Button
+								variant="ghost"
+								size="sm"
+								icon="icon-[lucide--plus]"
+								label={newLabel}
+								onclick={() => onchange(open(layout, newTab(), n.id))}
+							/>
+						{/if}
 					</div>
 				{/if}
 			</div>

@@ -10,7 +10,7 @@ import {
 	type Harness
 } from '@geordi/protocol';
 import { live } from '#lib/server/events/index.ts';
-import type { WorkspaceSummary } from '#lib/server/workspaces.ts';
+import { UNTITLED, type WorkspaceSummary } from '#lib/server/workspaces.ts';
 import {
 	archiveWorkspace as archive,
 	concernsAboutArchiving,
@@ -59,7 +59,13 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 			return {
 				...workspace,
 				parent: parent && relative(parent),
-				aides: aides.map(({ id, title, status, agent }) => ({ id, title, status, agent })),
+				// one that has not been told anything yet has no name: it is a new conversation
+				aides: aides.map(({ id, title, status, agent }) => ({
+					id,
+					title: title === UNTITLED ? 'New conversation' : title,
+					status,
+					agent
+				})),
 				children: workspaces()
 					.children(id)
 					.filter((child) => !aides.some((aide) => aide.id === child.id))
@@ -110,10 +116,22 @@ export const createWorkspace = form(
 		model: v.optional(v.string()),
 		effort: v.optional(v.string()),
 		/** May be empty: the workspace is then there to be told what to do, and has its worktree. */
-		prompt: v.optional(v.pipe(v.string(), v.trim()), '')
+		prompt: v.optional(v.pipe(v.string(), v.trim()), ''),
+		/**
+		 * A workspace to start this in instead, as another conversation in it, with an agent
+		 * working in its directory (FDR-002).
+		 */
+		alongside: v.optional(v.string())
 	}),
-	({ model, effort, ...data }) => {
-		const id = workspaces().create({ ...data, settings: { model, effort } });
+	({ model, effort, alongside, ...data }) => {
+		const settings = { model, effort };
+		if (alongside) {
+			const id = workspaces().join(alongside, { ...data, settings });
+			// to the workspace it is in, and its conversation there
+			const owner = workspaces().summary(id).worktreeId;
+			redirect(303, `/workspaces/${owner}?agent=${id}`);
+		}
+		const id = workspaces().create({ ...data, settings });
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
 		if (!data.prompt)
