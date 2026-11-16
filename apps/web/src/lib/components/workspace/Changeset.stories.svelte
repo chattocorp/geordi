@@ -9,6 +9,7 @@
 		tool: 'sweet-release',
 		name: 'Sweet Release',
 		problem: null,
+		ask: null,
 		packages: [
 			{
 				path: 'apps/api',
@@ -22,7 +23,14 @@
 						path: 'apps/api/.sweet/jade-early-willow.md',
 						type: 'feature',
 						breaking: false,
-						body: 'Accept plain-HTTP client IDs on loopback hosts, for development.',
+						body: 'Configured clients can register plain-HTTP redirect URIs on loopback hosts (`localhost`, `*.localhost`, `127.0.0.0/8`, and `[::1]`), such as `http://localhost:5173/auth/callback`, on any issuer. Before, these were accepted only when the public URL was a loopback address.\n\nRedirect URI matching stays exact, including the port.',
+						added: true
+					},
+					{
+						path: 'apps/api/.sweet/red-bold-otter.md',
+						type: 'change',
+						breaking: true,
+						body: 'Access tokens last five minutes. Clients must refresh them.',
 						added: true
 					},
 					{
@@ -57,10 +65,12 @@
 </script>
 
 {#snippet pane(plan: ReleasePlan)}
-	<div class="flex h-96 w-96 flex-col overflow-hidden card"><Changeset {plan} {onopen} /></div>
+	<div class="flex h-96 w-96 flex-col overflow-hidden card">
+		<Changeset {plan} {onopen} onallow={onopen} />
+	</div>
 {/snippet}
 
-<Story name="Notes of this workspace, and what was pending" asChild>{@render pane(plan)}</Story>
+<Story name="Notes of this workspace" asChild>{@render pane(plan)}</Story>
 
 <Story name="No notes yet" asChild>
 	{@render pane({
@@ -71,4 +81,8 @@
 
 <Story name="The tool is not there" asChild>
 	{@render pane({ ...plan, packages: [], problem: 'sweet is not installed on this machine' })}
+</Story>
+
+<Story name="Not allowed to ask yet" asChild>
+	{@render pane({ ...plan, packages: [], ask: 'sweet status --json' })}
 </Story>

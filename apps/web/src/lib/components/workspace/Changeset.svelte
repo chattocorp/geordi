@@ -1,97 +1,99 @@
 <script lang="ts">
-	import type { ReleaseNote, ReleasePackage, ReleasePlan } from '@geordi/protocol';
+	import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
+	import Markdown from '#lib/components/Markdown.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
+	import Button from '#lib/ui/Button.svelte';
 
 	type Props = {
 		/** What the worktree holds for the repository's next releases, as its release tool reads it. */
 		plan: ReleasePlan;
 		/** Opens a note's file as a diff. */
 		onopen(path: string): void;
+		/** The person agrees to the tool being asked in this repository, by running `command`. */
+		onallow(command: string): void;
 	};
-	let { plan, onopen }: Props = $props();
+	let { plan, onopen, onallow }: Props = $props();
 
 	const mine = (pkg: ReleasePackage) => pkg.notes.filter((note) => note.added);
-	// what this workspace changes about the next releases first; what was pending anyway after
+	// only what this workspace changes about the next releases: that is what it is about
 	const touched = $derived(plan.packages.filter((pkg) => mine(pkg).length > 0));
-	const others = $derived(
-		plan.packages.filter(
-			(pkg) => mine(pkg).length === 0 && (pkg.notes.length > 0 || pkg.problems.length > 0)
-		)
-	);
 	const added = $derived(touched.reduce((count, pkg) => count + mine(pkg).length, 0));
+	const troubled = $derived(plan.packages.filter((pkg) => pkg.problems.length > 0));
 </script>
 
-{#snippet said(note: ReleaseNote)}
-	<span class="mt-0.5 shrink-0 code-dense text-muted">
-		{note.type}{#if note.breaking}<span class="text-danger">!</span>{/if}
-	</span>
-	<span class="line-clamp-3 min-w-0 flex-1 whitespace-pre-line">{note.body}</span>
-{/snippet}
-
-{#snippet release(pkg: ReleasePackage, quiet: boolean)}
-	<li class="space-y-2 px-3.5 py-3">
-		<div class="flex items-baseline gap-2">
-			<p
-				class={['min-w-0 flex-1 truncate text-sm font-medium', quiet && 'text-muted']}
-				title={pkg.path}
-			>
-				{pkg.name ?? pkg.path}
-			</p>
+{#snippet release(pkg: ReleasePackage)}
+	{@const before = pkg.notes.length - mine(pkg).length}
+	<!-- held to a width that reads well, however wide the pane is -->
+	<li class="max-w-prose space-y-4 px-5 py-5">
+		<header class="space-y-1">
+			<div class="flex items-center gap-2">
+				<h3 class="min-w-0 flex-1 truncate heading" title={pkg.path}>{pkg.name ?? pkg.path}</h3>
+				{#if pkg.nextVersion}<Badge tone="accent">{pkg.bump}</Badge>{:else}<Badge>no bump</Badge
+					>{/if}
+			</div>
 			<!-- where its notes take it, once they are released -->
-			<p class="shrink-0 code-dense text-muted">
+			<p class="flex items-center gap-1.5 code-dense text-muted">
 				{pkg.version}
 				{#if pkg.nextVersion}
-					<span class="icon-[lucide--arrow-right] size-3 align-middle"></span>
-					<span class={quiet ? '' : 'text-ink'}>{pkg.nextVersion}</span>
+					<span class="icon-[lucide--arrow-right] size-3"></span>
+					<span class="text-ink">{pkg.nextVersion}</span>
 				{/if}
 			</p>
-			{#if pkg.nextVersion}
-				<Badge tone={quiet ? 'neutral' : 'accent'}>{pkg.bump}</Badge>
-			{:else if pkg.notes.length > 0}
-				<Badge>no bump</Badge>
-			{/if}
-		</div>
+		</header>
 
-		<ul class="space-y-1.5">
-			{#each pkg.notes as note (note.path)}
-				<li>
-					<!-- a note of this workspace's opens as a diff; one that was there before is just read -->
-					{#if note.added}
-						<button
-							type="button"
-							onclick={() => onopen(note.path)}
-							title="Open {note.path}"
-							class="flex w-full gap-2 rounded-control bg-surface px-2 py-1.5 text-left text-sm shadow-soft ring-1 ring-line/60 hover:shadow-float"
-						>
-							{@render said(note)}
-						</button>
-					{:else}
-						<div
-							class="flex gap-2 px-2 py-1 text-sm text-muted"
-							title="{note.path} (pending before this workspace)"
-						>
-							{@render said(note)}
-						</div>
-					{/if}
+		<!-- each note as it will read in the changelog: what kind of change, then what it says -->
+		<ul class="space-y-2">
+			{#each mine(pkg) as note (note.path)}
+				<li class="space-y-1.5 rounded-card bg-sunken px-4 py-3">
+					<button
+						type="button"
+						onclick={() => onopen(note.path)}
+						title="Open {note.path}"
+						class={[
+							'flex items-center gap-0.5 text-xs font-semibold tracking-wider uppercase hover:text-ink',
+							note.breaking ? 'text-danger' : 'text-muted'
+						]}
+					>
+						{note.type}{#if note.breaking && note.type !== 'breaking'}, breaking{/if}
+						<span class="icon-[lucide--chevron-right] size-3"></span>
+					</button>
+					<Markdown text={note.body} dense />
 				</li>
 			{/each}
 		</ul>
 
-		{#each pkg.problems as problem (problem)}
-			<p class="text-xs text-danger">{problem}</p>
-		{/each}
+		{#if before > 0 && pkg.nextVersion}
+			<!-- why the step may be bigger than this workspace's notes alone would make it -->
+			<p class="text-xs text-muted">
+				The next version also counts {before}
+				{before === 1 ? 'note that was' : 'notes that were'} pending already.
+			</p>
+		{/if}
 	</li>
 {/snippet}
 
 <!--
 	What this workspace means for the repository's next releases (FDR-007): the change notes
-	it adds, and where they (with what was pending already) take each package's version.
+	it adds, and where they take each package's version. Not what was pending without it.
 -->
 <section class="scroller" aria-label="Changeset">
-	{#if plan.problem}
-		<p class="px-3.5 py-3 text-sm text-muted">{plan.name} couldn't be asked: {plan.problem}.</p>
+	{#if plan.ask}
+		{@const ask = plan.ask}
+		<!-- asked once per repository: the tool runs as the person, where the agent can write -->
+		<div class="max-w-prose space-y-3 px-5 py-4 text-sm">
+			<p class="text-muted">
+				This repository uses {plan.name}. To show what this workspace means for its next releases,
+				Geordi runs this in the workspace's directory, as you:
+			</p>
+			<pre class="rounded-control bg-sunken p-3 code-dense">{ask}</pre>
+			<Button size="sm" onclick={() => onallow(ask)}>Allow in this repository</Button>
+		</div>
+	{:else if plan.problem}
+		<p class="max-w-prose px-5 py-4 text-sm text-muted">
+			{plan.name} couldn't be asked: {plan.problem}.
+		</p>
 	{:else}
-		<p class="px-3.5 pt-3 pb-1 text-sm text-muted">
+		<p class="px-5 pt-4 text-sm text-muted">
 			{#if added === 0}
 				This workspace adds no change notes yet.
 			{:else}
@@ -100,13 +102,12 @@
 			{/if}
 		</p>
 		<ul class="divide-y divide-line/60">
-			{#each touched as pkg (pkg.path)}{@render release(pkg, false)}{/each}
+			{#each touched as pkg (pkg.path)}{@render release(pkg)}{/each}
 		</ul>
-		{#if others.length > 0}
-			<p class="border-t border-line px-3.5 pt-3 label">Pending without this workspace</p>
-			<ul class="divide-y divide-line/60">
-				{#each others as pkg (pkg.path)}{@render release(pkg, true)}{/each}
-			</ul>
-		{/if}
+		{#each troubled as pkg (pkg.path)}
+			{#each pkg.problems as problem (problem)}
+				<p class="px-5 py-1 text-xs text-danger">{pkg.name ?? pkg.path}: {problem}</p>
+			{/each}
+		{/each}
 	{/if}
 </section>

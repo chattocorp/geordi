@@ -63,28 +63,26 @@
 	const repo = $derived(await getRepo(workspace.repoId));
 	const running = $derived(workspace.status === 'running');
 
-	// A workspace has a fixed frame: the main area, and beside it the changes above the
-	// dock. Windows are tabs named after what they show: the conversation, `diff:<path>`
-	// and `terminal:<name>`. The conversation lives in the main area; diffs and terminals
-	// can be dragged between the main area and the dock.
+	// A workspace has a fixed frame of three areas: the main one, and beside it one above
+	// the other (the side, and the dock). Windows are tabs named after what they show: the
+	// conversation, the workspace's `changes` and its `changeset`, `diff:<path>` and
+	// `terminal:<name>`. The conversation lives in the main area; everything else can be
+	// dragged from any area to any other.
 	const CHAT = 'chat';
+	const CHANGES = 'changes';
+	const CHANGESET = 'changeset';
+	type Area = 'main' | 'side' | 'dock';
 	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
 	const terminalOf = (tab: string) => (tab.startsWith('terminal:') ? tab.slice(9) : undefined);
 
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
 	// svelte-ignore state_referenced_locally
-	const arrangement = persisted<{ main: Layout | null; dock: Layout | null }>(
+	const arrangement = persisted<Partial<Record<Area, Layout | null>>>(
 		`geordi:arrangement:${id}`,
-		{ main: null, dock: null }
+		{}
 	);
-	const frame = persisted<{
-		side: number;
-		changes: number;
-		open: boolean;
-		/** Which of the tabs about the workspace's work is in front. */
-		tab?: 'changes' | 'release';
-	}>('geordi:frame', { side: 0.3, changes: 0.45, open: true });
+	const frame = persisted('geordi:frame', { side: 0.3, changes: 0.45, open: true });
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
 	/** The workspace's ID was just copied: say so for a moment. */
@@ -102,27 +100,43 @@
 	});
 
 	// Which windows there are follows from the workspace, not from memory: the conversation
-	// always, a terminal for every running shell and for no other.
+	// and the changes always, the changeset where the repository has one, a terminal for
+	// every running shell and for no other.
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
-		return tab === CHAT || !!pathOf(tab);
+		if (tab === CHANGESET) return !!workspace.git?.release;
+		return tab === CHAT || tab === CHANGES || !!pathOf(tab);
 	};
-	const main = $derived(
-		add(prune(arrangement.current.main ?? singleGroup([CHAT], { id: 'main' }), exists), CHAT)
-	);
-	const dock = $derived.by(() => {
-		const elsewhere = tabsOf(main);
-		const kept = (tab: string) => exists(tab) && tab !== CHAT && !elsewhere.includes(tab);
-		// terminals nobody has placed yet (opened in another browser, say) belong in the dock
-		return workspace.terminals
-			.map((name) => `terminal:${name}`)
-			.filter((tab) => !elsewhere.includes(tab))
-			.reduce(
-				(layout, tab) => add(layout, tab),
-				prune(arrangement.current.dock ?? singleGroup([], { id: 'dock' }), kept)
+	/** The three areas' windows: as they were arranged, and what is new where it belongs. */
+	const layouts = $derived.by((): Record<Area, Layout> => {
+		const placed: string[] = [];
+		// a window is in one place only: where it was put first, going through the areas
+		const arranged = (area: Area) => {
+			const layout = prune(
+				arrangement.current[area] ?? singleGroup([], { id: area }),
+				(tab) => exists(tab) && !placed.includes(tab)
 			);
+			placed.push(...tabsOf(layout));
+			return layout;
+		};
+		let [main, side, dock] = [arranged('main'), arranged('side'), arranged('dock')];
+		// What nobody has placed yet goes where it belongs, without pushing to the front:
+		// the conversation in the main area, what the workspace has done beside it, terminals
+		// (opened in another browser, say) in the dock.
+		if (!placed.includes(CHAT)) main = add(main, CHAT);
+		for (const tab of [CHANGES, CHANGESET])
+			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
+		for (const name of workspace.terminals)
+			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
+		return { main, side, dock };
 	});
+	const main = $derived(layouts.main);
+	const dock = $derived(layouts.dock);
+	const everywhere = () =>
+		(['main', 'side', 'dock'] as const).flatMap((area) => tabsOf(layouts[area]));
+	const areaOf = (tab: string) =>
+		(['main', 'side', 'dock'] as const).find((area) => tabsOf(layouts[area]).includes(tab));
 
 	// The repository's jobs (FDR-006): each runs in a terminal of its own, named after it.
 	// Starting a job is starting that terminal (after the jobs it needs); stopping it,
@@ -182,7 +196,8 @@
 				await startJobs({ workspaceId: id, jobs: names, seen });
 				// its tab is there as soon as its terminal is: in front, unless it was put elsewhere
 				const front = jobTab(names.at(-1)!);
-				if (!tabsOf(main).includes(front)) arrange({ dock: open(dock, front) });
+				const at = areaOf(front) ?? 'dock';
+				arrange({ [at]: open(layouts[at], front) });
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not start that');
 			} finally {
@@ -236,7 +251,7 @@
 	const linkMenu = (): MenuItem[] =>
 		links.map((link) => ({
 			label: `${link.name}  ${link.href.replace(/^https?:\/\//, '')}`,
-			icon: 'icon-[lucide--arrow-up-right]',
+			icon: 'icon-[lucide--external-link]',
 			onselect: () => visit(link)
 		}));
 
@@ -248,10 +263,10 @@
 	}
 
 	/** Remembers a new arrangement. A terminal whose window is gone from it has its shell ended. */
-	function arrange(next: { main?: Layout; dock?: Layout }) {
-		const after = { main, dock, ...next };
-		const remaining = [...tabsOf(after.main), ...tabsOf(after.dock)];
-		for (const tab of [...tabsOf(main), ...tabsOf(dock)]) {
+	function arrange(next: Partial<Record<Area, Layout>>) {
+		const after = { ...layouts, ...next };
+		const remaining = Object.values(after).flatMap(tabsOf);
+		for (const tab of everywhere()) {
 			const terminal = terminalOf(tab);
 			if (terminal && !remaining.includes(tab)) {
 				starting.delete(terminal);
@@ -264,15 +279,18 @@
 		arrangement.current = after;
 	}
 
-	/** A window dragged from one area was dropped in the other. */
-	const receive = (to: 'main' | 'dock') => (tab: string, groupId: string, zone: Zone) => {
-		const [target, source] = to === 'main' ? [main, dock] : [dock, main];
-		const placed = insert(target, tab, groupId, zone);
+	/** A window dragged from one area was dropped in another. */
+	const receive = (to: Area) => (tab: string, groupId: string, zone: Zone) => {
+		const from = areaOf(tab);
+		if (!from || from === to) return;
+		const placed = insert(layouts[to], tab, groupId, zone);
 		// nowhere to put it (the group is gone): leave the window where it is
-		if (placed === target) return;
-		const left = close(source, tab);
-		arrange(to === 'main' ? { main: placed, dock: left } : { dock: placed, main: left });
+		if (placed === layouts[to]) return;
+		arrange({ [to]: placed, [from]: close(layouts[from], tab) });
 	};
+	/** The conversation stays where it is, and what a workspace always has can't be closed. */
+	const movable = (tab: string) => tab !== CHAT;
+	const closable = (tab: string) => tab !== CHAT && tab !== CHANGES && tab !== CHANGESET;
 
 	/** Opens a file's diff, next to the conversation. */
 	const openDiff = (path: string) => arrange({ main: open(main, `diff:${path}`, chatGroup) });
@@ -463,23 +481,20 @@
 	{/if}
 {/snippet}
 
-{#snippet sideTab(id: 'changes' | 'release', label: string, count: number, live: boolean)}
-	{@const active = (git?.release ? (frame.current.tab ?? 'changes') : 'changes') === id}
-	<button
-		type="button"
-		role="tab"
-		aria-selected={active}
-		onclick={() => (frame.current = { ...frame.current, tab: id })}
-		class={['item h-7 gap-2 px-2.5', active && 'item-active font-medium']}
-	>
-		{label}
-		{#if count > 0}<Badge tone={live ? 'accent' : 'neutral'}>{count}</Badge>{/if}
-	</button>
-{/snippet}
-
 {#snippet tab(tab: string)}
 	{@const path = pathOf(tab)}
-	{#if path}
+	{#if tab === CHANGES}
+		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
+		<span class="truncate">Changes</span>
+		{#if git?.changes?.files.length}<Badge>{git.changes.files.length}</Badge>{/if}
+	{:else if tab === CHANGESET}
+		{@const added = (git?.release?.packages ?? [])
+			.flatMap((pkg) => pkg.notes)
+			.filter((note) => note.added).length}
+		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
+		<span class="truncate">Changeset</span>
+		{#if added > 0}<Badge tone="accent">{added}</Badge>{/if}
+	{:else if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
 	{:else if terminalOf(tab)}
@@ -488,7 +503,7 @@
 			<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
 			<span class="truncate">{job}</span>
 		{:else}
-			{@const terminals = [...tabsOf(main), ...tabsOf(dock)]
+			{@const terminals = everywhere()
 				.filter((other) => terminalOf(other) && !jobOf(terminalOf(other)))
 				.sort()}
 			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
@@ -505,7 +520,24 @@
 {#snippet window(tab: string)}
 	{@const path = pathOf(tab)}
 	{@const terminal = terminalOf(tab)}
-	{#if path}
+	{#if tab === CHANGES}
+		<Changes
+			{git}
+			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
+			onopen={openDiff}
+		/>
+	{:else if tab === CHANGESET}
+		{#if git?.release}
+			<Changeset
+				plan={git.release}
+				onopen={openDiff}
+				onallow={(command) =>
+					approveRun({ workspaceId: id, commands: [command] }).catch(
+						(error) => (mergeProblem = problemOf(error, 'Could not note that'))
+					)}
+			/>
+		{/if}
+	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
 		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 	{:else if terminal}
@@ -617,8 +649,8 @@
 				onchange={(next) => arrange({ main: next })}
 				{tab}
 				{window}
-				closable={(tab) => tab !== CHAT}
-				accepts={() => true}
+				{closable}
+				accepts={movable}
 				onreceive={receive('main')}
 			/>
 		{/snippet}
@@ -633,28 +665,16 @@
 					}
 				>
 					{#snippet a()}
-						<!-- What the workspace has done, in tabs: its changes, and what they mean for the next releases. -->
-						<div role="tablist" class="pane-bar gap-1 px-2" aria-label="About the workspace's work">
-							{@render sideTab('changes', 'Changes', git?.changes?.files.length ?? 0, false)}
-							{#if git?.release}
-								{@const notes = git.release.packages.flatMap((pkg) => pkg.notes)}
-								{@render sideTab(
-									'release',
-									'Changeset',
-									notes.filter((note) => note.added).length,
-									true
-								)}
-							{/if}
-						</div>
-						{#if git?.release && frame.current.tab === 'release'}
-							<Changeset plan={git.release} onopen={openDiff} />
-						{:else}
-							<Changes
-								{git}
-								gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
-								onopen={openDiff}
-							/>
-						{/if}
+						<!-- what the workspace has done: its changes, and what they mean for the next releases -->
+						<Panes
+							layout={layouts.side}
+							onchange={(next) => arrange({ side: next })}
+							{tab}
+							{window}
+							{closable}
+							accepts={movable}
+							onreceive={receive('side')}
+						/>
 					{/snippet}
 					{#snippet b()}
 						<Panes
@@ -662,7 +682,8 @@
 							onchange={(next) => arrange({ dock: next })}
 							{tab}
 							{window}
-							accepts={(tab) => tab !== CHAT}
+							{closable}
+							accepts={movable}
 							onreceive={receive('dock')}
 							newTab={workspace.archivedAt ? undefined : newTerminal}
 							newLabel="New terminal"

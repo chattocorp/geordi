@@ -378,6 +378,56 @@
 	}
 }
 
+/* Markdown beside the conversation (a change note, say): a size smaller, and closer set. */
+.prose-dense {
+	font-size: var(--text-sm);
+	/* a little more air than a label gets: this is text to read */
+	line-height: 1.6;
+	text-wrap: pretty;
+
+	:where(pre, pre code) {
+		font-size: var(--text-xs);
+	}
+	/* in a sentence: a size under the text, and tight, so that brackets and commas stay with it */
+	:where(code):not(:where(pre *)) {
+		@apply px-1;
+		font-size: var(--text-xs);
+	}
+	:where(p, ul, ol, pre) {
+		margin-block: 0.6em;
+	}
+	> :first-child {
+		margin-top: 0;
+	}
+	> :last-child {
+		margin-bottom: 0;
+	}
+}
+
+/*
+ * Something still running, as part of a bar (checks): a light passes over it. Still when
+ * the user prefers reduced motion.
+ */
+@utility bar-running {
+	@apply relative overflow-hidden;
+
+	&::after {
+		content: '';
+		@apply absolute inset-y-0 w-1/2;
+		background: linear-gradient(
+			90deg,
+			transparent,
+			/* the accent, lit: lighter in both modes */ color-mix(in srgb, var(--accent), white 60%),
+			transparent
+		);
+		animation: visor-sweep 1.6s ease-in-out infinite;
+
+		@media (prefers-reduced-motion: reduce) {
+			display: none;
+		}
+	}
+}
+
 /*
  * The visor: a light that travels along a separator while an agent is working. It is no
  * line of its own (that would make the separator thicker for as long as it shows): it is

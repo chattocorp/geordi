@@ -287,6 +287,12 @@ export type ReleasePlan = {
 	packages: ReleasePackage[];
 	/** Why the tool couldn't be asked, if it couldn't. */
 	problem: string | null;
+	/**
+	 * The command that asks the tool, if nobody has agreed to running it in this repository
+	 * yet: it runs as the person, in a directory that is the agent's to write, so it is the
+	 * person's to allow (once; see `approveRun`). Until then there is nothing else to show.
+	 */
+	ask: string | null;
 };
 
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */

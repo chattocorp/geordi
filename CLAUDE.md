@@ -171,8 +171,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     `<Story name="…" asChild>` to render your own markup). `pnpm test` renders every story
     in a browser. Add or update stories with every UI change.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
-  the primary action and things that are live. The only ambient motion is for agents at
-  work: the `.visor` sweep and the Braille `Spinner`. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
+  the primary action and things that are live. The only ambient motion is for things at
+  work: the `.visor` sweep and the Braille `Spinner` for agents, and `bar-running` for checks still running. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).

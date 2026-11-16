@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
-import { gitEnv, gitIn, type Worktree } from './worktree.ts';
+import { gitEnv, gitIn, verifyLinks, type Worktree } from './worktree.ts';
 
 /**
  * What a workspace's worktree holds for the repository's next releases (FDR-007).
@@ -16,6 +16,8 @@ export type ReleaseAdapter = {
 	/** What the tool is called, for programs and for people. */
 	tool: string;
 	name: string;
+	/** The command that asks it, as people would type it: what they agree to having run. */
+	command: string;
 	/** Whether the repository uses it. Cheap: asked every time the worktree changes. */
 	detects(worktree: Worktree): boolean;
 	/** The packages and their pending notes. Rejects if the tool can't be asked. */
@@ -101,6 +103,7 @@ export function fromSweet(output: string): Read {
 const sweet: ReleaseAdapter = {
 	tool: 'sweet-release',
 	name: 'Sweet Release',
+	command: 'sweet status --json',
 	// its configuration, or a package's manifest, at the top or anywhere below
 	detects: (worktree) =>
 		exists(worktree, '.sweet.config.yml') ||
@@ -108,7 +111,10 @@ const sweet: ReleaseAdapter = {
 		gitIn(worktree, 'ls-files', '--cached', '--others', '--exclude-standard', '-z')
 			.split('\0')
 			.some((file) => file.endsWith('/.sweet.yml')),
-	read: async (worktree) => fromSweet(await run(worktree, 'sweet', ['status', '--json']))
+	read: async (worktree) => {
+		const [command, ...args] = sweet.command.split(' ');
+		return fromSweet(await run(worktree, command, args));
+	}
 };
 
 // ----------------------------------------------------------------------------------------------
@@ -119,34 +125,37 @@ const ADAPTERS: ReleaseAdapter[] = [sweet];
  * What the worktree holds for the repository's next releases: every package with its
  * pending notes, and which of those this workspace adds (`added`: the files that are new
  * since it branched off). `null` if the repository uses no release tool we know.
+ *
+ * A tool runs as the person, in a directory that is the agent's to write, because of
+ * files the agent can write. So it only runs once a person has agreed to its command for
+ * the repository (`approved`), like the repository's own run commands (FDR-006); until
+ * then the plan only says what there is to agree to.
  */
 export async function releasePlan(
 	worktree: Worktree,
 	/** The files this workspace has added. */
 	added: () => Set<string>,
+	/** Whether a person has agreed to this command being run in this repository. */
+	approved: (command: string) => boolean,
 	adapters = ADAPTERS
 ): Promise<ReleasePlan | null> {
 	const adapter = adapters.find((adapter) => adapter.detects(worktree));
 	if (!adapter) return null;
-	const { tool, name } = adapter;
+	const { tool, name, command } = adapter;
+	const nothing = { tool, name, packages: [], problem: null, ask: null };
+	if (!approved(command)) return { ...nothing, ask: command };
 	try {
+		verifyLinks(worktree); // whatever git the tool runs relies on them, as ours does
 		const packages = await adapter.read(worktree);
 		const mine = added();
 		return {
-			tool,
-			name,
+			...nothing,
 			packages: packages.map((pkg) => ({
 				...pkg,
 				notes: pkg.notes.map((note) => ({ ...note, added: mine.has(note.path) }))
-			})),
-			problem: null
+			}))
 		};
 	} catch (error) {
-		return {
-			tool,
-			name,
-			packages: [],
-			problem: error instanceof Error ? error.message : String(error)
-		};
+		return { ...nothing, problem: error instanceof Error ? error.message : String(error) };
 	}
 }

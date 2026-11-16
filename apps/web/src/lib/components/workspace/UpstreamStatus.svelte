@@ -22,7 +22,7 @@
 			failed: 'bg-danger',
 			passed: 'bg-ok',
 			skipped: 'bg-line',
-			pending: 'bg-accent'
+			pending: 'bg-accent bar-running'
 		};
 		const words = { failed: 'failed', passed: 'passed', skipped: 'skipped', pending: 'running' };
 		const kinds = ['failed', 'passed', 'skipped', 'pending'] as const;

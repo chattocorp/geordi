@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import NewWorkspace from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -6,8 +7,8 @@
 	import { getNavigation } from './nav.remote';
 
 	const nav = $derived(await getNavigation());
-	// most likely the repository worked in last
-	const preferred = $derived(nav.workspaces[0]?.repoId);
+	// the one that was asked for (from its place in the sidebar), else most likely the one worked in last
+	const preferred = $derived(page.url.searchParams.get('repo') ?? nav.workspaces[0]?.repoId);
 </script>
 
 <Page title="New workspace">

@@ -289,7 +289,8 @@ async function answer(request: DaemonRequest) {
 						changes(worktree, request)
 							.filter((file) => file.status === 'added')
 							.map((file) => file.path)
-					)
+					),
+				(command) => approvals.has(request.repoPath, command)
 			);
 		case 'config':
 			return (await configFor(worktree, request)).config;

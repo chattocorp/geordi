@@ -94,18 +94,23 @@ describe('releasePlan', () => {
 	const adapter = (over: Partial<ReleaseAdapter> = {}): ReleaseAdapter => ({
 		tool: 'notes',
 		name: 'Notes',
+		command: 'notes status',
 		detects: () => true,
 		read: async () => [pkg],
 		...over
 	});
 	const added = () => new Set(['pkg/.notes/new.md']);
+	const yes = () => true;
+	const no = () => false;
 
 	it('has nothing to say about a repository that uses no release tool', async () => {
-		expect(await releasePlan(worktree(), added, [adapter({ detects: () => false })])).toBeNull();
+		expect(
+			await releasePlan(worktree(), added, yes, [adapter({ detects: () => false })])
+		).toBeNull();
 	});
 
 	it('says what is pending, and which of it the workspace adds', async () => {
-		const plan = await releasePlan(worktree(), added, [adapter()]);
+		const plan = await releasePlan(worktree(), added, yes, [adapter()]);
 		expect(plan).toMatchObject({ tool: 'notes', name: 'Notes', problem: null });
 		expect(plan?.packages[0].notes.map((note) => [note.body, note.added])).toEqual([
 			['Old', false],
@@ -119,25 +124,46 @@ describe('releasePlan', () => {
 				throw new Error('notes is not installed on this machine');
 			}
 		});
-		expect(await releasePlan(worktree(), added, [failing])).toEqual({
+		expect(await releasePlan(worktree(), added, yes, [failing])).toEqual({
 			tool: 'notes',
 			name: 'Notes',
 			packages: [],
-			problem: 'notes is not installed on this machine'
+			problem: 'notes is not installed on this machine',
+			ask: null
 		});
+	});
+
+	it('runs nothing in a repository until a person has agreed to it, and says what there is to agree to', async () => {
+		let ran = false;
+		const watched = adapter({
+			read: async () => {
+				ran = true;
+				return [pkg];
+			}
+		});
+		expect(await releasePlan(worktree(), added, no, [watched])).toEqual({
+			tool: 'notes',
+			name: 'Notes',
+			packages: [],
+			problem: null,
+			ask: 'notes status'
+		});
+		expect(ran).toBe(false);
 	});
 
 	it('knows a repository that uses Sweet Release by its configuration, at the top or in a package', async () => {
 		const plain = worktree();
-		// the tool is there or not, on this machine: either way it is this tool that is asked
-		expect(await releasePlan(plain, added)).toBeNull();
+		expect(await releasePlan(plain, added, no)).toBeNull();
 
 		writeFileSync(join(plain.path, '.sweet.config.yml'), 'types:\n  fix:\n    bump: patch\n');
-		expect((await releasePlan(plain, added))?.tool).toBe('sweet-release');
+		expect(await releasePlan(plain, added, no)).toMatchObject({
+			tool: 'sweet-release',
+			ask: 'sweet status --json'
+		});
 
 		const nested = worktree();
 		mkdirSync(join(nested.path, 'apps/api'), { recursive: true });
 		writeFileSync(join(nested.path, 'apps/api/.sweet.yml'), 'version: 1.0.0\n');
-		expect((await releasePlan(nested, added))?.tool).toBe('sweet-release');
+		expect((await releasePlan(nested, added, no))?.tool).toBe('sweet-release');
 	});
 });

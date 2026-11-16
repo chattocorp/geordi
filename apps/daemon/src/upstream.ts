@@ -234,7 +234,15 @@ export async function upstream(
 		createUrl: null,
 		pull: null
 	};
-	if (!pushed) return base;
+	// A branch that is not upstream has no pull request to look for: unless it once was.
+	// Forges delete a branch when its pull request is merged, and the next fetch forgets
+	// it here; the pull request is still there, and still this branch's. What is left of
+	// the push is that Git was told where the branch goes, or that we saw its pull request.
+	const local = found.head.slice('refs/heads/'.length);
+	const once =
+		git(repoPath, 'config', '--get', `branch.${local}.remote`) !== null ||
+		!!cache.get(worktreeId)?.value.pull;
+	if (!pushed && !once) return base;
 
 	// Pushing, or switching branches, changes the answer at once; otherwise reuse it for a while.
 	const key = `${remote} ${branch}`;
@@ -253,6 +261,7 @@ export async function upstream(
 		pull: pull && summarise(pull, await countChecks(provider, repo, pull)),
 		createUrl:
 			(!pull &&
+				pushed &&
 				defaultBranch &&
 				provider.urlFor({
 					compare: { repo, base: defaultBranch.replace(/^origin\//, ''), head: branch }

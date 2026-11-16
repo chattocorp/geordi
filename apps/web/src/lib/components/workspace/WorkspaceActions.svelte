@@ -91,7 +91,7 @@
 				title="Open the pull request"
 			>
 				#{pull.number}
-				{#if pull.url}<span class="icon-[lucide--arrow-up-right] size-3.5"></span>{/if}
+				{#if pull.url}<span class="icon-[lucide--external-link] size-3.5"></span>{/if}
 			</svelte:element>
 		{/if}
 		{#each actions as action (action.id)}

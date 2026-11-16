@@ -15,7 +15,7 @@
 		<div
 			class="card px-4 py-3 text-sm"
 			{@attach contextMenu(() => [
-				{ label: 'Open', icon: 'icon-[lucide--arrow-up-right]', onselect: () => (last = 'Open') },
+				{ label: 'Open', icon: 'icon-[lucide--external-link]', onselect: () => (last = 'Open') },
 				{ label: 'Copy', icon: 'icon-[lucide--copy]', onselect: () => (last = 'Copy') },
 				{ label: 'Not now', icon: 'icon-[lucide--clock]', disabled: true, onselect: () => {} },
 				'separator',

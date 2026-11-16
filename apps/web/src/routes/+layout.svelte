@@ -77,7 +77,7 @@
 		return [
 			{
 				label: 'Open in new tab',
-				icon: 'icon-[lucide--arrow-up-right]',
+				icon: 'icon-[lucide--external-link]',
 				onselect: () => window.open(href, '_blank', 'noopener')
 			},
 			{
@@ -223,12 +223,24 @@
 				<!-- every repository, also one nothing is going on in: its name is the way to its page -->
 				{#each (await nav).repos as repo (repo.id)}
 					<div>
-						<a
-							href={resolve('/repos/[id]', { id: repo.id })}
-							class="block truncate px-2.5 pb-1 label hover:text-ink"
-						>
-							{repo.name}
-						</a>
+						<div class="group flex items-center pr-1 pb-1">
+							<a
+								href={resolve('/repos/[id]', { id: repo.id })}
+								class="min-w-0 flex-1 truncate px-2.5 label hover:text-ink"
+							>
+								{repo.name}
+							</a>
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
+							<a
+								href="{resolve('/')}?repo={repo.id}"
+								class="hidden size-5 shrink-0 place-items-center rounded-control text-muted group-focus-within:grid group-hover:grid hover:bg-sunken hover:text-ink"
+								title="New workspace in {repo.name}"
+								aria-label="New workspace in {repo.name}"
+							>
+								<span class="icon-[lucide--plus] size-3.5"></span>
+							</a>
+							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+						</div>
 						<ul class="space-y-px">
 							{#each listed.get(repo.id) ?? [] as { workspace, parent } (workspace.id)}
 								{@render row(workspace, parent)}

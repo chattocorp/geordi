@@ -9,12 +9,12 @@ Many repositories keep notes on their changes with a release tool, which later t
 
 ## Behavior
 
-- What a workspace has done is in tabs, above its terminals: **Changes** (its files, as before) and, in a repository that uses a release tool Geordi knows, **Changeset**. The tab that was looked at last stays in front.
+- In a repository that uses a release tool Geordi knows, a workspace has a **Changeset** tab next to **Changes**, above its terminals. Like every window but the conversation, both can be dragged to any of the workspace's three areas. Changes is in front to begin with.
 - The Changeset tab's badge counts the change notes the workspace adds.
-- The tab says how many notes merging the workspace adds, and lists each package it adds notes to: its name, its version now and after the next release, how big that step is, and its notes with their kind and text. A breaking change is marked.
-- A note the workspace adds opens as a diff when clicked. Notes that were pending before the workspace are listed with their package too, muted: the next version is the result of all of them.
-- Packages that have notes pending without the workspace are listed below, muted, under "Pending without this workspace".
+- The tab is about what the workspace adds, and nothing else: how many notes merging it adds, and for each package it adds notes to, its name, its version now and after the next release, how big that step is, and those notes with their kind and text. A breaking change is marked. A note opens as a diff when clicked.
+- Where notes were pending for such a package already, a line says how many: the next version counts them too.
 - It follows the files: a note the agent writes, or one that comes in from the main branch, shows at once.
+- The first time in a repository, the tab asks: it shows the command it would run to ask the tool, and runs it only once that was allowed. That holds for the repository from then on.
 - If the tool can't be asked (it is not installed where the daemon runs, say), the tab says so. What the tool finds wrong with a package or a note is shown with that package.
 - The first tool Geordi knows is Sweet Release.
 
@@ -30,6 +30,7 @@ Many repositories keep notes on their changes with a release tool, which later t
 
 **Decision:** The tool runs in the worktree with the environment in which we run git there: whatever git it runs looks at the repository's own Git metadata, never the worktree's.
 **Why:** The worktree, with its Git metadata, is the agent's to write; a tool that runs git in it the ordinary way would run whatever that metadata says to (ADR-003, `gitIn`).
+**And only with the person's word:** the tool runs as the person, in a directory that is the agent's to write, because of files the agent can write. Like the repository's run commands (FDR-006), its command runs only once a person has agreed to it for the repository, which the daemon keeps where no agent can write.
 **Tradeoff:** A tool that takes more from the worktree than files and git (code to run, say) could not be run this way, and would need an adapter that reads its files instead.
 
 ### 3. One adapter per tool
