@@ -142,7 +142,9 @@ const tools = {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets, and what is wrong with it if anything. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
-			const { source, problem, ports, jobs, urls } = await agents.configuration(caller);
+			const { source, problem, ports, jobs, urls, setup, teardown } =
+				await agents.configuration(caller);
+			const commands = [...jobs, ...(setup ? [setup] : []), ...(teardown ? [teardown] : [])];
 			return {
 				applies:
 					source === 'workspace'
@@ -154,7 +156,9 @@ const tools = {
 				ports,
 				jobs: jobs.map(({ name, command, needs, port }) => ({ name, command, needs, port })),
 				urls,
-				...(jobs.some((job) => !job.approved) && {
+				setup: setup?.command ?? null,
+				teardown: teardown?.command ?? null,
+				...(commands.some((command) => !command.approved) && {
 					note: 'Nobody has agreed to run some of these commands yet. The person is shown them and asked before they first run; you cannot agree on their behalf.'
 				})
 			};

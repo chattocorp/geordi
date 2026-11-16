@@ -1,4 +1,5 @@
 import { query } from '$app/server';
+import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { live } from '#lib/server/events/index.ts';
 import { repos, workspaces } from '#lib/server/app.ts';
@@ -6,7 +7,8 @@ import { repos, workspaces } from '#lib/server/app.ts';
 /**
  * Everything the sidebar shows: repositories, and the workspaces that stand for themselves
  * (newest first). An agent working in another workspace's directory is part of that one:
- * it makes it `working`, and what it started counts as started there.
+ * it makes it `working`, and what it started counts as started there. `outcome` is how all
+ * of their work came to rest, `null` while any of it goes on (FDR-008).
  */
 export const getNavigation = query.live(async function* () {
 	yield* live(() => {
@@ -21,6 +23,7 @@ export const getNavigation = query.live(async function* () {
 				parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
 				status,
 				working: status === 'running' || aides.some((aide) => aide.status === 'running'),
+				outcome: outcome([workspace, ...aides]),
 				branch: worktree?.branch ?? null
 			};
 		});

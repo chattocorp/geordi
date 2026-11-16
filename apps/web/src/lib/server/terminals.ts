@@ -212,6 +212,15 @@ export function createTerminals(
 			if (terminal) emit(terminal, data, offset);
 		},
 
+		/** A daemon started a terminal of its own accord: a new worktree's setup script. */
+		opened(terminalId: string, run?: Terminal['run']) {
+			const terminal = get(terminalId);
+			if (run) terminal.run = run;
+			if (terminal.running) return;
+			terminal.running = true;
+			changed();
+		},
+
 		exit(terminalId: string) {
 			const terminal = terminals.get(terminalId);
 			if (terminal) exit(terminal);

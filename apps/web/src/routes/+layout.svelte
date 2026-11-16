@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -11,6 +12,7 @@
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
 	import { modifierKey, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
+	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import {
@@ -43,6 +45,20 @@
 		(nav.current?.workspaces ?? []).some(
 			(other) => other.parentId === workspace.id && working(other)
 		);
+	/** The workspace on screen, if any. */
+	const viewed = $derived(page.url.pathname.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
+
+	// Tells of workspaces that need the person, out of their sight (FDR-008)…
+	$effect(() => {
+		const all = nav.current?.workspaces;
+		if (all) untrack(() => watch(all, viewed, (id) => goto(resolve('/workspaces/[id]', { id }))));
+	});
+	// …and what they look at, they have seen. The rest is counted on the Dock.
+	$effect(() => {
+		if (viewed && isLooking()) seen(viewed);
+	});
+	$effect(badge);
+
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
@@ -150,7 +166,9 @@
 	<title>Geordi</title>
 </svelte:head>
 
+<!-- sending an agent off to work is when to ask for leave to tell when it is done -->
 <svelte:window
+	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
 		if (settingsShortcut(event)) {
 			event.preventDefault();
@@ -323,6 +341,8 @@
 				// on its way out: it shows, and there is nothing more to do with it
 				leaving && 'pointer-events-none opacity-60',
 				current && 'item-active',
+				// it came to rest out of sight, and they haven't looked since
+				unread.has(workspace.id) && 'font-semibold text-ink',
 				pointedAt === workspace.id && 'bg-surface/60 text-ink'
 			]}
 			{@attach contextMenu(() => workspaceMenu(workspace))}

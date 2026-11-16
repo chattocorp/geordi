@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
-import { NO_WORKTREE, type RepoIcon } from '@geordi/protocol';
+import { NO_WORKTREE, REMOVE_TIMEOUT_MS, type RepoIcon } from '@geordi/protocol';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
@@ -181,6 +181,8 @@ export const hub = lazy(() =>
 			} else if (message.type === 'terminal.output')
 				terminals().output(message.terminalId, message.data, message.offset);
 			else if (message.type === 'terminal.exit') terminals().exit(message.terminalId);
+			else if (message.type === 'terminal.opened')
+				terminals().opened(message.terminalId, message.run);
 			else if (message.type === 'worktree.changed') watchers().changed(message.worktreeId);
 		}
 	})
@@ -240,7 +242,9 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 	createArchiver({
 		workspaces: workspaces(),
 		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
-		removeWorktree: (ref, force) => hub().request({ kind: 'removeWorktree', force, ...ref })
+		// with the repository's teardown script first, which may take a while
+		removeWorktree: (ref, force, teardown) =>
+			hub().request({ kind: 'removeWorktree', force, teardown, ...ref }, REMOVE_TIMEOUT_MS)
 	})(id, discard, actor);
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */

@@ -6,8 +6,11 @@ type Parts = {
 	workspaces: ReturnType<typeof createWorkspaces>;
 	/** Ends every shell of a workspace. */
 	closeTerminals(workspaceId: string): void;
-	/** Has a daemon remove a worktree; rejects if it has work that `discard` doesn't allow losing. */
-	removeWorktree(ref: WorktreeRef, discard: boolean): Promise<unknown>;
+	/**
+	 * Has a daemon remove a worktree; rejects if it has work that `discard` doesn't allow
+	 * losing. `teardown` runs the repository's teardown script first.
+	 */
+	removeWorktree(ref: WorktreeRef, discard: boolean, teardown: boolean): Promise<unknown>;
 };
 
 /**
@@ -37,7 +40,9 @@ export function createArchiver({ workspaces, closeTerminals, removeWorktree }: P
 				if (workspace.archivedAt) continue;
 				if (workspace.worktree && !workspaces.worktreeInUse(workspace.id)) {
 					try {
-						await removeWorktree(workspaces.ref(workspace.id), discard);
+						// The teardown runs what is in the worktree, as the person: only when they archive.
+						// An agent archiving the agents it started leaves it to the person (FDR-006).
+						await removeWorktree(workspaces.ref(workspace.id), discard, actor === null);
 					} catch (problem) {
 						const reason = problem instanceof Error ? problem.message : String(problem);
 						error(422, workspace.id === id ? reason : `“${workspace.title}”: ${reason}`);

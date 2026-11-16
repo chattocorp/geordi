@@ -56,6 +56,30 @@ describe('terminals', () => {
 		expect(seen).toHaveLength(1);
 	});
 
+	it('shows a terminal the daemon started by itself, and starts it again as it was', () => {
+		const { terminals, sent } = setup();
+		const setupAt = { workspaceId: 'w', terminal: 'run-setup' };
+		const run = { job: 'setup', command: 'pnpm install' };
+		terminals.opened('w:run-setup', run);
+		expect(terminals.running('w')).toEqual(['run-setup']);
+		expect(sent).toEqual([]); // it is running already
+
+		// it ended; a key press runs that same script again (if it is still what was agreed to)
+		terminals.exit('w:run-setup');
+		terminals.input(setupAt, '\r');
+		expect(sent).toEqual([
+			{
+				type: 'terminal.open',
+				terminalId: 'w:run-setup',
+				worktreeId: 'w',
+				repoPath: '/repo',
+				cols: 80,
+				rows: 24,
+				run
+			}
+		]);
+	});
+
 	it('keeps the terminals of a workspace apart', async () => {
 		const { terminals, daemon, watch } = setup();
 		daemon.scrollback = { data: '', end: 0 };

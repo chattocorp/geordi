@@ -34,7 +34,7 @@ Run from the repository root:
 - `pnpm desktop`: build the desktop app and run it from `apps/desktop/stage`
 - `pnpm desktop:install`: build it, replace `/Applications/Geordi.app` and open it
 
-Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
+Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 
 ## Invariants
 
@@ -124,7 +124,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +
   its name; the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
   once and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
-  run only as a person saw and agreed to them (`approvals.ts`). The settings are described
+  run only as a person saw and agreed to them (`approvals.ts`). The daemon runs the `setup`
+  script by itself when it makes a worktree (the first turn waits for it; `setUp` in
+  `main.ts`) and `teardown` before it removes one, each in a job-like terminal it tells the
+  forge of (`terminal.opened`). The settings are described
   for agents in `CONFIG_SETTINGS`; a new one goes there and into `parseConfig`.
 - **Changesets (FDR-007).** In a repository that uses a release tool, a workspace shows the
   change notes it adds and the versions they lead to. One adapter per tool in the daemon
@@ -199,3 +202,17 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 - Shared tool versions live in the pnpm catalog (`pnpm-workspace.yaml`); reference them as
   `"catalog:"`.
 - Conventional commits; mention planning item IDs and ADRs where relevant.
+
+## Releases
+
+Releases are managed with [Sweet Release](https://github.com/chattocorp/sweet-release). Geordi
+is released as one package, the repository root (`.sweet.yml`); its version is kept in the
+desktop and web apps' `package.json`.
+
+- Every user-facing change needs a release note, committed with the change:
+  `printf 'Describe the change.\n' | sweet change . --type <type> --stdin`
+- Types are configured in `.sweet.config.yml`. Add `breaking: true` to a note's frontmatter
+  for breaking changes.
+- Write notes for the people who use Geordi, not for its maintainers.
+- Run `sweet doctor` before finishing; it must pass (CI checks it on every pull request).
+- Do not edit versions or changelogs by hand: `sweet bump` does that.

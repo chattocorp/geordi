@@ -12,9 +12,17 @@ describe('parseConfig', () => {
 		expect(parseConfig('run = "pnpm dev"')).toEqual({
 			ports: 1, // one job, one port
 			jobs: [{ name: 'run', command: 'pnpm dev', needs: [] }],
-			urls: []
+			urls: [],
+			setup: null,
+			teardown: null
 		});
-		expect(parseConfig('')).toEqual({ ports: 10, jobs: [], urls: [] });
+		expect(parseConfig('')).toEqual({
+			ports: 10,
+			jobs: [],
+			urls: [],
+			setup: null,
+			teardown: null
+		});
 		expect(parseConfig('something = "else"').jobs).toEqual([]);
 	});
 
@@ -42,8 +50,20 @@ describe('parseConfig', () => {
 				// a job a link mentions is a job it needs
 				{ name: 'app', url: 'http://localhost:{web}/admin', needs: ['web'] },
 				{ name: 'docs', url: 'http://docs.localhost:{web}/', needs: ['web', 'db'] }
-			]
+			],
+			setup: null,
+			teardown: null
 		});
+	});
+
+	it('reads the setup and teardown scripts', () => {
+		expect(parseConfig('setup = " pnpm install "\nteardown = "docker compose down"')).toMatchObject(
+			{
+				setup: 'pnpm install',
+				teardown: 'docker compose down',
+				jobs: []
+			}
+		);
 	});
 
 	it('gives a workspace a port per job, unless more are asked for', () => {
@@ -75,13 +95,16 @@ describe('parseConfig', () => {
 		['a link to a job there is not', '[urls.app]\nurl = "http://localhost:{web}/"', /no job "web"/],
 		['a link that leads elsewhere', '[urls.app]\nurl = "https://example.com/"', /on this machine/],
 		['a link that is no web address', '[urls.app]\nurl = "file:///etc/passwd"', /on this machine/],
-		['a number of ports that is none', 'ports = 0', /ports/]
+		['a number of ports that is none', 'ports = 0', /ports/],
+		['a setup script that is no command', 'setup = ""', /setup/],
+		['a teardown script that is no command', 'teardown = ["x"]', /teardown/],
+		['a job named like a script', '[jobs.setup]\ncommand = "x"', /setup script/]
 	])('refuses %s', (_, text, problem) => {
 		expect(() => parseConfig(text)).toThrow(problem);
 	});
 
 	it('understands every setting agents are told about', () => {
-		const { run, jobs, urls, ports, ...others } = CONFIG_SETTINGS;
+		const { run, jobs, urls, ports, setup, teardown, ...others } = CONFIG_SETTINGS;
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
 		expect(parseConfig(run.example).jobs).toEqual([
 			{ name: 'run', command: 'pnpm dev --port $PORT', needs: [] }
@@ -91,6 +114,10 @@ describe('parseConfig', () => {
 			ports: 20,
 			jobs: [{ name: 'db' }, { name: 'web' }],
 			urls: [{ name: 'app', needs: ['web'] }]
+		});
+		expect(parseConfig([setup.example, teardown.example].join('\n'))).toMatchObject({
+			setup: 'pnpm install && cp ../.env .env',
+			teardown: 'docker compose down --volumes'
 		});
 	});
 });
@@ -146,6 +173,7 @@ describe('which file applies', () => {
 
 describe('resolve', () => {
 	const settings = parseConfig(`
+		setup = "install"
 		[jobs.db]
 		command = "db"
 		[jobs.web]
@@ -168,6 +196,8 @@ describe('resolve', () => {
 				{ name: 'web', command: 'web', needs: ['db'], port: 20001, approved: false }
 			],
 			urls: [{ name: 'app', href: 'http://localhost:20001/x?db=20000', needs: ['web', 'db'] }],
+			setup: { command: 'install', approved: false },
+			teardown: null,
 			ports: { first: 20000, count: 10 },
 			problem: null,
 			source: 'workspace'
@@ -176,6 +206,11 @@ describe('resolve', () => {
 
 	it('has ports to tell of even where the file says nothing', () => {
 		const none = resolve({ settings: null, problem: null, source: null }, assigned, () => false);
-		expect(none).toMatchObject({ jobs: [], urls: [], ports: { first: 20000, count: 10 } });
+		expect(none).toMatchObject({
+			jobs: [],
+			urls: [],
+			setup: null,
+			ports: { first: 20000, count: 10 }
+		});
 	});
 });

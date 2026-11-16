@@ -200,6 +200,21 @@ describe('workspaces', () => {
 		).toEqual(['One', 'Two', 'Three']);
 	});
 
+	it('remembers how the latest turn ended, until the next one starts (FDR-008)', () => {
+		const { workspaces, create } = setup();
+		const id = create('Go');
+		expect(workspaces.get(id).lastTurn).toBeNull();
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.get(id).lastTurn).toBe('completed');
+		workspaces.send(id, 'Again');
+		expect(workspaces.get(id).lastTurn).toBeNull();
+		workspaces.record(id, { kind: 'turn.failed', error: 'Out of tokens' });
+		expect(workspaces.get(id).lastTurn).toBe('failed');
+		workspaces.send(id, 'Once more');
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		expect(workspaces.get(id).lastTurn).toBe('stopped');
+	});
+
 	it('lets a waiting message be taken back', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');
