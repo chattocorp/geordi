@@ -14,8 +14,8 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 - **General** holds the theme: System (follows the computer's setting, also while it changes), Light, or Dark. The choice belongs to the browser.
 - **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. A path to a Git repository on the machine adds one; a path Geordi can't make sense of is refused with the reason, in the dialog.
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
-- Where there are no repositories yet, the overview and the new-workspace page say so and open the settings at Repositories.
-- The sidebar no longer lists repositories. They are on the overview, and each workspace in the sidebar names its repository.
+- Where there are no repositories yet, the new-workspace page says so and opens the settings at Repositories.
+- The sidebar does not list repositories as such: it lists workspaces under their repository's name, which leads to the repository's page.
 
 ## Design Decisions
 

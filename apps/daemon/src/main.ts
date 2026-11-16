@@ -256,6 +256,7 @@ async function handle(message: ForgeMessage) {
 						prompt,
 						resumeId,
 						settings: message.settings,
+						instructions: message.instructions,
 						cwd: worktree.path,
 						writableRoots: worktree.writableRoots,
 						api: { url: apiUrl }

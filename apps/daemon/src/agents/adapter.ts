@@ -15,6 +15,8 @@ export type TurnOptions = {
 	resumeId: string | null;
 	/** Which model to run, and how hard it should think; the CLI decides what is absent. */
 	settings: AgentSettings;
+	/** What to tell the agent on top of its CLI's own system prompt: where it is, and how to work there. */
+	instructions?: string;
 	/**
 	 * Geordi's agent API (ADR-004), which lets the agent start and supervise other agents:
 	 * an MCP server at `url`. The token is in the environment variable `API_TOKEN_ENV`, so

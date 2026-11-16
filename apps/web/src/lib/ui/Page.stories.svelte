@@ -11,12 +11,3 @@
 		<div class="card p-4">The page's content</div>
 	</Page>
 </Story>
-
-<Story name="Wide" asChild>
-	<Page title="Overview" wide>
-		<div class="grid grid-cols-2 gap-4">
-			<div class="card p-4">One</div>
-			<div class="card p-4">Two</div>
-		</div>
-	</Page>
-</Story>

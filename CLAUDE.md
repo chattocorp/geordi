@@ -81,6 +81,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
     tested); most just `say` something to the agent.
   - Agents run without permission prompts by default (they must commit, push and use `gh`).
+  - Every turn tells the agent that it works in Geordi, and how (`instructions.ts` in the
+    forge; the adapters add it to the CLI's system prompt).
   - The daemon runs git in agent-writable worktrees: always through `gitIn`, which never
     trusts the worktree's own Git metadata.
   - Daemon: one adapter per agent CLI in `apps/daemon/src/agents/` maps the CLI's JSON output

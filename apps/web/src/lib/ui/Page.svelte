@@ -6,11 +6,9 @@
 		title: string;
 		/** A line under the title. */
 		description?: Snippet;
-		/** For pages that lay out cards side by side. */
-		wide?: boolean;
 		children: Snippet;
 	};
-	let { title, description, wide = false, children }: Props = $props();
+	let { title, description, children }: Props = $props();
 </script>
 
 <svelte:head><title>{title} · Geordi</title></svelte:head>
@@ -25,7 +23,7 @@
 		{#if description}<div class="truncate text-xs text-muted">{@render description()}</div>{/if}
 	</div>
 </TitleBar>
-<main class={['page', wide && 'max-w-5xl']}>
+<main class="page">
 	<header class="space-y-1 md:hidden">
 		<h1 class="title">{title}</h1>
 		{#if description}<div class="text-muted">{@render description()}</div>{/if}

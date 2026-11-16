@@ -11,6 +11,7 @@ import {
 } from '@geordi/protocol';
 import type { EventStore, GeordiEvent } from './events/index.ts';
 import { createUpcaster, type CurrentEvent } from './legacy.ts';
+import { instructionsFor } from './instructions.ts';
 import type { createRepos } from './repos.ts';
 
 type WorkspaceStream = `workspace:${string}`;
@@ -369,6 +370,11 @@ export function createWorkspaces(
 			settings: workspace.settings,
 			apiToken: tokenFor(workspace),
 			resumeId: workspace.resumeId,
+			instructions: instructionsFor({
+				parent: (workspace.parentId && projection.get().get(workspace.parentId)) || null,
+				sharesWorktree: workspace.worktreeId !== id,
+				mayDelegate: depthOf(workspace) < limits.depth
+			}),
 			prompt: text
 		});
 		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });

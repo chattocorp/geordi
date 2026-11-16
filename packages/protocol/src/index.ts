@@ -192,6 +192,8 @@ export type ForgeMessage =
 			apiToken: string;
 			/** `null` on the first turn. */
 			resumeId: string | null;
+			/** What the agent is told on top of its CLI's own system prompt: that it works in Geordi, and how. */
+			instructions?: string;
 			prompt: string;
 	  } & WorktreeRef)
 	| { type: 'turn.stop'; workspaceId: string }

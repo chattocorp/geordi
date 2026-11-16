@@ -42,6 +42,7 @@ describe('workspaces', () => {
 				repoPath: repo.path,
 				apiToken: expect.any(String),
 				resumeId: null,
+				instructions: expect.stringContaining('inside Geordi'),
 				prompt: 'Fix the bug\nplease'
 			}
 		]);

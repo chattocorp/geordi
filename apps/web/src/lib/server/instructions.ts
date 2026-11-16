@@ -1,0 +1,30 @@
+/**
+ * What an agent is told about where it is, on top of what its CLI tells it: that it works
+ * in Geordi, what that means for its work, and how to hand work to other agents (FDR-002).
+ * Goes out with every turn, as an addition to the CLI's system prompt.
+ */
+export function instructionsFor(workspace: {
+	/** The workspace whose agent started this one, if one did. */
+	parent: { title: string } | null;
+	/** Whether it works in that workspace's directory rather than in one of its own. */
+	sharesWorktree: boolean;
+	/** Whether it may start agents itself: not when it is nested as deep as agents may go. */
+	mayDelegate: boolean;
+}): string {
+	const { parent } = workspace;
+	return [
+		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi workspace.',
+
+		workspace.sharesWorktree
+			? 'Your working directory is the Git worktree of the workspace that started you: its agent sees and changes the same files as you.'
+			: 'Your working directory is a Git worktree made for this workspace, on a branch of its own. Nothing you do here touches anyone else’s checkout.',
+
+		parent
+			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
+			: 'The person you work for sees your replies, your changes as a diff against where the branch started, and the state of the branch’s pull request.',
+
+		workspace.mayDelegate
+			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. Prefer it to your own built-in subagents for anything more than a quick lookup.'
+			: 'You cannot start further agents from here.'
+	].join('\n\n');
+}

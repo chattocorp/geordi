@@ -189,6 +189,17 @@ describe('prompt handling', () => {
 		}
 	});
 
+	it('passes on what Geordi has to tell the agent, on every turn', () => {
+		const instructions = 'You are working inside Geordi.\n\nIt has "tools".';
+		for (const resumeId of [null, 'r1']) {
+			const args = (adapter: typeof claude) =>
+				adapter.command({ ...base, resumeId, instructions }).args;
+			expect(args(claude)).toContain(instructions);
+			expect(args(claude)[args(claude).indexOf(instructions) - 1]).toBe('--append-system-prompt');
+			expect(args(codex)).toContain(`developer_instructions=${JSON.stringify(instructions)}`);
+		}
+	});
+
 	it('leaves model and effort to the CLI when nothing was chosen', () => {
 		for (const adapter of [claude, codex])
 			expect(adapter.command({ ...base, resumeId: null }).args.join(' ')).not.toMatch(

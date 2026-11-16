@@ -193,19 +193,14 @@
 				<div class="space-y-0.5">
 					{@render link(
 						resolve('/'),
-						'icon-[lucide--layout-grid]',
-						'Overview',
-						page.url.pathname === '/'
-					)}
-					{@render link(
-						resolve('/workspaces/new'),
 						'icon-[lucide--plus]',
 						'New workspace',
-						page.url.pathname === '/workspaces/new'
+						page.url.pathname === '/'
 					)}
 				</div>
 
-				{#each (await nav).repos.filter((repo) => listed.has(repo.id)) as repo (repo.id)}
+				<!-- every repository, also one nothing is going on in: its name is the way to its page -->
+				{#each (await nav).repos as repo (repo.id)}
 					<div>
 						<a
 							href={resolve('/repos/[id]', { id: repo.id })}

@@ -129,7 +129,7 @@ export const codex: AgentAdapter = {
 		return { models, efforts };
 	},
 
-	command({ prompt, cwd, writableRoots, resumeId, api, settings }) {
+	command({ prompt, cwd, writableRoots, resumeId, api, settings, instructions }) {
 		const config = sandboxed
 			? [
 					'sandbox_mode="workspace-write"',
@@ -140,6 +140,7 @@ export const codex: AgentAdapter = {
 		// as configuration rather than flags: `exec resume` takes these too
 		if (settings.model) config.push(`model=${JSON.stringify(settings.model)}`);
 		if (settings.effort) config.push(`model_reasoning_effort=${JSON.stringify(settings.effort)}`);
+		if (instructions) config.push(`developer_instructions=${JSON.stringify(instructions)}`);
 		if (api)
 			config.push(
 				`mcp_servers.${API_SERVER}.url=${JSON.stringify(api.url)}`,

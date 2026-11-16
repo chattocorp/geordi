@@ -54,11 +54,12 @@ export const claude: AgentAdapter = {
 		efforts: EFFORTS
 	}),
 
-	command({ sessionId, prompt, resumeId, api, settings }) {
+	command({ sessionId, prompt, resumeId, api, settings, instructions }) {
 		const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 		args.push('--permission-mode', permissionMode);
 		if (settings.model) args.push('--model', settings.model);
 		if (settings.effort) args.push('--effort', settings.effort);
+		if (instructions) args.push('--append-system-prompt', instructions);
 		if (api) {
 			// Claude expands ${VAR} in MCP configs itself.
 			const headers = { Authorization: `Bearer \${${API_TOKEN_ENV}}` };
