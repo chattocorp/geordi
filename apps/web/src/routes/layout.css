@@ -321,8 +321,9 @@
 	--tw-prose-th-borders: var(--line);
 	--tw-prose-td-borders: var(--line);
 
+	/* Code in a sentence: a chip that stands out from the page in both modes, also across a line break. */
 	:where(code):not(:where(pre *)) {
-		@apply rounded-control bg-sunken px-1 py-0.5 font-normal;
+		@apply rounded-control bg-surface box-decoration-clone px-1.5 py-0.5 font-normal ring-1 ring-line;
 	}
 	:where(code):not(:where(pre *))::before,
 	:where(code):not(:where(pre *))::after {
