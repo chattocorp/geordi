@@ -11,6 +11,8 @@
 				const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
 				document.documentElement.classList.toggle('dark', dark);
 			} catch {}
+			// The desktop app (ADR-008) has no title bar: the layout makes up for it.
+			if (navigator.userAgent.includes('Electron')) document.documentElement.dataset.desktop = '';
 		</script>
 		%sveltekit.head%
 	</head>

@@ -133,11 +133,14 @@
 />
 
 {#snippet logo()}
-	<a href={resolve('/')} class="flex items-center gap-2.5" aria-label="Geordi home">
+	<a href={resolve('/')} class="flex min-w-0 items-center gap-2.5" aria-label="Geordi home">
 		<Logo />
-		<span class="heading">Geordi</span>
+		<span class="truncate heading">Geordi</span>
 	</a>
 {/snippet}
+
+<!-- The desktop app's window has no title bar: its top edge is what it is dragged by. -->
+<div class="fixed inset-x-0 top-0 hidden h-14 window-drag desktop:block"></div>
 
 <div class="flex min-h-dvh">
 	{#if sidebar.current.open}
@@ -145,7 +148,8 @@
 			class="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-sidebar md:flex"
 			style:width="{sidebar.current.width}px"
 		>
-			<div class="flex h-14 shrink-0 items-center justify-between pr-2.5 pl-4">
+			<!-- in the desktop app, the window's buttons are on the left of this row -->
+			<div class="flex h-14 shrink-0 items-center justify-between pr-2.5 pl-4 desktop:pl-20">
 				{@render logo()}
 				<Button
 					variant="ghost"
@@ -215,7 +219,7 @@
 	{:else}
 		<!-- Hidden, but not gone: a rail with the way back. -->
 		<aside
-			class="sticky top-0 hidden h-dvh w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-sidebar py-3 md:flex"
+			class="sticky top-0 hidden h-dvh w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-sidebar py-3 md:flex desktop:pt-14"
 		>
 			<Button
 				variant="ghost"

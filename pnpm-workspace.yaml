@@ -5,6 +5,7 @@ packages:
 engineStrict: true
 allowBuilds:
   esbuild: true
+  electron: true
 
 catalog:
   '@types/node': ^24

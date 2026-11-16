@@ -8,6 +8,7 @@ pnpm monorepo:
 
 - `apps/web`: the forge (SvelteKit). Repositories, forge features, and the event log.
 - `apps/daemon`: the agent daemon. Worktrees and agent processes; connects to the forge.
+- `apps/desktop`: the desktop app (Electron). Starts forge and daemon, and shows the forge.
 - `packages/protocol`: message types shared by forge and daemon.
 - `planning/`: the backlog (means collection).
 - `docs/adr/`, `docs/fdr/`: architecture and feature decision records.
@@ -30,6 +31,8 @@ Run from the repository root:
 - `pnpm test`: run all tests
 - `pnpm --filter @geordi/web <script>`: run a script in one package
 - `pnpm --filter @geordi/web storybook`: the design system, on http://localhost:6006
+- `pnpm desktop`: build the desktop app and run it from `apps/desktop/stage`
+- `pnpm desktop:install`: build it, replace `/Applications/Geordi.app` and open it
 
 Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 
@@ -99,6 +102,13 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   daemon hands URL and token to the CLI. The calling workspace is the parent of what it starts
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
+- **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and
+  the daemon as they are, on ports of its own (7717, 7718), with data in `~/.geordi`; `pnpm dev`
+  keeps its data in `.data/`, so both can run at once. The app must not grow a second way of
+  running anything: configure forge and daemon through their environment. The web app's
+  packages are all `devDependencies`, so that its build needs nothing but Node. Its window has
+  no title bar: the web app makes room for the window's buttons with the `desktop:` variant, and
+  the top edge is what the window is dragged by (`window-drag`).
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees

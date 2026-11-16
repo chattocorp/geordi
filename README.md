@@ -59,6 +59,14 @@ ORIGIN=http://localhost:3000 pnpm --filter @geordi/web start
 node apps/daemon/src/main.ts
 ```
 
+Or as a desktop app (macOS), which starts both and leaves agents working when you quit it:
+
+```sh
+pnpm desktop:install   # builds Geordi.app, puts it into /Applications and opens it
+```
+
+The app uses ports 7717 and 7718 and logs to `~/Library/Logs/Geordi/geordi.log`.
+
 > **Geordi has no authentication yet.** Anyone who can reach the forge can run agents on
 > your machine, so it only listens on 127.0.0.1 and only answers to localhost hostnames.
 

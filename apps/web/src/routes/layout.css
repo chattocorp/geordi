@@ -18,6 +18,8 @@
 
 /* Dark mode follows the `dark` class on <html>, set before first paint in app.html. */
 @custom-variant dark (&:where(.dark, .dark *));
+/* In the desktop app's window, which has no title bar of its own (ADR-008). */
+@custom-variant desktop (&:where([data-desktop], [data-desktop] *));
 
 /*
  * Geordi's design system starts here: colour tokens, type and shape (in `@theme`), and
@@ -201,6 +203,29 @@
 }
 
 /* The full height of the window under the bar that narrow screens have at the top (`h-14`). */
+/*
+ * What the desktop app's window is dragged by, in place of a title bar. It takes the mouse
+ * for itself, so everything one can use is exempt wherever it happens to be.
+ */
+@utility window-drag {
+	-webkit-app-region: drag;
+}
+[data-desktop]
+	:is(
+		a,
+		button,
+		input,
+		textarea,
+		select,
+		summary,
+		label,
+		[role='tab'],
+		[role='separator'],
+		[tabindex]
+	) {
+	-webkit-app-region: no-drag;
+}
+
 @utility h-below-bar {
 	height: calc(100dvh - --spacing(14));
 }

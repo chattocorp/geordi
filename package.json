@@ -8,7 +8,9 @@
 		"check": "pnpm -r check",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
-		"test": "pnpm -r test"
+		"test": "pnpm -r test",
+		"desktop": "pnpm --filter @geordi/desktop start",
+		"desktop:install": "pnpm --filter @geordi/desktop app:install"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

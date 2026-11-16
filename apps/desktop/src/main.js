@@ -1,0 +1,221 @@
+import { execFileSync } from 'node:child_process';
+import { createWriteStream, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { app, BrowserWindow, dialog, Menu, shell, utilityProcess } from 'electron';
+
+/**
+ * Geordi as a desktop app (ADR-008): a window onto a forge and a daemon that this process
+ * starts, both exactly as they run on their own. Next to this file, `forge/` holds the web
+ * app's production build and `daemon/` the daemon; see `scripts/stage.js`.
+ *
+ * Quitting leaves agents working (ADR-007): the next launch picks their turns up again.
+ * Only "Stop Daemon" ends them, as Ctrl+C does for a daemon in a terminal.
+ */
+
+// Ports of our own, so that a Geordi under development (`pnpm dev`) can run alongside. The
+// web port is fixed, because the browser keeps preferences by origin.
+const WEB_PORT = 7717;
+const DAEMON_PORT = 7718;
+const url = `http://127.0.0.1:${WEB_PORT}`;
+
+const here = import.meta.dirname;
+
+mkdirSync(app.getPath('logs'), { recursive: true });
+const logFile = join(app.getPath('logs'), 'geordi.log');
+const log = createWriteStream(logFile, { flags: 'a' });
+const note = (/** @type {string} */ text) => log.write(`[app] ${text}\n`);
+
+/**
+ * The environment of a login shell. An app started from the Finder gets next to none of
+ * it, and agents need all of it: `PATH` to find `claude`, `codex`, `git` and `gh`, and
+ * whatever keys are set there.
+ */
+function shellEnv() {
+	const mark = '__GEORDI_ENV__';
+	try {
+		const out = execFileSync(
+			process.env.SHELL || '/bin/zsh',
+			['-ilc', `echo ${mark}; /usr/bin/env -0`],
+			{ encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }
+		);
+		const pairs = out
+			.slice(out.indexOf(mark) + mark.length + 1)
+			.split('\0')
+			.filter((pair) => pair.includes('='))
+			.map((pair) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)]);
+		return Object.fromEntries(pairs);
+	} catch (error) {
+		note(`could not read the shell's environment: ${error}`);
+		return {};
+	}
+}
+
+/** Starts one of our two services as a process of its own, logging what it says. */
+function start(/** @type {string} */ name, /** @type {string} */ entry, env = {}) {
+	const child = utilityProcess.fork(join(here, entry), [], {
+		serviceName: `Geordi ${name}`,
+		stdio: 'pipe',
+		env: { ...process.env, ...shellEnv(), ...env }
+	});
+	for (const stream of [child.stdout, child.stderr])
+		stream?.on('data', (data) => log.write(`[${name}] ${data}`));
+	note(`started the ${name}`);
+	return child;
+}
+
+// --- The forge -------------------------------------------------------------------------------
+
+let quitting = false;
+
+function startForge() {
+	const forge = start('forge', 'forge/index.js', {
+		HOST: '127.0.0.1',
+		PORT: String(WEB_PORT),
+		ORIGIN: url,
+		GEORDI_DAEMON_PORT: String(DAEMON_PORT)
+	});
+	forge.on('exit', (code) => {
+		if (quitting) return;
+		dialog.showErrorBox(
+			'Geordi stopped unexpectedly',
+			`The forge exited with code ${code}. Is another Geordi using port ${WEB_PORT}?\n\nSee ${logFile}`
+		);
+		app.quit();
+	});
+	return forge;
+}
+
+/** Resolves once the forge answers. */
+async function forgeReady() {
+	for (;;) {
+		try {
+			await fetch(url, { method: 'HEAD' });
+			return;
+		} catch {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+	}
+}
+
+// --- The daemon ------------------------------------------------------------------------------
+
+/** @type {Electron.UtilityProcess | null} */
+let daemon = null;
+
+function startDaemon() {
+	if (daemon) return;
+	const child = start('daemon', 'daemon/main.js', {
+		GEORDI_FORGE_URL: `ws://127.0.0.1:${DAEMON_PORT}`,
+		GEORDI_FORGE_HTTP_URL: url
+	});
+	daemon = child;
+	child.on('exit', (code) => {
+		note(`the daemon exited with code ${code}`);
+		if (daemon !== child) return; // stopped on purpose
+		daemon = null;
+		menu();
+		// it fell over: its agents are still working, and want following again
+		if (!quitting) setTimeout(startDaemon, 1000);
+	});
+	menu();
+}
+
+/** Lets go of the daemon. With `agents`, they stop too; otherwise they work on (ADR-007). */
+function stopDaemon({ agents = false } = {}) {
+	const child = daemon;
+	if (!child) return Promise.resolve();
+	daemon = null;
+	menu();
+	const gone = new Promise((resolve) => child.once('exit', resolve));
+	if (agents && child.pid) process.kill(child.pid, 'SIGINT');
+	else child.kill();
+	return gone;
+}
+
+// --- Window and menu -------------------------------------------------------------------------
+
+function open() {
+	const window = new BrowserWindow({
+		width: 1440,
+		height: 900,
+		minWidth: 720,
+		minHeight: 480,
+		title: 'Geordi',
+		// No title bar: the window's buttons sit in the sidebar's top row, which the web app
+		// makes room for (and makes draggable) where `data-desktop` is set; see `app.html`.
+		titleBarStyle: 'hiddenInset',
+		trafficLightPosition: { x: 14, y: 21 },
+		backgroundColor: '#2c2f3b'
+	});
+	const { webContents } = window;
+	// Geordi's own pages get a window; everything else belongs in the browser.
+	webContents.setWindowOpenHandler(({ url: target }) => {
+		if (target.startsWith(`${url}/`)) return { action: 'allow' };
+		if (/^https?:/.test(target)) shell.openExternal(target);
+		return { action: 'deny' };
+	});
+	webContents.on('will-navigate', (event, target) => {
+		if (target === url || target.startsWith(`${url}/`)) return;
+		event.preventDefault();
+		if (/^https?:/.test(target)) shell.openExternal(target);
+	});
+	window.loadURL(url);
+}
+
+function menu() {
+	Menu.setApplicationMenu(
+		Menu.buildFromTemplate([
+			{ role: 'appMenu' },
+			{ role: 'fileMenu' },
+			{ role: 'editMenu' },
+			{ role: 'viewMenu' },
+			{
+				label: 'Daemon',
+				submenu: [
+					{ label: 'Start Daemon', enabled: !daemon, click: startDaemon },
+					{
+						label: 'Restart Daemon',
+						enabled: !!daemon,
+						click: () => stopDaemon().then(startDaemon)
+					},
+					{
+						label: 'Stop Daemon and Its Agents',
+						enabled: !!daemon,
+						click: () => stopDaemon({ agents: true })
+					},
+					{ type: 'separator' },
+					{ label: 'Show Log', click: () => shell.showItemInFolder(logFile) }
+				]
+			},
+			{ role: 'windowMenu' }
+		])
+	);
+}
+
+// --- Life cycle ------------------------------------------------------------------------------
+
+// One Geordi at a time: two daemons would follow the same turns.
+if (!app.requestSingleInstanceLock()) app.quit();
+else {
+	app.on('second-instance', () => {
+		const [window] = BrowserWindow.getAllWindows();
+		if (!window) return open();
+		if (window.isMinimized()) window.restore();
+		window.focus();
+	});
+
+	// Closing the window is not quitting: the agents work on, and the Dock icon brings it back.
+	app.on('window-all-closed', () => {});
+	app.on('activate', () => {
+		if (BrowserWindow.getAllWindows().length === 0) open();
+	});
+	app.on('before-quit', () => (quitting = true));
+
+	app.whenReady().then(async () => {
+		menu();
+		startForge();
+		await forgeReady();
+		startDaemon();
+		open();
+	});
+}
