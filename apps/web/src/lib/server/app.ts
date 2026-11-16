@@ -1,3 +1,5 @@
+import { createLive } from './live.ts';
+import { views } from './views.ts';
 import { createStandings } from './standings.ts';
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
@@ -5,8 +7,10 @@ import { NO_WORKTREE, REMOVE_TIMEOUT_MS, type RepoIcon } from '@geordi/protocol'
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
+	GEORDI_ALLOWED_HOSTS,
 	GEORDI_DAEMON_PORT,
-	GEORDI_DATA_DIR
+	GEORDI_DATA_DIR,
+	GEORDI_LIVE_PORT
 } from '$app/env/private';
 import { archiveConcerns, type Standing } from '../archiving.ts';
 import { createArchiver } from './archive.ts';
@@ -308,3 +312,25 @@ export function repoIcon(repoId: string): Promise<RepoIcon | null> {
 	icons.set(repoId, { at: Date.now(), icon });
 	return icon;
 }
+
+/** The port browsers connect to for what is live on their pages (see `createLive`). */
+export const livePort = () => GEORDI_LIVE_PORT || GEORDI_DAEMON_PORT + 1;
+
+/** What a page shows to be let in there: only the forge's own pages are given it. */
+export const liveToken = lazy(() => loadSecret(join(GEORDI_DATA_DIR, 'live-token')));
+
+/**
+ * What is live on a page, over one WebSocket per window (see `createLive`). It listens
+ * where the forge itself does: on this machine only, unless the forge was told otherwise.
+ */
+export const liveServer = lazy(() =>
+	createLive({
+		port: livePort(),
+		host: process.env.HOST || '127.0.0.1',
+		allowed: GEORDI_ALLOWED_HOSTS,
+		token: liveToken(),
+		views,
+		values: (view, signal) => store().live(view.read, view.also, signal),
+		terminal: (at, listener) => terminals().attach(at, listener)
+	})
+);

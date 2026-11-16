@@ -6,11 +6,12 @@
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Segmented from '#lib/ui/Segmented.svelte';
-	import { getNavigation } from '../../routes/nav.remote';
+	import { follow } from '#lib/live.svelte.ts';
+	import type { Navigation } from '#lib/server/views.ts';
 	import { registerRepo, removeRepo } from '../../routes/repos.remote';
 	import { settings, type Section } from './settings.svelte.ts';
 
-	const nav = getNavigation();
+	const nav = follow<Navigation>('navigation');
 	const repos = $derived(nav.current?.repos ?? []);
 
 	const sections: { id: Section; label: string; icon: string }[] = [

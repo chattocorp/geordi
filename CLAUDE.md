@@ -110,7 +110,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and
-  the daemon as they are, on ports of its own (7717, 7718), with data in `~/.geordi`; `pnpm dev`
+  the daemon as they are, on ports of its own (7717, 7718, and 7719 for browsers' WebSocket), with data in `~/.geordi`; `pnpm dev`
   keeps its data in `.data/`, so both can run at once. The app must not grow a second way of
   running anything: configure forge and daemon through their environment. The web app's
   packages are all `devDependencies`, so that its build needs nothing but Node. Its window has
@@ -141,21 +141,23 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 - **Repository icons.** The sidebar shows the picture a repository has of itself (a tracked
   favicon or logo): the daemon finds it (`icon.ts`), the forge keeps it a while and serves
   it at `/repos/[id]/icon`. Live data, like everything derived: never stored.
-- **A page holds few connections.** A browser has six to a server, and every live query and
-  every event stream holds one for as long as it is on screen; once they are used up, no
-  navigation and no click gets through, though the page looks alive. So what is live comes
-  in as few of them as possible: everything every page needs in `getNavigation`, a
-  workspace with the conversations in it in `getWorkspace`, all of a workspace's terminals
-  in one stream (`terminal-stream.ts`). Never a connection per tab, row or item; and never
-  `await` a query inside a component within a page (follow it with `.current`).
+- **What is live on a page comes over one WebSocket per window (ADR-009).** A browser has
+  six connections to a server, for all its windows; a request that stays open (a live
+  query, an event stream) holds one, and once they are used up no navigation and no click
+  gets through, though the page looks alive. So nothing live is a request: the forge has a
+  WebSocket server for browsers (`live.ts`, on `GEORDI_LIVE_PORT`), which sends **views**
+  (`views.ts`: `navigation`, `workspace`, `repoWorkspaces`) and terminal output to whoever
+  follows them. Pages follow with `follow()` / `followTerminal()` (`#lib/live.svelte.ts`)
+  and read `.current`; never `await` data inside a component within a page. Commands and
+  forms stay remote functions. Something new that is live becomes a view.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees
   someone has open (`watch.ts`), the forge then loads their state once for everyone
   (`watchers.ts`) and sends it with the workspace live query (`git`). Browsers don't query
   for it. Also,
-  terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers read it as
-  server-sent events, one stream for all of a workspace's terminals, since `query.live` drops intermediate values). Shells and scrollback
+  terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers follow it
+  over the page's WebSocket (ADR-009), every piece of it, where a view only ever has its latest value). Shells and scrollback
   live in the daemon (`apps/daemon/src/terminals.ts`).
 
 ## Conventions
@@ -163,8 +165,9 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 - **TypeScript without a build step.** The daemon and packages run on Node's type stripping:
   use erasable syntax only (no enums, namespaces, parameter properties) and include `.ts` in
   relative imports.
-- **Web app:** Svelte 5 runes and SvelteKit remote functions (`*.remote.ts`), with `query.live`
-  for live UI: `query.live(async function* () { yield* store().live(() => ...) })`.
+- **Web app:** Svelte 5 runes and SvelteKit remote functions (`*.remote.ts`), for what
+  pages do (`command`, `form`, `query` for something asked once). What is live is a view,
+  followed over the page's WebSocket (ADR-009): never `query.live`.
   - Server-only code lives in `src/lib/server/`; import it as `#lib/server/<file>.ts`.
   - Env vars are declared in `src/env.ts` and imported from `$app/env/private` (SvelteKit 3;
     `$env/*` is deprecated).

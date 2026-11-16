@@ -4,17 +4,22 @@
 	import NewWorkspace from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
-	import { getNavigation } from './nav.remote';
+	import { follow } from '#lib/live.svelte.ts';
+	import type { Navigation } from '#lib/server/views.ts';
 
-	const nav = $derived(await getNavigation());
+	const live = follow<Navigation>('navigation');
+	const nav = $derived(live.current);
 	// the one that was asked for (from its place in the sidebar), else most likely the one worked in last
-	const preferred = $derived(page.url.searchParams.get('repo') ?? nav.workspaces[0]?.repoId);
+	const preferred = $derived(page.url.searchParams.get('repo') ?? nav?.workspaces[0]?.repoId);
 </script>
 
 <Page title="New workspace">
 	{#snippet description()}Tell an agent what to do. It gets its own branch to do it on.{/snippet}
 
-	{#if nav.repos.length > 0}
+	<!-- nothing until it is known which: not the wrong one of the two for a moment -->
+	{#if !nav}
+		<!-- still to come -->
+	{:else if nav.repos.length > 0}
 		<NewWorkspace repos={nav.repos} {preferred} focused />
 	{:else}
 		<div class="empty">

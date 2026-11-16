@@ -3,7 +3,7 @@
 	import type { ITheme } from '@xterm/xterm';
 	import type { Attachment } from 'svelte/attachments';
 	import { startTerminal, terminalInput, terminalResize } from '../../../routes/workspaces.remote';
-	import { follow } from './terminal-stream.ts';
+	import { followTerminal } from '#lib/live.svelte.ts';
 
 	type Props = {
 		workspaceId: string;
@@ -54,14 +54,20 @@
 				// Old output may contain questions to the terminal (e.g. "what are you?") that
 				// were answered long ago; answering them again would type into the shell.
 				let replaying = false;
-				const unfollow = follow(workspaceId, terminal, {
-					open: () => term.reset(),
-					data(data, replay) {
-						if (!replay) return term.write(data);
-						replaying = true;
-						term.write(data, () => (replaying = false));
-					}
-				});
+				let unfollow = () => {};
+				const watch = () => {
+					if (disposed) return;
+					unfollow = followTerminal({
+						of: workspaceId,
+						terminal,
+						open: () => term.reset(),
+						data(data, replay) {
+							if (!replay) return term.write(data);
+							replaying = true;
+							term.write(data, () => (replaying = false));
+						}
+					});
+				};
 
 				// Input: one request at a time, so keystrokes can't overtake each other.
 				let pending = '';
@@ -85,7 +91,11 @@
 				// A shell starts only on request: now, if the user just opened this terminal,
 				// or later on a key press. Either way the forge needs to know our size.
 				const size = { cols: term.cols, rows: term.rows };
-				(start ? startTerminal : terminalResize)({ ...at, ...size }).catch(() => {});
+				// Its output is followed once that is said: a terminal that is about to start is not
+				// one that isn't running, and should not begin by saying so.
+				(start ? startTerminal : terminalResize)({ ...at, ...size })
+					.catch(() => {})
+					.then(watch);
 				term.onResize(({ cols, rows }) => {
 					terminalResize({ ...at, cols, rows }).catch(() => {});
 				});

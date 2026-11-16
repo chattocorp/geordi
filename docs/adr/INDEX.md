@@ -10,3 +10,4 @@
 | [ADR-006](ADR-006-upstream-forges.md)                            | Upstream forges through `forges`, from the daemon   | 2026-11-14 |
 | [ADR-007](ADR-007-detached-agent-turns.md)                       | Agent turns run detached from the daemon            | 2026-11-15 |
 | [ADR-008](ADR-008-desktop-app.md)                                | A desktop app that runs forge and daemon unchanged  | 2026-11-16 |
+| [ADR-009](ADR-009-one-websocket-per-window.md)                   | What is live on a page comes over one WebSocket     | 2026-11-16 |

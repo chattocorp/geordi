@@ -1,12 +1,7 @@
 import * as v from 'valibot';
 import { error } from '@sveltejs/kit';
 import { command, query } from '$app/server';
-import { live } from '#lib/server/events/index.ts';
 import { repos, workspaces } from '#lib/server/app.ts';
-
-export const getRepos = query.live(async function* () {
-	yield* live(() => repos().list());
-});
 
 export const getRepo = query(v.string(), (id) => repos().get(id));
 

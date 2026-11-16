@@ -28,7 +28,9 @@
 	} from '#lib/layout.ts';
 	import { JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
 	import { openMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
+	import { follow } from '#lib/live.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
+	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -38,13 +40,11 @@
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';
-	import { getRepo } from '../../../routes/repos.remote';
 	import {
 		mergePull,
 		archiveWorkspace as archiveAgent,
 		closeTerminal,
 		continueWorkspace,
-		getWorkspace,
 		approveRun,
 		openLink,
 		restoreWorktree,
@@ -63,11 +63,25 @@
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from './WorkspaceActions.svelte';
 
-	let { id }: { id: string } = $props();
+	type Props = {
+		/** The workspace as it is now: it comes live, over the page's one connection. */
+		workspace: WorkspaceLive;
+		/** Whether that is up to date: not while the connection is down. */
+		connected: boolean;
+	};
+	let { workspace, connected }: Props = $props();
+	// (never another's: the page makes a new view for each workspace)
+	// svelte-ignore state_referenced_locally
+	const id = workspace.id;
 
-	const query = $derived(getWorkspace(id));
-	const workspace = $derived(await query);
-	const repo = $derived(await getRepo(workspace.repoId));
+	// its repository, as everyone knows it; by its ID until that has come
+	const everything = follow<Navigation>('navigation');
+	const repo = $derived(
+		everything.current?.repos.find((repo) => repo.id === workspace.repoId) ?? {
+			id: workspace.repoId,
+			name: workspace.repoId
+		}
+	);
 	const running = $derived(workspace.status === 'running');
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
@@ -89,7 +103,6 @@
 
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
-	// svelte-ignore state_referenced_locally
 	const arrangement = persisted<Partial<Record<Area, Layout | null>>>(
 		`geordi:arrangement:${id}`,
 		{}
@@ -746,7 +759,7 @@
 					></span>
 					<span class="code-dense">{id.slice(0, 8)}</span>
 				</button>
-				{#if !query.connected}
+				{#if !connected}
 					<span class="flex items-center gap-1 text-danger">
 						<span class="icon-[lucide--unplug] size-3.5"></span>
 						Reconnecting

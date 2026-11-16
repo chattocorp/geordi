@@ -36,5 +36,14 @@ export const variables = defineEnvVars({
 			if (!Number.isInteger(port)) throw new Error('GEORDI_DAEMON_PORT must be an integer');
 			return port;
 		}
+	},
+	GEORDI_LIVE_PORT: {
+		description:
+			'Port where browsers connect for what is live on their pages (a WebSocket). Defaults to the port after GEORDI_DAEMON_PORT.',
+		schema: (value) => {
+			const port = Number(value || 0);
+			if (!Number.isInteger(port)) throw new Error('GEORDI_LIVE_PORT must be an integer');
+			return port;
+		}
 	}
 });

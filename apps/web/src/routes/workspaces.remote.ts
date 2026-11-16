@@ -1,10 +1,7 @@
-import { withAides } from '#lib/family.ts';
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
 import { AGENTS, CONFIG_NAME, JOB_TERMINAL, type FileVersions } from '@geordi/protocol';
-import { live } from '#lib/server/events/index.ts';
-import { UNTITLED, type WorkspaceSummary } from '#lib/server/workspaces.ts';
 import {
 	archiveWorkspace as archive,
 	concernsAboutArchiving,
@@ -18,75 +15,6 @@ import {
 } from '#lib/server/app.ts';
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
-
-export const getWorkspaces = query.live(v.string(), async function* (repoId) {
-	// without the agents that work alongside another workspace: they are part of it
-	yield* live(() =>
-		withAides(workspaces().all())
-			.map(({ workspace }) => workspace)
-			.filter((workspace) => workspace.repoId === repoId)
-	);
-});
-
-/**
- * One workspace with its conversation. `parent` is the workspace whose agent started this
- * one, if any.
- *
- * While someone has this open, a daemon watches the workspace's files, and `git` is how
- * its changes and its pull request stand: loaded here once for everyone looking, and again
- * whenever something changes. `null` until first loaded.
- * `terminals` names the workspace's terminals whose shells are running.
- */
-/** What a workspace shows of the one that started it, and of those it started. */
-const relative = ({ id, title, status }: WorkspaceSummary) => ({ id, title, status });
-
-export const getWorkspace = query.live(v.string(), async function* (id) {
-	yield* live(
-		() => {
-			const workspace = workspaces().get(id);
-			const parent = workspace.parentId ? workspaces().summary(workspace.parentId) : null;
-			// the agents working in this workspace's directory are part of it: shown in it, as
-			// conversations beside its own, and not among what it started
-			const aides = workspaces()
-				.sharing(id)
-				.filter((other) => other.id !== id && workspace.worktreeId === id);
-			return {
-				...workspace,
-				parent: parent && relative(parent),
-				// who but the person may have written in its conversation: the agents above it
-				senders: Object.fromEntries(
-					workspaces()
-						.ancestors(id)
-						.map(({ id, title }) => [id, title])
-				),
-				// Whole, with their conversations: they are shown in this workspace, and come with it
-				// in the one connection it has. (A browser has six to a server: one each would
-				// soon leave none for anything else.) One that has not been told anything yet has
-				// no name: it is a new conversation.
-				aides: aides.map((aide) => ({
-					...workspaces().get(aide.id),
-					title: aide.title === UNTITLED ? 'New conversation' : aide.title
-				})),
-				children: workspaces()
-					.children(id)
-					.filter((child) => !aides.some((aide) => aide.id === child.id))
-					.map(relative),
-				git: watchers().state(workspace.worktreeId),
-				terminals: terminals().running(id),
-				// the jobs among them that are over: their terminals are still there to be read
-				finished: terminals().finished(id)
-			};
-		},
-		(changed) => {
-			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
-			const unsubscribe = terminals().subscribe(changed);
-			return () => {
-				unwatch();
-				unsubscribe();
-			};
-		}
-	);
-});
 
 /** Chooses the model and effort a workspace's agent runs with from its next turn on. */
 export const configureWorkspace = command(

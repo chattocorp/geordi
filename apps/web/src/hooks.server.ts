@@ -1,10 +1,11 @@
 import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { GEORDI_ALLOWED_HOSTS } from '$app/env/private';
-import { hub } from '#lib/server/app.ts';
+import { hub, liveServer } from '#lib/server/app.ts';
 
-/** Start accepting daemon connections as soon as the server starts. */
+/** Start accepting daemon connections, and browsers' for what is live, as soon as the server starts. */
 export const init: ServerInit = () => {
 	hub();
+	liveServer();
 };
 
 /**

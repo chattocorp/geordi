@@ -27,16 +27,20 @@
 	import Ring from '#lib/ui/Ring.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
-	import { getNavigation } from './nav.remote';
+	import { connect, follow } from '#lib/live.svelte.ts';
+	import type { Navigation } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import { continueWorkspace, stopAgent } from './workspaces.remote';
 	import type { LayoutProps } from './$types';
 
-	let { children }: LayoutProps = $props();
+	let { children, data }: LayoutProps = $props();
 
-	const nav = getNavigation();
+	// everything live on the page comes over one connection: this is where it starts
+	// svelte-ignore state_referenced_locally
+	connect(data.live);
+	const nav = follow<Navigation>('navigation');
 
-	type Item = NonNullable<typeof nav.current>['workspaces'][number];
+	type Item = Navigation['workspaces'][number];
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
@@ -254,7 +258,7 @@
 					after the other, stand close together as a list of names.
 				-->
 				<div>
-					{#each (await nav).repos as repo, index (repo.id)}
+					{#each nav.current?.repos ?? [] as repo, index (repo.id)}
 						{@const quiet = (at: number) =>
 							!listed.get((nav.current?.repos ?? [])[at]?.id ?? '')?.length}
 						<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-0.5' : 'pt-4')]}>
