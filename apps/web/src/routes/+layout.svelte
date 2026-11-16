@@ -162,12 +162,6 @@
 	</a>
 {/snippet}
 
-<!--
-	The desktop app's window has no title bar: its top edge is what it is dragged by. Behind
-	everything (`-z-10`): on top, it would take the clicks meant for what is in that row.
--->
-<div class="fixed inset-x-0 top-0 -z-10 hidden h-14 window-drag desktop:block"></div>
-
 <div class="flex min-h-dvh">
 	{#if sidebar.current.open}
 		<aside
@@ -179,7 +173,7 @@
 				its left, so the logo makes way and the toggle moves up beside them.
 			-->
 			<div
-				class="flex h-14 shrink-0 items-center gap-1 border-b border-line pr-2.5 pl-4 desktop:pl-22"
+				class="flex h-14 shrink-0 items-center gap-1 border-b border-line pr-2.5 pl-4 window-drag desktop:pl-22"
 			>
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>

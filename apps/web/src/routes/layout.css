@@ -204,13 +204,19 @@
 
 /* The full height of the window under the bar that narrow screens have at the top (`h-14`). */
 /*
- * What the desktop app's window is dragged by, in place of a title bar. It takes the mouse
- * for itself, so everything one can use is exempt wherever it happens to be.
+ * What the desktop app's window is dragged by, in place of a title bar: the bars at the top
+ * themselves. A draggable region takes the mouse for itself, so what can be used inside one
+ * is exempt.
+ *
+ * Only inside one, though: the regions are worked out from where elements are, not from
+ * what of them shows. A button far down a scrolled conversation still has its place on the
+ * page, which may be right under the bar, and exempting it there would punch a hole into
+ * the bar that moves as one scrolls.
  */
 @utility window-drag {
 	-webkit-app-region: drag;
 }
-[data-desktop]
+.window-drag
 	:is(
 		a,
 		button,
@@ -222,7 +228,9 @@
 		[role='tab'],
 		[role='separator'],
 		[tabindex]
-	) {
+	),
+/* what opens on top of the page may lie over a bar, and is all for using */
+:is(dialog, [popover]) {
 	-webkit-app-region: no-drag;
 }
 
