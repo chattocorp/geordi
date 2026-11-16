@@ -26,3 +26,24 @@ export function byRepository<T extends Member>(all: T[]): Map<string, Listed<T>[
 	for (const workspace of all) if (!follows(workspace)) list(workspace);
 	return repos;
 }
+
+/**
+ * An agent that works in another workspace's directory (a reviewer, say) is no piece of
+ * work of its own: it belongs to that workspace, and is shown in it. This sorts the
+ * workspaces in use into those that stand for themselves, each with the agents working
+ * alongside it (oldest first, given newest first). One whose workspace is no longer
+ * around stands for itself.
+ */
+export function withAides<T extends { id: string; worktreeId: string }>(
+	all: T[]
+): { workspace: T; aides: T[] }[] {
+	const ids = new Set(all.map((workspace) => workspace.id));
+	const alongside = (workspace: T) =>
+		workspace.worktreeId !== workspace.id && ids.has(workspace.worktreeId);
+	return all
+		.filter((workspace) => !alongside(workspace))
+		.map((workspace) => ({
+			workspace,
+			aides: all.filter((other) => alongside(other) && other.worktreeId === workspace.id).reverse()
+		}));
+}

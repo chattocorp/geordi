@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import {
 		actionsFor,
@@ -37,6 +39,7 @@
 	import { getRepo } from '../../../routes/repos.remote';
 	import {
 		mergePull,
+		archiveWorkspace as archiveAgent,
 		closeTerminal,
 		continueWorkspace,
 		getWorkspace,
@@ -48,6 +51,7 @@
 		stopJob
 	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
+	import AgentConversation from './AgentConversation.svelte';
 	import Changes from './Changes.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
@@ -74,6 +78,9 @@
 	type Area = 'main' | 'side' | 'dock';
 	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
 	const terminalOf = (tab: string) => (tab.startsWith('terminal:') ? tab.slice(9) : undefined);
+	/** An agent working alongside this workspace's own (`agent:<its workspace's ID>`). */
+	const aideOf = (tab: string) =>
+		tab.startsWith('agent:') ? workspace.aides.find((aide) => aide.id === tab.slice(6)) : undefined;
 
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
@@ -106,6 +113,7 @@
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
 		if (tab === CHANGESET) return !!workspace.git?.release;
+		if (tab.startsWith('agent:')) return !!aideOf(tab);
 		return tab === CHAT || tab === CHANGES || !!pathOf(tab);
 	};
 	/** The three areas' windows: as they were arranged, and what is new where it belongs. */
@@ -125,6 +133,10 @@
 		// the conversation in the main area, what the workspace has done beside it, terminals
 		// (opened in another browser, say) in the dock.
 		if (!placed.includes(CHAT)) main = add(main, CHAT);
+		// the agents working alongside: conversations too, next to the workspace's own
+		const beside = groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id;
+		for (const aide of workspace.aides)
+			if (!placed.includes(`agent:${aide.id}`)) main = add(main, `agent:${aide.id}`, beside);
 		for (const tab of [CHANGES, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
 		for (const name of workspace.terminals)
@@ -268,6 +280,12 @@
 		const remaining = Object.values(after).flatMap(tabsOf);
 		for (const tab of everywhere()) {
 			const terminal = terminalOf(tab);
+			const aide = aideOf(tab);
+			// an agent whose conversation is closed is done here: archived, its conversation kept
+			if (aide && !remaining.includes(tab))
+				archiveAgent({ workspaceId: aide.id, confirmed: true }).catch(
+					(error) => (mergeProblem = problemOf(error, 'Could not close the conversation'))
+				);
 			if (terminal && !remaining.includes(tab)) {
 				starting.delete(terminal);
 				const job = jobOf(terminal);
@@ -290,10 +308,24 @@
 	};
 	/** The conversation stays where it is, and what a workspace always has can't be closed. */
 	const movable = (tab: string) => tab !== CHAT;
-	const closable = (tab: string) => tab !== CHAT && tab !== CHANGES && tab !== CHANGESET;
+	const closable = (tab: string) =>
+		tab !== CHAT &&
+		tab !== CHANGES &&
+		tab !== CHANGESET &&
+		// not from under an agent at work
+		aideOf(tab)?.status !== 'running';
 
 	/** Opens a file's diff, next to the conversation. */
 	const openDiff = (path: string) => arrange({ main: open(main, `diff:${path}`, chatGroup) });
+
+	// A link to an agent working alongside leads here, to its conversation (`?agent=`).
+	$effect(() => {
+		const tab = `agent:${page.url.searchParams.get('agent')}`;
+		untrack(() => {
+			const at = aideOf(tab) && areaOf(tab);
+			if (at) arrange({ [at]: open(layouts[at], tab) });
+		});
+	});
 
 	/** The group the conversation is in: where diffs open. */
 	const chatGroup = $derived(groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id);
@@ -509,6 +541,11 @@
 			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 			<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
 		{/if}
+	{:else if aideOf(tab)}
+		{@const aide = aideOf(tab)!}
+		<AgentAvatar agent={aide.agent} bare />
+		<span class="max-w-48 truncate" title={aide.title}>{aide.title}</span>
+		{#if aide.status === 'running'}<Spinner />{/if}
 	{:else}
 		<!-- a tab like the others: a small mark and a name -->
 		<AgentAvatar agent={workspace.agent} bare />
@@ -542,6 +579,8 @@
 		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 	{:else if terminal}
 		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
+	{:else if aideOf(tab)}
+		<AgentConversation id={aideOf(tab)!.id} />
 	{:else}
 		<Conversation {workspace} />
 	{/if}
@@ -591,7 +630,7 @@
 			pull={standingState?.upstream?.pull}
 			{actions}
 			{pending}
-			working={running}
+			working={running || workspace.aides.some((aide) => aide.status === 'running')}
 			checking={!workspace.archivedAt && !!workspace.worktree && (!git || git.checking)}
 			onaction={act}
 		/>

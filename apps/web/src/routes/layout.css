@@ -379,6 +379,48 @@
 }
 
 /*
+ * Someone is at work behind this: a soft light goes slowly round its edge. Only the edge:
+ * drawn as a ring around it, a pixel wide, that takes its corners. A still, faint ring
+ * when the user prefers reduced motion.
+ */
+@property --edge-turn {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 0deg;
+}
+@utility edge-live {
+	@apply relative;
+
+	&::before {
+		content: '';
+		@apply pointer-events-none absolute -inset-px;
+		border-radius: inherit;
+		padding: 1px;
+		background: conic-gradient(
+			from var(--edge-turn),
+			transparent 0 55%,
+			color-mix(in srgb, var(--accent) 80%, transparent) 80%,
+			transparent 100%
+		);
+		/* everything but the edge is cut out */
+		mask:
+			linear-gradient(black, black) content-box exclude,
+			linear-gradient(black, black);
+		animation: edge-turn 5s linear infinite;
+
+		@media (prefers-reduced-motion: reduce) {
+			background: color-mix(in srgb, var(--accent) 35%, transparent);
+			animation: none;
+		}
+	}
+}
+@keyframes edge-turn {
+	to {
+		--edge-turn: 360deg;
+	}
+}
+
+/*
  * Something still running, as part of a bar (checks): a light passes over it. Still when
  * the user prefers reduced motion.
  */

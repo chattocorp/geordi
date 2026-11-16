@@ -38,7 +38,7 @@
 	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
 	const working = (workspace: Item): boolean =>
-		workspace.status === 'running' ||
+		workspace.working ||
 		(nav.current?.workspaces ?? []).some(
 			(other) => other.parentId === workspace.id && working(other)
 		);
@@ -324,7 +324,8 @@
 			>
 				{#if leaving}
 					<Spinner label="Archiving" />
-				{:else if workspace.status === 'running'}
+				{:else if workspace.working}
+					<!-- its agent, or one working alongside it -->
 					<Spinner />
 				{:else}
 					<span class="dot"></span>

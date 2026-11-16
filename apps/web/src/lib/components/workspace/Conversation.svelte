@@ -162,6 +162,7 @@
 			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
 				<Composer
 					{form}
+					live={running}
 					rows={2}
 					placeholder={running
 						? 'Steer the agent, or queue a message'

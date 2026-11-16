@@ -1,30 +1,41 @@
 import { query } from '$app/server';
+import { withAides } from '#lib/family.ts';
 import { live } from '#lib/server/events/index.ts';
 import { repos, workspaces } from '#lib/server/app.ts';
 
-/** Everything the sidebar shows: repositories, and all workspaces (newest first). */
+/**
+ * Everything the sidebar shows: repositories, and the workspaces that stand for themselves
+ * (newest first). An agent working in another workspace's directory is part of that one:
+ * it makes it `working`, and what it started counts as started there.
+ */
 export const getNavigation = query.live(async function* () {
 	yield* live(() => {
 		const all = workspaces().all();
+		const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
+		const listed = withAides(all).map(({ workspace, aides }) => {
+			const { id, title, repoId, parentId, status, worktree } = workspace;
+			return {
+				id,
+				title,
+				repoId,
+				parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
+				status,
+				working: status === 'running' || aides.some((aide) => aide.status === 'running'),
+				branch: worktree?.branch ?? null
+			};
+		});
 		return {
 			repos: repos()
 				.list()
 				.map((repo) => {
-					const own = all.filter((workspace) => workspace.repoId === repo.id);
+					const own = listed.filter((workspace) => workspace.repoId === repo.id);
 					return {
 						...repo,
 						workspaceCount: own.length,
-						working: own.filter((workspace) => workspace.status === 'running').length
+						working: own.filter((workspace) => workspace.working).length
 					};
 				}),
-			workspaces: all.map(({ id, title, repoId, parentId, status, worktree }) => ({
-				id,
-				title,
-				repoId,
-				parentId,
-				status,
-				branch: worktree?.branch ?? null
-			}))
+			workspaces: listed
 		};
 	});
 });

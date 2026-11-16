@@ -73,7 +73,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     `apps/web/src/lib/server/`, wired together in `app.ts`.
   - A **workspace** (FDR-001) is one conversation with one agent, in a worktree on its own
     branch. There are no sessions: a second agent is a second workspace, which may work in
-    another's worktree (`worktreeId`). The daemon derives a worktree from that ID
+    another's worktree (`worktreeId`): such an agent is shown in that workspace, as a
+    conversation tab (`agent:<id>`), and not in the sidebar (`withAides` in `#lib/family.ts`). The daemon derives a worktree from that ID
     (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
   - Turns are numbered. A daemon says which turn its events are of, and the forge drops
     what is not of the workspace's current turn: a daemon may report late, or twice.
@@ -172,7 +173,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
     in a browser. Add or update stories with every UI change.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
   the primary action and things that are live. The only ambient motion is for things at
-  work: the `.visor` sweep and the Braille `Spinner` for agents, and `bar-running` for checks still running. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
+  work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` for checks still running, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).

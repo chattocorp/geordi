@@ -1,3 +1,4 @@
+import { withAides } from '#lib/family.ts';
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
@@ -25,7 +26,12 @@ import {
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 
 export const getWorkspaces = query.live(v.string(), async function* (repoId) {
-	yield* live(() => workspaces().list(repoId));
+	// without the agents that work alongside another workspace: they are part of it
+	yield* live(() =>
+		withAides(workspaces().all())
+			.map(({ workspace }) => workspace)
+			.filter((workspace) => workspace.repoId === repoId)
+	);
 });
 
 /**
@@ -45,10 +51,19 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 		() => {
 			const workspace = workspaces().get(id);
 			const parent = workspace.parentId ? workspaces().summary(workspace.parentId) : null;
+			// the agents working in this workspace's directory are part of it: shown in it, as
+			// conversations beside its own, and not among what it started
+			const aides = workspaces()
+				.sharing(id)
+				.filter((other) => other.id !== id && workspace.worktreeId === id);
 			return {
 				...workspace,
 				parent: parent && relative(parent),
-				children: workspaces().children(id).map(relative),
+				aides: aides.map(({ id, title, status, agent }) => ({ id, title, status, agent })),
+				children: workspaces()
+					.children(id)
+					.filter((child) => !aides.some((aide) => aide.id === child.id))
+					.map(relative),
 				git: watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id)
 			};

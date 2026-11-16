@@ -37,6 +37,23 @@
 	</div>
 </Story>
 
+<Story name="While the agent works" asChild>
+	<div class="max-w-2xl">
+		<Composer {form} live rows={2} placeholder="Steer the agent, or queue a message">
+			{#snippet footer()}
+				<p class="pl-1 text-xs text-muted">Enter to send, Shift+Enter for a new line</p>
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
 <Story name="Busy, with a problem" asChild>
 	<div class="max-w-2xl">
 		<Composer

@@ -4,6 +4,8 @@
 	import { submitOnEnter } from '#lib/keys.ts';
 
 	type Props = {
+		/** Whoever this is written to is at work: a light goes round its edge. */
+		live?: boolean;
 		/** Attributes for the form: a remote form (`{...createThing}`), or `{ onsubmit }`. */
 		form: HTMLFormAttributes;
 		/** A visible label above the text. Without one, the placeholder names the field. */
@@ -34,7 +36,8 @@
 		onkeydown = submitOnEnter,
 		problems = [],
 		header,
-		footer
+		footer,
+		live = false
 	}: Props = $props();
 
 	const id = $props.id();
@@ -61,7 +64,7 @@
 </script>
 
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
-<form {...form} class="card-float pt-2 focus-within:ring-accent/60">
+<form {...form} class={['card-float pt-2 focus-within:ring-accent/60', live && 'edge-live']}>
 	{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
 	{@render header?.()}
 	{#if field}

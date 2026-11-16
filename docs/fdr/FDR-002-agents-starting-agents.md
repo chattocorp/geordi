@@ -18,6 +18,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - Work from a child with its own worktree comes back by the parent merging the child's branch. Geordi does not merge on its own.
 - The sidebar lists every repository, and under each its workspaces, as a plain list. A workspace started by an agent is marked as such and comes right after the one that started it; pointing at it lights that one up.
 - A workspace's page says who started whom, under its title: the workspace whose agent started it (and whether it works in that one's directory), and the workspaces its own agent started, each with its status and a link. Its changes are measured against the parent's branch.
+- An agent working in another workspace's directory is shown in that workspace, not beside it: as a conversation of its own next to the workspace's (a tab with its name, which turns while it works), and not in the sidebar or among the workspaces started. The workspace shows as working while any of its agents is. A link to such an agent leads to its conversation there. Closing the tab of one that is not working archives it. Once the workspace it worked in is archived, it stands for itself.
 - People can open, message and stop any child like any other workspace.
 - Limits on nesting depth and on the number of children running at once stop runaway delegation; hitting one is reported to the calling agent as an error it can act on.
 - Archiving a workspace archives the workspaces its agent started along with it: they are part of the same piece of work.

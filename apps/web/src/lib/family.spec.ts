@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byRepository } from './family.ts';
+import { byRepository, withAides } from './family.ts';
 
 const workspace = (id: string, repoId: string, parentId: string | null = null) => ({
 	id,
@@ -42,5 +42,21 @@ describe('byRepository', () => {
 		expect(ids(repos.get('two'))).toEqual(['abroad', 'orphan']);
 		expect(repos.get('two')?.[0].parent?.id).toBe('parent');
 		expect(repos.get('two')?.[1].parent).toBeNull();
+	});
+});
+
+describe('withAides', () => {
+	const at = (id: string, worktreeId = id) => ({ id, worktreeId });
+
+	it('gives each workspace the agents working in its directory, oldest first', () => {
+		const sorted = withAides([at('second', 'work'), at('other'), at('first', 'work'), at('work')]);
+		expect(sorted.map(({ workspace }) => workspace.id)).toEqual(['other', 'work']);
+		expect(sorted[1].aides.map((aide) => aide.id)).toEqual(['first', 'second']);
+		expect(sorted[0].aides).toEqual([]);
+	});
+
+	it('lets an agent stand for itself once the workspace it worked in is gone', () => {
+		const sorted = withAides([at('left', 'archived')]);
+		expect(sorted.map(({ workspace }) => workspace.id)).toEqual(['left']);
 	});
 });
