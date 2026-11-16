@@ -532,17 +532,8 @@
 					: 'Alt+'}B)"
 				onclick={toggleSide}
 			/>
-			<!-- Always possible, not only once it is the obvious next step. -->
 			{#if leaving}
 				<Badge><Spinner label="Archiving" /> Archiving…</Badge>
-			{:else if !actions.some((action) => action.id === 'archive')}
-				<Button
-					variant="ghost"
-					icon="icon-[lucide--archive]"
-					label="Archive workspace"
-					disabled={running}
-					onclick={() => archive()}
-				/>
 			{/if}
 		{/if}
 	</TitleBar>

@@ -29,8 +29,11 @@ const UPSTREAM_INTERVAL_MS = 60_000;
 export function createWatchers(
 	dispatch: Dispatch,
 	ref: (worktreeId: string) => WorktreeRef,
-	/** Asks a daemon for a worktree's state. Never rejects. */
-	load: (worktreeId: string) => Promise<WorktreeState>
+	/**
+	 * Asks a daemon for a worktree's state. Never rejects. `fresh`: also for how things stand
+	 * upstream as of now, not as of the last time someone asked.
+	 */
+	load: (worktreeId: string, fresh: boolean) => Promise<WorktreeState>
 ) {
 	type Watched = { viewers: Set<() => void>; state: WatchedState | null; loads: number };
 	const watched = new Map<string, Watched>();
@@ -51,11 +54,11 @@ export function createWatchers(
 	}
 
 	/** Loads a worktree's state afresh and tells its viewers. The latest load wins. */
-	function refresh(worktreeId: string) {
+	function refresh(worktreeId: string, fresh = false) {
 		const entry = watched.get(worktreeId);
 		if (!entry) return;
 		const load_ = ++entry.loads;
-		load(worktreeId).then((state) => {
+		load(worktreeId, fresh).then((state) => {
 			if (watched.get(worktreeId) !== entry || entry.loads !== load_) return;
 			entry.state = { ...state, version: load_ };
 			for (const viewer of entry.viewers) viewer();
@@ -66,7 +69,10 @@ export function createWatchers(
 	let timer: NodeJS.Timeout | undefined;
 	function keepUpstreamFresh() {
 		if (watched.size > 0 && !timer)
-			timer = setInterval(() => [...watched.keys()].forEach(refresh), UPSTREAM_INTERVAL_MS).unref();
+			timer = setInterval(
+				() => [...watched.keys()].forEach((id) => refresh(id, true)),
+				UPSTREAM_INTERVAL_MS
+			).unref();
 		if (watched.size === 0 && timer) timer = void clearInterval(timer);
 	}
 
@@ -99,13 +105,17 @@ export function createWatchers(
 		/** The worktree's state as last loaded; `null` if nobody is looking, or not loaded yet. */
 		state: (worktreeId: string): WatchedState | null => watched.get(worktreeId)?.state ?? null,
 
-		/** A daemon reports that a worktree's files or Git state changed. */
-		changed: refresh,
+		/**
+		 * Something about a worktree changed: its files or Git state, as a daemon reports.
+		 * `fresh` where it may have been something upstream, which nothing here shows: an
+		 * agent has just finished a turn, in which it may have opened a pull request.
+		 */
+		changed: (worktreeId: string, fresh = false) => refresh(worktreeId, fresh),
 
 		/** A daemon (re)connected: it watches nothing until told, and what we know may be stale. */
 		resync() {
 			sync();
-			[...watched.keys()].forEach(refresh);
+			[...watched.keys()].forEach((id) => refresh(id));
 		}
 	};
 }

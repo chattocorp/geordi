@@ -82,7 +82,8 @@
 
 <div class="relative flex min-h-0 flex-1 flex-col">
 	{#if running}
-		<div class="visor absolute inset-x-0 top-0 z-10" role="status" aria-label="Working"></div>
+		<!-- on the line under the tabs, not below it -->
+		<div class="visor absolute inset-x-0 -top-px z-10" role="status" aria-label="Working"></div>
 	{/if}
 
 	<div bind:this={scroller} onscroll={atBottom} class="scroller">

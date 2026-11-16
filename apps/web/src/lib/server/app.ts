@@ -48,7 +48,7 @@ export const terminals = lazy(() =>
 const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** Asks a daemon how a worktree's files and branch stand. Never rejects. */
-async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
+async function loadWorktreeState(worktreeId: string, fresh = false): Promise<WorktreeState> {
 	const state: WorktreeState = {
 		changes: null,
 		unavailable: null,
@@ -65,7 +65,7 @@ async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
 
 	const [changes, upstream, config] = await Promise.allSettled([
 		hub().request({ kind: 'changes', ...ref }),
-		hub().request({ kind: 'upstream', ...ref }),
+		hub().request({ kind: 'upstream', fresh, ...ref }),
 		hub().request({ kind: 'config', ...ref })
 	]);
 	if (config.status === 'fulfilled') state.config = config.value;
@@ -90,6 +90,15 @@ async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
 		};
 	}
 	return state;
+}
+
+/** Has a workspace's worktree looked at afresh, including how it stands upstream. */
+function upstreamMayHaveChanged(workspaceId: string) {
+	try {
+		watchers().changed(workspaces().ref(workspaceId).worktreeId, true);
+	} catch {
+		// no such workspace (any more): nobody to tell
+	}
 }
 
 /** The jobs repositories have run for their workspaces (FDR-006). */
@@ -117,9 +126,13 @@ export const hub = lazy(() =>
 			watchers().resync();
 		},
 		onMessage: (message) => {
-			if (message.type === 'workspace.event')
+			if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.turn);
-			else if (message.type === 'terminal.output')
+				// At the end of a turn, how things stand upstream may be different: agents push,
+				// open pull requests, answer reviews. None of that shows in the worktree.
+				if (message.event.kind === 'turn.completed' || message.event.kind === 'turn.failed')
+					upstreamMayHaveChanged(message.workspaceId);
+			} else if (message.type === 'terminal.output')
 				terminals().output(message.terminalId, message.data, message.offset);
 			else if (message.type === 'terminal.exit') terminals().exit(message.terminalId);
 			else if (message.type === 'worktree.changed') watchers().changed(message.worktreeId);

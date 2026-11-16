@@ -16,15 +16,16 @@ const stateWith = (uncommitted: number): WorktreeState => ({
 function setup() {
 	const sent: ForgeMessage[] = [];
 	/** What the daemon would say about each worktree, and how often it was asked. */
-	const daemon = { uncommitted: 0, asked: [] as string[] };
+	const daemon = { uncommitted: 0, asked: [] as string[], fresh: [] as boolean[] };
 	const watchers = createWatchers(
 		(message) => (sent.push(message), true),
 		(worktreeId) => {
 			if (worktreeId === 'missing') throw new Error('Workspace missing not found');
 			return { worktreeId, repoPath: '/repo' };
 		},
-		async (worktreeId) => {
+		async (worktreeId, fresh) => {
 			daemon.asked.push(worktreeId);
+			daemon.fresh.push(fresh);
 			return stateWith(daemon.uncommitted);
 		}
 	);
@@ -77,6 +78,16 @@ describe('watchers', () => {
 		// each look at a worktree is told apart from the one before, as the cue to load diffs again
 		expect(watchers.state('a')!.version).toBeGreaterThan(watchers.state('b')!.version);
 		expect(seen).toEqual(['a1', 'a2', 'b', 'a1', 'a2']);
+	});
+
+	it('asks how things stand upstream as of now when something may have happened there', async () => {
+		const { watchers, daemon } = setup();
+		watchers.watch('a', () => {});
+		await settled();
+		watchers.changed('a'); // files changed: what was learnt a moment ago will do
+		watchers.changed('a', true); // an agent finished a turn: it may have opened a pull request
+		await settled();
+		expect(daemon.fresh).toEqual([false, false, true]);
 	});
 
 	it('forgets a worktree nobody is looking at any more', async () => {

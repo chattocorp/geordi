@@ -21,6 +21,8 @@ import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** How long an answer is reused. The forge's API is rate-limited, far more so without a token. */
 const FRESH_MS = 60_000;
+/** How fresh an answer has to be for someone who asked to look now. */
+const FRESH_WHEN_ASKED_MS = 5_000;
 const FRESH_ANONYMOUS_MS = 5 * 60_000;
 /** How many of a repository's most recently updated pull requests are gone through for the branch. */
 const SEARCH_LIMIT = 100;
@@ -214,7 +216,7 @@ const cache = new Map<string, Cached>();
  */
 export async function upstream(
 	worktree: Worktree,
-	{ repoPath, worktreeId }: { repoPath: string; worktreeId: string },
+	{ repoPath, worktreeId, fresh: asked }: { repoPath: string; worktreeId: string; fresh?: boolean },
 	now = Date.now()
 ): Promise<Upstream | null> {
 	const found = locate(worktree, repoPath);
@@ -237,7 +239,11 @@ export async function upstream(
 	// Pushing, or switching branches, changes the answer at once; otherwise reuse it for a while.
 	const key = `${remote} ${branch}`;
 	const cached = cache.get(worktreeId);
-	const fresh = provider === anonymous ? FRESH_ANONYMOUS_MS : FRESH_MS;
+	// Asked to look now (something may just have happened there that nothing here shows: a
+	// pull request opened, a review), we do, unless we only just did. Not without
+	// credentials: those few requests are for looking now and then.
+	const fresh =
+		provider === anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : FRESH_MS;
 	if (cached?.key === key && now - cached.at < fresh) return cached.value;
 
 	const pull = await findPull(provider, repo, branch);

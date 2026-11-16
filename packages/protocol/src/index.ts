@@ -265,7 +265,11 @@ export type DaemonRequest =
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
 	/** The workspace's branch on the repository's upstream forge. */
-	| ({ kind: 'upstream' } & WorktreeRef)
+	| ({
+			kind: 'upstream';
+			/** Ask the forge now, rather than answer from what was learnt a moment ago. */
+			fresh?: boolean;
+	  } & WorktreeRef)
 	/**
 	 * Merges the pull request for the workspace's branch on the upstream forge. Refused
 	 * unless it is open and at the very commit the workspace has checked out.
