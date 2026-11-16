@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { createWriteStream, mkdirSync } from 'node:fs';
+import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, Menu, shell, utilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, Menu, screen, shell, utilityProcess } from 'electron';
 
 /**
  * Geordi as a desktop app (ADR-008): a window onto a forge and a daemon that this process
@@ -134,11 +134,34 @@ function stopDaemon({ agents = false } = {}) {
 
 // --- Window and menu -------------------------------------------------------------------------
 
+/** Where the window was when it was last closed, and whether it filled the screen. */
+const placeFile = join(app.getPath('userData'), 'window.json');
+
+/** The window's last place, if it is still on a screen that is there. */
+function lastPlace() {
+	try {
+		const { x, y, width, height, fullscreen } = JSON.parse(readFileSync(placeFile, 'utf8'));
+		if (![x, y, width, height].every(Number.isFinite)) return {};
+		// a screen that has since been unplugged would leave the window out of reach
+		const visible = screen.getAllDisplays().some(({ workArea: area }) => {
+			const across = Math.min(x + width, area.x + area.width) - Math.max(x, area.x);
+			const down = Math.min(y + height, area.y + area.height) - Math.max(y, area.y);
+			return across >= 100 && down >= 100;
+		});
+		return visible ? { x, y, width, height, fullscreen: fullscreen === true } : {};
+	} catch {
+		return {}; // never placed before
+	}
+}
+
 function open() {
+	// the first window goes where it was; any further one where the system puts it
+	const place = BrowserWindow.getAllWindows().length === 0 ? lastPlace() : {};
 	const window = new BrowserWindow({
 		width: 1440,
 		height: 900,
-		minWidth: 720,
+		...place,
+		minWidth: 840, // the sidebar, a conversation and the changes beside it, each at its least
 		minHeight: 480,
 		title: 'Geordi',
 		// No title bar: the window's buttons sit in the sidebar's top row, which the web app
@@ -146,6 +169,14 @@ function open() {
 		titleBarStyle: 'hiddenInset',
 		trafficLightPosition: { x: 14, y: 21 },
 		backgroundColor: '#2c2f3b'
+	});
+	window.on('close', () => {
+		try {
+			const place = { ...window.getNormalBounds(), fullscreen: window.isFullScreen() };
+			writeFileSync(placeFile, JSON.stringify(place));
+		} catch (error) {
+			note(`could not remember the window's place: ${error}`);
+		}
 	});
 	const { webContents } = window;
 	// Geordi's own pages get a window; everything else belongs in the browser.
