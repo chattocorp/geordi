@@ -230,10 +230,6 @@
 	{/if}
 {/snippet}
 
-{#snippet empty()}
-	Open a terminal with +, or drag a window here.
-{/snippet}
-
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
 	<TitleBar class="border-b border-line">
 		<div class="min-w-0 flex-1">
@@ -382,7 +378,6 @@
 							onchange={(next) => arrange({ dock: next })}
 							{tab}
 							{window}
-							{empty}
 							accepts={(tab) => tab !== CHAT}
 							onreceive={receive('dock')}
 							newTab={workspace.archivedAt ? undefined : newTerminal}

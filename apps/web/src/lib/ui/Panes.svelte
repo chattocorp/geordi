@@ -22,7 +22,7 @@
 		onreceive?: (tab: string, groupId: string, zone: Zone) => void;
 		/** Label of the "+" button. */
 		newLabel?: string;
-		/** Shown in a group without tabs. */
+		/** Shown in a group without tabs. Without it, such a group is simply empty. */
 		empty?: Snippet;
 	};
 	let {
@@ -174,7 +174,7 @@
 					</div>
 				{:else}
 					<div class="grid h-full place-items-center text-sm text-muted">
-						{#if empty}{@render empty()}{:else}Nothing open here.{/if}
+						{@render empty?.()}
 					</div>
 				{/each}
 				{#if droppable && target?.group === n.id}

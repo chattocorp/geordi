@@ -168,8 +168,11 @@
 	</a>
 {/snippet}
 
-<!-- The desktop app's window has no title bar: its top edge is what it is dragged by. -->
-<div class="fixed inset-x-0 top-0 hidden h-14 window-drag desktop:block"></div>
+<!--
+	The desktop app's window has no title bar: its top edge is what it is dragged by. Behind
+	everything (`-z-10`): on top, it would take the clicks meant for what is in that row.
+-->
+<div class="fixed inset-x-0 top-0 -z-10 hidden h-14 window-drag desktop:block"></div>
 
 <div class="flex min-h-dvh">
 	{#if sidebar.current.open}
