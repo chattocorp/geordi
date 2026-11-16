@@ -15,7 +15,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 - With a `run` command, the bar of the workspace's dock (where its terminals are) has a **Run** button at its end, which says what it would run. It opens a terminal tab called "Run" in the dock that runs the command, in the user's shell, in the workspace's directory. While it runs, the button is **Stop**, which ends the command and closes the tab; closing the tab does the same.
 - When the command ends by itself, the tab says with what status and stays until Enter is pressed, so that what it printed can be read.
 - What runs is exactly the command the person pressing Run saw. If the file says something else by then, nothing runs, and the terminal says to press Run again.
-- A command that is not the one on the branch the workspace started from is shown in full and has to be agreed to before it runs, once per command and browser. Commands that are on that branch run without asking.
+- A command is shown in full and has to be agreed to before it first runs: once per command and repository. The daemon remembers what was agreed to and runs no run command without it. A changed command is a new one.
 - A workspace's file that can't be made sense of shows a quiet warning in the same place, with the reason. It does not fall back to the main branch's file.
 
 ## Design Decisions
@@ -40,9 +40,9 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 
 ### 4. The agent can't make the person run something unseen
 
-**Decision:** The run request carries the command as the person saw it, and the daemon runs it only if the file still says exactly that. A command that only the workspace has needs the person's agreement first.
-**Why:** The file is the agent's to write, at any moment, and the command runs as the person, in their own shell. An agent in a sandbox must not get out of it through a button, nor swap the command between the look and the click.
-**Tradeoff:** Trying out a changed command costs one more click, once.
+**Decision:** The run request carries the command as the person saw it, and the daemon runs it only if the file still says exactly that and a person has agreed to that command for that repository. What was agreed to is kept by the daemon, in a file of its own (`~/.geordi/run-approvals.json`).
+**Why:** The file is the agent's to write, at any moment, and the command runs as the person, in their own shell. An agent in a sandbox must not get out of it through a button, nor swap the command between the look and the click. Nothing in the repository can vouch for a command either: its branches, too, are the agent's to move. Only the person's word counts, kept where no agent's sandbox can write.
+**Tradeoff:** The first Run in a repository, and the first after every change to the command, costs one more click, also for commands that came in through a reviewed pull request.
 
 ### 5. Run is a terminal
 

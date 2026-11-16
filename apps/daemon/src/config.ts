@@ -35,32 +35,38 @@ export function parseConfig(text: string): RepoSettings {
  * A file that can't be made sense of says so (`problem`) rather than making way for the
  * other one: whoever is working on it should hear about it.
  */
-export function configOf(worktree: Worktree, repoPath: string): RepoConfig {
-	const none: RepoConfig = { ...nothing(), problem: null, source: null, runReviewed: false };
+export function configOf(
+	worktree: Worktree,
+	repoPath: string,
+	/** Whether a person has agreed to run this command in this repository. */
+	approved: (command: string) => boolean = () => false
+): RepoConfig {
+	const none: RepoConfig = { ...nothing(), problem: null, source: null, runApproved: false };
+	const found = (settings: RepoSettings, source: RepoConfig['source']): RepoConfig => ({
+		...settings,
+		problem: null,
+		source,
+		runApproved: settings.run !== null && approved(settings.run)
+	});
 
-	// what the branch work starts from says, if it says anything we understand
-	let base: RepoSettings | null = null;
-	try {
-		base = parseConfig(
-			execFileSync(
+	if (!lstatSync(join(worktree.path, CONFIG_FILE), { throwIfNoEntry: false })) {
+		try {
+			const text = execFileSync(
 				'git',
 				['-C', repoPath, 'cat-file', 'blob', `${startOf(repoPath)}:${CONFIG_FILE}`],
 				{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-			)
-		);
-	} catch {
-		// not there, or not to be made sense of
+			);
+			return found(parseConfig(text), 'base');
+		} catch {
+			return none; // not there either, or not to be made sense of: nothing to go by
+		}
 	}
-
-	if (!lstatSync(join(worktree.path, CONFIG_FILE), { throwIfNoEntry: false }))
-		return base ? { ...base, problem: null, source: 'base', runReviewed: true } : none;
 
 	const text = readText(worktree, CONFIG_FILE);
 	if (text === null)
 		return { ...none, source: 'workspace', problem: `${CONFIG_FILE} can't be read` };
 	try {
-		const own = parseConfig(text);
-		return { ...own, problem: null, source: 'workspace', runReviewed: own.run === base?.run };
+		return found(parseConfig(text), 'workspace');
 	} catch (error) {
 		const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
 		return { ...none, source: 'workspace', problem: `${CONFIG_FILE}: ${reason}` };

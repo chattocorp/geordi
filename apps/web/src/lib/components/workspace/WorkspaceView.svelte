@@ -39,6 +39,7 @@
 		mergePull,
 		closeTerminal,
 		getWorkspace,
+		approveRun,
 		restoreWorktree,
 		say
 	} from '../../../routes/workspaces.remote';
@@ -119,19 +120,23 @@
 	const runs = $derived(workspace.terminals.includes(RUN_TERMINAL) || starting.has(RUN_TERMINAL));
 	/** The run command as it stood when Run was pressed: what the terminal is started with. */
 	let runWith = $state<string>();
-	// A command that is not on the branch work starts from may have been written by the
-	// agent a moment ago, and runs as the user, outside any sandbox the agent is in: it is
-	// shown, and agreed to, before it runs here. Once per command, remembered in this browser.
-	// svelte-ignore state_referenced_locally
-	const agreed = persisted<string[]>(`geordi:run-agreed:${id}`, []);
+	// The command is in a file the agent can write, and runs as the user, outside any
+	// sandbox the agent is in. So it is shown, and agreed to, before it first runs: once per
+	// command and repository. The daemon keeps what was agreed to, and runs nothing else.
 	let asking = $state<string | null>(null);
 
-	function run(command = runCommand, sure = false) {
+	async function run(command = runCommand, sure = false) {
 		if (!command) return;
-		const reviewed = workspace.git?.config?.runReviewed || agreed.current.includes(command);
-		if (!reviewed && !sure) return void (asking = command);
-		if (sure) agreed.current = [...agreed.current, command];
+		if (!workspace.git?.config?.runApproved && !sure) return void (asking = command);
 		asking = null;
+		if (sure) {
+			mergeProblem = null;
+			try {
+				await approveRun({ workspaceId: id, command });
+			} catch (error) {
+				return void (mergeProblem = problemOf(error, 'Could not run the command'));
+			}
+		}
 		runWith = command;
 		starting.add(RUN_TERMINAL);
 		// in the dock, in front, and with the dock in view
@@ -506,9 +511,9 @@
 		<pre
 			class="rounded-control bg-sunken p-3 code-dense break-all whitespace-pre-wrap">{asking}</pre>
 		<p class="text-sm text-muted">
-			It is in this workspace's <span class="code-dense">.geordi.toml</span> and not on the branch the
-			workspace started from, so it may have been written by the agent. It runs in your own shell, with
-			everything you are allowed to do.
+			This is the run command in the repository's <span class="code-dense">.geordi.toml</span>, a
+			file the agent can change. It runs in your own shell, with everything you are allowed to do.
+			You are asked once per command and repository.
 		</p>
 		<div class="flex justify-end gap-2">
 			<Button onclick={() => (asking = null)}>Cancel</Button>

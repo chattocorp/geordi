@@ -125,7 +125,7 @@ const tools = {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets, and what is wrong with it if anything. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
-			const { source, problem, runReviewed, ...settings } = await agents.configuration(caller);
+			const { source, problem, runApproved, ...settings } = await agents.configuration(caller);
 			return {
 				applies:
 					source === 'workspace'
@@ -136,8 +136,8 @@ const tools = {
 				problem,
 				settings,
 				...(settings.run &&
-					!runReviewed && {
-						note: 'The run command differs from the one on the branch work starts from. The person is asked to agree to it before it runs here; it applies without asking once it is merged.'
+					!runApproved && {
+						note: 'Nobody has agreed to this run command yet. The person is shown it and asked before it first runs; you cannot agree on their behalf.'
 					})
 			};
 		}

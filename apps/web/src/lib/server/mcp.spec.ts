@@ -22,7 +22,7 @@ function setup() {
 	});
 
 	const config: { current: RepoConfig } = {
-		current: { run: 'pnpm dev', problem: null, source: 'workspace', runReviewed: true }
+		current: { run: 'pnpm dev', problem: null, source: 'workspace', runApproved: true }
 	};
 	/** Archiving needs a daemon in real life; here it just happens, and is noted. */
 	const archived: string[] = [];
@@ -83,14 +83,14 @@ describe('configuring the repository', () => {
 			run: null,
 			problem: '.geordi.toml: invalid value',
 			source: 'workspace',
-			runReviewed: false
+			runApproved: false
 		};
 		expect(await call('check_configuration')).toMatchObject({
 			problem: '.geordi.toml: invalid value',
 			settings: { run: null }
 		});
 
-		config.current = { run: null, problem: null, source: null, runReviewed: false };
+		config.current = { run: null, problem: null, source: null, runApproved: false };
 		expect((await call('check_configuration')).applies).toMatch(/^none/);
 	});
 });

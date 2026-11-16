@@ -13,6 +13,7 @@ import {
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
+import { createApprovals } from './approvals.ts';
 import { status, versions } from './changes.ts';
 import { configOf } from './config.ts';
 import {
@@ -73,8 +74,13 @@ function readToken(): string | null {
 	}
 }
 
-/** What a run terminal runs when the run command is no longer the one that was asked for. */
-const RUN_CHANGED = `echo 'The run command in ${CONFIG_FILE} is not the one you asked for: it has changed. Press Run to see and run what it says now.'; exit 1`;
+/** The run commands people have agreed to run (FDR-006), kept where no agent's sandbox can write. */
+const approvals = createApprovals(
+	process.env.GEORDI_RUN_APPROVALS_FILE || join(homedir(), '.geordi', 'run-approvals.json')
+);
+
+/** What a run terminal runs when the run command is not one that was seen and agreed to. */
+const RUN_CHANGED = `echo 'The run command in ${CONFIG_FILE} is not the one you agreed to run: it has changed. Press Run to see and run what it says now.'; exit 1`;
 
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
 const watches = createWatches(
@@ -210,6 +216,11 @@ async function answer(request: DaemonRequest) {
 		removeWorktree(worktreesDir, request.repoPath, request.worktreeId, request.force);
 		return null;
 	}
+	if (request.kind === 'approveRun') {
+		approvals.add(request.repoPath, request.command);
+		sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId }); // it shows as agreed to
+		return null;
+	}
 	if (request.kind === 'restoreWorktree') {
 		const { repoPath, worktreeId, base } = request;
 		ensureWorktree(worktreesDir, repoPath, worktreeId, base);
@@ -223,7 +234,9 @@ async function answer(request: DaemonRequest) {
 		case 'changes':
 			return status(worktree, request);
 		case 'config':
-			return configOf(worktree, request.repoPath);
+			return configOf(worktree, request.repoPath, (command) =>
+				approvals.has(request.repoPath, command)
+			);
 		case 'diff':
 			return versions(worktree, request, request.path);
 		case 'upstream':
@@ -323,14 +336,17 @@ async function handle(message: ForgeMessage) {
 			try {
 				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
-				// Only what the person asking saw: the file is the agent's to change, also in the
-				// moment between their looking at the command and their asking for it. Otherwise
-				// the terminal says so, in words of ours, and nothing of the file's runs.
+				// Only what the person asking saw, and has agreed to run (FDR-006): the file is the
+				// agent's to change, also in the moment between their looking at the command and
+				// their asking for it. Otherwise the terminal says so, in words of ours, and
+				// nothing of the file's runs.
 				const asked = message.run;
 				const command =
 					asked === undefined
 						? undefined
-						: asked && configOf(worktree, message.repoPath).run === asked
+						: asked &&
+							  configOf(worktree, message.repoPath).run === asked &&
+							  approvals.has(message.repoPath, asked)
 							? asked
 							: RUN_CHANGED;
 				openTerminal(terminalId, worktree.path, { ...message, command }, guard, output, exit);

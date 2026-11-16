@@ -137,6 +137,22 @@ export const mergePull = command(v.string(), async (workspaceId) => {
 	watchers().changed(ref.worktreeId);
 });
 
+/**
+ * The person has seen the repository's run command and agrees to run it (FDR-006). The
+ * daemon keeps that, and runs no run command without it.
+ */
+export const approveRun = command(
+	v.object({ workspaceId: v.string(), command: v.pipe(v.string(), v.nonEmpty()) }),
+	async ({ workspaceId, command }) => {
+		const ref = workspaces().ref(workspaceId);
+		try {
+			await hub().request({ kind: 'approveRun', command, ...ref });
+		} catch (cause) {
+			error(502, `Could not note that: ${cause instanceof Error ? cause.message : String(cause)}`);
+		}
+	}
+);
+
 /** Brings back a workspace's worktree that was removed outside Geordi, from its branch. */
 export const restoreWorktree = command(v.string(), async (workspaceId) => {
 	const ref = workspaces().ref(workspaceId);
