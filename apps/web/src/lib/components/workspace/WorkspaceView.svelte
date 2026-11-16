@@ -517,6 +517,7 @@
 			{actions}
 			{pending}
 			working={running}
+			checking={!workspace.archivedAt && !!workspace.worktree && (!git || git.checking)}
 			onaction={act}
 		/>
 		{#if workspace.archivedAt}

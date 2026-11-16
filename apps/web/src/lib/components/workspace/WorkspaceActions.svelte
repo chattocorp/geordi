@@ -14,9 +14,22 @@
 		pending?: WorkspaceAction['id'][];
 		/** Whether the agent is at work right now. */
 		working?: boolean;
+		/**
+		 * How it stands is being found out right now (or again): what was known may no longer
+		 * be so, and is not shown, nor offered to act on, until it is.
+		 */
+		checking?: boolean;
 		onaction(action: WorkspaceAction): void;
 	};
-	let { standing, pull = null, actions, pending = [], working = false, onaction }: Props = $props();
+	let {
+		standing,
+		pull = null,
+		actions,
+		pending = [],
+		working = false,
+		checking = false,
+		onaction
+	}: Props = $props();
 
 	const tones = {
 		ok: 'bg-ok/12 text-ok',
@@ -32,7 +45,15 @@
 	whole thing, and the first action is the next step. An agent at work says so at its
 	head; an idle one says nothing.
 -->
-{#if standing || actions.length > 0 || working}
+{#if checking && !working}
+	<div
+		role="status"
+		class={['inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3', tones.neutral]}
+	>
+		<Spinner plain label="Checking" />
+		<span class="text-sm font-medium whitespace-nowrap">Checking</span>
+	</div>
+{:else if standing || actions.length > 0 || working}
 	<div
 		role="group"
 		aria-label="Next steps"

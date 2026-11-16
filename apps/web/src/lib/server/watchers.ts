@@ -15,7 +15,15 @@ export type WorktreeState = {
 };
 
 /** A worktree's state, and which look at it this is: it changes whenever the files may have. */
-export type WatchedState = WorktreeState & { version: number };
+export type WatchedState = WorktreeState & {
+	version: number;
+	/**
+	 * Being looked at again right now, because what it says may be out of date in a way
+	 * that matters: an agent has just finished a turn, and may have pushed or opened a
+	 * pull request. (Not for every look: files change all the time while an agent works.)
+	 */
+	checking: boolean;
+};
 
 /** How often what happens on upstream forges (checks, reviews) is asked for again. */
 const UPSTREAM_INTERVAL_MS = 60_000;
@@ -54,13 +62,17 @@ export function createWatchers(
 	}
 
 	/** Loads a worktree's state afresh and tells its viewers. The latest load wins. */
-	function refresh(worktreeId: string, fresh = false) {
+	function refresh(worktreeId: string, fresh = false, announce = false) {
 		const entry = watched.get(worktreeId);
 		if (!entry) return;
+		if (announce && entry.state && !entry.state.checking) {
+			entry.state = { ...entry.state, checking: true };
+			for (const viewer of entry.viewers) viewer();
+		}
 		const load_ = ++entry.loads;
 		load(worktreeId, fresh).then((state) => {
 			if (watched.get(worktreeId) !== entry || entry.loads !== load_) return;
-			entry.state = { ...state, version: load_ };
+			entry.state = { ...state, version: load_, checking: false };
 			for (const viewer of entry.viewers) viewer();
 		});
 	}
@@ -110,7 +122,7 @@ export function createWatchers(
 		 * `fresh` where it may have been something upstream, which nothing here shows: an
 		 * agent has just finished a turn, in which it may have opened a pull request.
 		 */
-		changed: (worktreeId: string, fresh = false) => refresh(worktreeId, fresh),
+		changed: (worktreeId: string, fresh = false) => refresh(worktreeId, fresh, fresh),
 
 		/** A daemon (re)connected: it watches nothing until told, and what we know may be stale. */
 		resync() {

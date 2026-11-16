@@ -87,3 +87,7 @@
 <Story name="Agent at work on failing checks" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'], true)}
 </Story>
+
+<Story name="Finding out how it stands" asChild>
+	<WorkspaceActions standing={null} actions={[]} checking {onaction} />
+</Story>
