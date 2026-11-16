@@ -117,12 +117,12 @@ export const standings = lazy(() => {
 					.map((workspace) => workspace.worktreeId)
 			)
 		],
-		async load(worktreeId) {
+		async load(worktreeId, fresh) {
 			const ref = workspaces().ref(worktreeId);
 			const [changes, upstream] = await Promise.all([
 				hub().request({ kind: 'changes', ...ref }),
 				hub()
-					.request({ kind: 'upstream', ...ref })
+					.request({ kind: 'upstream', fresh, ...ref })
 					.catch(() => null)
 			]);
 			return { changes, upstream };
@@ -176,16 +176,29 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 	watchers().changed(workspace.worktreeId, true);
 }
 
-/** Has a workspace's worktree looked at afresh, including how it stands upstream. */
+/**
+ * How long after a turn's end its workspace is looked at once more. A forge does not always
+ * have what was just done there (a pull request opened a second ago) when it is first asked.
+ */
+const UPSTREAM_SETTLES_MS = 10_000;
+
+/**
+ * Has a workspace's worktree looked at afresh, including how it stands upstream as of now:
+ * at once, and again a little later.
+ */
 function upstreamMayHaveChanged(workspaceId: string) {
-	try {
-		const { worktreeId } = workspaces().ref(workspaceId);
-		watchers().changed(worktreeId, true);
-		// nobody looking at it: the sidebar still shows how it stands
-		if (!watchers().state(worktreeId)) void standings().refresh(worktreeId);
-	} catch {
-		// no such workspace (any more): nobody to tell
-	}
+	const look = () => {
+		try {
+			const { worktreeId } = workspaces().ref(workspaceId);
+			watchers().changed(worktreeId, true);
+			// nobody looking at it: the sidebar still shows how it stands
+			if (!watchers().state(worktreeId)) void standings().refresh(worktreeId, true);
+		} catch {
+			// no such workspace (any more): nobody to tell
+		}
+	};
+	look();
+	setTimeout(look, UPSTREAM_SETTLES_MS).unref();
 }
 
 /** The jobs repositories have run for their workspaces (FDR-006). */

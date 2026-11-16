@@ -12,8 +12,8 @@ function setup(ids: string[]) {
 	const state = { now: 0, asked: [] as string[], pending: false, fails: false };
 	const standings = createStandings({
 		worktrees: () => ids,
-		load: async (id) => {
-			state.asked.push(id);
+		load: async (id, fresh) => {
+			state.asked.push(fresh ? `${id}!` : id);
 			if (state.fails) throw new Error('no daemon');
 			return standing(state.pending);
 		},
@@ -78,6 +78,13 @@ describe('standings', () => {
 		expect(standings.get('a')).toEqual(standing(true));
 		await standings.tick();
 		expect(state.asked).toHaveLength(1); // not asked over and over
+	});
+
+	it('asks as of now when something just happened there', async () => {
+		const { standings, state } = setup(['a']);
+		await standings.tick();
+		await standings.refresh('a', true); // an agent's turn ended
+		expect(state.asked).toEqual(['a', 'a!']);
 	});
 
 	it('forgets worktrees that are no longer in use', async () => {

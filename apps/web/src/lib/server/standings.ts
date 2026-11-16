@@ -23,8 +23,11 @@ const AT_ONCE = 3;
 export function createStandings(options: {
 	/** The worktrees in use. */
 	worktrees: () => string[];
-	/** Asks a daemon how a worktree stands. Rejects if none can say. */
-	load: (worktreeId: string) => Promise<Standing>;
+	/**
+	 * Asks a daemon how a worktree stands. Rejects if none can say. `fresh`: as of now, not
+	 * from what was learnt a moment ago.
+	 */
+	load: (worktreeId: string, fresh: boolean) => Promise<Standing>;
 	now?: () => number;
 }) {
 	const { worktrees, load, now = Date.now } = options;
@@ -37,11 +40,12 @@ export function createStandings(options: {
 		for (const listener of listeners) listener();
 	}
 
-	async function refresh(worktreeId: string) {
-		if (loading.has(worktreeId)) return;
+	async function refresh(worktreeId: string, fresh = false) {
+		// (one that asks as of now is not put off by one that doesn't)
+		if (loading.has(worktreeId) && !fresh) return;
 		loading.add(worktreeId);
 		try {
-			note(worktreeId, await load(worktreeId));
+			note(worktreeId, await load(worktreeId, fresh));
 		} catch {
 			// nobody could say: what was known stands, and is asked about again in its turn
 			const before = known.get(worktreeId);
@@ -76,7 +80,7 @@ export function createStandings(options: {
 				.sort((a, b) => a.at - b.at)
 				.slice(0, AT_ONCE)
 				.map(({ id }) => id);
-			await Promise.all([...unknown, ...stale].map(refresh));
+			await Promise.all([...unknown, ...stale].map((id) => refresh(id)));
 		},
 
 		/** Calls `listener` whenever something more is known. Returns how to stop that. */

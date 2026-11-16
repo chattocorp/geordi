@@ -21,8 +21,12 @@ import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** How long an answer is reused. The forge's API is rate-limited, far more so without a token. */
 const FRESH_MS = 60_000;
-/** How fresh an answer has to be for someone who asked to look now. */
-const FRESH_WHEN_ASKED_MS = 5_000;
+/**
+ * How fresh an answer has to be for someone who asked to look now: all but this moment's.
+ * (Longer, and what an agent did just before its turn ended is missed: it pushes, which has
+ * us look, opens the pull request a few seconds later, and is done.)
+ */
+const FRESH_WHEN_ASKED_MS = 1_000;
 const FRESH_ANONYMOUS_MS = 5 * 60_000;
 /** How many of a repository's most recently updated pull requests are gone through for the branch. */
 const SEARCH_LIMIT = 100;
