@@ -221,7 +221,7 @@
 			<div class="border-t border-line p-2.5">
 				<button
 					type="button"
-					class="item w-full gap-2.5 px-2.5 py-1.5"
+					class="item w-full gap-2.5 px-2.5 py-1.5 text-base"
 					onclick={() => openSettings()}
 				>
 					<span class="icon-[lucide--settings] size-4 shrink-0"></span>
@@ -270,7 +270,7 @@
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
 			class={[
-				'group item pr-1',
+				'group item pr-1 text-base',
 				current && 'item-active',
 				pointedAt === workspace.id && 'bg-surface/60 text-ink'
 			]}
@@ -312,7 +312,7 @@
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- callers pass resolve()d hrefs -->
 	<a
 		{href}
-		class={['item gap-2.5 px-2.5 py-1.5', current && 'item-active font-medium']}
+		class={['item gap-2.5 px-2.5 py-1.5 text-base', current && 'item-active font-medium']}
 		aria-current={current ? 'page' : undefined}
 	>
 		<span class={['size-4 shrink-0', icon]}></span>

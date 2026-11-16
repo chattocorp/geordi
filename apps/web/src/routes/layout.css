@@ -81,8 +81,8 @@
 	 * Type. One family for text and one for code, and four sizes. Hierarchy comes from
 	 * weight and colour, not from more sizes:
 	 *   xs    captions, counts, dense code (diffs, terminals, tool output)
-	 *   sm    chrome: navigation, tabs, lists, buttons, inline code
-	 *   base  reading and writing
+	 *   sm    controls (tabs, buttons, menus), and code among text
+	 *   base  what is read and written: conversations, and the lists that lead to them
 	 *   2xl   page titles
 	 */
 	--font-sans: 'IBM Plex Sans Variable', ui-sans-serif, system-ui, sans-serif;
@@ -96,7 +96,7 @@
 	--text-xs--line-height: 1.5;
 	--text-sm: 0.9375rem;
 	--text-sm--line-height: 1.5;
-	--text-base: 1.0625rem;
+	--text-base: 1rem;
 	--text-base--line-height: 1.6;
 	--text-2xl: 1.625rem;
 	--text-2xl--line-height: 1.25;
@@ -298,11 +298,9 @@
 	:where(h1, h2, h3, h4) {
 		font-size: 1em;
 	}
-	:where(code) {
+	/* code, in a sentence or in a block, is a size smaller than the text around it */
+	:where(code, pre, pre code) {
 		font-size: var(--text-sm);
-	}
-	:where(pre, pre code) {
-		font-size: var(--text-xs);
 	}
 
 	--tw-prose-body: var(--ink);
@@ -321,9 +319,14 @@
 	--tw-prose-th-borders: var(--line);
 	--tw-prose-td-borders: var(--line);
 
-	/* Code in a sentence: a chip that stands out from the page in both modes, also across a line break. */
+	/*
+	 * Code in a sentence: set apart by its typeface, a faint tint and a quieter colour. No
+	 * outline and hardly any padding, so that a line with several of them still reads as a line.
+	 */
 	:where(code):not(:where(pre *)) {
-		@apply rounded-control bg-surface box-decoration-clone px-1.5 py-0.5 font-normal ring-1 ring-line;
+		@apply rounded-control bg-line/60 box-decoration-clone px-1.5 py-px font-normal text-ink/80;
+		/* An experiment: half a pixel under the code size (14.5px). Off the type scale on purpose. */
+		font-size: 0.90625rem;
 	}
 	:where(code):not(:where(pre *))::before,
 	:where(code):not(:where(pre *))::after {

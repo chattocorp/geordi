@@ -20,7 +20,7 @@
 	};
 </script>
 
-<div class="prose max-w-none prose-pre:rounded-control prose-pre:text-sm" {@attach copyButtons}>
+<div class="prose max-w-none prose-pre:rounded-control" {@attach copyButtons}>
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it escapes raw HTML -->
 	{@html html}
 </div>
