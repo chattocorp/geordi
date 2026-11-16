@@ -48,7 +48,8 @@
 			following = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
 	};
 	$effect(() => {
-		void blocks;
+		// what is said, and what waits to be said, both make the conversation longer
+		void [blocks, workspace.queue.length, workspace.steering.length];
 		if (untrack(() => following)) toLatest();
 	});
 </script>
@@ -115,7 +116,8 @@
 			</Button>
 		{/if}
 		{#if !workspace.archivedAt}
-			<div class="px-5 pb-4">
+			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
+			<div class="px-5 pb-4" onsubmit={toLatest}>
 				<Composer
 					{form}
 					rows={2}
