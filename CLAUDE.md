@@ -45,8 +45,12 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 - **Geordi is opinionated.** One good, fixed way of doing something beats a configurable
   one. Don't add freedom (movable panels, options, modes) unless it earns its place; when
   in doubt, decide for the user.
+- **A calm, readable UI comes first.** The priority in everything people see is a calm
+  interface that is easy to read, with great typography and great UX/UI. When a change
+  makes the screen busier, harder to read or rougher to use, it is the wrong change, however
+  useful what it adds; find the quiet way to do it, or leave it out.
 - **Keep the UI calm.** Four font sizes only (`text-xs` 13px, `text-sm` 15px, `text-base`
-  17px, `text-2xl` for page titles; defined in `layout.css`), three radii, one accent.
+  16px, `text-2xl` for page titles; defined in `layout.css`), three radii, one accent.
   Never arbitrary sizes. Hierarchy comes from weight and colour.
 - **Interactive elements have a pointer cursor.** `layout.css` gives it to links, buttons,
   tabs, summaries and labels of inputs; anything else made clickable needs `cursor-pointer`
@@ -112,6 +116,11 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   no title bar: every page starts with a `TitleBar`, which in the app (`desktop:` variant) makes
   room for the window's buttons and is what the window is dragged by (`window-drag`). The
   layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
+- **Repository configuration (FDR-006).** A repository's `.geordi.toml` says how it wants to
+  be treated; for now, its `run` command, which gives workspaces a Run/Stop button. The daemon
+  reads it (`config.ts`: the workspace's file, else the one on the branch work starts from)
+  and reports it with the worktree's state; the command runs in the terminal named
+  `RUN_TERMINAL`. Add a setting by adding it to `RepoConfig` and `parseConfig`.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees

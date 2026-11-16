@@ -1,5 +1,5 @@
-import { json } from '@sveltejs/kit';
-import { archiveWorkspace, workspaces } from '#lib/server/app.ts';
+import { error, json } from '@sveltejs/kit';
+import { archiveWorkspace, hub, workspaces } from '#lib/server/app.ts';
 import { handleMcp } from '#lib/server/mcp.ts';
 import type { RequestHandler } from './$types';
 
@@ -21,7 +21,12 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const agents = {
 		...workspaces().agents,
-		archive: (actor: string, id: string) => archiveWorkspace(id, false, actor)
+		archive: (actor: string, id: string) => archiveWorkspace(id, false, actor),
+		configuration: (id: string) =>
+			hub()
+				.request({ kind: 'config', ...workspaces().ref(id) })
+				// no daemon, or no worktree: something the agent can be told
+				.catch((cause) => error(502, cause instanceof Error ? cause.message : String(cause)))
 	};
 	const answer = await handleMcp(agents, caller, message);
 	return answer ? json(answer) : new Response(null, { status: 202 });

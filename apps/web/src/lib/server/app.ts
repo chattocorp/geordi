@@ -47,7 +47,13 @@ const reason = (error: unknown) => (error instanceof Error ? error.message : Str
 
 /** Asks a daemon how a worktree's files and branch stand. Never rejects. */
 async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
-	const state: WorktreeState = { changes: null, unavailable: null, missing: false, upstream: null };
+	const state: WorktreeState = {
+		changes: null,
+		unavailable: null,
+		missing: false,
+		upstream: null,
+		config: null
+	};
 	let ref;
 	try {
 		ref = workspaces().ref(worktreeId);
@@ -55,10 +61,12 @@ async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
 		return { ...state, unavailable: reason(error) };
 	}
 
-	const [changes, upstream] = await Promise.allSettled([
+	const [changes, upstream, config] = await Promise.allSettled([
 		hub().request({ kind: 'changes', ...ref }),
-		hub().request({ kind: 'upstream', ...ref })
+		hub().request({ kind: 'upstream', ...ref }),
+		hub().request({ kind: 'config', ...ref })
 	]);
+	if (config.status === 'fulfilled') state.config = config.value;
 	if (changes.status === 'fulfilled') state.changes = changes.value;
 	else {
 		state.unavailable = reason(changes.reason);

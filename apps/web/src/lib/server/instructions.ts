@@ -1,3 +1,5 @@
+import { CONFIG_FILE } from '@geordi/protocol';
+
 /**
  * What an agent is told about where it is, on top of what its CLI tells it: that it works
  * in Geordi, what that means for its work, and how to hand work to other agents (FDR-002).
@@ -25,6 +27,7 @@ export function instructionsFor(workspace: {
 
 		workspace.mayDelegate
 			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. Prefer it to your own built-in subagents for anything more than a quick lookup.'
-			: 'You cannot start further agents from here.'
+			: 'You cannot start further agents from here.',
+		`The repository can tell Geordi how it wants to be treated (how the project is run, for one) in a \`${CONFIG_FILE}\` at its top level. Before creating or changing that file, call the \`geordi\` MCP server's \`configuration_reference\` tool; afterwards, \`check_configuration\`.`
 	].join('\n\n');
 }

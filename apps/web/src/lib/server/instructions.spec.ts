@@ -9,6 +9,7 @@ describe('instructionsFor', () => {
 		expect(text).toContain('inside Geordi');
 		expect(text).toContain('a branch of its own');
 		expect(text).toContain('`start_agent`');
+		expect(text).toContain('`configuration_reference`');
 		expect(text).not.toContain('started by the agent');
 	});
 

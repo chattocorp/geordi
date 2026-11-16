@@ -67,6 +67,13 @@ pnpm desktop:install   # builds Geordi.app, puts it into /Applications and opens
 
 The app uses ports 7717 and 7718 and logs to `~/Library/Logs/Geordi/geordi.log`.
 
+A repository can say how it is run, in a `.geordi.toml` at its top level; its workspaces
+then get a button that starts and stops that command in a terminal:
+
+```toml
+run = "pnpm dev"
+```
+
 > **Geordi has no authentication yet.** Anyone who can reach the forge can run agents on
 > your machine, so it only listens on 127.0.0.1 and only answers to localhost hostnames.
 

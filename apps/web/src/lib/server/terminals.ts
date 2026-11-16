@@ -1,4 +1,9 @@
-import type { DaemonResults, TerminalSize, WorktreeRef } from '@geordi/protocol';
+import {
+	RUN_TERMINAL,
+	type DaemonResults,
+	type TerminalSize,
+	type WorktreeRef
+} from '@geordi/protocol';
 import type { Dispatch } from './workspaces.ts';
 
 type Terminal = {
@@ -71,7 +76,9 @@ export function createTerminals(
 			type: 'terminal.open',
 			terminalId,
 			...ref(at.workspaceId),
-			...terminal.size
+			...terminal.size,
+			// the one terminal that runs the repository's `run` command (FDR-006)
+			...(at.terminal === RUN_TERMINAL && { run: true })
 		});
 		if (terminal.running) changed();
 		else tell(terminal, 'No daemon connected. Press any key to retry.');

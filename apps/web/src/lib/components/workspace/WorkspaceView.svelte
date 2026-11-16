@@ -23,6 +23,7 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
+	import { RUN_TERMINAL } from '@geordi/protocol';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -109,6 +110,20 @@
 				prune(arrangement.current.dock ?? singleGroup([], { id: 'dock' }), kept)
 			);
 	});
+
+	// The repository's run command (FDR-006) gets a terminal of its own, which runs it
+	// instead of a shell. Running it is starting that terminal; stopping it, closing it.
+	const RUN_TAB = `terminal:${RUN_TERMINAL}`;
+	const runCommand = $derived(workspace.archivedAt ? null : (workspace.git?.config?.run ?? null));
+	const runs = $derived(workspace.terminals.includes(RUN_TERMINAL) || starting.has(RUN_TERMINAL));
+	function run() {
+		starting.add(RUN_TERMINAL);
+		// in the dock, in front, and with the dock in view
+		const elsewhere = tabsOf(main).includes(RUN_TAB);
+		if (!elsewhere) arrange({ dock: open(dock, RUN_TAB) });
+		if (!frame.current.open) toggleSide();
+	}
+	const stopRun = () => arrange({ main: close(main, RUN_TAB), dock: close(dock, RUN_TAB) });
 
 	function newTerminal() {
 		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
@@ -239,11 +254,19 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
 	{:else if terminalOf(tab)}
-		{@const terminals = [...tabsOf(main), ...tabsOf(dock)].filter(terminalOf).sort()}
-		<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
-		<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
+		{#if tab === RUN_TAB}
+			<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
+			<span class="truncate">Run</span>
+		{:else}
+			{@const terminals = [...tabsOf(main), ...tabsOf(dock)]
+				.filter((other) => terminalOf(other) && other !== RUN_TAB)
+				.sort()}
+			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
+			<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
+		{/if}
 	{:else}
-		<AgentAvatar agent={workspace.agent} size="sm" />
+		<!-- a tab like the others: a small mark and a name -->
+		<AgentAvatar agent={workspace.agent} bare />
 		<span class="truncate">Conversation</span>
 		{#if running}<Spinner />{/if}
 	{/if}
@@ -308,6 +331,25 @@
 			{pending}
 			onaction={act}
 		/>
+		{#if runs}
+			<Button
+				icon="icon-[lucide--square]"
+				label="Stop what the run command started"
+				onclick={stopRun}
+			>
+				Stop
+			</Button>
+		{:else if runCommand}
+			<Button icon="icon-[lucide--play]" label="Run: {runCommand}" onclick={run}>Run</Button>
+		{:else if git?.config?.problem}
+			<!-- a configuration nobody can read is worth knowing about, quietly -->
+			<span
+				class="icon-[lucide--triangle-alert] size-4 shrink-0 text-muted"
+				role="img"
+				aria-label={git.config.problem}
+				title={git.config.problem}
+			></span>
+		{/if}
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
 		{:else}

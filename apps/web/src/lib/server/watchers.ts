@@ -1,4 +1,4 @@
-import type { Changes, Upstream, WorktreeRef } from '@geordi/protocol';
+import type { Changes, RepoConfig, Upstream, WorktreeRef } from '@geordi/protocol';
 import type { Dispatch } from './workspaces.ts';
 
 /** What a worktree's files and branch look like right now, as far as a daemon could tell. */
@@ -10,6 +10,8 @@ export type WorktreeState = {
 	missing: boolean;
 	/** The branch on the forge the repository is hosted on; `null` if there is none we know. */
 	upstream: Upstream | null;
+	/** What the repository's `.geordi.toml` says for this worktree; `null` if the daemon couldn't say. */
+	config: RepoConfig | null;
 };
 
 /** A worktree's state, and which look at it this is: it changes whenever the files may have. */

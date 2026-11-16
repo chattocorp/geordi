@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { CONFIG_SETTINGS, type RepoConfig } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { handleMcp } from './mcp.ts';
@@ -20,6 +21,9 @@ function setup() {
 		prompt: 'Lead'
 	});
 
+	const config: { current: RepoConfig } = {
+		current: { run: 'pnpm dev', problem: null, source: 'workspace' }
+	};
 	/** Archiving needs a daemon in real life; here it just happens, and is noted. */
 	const archived: string[] = [];
 	const agents = {
@@ -27,7 +31,9 @@ function setup() {
 		archive: async (actor: string, id: string) => {
 			workspaces.archive(id, actor);
 			archived.push(id);
-		}
+		},
+		/** What a daemon would read; set per test. */
+		configuration: async () => config.current
 	};
 
 	let next = 0;
@@ -46,8 +52,43 @@ function setup() {
 		};
 		return isError ? { error: content[0].text } : JSON.parse(content[0].text);
 	};
-	return { workspaces, agents, archived, caller, rpc, call };
+	/** Calls a tool whose result is text to read. */
+	const read = async (name: string) =>
+		((await rpc('tools/call', { name, arguments: {} })).result as { content: { text: string }[] })
+			.content[0].text;
+	return { workspaces, agents, archived, caller, rpc, call, read, config };
 }
+
+describe('configuring the repository', () => {
+	it('explains every setting there is, as plain text', async () => {
+		const { read } = setup();
+		const reference = await read('configuration_reference');
+		expect(reference).toContain('# .geordi.toml');
+		for (const [key, { example }] of Object.entries(CONFIG_SETTINGS)) {
+			expect(reference).toContain(`\`${key}\``);
+			expect(reference).toContain(example);
+		}
+		expect(reference).toContain('check_configuration');
+	});
+
+	it('says which file applies, what it sets, and what is wrong with it', async () => {
+		const { call, config } = setup();
+		expect(await call('check_configuration')).toEqual({
+			applies: 'the .geordi.toml in your working directory',
+			problem: null,
+			settings: { run: 'pnpm dev' }
+		});
+
+		config.current = { run: null, problem: '.geordi.toml: invalid value', source: 'workspace' };
+		expect(await call('check_configuration')).toMatchObject({
+			problem: '.geordi.toml: invalid value',
+			settings: { run: null }
+		});
+
+		config.current = { run: null, problem: null, source: null };
+		expect((await call('check_configuration')).applies).toMatch(/^none/);
+	});
+});
 
 describe('the agent API as an MCP server', () => {
 	it('introduces itself and lists its tools with JSON schemas', async () => {
@@ -68,6 +109,8 @@ describe('the agent API as an MCP server', () => {
 			'list_agents',
 			'send_message',
 			'archive_agent',
+			'configuration_reference',
+			'check_configuration',
 			'stop_agent'
 		]);
 		expect(tools[0].inputSchema).toMatchObject({

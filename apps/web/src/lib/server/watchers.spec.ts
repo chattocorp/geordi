@@ -9,6 +9,7 @@ const stateWith = (uncommitted: number): WorktreeState => ({
 	changes: { files: [], uncommitted, unpushed: null },
 	unavailable: null,
 	missing: false,
+	config: null,
 	upstream: null
 });
 

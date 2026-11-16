@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -133,6 +133,37 @@ export type Upstream = {
 	pull: PullRequest | null;
 };
 
+/**
+ * What a repository's `.geordi.toml` says, as it applies to one workspace: that of the
+ * workspace if it has one, otherwise that of the branch work starts from.
+ */
+export type RepoConfig = RepoSettings & {
+	/** What is wrong with the file, if it can't be made sense of. */
+	problem: string | null;
+	/** Which file this is from: the workspace's own, or the one on the branch work starts from. */
+	source: 'workspace' | 'base' | null;
+};
+
+/** A repository says how Geordi should treat it in this file, at its top level. */
+export const CONFIG_FILE = '.geordi.toml';
+
+/**
+ * The settings a `.geordi.toml` can have. The one definition of them: the daemon accepts
+ * exactly these (each a command, as a string), and agents are told exactly this.
+ */
+export const CONFIG_SETTINGS = {
+	run: {
+		does: "The command that runs the project for someone to look at: its development server, say. Workspaces of the repository get a Run button that starts it in a terminal, in the workspace's directory, and stops it again. It should keep running until stopped.",
+		example: 'run = "pnpm dev"'
+	}
+} as const;
+
+/** What the settings come to: each one's value, or `null` where the file doesn't name it. */
+export type RepoSettings = Record<keyof typeof CONFIG_SETTINGS, string | null>;
+
+/** The name of the one terminal that runs the repository's `run` command instead of a shell. */
+export const RUN_TERMINAL = 'run';
+
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
 export type DaemonRequest =
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
@@ -144,6 +175,8 @@ export type DaemonRequest =
 	| ({ kind: 'removeWorktree'; force: boolean } & WorktreeRef)
 	/** Brings back a worktree that was removed behind Geordi's back, from its branch. */
 	| ({ kind: 'restoreWorktree' } & WorktreeRef)
+	/** What the repository's configuration says for this workspace. */
+	| ({ kind: 'config' } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
 	/** The workspace's branch on the repository's upstream forge. */
@@ -162,6 +195,7 @@ export type DaemonResults = {
 	changes: Changes;
 	removeWorktree: null;
 	restoreWorktree: null;
+	config: RepoConfig;
 	title: string;
 	diff: FileVersions;
 	/** `null` if the repository has no remote on a forge we know. */
@@ -221,8 +255,11 @@ export type ForgeMessage =
 	 * files and reports changes, and stops watching any that are no longer listed.
 	 */
 	| { type: 'watch'; worktrees: WorktreeRef[] }
-	/** Starts a shell in the workspace's directory. A workspace can have several terminals. */
-	| ({ type: 'terminal.open'; terminalId: string } & WorktreeRef & TerminalSize)
+	/**
+	 * Starts a shell in the workspace's directory. A workspace can have several terminals.
+	 * With `run`, it runs the repository's `run` command (as the daemon reads it then) instead.
+	 */
+	| ({ type: 'terminal.open'; terminalId: string; run?: boolean } & WorktreeRef & TerminalSize)
 	| { type: 'terminal.input'; terminalId: string; data: string }
 	| ({ type: 'terminal.resize'; terminalId: string } & TerminalSize)
 	/** Ends the shell. */

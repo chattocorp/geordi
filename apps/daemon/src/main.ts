@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import {
+	CONFIG_FILE,
 	AGENTS,
 	PROTOCOL_VERSION,
 	type DaemonMessage,
@@ -13,6 +14,7 @@ import {
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { status, versions } from './changes.ts';
+import { configOf } from './config.ts';
 import {
 	closeTerminal,
 	closeTerminals,
@@ -217,6 +219,8 @@ async function answer(request: DaemonRequest) {
 	switch (request.kind) {
 		case 'changes':
 			return status(worktree, request);
+		case 'config':
+			return configOf(worktree, request.repoPath);
 		case 'diff':
 			return versions(worktree, request, request.path);
 		case 'upstream':
@@ -316,7 +320,10 @@ async function handle(message: ForgeMessage) {
 			try {
 				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
-				openTerminal(terminalId, worktree.path, message, guard, output, exit);
+				// read now, not when the button appeared: what runs is what the file says
+				const command = (message.run && configOf(worktree, message.repoPath).run) || undefined;
+				if (message.run && !command) throw new Error(`${CONFIG_FILE} names no run command`);
+				openTerminal(terminalId, worktree.path, { ...message, command }, guard, output, exit);
 			} catch (error) {
 				output(`${errorMessage(error)}\r\n`);
 				exit();

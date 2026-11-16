@@ -1,5 +1,11 @@
 import { isHttpError } from '@sveltejs/kit';
-import { AGENTS, WORKTREE_MODES } from '@geordi/protocol';
+import {
+	AGENTS,
+	CONFIG_FILE,
+	CONFIG_SETTINGS,
+	WORKTREE_MODES,
+	type RepoConfig
+} from '@geordi/protocol';
 import { toJsonSchema } from '@valibot/to-json-schema';
 import * as v from 'valibot';
 import type { createWorkspaces } from './workspaces.ts';
@@ -14,7 +20,29 @@ import type { createWorkspaces } from './workspaces.ts';
 type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
 	/** Archives a workspace on the caller's behalf. Never discards uncommitted work. */
 	archive(caller: string, id: string): Promise<void>;
+	/** What the repository's configuration says for the caller's workspace, as a daemon reads it. */
+	configuration(caller: string): Promise<RepoConfig>;
 };
+
+/**
+ * How to configure a repository for Geordi (FDR-006), for an agent about to do so. Made
+ * from the settings' one definition, so that it can't say anything else than what the
+ * daemon accepts.
+ */
+export const configurationReference = () =>
+	[
+		`# ${CONFIG_FILE}`,
+		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is TOML. Settings Geordi doesn't know are ignored.`,
+		'## Settings',
+		...Object.entries(CONFIG_SETTINGS).map(
+			([key, { does, example }]) =>
+				`### \`${key}\` (a shell command, as a string)\n\n${does}\n\n\`\`\`toml\n${example}\n\`\`\``
+		),
+		'## Which file applies',
+		`The \`${CONFIG_FILE}\` in a workspace's own directory, if it has one; otherwise the one on the branch work starts from (the upstream's main branch). The two are not merged. So you can try a change out in your workspace right away, and it applies to everyone once it is merged. The file is read again whenever it changes: nothing needs restarting.`,
+		'## Checking',
+		`After changing the file, call \`check_configuration\`: it reads the file the way Geordi does, and says what it found or what is wrong with it.`
+	].join('\n\n');
 
 const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you.`;
 
@@ -88,6 +116,28 @@ const tools = {
 			return { archived: agent.id };
 		}
 	},
+	configuration_reference: {
+		description: `How to configure this repository for Geordi, in its ${CONFIG_FILE}: the settings there are and what they do. Read this before creating or changing that file.`,
+		input: v.object({}),
+		run: () => configurationReference()
+	},
+	check_configuration: {
+		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets, and what is wrong with it if anything. Call this after changing the file.`,
+		input: v.object({}),
+		run: async (agents: Agents, caller: string) => {
+			const { source, problem, ...settings } = await agents.configuration(caller);
+			return {
+				applies:
+					source === 'workspace'
+						? `the ${CONFIG_FILE} in your working directory`
+						: source === 'base'
+							? `the ${CONFIG_FILE} on the branch work starts from (your working directory has none)`
+							: `none: there is no ${CONFIG_FILE}`,
+				problem,
+				settings
+			};
+		}
+	},
 	stop_agent: {
 		description: 'Stop an agent you started, if it is running.',
 		input: v.object({ agent_id: agentId }),
@@ -121,7 +171,9 @@ async function callTool(agents: Agents, caller: string, params: unknown) {
 
 	try {
 		const run = tool.run as (agents: Agents, caller: string, input: unknown) => unknown;
-		return content(JSON.stringify(await run(agents, caller, input.output), null, 2));
+		const result = await run(agents, caller, input.output);
+		// text is for reading as it is; everything else is data
+		return content(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
 	} catch (error) {
 		// Domain errors (limits, unknown agents) are for the agent; anything else is a bug.
 		if (isHttpError(error)) return content(error.body.message, true);

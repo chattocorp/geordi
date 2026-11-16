@@ -26,11 +26,15 @@ const terminals = new Map<string, Terminal>();
  * (for the prompt), so it must not get that far in a worktree an agent has tampered with.
  *
  * `onOutput` gets each piece of output with its position in the shell's whole output.
+ *
+ * With `command`, the terminal runs that instead of a shell for typing into: in the user's
+ * shell, as if typed there (so that it finds what their shell would). When the command
+ * ends, the terminal says how and waits for Enter, so that what it printed can be read.
  */
 export function openTerminal(
 	id: string,
 	cwd: string,
-	{ cols, rows }: TerminalSize,
+	{ cols, rows, command }: TerminalSize & { command?: string },
 	guard: () => void,
 	onOutput: (data: string, offset: number) => void,
 	onExit: () => void
@@ -38,7 +42,13 @@ export function openTerminal(
 	const running = terminals.get(id);
 	if (running) return running.pty.resize(cols, rows);
 
-	const pty = spawn(process.env.SHELL || '/bin/sh', [], {
+	const shell = process.env.SHELL || '/bin/sh';
+	// The command and the shell reach the script as arguments: nothing in them is parsed twice.
+	// `printf` makes the escapes into a new line and dim text.
+	const script =
+		'"$0" -l -i -c "$1"; printf "\\n\\033[2m[ended with status %s; press Enter to close]\\033[0m" "$?"; read -r _';
+	const [file, args] = command ? ['/bin/sh', ['-c', script, shell, command]] : [shell, []];
+	const pty = spawn(file, args, {
 		name: 'xterm-256color',
 		cwd,
 		cols,
