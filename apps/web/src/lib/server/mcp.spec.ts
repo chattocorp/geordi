@@ -22,7 +22,13 @@ function setup() {
 	});
 
 	const config: { current: RepoConfig } = {
-		current: { run: 'pnpm dev', problem: null, source: 'workspace', runApproved: true }
+		current: {
+			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000, approved: true }],
+			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }],
+			ports: { first: 20000, count: 10 },
+			problem: null,
+			source: 'workspace'
+		}
 	};
 	/** Archiving needs a daemon in real life; here it just happens, and is noted. */
 	const archived: string[] = [];
@@ -76,21 +82,23 @@ describe('configuring the repository', () => {
 		expect(await call('check_configuration')).toEqual({
 			applies: 'the .geordi.toml in your working directory',
 			problem: null,
-			settings: { run: 'pnpm dev' }
+			ports: { first: 20000, count: 10 },
+			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000 }],
+			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }]
 		});
 
-		config.current = {
-			run: null,
-			problem: '.geordi.toml: invalid value',
-			source: 'workspace',
-			runApproved: false
-		};
+		// a command nobody has agreed to yet: the agent is told that it can't do that itself
+		config.current.jobs[0].approved = false;
+		expect((await call('check_configuration')).note).toMatch(/cannot agree/);
+
+		const none = { jobs: [], urls: [], ports: { first: 20000, count: 10 } };
+		config.current = { ...none, problem: '.geordi.toml: invalid value', source: 'workspace' };
 		expect(await call('check_configuration')).toMatchObject({
 			problem: '.geordi.toml: invalid value',
-			settings: { run: null }
+			jobs: []
 		});
 
-		config.current = { run: null, problem: null, source: null, runApproved: false };
+		config.current = { ...none, problem: null, source: null };
 		expect((await call('check_configuration')).applies).toMatch(/^none/);
 	});
 });

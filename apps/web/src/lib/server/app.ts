@@ -6,10 +6,12 @@ import {
 	GEORDI_DAEMON_PORT,
 	GEORDI_DATA_DIR
 } from '$app/env/private';
+import { archiveConcerns, type Standing } from '../archiving.ts';
 import { createArchiver } from './archive.ts';
 import { store } from './events/index.ts';
 import { loadSecret } from './secret.ts';
 import { createHub } from './daemons.ts';
+import { createJobs } from './jobs.ts';
 import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
@@ -90,6 +92,15 @@ async function loadWorktreeState(worktreeId: string): Promise<WorktreeState> {
 	return state;
 }
 
+/** The jobs repositories have run for their workspaces (FDR-006). */
+export const jobs = lazy(() =>
+	createJobs(
+		terminals(),
+		(request, timeoutMs) => hub().request(request, timeoutMs),
+		(id) => workspaces().ref(id)
+	)
+);
+
 export const watchers = lazy(() =>
 	createWatchers(
 		(message) => hub().send(message),
@@ -115,6 +126,55 @@ export const hub = lazy(() =>
 		}
 	})
 );
+
+/** How long the forge a repository is on gets to say how a pull request stands, before we ask without it. */
+const UPSTREAM_PATIENCE_MS = 400;
+
+/**
+ * How a worktree stands, for someone about to archive it, and quickly: they are waiting
+ * for a question. What a viewer already has loaded is taken as it is; otherwise the daemon
+ * says what changed (which it knows at once), and how the pull request stands only if the
+ * forge it is on answers in time.
+ */
+async function standingFor(worktreeId: string): Promise<Standing> {
+	const watched = watchers().state(worktreeId);
+	if (watched?.changes) return watched;
+	let ref;
+	try {
+		ref = workspaces().ref(worktreeId);
+	} catch {
+		return { changes: null };
+	}
+	const late = new Promise<undefined>((resolve) => setTimeout(resolve, UPSTREAM_PATIENCE_MS));
+	const [changes, upstream] = await Promise.all([
+		hub()
+			.request({ kind: 'changes', ...ref })
+			.catch(() => null),
+		Promise.race([hub().request({ kind: 'upstream', ...ref }), late]).catch(() => undefined)
+	]);
+	return { changes, upstream };
+}
+
+/**
+ * What is unfinished about a workspace and the workspaces its agent started, for someone
+ * about to archive it (see `archiveConcerns`). Says nothing where no daemon answers.
+ */
+export async function concernsAboutArchiving(id: string): Promise<string[]> {
+	const family = [id, ...workspaces().descendants(id)].map(workspaces().summary);
+	// each worktree once: a workspace that works in another's has no work of its own to lose
+	const own = family.filter(
+		(workspace) => workspace.worktree && workspace.worktreeId === workspace.id
+	);
+	const found = await Promise.all(
+		own.map(async (workspace) => {
+			const concerns = archiveConcerns(await standingFor(workspace.id));
+			return workspace.id === id
+				? concerns
+				: concerns.map((text) => `“${workspace.title}”: ${text}`);
+		})
+	);
+	return found.flat();
+}
 
 /** Archives a workspace and the workspaces its agent started; see `createArchiver`. */
 export const archiveWorkspace = (id: string, discard: boolean, actor: string | null = null) =>

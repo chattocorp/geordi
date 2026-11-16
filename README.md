@@ -67,12 +67,23 @@ pnpm desktop:install   # builds Geordi.app, puts it into /Applications and opens
 
 The app uses ports 7717 and 7718 and logs to `~/Library/Logs/Geordi/geordi.log`.
 
-A repository can say how it is run, in a `.geordi.toml` at its top level; its workspaces
-then get a button that starts and stops that command in a terminal:
+A repository can say what to run and where to look at it, in a `.geordi.toml` at its top
+level. Its workspaces get buttons to start and stop the jobs and to open the links, and each
+workspace gets ports of its own that never change, so that several can run side by side:
 
 ```toml
-run = "pnpm dev"
+[jobs.db]
+command = "docker compose up db"
+
+[jobs.web]
+command = "pnpm dev --port $PORT"
+needs = ["db"]
+
+[urls.app]
+url = "http://localhost:{web}/"
 ```
+
+For a project with one thing to run, `run = "pnpm dev --port $PORT"` is enough.
 
 > **Geordi has no authentication yet.** Anyone who can reach the forge can run agents on
 > your machine, so it only listens on 127.0.0.1 and only answers to localhost hostnames.
@@ -108,6 +119,7 @@ authenticate each other with a shared token that the forge creates in its data d
 | `GEORDI_WORKTREES_DIR`                                                                         | `~/.geordi/worktrees`          | Where workspace worktrees are created                                                                                                                                          |
 | `GEORDI_TURNS_DIR`                                                                             | `~/.geordi/turns`              | Where running agent turns keep their output, so they survive a daemon restart                                                                                                  |
 | `GEORDI_RUN_APPROVALS_FILE`                                                                    | `~/.geordi/run-approvals.json` | The run commands you have agreed to run, by repository                                                                                                                         |
+| `GEORDI_PORTS_FILE`                                                                            | `~/.geordi/ports.json`         | The ports each workspace has been given                                                                                                                                        |
 | `GEORDI_CLAUDE_PERMISSION_MODE`                                                                | `bypassPermissions`            | `--permission-mode` for `claude -p`, e.g. `auto` or `acceptEdits`                                                                                                              |
 | `OPENROUTER_API_KEY`                                                                           |                                | Lets the daemon name workspaces, by asking a small model on [OpenRouter](https://openrouter.ai). Without it, a workspace keeps the first line of its first message as its name |
 | `GEORDI_TITLE_MODEL`                                                                           | `anthropic/claude-haiku-5.5`   | The OpenRouter model that names workspaces                                                                                                                                     |

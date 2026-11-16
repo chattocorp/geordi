@@ -42,3 +42,10 @@ export function contextMenu(items: () => MenuItem[]): Attachment<HTMLElement> {
 		return () => node.removeEventListener('contextmenu', show);
 	};
 }
+
+/** Opens a menu under an element: for a button that offers several things to do. */
+export function openMenu(under: Element, items: MenuItem[]) {
+	if (items.length === 0) return;
+	const box = under.getBoundingClientRect();
+	contextMenus.open = { x: box.left, y: box.bottom + 4, items };
+}

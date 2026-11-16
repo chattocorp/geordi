@@ -9,7 +9,6 @@
 	} from '#lib/actions.ts';
 	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
-	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import {
 		add,
@@ -23,7 +22,8 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { RUN_TERMINAL } from '@geordi/protocol';
+	import { JOB_TERMINAL, startOrder, type Job } from '@geordi/protocol';
+	import { openMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -40,10 +40,13 @@
 		closeTerminal,
 		getWorkspace,
 		approveRun,
+		openLink,
 		restoreWorktree,
-		say
+		say,
+		startJobs,
+		stopJob
 	} from '../../../routes/workspaces.remote';
-	import { archive as archiveWorkspace, archiveProblems } from './archive.svelte.ts';
+	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import Changes from './Changes.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
@@ -113,38 +116,121 @@
 			);
 	});
 
-	// The repository's run command (FDR-006) gets a terminal of its own, which runs it
-	// instead of a shell. Running it is starting that terminal; stopping it, closing it.
-	const RUN_TAB = `terminal:${RUN_TERMINAL}`;
-	const runCommand = $derived(workspace.archivedAt ? null : (workspace.git?.config?.run ?? null));
-	const runs = $derived(workspace.terminals.includes(RUN_TERMINAL) || starting.has(RUN_TERMINAL));
-	/** The run command as it stood when Run was pressed: what the terminal is started with. */
-	let runWith = $state<string>();
-	// The command is in a file the agent can write, and runs as the user, outside any
-	// sandbox the agent is in. So it is shown, and agreed to, before it first runs: once per
-	// command and repository. The daemon keeps what was agreed to, and runs nothing else.
-	let asking = $state<string | null>(null);
+	// The repository's jobs (FDR-006): each runs in a terminal of its own, named after it.
+	// Starting a job is starting that terminal (after the jobs it needs); stopping it,
+	// closing it (and the jobs that need it).
+	const config = $derived(workspace.archivedAt ? null : (workspace.git?.config ?? null));
+	const jobs = $derived(config?.jobs ?? []);
+	const links = $derived(config?.urls ?? []);
+	const jobOf = (terminal?: string) =>
+		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
+	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
+	const isUp = (job: string) => workspace.terminals.includes(JOB_TERMINAL + job);
 
-	async function run(command = runCommand, sure = false) {
-		if (!command) return;
-		if (!workspace.git?.config?.runApproved && !sure) return void (asking = command);
+	// The commands are in a file the agent can write, and run as the user, outside any
+	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
+	// per command and repository. The daemon keeps what was agreed to, and runs nothing else.
+	type Seen = Record<string, string>;
+	let asking = $state<{ jobs: Job[]; then: () => void } | null>(null);
+
+	/**
+	 * Does `then` once the person has agreed to every command that starting `names` would
+	 * run. `then` gets the commands as they stood when asked: what was seen is what runs.
+	 */
+	function agreed(names: string[], then: (seen: Seen) => void) {
+		const seen = Object.fromEntries(jobs.map((job) => [job.name, job.command]));
+		const needed = startOrder(jobs, names).flatMap(
+			(name) => jobs.find((job) => job.name === name) ?? []
+		);
+		const unseen = needed.filter((job) => !job.approved);
+		if (unseen.length === 0) return then(seen);
+		asking = { jobs: unseen, then: () => then(seen) };
+	}
+
+	async function agree() {
+		if (!asking) return;
+		const { jobs: unseen, then } = asking;
 		asking = null;
-		if (sure) {
+		mergeProblem = null;
+		try {
+			await approveRun({ workspaceId: id, commands: unseen.map((job) => job.command) });
+		} catch (error) {
+			return void (mergeProblem = problemOf(error, 'Could not run that'));
+		}
+		then();
+	}
+
+	/** The jobs that were asked for and are on their way up. */
+	const launching = new SvelteSet<string>();
+
+	/** Starts jobs (and what they need), and brings the last of them to the front of the dock. */
+	function start(names: string[]) {
+		agreed(names, async (seen) => {
+			const order = startOrder(jobs, names);
+			for (const name of order) launching.add(name);
+			if (!frame.current.open) toggleSide();
 			mergeProblem = null;
 			try {
-				await approveRun({ workspaceId: id, command });
+				await startJobs({ workspaceId: id, jobs: names, seen });
+				// its tab is there as soon as its terminal is: in front, unless it was put elsewhere
+				const front = jobTab(names.at(-1)!);
+				if (!tabsOf(main).includes(front)) arrange({ dock: open(dock, front) });
 			} catch (error) {
-				return void (mergeProblem = problemOf(error, 'Could not run the command'));
+				mergeProblem = problemOf(error, 'Could not start that');
+			} finally {
+				for (const name of order) launching.delete(name);
 			}
-		}
-		runWith = command;
-		starting.add(RUN_TERMINAL);
-		// in the dock, in front, and with the dock in view
-		const elsewhere = tabsOf(main).includes(RUN_TAB);
-		if (!elsewhere) arrange({ dock: open(dock, RUN_TAB) });
-		if (!frame.current.open) toggleSide();
+		});
 	}
-	const stopRun = () => arrange({ main: close(main, RUN_TAB), dock: close(dock, RUN_TAB) });
+
+	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
+
+	/** Opens a link in the browser, once the jobs it needs are up. */
+	function visit(link: (typeof links)[number]) {
+		agreed(link.needs, async (seen) => {
+			// a new tab has to be opened while the click still counts; where to comes later
+			// (`window` is the name of a snippet in here)
+			const tab = globalThis.open('about:blank', '_blank');
+			mergeProblem = null;
+			try {
+				const href = await openLink({ workspaceId: id, link: link.name, seen });
+				if (!tab) return void globalThis.open(href, '_blank', 'noopener');
+				tab.opener = null; // what is served there has no business with this page
+				tab.location.href = href;
+			} catch (error) {
+				tab?.close();
+				mergeProblem = problemOf(error, 'Could not open that');
+			}
+		});
+	}
+
+	/** What the Run button offers where there is more than one thing to run. */
+	const jobMenu = (): MenuItem[] => [
+		...jobs.map(({ name }): MenuItem =>
+			isUp(name)
+				? { label: `Stop ${name}`, icon: 'icon-[lucide--square]', onselect: () => stop(name) }
+				: { label: `Start ${name}`, icon: 'icon-[lucide--play]', onselect: () => start([name]) }
+		),
+		'separator',
+		{
+			label: 'Start all',
+			icon: 'icon-[lucide--list-video]',
+			disabled: jobs.every((job) => isUp(job.name)),
+			onselect: () => start(jobs.map((job) => job.name))
+		},
+		{
+			label: 'Stop all',
+			icon: 'icon-[lucide--circle-stop]',
+			disabled: !jobs.some((job) => isUp(job.name)),
+			onselect: () => jobs.filter((job) => isUp(job.name)).forEach((job) => stop(job.name))
+		}
+	];
+	const linkMenu = (): MenuItem[] =>
+		links.map((link) => ({
+			label: `${link.name}  ${link.href.replace(/^https?:\/\//, '')}`,
+			icon: 'icon-[lucide--arrow-up-right]',
+			onselect: () => visit(link)
+		}));
 
 	function newTerminal() {
 		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
@@ -161,7 +247,10 @@
 			const terminal = terminalOf(tab);
 			if (terminal && !remaining.includes(tab)) {
 				starting.delete(terminal);
-				closeTerminal({ workspaceId: id, terminal }).catch(() => {});
+				const job = jobOf(terminal);
+				// a job takes the jobs that need it along
+				if (job) stop(job);
+				else closeTerminal({ workspaceId: id, terminal }).catch(() => {});
 			}
 		}
 		arrangement.current = after;
@@ -212,16 +301,27 @@
 		if (running && last?.kind === 'user') asked.push(last.text);
 		return actions
 			.filter((action) =>
-				action.prompt ? asked.includes(action.prompt) : action.id === 'merge-pull' && merging
+				action.prompt
+					? asked.includes(action.prompt)
+					: (action.id === 'merge-pull' && merging) || (action.id === 'archive' && leaving)
 			)
 			.map((a) => a.id);
 	});
 
-	/** Why archiving didn't work, if it didn't: usually work that would be lost. */
+	/** Why archiving didn't work, if it didn't. */
 	const archiveProblem = $derived(archiveProblems[id]);
 
-	async function archive(discard = false) {
-		if (await archiveWorkspace(id, discard))
+	/** It is being archived right now, which takes a moment. */
+	const leaving = $derived(beingArchived.has(id));
+
+	async function archive() {
+		// How it stands is on screen already: the question, if there is one, needs no waiting.
+		// (Not with workspaces its agent started: theirs is not known here.)
+		const known =
+			workspace.children.length === 0 && git?.changes
+				? { changes: git.changes, upstream: git.upstream }
+				: undefined;
+		if (await archiveWorkspace(id, known))
 			await goto(resolve('/repos/[id]', { id: workspace.repoId }));
 	}
 
@@ -269,28 +369,60 @@
 	}}
 />
 
-<!-- The repository's run command (FDR-006), where what it starts shows up: the dock. -->
+<!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
 {#snippet runActions()}
-	{#if runs}
-		<Button
-			variant="ghost"
-			size="sm"
-			icon="icon-[lucide--square]"
-			label="Stop what the run command started"
-			onclick={stopRun}
-		>
-			Stop
-		</Button>
-	{:else if runCommand}
-		<Button
-			variant="ghost"
-			size="sm"
-			icon="icon-[lucide--play]"
-			label="Run: {runCommand}"
-			onclick={() => run()}
-		>
-			Run
-		</Button>
+	{#if jobs.length === 1 && links.length === 0}
+		<!-- one thing to run: a button says it all -->
+		{@const [job] = jobs}
+		{#if isUp(job.name) || launching.has(job.name)}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--square]"
+				label="Stop {job.name}"
+				onclick={() => stop(job.name)}
+			>
+				Stop
+			</Button>
+		{:else}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--play]"
+				label="Run: {job.command}"
+				onclick={() => start([job.name])}
+			>
+				Run
+			</Button>
+		{/if}
+	{:else if jobs.length > 0 || links.length > 0}
+		{#if jobs.length > 0}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--play]"
+				label="Start and stop what the project runs"
+				aria-haspopup="menu"
+				onclick={(event) => openMenu(event.currentTarget, jobMenu())}
+			>
+				Run
+				{#if jobs.some((job) => isUp(job.name))}<span class="dot dot-live"></span>{/if}
+				<span class="icon-[lucide--chevron-down] size-3.5"></span>
+			</Button>
+		{/if}
+		{#if links.length > 0}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--globe]"
+				label="Open what the project serves, in the browser"
+				aria-haspopup="menu"
+				onclick={(event) => openMenu(event.currentTarget, linkMenu())}
+			>
+				Open
+				<span class="icon-[lucide--chevron-down] size-3.5"></span>
+			</Button>
+		{/if}
 	{:else if git?.config?.problem}
 		<!-- a configuration nobody can read is worth knowing about, quietly -->
 		<span
@@ -308,12 +440,13 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
 	{:else if terminalOf(tab)}
-		{#if tab === RUN_TAB}
+		{@const job = jobOf(terminalOf(tab))}
+		{#if job}
 			<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
-			<span class="truncate">Run</span>
+			<span class="truncate">{job}</span>
 		{:else}
 			{@const terminals = [...tabsOf(main), ...tabsOf(dock)]
-				.filter((other) => terminalOf(other) && other !== RUN_TAB)
+				.filter((other) => terminalOf(other) && !jobOf(terminalOf(other)))
 				.sort()}
 			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 			<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
@@ -333,12 +466,7 @@
 		<!-- loaded again whenever the worktree's files may have changed -->
 		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 	{:else if terminal}
-		<Terminal
-			workspaceId={id}
-			{terminal}
-			start={starting.has(terminal)}
-			command={terminal === RUN_TERMINAL ? runWith : undefined}
-		/>
+		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
 	{:else}
 		<Conversation {workspace} />
 	{/if}
@@ -388,12 +516,12 @@
 			pull={standingState?.upstream?.pull}
 			{actions}
 			{pending}
+			working={running}
 			onaction={act}
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
 		{:else}
-			<StatusBadge {running} />
 			<Button
 				variant="ghost"
 				icon={frame.current.open
@@ -405,7 +533,9 @@
 				onclick={toggleSide}
 			/>
 			<!-- Always possible, not only once it is the obvious next step. -->
-			{#if !actions.some((action) => action.id === 'archive')}
+			{#if leaving}
+				<Badge><Spinner label="Archiving" /> Archiving…</Badge>
+			{:else if !actions.some((action) => action.id === 'archive')}
 				<Button
 					variant="ghost"
 					icon="icon-[lucide--archive]"
@@ -424,11 +554,8 @@
 
 	{#if archiveProblem}
 		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
-			<div class="min-w-0 flex-1"><Notice>{archiveProblem.message}</Notice></div>
-			{#if archiveProblem.discardable}
-				<Button onclick={() => archive(true)}>Discard them and archive</Button>
-			{/if}
-			<Button variant="ghost" onclick={() => delete archiveProblems[id]}>Cancel</Button>
+			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
+			<Button variant="ghost" onclick={() => delete archiveProblems[id]}>Dismiss</Button>
 		</div>
 	{/if}
 
@@ -500,26 +627,33 @@
 	</Split>
 </main>
 
-<!-- Before running a command that only this workspace has (see `run`). -->
+<!-- Before running commands nobody has agreed to yet (see `agreed`). -->
 <Dialog
 	bind:open={() => asking !== null, (open) => !open && (asking = null)}
-	label="Run this command?"
+	label="Run {asking?.jobs.length === 1 ? 'this command' : 'these commands'}?"
 	class="max-w-lg"
 >
 	<div class="space-y-4 p-6">
-		<p class="heading">Run this command?</p>
-		<pre
-			class="rounded-control bg-sunken p-3 code-dense break-all whitespace-pre-wrap">{asking}</pre>
+		<p class="heading">Run {asking?.jobs.length === 1 ? 'this command' : 'these commands'}?</p>
+		<ul class="space-y-2">
+			{#each asking?.jobs ?? [] as job (job.name)}
+				<li class="space-y-1">
+					{#if (asking?.jobs.length ?? 0) > 1 || job.name !== 'run'}
+						<p class="label">{job.name}</p>
+					{/if}
+					<pre
+						class="rounded-control bg-sunken p-3 code-dense break-all whitespace-pre-wrap">{job.command}</pre>
+				</li>
+			{/each}
+		</ul>
 		<p class="text-sm text-muted">
-			This is the run command in the repository's <span class="code-dense">.geordi.toml</span>, a
-			file the agent can change. It runs in your own shell, with everything you are allowed to do.
-			You are asked once per command and repository.
+			From the repository's <span class="code-dense">.geordi.toml</span>, a file the agent can
+			change. They run in your own shell, with everything you are allowed to do. You are asked once
+			per command and repository.
 		</p>
 		<div class="flex justify-end gap-2">
 			<Button onclick={() => (asking = null)}>Cancel</Button>
-			<Button variant="primary" icon="icon-[lucide--play]" onclick={() => run(asking, true)}>
-				Run
-			</Button>
+			<Button variant="primary" icon="icon-[lucide--play]" onclick={agree}>Run</Button>
 		</div>
 	</div>
 </Dialog>

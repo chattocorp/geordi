@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -133,42 +133,114 @@ export type Upstream = {
 	pull: PullRequest | null;
 };
 
+/** A repository says how Geordi should treat it in this file, at its top level. */
+export const CONFIG_FILE = '.geordi.toml';
+
+/** How many ports a workspace gets where its repository names no jobs to count, nor a number. */
+export const DEFAULT_PORTS = 10;
+
+/**
+ * Something a repository can have run for a workspace (FDR-006): a dev server, a database,
+ * a desktop app, a game. Each runs in a terminal of its own.
+ */
+export type Job = {
+	name: string;
+	command: string;
+	/** The jobs that have to be up before this one starts. Stopping one of them stops this one too. */
+	needs: string[];
+	/**
+	 * The port that is this job's in this workspace, for as long as the workspace lives. It
+	 * reaches the command as `PORT` (and everything else in the workspace as
+	 * `GEORDI_PORT_<NAME>`). A job that listens on it counts as up once it does.
+	 */
+	port: number;
+	/** Whether a person has agreed to run this command in this repository. */
+	approved: boolean;
+};
+
+/** A place to look at what the jobs serve: a link, with the jobs that have to be up for it to lead anywhere. */
+export type Link = {
+	name: string;
+	/** With the workspace's ports filled in. Always on this machine. */
+	href: string;
+	needs: string[];
+};
+
 /**
  * What a repository's `.geordi.toml` says, as it applies to one workspace: that of the
  * workspace if it has one, otherwise that of the branch work starts from.
  */
-export type RepoConfig = RepoSettings & {
+export type RepoConfig = {
+	jobs: Job[];
+	urls: Link[];
+	/** The first of the workspace's ports, and how many it has. */
+	ports: { first: number; count: number } | null;
 	/** What is wrong with the file, if it can't be made sense of. */
 	problem: string | null;
 	/** Which file this is from: the workspace's own, or the one on the branch work starts from. */
 	source: 'workspace' | 'base' | null;
-	/**
-	 * Whether a person has agreed to run the `run` command in this repository before. The
-	 * file is the agent's to write: a command nobody has agreed to is shown and asked about
-	 * before it runs as the person.
-	 */
-	runApproved: boolean;
 };
 
-/** A repository says how Geordi should treat it in this file, at its top level. */
-export const CONFIG_FILE = '.geordi.toml';
-
 /**
- * The settings a `.geordi.toml` can have. The one definition of them: the daemon accepts
- * exactly these (each a command, as a string), and agents are told exactly this.
+ * What a `.geordi.toml` can say, for agents to read (`configuration_reference`). The daemon's
+ * parser (`config.ts`) accepts exactly these; a test holds the two together.
  */
 export const CONFIG_SETTINGS = {
 	run: {
-		does: "The command that runs the project for someone to look at: its development server, say. Workspaces of the repository get a Run button that starts it in a terminal, in the workspace's directory, and stops it again. It should keep running until stopped.",
-		example: 'run = "pnpm dev"'
+		does: 'The command that runs the project for someone to look at or use: its development server, a desktop app, a game. Short for a single job called `run`. Use this unless the project needs several things running.',
+		example: 'run = "pnpm dev --port $PORT"'
+	},
+	jobs: {
+		does: "Several things to run, each a `command` under a name (lower case letters, digits and dashes). `needs` lists the jobs that have to be up first: starting a job starts those, and stopping one stops the jobs that need it. Each job runs in a terminal of its own, in the workspace's directory, and should keep running until stopped.",
+		example:
+			'[jobs.db]\ncommand = "docker compose up db"\n\n[jobs.web]\ncommand = "pnpm dev --port $PORT"\nneeds = ["db"]'
+	},
+	urls: {
+		does: "Places to open in the browser, each a `url` under a name. `{job}` stands for that job's port. Opening one first starts the jobs it mentions (and any listed under `needs`) and waits for them. Only addresses on this machine (`localhost`).",
+		example: '[urls.app]\nurl = "http://localhost:{web}/"'
+	},
+	ports: {
+		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. Never hard-code a port: two workspaces would collide.`,
+		example: 'ports = 20'
 	}
 } as const;
 
-/** What the settings come to: each one's value, or `null` where the file doesn't name it. */
-export type RepoSettings = Record<keyof typeof CONFIG_SETTINGS, string | null>;
+/**
+ * The jobs to start so that `names` are up, each after the ones it needs. Names that are
+ * not jobs are left out: the file may have changed since they were asked for.
+ */
+export function startOrder(jobs: Pick<Job, 'name' | 'needs'>[], names: string[]): string[] {
+	const byName = new Map(jobs.map((job) => [job.name, job]));
+	const order: string[] = [];
+	const visit = (name: string, seen: string[]) => {
+		const job = byName.get(name);
+		// a job that needs itself, however indirectly, is refused when the file is read
+		if (!job || order.includes(name) || seen.includes(name)) return;
+		for (const needed of job.needs) visit(needed, [...seen, name]);
+		order.push(name);
+	};
+	for (const name of names) visit(name, []);
+	return order;
+}
 
-/** The name of the one terminal that runs the repository's `run` command instead of a shell. */
-export const RUN_TERMINAL = 'run';
+/** The jobs that can't go on without `name`: those that need it, and those that need them. */
+export function dependentsOf(jobs: Pick<Job, 'name' | 'needs'>[], name: string): string[] {
+	const found: string[] = [];
+	const visit = (needed: string) => {
+		for (const job of jobs)
+			if (job.needs.includes(needed) && !found.includes(job.name)) {
+				found.push(job.name);
+				visit(job.name);
+			}
+	};
+	visit(name);
+	return found;
+}
+
+/** A job's terminal is named after it, so that it can be told from a shell someone opened. */
+export const JOB_TERMINAL = 'run-';
+/** Names of jobs and links: they end up in terminal names, and in the names of environment variables. */
+export const CONFIG_NAME = /^[a-z][a-z0-9-]{0,30}$/;
 
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
 export type DaemonRequest =
@@ -179,8 +251,13 @@ export type DaemonRequest =
 	 * files, unless `force` says to discard them.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean } & WorktreeRef)
-	/** A person has seen the repository's `run` command and agreed to run it; the daemon notes that. */
-	| ({ kind: 'approveRun'; command: string } & WorktreeRef)
+	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
+	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
+	/**
+	 * Waits until something on this machine listens on `port`, for `timeoutMs` at most.
+	 * Answers whether something does.
+	 */
+	| { kind: 'portReady'; port: number; timeoutMs: number }
 	/** Brings back a worktree that was removed behind Geordi's back, from its branch. */
 	| ({ kind: 'restoreWorktree' } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
@@ -204,6 +281,7 @@ export type DaemonResults = {
 	removeWorktree: null;
 	restoreWorktree: null;
 	approveRun: null;
+	portReady: boolean;
 	config: RepoConfig;
 	title: string;
 	diff: FileVersions;
@@ -266,12 +344,17 @@ export type ForgeMessage =
 	| { type: 'watch'; worktrees: WorktreeRef[] }
 	/**
 	 * Starts a shell in the workspace's directory. A workspace can have several terminals.
-	 * With `run`, it runs the repository's `run` command instead: `run` is that command as
-	 * the person who asked for it saw it. The daemon runs it only if the file still says
-	 * exactly that (the file is the agent's to change at any moment), and only if a person
-	 * has agreed to that command (`approveRun`).
+	 * With `run`, it runs one of the repository's jobs instead: `command` is that job's
+	 * command as the person who asked for it saw it. The daemon runs it only if the file
+	 * still says exactly that (the file is the agent's to change at any moment), and only if
+	 * a person has agreed to that command (`approveRun`).
 	 */
-	| ({ type: 'terminal.open'; terminalId: string; run?: string } & WorktreeRef & TerminalSize)
+	| ({
+			type: 'terminal.open';
+			terminalId: string;
+			run?: { job: string; command: string };
+	  } & WorktreeRef &
+			TerminalSize)
 	| { type: 'terminal.input'; terminalId: string; data: string }
 	| ({ type: 'terminal.resize'; terminalId: string } & TerminalSize)
 	/** Ends the shell. */

@@ -34,7 +34,15 @@ const terminals = new Map<string, Terminal>();
 export function openTerminal(
 	id: string,
 	cwd: string,
-	{ cols, rows, command }: TerminalSize & { command?: string },
+	{
+		cols,
+		rows,
+		command,
+		env = {}
+	}: TerminalSize & {
+		command?: string;
+		/** On top of our own environment. */ env?: Record<string, string>;
+	},
 	guard: () => void,
 	onOutput: (data: string, offset: number) => void,
 	onExit: () => void
@@ -53,7 +61,7 @@ export function openTerminal(
 		cwd,
 		cols,
 		rows,
-		env: process.env as Record<string, string>
+		env: { ...(process.env as Record<string, string>), ...env }
 	});
 
 	const output = (data: string) => {

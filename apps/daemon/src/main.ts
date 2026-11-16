@@ -3,19 +3,22 @@ import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import {
 	CONFIG_FILE,
+	DEFAULT_PORTS,
 	AGENTS,
 	PROTOCOL_VERSION,
 	type DaemonMessage,
 	type DaemonRequest,
 	type ForgeMessage,
 	type AgentEvent,
-	type Harness
+	type Harness,
+	type WorktreeRef
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
 import { status, versions } from './changes.ts';
-import { configOf } from './config.ts';
+import { resolve, settingsOf } from './config.ts';
+import { createPorts, portEnv, waitForPort } from './ports.ts';
 import {
 	closeTerminal,
 	closeTerminals,
@@ -25,7 +28,7 @@ import {
 	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
-import { removeWorktree } from './remove.ts';
+import { emptyTrash, removeWorktree } from './remove.ts';
 import { titleFor } from './titles.ts';
 import { resumeTurns, runTurn, type Turn } from './turn.ts';
 import { mergePull, upstream } from './upstream.ts';
@@ -35,7 +38,8 @@ import {
 	fetchUpstream,
 	hasWorktree,
 	locateWorktree,
-	verifyLinks
+	verifyLinks,
+	type Worktree
 } from './worktree.ts';
 
 const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
@@ -79,8 +83,28 @@ const approvals = createApprovals(
 	process.env.GEORDI_RUN_APPROVALS_FILE || join(homedir(), '.geordi', 'run-approvals.json')
 );
 
-/** What a run terminal runs when the run command is not one that was seen and agreed to. */
-const RUN_CHANGED = `echo 'The run command in ${CONFIG_FILE} is not the one you agreed to run: it has changed. Press Run to see and run what it says now.'; exit 1`;
+/** The ports of workspaces (FDR-006): theirs for as long as they live, so they are written down. */
+const ports = createPorts(
+	process.env.GEORDI_PORTS_FILE || join(homedir(), '.geordi', 'ports.json')
+);
+
+/**
+ * What the repository's configuration says for a workspace, with its ports. Asking is what
+ * gives a workspace its ports, and a job its own among them, the first time around.
+ */
+async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeRef) {
+	const found = settingsOf(worktree, repoPath);
+	const assigned = await ports.ensure(
+		worktreeId,
+		found.settings?.ports ?? DEFAULT_PORTS,
+		found.settings?.jobs.map((job) => job.name)
+	);
+	const config = resolve(found, assigned, (command) => approvals.has(repoPath, command));
+	return { config, env: portEnv(assigned) };
+}
+
+/** What a job's terminal runs when its command is not one that was seen and agreed to. */
+const RUN_CHANGED = `echo 'This is not the command you agreed to run: ${CONFIG_FILE} has changed. Start it again to see and run what it says now.'; exit 1`;
 
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
 const watches = createWatches(
@@ -214,13 +238,16 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'removeWorktree') {
 		removeWorktree(worktreesDir, request.repoPath, request.worktreeId, request.force);
+		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return null;
 	}
 	if (request.kind === 'approveRun') {
-		approvals.add(request.repoPath, request.command);
+		for (const command of request.commands) approvals.add(request.repoPath, command);
 		sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId }); // it shows as agreed to
 		return null;
 	}
+	if (request.kind === 'portReady')
+		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
 	if (request.kind === 'restoreWorktree') {
 		const { repoPath, worktreeId, base } = request;
 		ensureWorktree(worktreesDir, repoPath, worktreeId, base);
@@ -234,9 +261,7 @@ async function answer(request: DaemonRequest) {
 		case 'changes':
 			return status(worktree, request);
 		case 'config':
-			return configOf(worktree, request.repoPath, (command) =>
-				approvals.has(request.repoPath, command)
-			);
+			return (await configFor(worktree, request)).config;
 		case 'diff':
 			return versions(worktree, request, request.path);
 		case 'upstream':
@@ -298,6 +323,7 @@ async function handle(message: ForgeMessage) {
 						prompt,
 						resumeId,
 						settings: message.settings,
+						env: (await configFor(worktree, message)).env,
 						instructions: message.instructions,
 						cwd: worktree.path,
 						writableRoots: worktree.writableRoots,
@@ -336,20 +362,27 @@ async function handle(message: ForgeMessage) {
 			try {
 				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
-				// Only what the person asking saw, and has agreed to run (FDR-006): the file is the
-				// agent's to change, also in the moment between their looking at the command and
-				// their asking for it. Otherwise the terminal says so, in words of ours, and
-				// nothing of the file's runs.
+				const { config, env } = await configFor(worktree, message);
+				// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
+				// the file is the agent's to change, also in the moment between their looking at
+				// the command and their asking for it. Otherwise the terminal says so, in words
+				// of ours, and nothing of the file's runs.
 				const asked = message.run;
-				const command =
-					asked === undefined
-						? undefined
-						: asked &&
-							  configOf(worktree, message.repoPath).run === asked &&
-							  approvals.has(message.repoPath, asked)
-							? asked
-							: RUN_CHANGED;
-				openTerminal(terminalId, worktree.path, { ...message, command }, guard, output, exit);
+				const job = config.jobs.find((job) => job.name === asked?.job);
+				const agreed = job && job.command === asked?.command && job.approved;
+				openTerminal(
+					terminalId,
+					worktree.path,
+					{
+						...message,
+						command: asked && (agreed ? job.command : RUN_CHANGED),
+						// every terminal knows the workspace's ports; a job also which one is its own
+						env: { ...env, ...(agreed && { PORT: String(job.port) }) }
+					},
+					guard,
+					output,
+					exit
+				);
 			} catch (error) {
 				output(`${errorMessage(error)}\r\n`);
 				exit();
@@ -386,5 +419,6 @@ process.on('SIGINT', () => {
 	process.exit(0);
 });
 
+emptyTrash(worktreesDir);
 console.log(`geordi daemon ${daemonId}, worktrees in ${worktreesDir}`);
 connect();

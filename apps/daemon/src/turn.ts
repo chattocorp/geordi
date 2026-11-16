@@ -237,6 +237,7 @@ export function runTurn(
 			stdio: ['ignore', out, err],
 			env: {
 				...process.env,
+				...options.env,
 				GEORDI_TURN_DIR: dir,
 				...(options.api && apiToken && { [API_TOKEN_ENV]: apiToken })
 			}

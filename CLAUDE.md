@@ -117,11 +117,14 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   room for the window's buttons and is what the window is dragged by (`window-drag`, on
   the bar itself; what can be used in it is exempt). The
   layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
-- **Repository configuration (FDR-006).** A repository's `.geordi.toml` says how it wants to
-  be treated; for now, its `run` command, which gives workspaces a Run/Stop button. The daemon
-  reads it (`config.ts`: the workspace's file, else the one on the branch work starts from)
-  and reports it with the worktree's state; the command runs in the terminal named
-  `RUN_TERMINAL`. Add a setting by adding it to `RepoConfig` and `parseConfig`.
+- **Repository configuration (FDR-006).** A repository's `.geordi.toml` names jobs to run
+  (with what they need), links to open, and how many ports a workspace gets. The daemon reads
+  it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
+  reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +
+  its name; the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
+  once and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
+  run only as a person saw and agreed to them (`approvals.ts`). The settings are described
+  for agents in `CONFIG_SETTINGS`; a new one goes there and into `parseConfig`.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees
@@ -146,7 +149,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   Tailwind:
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `sidebar`,
     `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`, `accent-soft`,
-    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, plus `claude`/`codex`) for light and dark
+    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,

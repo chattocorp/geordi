@@ -1,7 +1,27 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { uncommittedFiles } from './changes.ts';
 import { describe, verifyLinks } from './worktree.ts';
+
+/**
+ * Gets a directory out of the way at once, and deletes it in its own time. A worktree with
+ * its dependencies installed is tens of thousands of files: deleting them takes seconds,
+ * which whoever archives a workspace shouldn't wait for, and during which a daemon that
+ * did it in one go would do nothing else (follow no agent, relay no terminal).
+ */
+function discard(baseDir: string, path: string) {
+	const trash = join(baseDir, '.trash');
+	mkdirSync(trash, { recursive: true });
+	const doomed = join(trash, `${basename(path)}-${Date.now()}`);
+	renameSync(path, doomed); // the same disk: a matter of a moment
+	rm(doomed, { recursive: true, force: true }).catch(() => {});
+}
+
+/** Deletes what an earlier daemon had put out of the way and didn't get to delete. */
+export const emptyTrash = (baseDir: string) =>
+	rm(join(baseDir, '.trash'), { recursive: true, force: true }).catch(() => {});
 
 /**
  * Removes a workspace's worktree; its branch stays. Refuses while the worktree has
@@ -27,7 +47,7 @@ export function removeWorktree(
 			if (uncommittedFiles(worktree).length > 0)
 				throw new Error('The worktree has uncommitted or untracked files.');
 		}
-		rmSync(worktree.path, { recursive: true, force: true });
+		discard(baseDir, worktree.path);
 	}
 	execFileSync('git', ['-C', repoPath, 'worktree', 'prune'], { stdio: 'ignore' });
 }

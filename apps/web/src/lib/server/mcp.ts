@@ -35,8 +35,7 @@ export const configurationReference = () =>
 		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is TOML. Settings Geordi doesn't know are ignored.`,
 		'## Settings',
 		...Object.entries(CONFIG_SETTINGS).map(
-			([key, { does, example }]) =>
-				`### \`${key}\` (a shell command, as a string)\n\n${does}\n\n\`\`\`toml\n${example}\n\`\`\``
+			([key, { does, example }]) => `### \`${key}\`\n\n${does}\n\n\`\`\`toml\n${example}\n\`\`\``
 		),
 		'## Which file applies',
 		`The \`${CONFIG_FILE}\` in a workspace's own directory, if it has one; otherwise the one on the branch work starts from (the upstream's main branch). The two are not merged. So you can try a change out in your workspace right away, and it applies to everyone once it is merged. The file is read again whenever it changes: nothing needs restarting.`,
@@ -125,7 +124,7 @@ const tools = {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets, and what is wrong with it if anything. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
-			const { source, problem, runApproved, ...settings } = await agents.configuration(caller);
+			const { source, problem, ports, jobs, urls } = await agents.configuration(caller);
 			return {
 				applies:
 					source === 'workspace'
@@ -134,11 +133,12 @@ const tools = {
 							? `the ${CONFIG_FILE} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
 				problem,
-				settings,
-				...(settings.run &&
-					!runApproved && {
-						note: 'Nobody has agreed to this run command yet. The person is shown it and asked before it first runs; you cannot agree on their behalf.'
-					})
+				ports,
+				jobs: jobs.map(({ name, command, needs, port }) => ({ name, command, needs, port })),
+				urls,
+				...(jobs.some((job) => !job.approved) && {
+					note: 'Nobody has agreed to run some of these commands yet. The person is shown them and asked before they first run; you cannot agree on their behalf.'
+				})
 			};
 		}
 	},

@@ -10,6 +10,7 @@ describe('instructionsFor', () => {
 		expect(text).toContain('a branch of its own');
 		expect(text).toContain('`start_agent`');
 		expect(text).toContain('`configuration_reference`');
+		expect(text).toContain('`$GEORDI_PORT`');
 		expect(text).not.toContain('started by the agent');
 	});
 

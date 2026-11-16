@@ -1,5 +1,5 @@
 import {
-	RUN_TERMINAL,
+	JOB_TERMINAL,
 	type DaemonResults,
 	type TerminalSize,
 	type WorktreeRef
@@ -11,8 +11,8 @@ type Terminal = {
 	running: boolean;
 	size: TerminalSize;
 	viewers: Set<Viewer>;
-	/** For the run terminal: the command it was last started with, as the person saw it. */
-	command?: string;
+	/** For a job's terminal: the job, and its command as the person who started it saw it. */
+	run?: { job: string; command: string };
 };
 
 /** Gets live output; `offset` is its position in the shell's whole output. */
@@ -79,9 +79,12 @@ export function createTerminals(
 			terminalId,
 			...ref(at.workspaceId),
 			...terminal.size,
-			// The one terminal that runs the repository's `run` command (FDR-006): the command
-			// someone asked for. Started again by a key press, it is that same command or none.
-			...(at.terminal === RUN_TERMINAL && { run: terminal.command ?? '' })
+			// A job's terminal (FDR-006) runs the job's command as someone saw and asked for it.
+			// Started again by a key press, it is that same command; with none on record (we
+			// restarted since), there is none, and the daemon says to start the job again.
+			...(at.terminal.startsWith(JOB_TERMINAL) && {
+				run: terminal.run ?? { job: at.terminal.slice(JOB_TERMINAL.length), command: '' }
+			})
 		});
 		if (terminal.running) changed();
 		else tell(terminal, 'No daemon connected. Press any key to retry.');
@@ -96,15 +99,18 @@ export function createTerminals(
 
 	return {
 		/**
-		 * Starts the terminal's shell, at the given size. For the run terminal, `command` is
-		 * the run command as whoever asked for it saw it.
+		 * Starts the terminal's shell, at the given size. For a job's terminal, `run` is the
+		 * job and its command as whoever asked for it saw it.
 		 */
-		start(at: TerminalRef, size: TerminalSize, command?: string) {
+		start(at: TerminalRef, size: TerminalSize, run?: Terminal['run']) {
 			const terminal = get(idOf(at));
 			terminal.size = size;
-			if (command !== undefined) terminal.command = command;
+			if (run) terminal.run = run;
 			start(at);
 		},
+
+		/** Whether the terminal's shell is running. */
+		isRunning: (at: TerminalRef) => terminals.get(idOf(at))?.running === true,
 
 		/**
 		 * Connects a viewer: replays the terminal's recent output to `listener`, then keeps it

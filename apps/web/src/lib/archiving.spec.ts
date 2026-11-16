@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest';
+import type { Upstream } from '@geordi/protocol';
+import { archiveConcerns } from './archiving.ts';
+
+const file = { path: 'a.txt', status: 'modified' as const, added: 1, removed: 0 };
+const upstream = (pull: Partial<NonNullable<Upstream['pull']>> | null): Upstream => ({
+	forge: 'github',
+	repo: 'acme/widgets',
+	repoUrl: null,
+	branch: 'geordi/abc',
+	pushed: true,
+	createUrl: null,
+	pull: pull && {
+		number: '7',
+		title: 'A change',
+		url: null,
+		state: 'open',
+		draft: false,
+		base: 'main',
+		checks: null,
+		review: null,
+		...pull
+	}
+});
+
+describe('archiveConcerns', () => {
+	it('has nothing to say about a workspace without work, or with work that has landed', () => {
+		expect(
+			archiveConcerns({
+				changes: { files: [], uncommitted: 0, unpushed: 0 },
+				upstream: upstream(null)
+			})
+		).toEqual([]);
+		const landed = { files: [file], uncommitted: 0, unpushed: 0 };
+		expect(archiveConcerns({ changes: landed, upstream: upstream({ state: 'merged' }) })).toEqual(
+			[]
+		);
+		// nor where nobody could tell
+		expect(archiveConcerns({ changes: null, upstream: null })).toEqual([]);
+	});
+
+	it('says what would be lost: uncommitted changes', () => {
+		const concerns = archiveConcerns({
+			changes: { files: [file, { ...file, path: 'b.txt' }], uncommitted: 2, unpushed: 0 },
+			upstream: upstream(null)
+		});
+		expect(concerns).toEqual(['2 files have uncommitted changes, which will be discarded.']);
+	});
+
+	it('says what is nowhere but here: commits that were not pushed', () => {
+		const never = archiveConcerns({
+			changes: { files: [file], uncommitted: 0, unpushed: null },
+			upstream: upstream(null)
+		});
+		expect(never).toEqual([expect.stringMatching(/never pushed/)]);
+
+		const some = archiveConcerns({
+			changes: { files: [file], uncommitted: 0, unpushed: 1 },
+			upstream: upstream({})
+		});
+		expect(some).toEqual([
+			'1 commit is not pushed. They stay on its branch, on this machine only.',
+			'Pull request #7 is not merged.'
+		]);
+	});
+
+	it('says what has not landed: an open pull request, or none at all', () => {
+		const pushed = { files: [file], uncommitted: 0, unpushed: 0 };
+		expect(archiveConcerns({ changes: pushed, upstream: upstream({}) })).toEqual([
+			'Pull request #7 is not merged.'
+		]);
+		expect(archiveConcerns({ changes: pushed, upstream: upstream(null) })).toEqual([
+			expect.stringMatching(/no pull request/)
+		]);
+		// the forge didn't answer in time: nothing is claimed about a pull request
+		expect(archiveConcerns({ changes: pushed })).toEqual([]);
+		// a merged pull request with something uncommitted on top: only that is lost
+		expect(
+			archiveConcerns({
+				changes: { files: [file], uncommitted: 1, unpushed: 0 },
+				upstream: upstream({ state: 'merged' })
+			})
+		).toEqual([expect.stringMatching(/uncommitted/)]);
+	});
+});

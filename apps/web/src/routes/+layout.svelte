@@ -12,7 +12,12 @@
 	import { modifierKey, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
-	import { archive } from '#lib/components/workspace/archive.svelte.ts';
+	import {
+		archive,
+		archiveProblems,
+		beingArchived
+	} from '#lib/components/workspace/archive.svelte.ts';
+	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
@@ -43,9 +48,11 @@
 	async function archiveFromHere(workspace: Item) {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const here = page.url.pathname === href;
-		// Refused (work would be lost): the workspace's page says why, and what to do.
-		if (!(await archive(workspace.id))) await goto(href);
-		else if (here) await goto(resolve('/'));
+		if (await archive(workspace.id)) {
+			if (here) await goto(resolve('/'));
+		}
+		// it didn't work (rather than: they said no): the workspace's page says why
+		else if (archiveProblems[workspace.id]) await goto(href);
 	}
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
@@ -256,15 +263,19 @@
 
 <ContextMenu />
 <Settings />
+<ArchiveConfirm />
 
 {#snippet row(workspace: Item, parent: Item | null)}
 	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
+	{@const leaving = beingArchived.has(workspace.id)}
 	<li>
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
 			class={[
 				'group item pr-1 text-base',
+				// on its way out: it shows, and there is nothing more to do with it
+				leaving && 'pointer-events-none opacity-60',
 				current && 'item-active',
 				pointedAt === workspace.id && 'bg-surface/60 text-ink'
 			]}
@@ -280,14 +291,20 @@
 				onfocus={() => (pointedAt = parent?.id ?? null)}
 				onblur={() => (pointedAt = null)}
 			>
-				{#if workspace.status === 'running'}<Spinner />{:else}<span class="dot"></span>{/if}
+				{#if leaving}
+					<Spinner label="Archiving" />
+				{:else if workspace.status === 'running'}
+					<Spinner />
+				{:else}
+					<span class="dot"></span>
+				{/if}
 				{#if workspace.parentId}
 					<!-- started by an agent: the one above it, where that is still around -->
 					<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0 text-muted/80"></span>
 				{/if}
 				<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
 			</a>
-			{#if !busy}
+			{#if !busy && !leaving}
 				<button
 					type="button"
 					class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-focus-within:grid group-hover:grid hover:bg-sunken hover:text-ink"

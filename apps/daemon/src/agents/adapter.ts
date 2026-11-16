@@ -15,6 +15,8 @@ export type TurnOptions = {
 	resumeId: string | null;
 	/** Which model to run, and how hard it should think; the CLI decides what is absent. */
 	settings: AgentSettings;
+	/** On top of the daemon's own environment: the workspace's ports, for one (FDR-006). */
+	env?: Record<string, string>;
 	/** What to tell the agent on top of its CLI's own system prompt: where it is, and how to work there. */
 	instructions?: string;
 	/**
