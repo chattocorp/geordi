@@ -25,6 +25,7 @@
 			state: 'success',
 			total: 18,
 			failed: 0,
+			counts: { passed: 14, failed: 0, pending: 0, skipped: 4 },
 			url: 'https://github.com/acme/widgets/pull/42/checks'
 		},
 		review: 'approved'
@@ -50,8 +51,29 @@
 <Story name="Checks failing, changes requested" asChild>
 	{@render pane(
 		withPull({
-			checks: { state: 'failure', total: 18, failed: 2, url: null },
+			checks: {
+				state: 'failure',
+				total: 18,
+				failed: 2,
+				counts: { passed: 9, failed: 2, pending: 3, skipped: 4 },
+				url: null
+			},
 			review: 'changes_requested'
+		})
+	)}
+</Story>
+
+<Story name="Checks under way" asChild>
+	{@render pane(
+		withPull({
+			checks: {
+				state: 'pending',
+				total: 17,
+				failed: 0,
+				counts: { passed: 5, failed: 0, pending: 8, skipped: 4 },
+				url: 'https://github.com/acme/widgets/pull/42/checks'
+			},
+			review: null
 		})
 	)}
 </Story>

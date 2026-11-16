@@ -9,25 +9,52 @@
 
 	const states = { open: 'Open', closed: 'Closed', merged: 'Merged', unknown: 'Unknown' };
 
+	/**
+	 * The checks as a bar of how far they are: what failed and what passed on the left, what
+	 * is still running on the right. Where the forge only says how they stand overall, the
+	 * bar is all of one colour.
+	 */
 	const checks = $derived.by(() => {
 		const checks = pull?.checks;
 		if (!checks) return null;
-		const count = checks.total === null ? 'Checks' : `${checks.total} checks`;
+		const { counts, total, failed } = checks;
+		const tones = {
+			failed: 'bg-danger',
+			passed: 'bg-ok',
+			skipped: 'bg-line',
+			pending: 'bg-accent'
+		};
+		const words = { failed: 'failed', passed: 'passed', skipped: 'skipped', pending: 'running' };
+		const kinds = ['failed', 'passed', 'skipped', 'pending'] as const;
+
+		if (counts) {
+			const parts = kinds
+				.filter((kind) => counts[kind] > 0)
+				.map((kind) => ({
+					tone: tones[kind],
+					size: counts[kind],
+					text: `${counts[kind]} ${words[kind]}`
+				}));
+			// what matters first: what is wrong, then what is still to come, then what is done
+			const said = (['failed', 'pending', 'passed', 'skipped'] as const)
+				.filter((kind) => counts[kind] > 0)
+				.map((kind) => `${counts[kind]} ${words[kind]}`);
+			return { parts, text: said.join(', ') };
+		}
+
+		const whole = (tone: string, text: string) => ({ parts: [{ tone, size: 1, text }], text });
 		switch (checks.state) {
 			case 'success':
-				return { icon: 'icon-[lucide--circle-check] text-ok', text: `${count} passed` };
+				return whole(tones.passed, total === null ? 'Passed' : `${total} passed`);
 			case 'failure':
-				return {
-					icon: 'icon-[lucide--circle-x] text-danger',
-					text:
-						checks.failed === null || checks.total === null
-							? 'Checks failed'
-							: `${checks.failed} of ${checks.total} checks failed`
-				};
+				return whole(
+					tones.failed,
+					failed === null || total === null ? 'Failed' : `${failed} of ${total} failed`
+				);
 			case 'pending':
-				return { icon: 'icon-[lucide--circle-dashed] text-accent-ink', text: `${count} running` };
+				return whole(tones.pending, total === null ? 'Running' : `${total} running`);
 			default:
-				return { icon: 'icon-[lucide--circle-help]', text: 'Checks unknown' };
+				return whole(tones.skipped, 'Unknown');
 		}
 	});
 
@@ -76,8 +103,26 @@
 				{pull.draft && pull.state === 'open' ? 'Draft' : states[pull.state]}
 			</Badge>
 		</div>
+		{#if checks}
+			<svelte:element
+				this={pull.checks?.url ? 'a' : 'div'}
+				href={pull.checks?.url}
+				target={pull.checks?.url ? '_blank' : undefined}
+				rel={pull.checks?.url ? 'noreferrer' : undefined}
+				class="group block space-y-1.5 py-1 pl-6"
+			>
+				<span class="flex items-baseline gap-2 text-xs">
+					<span class="font-medium group-hover:underline">Checks</span>
+					<span class="min-w-0 truncate text-muted">{checks.text}</span>
+				</span>
+				<span class="flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
+					{#each checks.parts as part (part.text)}
+						<span class={part.tone} style:flex-grow={part.size} title={part.text}></span>
+					{/each}
+				</span>
+			</svelte:element>
+		{/if}
 		<div class="flex flex-wrap items-center gap-x-4 gap-y-1 pl-6 text-xs text-muted">
-			{#if checks}{@render fact(checks.icon, checks.text, pull.checks?.url)}{/if}
 			{#if review}{@render fact(review.icon, review.text)}{/if}
 			{#if pull.base}
 				<span class="flex min-w-0 items-center gap-1.5">

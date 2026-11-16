@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Thread } from 'forges';
 import { describe, expect, it } from 'vitest';
 import { MergeMethodRequiredError, type MergeOptions } from 'forges';
-import { merge, summarise, upstream } from './upstream.ts';
+import { count, merge, summarise, upstream } from './upstream.ts';
 import { ensureWorktree } from './worktree.ts';
 
 /** A pull request as `forges` reports it, with only the fields we read. */
@@ -36,6 +36,14 @@ describe('summarise', () => {
 			checks,
 			review: null
 		});
+	});
+
+	it('says how many checks stand how, where that is known', () => {
+		const checks = { state: 'pending', total: 5 } as const;
+		const counts = count(['success', 'success', 'pending', 'neutral', 'unknown']);
+		expect(counts).toEqual({ passed: 2, failed: 0, pending: 1, skipped: 2 });
+		expect(summarise(pull({ checks }), counts).checks?.counts).toEqual(counts);
+		expect(summarise(pull({ checks })).checks).not.toHaveProperty('counts');
 	});
 
 	it('shows no checks when there are none', () => {

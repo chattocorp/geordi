@@ -4,6 +4,7 @@ import {
 	createForges,
 	github,
 	MergeMethodRequiredError,
+	type Check,
 	type ForgeProvider,
 	type Forges,
 	type MergeMethod,
@@ -72,8 +73,35 @@ function forges() {
 	return (registry = { forges: createForges(providers), anonymous, at: Date.now() });
 }
 
+type Counts = NonNullable<NonNullable<PullRequest['checks']>['counts']>;
+
+/** How many checks stand how. */
+export function count(states: Check['state'][]): Counts {
+	const counts = { passed: 0, failed: 0, pending: 0, skipped: 0 };
+	const kinds = { success: 'passed', failure: 'failed', pending: 'pending' } as const;
+	for (const state of states) counts[kinds[state as keyof typeof kinds] ?? 'skipped']++;
+	return counts;
+}
+
+/**
+ * The checks on an open pull request, one by one: one more request, for a picture of how
+ * far they are. `undefined` where there is no telling (and the combined state has to do).
+ */
+async function countChecks(provider: ForgeProvider, repo: Repo, pull: Thread) {
+	const sha = pull.branches?.head.sha;
+	if (pull.state !== 'open' || !pull.checks || !sha || !provider.can('checks.list')) return;
+	try {
+		const page = await provider.checks.list(repo, sha);
+		// more of them than came back: counting these would be wrong
+		if (page.cursor || page.items.length === 0) return;
+		return count(page.items.map((check) => check.state));
+	} catch {
+		return; // nice to have, never worth failing over
+	}
+}
+
 /** Boils a pull request down to what the workspace shows. */
-export function summarise(thread: Thread): PullRequest {
+export function summarise(thread: Thread, counts?: Counts): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
 	const { checks } = thread;
 	return {
@@ -90,6 +118,7 @@ export function summarise(thread: Thread): PullRequest {
 						state: checks.state,
 						total: checks.total ?? null,
 						failed: checks.failed ?? null,
+						...(counts && { counts }),
 						url: checks.url ?? null
 					}
 				: null,
@@ -213,7 +242,7 @@ export async function upstream(
 	const defaultBranch = git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
 	const value: Upstream = {
 		...base,
-		pull: pull && summarise(pull),
+		pull: pull && summarise(pull, await countChecks(provider, repo, pull)),
 		createUrl:
 			(!pull &&
 				defaultBranch &&

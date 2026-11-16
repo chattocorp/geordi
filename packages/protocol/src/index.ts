@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -89,6 +89,11 @@ export type PullRequest = {
 		state: 'pending' | 'success' | 'failure' | 'unknown';
 		total: number | null;
 		failed: number | null;
+		/**
+		 * How many of them stand how; `skipped` are those that neither passed nor failed.
+		 * Absent where the forge only says how they stand overall.
+		 */
+		counts?: { passed: number; failed: number; pending: number; skipped: number };
 		url: string | null;
 	} | null;
 	/** Where its reviews stand, the most decisive first; `null` if nobody was asked. */
