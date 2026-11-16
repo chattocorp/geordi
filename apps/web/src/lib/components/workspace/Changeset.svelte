@@ -23,52 +23,63 @@
 
 {#snippet release(pkg: ReleasePackage)}
 	{@const before = pkg.notes.length - mine(pkg).length}
-	<!-- held to a width that reads well, however wide the pane is -->
-	<li class="max-w-prose space-y-4 px-5 py-5">
-		<header class="space-y-1">
-			<div class="flex items-center gap-2">
-				<h3 class="min-w-0 flex-1 truncate heading" title={pkg.path}>{pkg.name ?? pkg.path}</h3>
-				{#if pkg.nextVersion}<Badge tone="accent">{pkg.bump}</Badge>{:else}<Badge>no bump</Badge
-					>{/if}
+	<li class="space-y-3 px-5 py-5">
+		<header class="flex items-center gap-3">
+			<div class="min-w-0 flex-1">
+				<h3 class="truncate heading" title={pkg.path}>{pkg.name ?? pkg.path}</h3>
+				{#if before > 0 && pkg.nextVersion}
+					<!-- why the step may be bigger than this workspace's notes alone would make it -->
+					<p class="truncate text-xs text-muted">
+						with {before}
+						{before === 1 ? 'note' : 'notes'} pending already
+					</p>
+				{/if}
 			</div>
 			<!-- where its notes take it, once they are released -->
-			<p class="flex items-center gap-1.5 code-dense text-muted">
+			<p class="flex shrink-0 items-center gap-1.5 code-dense text-muted">
 				{pkg.version}
 				{#if pkg.nextVersion}
 					<span class="icon-[lucide--arrow-right] size-3"></span>
-					<span class="text-ink">{pkg.nextVersion}</span>
+					<span class="font-medium text-ink">{pkg.nextVersion}</span>
 				{/if}
 			</p>
+			{#if pkg.nextVersion}<Badge tone="accent">{pkg.bump}</Badge>{:else}<Badge>no bump</Badge>{/if}
 		</header>
 
 		<!-- each note as it will read in the changelog: what kind of change, then what it says -->
 		<ul class="space-y-2">
 			{#each mine(pkg) as note (note.path)}
-				<li class="space-y-1.5 rounded-card bg-sunken px-4 py-3">
+				<li class="rounded-card bg-sunken px-4 pt-2.5 pb-3.5">
+					<!-- its kind, and the file it is: which opens as a diff -->
 					<button
 						type="button"
 						onclick={() => onopen(note.path)}
 						title="Open {note.path}"
-						class={[
-							'flex items-center gap-0.5 text-xs font-semibold tracking-wider uppercase hover:text-ink',
-							note.breaking ? 'text-danger' : 'text-muted'
-						]}
+						class="group flex w-full items-center gap-2 pb-2 text-left text-xs"
 					>
-						{note.type}{#if note.breaking && note.type !== 'breaking'}, breaking{/if}
-						<span class="icon-[lucide--chevron-right] size-3"></span>
+						<span class={['dot', note.breaking ? 'bg-danger' : 'bg-accent']}></span>
+						<span
+							class={[
+								'font-medium first-letter:uppercase',
+								note.breaking ? 'text-danger' : 'text-ink'
+							]}
+						>
+							{note.type}{#if note.breaking && note.type !== 'breaking'}, breaking{/if}
+						</span>
+						<span
+							class="min-w-0 flex-1 truncate text-right code-dense text-muted group-hover:text-ink"
+						>
+							{note.path.split('/').at(-1)}
+						</span>
+						<span
+							class="icon-[lucide--chevron-right] size-3 shrink-0 text-muted group-hover:text-ink"
+						></span>
 					</button>
-					<Markdown text={note.body} dense />
+					<!-- set as the conversation is: the same text, the same way -->
+					<Markdown text={note.body} />
 				</li>
 			{/each}
 		</ul>
-
-		{#if before > 0 && pkg.nextVersion}
-			<!-- why the step may be bigger than this workspace's notes alone would make it -->
-			<p class="text-xs text-muted">
-				The next version also counts {before}
-				{before === 1 ? 'note that was' : 'notes that were'} pending already.
-			</p>
-		{/if}
 	</li>
 {/snippet}
 
@@ -80,7 +91,7 @@
 	{#if plan.ask}
 		{@const ask = plan.ask}
 		<!-- asked once per repository: the tool runs as the person, where the agent can write -->
-		<div class="max-w-prose space-y-3 px-5 py-4 text-sm">
+		<div class="space-y-3 px-5 py-4 text-sm">
 			<p class="text-muted">
 				This repository uses {plan.name}. To show what this workspace means for its next releases,
 				Geordi runs this in the workspace's directory, as you:
@@ -89,18 +100,13 @@
 			<Button size="sm" onclick={() => onallow(ask)}>Allow in this repository</Button>
 		</div>
 	{:else if plan.problem}
-		<p class="max-w-prose px-5 py-4 text-sm text-muted">
+		<p class="px-5 py-4 text-sm text-muted">
 			{plan.name} couldn't be asked: {plan.problem}.
 		</p>
 	{:else}
-		<p class="px-5 pt-4 text-sm text-muted">
-			{#if added === 0}
-				This workspace adds no change notes yet.
-			{:else}
-				Merging this workspace adds {added}
-				{added === 1 ? 'change note' : 'change notes'}.
-			{/if}
-		</p>
+		{#if added === 0}
+			<p class="px-5 py-4 text-sm text-muted">This workspace adds no change notes yet.</p>
+		{/if}
 		<ul class="divide-y divide-line/60">
 			{#each touched as pkg (pkg.path)}{@render release(pkg)}{/each}
 		</ul>

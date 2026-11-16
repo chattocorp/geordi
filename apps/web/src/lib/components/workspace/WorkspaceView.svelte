@@ -553,7 +553,7 @@
 			<h1 class="truncate heading" title={workspace.title}>
 				{workspace.title}
 			</h1>
-			<div class="flex items-center gap-3 text-xs text-muted">
+			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
 				<a
 					href={resolve('/repos/[id]', { id: repo.id })}
 					class="flex shrink-0 items-center gap-1 hover:text-ink"

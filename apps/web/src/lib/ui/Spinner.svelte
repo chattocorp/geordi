@@ -9,59 +9,78 @@
 	};
 	let { label = 'Working', plain = false }: Props = $props();
 
-	/** The classic Braille dots going round. */
-	const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-	const TURN_MS = 800;
+	/**
+	 * The classic Braille dots going round: two columns of three, half of them lit. Drawn
+	 * here, not set as Braille characters: fonts draw those with their unlit dots as rings,
+	 * and at this size every frame then looks the same. Each dot's place (column, row), in
+	 * the order the light passes them.
+	 */
+	const DOTS = [
+		[1, 1],
+		[2, 1],
+		[2, 2],
+		[2, 3],
+		[1, 3],
+		[1, 2]
+	];
+	const TURN_MS = 900;
 
 	/** All spinners turn together: each joins the turn where the others are in it. */
 	const inStep: Attachment<HTMLElement> = (node) => {
-		node.style.animationDelay = `-${Math.round(performance.now() % TURN_MS)}ms`;
+		node.style.setProperty('--at', `${Math.round(performance.now() % TURN_MS)}ms`);
 	};
 </script>
 
 <!--
 	Turned by the browser, not by us: it goes round also while the page is busy with
 	something else (waiting for the server, say), which is just when it is looked at.
-	Not a live region: the frames would be read out, one after the other.
 -->
 <span
 	role="img"
 	aria-label={label}
 	title={label}
-	class={['spinner shrink-0 font-mono', !plain && 'text-accent-ink']}
+	class={['spinner shrink-0', !plain && 'text-accent-ink']}
+	{@attach inStep}
 >
-	<span class="frames" aria-hidden="true" {@attach inStep}>
-		{#each FRAMES as frame (frame)}<span>{frame}</span>{/each}
-	</span>
+	{#each DOTS as [column, row], index (index)}
+		<span style:grid-area="{row} / {column}" style:--i={index}></span>
+	{/each}
 </span>
 
 <style>
-	/* A window one frame high onto a strip of all of them, which moves up a frame at a time. */
 	.spinner {
-		display: inline-block;
-		height: 1em;
-		overflow: hidden;
-		line-height: 1;
-		vertical-align: -0.125em;
+		display: inline-grid;
+		grid-template: repeat(3, 1fr) / repeat(2, 1fr);
+		place-items: center;
+		width: 0.6em;
+		height: 0.9em;
+		vertical-align: -0.1em;
 	}
-	.frames {
-		display: flex;
-		flex-direction: column;
-		animation: turn 800ms steps(10) infinite;
+	.spinner > span {
+		width: 0.19em;
+		height: 0.19em;
+		border-radius: 50%;
+		background: currentColor;
+		opacity: 0.2;
+		/* lit for half a turn, each a sixth of a turn after the one before */
+		animation: lit 900ms steps(1) infinite;
+		animation-delay: calc(var(--i) * 150ms - var(--at, 0ms));
 	}
-	.frames > span {
-		height: 1em;
-		line-height: 1em;
-	}
-	@keyframes turn {
-		to {
-			transform: translateY(-100%);
+	@keyframes lit {
+		0% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.2;
 		}
 	}
 	/* people who prefer reduced motion get a spinner that stands still */
 	@media (prefers-reduced-motion: reduce) {
-		.frames {
+		.spinner > span {
 			animation: none;
+		}
+		.spinner > span:nth-child(-n + 3) {
+			opacity: 1;
 		}
 	}
 </style>

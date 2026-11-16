@@ -65,7 +65,7 @@
 </script>
 
 {#snippet pane(plan: ReleasePlan)}
-	<div class="flex h-96 w-96 flex-col overflow-hidden card">
+	<div class="flex h-128 w-full max-w-2xl flex-col overflow-hidden card">
 		<Changeset {plan} {onopen} onallow={onopen} />
 	</div>
 {/snippet}

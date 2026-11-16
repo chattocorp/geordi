@@ -2,8 +2,7 @@
 	import type { Attachment } from 'svelte/attachments';
 	import { renderMarkdown } from '#lib/markdown.ts';
 
-	/** `dense`: a size smaller, for text beside the conversation rather than in it. */
-	let { text, dense = false }: { text: string; dense?: boolean } = $props();
+	let { text }: { text: string } = $props();
 
 	const html = $derived(renderMarkdown(text));
 
@@ -21,10 +20,7 @@
 	};
 </script>
 
-<div
-	class={['prose max-w-none prose-pre:rounded-control', dense && 'prose-dense']}
-	{@attach copyButtons}
->
+<div class="prose max-w-none prose-pre:rounded-control" {@attach copyButtons}>
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it escapes raw HTML -->
 	{@html html}
 </div>

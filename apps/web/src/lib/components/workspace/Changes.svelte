@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Spinner from '#lib/ui/Spinner.svelte';
 	import type { WorktreeState } from '#lib/server/watchers.ts';
 	import UpstreamStatus from './UpstreamStatus.svelte';
 
@@ -69,7 +70,9 @@
 				</p>
 			</div>
 		{:else if !git}
-			<p class="px-3.5 py-2 text-sm text-muted">Loading…</p>
+			<p class="flex items-center gap-2 px-3.5 py-2 text-sm text-muted">
+				<Spinner label="Loading the changes" /> Loading…
+			</p>
 		{:else if git.unavailable}
 			<p class="px-3.5 py-2 text-sm text-muted">{git.unavailable}</p>
 		{:else}
