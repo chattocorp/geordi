@@ -80,10 +80,13 @@ describe('actionsFor', () => {
 		expect(actions[0].prompt).toContain('pull request #42');
 	});
 
-	it('offers to archive once the pull request is merged or closed', () => {
+	it('offers to archive, or to carry on, once the pull request is merged or closed', () => {
 		for (const state of ['merged', 'closed'] as const) {
 			const actions = actionsFor({ changes: clean, upstream: upstream({ state }) });
-			expect(actions.map((action) => action.id)).toEqual(['archive']);
+			// done with, unless there is more to do in it: archiving is the next step,
+			// carrying on the quiet alternative beside it
+			expect(actions.map((action) => action.id)).toEqual(['continue', 'archive']);
+			expect(actions.find((action) => !action.aside)?.id).toBe('archive');
 			expect(actions[0].prompt).toBeUndefined();
 		}
 	});

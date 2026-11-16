@@ -94,15 +94,17 @@
 				{#if pull.url}<span class="icon-[lucide--arrow-up-right] size-3.5"></span>{/if}
 			</svelte:element>
 		{/if}
-		{#each actions as action, index (action.id)}
+		{#each actions as action (action.id)}
+			<!-- the next step stands out; what else is possible, and what is beside it, doesn't -->
+			{@const next = action === actions.find((candidate) => !candidate.aside)}
 			<Button
 				size="sm"
-				variant={index === 0 ? 'primary' : 'secondary'}
+				variant={next ? 'primary' : 'secondary'}
 				tone={standing?.tone === 'merged' ? 'merged' : 'accent'}
 				icon={action.icon}
 				busy={pending.includes(action.id)}
 				onclick={() => onaction(action)}
-				class={index === 0 ? '' : 'bg-surface text-ink'}
+				class={next ? '' : 'bg-surface text-ink'}
 			>
 				{action.label}
 			</Button>

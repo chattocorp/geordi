@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 21;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -52,9 +52,15 @@ export type WorktreeRef = {
 	repoPath: string;
 	/**
 	 * The branch the worktree started from, and that its changes are measured against.
-	 * Absent for worktrees started from whatever the repository had checked out.
+	 * Absent for worktrees started from where work in the repository starts.
 	 */
 	base?: string;
+	/**
+	 * The branch the worktree is on, as far as the forge knows. Only needed to bring back a
+	 * worktree that went missing: one that was continued is no longer on the branch its ID
+	 * would say.
+	 */
+	branch?: string;
 };
 
 /** Where an agent started by another agent works: in a worktree of its `own`, or `shared` with its parent. */
@@ -258,8 +264,18 @@ export type DaemonRequest =
 	 * Answers whether something does.
 	 */
 	| { kind: 'portReady'; port: number; timeoutMs: number }
-	/** Brings back a worktree that was removed behind Geordi's back, from its branch. */
-	| ({ kind: 'restoreWorktree' } & WorktreeRef)
+	/**
+	 * Has the workspace carry on with new work (FDR-001): fetches, and moves its worktree to
+	 * a new branch off where work in the repository starts. Refused while it has uncommitted
+	 * changes. Answers with the new branch.
+	 */
+	| ({ kind: 'continueWorktree' } & WorktreeRef)
+	/**
+	 * Makes sure the workspace's worktree is there, without a turn to make it for: a
+	 * workspace started without anything to do yet, or one whose worktree was removed
+	 * behind Geordi's back (which comes back from its branch). Answers where it is.
+	 */
+	| ({ kind: 'prepareWorktree' } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Both versions of one of those files. */
@@ -283,7 +299,8 @@ export type DaemonRequest =
 export type DaemonResults = {
 	changes: Changes;
 	removeWorktree: null;
-	restoreWorktree: null;
+	prepareWorktree: { path: string; branch: string };
+	continueWorktree: { branch: string };
 	approveRun: null;
 	portReady: boolean;
 	config: RepoConfig;

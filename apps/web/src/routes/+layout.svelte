@@ -24,7 +24,8 @@
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { getNavigation } from './nav.remote';
-	import { stopAgent } from './workspaces.remote';
+	import { problemOf } from '#lib/problem.ts';
+	import { continueWorkspace, stopAgent } from './workspaces.remote';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
@@ -55,6 +56,18 @@
 		else if (archiveProblems[workspace.id]) await goto(href);
 	}
 
+	/** Has a workspace carry on with new work, on a new branch off the latest upstream. */
+	async function carryOn(workspace: Item) {
+		delete archiveProblems[workspace.id];
+		try {
+			await continueWorkspace(workspace.id);
+		} catch (error) {
+			// its page is where it says why not
+			archiveProblems[workspace.id] = problemOf(error, 'Could not continue the workspace');
+			await goto(resolve('/workspaces/[id]', { id: workspace.id }));
+		}
+	}
+
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
@@ -79,6 +92,12 @@
 				onselect: () => navigator.clipboard.writeText(workspace.branch ?? '')
 			},
 			'separator',
+			{
+				label: 'Continue on a new branch',
+				icon: 'icon-[lucide--git-branch-plus]',
+				disabled: busy,
+				onselect: () => carryOn(workspace)
+			},
 			{
 				label: 'Stop agent',
 				icon: 'icon-[lucide--square]',

@@ -16,7 +16,7 @@ import {
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
-import { status, versions } from './changes.ts';
+import { status, uncommittedFiles, versions } from './changes.ts';
 import { resolve, settingsOf } from './config.ts';
 import { createPorts, portEnv, waitForPort } from './ports.ts';
 import {
@@ -34,6 +34,7 @@ import { resumeTurns, runTurn, type Turn } from './turn.ts';
 import { mergePull, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
+	continueOn,
 	ensureWorktree,
 	fetchUpstream,
 	hasWorktree,
@@ -248,12 +249,30 @@ async function answer(request: DaemonRequest) {
 	}
 	if (request.kind === 'portReady')
 		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
-	if (request.kind === 'restoreWorktree') {
-		const { repoPath, worktreeId, base } = request;
-		ensureWorktree(worktreesDir, repoPath, worktreeId, base);
+	if (request.kind === 'continueWorktree') {
+		const { repoPath, worktreeId } = request;
+		const worktree = locateWorktree(worktreesDir, repoPath, worktreeId);
+		if (turns.has(worktreeId)) throw new Error('Its agent is still at work');
+		if (uncommittedFiles(worktree).length > 0)
+			throw new Error('It has uncommitted changes: commit or discard them first');
+		// from where the upstream stands now, as a new workspace would
+		const problem = await fetchUpstream(repoPath);
+		if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
+		const branch = continueOn(worktree, repoPath);
+		sendLive({ type: 'worktree.changed', worktreeId });
+		return { branch };
+	}
+	if (request.kind === 'prepareWorktree') {
+		const { repoPath, worktreeId, base, branch } = request;
+		// a new one starts from where its upstream stands now, as with a first turn
+		if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+			const problem = await fetchUpstream(repoPath);
+			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
+		}
+		const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
-		return null;
+		return { path: worktree.path, branch: worktree.branch };
 	}
 
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
@@ -305,7 +324,7 @@ async function handle(message: ForgeMessage) {
 					const problem = await fetchUpstream(repoPath);
 					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 				}
-				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base);
+				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, message.branch);
 				if (worktree.created)
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
 				if (worktree.created || worktree.restored) {

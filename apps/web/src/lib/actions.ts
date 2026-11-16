@@ -14,12 +14,15 @@ export type WorkspaceAction = {
 		| 'address-review'
 		| 'merge-pull'
 		| 'restore-worktree'
+		| 'continue'
 		| 'archive';
 	label: string;
 	/** An Iconify class. */
 	icon: string;
 	/** What to say to the agent. Absent for actions Geordi carries out itself. */
 	prompt?: string;
+	/** An alternative to the next step rather than the next step itself: offered beside it, quietly. */
+	aside?: boolean;
 };
 
 type State = {
@@ -72,7 +75,13 @@ export function actionsFor({ changes, upstream }: State): WorkspaceAction[] {
 		label: 'Archive',
 		icon: 'icon-[lucide--archive]'
 	};
-	if (pull.state === 'merged' || pull.state === 'closed') return [archive];
+	// Its work has landed (or was given up): the workspace is done with, unless there is
+	// more to do in it. Then it carries on, on a fresh branch.
+	if (pull.state === 'merged' || pull.state === 'closed')
+		return [
+			{ id: 'continue', label: 'Continue', icon: 'icon-[lucide--git-branch-plus]', aside: true },
+			archive
+		];
 
 	const number = `pull request #${pull.number}`;
 	const actions: WorkspaceAction[] = [];

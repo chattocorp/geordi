@@ -1,6 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { NO_WORKTREE } from '@geordi/protocol';
-import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
 const git = (cwd: string, ...args: string[]) =>
@@ -163,9 +163,12 @@ export function ensureWorktree(
 	baseDir: string,
 	repoPath: string,
 	workspaceId: string,
-	base?: string
+	base?: string,
+	/** The branch it was last known to be on, if not the one named after it (see `continueOn`). */
+	branch?: string
 ) {
-	const worktree = describe(baseDir, repoPath, workspaceId);
+	const described = describe(baseDir, repoPath, workspaceId);
+	const worktree = branch && branchRef(branch) ? { ...described, branch } : described;
 
 	const missing = !existsSync(worktree.path);
 	// A branch without its worktree: the worktree was removed behind our back (or the
@@ -197,6 +200,38 @@ export function ensureWorktree(
 	writableRoots.push(worktree.adminDir);
 
 	return { ...worktree, writableRoots, created, restored };
+}
+
+/**
+ * Moves a worktree to a new branch off where work in the repository starts (`startOf`):
+ * for carrying on in a workspace whose work has landed. The branch it was on stays as it
+ * is. Returns the new branch.
+ *
+ * Without running git inside the worktree, whose own Git metadata is the agent's to write:
+ * the branch is made in the repository, the worktree's files and index are set to it from
+ * outside, and its HEAD is pointed there by hand. The caller makes sure there is nothing
+ * uncommitted to lose.
+ */
+export function continueOn(worktree: Worktree, repoPath: string): string {
+	verifyLinks(worktree);
+	// named after the worktree, like its first branch, and numbered
+	const stem = `geordi/${basename(worktree.path)}`;
+	let branch = '';
+	for (let n = 2; !branch; n++) {
+		const name = `${stem}-${n}`;
+		if (quietly(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(name)) === null)
+			branch = name;
+	}
+
+	git(repoPath, 'branch', '--no-track', branch, startOf(repoPath));
+	try {
+		gitIn(worktree, 'read-tree', '--reset', '-u', branchRef(branch));
+	} catch (error) {
+		git(repoPath, 'branch', '-D', branch); // nothing is on it yet
+		throw error;
+	}
+	writeFileSync(join(worktree.adminDir, 'HEAD'), `ref: ${branchRef(branch)}\n`);
+	return branch;
 }
 
 /**

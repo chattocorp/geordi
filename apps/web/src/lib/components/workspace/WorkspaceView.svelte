@@ -38,6 +38,7 @@
 	import {
 		mergePull,
 		closeTerminal,
+		continueWorkspace,
 		getWorkspace,
 		approveRun,
 		openLink,
@@ -303,7 +304,9 @@
 			.filter((action) =>
 				action.prompt
 					? asked.includes(action.prompt)
-					: (action.id === 'merge-pull' && merging) || (action.id === 'archive' && leaving)
+					: (action.id === 'merge-pull' && merging) ||
+						(action.id === 'archive' && leaving) ||
+						(action.id === 'continue' && continuing)
 			)
 			.map((a) => a.id);
 	});
@@ -351,10 +354,26 @@
 		}
 	}
 
+	/** The workspace is being moved to a new branch right now, to carry on with new work. */
+	let continuing = $state(false);
+
+	async function carryOn() {
+		mergeProblem = null;
+		continuing = true;
+		try {
+			await continueWorkspace(id);
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not continue the workspace');
+		} finally {
+			continuing = false;
+		}
+	}
+
 	function act(action: WorkspaceAction) {
 		if (action.prompt) say({ workspaceId: id, text: action.prompt });
 		else if (action.id === 'merge-pull') merge();
 		else if (action.id === 'restore-worktree') restore();
+		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') archive();
 	}
 </script>

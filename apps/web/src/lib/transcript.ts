@@ -7,16 +7,19 @@ export type Part =
 	| { kind: 'tools'; tools: Tool[] }
 	| { kind: 'error'; error: string };
 
-/** A user message, or everything the agent did in reply to one. */
-export type Block = { kind: 'user'; text: string } | { kind: 'agent'; parts: Part[] };
+/** A user message, everything the agent did in reply to one, or something said in passing. */
+export type Block =
+	| { kind: 'user'; text: string }
+	| { kind: 'agent'; parts: Part[] }
+	| { kind: 'note'; text: string };
 
 /** Groups a flat transcript into turns, merging consecutive tool calls into one part. */
 export function toBlocks(transcript: TranscriptItem[]): Block[] {
 	const blocks: Block[] = [];
 
 	for (const item of transcript) {
-		if (item.kind === 'user') {
-			blocks.push({ kind: 'user', text: item.text });
+		if (item.kind === 'user' || item.kind === 'note') {
+			blocks.push({ kind: item.kind, text: item.text });
 			continue;
 		}
 

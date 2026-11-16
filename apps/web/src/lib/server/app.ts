@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { error } from '@sveltejs/kit';
 import { NO_WORKTREE } from '@geordi/protocol';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
@@ -90,6 +91,48 @@ async function loadWorktreeState(worktreeId: string, fresh = false): Promise<Wor
 		};
 	}
 	return state;
+}
+
+/**
+ * Has a daemon make sure a workspace's worktree is there, and notes where it is: for a
+ * workspace that has had no turn to make one in, or whose worktree went missing.
+ */
+export async function prepareWorktree(id: string) {
+	const { path, branch } = await hub().request(
+		{ kind: 'prepareWorktree', ...workspaces().ref(id) },
+		90_000
+	);
+	// as a daemon says when it makes one for a turn (it goes to whoever owns the worktree)
+	workspaces().record(id, { kind: 'worktree', path, branch });
+	watchers().changed(workspaces().ref(id).worktreeId);
+}
+
+/**
+ * Has a workspace carry on with new work (FDR-001): a daemon fetches and moves its worktree
+ * to a new branch off where work in the repository starts; the conversation goes on, and
+ * its agent hears of it with its next message.
+ */
+export async function continueWorkspace(id: string, actor: string | null = null) {
+	const workspace = workspaces().summary(id);
+	if (workspace.archivedAt) error(409, 'This workspace is archived');
+	if (!workspace.worktree) error(409, 'This workspace has no worktree yet');
+	// everyone in that directory is moved along: none of them may be in the middle of something
+	const busy = workspaces()
+		.sharing(id)
+		.find((other) => other.status === 'running');
+	if (busy) error(409, `Stop the agent in “${busy.title}” first`);
+
+	let branch;
+	try {
+		({ branch } = await hub().request(
+			{ kind: 'continueWorktree', ...workspaces().ref(id) },
+			90_000
+		));
+	} catch (cause) {
+		error(422, cause instanceof Error ? cause.message : String(cause));
+	}
+	workspaces().continued(id, branch, actor);
+	watchers().changed(workspace.worktreeId, true);
 }
 
 /** Has a workspace's worktree looked at afresh, including how it stands upstream. */

@@ -27,6 +27,57 @@ const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'turn.start' }>).apiToken;
 
 describe('workspaces', () => {
+	it('can be started without a word, and is told what Geordi is with its first message', () => {
+		const { workspaces, sent, repo } = setup();
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: '' });
+		expect(sent).toEqual([]); // no turn: there is nothing to do yet
+		expect(workspaces.get(id)).toMatchObject({
+			title: 'New workspace',
+			status: 'idle',
+			transcript: []
+		});
+
+		workspaces.send(id, 'Fix the flaky login test\nIt times out on CI');
+		expect(sent.at(-1)).toMatchObject({
+			type: 'turn.start',
+			turn: 1,
+			resumeId: null,
+			instructions: expect.stringContaining('inside Geordi'),
+			prompt: 'Fix the flaky login test\nIt times out on CI'
+		});
+		// and is named after it, as one started with a prompt is
+		expect(workspaces.get(id).title).toBe('Fix the flaky login test');
+	});
+
+	it('carries on in a workspace on a new branch, and tells its agent with the next message', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('Fix the bug');
+		workspaces.record(id, { kind: 'worktree', path: '/wt/abc', branch: 'geordi/abc' }, 1);
+		workspaces.record(id, { kind: 'turn.completed' }, 1);
+
+		workspaces.continued(id, 'geordi/abc-2');
+		const workspace = workspaces.get(id);
+		expect(workspace.worktree).toEqual({ path: '/wt/abc', branch: 'geordi/abc-2' });
+		// the conversation is as it was, with a word about what happened
+		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'note']);
+		// a daemon asked to bring the worktree back would bring back this branch
+		expect(workspaces.ref(id)).toMatchObject({ branch: 'geordi/abc-2' });
+
+		workspaces.send(id, 'Now the next thing');
+		const turn = sent.at(-1) as Extract<ForgeMessage, { type: 'turn.start' }>;
+		expect(turn.prompt).toMatch(
+			/^\(A note from Geordi.*geordi\/abc-2[\s\S]*\n\nNow the next thing$/
+		);
+		// said once: the message after that is just the message
+		expect(workspaces.get(id).transcript.at(-1)).toMatchObject({
+			kind: 'user',
+			text: 'Now the next thing'
+		});
+		workspaces.record(id, { kind: 'turn.completed' }, 2);
+		workspaces.send(id, 'And another');
+		expect((sent.at(-1) as typeof turn).prompt).toBe('And another');
+	});
+
 	it('runs the next turn with the model and effort chosen since', () => {
 		const { workspaces, sent, create, store } = setup();
 		const id = create('Fix the bug');

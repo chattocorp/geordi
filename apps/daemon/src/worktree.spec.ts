@@ -17,6 +17,7 @@ import { changes, readText, status, versions } from './changes.ts';
 import { removeWorktree } from './remove.ts';
 import {
 	branchRef,
+	continueOn,
 	ensureWorktree,
 	fetchUpstream,
 	locateWorktree,
@@ -140,6 +141,45 @@ describe('ensureWorktree', () => {
 		}).trim();
 		git('branch', '-q', `--set-upstream-to=origin/${main}`);
 		expect(upstreamBranchOf(repoPath, worktree.branch)).toBe('geordi/12345678');
+	});
+
+	it('carries on, on a new branch off where the upstream stands, and keeps the old one', async () => {
+		const upstream = repo();
+		const run = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8'
+			}).trim();
+		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
+		execFileSync('git', ['clone', '-q', upstream, repoPath]);
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+
+		// work in the workspace, and meanwhile something else lands upstream
+		writeFileSync(join(worktree.path, 'mine.txt'), 'mine\n');
+		run(worktree.path, 'add', '.');
+		run(worktree.path, 'commit', '-qm', 'my work');
+		writeFileSync(join(upstream, 'landed.txt'), 'landed\n');
+		run(upstream, 'add', '.');
+		run(upstream, 'commit', '-qm', 'landed upstream');
+		await fetchUpstream(repoPath);
+
+		expect(continueOn(worktree, repoPath)).toBe('geordi/12345678-2');
+		// on the new branch, with the upstream's files and none of its own old ones
+		expect(run(worktree.path, 'branch', '--show-current')).toBe('geordi/12345678-2');
+		expect(run(worktree.path, 'rev-parse', 'HEAD')).toBe(run(upstream, 'rev-parse', 'HEAD'));
+		expect(existsSync(join(worktree.path, 'landed.txt'))).toBe(true);
+		expect(existsSync(join(worktree.path, 'mine.txt'))).toBe(false);
+		expect(run(worktree.path, 'status', '--porcelain')).toBe('');
+		expect(changes(worktree, { repoPath })).toEqual([]);
+		// what was done before is still on its branch
+		expect(run(repoPath, 'log', '--format=%s', '-1', 'geordi/12345678')).toBe('my work');
+
+		// and again; and a worktree that goes missing comes back on the branch it was on
+		expect(continueOn(worktree, repoPath)).toBe('geordi/12345678-3');
+		rmSync(worktree.path, { recursive: true });
+		const back = ensureWorktree(base, repoPath, '12345678-aaaa', undefined, 'geordi/12345678-3');
+		expect(back).toMatchObject({ restored: true, branch: 'geordi/12345678-3' });
+		expect(run(back.path, 'branch', '--show-current')).toBe('geordi/12345678-3');
 	});
 
 	it('refuses a worktree whose Git metadata was repointed', () => {

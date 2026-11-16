@@ -46,6 +46,8 @@
 			<span class="min-w-0 truncate code-dense">{toolSummary(active.input, cwd)}</span>
 			<Spinner label="Running" />
 		{:else}
+			<!-- named, so that a row of small icons says what it is -->
+			<span class="text-xs">Tools</span>
 			{#each used as { name, icon, count, failed } (name)}
 				<span class={['flex items-center gap-1', failed && 'text-danger']} title={name}>
 					<span class={['size-3.5 shrink-0', icon]}></span>
@@ -55,7 +57,7 @@
 			{/each}
 		{/if}
 		<span
-			class="icon-[lucide--chevron-right] size-3.5 shrink-0 opacity-0 transition-transform group-open/tools:rotate-90 group-open/tools:opacity-100 group-hover/tools:opacity-100"
+			class="icon-[lucide--chevron-right] size-3.5 shrink-0 opacity-60 transition-transform group-open/tools:rotate-90 group-hover/tools:opacity-100"
 		></span>
 	</summary>
 

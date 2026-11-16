@@ -38,4 +38,14 @@ describe('toBlocks', () => {
 			{ kind: 'agent', parts: [{ kind: 'error', error: 'Stopped' }] }
 		]);
 	});
+
+	it('keeps what is said in passing apart from what either side said', () => {
+		const blocks = toBlocks([
+			{ kind: 'user', text: 'Do it', at },
+			{ kind: 'text', text: 'Done.', at },
+			{ kind: 'note', text: 'Continued on a new branch, geordi/abc-2', at },
+			{ kind: 'user', text: 'Now this', at }
+		]);
+		expect(blocks.map((block) => block.kind)).toEqual(['user', 'agent', 'note', 'user']);
+	});
 });

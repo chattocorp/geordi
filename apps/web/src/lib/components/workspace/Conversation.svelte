@@ -98,6 +98,13 @@
 						<div class="ml-auto message bg-bubble whitespace-pre-wrap">
 							{block.text}
 						</div>
+					{:else if block.kind === 'note'}
+						<!-- something that happened to the workspace: said in passing, between the two -->
+						<p class="flex items-center gap-3 text-xs text-muted">
+							<span class="h-px flex-1 bg-line"></span>
+							{block.text}
+							<span class="h-px flex-1 bg-line"></span>
+						</p>
 					{:else}
 						<div class="flex gap-3.5">
 							<AgentAvatar agent={workspace.agent} />
@@ -156,7 +163,11 @@
 				<Composer
 					{form}
 					rows={2}
-					placeholder={running ? 'Steer the agent, or queue a message' : 'Reply to the agent'}
+					placeholder={running
+						? 'Steer the agent, or queue a message'
+						: workspace.transcript.length === 0
+							? 'What should the agent do?'
+							: 'Reply to the agent'}
 					onkeydown={keys}
 					field={form.fields.text.as('text')}
 					problems={form.fields.text.issues()?.map((problem) => problem.message)}

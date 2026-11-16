@@ -13,8 +13,10 @@ import type { WorkspaceSummary } from '#lib/server/workspaces.ts';
 import {
 	archiveWorkspace as archive,
 	concernsAboutArchiving,
+	continueWorkspace as carryOn,
 	hub,
 	jobs,
+	prepareWorktree,
 	terminals,
 	watchers,
 	workspaces
@@ -92,10 +94,15 @@ export const createWorkspace = form(
 		/** Empty for "whatever the agent's CLI would use". */
 		model: v.optional(v.string()),
 		effort: v.optional(v.string()),
-		prompt: text
+		/** May be empty: the workspace is then there to be told what to do, and has its worktree. */
+		prompt: v.optional(v.pipe(v.string(), v.trim()), '')
 	}),
 	({ model, effort, ...data }) => {
 		const id = workspaces().create({ ...data, settings: { model, effort } });
+		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
+		// that there is somewhere to look around and open a terminal in
+		if (!data.prompt)
+			prepareWorktree(id).catch((cause) => console.warn(`[worktree] ${cause?.message ?? cause}`));
 		redirect(303, `/workspaces/${id}`);
 	}
 );
@@ -194,18 +201,22 @@ export const openLink = command(
 	({ workspaceId, link, seen }) => jobs().open(workspaceId, link, seen)
 );
 
+/**
+ * Has a workspace carry on with new work: on a new branch off the latest upstream, with its
+ * conversation as it is.
+ */
+export const continueWorkspace = command(v.string(), (workspaceId) => carryOn(workspaceId));
+
 /** Brings back a workspace's worktree that was removed outside Geordi, from its branch. */
 export const restoreWorktree = command(v.string(), async (workspaceId) => {
-	const ref = workspaces().ref(workspaceId);
 	try {
-		await hub().request({ kind: 'restoreWorktree', ...ref }, 60_000);
+		await prepareWorktree(workspaceId);
 	} catch (cause) {
 		error(
 			502,
 			`Could not restore the worktree: ${cause instanceof Error ? cause.message : String(cause)}`
 		);
 	}
-	watchers().changed(ref.worktreeId);
 });
 
 /** Takes back a message that is waiting for the agent to finish its turn. */

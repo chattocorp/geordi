@@ -57,6 +57,11 @@ export type WorkspacesEvent =
 			stream: WorkspaceStream;
 			data: { id: string; settings: AgentSettings };
 	  }
+	/**
+	 * The workspace carries on with new work: its worktree moved to a new branch, off where
+	 * work in the repository starts. Its conversation goes on.
+	 */
+	| { type: 'workspace.continued'; stream: WorkspaceStream; data: { id: string; branch: string } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
@@ -80,7 +85,9 @@ export type TranscriptItem =
 			isError: boolean;
 			at: string;
 	  }
-	| { kind: 'error'; error: string; at: string };
+	| { kind: 'error'; error: string; at: string }
+	/** Something that happened to the workspace, said in passing: neither side's words. */
+	| { kind: 'note'; text: string; at: string };
 
 type Status = 'running' | 'idle';
 
@@ -112,6 +119,11 @@ export type Workspace = {
 	queue: string[];
 	/** Messages that interrupted the agent and go out as soon as its turn has stopped. */
 	steering: string[];
+	/**
+	 * Something the agent has to be told before anything else, with its next message: what
+	 * happened to its workspace since it last looked.
+	 */
+	briefing: string | null;
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	createdAt: string;
@@ -147,6 +159,13 @@ export type Limits = {
 
 /** Sends a message to a daemon; returns false if none is connected. */
 export type Dispatch = (message: ForgeMessage) => boolean;
+
+/** What an agent is told, with its next message, after its workspace was continued. */
+const continuedBriefing = (branch: string) =>
+	`(A note from Geordi, not from the person: since your last turn, this workspace was continued. Its working directory is now on a new branch, \`${branch}\`, which starts from the latest state of the repository's main branch. What you did before is not on it unless it was merged; your earlier branch still exists. Look at the files as they are now before you rely on what you remember of them.)`;
+
+/** What a workspace is called until it is told what to do, or named. */
+const UNTITLED = 'New workspace';
 
 /** How often an agent may name its own workspace. */
 const MAX_NAMES = 3;
@@ -195,6 +214,7 @@ export function createWorkspaces(
 				resumeId: null,
 				queue: [],
 				steering: [],
+				briefing: null,
 				archivedAt: null,
 				createdAt: at,
 				updatedAt: at,
@@ -218,6 +238,19 @@ export function createWorkspaces(
 			workspace.settings = event.data.settings;
 			return;
 		}
+		if (event.type === 'workspace.continued') {
+			const { branch } = event.data;
+			// everyone who works in that worktree is on the new branch, measured against where it starts
+			for (const other of workspaces.values()) {
+				if (other.worktreeId !== workspace.worktreeId) continue;
+				other.base = null;
+				other.briefing = continuedBriefing(branch);
+			}
+			const owner = workspaces.get(workspace.worktreeId);
+			if (owner?.worktree) owner.worktree = { ...owner.worktree, branch };
+			transcript.push({ kind: 'note', text: `Continued on a new branch, ${branch}`, at });
+			return;
+		}
 		if (event.type === 'workspace.archived') {
 			workspace.archivedAt = at;
 			workspace.queue = [];
@@ -239,6 +272,7 @@ export function createWorkspaces(
 			if (event.data.queued) workspace.queue.shift();
 			if (event.data.steered) workspace.steering = [];
 			workspace.status = 'running';
+			workspace.briefing = null; // it went out with this message
 			transcript.push({ kind: 'user', text: event.data.text, at });
 			return;
 		}
@@ -310,7 +344,13 @@ export function createWorkspaces(
 	/** What a daemon needs to find the worktree a workspace works in. */
 	function ref(id: string): WorktreeRef {
 		const { repoId, worktreeId, base } = find(id);
-		return { worktreeId, repoPath: repos.get(repoId).path, ...(base && { base }) };
+		const branch = projection.get().get(worktreeId)?.worktree?.branch;
+		return {
+			worktreeId,
+			repoPath: repos.get(repoId).path,
+			...(base && { base }),
+			...(branch && { branch })
+		};
 	}
 
 	/**
@@ -375,6 +415,8 @@ export function createWorkspaces(
 		from?: 'queued' | 'steered'
 	) {
 		const { id } = workspace;
+		// what the agent has to know first (read before the message makes it old news)
+		const briefing = find(id).briefing;
 		store.append(
 			{
 				type: 'workspace.message',
@@ -399,7 +441,7 @@ export function createWorkspaces(
 				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
-			prompt: text
+			prompt: briefing ? `${briefing}\n\n${text}` : text
 		});
 		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });
 	}
@@ -434,7 +476,20 @@ export function createWorkspaces(
 		);
 	}
 
-	/** Creates a workspace and sends `prompt` to its agent. Returns the workspace's ID. */
+	/**
+	 * Names a workspace that was started without a word after the first thing it is told, as
+	 * one started with a prompt is: the first line, and whatever `onCreated` makes of it.
+	 */
+	function nameAfter(workspace: Workspace, text: string) {
+		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
+		retitle(workspace.id, text.split('\n')[0].slice(0, 300));
+		onCreated?.(workspace.id, text);
+	}
+
+	/**
+	 * Creates a workspace and sends `prompt` to its agent, if there is one: without, the
+	 * workspace is there to be told what to do. Returns the workspace's ID.
+	 */
 	function create(
 		{
 			prompt,
@@ -447,8 +502,9 @@ export function createWorkspaces(
 		repos.get(workspace.repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
-		// The first line; the UI clamps long titles visually.
-		const title = prompt.split('\n')[0].trim().slice(0, 300);
+		// The first line; the UI clamps long titles visually. One started without a word is
+		// named when it is first told something (`nameAfter`).
+		const title = prompt.split('\n')[0].trim().slice(0, 300) || UNTITLED;
 		store.append(
 			{
 				type: 'workspace.created',
@@ -464,6 +520,8 @@ export function createWorkspaces(
 		);
 		// whoever starts it may name it; otherwise that is left to others (`onCreated`, its agent)
 		if (given && actor) retitle(id, given, actor);
+		// started with nothing to do, it waits to be told: its first turn is its first message
+		if (!prompt) return id;
 		startTurn(find(id), prompt, actor);
 		if (!find(id).named) onCreated?.(id, prompt);
 		return id;
@@ -654,6 +712,7 @@ export function createWorkspaces(
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (held.has(id)) error(409, 'This workspace is being archived');
+			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
 				return startTurn(workspace, text, actor);
 			store.append(
@@ -673,6 +732,7 @@ export function createWorkspaces(
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (held.has(id)) error(409, 'This workspace is being archived');
 
+			nameAfter(workspace, text);
 			if (workspace.status === 'idle') return startTurn(workspace, text, actor);
 			store.append(
 				{ type: 'workspace.steered', stream: `workspace:${id}`, data: { id, text } },
@@ -715,6 +775,32 @@ export function createWorkspaces(
 			const { worktreeId } = find(id);
 			return [...projection.get().values()].some(
 				(other) => other.id !== id && other.worktreeId === worktreeId && !other.archivedAt
+			);
+		},
+
+		/**
+		 * The workspaces in use that work in the same worktree as this one, itself included.
+		 */
+		sharing(id: string): WorkspaceSummary[] {
+			const { worktreeId } = find(id);
+			return [...projection.get().values()]
+				.filter((other) => other.worktreeId === worktreeId && !other.archivedAt)
+				.map(summarise);
+		},
+
+		/**
+		 * Notes that the workspace's worktree was moved to a new branch, to carry on with new
+		 * work. The daemon did the moving; see `continueWorkspace`.
+		 */
+		continued(id: string, branch: string, actor: string | null = null) {
+			const { worktreeId } = find(id);
+			store.append(
+				{
+					type: 'workspace.continued',
+					stream: `workspace:${worktreeId}`,
+					data: { id: worktreeId, branch }
+				},
+				{ actor }
 			);
 		},
 
