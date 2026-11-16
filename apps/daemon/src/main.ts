@@ -73,6 +73,9 @@ function readToken(): string | null {
 	}
 }
 
+/** What a run terminal runs when the run command is no longer the one that was asked for. */
+const RUN_CHANGED = `echo 'The run command in ${CONFIG_FILE} is not the one you asked for: it has changed. Press Run to see and run what it says now.'; exit 1`;
+
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
@@ -320,9 +323,16 @@ async function handle(message: ForgeMessage) {
 			try {
 				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
-				// read now, not when the button appeared: what runs is what the file says
-				const command = (message.run && configOf(worktree, message.repoPath).run) || undefined;
-				if (message.run && !command) throw new Error(`${CONFIG_FILE} names no run command`);
+				// Only what the person asking saw: the file is the agent's to change, also in the
+				// moment between their looking at the command and their asking for it. Otherwise
+				// the terminal says so, in words of ours, and nothing of the file's runs.
+				const asked = message.run;
+				const command =
+					asked === undefined
+						? undefined
+						: asked && configOf(worktree, message.repoPath).run === asked
+							? asked
+							: RUN_CHANGED;
 				openTerminal(terminalId, worktree.path, { ...message, command }, guard, output, exit);
 			} catch (error) {
 				output(`${errorMessage(error)}\r\n`);

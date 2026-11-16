@@ -12,10 +12,11 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 - `.geordi.toml` is TOML. For now it has one setting: `run`, a command as a string (`run = "pnpm dev"`). Settings Geordi doesn't know are ignored.
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.
 - It is read afresh whenever the workspace's files or the repository's branches change: editing the file, or fetching a main branch that changed it, shows at once.
-- With a `run` command, the workspace's title bar has a **Run** button, which says what it would run. It opens a terminal tab called "Run" in the dock that runs the command, in the user's shell, in the workspace's directory. While it runs, the button is **Stop**, which ends the command and closes the tab; closing the tab does the same.
+- With a `run` command, the bar of the workspace's dock (where its terminals are) has a **Run** button at its end, which says what it would run. It opens a terminal tab called "Run" in the dock that runs the command, in the user's shell, in the workspace's directory. While it runs, the button is **Stop**, which ends the command and closes the tab; closing the tab does the same.
 - When the command ends by itself, the tab says with what status and stays until Enter is pressed, so that what it printed can be read.
-- What runs is what the file says at the moment of pressing Run, not what it said when the button appeared.
-- A workspace's file that can't be made sense of shows a quiet warning in the title bar, with the reason. It does not fall back to the main branch's file.
+- What runs is exactly the command the person pressing Run saw. If the file says something else by then, nothing runs, and the terminal says to press Run again.
+- A command that is not the one on the branch the workspace started from is shown in full and has to be agreed to before it runs, once per command and browser. Commands that are on that branch run without asking.
+- A workspace's file that can't be made sense of shows a quiet warning in the same place, with the reason. It does not fall back to the main branch's file.
 
 ## Design Decisions
 
@@ -33,11 +34,17 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 
 ### 3. The daemon reads it; the forge only shows it
 
-**Decision:** The daemon reads and parses the file, and sends what it says with the rest of what it knows of a worktree (ADR-003). To run the command, the forge only says "run"; the daemon reads the file again and runs what it finds.
-**Why:** The file is on the daemon's machine, and changes with the files the daemon already watches. Not passing the command through the forge and the browser leaves no way to make a daemon run something the file doesn't say.
+**Decision:** The daemon reads and parses the file, and sends what it says with the rest of what it knows of a worktree (ADR-003). To run the command, the forge passes on the command the person saw; the daemon reads the file again and runs it only if it is the same.
+**Why:** The file is on the daemon's machine, and changes with the files the daemon already watches. Running only what the file says leaves no way to make a daemon run something else through the forge or a browser.
 **Tradeoff:** One more request per refresh of a worktree's state.
 
-### 4. Run is a terminal
+### 4. The agent can't make the person run something unseen
+
+**Decision:** The run request carries the command as the person saw it, and the daemon runs it only if the file still says exactly that. A command that only the workspace has needs the person's agreement first.
+**Why:** The file is the agent's to write, at any moment, and the command runs as the person, in their own shell. An agent in a sandbox must not get out of it through a button, nor swap the command between the look and the click.
+**Tradeoff:** Trying out a changed command costs one more click, once.
+
+### 5. Run is a terminal
 
 **Decision:** The command runs in a terminal like any other (ADR-003), under a fixed name, rather than as a new kind of process.
 **Why:** A dev server prints, takes Ctrl+C, and sometimes asks a question: a terminal does all of that already, survives a restart of the forge, and needed nothing new.

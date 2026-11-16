@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { close, move, open, resize, type Layout, type Zone } from '#lib/layout.ts';
+	import { groupsOf, close, move, open, resize, type Layout, type Zone } from '#lib/layout.ts';
 	import Button from './Button.svelte';
 	import { drag, endDrag } from './drag.svelte.ts';
 	import Split from './Split.svelte';
@@ -24,6 +24,11 @@
 		newLabel?: string;
 		/** Shown in a group without tabs. Without it, such a group is simply empty. */
 		empty?: Snippet;
+		/**
+		 * What can be done here beyond opening windows, at the far end of the bar. Where the
+		 * panes are split, the first group's bar has it.
+		 */
+		actions?: Snippet;
 	};
 	let {
 		layout,
@@ -35,7 +40,8 @@
 		accepts = () => false,
 		onreceive,
 		newLabel = 'New window',
-		empty
+		empty,
+		actions
 	}: Props = $props();
 
 	const uid = $props.id();
@@ -154,6 +160,12 @@
 						label={newLabel}
 						onclick={() => onchange(open(layout, newTab(), n.id))}
 					/>
+				{/if}
+				{#if actions && groupsOf(layout)[0]?.id === n.id}
+					<!-- stays in view however many tabs there are to scroll through -->
+					<div class="sticky right-0 ml-auto flex shrink-0 items-center gap-1 bg-sidebar pl-2">
+						{@render actions()}
+					</div>
 				{/if}
 			</div>
 

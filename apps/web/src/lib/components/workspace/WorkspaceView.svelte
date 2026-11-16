@@ -28,6 +28,7 @@
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
@@ -116,7 +117,22 @@
 	const RUN_TAB = `terminal:${RUN_TERMINAL}`;
 	const runCommand = $derived(workspace.archivedAt ? null : (workspace.git?.config?.run ?? null));
 	const runs = $derived(workspace.terminals.includes(RUN_TERMINAL) || starting.has(RUN_TERMINAL));
-	function run() {
+	/** The run command as it stood when Run was pressed: what the terminal is started with. */
+	let runWith = $state<string>();
+	// A command that is not on the branch work starts from may have been written by the
+	// agent a moment ago, and runs as the user, outside any sandbox the agent is in: it is
+	// shown, and agreed to, before it runs here. Once per command, remembered in this browser.
+	// svelte-ignore state_referenced_locally
+	const agreed = persisted<string[]>(`geordi:run-agreed:${id}`, []);
+	let asking = $state<string | null>(null);
+
+	function run(command = runCommand, sure = false) {
+		if (!command) return;
+		const reviewed = workspace.git?.config?.runReviewed || agreed.current.includes(command);
+		if (!reviewed && !sure) return void (asking = command);
+		if (sure) agreed.current = [...agreed.current, command];
+		asking = null;
+		runWith = command;
 		starting.add(RUN_TERMINAL);
 		// in the dock, in front, and with the dock in view
 		const elsewhere = tabsOf(main).includes(RUN_TAB);
@@ -248,6 +264,39 @@
 	}}
 />
 
+<!-- The repository's run command (FDR-006), where what it starts shows up: the dock. -->
+{#snippet runActions()}
+	{#if runs}
+		<Button
+			variant="ghost"
+			size="sm"
+			icon="icon-[lucide--square]"
+			label="Stop what the run command started"
+			onclick={stopRun}
+		>
+			Stop
+		</Button>
+	{:else if runCommand}
+		<Button
+			variant="ghost"
+			size="sm"
+			icon="icon-[lucide--play]"
+			label="Run: {runCommand}"
+			onclick={() => run()}
+		>
+			Run
+		</Button>
+	{:else if git?.config?.problem}
+		<!-- a configuration nobody can read is worth knowing about, quietly -->
+		<span
+			class="mr-1.5 icon-[lucide--triangle-alert] size-4 shrink-0 text-muted"
+			role="img"
+			aria-label={git.config.problem}
+			title={git.config.problem}
+		></span>
+	{/if}
+{/snippet}
+
 {#snippet tab(tab: string)}
 	{@const path = pathOf(tab)}
 	{#if path}
@@ -279,7 +328,12 @@
 		<!-- loaded again whenever the worktree's files may have changed -->
 		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 	{:else if terminal}
-		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
+		<Terminal
+			workspaceId={id}
+			{terminal}
+			start={starting.has(terminal)}
+			command={terminal === RUN_TERMINAL ? runWith : undefined}
+		/>
 	{:else}
 		<Conversation {workspace} />
 	{/if}
@@ -331,25 +385,6 @@
 			{pending}
 			onaction={act}
 		/>
-		{#if runs}
-			<Button
-				icon="icon-[lucide--square]"
-				label="Stop what the run command started"
-				onclick={stopRun}
-			>
-				Stop
-			</Button>
-		{:else if runCommand}
-			<Button icon="icon-[lucide--play]" label="Run: {runCommand}" onclick={run}>Run</Button>
-		{:else if git?.config?.problem}
-			<!-- a configuration nobody can read is worth knowing about, quietly -->
-			<span
-				class="icon-[lucide--triangle-alert] size-4 shrink-0 text-muted"
-				role="img"
-				aria-label={git.config.problem}
-				title={git.config.problem}
-			></span>
-		{/if}
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
 		{:else}
@@ -447,6 +482,7 @@
 							onreceive={receive('dock')}
 							newTab={workspace.archivedAt ? undefined : newTerminal}
 							newLabel="New terminal"
+							actions={runActions}
 						/>
 					{/snippet}
 				</Split>
@@ -458,3 +494,27 @@
 		{/snippet}
 	</Split>
 </main>
+
+<!-- Before running a command that only this workspace has (see `run`). -->
+<Dialog
+	bind:open={() => asking !== null, (open) => !open && (asking = null)}
+	label="Run this command?"
+	class="max-w-lg"
+>
+	<div class="space-y-4 p-6">
+		<p class="heading">Run this command?</p>
+		<pre
+			class="rounded-control bg-sunken p-3 code-dense break-all whitespace-pre-wrap">{asking}</pre>
+		<p class="text-sm text-muted">
+			It is in this workspace's <span class="code-dense">.geordi.toml</span> and not on the branch the
+			workspace started from, so it may have been written by the agent. It runs in your own shell, with
+			everything you are allowed to do.
+		</p>
+		<div class="flex justify-end gap-2">
+			<Button onclick={() => (asking = null)}>Cancel</Button>
+			<Button variant="primary" icon="icon-[lucide--play]" onclick={() => run(asking, true)}>
+				Run
+			</Button>
+		</div>
+	</div>
+</Dialog>

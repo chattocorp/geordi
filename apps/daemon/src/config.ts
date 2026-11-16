@@ -36,29 +36,33 @@ export function parseConfig(text: string): RepoSettings {
  * other one: whoever is working on it should hear about it.
  */
 export function configOf(worktree: Worktree, repoPath: string): RepoConfig {
-	const none: RepoConfig = { ...nothing(), problem: null, source: null };
-	let text: string | null;
-	let source: RepoConfig['source'] = 'base';
-	if (lstatSync(join(worktree.path, CONFIG_FILE), { throwIfNoEntry: false })) {
-		source = 'workspace';
-		text = readText(worktree, CONFIG_FILE);
-		if (text === null) return { ...none, source, problem: `${CONFIG_FILE} can't be read` };
-	} else {
-		try {
-			text = execFileSync(
+	const none: RepoConfig = { ...nothing(), problem: null, source: null, runReviewed: false };
+
+	// what the branch work starts from says, if it says anything we understand
+	let base: RepoSettings | null = null;
+	try {
+		base = parseConfig(
+			execFileSync(
 				'git',
 				['-C', repoPath, 'cat-file', 'blob', `${startOf(repoPath)}:${CONFIG_FILE}`],
 				{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-			);
-		} catch {
-			return none; // not there either: the repository has nothing to say
-		}
+			)
+		);
+	} catch {
+		// not there, or not to be made sense of
 	}
 
+	if (!lstatSync(join(worktree.path, CONFIG_FILE), { throwIfNoEntry: false }))
+		return base ? { ...base, problem: null, source: 'base', runReviewed: true } : none;
+
+	const text = readText(worktree, CONFIG_FILE);
+	if (text === null)
+		return { ...none, source: 'workspace', problem: `${CONFIG_FILE} can't be read` };
 	try {
-		return { ...parseConfig(text), problem: null, source };
+		const own = parseConfig(text);
+		return { ...own, problem: null, source: 'workspace', runReviewed: own.run === base?.run };
 	} catch (error) {
 		const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
-		return { ...none, source, problem: `${CONFIG_FILE}: ${reason}` };
+		return { ...none, source: 'workspace', problem: `${CONFIG_FILE}: ${reason}` };
 	}
 }

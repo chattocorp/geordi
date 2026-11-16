@@ -188,8 +188,10 @@ const terminal = {
 };
 
 /** Starts a terminal's shell. Only ever called because a person asked for a terminal. */
-export const startTerminal = command(v.object({ ...terminal, ...size }), ({ cols, rows, ...at }) =>
-	terminals().start(at, { cols, rows })
+export const startTerminal = command(
+	// `command`: for the run terminal, the run command as the person pressing Run saw it
+	v.object({ ...terminal, ...size, command: v.optional(v.string()) }),
+	({ cols, rows, command, ...at }) => terminals().start(at, { cols, rows }, command)
 );
 
 export const terminalInput = command(

@@ -11,8 +11,10 @@
 		terminal: string;
 		/** Whether the user just asked for this terminal: start its shell right away. */
 		start: boolean;
+		/** For the run terminal: the run command the user asked for, as they saw it. */
+		command?: string;
 	};
-	let { workspaceId, terminal, start }: Props = $props();
+	let { workspaceId, terminal, start, command }: Props = $props();
 
 	/** xterm paints its own colours; take them from our tokens. */
 	function theme(): ITheme {
@@ -86,7 +88,10 @@
 				// A shell starts only on request: now, if the user just opened this terminal,
 				// or later on a key press. Either way the forge needs to know our size.
 				const size = { cols: term.cols, rows: term.rows };
-				(start ? startTerminal : terminalResize)({ ...at, ...size }).catch(() => {});
+				(start
+					? startTerminal({ ...at, ...size, command })
+					: terminalResize({ ...at, ...size })
+				).catch(() => {});
 				term.onResize(({ cols, rows }) => {
 					terminalResize({ ...at, cols, rows }).catch(() => {});
 				});

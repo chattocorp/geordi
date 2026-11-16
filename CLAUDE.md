@@ -114,7 +114,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
   running anything: configure forge and daemon through their environment. The web app's
   packages are all `devDependencies`, so that its build needs nothing but Node. Its window has
   no title bar: every page starts with a `TitleBar`, which in the app (`desktop:` variant) makes
-  room for the window's buttons and is what the window is dragged by (`window-drag`). The
+  room for the window's buttons and is what the window is dragged by (`window-drag`, on
+  the bar itself; what can be used in it is exempt). The
   layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
 - **Repository configuration (FDR-006).** A repository's `.geordi.toml` says how it wants to
   be treated; for now, its `run` command, which gives workspaces a Run/Stop button. The daemon

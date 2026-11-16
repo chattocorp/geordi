@@ -11,6 +11,8 @@ type Terminal = {
 	running: boolean;
 	size: TerminalSize;
 	viewers: Set<Viewer>;
+	/** For the run terminal: the command it was last started with, as the person saw it. */
+	command?: string;
 };
 
 /** Gets live output; `offset` is its position in the shell's whole output. */
@@ -77,8 +79,9 @@ export function createTerminals(
 			terminalId,
 			...ref(at.workspaceId),
 			...terminal.size,
-			// the one terminal that runs the repository's `run` command (FDR-006)
-			...(at.terminal === RUN_TERMINAL && { run: true })
+			// The one terminal that runs the repository's `run` command (FDR-006): the command
+			// someone asked for. Started again by a key press, it is that same command or none.
+			...(at.terminal === RUN_TERMINAL && { run: terminal.command ?? '' })
 		});
 		if (terminal.running) changed();
 		else tell(terminal, 'No daemon connected. Press any key to retry.');
@@ -92,9 +95,14 @@ export function createTerminals(
 	}
 
 	return {
-		/** Starts the terminal's shell, at the given size. */
-		start(at: TerminalRef, size: TerminalSize) {
-			get(idOf(at)).size = size;
+		/**
+		 * Starts the terminal's shell, at the given size. For the run terminal, `command` is
+		 * the run command as whoever asked for it saw it.
+		 */
+		start(at: TerminalRef, size: TerminalSize, command?: string) {
+			const terminal = get(idOf(at));
+			terminal.size = size;
+			if (command !== undefined) terminal.command = command;
 			start(at);
 		},
 

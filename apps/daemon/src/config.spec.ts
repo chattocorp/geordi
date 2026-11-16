@@ -34,25 +34,40 @@ describe('configOf', () => {
 
 	it("goes by the workspace's own file", () => {
 		const { repoPath, worktree } = setup('run = "pnpm dev"');
+		// the same as on the branch it started from: that command has been through review
 		expect(configOf(worktree, repoPath)).toEqual({
 			run: 'pnpm dev',
 			problem: null,
-			source: 'workspace'
+			source: 'workspace',
+			runReviewed: true
 		});
 
 		writeFileSync(join(worktree.path, '.geordi.toml'), 'run = "pnpm dev --port 4000"');
-		expect(configOf(worktree, repoPath).run).toBe('pnpm dev --port 4000');
+		// a command only the workspace has: possibly the agent's, a moment old
+		expect(configOf(worktree, repoPath)).toMatchObject({
+			run: 'pnpm dev --port 4000',
+			runReviewed: false
+		});
 	});
 
 	it('goes by the branch work starts from where the workspace has no file', () => {
 		const { repoPath, git, worktree } = setup();
-		expect(configOf(worktree, repoPath)).toEqual({ run: null, problem: null, source: null });
+		expect(configOf(worktree, repoPath)).toEqual({
+			run: null,
+			problem: null,
+			source: null,
+			runReviewed: false
+		});
 
 		// the file arrives on the main branch after the workspace branched off
 		writeFileSync(join(repoPath, '.geordi.toml'), 'run = "make serve"');
 		git('add', '.');
 		git('commit', '-qm', 'configure');
-		expect(configOf(worktree, repoPath)).toMatchObject({ run: 'make serve', source: 'base' });
+		expect(configOf(worktree, repoPath)).toMatchObject({
+			run: 'make serve',
+			source: 'base',
+			runReviewed: true
+		});
 	});
 
 	it("says what is wrong with the workspace's file rather than falling back", () => {
@@ -61,7 +76,8 @@ describe('configOf', () => {
 		expect(configOf(worktree, repoPath)).toEqual({
 			run: null,
 			problem: expect.stringMatching(/^\.geordi\.toml: /),
-			source: 'workspace'
+			source: 'workspace',
+			runReviewed: false
 		});
 
 		rmSync(join(worktree.path, '.geordi.toml'));

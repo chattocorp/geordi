@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -142,6 +142,12 @@ export type RepoConfig = RepoSettings & {
 	problem: string | null;
 	/** Which file this is from: the workspace's own, or the one on the branch work starts from. */
 	source: 'workspace' | 'base' | null;
+	/**
+	 * Whether the `run` command is the one on the branch work starts from, and so went
+	 * through whatever review that branch gets. A command only the workspace has may have
+	 * been written by its agent a moment ago: a person should see it before it runs.
+	 */
+	runReviewed: boolean;
 };
 
 /** A repository says how Geordi should treat it in this file, at its top level. */
@@ -257,9 +263,11 @@ export type ForgeMessage =
 	| { type: 'watch'; worktrees: WorktreeRef[] }
 	/**
 	 * Starts a shell in the workspace's directory. A workspace can have several terminals.
-	 * With `run`, it runs the repository's `run` command (as the daemon reads it then) instead.
+	 * With `run`, it runs the repository's `run` command instead: `run` is that command as
+	 * the person who asked for it saw it. The daemon runs it only if the file still says
+	 * exactly that, since the file is the agent's to change at any moment.
 	 */
-	| ({ type: 'terminal.open'; terminalId: string; run?: boolean } & WorktreeRef & TerminalSize)
+	| ({ type: 'terminal.open'; terminalId: string; run?: string } & WorktreeRef & TerminalSize)
 	| { type: 'terminal.input'; terminalId: string; data: string }
 	| ({ type: 'terminal.resize'; terminalId: string } & TerminalSize)
 	/** Ends the shell. */
