@@ -64,7 +64,7 @@
 	const tones = {
 		ok: 'text-ok',
 		danger: 'text-danger',
-		accent: 'text-accent-ink',
+		accent: '',
 		merged: 'text-merged',
 		neutral: 'text-muted'
 	};
@@ -263,7 +263,7 @@
 								way to start something in it. What is under it lines up with it: icon under picture,
 								title under name.
 							-->
-							<div class="flex h-9 items-center pr-1.5">
+							<div class="group flex h-9 items-center pr-1.5">
 								<a
 									href={resolve('/repos/[id]', { id: repo.id })}
 									class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-base font-medium text-ink/85 hover:text-ink"
@@ -274,7 +274,7 @@
 								<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 								<a
 									href="{resolve('/')}?repo={repo.id}"
-									class="grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-sunken hover:text-ink"
+									class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-focus-within:visible group-hover:visible hover:bg-sunken hover:text-ink"
 									title="New workspace in {repo.name}"
 									aria-label="New workspace in {repo.name}"
 								>
@@ -342,7 +342,8 @@
 	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
-	{@const standing = leaving ? null : workspace.standing}
+	<!-- not work that is merely unpublished: that is most workspaces, and no news -->
+	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
 	{@const archivable = !busy && !leaving}
 	<li>
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
