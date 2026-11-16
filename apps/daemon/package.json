@@ -12,7 +12,8 @@
 		"@geordi/protocol": "workspace:*",
 		"@lydell/node-pty": "1.2.0-beta.18",
 		"forges": "^0.3.2",
-		"smol-toml": "1.9.1"
+		"smol-toml": "1.9.1",
+		"yaml": "2.9.1"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

@@ -29,7 +29,8 @@ function setup() {
 			teardown: null,
 			ports: { first: 20000, count: 10 },
 			problem: null,
-			source: 'workspace'
+			source: 'workspace',
+			file: '.geordi.yml'
 		}
 	};
 	/** Archiving needs a daemon in real life; here it just happens, and is noted. */
@@ -100,7 +101,8 @@ describe('configuring the repository', () => {
 	it('explains every setting there is, as plain text', async () => {
 		const { read } = setup();
 		const reference = await read('configuration_reference');
-		expect(reference).toContain('# .geordi.toml');
+		expect(reference).toContain('# .geordi.yml');
+		expect(reference).toContain('```yaml');
 		for (const [key, { example }] of Object.entries(CONFIG_SETTINGS)) {
 			expect(reference).toContain(`\`${key}\``);
 			expect(reference).toContain(example);
@@ -111,7 +113,7 @@ describe('configuring the repository', () => {
 	it('says which file applies, what it sets, and what is wrong with it', async () => {
 		const { call, config } = setup();
 		expect(await call('check_configuration')).toEqual({
-			applies: 'the .geordi.toml in your working directory',
+			applies: 'the .geordi.yml in your working directory',
 			problem: null,
 			ports: { first: 20000, count: 10 },
 			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000 }],
@@ -131,13 +133,22 @@ describe('configuring the repository', () => {
 			teardown: null,
 			ports: { first: 20000, count: 10 }
 		};
-		config.current = { ...none, problem: '.geordi.toml: invalid value', source: 'workspace' };
+		// one still written in TOML is read, and the agent told to move on
+		config.current = {
+			...none,
+			problem: '.geordi.toml: invalid value',
+			source: 'workspace',
+			file: '.geordi.toml'
+		};
 		expect(await call('check_configuration')).toMatchObject({
+			applies: expect.stringMatching(
+				/^the \.geordi\.toml \(still read, but \.geordi\.yml is what to write/
+			),
 			problem: '.geordi.toml: invalid value',
 			jobs: []
 		});
 
-		config.current = { ...none, problem: null, source: null };
+		config.current = { ...none, problem: null, source: null, file: null };
 		expect((await call('check_configuration')).applies).toMatch(/^none/);
 	});
 });

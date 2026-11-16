@@ -2,14 +2,15 @@ import { execFileSync } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-	CONFIG_FILE,
+	CONFIG_FILES,
 	CONFIG_NAME,
 	DEFAULT_PORTS,
 	SCRIPTS,
 	startOrder,
 	type RepoConfig
 } from '@geordi/protocol';
-import { parse } from 'smol-toml';
+import { parse as parseToml } from 'smol-toml';
+import { parse as parseYaml } from 'yaml';
 import { readText } from './changes.ts';
 import { portAt, type Assigned } from './ports.ts';
 import { startOf, type Worktree } from './worktree.ts';
@@ -23,7 +24,7 @@ const PLACEHOLDER = /\{([^{}]*)\}/g;
 /** Links only ever lead to this machine: the file is not to be a way to send people anywhere. */
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
 
-/** What a `.geordi.toml` says, before a workspace's ports are filled in. */
+/** What a `.geordi.yml` says, before a workspace's ports are filled in. */
 export type Settings = {
 	ports: number;
 	jobs: { name: string; command: string; needs: string[] }[];
@@ -48,9 +49,20 @@ function names(value: unknown, what: string, known: Set<string>): string[] {
 	return [...new Set(value as string[])];
 }
 
-/** What a `.geordi.toml` says, as far as we understand it. Throws for what isn't one. */
-export function parseConfig(text: string): Settings {
-	const said = parse(text);
+/** What the file says, in whichever of the two languages its name says it is written in. */
+function read(text: string, file: string): Record<string, unknown> {
+	if (file.endsWith('.toml')) return parseToml(text);
+	// (an empty file says nothing, which is fine)
+	const said: unknown = parseYaml(text) ?? {};
+	return isTable(said) ? said : fail('it must be settings, each under its name');
+}
+
+/**
+ * What a `.geordi.yml` says, as far as we understand it (or a `.geordi.toml`, going by
+ * `file`'s name). Throws for what isn't one.
+ */
+export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Settings {
+	const said = read(text, file);
 
 	const commands = new Map<string, { command: unknown; needs: unknown }>();
 	if (said.jobs !== undefined) {
@@ -71,7 +83,7 @@ export function parseConfig(text: string): Settings {
 		if (!CONFIG_NAME.test(name))
 			fail(`"${name}" is not a job name: lower case letters, digits and dashes`);
 		if ((SCRIPTS as readonly string[]).includes(name))
-			fail(`"${name}" is not a job name: say \`${name} = "…"\` for the ${name} script`);
+			fail(`"${name}" is not a job name: say \`${name}: …\` for the ${name} script`);
 		if (typeof command !== 'string' || !command.trim() || command.length > MAX_COMMAND)
 			fail(
 				`${name === 'run' && !isTable(said.jobs) ? '`run`' : `jobs.${name}.command`} must be a command, as a string`
@@ -136,46 +148,54 @@ export function parseConfig(text: string): Settings {
 }
 
 /**
- * The text of the `.geordi.toml` that applies to a workspace (FDR-006): the workspace's own
- * if it has one (so that a change to it can be tried out there), and otherwise the one on
- * the branch work starts from (the upstream's main branch; see `startOf`), so that a
- * workspace that branched off before the file existed gets it too.
+ * The file that applies to a workspace (FDR-006), by name and with its text: the
+ * workspace's own if it has one (so that a change to it can be tried out there), and
+ * otherwise the one on the branch work starts from (the upstream's main branch; see
+ * `startOf`), so that a workspace that branched off before the file existed gets it too.
+ * Where there is one of each name, the first of `CONFIG_FILES` is the one.
  */
 function fileFor(worktree: Worktree, repoPath: string) {
-	if (lstatSync(join(worktree.path, CONFIG_FILE), { throwIfNoEntry: false }))
-		return { source: 'workspace' as const, text: readText(worktree, CONFIG_FILE) };
-	try {
-		const text = execFileSync(
-			'git',
-			['-C', repoPath, 'cat-file', 'blob', `${startOf(repoPath)}:${CONFIG_FILE}`],
-			{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-		);
-		return { source: 'base' as const, text };
-	} catch {
-		return null; // not there either: the repository has nothing to say
-	}
+	for (const file of CONFIG_FILES)
+		if (lstatSync(join(worktree.path, file), { throwIfNoEntry: false }))
+			return { source: 'workspace' as const, file, text: readText(worktree, file) };
+	for (const file of CONFIG_FILES)
+		try {
+			const text = execFileSync(
+				'git',
+				['-C', repoPath, 'cat-file', 'blob', `${startOf(repoPath)}:${file}`],
+				{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+			);
+			return { source: 'base' as const, file, text };
+		} catch {
+			// not there by this name
+		}
+	return null; // not there either: the repository has nothing to say
 }
+
+type Found = {
+	settings: Settings | null;
+	problem: string | null;
+	source: RepoConfig['source'];
+	file: string | null;
+};
 
 /**
  * What the repository's configuration says for a workspace, before its ports are known. A
  * workspace's file that can't be made sense of says so (`problem`) rather than making way
  * for the other one: whoever is working on it should hear about it.
  */
-export function settingsOf(
-	worktree: Worktree,
-	repoPath: string
-): { settings: Settings | null; problem: string | null; source: RepoConfig['source'] } {
-	const file = fileFor(worktree, repoPath);
-	if (!file) return { settings: null, problem: null, source: null };
-	const { source, text } = file;
-	if (text === null) return { settings: null, source, problem: `${CONFIG_FILE} can't be read` };
+export function settingsOf(worktree: Worktree, repoPath: string): Found {
+	const found = fileFor(worktree, repoPath);
+	if (!found) return { settings: null, problem: null, source: null, file: null };
+	const { source, file, text } = found;
+	if (text === null) return { settings: null, source, file, problem: `${file} can't be read` };
 	try {
-		return { settings: parseConfig(text), problem: null, source };
+		return { settings: parseConfig(text, file), problem: null, source, file };
 	} catch (error) {
 		// the main branch's file is not this workspace's to fix: it simply has nothing to say
-		if (source === 'base') return { settings: null, problem: null, source: null };
+		if (source === 'base') return { settings: null, problem: null, source: null, file: null };
 		const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
-		return { settings: null, source, problem: `${CONFIG_FILE}: ${reason}` };
+		return { settings: null, source, file, problem: `${file}: ${reason}` };
 	}
 }
 
@@ -187,7 +207,7 @@ const script = (command: string | null | undefined, approved: (command: string) 
  * has agreed to run it, every link with the ports filled in.
  */
 export function resolve(
-	{ settings, problem, source }: ReturnType<typeof settingsOf>,
+	{ settings, problem, source, file }: Found,
 	assigned: Assigned,
 	/** Whether a person has agreed to run this command in this repository. */
 	approved: (command: string) => boolean
@@ -209,6 +229,7 @@ export function resolve(
 		teardown: script(settings?.teardown, approved),
 		ports: { first: portAt(assigned, 0), count },
 		problem,
-		source
+		source,
+		file
 	};
 }

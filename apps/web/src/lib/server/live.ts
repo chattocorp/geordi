@@ -86,11 +86,20 @@ export function createLive({ port, host, allowed, token, views, values, terminal
 		// the token that only the forge's own pages carry. And only by a name we answer to,
 		// as with every other request (DNS rebinding).
 		verifyClient: ({ req }: { req: IncomingMessage }) => {
-			const [from, to] = [hostOf(req.headers.origin), hostOf(req.headers.host)];
-			const shown = new URL(req.url ?? '/', 'http://x').searchParams.get('token') ?? '';
-			const known =
-				shown.length === token.length && timingSafeEqual(Buffer.from(shown), Buffer.from(token));
-			return known && !!from && !!to && allowed.has(from) && allowed.has(to);
+			// whatever is sent here, it is turned away at worst: never an error that goes
+			// unanswered, which would take the forge down
+			try {
+				const [from, to] = [hostOf(req.headers.origin), hostOf(req.headers.host)];
+				if (!from || !to || !allowed.has(from) || !allowed.has(to)) return false;
+				const shown = Buffer.from(
+					new URL(req.url ?? '/', 'http://x').searchParams.get('token') ?? ''
+				);
+				const known = Buffer.from(token);
+				// (in bytes: characters of the same number may be bytes of another)
+				return shown.length === known.length && timingSafeEqual(shown, known);
+			} catch {
+				return false;
+			}
 		}
 	});
 	globals.__geordiLiveServer = server;
@@ -122,13 +131,17 @@ export function createLive({ port, host, allowed, token, views, values, terminal
 		}
 
 		socket.on('message', (raw) => {
-			let message: Following;
 			try {
-				message = JSON.parse(String(raw));
+				hear(JSON.parse(String(raw)));
 			} catch {
-				return;
+				// not something of ours: nothing to do with it, and nothing to fall over
 			}
-			if ('drop' in message) return drop(message.drop);
+		});
+
+		function hear(message: Following) {
+			// (anything can be sent: `null`, a number, a list)
+			if (typeof message !== 'object' || message === null) return;
+			if ('drop' in message) return drop(Number(message.drop));
 			if (typeof message.follow !== 'number') return;
 			const id = message.follow;
 			drop(id);
@@ -154,7 +167,7 @@ export function createLive({ port, host, allowed, token, views, values, terminal
 			const stop = new AbortController();
 			following.set(id, () => stop.abort());
 			void follow(id, view(String(message.key ?? '')), stop.signal);
-		});
+		}
 
 		socket.on('close', () => {
 			for (const id of [...following.keys()]) drop(id);

@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import {
-	CONFIG_FILE,
 	DEFAULT_PORTS,
 	AGENTS,
 	JOB_TERMINAL,
@@ -111,12 +110,12 @@ async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeR
 }
 
 /** What a job's terminal runs when its command is not one that was seen and agreed to. */
-const RUN_CHANGED = `echo 'This is not the command you agreed to run: ${CONFIG_FILE} has changed. Start it again to see and run what it says now.'; exit 1`;
+const RUN_CHANGED = `echo 'This is not the command you agreed to run: the repository'"'"'s Geordi configuration has changed. Start it again to see and run what it says now.'; exit 1`;
 
 /** What the terminal of a script that did not run says instead. Words of ours, never the file's. */
 const SETUP_NOT_RUN = {
-	unagreed: `echo 'The setup script in ${CONFIG_FILE} did not run: nobody has agreed to it yet. Run it from the Run menu to see it and agree to it.'; exit 1`,
-	agents: `echo 'The setup script in ${CONFIG_FILE} did not run by itself: this directory holds what an agent wrote (it starts from an agent'"'"'s branch, or was brought back from this workspace'"'"'s). To run it all the same: press Enter here, then any key.'; exit 1`
+	unagreed: `echo 'The setup script in the repository'"'"'s Geordi configuration did not run: nobody has agreed to it yet. The workspace says so at its top: review it there to see it and agree to it.'; exit 1`,
+	agents: `echo 'The setup script in the repository'"'"'s Geordi configuration did not run by itself: this directory holds what an agent wrote (it starts from an agent'"'"'s branch, or was brought back from this workspace'"'"'s). To run it all the same: press Enter here, then any key.'; exit 1`
 };
 
 /** What a terminal's output and its end are sent as. */
@@ -185,7 +184,7 @@ const setups = new Map<string, Promise<string | null>>();
  * the command's (`pnpm install` runs the package's scripts), so in one that starts from an
  * agent's branch (`base`), or comes back from the workspace's own, it would run what an
  * agent wrote, outside its sandbox, with nobody asking for it. There it is the agent's to do,
- * in its sandbox, or the person's, from the Run menu.
+ * in its sandbox, or the person's, once they have reviewed it.
  */
 function setUp(worktree: Worktree & { created: boolean }, ref: WorktreeRef) {
 	const terminalId = `${ref.worktreeId}:${JOB_TERMINAL}setup`;

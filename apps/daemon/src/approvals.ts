@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 
 /**
  * The run commands a person has agreed to run, by repository (FDR-006). A repository's
- * `.geordi.toml` is the agent's to write, and so are the repository's branches: nothing in
+ * `.geordi.yml` is the agent's to write, and so are the repository's branches: nothing in
  * there can say that a command is fine to run as the person. Only the person can, and what
  * they said is kept here, in a file of the daemon's own that no agent's sandbox can write.
  */

@@ -30,6 +30,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 - A workspace whose own commits are all in the branch it started from, with no pull request to say so (an agent's work, merged by the agent that started it), stands as merged, and can be archived.
 - A branch that is pushed and has work on it, but no pull request, says so, and offers to open one.
 - An agent's turn that failed comes before everything else: the workspace says so, and offers to have the agent carry on.
+- While an agent is at work in the workspace, committing and opening or updating a pull request are not offered: the work is not done. One that was asked for before stays, shown as under way.
 
 ## Design Decisions
 

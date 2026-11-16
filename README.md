@@ -65,25 +65,27 @@ Or as a desktop app (macOS), which starts both and leaves agents working when yo
 pnpm desktop:install   # builds Geordi.app, puts it into /Applications and opens it
 ```
 
-The app uses ports 7717 and 7718 and logs to `~/Library/Logs/Geordi/geordi.log`.
+The app uses ports 7717 to 7719 and logs to `~/Library/Logs/Geordi/geordi.log`.
 
-A repository can say what to run and where to look at it, in a `.geordi.toml` at its top
+A repository can say what to run and where to look at it, in a `.geordi.yml` at its top
 level. Its workspaces get buttons to start and stop the jobs and to open the links, and each
 workspace gets ports of its own that never change, so that several can run side by side:
 
-```toml
-[jobs.db]
-command = "docker compose up db"
+```yaml
+jobs:
+  db:
+    command: docker compose up db
+  web:
+    command: pnpm dev --port $PORT
+    needs: [db]
 
-[jobs.web]
-command = "pnpm dev --port $PORT"
-needs = ["db"]
-
-[urls.app]
-url = "http://localhost:{web}/"
+urls:
+  app:
+    url: http://localhost:{web}/
 ```
 
-For a project with one thing to run, `run = "pnpm dev --port $PORT"` is enough.
+For a project with one thing to run, `run: pnpm dev --port $PORT` is enough. (A
+`.geordi.toml` saying the same in TOML is still read where there is no `.geordi.yml`.)
 
 > **Geordi has no authentication yet.** Anyone who can reach the forge can run agents on
 > your machine, so it only listens on 127.0.0.1 and only answers to localhost hostnames.

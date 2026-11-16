@@ -118,7 +118,7 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
   room for the window's buttons and is what the window is dragged by (`window-drag`, on
   the bar itself; what can be used in it is exempt). The
   layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
-- **Repository configuration (FDR-006).** A repository's `.geordi.toml` names jobs to run
+- **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names jobs to run
   (with what they need), links to open, and how many ports a workspace gets. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
   reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +

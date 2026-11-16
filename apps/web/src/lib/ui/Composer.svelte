@@ -74,7 +74,11 @@
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
 <form
 	{...form}
-	class={['group/composer card-float pt-2 focus-within:ring-accent/60', live && 'edge-live']}
+	class={[
+		// (a container: what is in it goes by its width, not the window's)
+		'group/composer @container card-float pt-2 focus-within:ring-accent/60',
+		live && 'edge-live'
+	]}
 >
 	{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
 	{@render header?.()}

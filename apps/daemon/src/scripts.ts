@@ -27,7 +27,7 @@ export function setupNote(
 ): string | null {
 	if (!setup || (typeof ran === 'object' && ran.status === 0)) return null;
 	const note = (text: string) => `(A note from Geordi, not from the person: ${text})`;
-	const script = `this workspace's setup script (\`${setup.command}\`, from .geordi.toml)`;
+	const script = `this workspace's setup script (\`${setup.command}\`, from the repository's Geordi configuration)`;
 	const yourself = `What it would do (installing dependencies, say) is not done; do what you need of it yourself.`;
 	if (ran === 'unagreed')
 		return note(`${script} did not run, as the person has not agreed to it yet. ${yourself}`);

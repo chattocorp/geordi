@@ -7,27 +7,30 @@ import { describe, expect, it } from 'vitest';
 import { parseConfig, resolve, settingsOf } from './config.ts';
 import { ensureWorktree } from './worktree.ts';
 
-describe('parseConfig', () => {
+/** As a `.geordi.toml` says it: what the file was first, and is still read as. */
+const toml = (text: string) => parseConfig(text, '.geordi.toml');
+
+describe('parseConfig, of TOML', () => {
 	it('reads a single run command as a job of that name', () => {
-		expect(parseConfig('run = "pnpm dev"')).toEqual({
+		expect(toml('run = "pnpm dev"')).toEqual({
 			ports: 1, // one job, one port
 			jobs: [{ name: 'run', command: 'pnpm dev', needs: [] }],
 			urls: [],
 			setup: null,
 			teardown: null
 		});
-		expect(parseConfig('')).toEqual({
+		expect(toml('')).toEqual({
 			ports: 10,
 			jobs: [],
 			urls: [],
 			setup: null,
 			teardown: null
 		});
-		expect(parseConfig('something = "else"').jobs).toEqual([]);
+		expect(toml('something = "else"').jobs).toEqual([]);
 	});
 
 	it('reads jobs with what they need, links with the jobs they lead to, and the number of ports', () => {
-		const settings = parseConfig(`
+		const settings = toml(`
 			ports = 20
 			[jobs.db]
 			command = "docker compose up db"
@@ -57,23 +60,21 @@ describe('parseConfig', () => {
 	});
 
 	it('reads the setup and teardown scripts', () => {
-		expect(parseConfig('setup = " pnpm install "\nteardown = "docker compose down"')).toMatchObject(
-			{
-				setup: 'pnpm install',
-				teardown: 'docker compose down',
-				jobs: []
-			}
-		);
+		expect(toml('setup = " pnpm install "\nteardown = "docker compose down"')).toMatchObject({
+			setup: 'pnpm install',
+			teardown: 'docker compose down',
+			jobs: []
+		});
 	});
 
 	it('gives a workspace a port per job, unless more are asked for', () => {
 		const three = '[jobs.a]\ncommand = "a"\n[jobs.b]\ncommand = "b"\n[jobs.c]\ncommand = "c"';
-		expect(parseConfig(three).ports).toBe(3);
-		expect(parseConfig(`ports = 8\n${three}`).ports).toBe(8);
+		expect(toml(three).ports).toBe(3);
+		expect(toml(`ports = 8\n${three}`).ports).toBe(8);
 		// never fewer than there are jobs, whatever was asked for
-		expect(parseConfig(`ports = 2\n${three}`).ports).toBe(3);
+		expect(toml(`ports = 2\n${three}`).ports).toBe(3);
 		// and with no jobs to count, what any workspace gets
-		expect(parseConfig('').ports).toBe(10);
+		expect(toml('').ports).toBe(10);
 	});
 
 	it.each([
@@ -99,6 +100,67 @@ describe('parseConfig', () => {
 		['a setup script that is no command', 'setup = ""', /setup/],
 		['a teardown script that is no command', 'teardown = ["x"]', /teardown/],
 		['a job named like a script', '[jobs.setup]\ncommand = "x"', /setup script/]
+	])('refuses %s', (_, text, problem) => {
+		expect(() => toml(text)).toThrow(problem);
+	});
+});
+
+describe('parseConfig, of YAML', () => {
+	it('reads the same settings, said the other way', () => {
+		expect(parseConfig('run: pnpm dev')).toEqual(toml('run = "pnpm dev"'));
+		const yaml = parseConfig(`
+ports: 4
+setup: pnpm install
+jobs:
+  db:
+    command: docker compose up db
+  web:
+    command: pnpm dev --port $PORT
+    needs: [db]
+urls:
+  app:
+    url: http://localhost:{web}/
+    needs:
+      - db
+`);
+		expect(yaml).toEqual(
+			toml(`
+ports = 4
+setup = "pnpm install"
+[jobs.db]
+command = "docker compose up db"
+[jobs.web]
+command = "pnpm dev --port $PORT"
+needs = ["db"]
+[urls.app]
+url = "http://localhost:{web}/"
+needs = ["db"]
+`)
+		);
+		expect(yaml.jobs).toEqual([
+			{ name: 'db', command: 'docker compose up db', needs: [] },
+			{ name: 'web', command: 'pnpm dev --port $PORT', needs: ['db'] }
+		]);
+	});
+
+	it('takes a file that says nothing, and ignores what it does not know', () => {
+		for (const nothing of ['', '# nothing yet\n', '---\n'])
+			expect(parseConfig(nothing)).toMatchObject({ jobs: [], ports: 10 });
+		expect(parseConfig('something: else').jobs).toEqual([]);
+	});
+
+	it.each([
+		['what is not YAML', 'run: [oops', /./],
+		['what is not settings', '- run\n- jobs', /settings/],
+		['a single word', 'pnpm dev', /settings/],
+		['a run command that is not one', 'run: 5', /run/],
+		['a number of ports that is a word', 'ports: "3"', /ports/],
+		['a job without a command', 'jobs:\n  web:\n    needs: []', /jobs\.web\.command/],
+		[
+			'a link that leads elsewhere',
+			'urls:\n  app:\n    url: https://example.com/',
+			/on this machine/
+		]
 	])('refuses %s', (_, text, problem) => {
 		expect(() => parseConfig(text)).toThrow(problem);
 	});
@@ -138,7 +200,11 @@ describe('which file applies', () => {
 
 	it("the workspace's own", () => {
 		const { repoPath, worktree } = setup('run = "pnpm dev"');
-		expect(settingsOf(worktree, repoPath)).toMatchObject({ source: 'workspace', problem: null });
+		expect(settingsOf(worktree, repoPath)).toMatchObject({
+			source: 'workspace',
+			problem: null,
+			file: '.geordi.toml'
+		});
 
 		writeFileSync(join(worktree.path, '.geordi.toml'), 'run = "pnpm dev --port 4000"');
 		expect(run(settingsOf(worktree, repoPath))).toBe('pnpm dev --port 4000');
@@ -146,7 +212,12 @@ describe('which file applies', () => {
 
 	it('the one on the branch work starts from, where the workspace has none', () => {
 		const { repoPath, git, worktree } = setup();
-		expect(settingsOf(worktree, repoPath)).toEqual({ settings: null, problem: null, source: null });
+		expect(settingsOf(worktree, repoPath)).toEqual({
+			settings: null,
+			problem: null,
+			source: null,
+			file: null
+		});
 
 		// the file arrives on the main branch after the workspace branched off
 		writeFileSync(join(repoPath, '.geordi.toml'), 'run = "make serve"');
@@ -163,16 +234,41 @@ describe('which file applies', () => {
 		expect(settingsOf(worktree, repoPath)).toEqual({
 			settings: null,
 			problem: expect.stringMatching(/^\.geordi\.toml: /),
-			source: 'workspace'
+			source: 'workspace',
+			file: '.geordi.toml'
 		});
 
 		rmSync(join(worktree.path, '.geordi.toml'));
 		expect(run(settingsOf(worktree, repoPath))).toBe('pnpm dev');
 	});
+
+	it('the YAML one, where there is one of each', () => {
+		const { repoPath, git, worktree } = setup('run = "from toml"');
+		expect(run(settingsOf(worktree, repoPath))).toBe('from toml');
+
+		writeFileSync(join(worktree.path, '.geordi.yml'), 'run: from yaml');
+		expect(settingsOf(worktree, repoPath)).toMatchObject({
+			source: 'workspace',
+			file: '.geordi.yml',
+			settings: { jobs: [{ command: 'from yaml' }] }
+		});
+
+		// a workspace's file of either name comes before the main branch's of either
+		rmSync(join(worktree.path, '.geordi.yml'));
+		rmSync(join(worktree.path, '.geordi.toml'));
+		writeFileSync(join(repoPath, '.geordi.yml'), 'run: main yaml');
+		git('add', '.');
+		git('commit', '-qm', 'configure in YAML');
+		expect(settingsOf(worktree, repoPath)).toMatchObject({ source: 'base', file: '.geordi.yml' });
+		expect(run(settingsOf(worktree, repoPath))).toBe('main yaml');
+
+		writeFileSync(join(worktree.path, '.geordi.yml'), 'run: [oops');
+		expect(settingsOf(worktree, repoPath).problem).toMatch(/^\.geordi\.yml: /);
+	});
 });
 
 describe('resolve', () => {
-	const settings = parseConfig(`
+	const settings = toml(`
 		setup = "install"
 		[jobs.db]
 		command = "db"
@@ -186,7 +282,7 @@ describe('resolve', () => {
 
 	it("fills in the workspace's ports, and says which commands a person has agreed to", () => {
 		const config = resolve(
-			{ settings, problem: null, source: 'workspace' },
+			{ settings, problem: null, source: 'workspace', file: '.geordi.yml' },
 			assigned,
 			(command) => command === 'db'
 		);
@@ -200,12 +296,17 @@ describe('resolve', () => {
 			teardown: null,
 			ports: { first: 20000, count: 10 },
 			problem: null,
-			source: 'workspace'
+			source: 'workspace',
+			file: '.geordi.yml'
 		});
 	});
 
 	it('has ports to tell of even where the file says nothing', () => {
-		const none = resolve({ settings: null, problem: null, source: null }, assigned, () => false);
+		const none = resolve(
+			{ settings: null, problem: null, source: null, file: null },
+			assigned,
+			() => false
+		);
 		expect(none).toMatchObject({
 			jobs: [],
 			urls: [],

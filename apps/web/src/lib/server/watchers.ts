@@ -12,7 +12,7 @@ export type WorktreeState = {
 	upstream: Upstream | null;
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	release: ReleasePlan | null;
-	/** What the repository's `.geordi.toml` says for this worktree; `null` if the daemon couldn't say. */
+	/** What the repository's `.geordi.yml` says for this worktree; `null` if the daemon couldn't say. */
 	config: RepoConfig | null;
 };
 

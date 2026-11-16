@@ -32,10 +32,10 @@ type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
 export const configurationReference = () =>
 	[
 		`# ${CONFIG_FILE}`,
-		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is TOML. Settings Geordi doesn't know are ignored.`,
+		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is YAML. Settings Geordi doesn't know are ignored. (A \`.geordi.toml\` with the same settings in TOML is still read where there is no \`${CONFIG_FILE}\`; write YAML.)`,
 		'## Settings',
 		...Object.entries(CONFIG_SETTINGS).map(
-			([key, { does, example }]) => `### \`${key}\`\n\n${does}\n\n\`\`\`toml\n${example}\n\`\`\``
+			([key, { does, example }]) => `### \`${key}\`\n\n${does}\n\n\`\`\`yaml\n${example}\n\`\`\``
 		),
 		'## Which file applies',
 		`The \`${CONFIG_FILE}\` in a workspace's own directory, if it has one; otherwise the one on the branch work starts from (the upstream's main branch). The two are not merged. So you can try a change out in your workspace right away, and it applies to everyone once it is merged. The file is read again whenever it changes: nothing needs restarting.`,
@@ -160,15 +160,17 @@ const tools = {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets, and what is wrong with it if anything. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
-			const { source, problem, ports, jobs, urls, setup, teardown } =
+			const { source, file, problem, ports, jobs, urls, setup, teardown } =
 				await agents.configuration(caller);
+			// the file by the name it has; one in the old language is still read, and said to be
+			const name = `${file ?? CONFIG_FILE}${file && file !== CONFIG_FILE ? ` (still read, but ${CONFIG_FILE} is what to write: move its settings there)` : ''}`;
 			const commands = [...jobs, ...(setup ? [setup] : []), ...(teardown ? [teardown] : [])];
 			return {
 				applies:
 					source === 'workspace'
-						? `the ${CONFIG_FILE} in your working directory`
+						? `the ${name} in your working directory`
 						: source === 'base'
-							? `the ${CONFIG_FILE} on the branch work starts from (your working directory has none)`
+							? `the ${name} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
 				problem,
 				ports,

@@ -3,7 +3,7 @@
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 25;
+export const PROTOCOL_VERSION = 26;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -146,7 +146,12 @@ export type Upstream = {
 };
 
 /** A repository says how Geordi should treat it in this file, at its top level. */
-export const CONFIG_FILE = '.geordi.toml';
+export const CONFIG_FILE = '.geordi.yml';
+/**
+ * The names such a file may go by, the first that is there being the one that counts. YAML
+ * is what we say and write; TOML is what it was first, and is still read.
+ */
+export const CONFIG_FILES = [CONFIG_FILE, '.geordi.toml'] as const;
 
 /** How many ports a workspace gets where its repository names no jobs to count, nor a number. */
 export const DEFAULT_PORTS = 10;
@@ -195,7 +200,7 @@ export type Link = {
 };
 
 /**
- * What a repository's `.geordi.toml` says, as it applies to one workspace: that of the
+ * What a repository's `.geordi.yml` says, as it applies to one workspace: that of the
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
@@ -211,37 +216,39 @@ export type RepoConfig = {
 	problem: string | null;
 	/** Which file this is from: the workspace's own, or the one on the branch work starts from. */
 	source: 'workspace' | 'base' | null;
+	/** What that file is called (see `CONFIG_FILES`); `null` if there is none. */
+	file: string | null;
 };
 
 /**
- * What a `.geordi.toml` can say, for agents to read (`configuration_reference`). The daemon's
+ * What a `.geordi.yml` can say, for agents to read (`configuration_reference`). The daemon's
  * parser (`config.ts`) accepts exactly these; a test holds the two together.
  */
 export const CONFIG_SETTINGS = {
 	run: {
 		does: 'The command that runs the project for someone to look at or use: its development server, a desktop app, a game. Short for a single job called `run`. Use this unless the project needs several things running.',
-		example: 'run = "pnpm dev --port $PORT"'
+		example: 'run: pnpm dev --port $PORT'
 	},
 	jobs: {
 		does: "Several things to run, each a `command` under a name (lower case letters, digits and dashes). `needs` lists the jobs that have to be up first: starting a job starts those, and stopping one stops the jobs that need it. Each job runs in a terminal of its own, in the workspace's directory, and should keep running until stopped.",
 		example:
-			'[jobs.db]\ncommand = "docker compose up db"\n\n[jobs.web]\ncommand = "pnpm dev --port $PORT"\nneeds = ["db"]'
+			'jobs:\n  db:\n    command: docker compose up db\n  web:\n    command: pnpm dev --port $PORT\n    needs: [db]'
 	},
 	urls: {
 		does: "Places to open in the browser, each a `url` under a name. `{job}` stands for that job's port. Opening one first starts the jobs it mentions (and any listed under `needs`) and waits for them. Only addresses on this machine (`localhost`).",
-		example: '[urls.app]\nurl = "http://localhost:{web}/"'
+		example: 'urls:\n  app:\n    url: http://localhost:{web}/'
 	},
 	setup: {
 		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
-		example: 'setup = "pnpm install && cp ../.env .env"'
+		example: 'setup: pnpm install && cp ../.env .env'
 	},
 	teardown: {
 		does: 'A command that cleans up after a workspace when a person archives it, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
-		example: 'teardown = "docker compose down --volumes"'
+		example: 'teardown: docker compose down --volumes'
 	},
 	ports: {
 		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. Never hard-code a port: two workspaces would collide.`,
-		example: 'ports = 20'
+		example: 'ports: 20'
 	}
 } as const;
 

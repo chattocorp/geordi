@@ -9,6 +9,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import {
@@ -196,20 +197,35 @@
 								<HarnessPicker {harnesses} {choice} onchange={configure} />
 							{/if}
 						</div>
-						<!-- how to send: said while writing, not all the time -->
-						<p
-							class="invisible ml-auto hidden pl-1 text-xs text-muted group-focus-within/composer:visible lg:block"
-						>
-							{running
-								? `Enter to steer, ${modifier}Enter to queue`
-								: 'Enter to send, Shift+Enter for a new line'}
-						</p>
-						<!-- as high as its tallest buttons, whichever are there: the box keeps its height -->
-						<div class="flex h-9 items-center gap-2">
+						<!-- At the far end, together, however narrow the box: what does not fit there goes
+						     below as one, and stays on that side. -->
+						<div class="ml-auto flex h-9 items-center gap-2">
+							<!-- how to send: said while writing, and where there is room for it -->
+							<p
+								class="invisible hidden pr-1 text-xs whitespace-nowrap text-muted group-focus-within/composer:visible @4xl:block"
+							>
+								{running
+									? `Enter to steer, ${modifier}Enter to queue`
+									: 'Enter to send, Shift+Enter for a new line'}
+							</p>
 							{#if running}
-								<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
-									Stop
-								</Button>
+								<!-- at work, which it shows; pointed at, it is the way to stop that -->
+								<button
+									type="button"
+									onclick={() => stopAgent(workspace.id)}
+									title="Stop the agent"
+									aria-label="Stop the agent"
+									class="group/stop grid size-8 shrink-0 place-items-center rounded-full bg-sunken text-sm ring-1 ring-line hover:bg-line/50"
+								>
+									<span
+										class="grid place-items-center group-hover/stop:hidden group-focus-visible/stop:hidden"
+									>
+										<Spinner label="Working" />
+									</span>
+									<span
+										class="icon-[lucide--square] hidden size-3.5 group-hover/stop:block group-focus-visible/stop:block"
+									></span>
+								</button>
 								<Button {...form.fields.mode.as('submit', 'queue')} icon="icon-[lucide--list-plus]">
 									Queue
 								</Button>

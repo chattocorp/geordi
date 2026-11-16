@@ -26,7 +26,7 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
+	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
 	import { openMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
@@ -294,24 +294,14 @@
 	}
 
 	/**
-	 * A setup script nobody has agreed to yet: it has not run, and this is where it is seen
-	 * and agreed to. One that was agreed to runs by itself, and is not something to offer.
+	 * A setup script nobody has agreed to yet: it has not run, and the workspace says so,
+	 * with the way to see it and agree. One that was agreed to runs by itself, and is
+	 * nothing to speak of.
 	 */
 	const setupPending = $derived(!!config?.setup && !config.setup.approved);
 
 	/** What the Run button offers where there is more than one thing to run. */
 	const jobMenu = (): MenuItem[] => [
-		...(setupPending
-			? [
-					{
-						label: 'Set up',
-						icon: 'icon-[lucide--package-check]',
-						disabled: isUp('setup'),
-						onselect: setUp
-					} satisfies MenuItem,
-					...(jobs.length > 0 ? ['separator' as const] : [])
-				]
-			: []),
 		...jobs.map(({ name }): MenuItem =>
 			isUp(name)
 				? { label: `Stop ${name}`, icon: 'icon-[lucide--square]', onselect: () => stop(name) }
@@ -546,6 +536,20 @@
 		}
 	}
 
+	/** Whether any agent is at work in the workspace: its own, or one working alongside. */
+	const working = $derived(running || workspace.aides.some((aide) => aide.status === 'running'));
+	/**
+	 * What is offered now. Not publishing while an agent is still at it: the work is not
+	 * done, and what would be committed or put into a pull request is whatever is there at
+	 * that moment. (One that was asked for already stays, to show that it is under way.)
+	 */
+	const PUBLISHING: WorkspaceAction['id'][] = ['commit', 'create-pull', 'update-pull'];
+	const offered = $derived(
+		actions.filter(
+			(action) => !working || !PUBLISHING.includes(action.id) || pending.includes(action.id)
+		)
+	);
+
 	function act(action: WorkspaceAction) {
 		if (action.prompt) say({ workspaceId: id, text: action.prompt });
 		else if (action.id === 'merge-pull') merge();
@@ -567,7 +571,7 @@
 
 <!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
 {#snippet runActions()}
-	{#if jobs.length === 1 && links.length === 0 && !setupPending}
+	{#if jobs.length === 1 && links.length === 0}
 		<!-- one thing to run: a button says it all -->
 		{@const [job] = jobs}
 		{#if isUp(job.name) || launching.has(job.name)}
@@ -591,8 +595,8 @@
 				Run
 			</Button>
 		{/if}
-	{:else if jobs.length > 0 || links.length > 0 || setupPending}
-		{#if jobs.length > 0 || setupPending}
+	{:else if jobs.length > 0 || links.length > 0}
+		{#if jobs.length > 0}
 			<Button
 				variant="ghost"
 				size="sm"
@@ -770,9 +774,9 @@
 		<WorkspaceActions
 			{standing}
 			pull={standingState?.upstream?.pull}
-			{actions}
+			actions={offered}
 			{pending}
-			working={running || workspace.aides.some((aide) => aide.status === 'running')}
+			{working}
 			checking={!workspace.archivedAt && !!workspace.worktree && (!git || git.checking)}
 			onaction={act}
 		/>
@@ -804,6 +808,17 @@
 		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
 			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
 			<Button variant="ghost" onclick={() => delete archiveProblems[id]}>Dismiss</Button>
+		</div>
+	{/if}
+
+	{#if setupPending}
+		<!-- said once, quietly, until someone has looked: it is what a new workspace would run -->
+		<div class="flex items-center gap-3 border-b border-line px-5 py-2 text-sm text-muted">
+			<span class="icon-[lucide--package-check] size-4 shrink-0"></span>
+			<p class="min-w-0 flex-1 truncate">
+				This repository has a setup script that nobody has agreed to yet. It has not run.
+			</p>
+			<Button size="sm" onclick={setUp}>Review</Button>
 		</div>
 	{/if}
 
@@ -907,9 +922,9 @@
 			{/each}
 		</ul>
 		<p class="text-sm text-muted">
-			From the repository's <span class="code-dense">.geordi.toml</span>, a file the agent can
-			change. They run in your own shell, with everything you are allowed to do. You are asked once
-			per command and repository.
+			From the repository's <span class="code-dense">{config?.file ?? CONFIG_FILE}</span>, a file
+			the agent can change. They run in your own shell, with everything you are allowed to do. You
+			are asked once per command and repository.
 		</p>
 		<div class="flex justify-end gap-2">
 			<Button onclick={() => (asking = null)}>Cancel</Button>

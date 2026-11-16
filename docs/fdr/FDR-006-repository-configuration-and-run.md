@@ -5,18 +5,18 @@
 
 ## Overview
 
-A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at its top level: what to run to see or use the project (a dev server, a database, a desktop app, a game), where to look at it, and how to get a new workspace ready and clean up after one. Every workspace then has buttons to start and stop those things and to open what they serve, on ports that are the workspace's own, so that many workspaces of one project can run side by side.
+A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at its top level: what to run to see or use the project (a dev server, a database, a desktop app, a game), where to look at it, and how to get a new workspace ready and clean up after one. Every workspace then has buttons to start and stop those things and to open what they serve, on ports that are the workspace's own, so that many workspaces of one project can run side by side.
 
 ## Behavior
 
 ### The file
 
-- `.geordi.toml` is TOML. Settings Geordi doesn't know are ignored.
-- `run = "pnpm dev"` names the one command that runs the project. It is short for a single job called `run`.
-- `[jobs.<name>]` names several: each has a `command`, and may list the jobs it `needs`.
-- `[urls.<name>]` names places to open: each has a `url`, in which `{job}` stands for that job's port. A link needs the jobs it mentions, and any it lists under `needs`. Links only lead to this machine (`localhost`).
-- `setup = "…"` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown = "…"` one that cleans up after it (stop services, drop databases). No job can be called `setup` or `teardown`.
-- A workspace gets one port per job. `ports = 20` asks for that many instead, for spare ones. (Where a repository names no jobs, a workspace gets ten.)
+- `.geordi.yml` is YAML. Settings Geordi doesn't know are ignored. A `.geordi.toml` with the same settings in TOML (what the file was first) is still read where there is no `.geordi.yml`; where there is one of each, the YAML one counts.
+- `run: pnpm dev` names the one command that runs the project. It is short for a single job called `run`.
+- `jobs:` names several, each under its name: each has a `command`, and may list the jobs it `needs`.
+- `urls:` names places to open, each under its name: each has a `url`, in which `{job}` stands for that job's port. A link needs the jobs it mentions, and any it lists under `needs`. Links only lead to this machine (`localhost`).
+- `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No job can be called `setup` or `teardown`.
+- A workspace gets one port per job. `ports: 20` asks for that many instead, for spare ones. (Where a repository names no jobs, a workspace gets ten.)
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). They are not merged. So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.
 - It is read afresh whenever the workspace's files or the repository's branches change: editing the file, or fetching a main branch that changed it, shows at once.
 - A workspace's file that can't be made sense of shows a quiet warning with the reason, where the buttons would be. It does not fall back to the main branch's file.
@@ -43,7 +43,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 - The setup script runs once, by itself, when the daemon makes a workspace's worktree fresh from where work in the repository starts, in the workspace's directory, with its ports. It runs in a terminal tab named `setup`, which shows up in the dock by itself. Continuing a workspace, or an agent working in another's worktree, makes no new directory and runs nothing. A worktree that starts from an agent's branch (one an agent started with a worktree of its own) or is brought back from the workspace's branch gets no setup by itself: its tab says so, and its agent is told to do what it needs itself.
 - The agent's first turn waits for it. Stopping the agent meanwhile ends that turn; the setup goes on, and the next turn waits for it in turn.
 - However the setup ends, the agent then starts. If it failed, the agent is told so with its first message, with the end of what the script printed; if it was stopped (its tab closed), or nobody has agreed to it yet, the agent is told that too. A failed setup is the agent's to fix, or the person's: it does not stop the work.
-- A setup nobody has agreed to does not run: its tab says so, and where to run it. Until it is agreed to, **Set up** in the dock's Run menu shows it and asks; once agreed to, it runs by itself and is no longer offered there. A setup that did not run can be run from its own terminal: a key press in a terminal that has ended starts it again.
+- A setup nobody has agreed to does not run: its tab says so, and where to run it. Until it is agreed to, the workspace says so in a quiet line under its title, with **Review**, which shows the script and asks, and runs it once agreed; after that it runs by itself and nothing more is said. The Run menu lists jobs only. A setup that did not run can be run from its own terminal: a key press in a terminal that has ended starts it again.
 - The teardown script runs when a person archives a workspace (with it, the workspaces its agent started), once it is clear that its worktree goes (it has no uncommitted work, or the person agreed to lose it), and before the worktree is removed: in the workspace's directory, with its ports, in a terminal tab named `teardown`. It has two minutes. Then, however it ended, the worktree is removed. An agent archiving an agent it started removes the worktree without a teardown.
 - A teardown runs only if a person has agreed to it. It has no moment of its own to be asked at, so it is asked about together with the first command a person agrees to run in the workspace: a job, or the setup.
 
@@ -132,3 +132,9 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 - Health checks beyond "listens on its port".
 - Previews inside Geordi: links open in the browser.
 - Links to anywhere but this machine.
+
+### 12. YAML, with TOML still read
+
+**Decision:** The file is YAML (`.geordi.yml`). A `.geordi.toml` is still read where there is no `.geordi.yml`; agents are told to write YAML, and that a TOML file wants moving.
+**Why:** YAML is what the projects Geordi is used on already configure things in, and what their people and agents write without looking anything up. Reading TOML on costs a few lines and breaks nobody's repository.
+**Tradeoff:** Two parsers, and a file that can be there twice: the YAML one counts, and the other is silently not looked at.

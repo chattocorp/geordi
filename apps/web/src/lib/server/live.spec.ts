@@ -83,6 +83,9 @@ describe('live', () => {
 		expect((await connect('http://localhost:3000', null)).opened).toBe(false);
 		expect((await connect('http://localhost:3000', 'a-guess')).opened).toBe(false);
 		expect((await connect('http://localhost:3000', 'let-me-ix')).opened).toBe(false);
+		// as many characters as the token, but not as many bytes: turned away, not fallen over
+		expect((await connect('http://127.0.0.1:7717', 'let-me-%C3%AFn')).opened).toBe(false);
+		expect((await connect()).opened).toBe(true);
 	});
 
 	it('sends a view now and whenever it is another, under the number it was asked by', async () => {
@@ -122,6 +125,16 @@ describe('live', () => {
 		socket.close();
 		await settled();
 		expect(state.following).toBe(0);
+	});
+
+	it('takes whatever is sent to it without falling over', async () => {
+		const { connect } = await setup();
+		const { socket, got, say } = await connect();
+		for (const junk of ['null', '7', '[]', '"follow"', '{', '{"follow":"x"}', '{"drop":null}'])
+			socket.send(junk);
+		say({ follow: 1, view: 'counter' });
+		await settled();
+		expect(got).toEqual([{ id: 1, value: { key: '', count: 1 } }]);
 	});
 
 	it('says why there is nothing to send', async () => {
