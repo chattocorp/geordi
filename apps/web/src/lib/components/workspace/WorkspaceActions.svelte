@@ -41,8 +41,7 @@
 </script>
 
 <!--
-	Its pull request, as a pill of its own before the rest: the way to it, in the colour of
-	how the workspace stands. Then where the workspace stands and what to do about it, as one
+	Its pull request, as a quiet pill of its own before the rest: the way to it. Then where the workspace stands and what to do about it, as one
 	unit: the standing colours the whole thing, and the first action is the next step. An
 	agent at work says so at its head; an idle one says nothing.
 -->
@@ -55,8 +54,9 @@
 			rel="noreferrer"
 			class={[
 				'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 code-dense',
-				tones[(!checking && standing?.tone) || 'neutral'],
-				pull.url && 'hover:brightness-110'
+				// always quiet: it is a way to somewhere, and how things stand is said next to it
+				tones.neutral,
+				pull.url && 'hover:text-ink'
 			]}
 			title="Open the pull request"
 		>
