@@ -117,7 +117,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.toml` at 
 
 **Decision:** Setup runs by itself only in a directory made fresh from where work in the repository starts; teardown only when a person archives.
 **Why:** What a command runs is the directory's as much as the command's: `pnpm install` runs the package's scripts, `make clean` the Makefile. A job runs that too, but only when a person clicks. Setup and teardown run with nobody clicking, so where an agent wrote the directory (an agent's own branch, a worktree brought back from the workspace's branch) or asked for the archiving, they would run the agent's code outside its sandbox at the agent's word. There, installing is the agent's to do, in its sandbox.
-**Tradeoff:** Agents that agents start set themselves up, more slowly, and the worktrees agents archive are not cleaned up after (stopped services, dropped databases). Approval is still of a command, whatever slot of the file it is in.
+**Tradeoff:** Agents that agents start set themselves up, more slowly, and the worktrees agents archive are not cleaned up after (stopped services, dropped databases). Approval is still of a command, whatever slot of the file it is in. And "fresh from the main line" is read from the repository's refs, which an agent that can write the repository's Git directory can move (where there is an upstream, a fetch puts its branches back first): like design decision 5, this holds against an agent's mistakes, not against one set on getting out.
 
 ### 11. Archiving does not wait for a teardown that fails
 
