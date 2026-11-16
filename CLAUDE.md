@@ -34,7 +34,7 @@ Run from the repository root:
 - `pnpm desktop`: build the desktop app and run it from `apps/desktop/stage`
 - `pnpm desktop:install`: build it, replace `/Applications/Geordi.app` and open it
 
-Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
+Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 
 ## Invariants
 
@@ -202,3 +202,17 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test`.
 - Shared tool versions live in the pnpm catalog (`pnpm-workspace.yaml`); reference them as
   `"catalog:"`.
 - Conventional commits; mention planning item IDs and ADRs where relevant.
+
+## Releases
+
+Releases are managed with [Sweet Release](https://github.com/chattocorp/sweet-release). Geordi
+is released as one package, the repository root (`.sweet.yml`); its version is kept in the
+desktop and web apps' `package.json`.
+
+- Every user-facing change needs a release note, committed with the change:
+  `printf 'Describe the change.\n' | sweet change . --type <type> --stdin`
+- Types are configured in `.sweet.config.yml`. Add `breaking: true` to a note's frontmatter
+  for breaking changes.
+- Write notes for the people who use Geordi, not for its maintainers.
+- Run `sweet doctor` before finishing; it must pass (CI checks it on every pull request).
+- Do not edit versions or changelogs by hand: `sweet bump` does that.

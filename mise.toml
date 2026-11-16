@@ -1,4 +1,5 @@
 [tools]
+"github:chattocorp/sweet-release" = "latest"
 "github:hmans/means" = "latest"
 node = "lts"
 pnpm = "latest"

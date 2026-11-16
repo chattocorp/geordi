@@ -1,0 +1,9 @@
+name: Validate releases
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  doctor:
+    # Sweet Release publishes no workflow tags yet: pinned to a commit of its main branch.
+    uses: chattocorp/sweet-release/.github/workflows/doctor.yml@11dc11d022585610ad9d751c3f0262f6ef754179
