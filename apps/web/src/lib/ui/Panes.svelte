@@ -1,6 +1,15 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { groupsOf, close, move, open, resize, type Layout, type Zone } from '#lib/layout.ts';
+	import {
+		groupsOf,
+		close,
+		move,
+		open,
+		resize,
+		type Group,
+		type Layout,
+		type Zone
+	} from '#lib/layout.ts';
 	import Button from './Button.svelte';
 	import { drag, endDrag } from './drag.svelte.ts';
 	import Split from './Split.svelte';
@@ -18,8 +27,13 @@
 		closable?: (tab: string) => boolean;
 		/** Which tabs dragged over from another `Panes` may be dropped here. None, by default. */
 		accepts?: (tab: string) => boolean;
-		/** A tab from another `Panes` was dropped here: on a group, or one of its sides. */
-		onreceive?: (tab: string, groupId: string, zone: Zone) => void;
+		/**
+		 * A tab from another `Panes` was dropped here: on a group (before one of its tabs, or
+		 * `null` for after them all; not said if dropped on its window), or one of its sides.
+		 */
+		onreceive?: (tab: string, groupId: string, zone: Zone, before?: string | null) => void;
+		/** Whether a tab dropped at the side of a group opens a new group there. It does, by default. */
+		splits?: boolean;
 		/** Label of the "+" button. */
 		newLabel?: string;
 		/** Shown in a group without tabs. Without it, such a group is simply empty. */
@@ -39,6 +53,7 @@
 		closable = () => true,
 		accepts = () => false,
 		onreceive,
+		splits = true,
 		newLabel = 'New window',
 		empty,
 		actions
@@ -49,7 +64,7 @@
 	/** Tells our own tabs from ones dragged over from another `Panes`. */
 	const self = Symbol('panes');
 	/** Where the dragged tab would land if dropped now. */
-	let target = $state<{ group: string; zone: Zone } | null>(null);
+	let target = $state<{ group: string; zone: Zone; before?: string | null } | null>(null);
 	const droppable = $derived(!!drag.tab && (drag.source === self || accepts(drag.tab)));
 	// the drag ended, or moved on to another `Panes`
 	$effect(() => {
@@ -58,6 +73,7 @@
 
 	/** Near an edge, a drop splits the group on that side; elsewhere it joins the group. */
 	function zoneAt(event: DragEvent & { currentTarget: HTMLElement }): Zone {
+		if (!splits) return 'center';
 		const rect = event.currentTarget.getBoundingClientRect();
 		const x = (event.clientX - rect.left) / rect.width;
 		const y = (event.clientY - rect.top) / rect.height;
@@ -68,18 +84,30 @@
 		return 'center';
 	}
 
-	function over(event: DragEvent, group: string, zone: Zone) {
+	function over(event: DragEvent, group: string, zone: Zone, before?: string | null) {
 		if (!droppable) return;
 		event.preventDefault();
+		// a tab in the bar answers for itself, not the bar behind it
+		event.stopPropagation();
 		drag.over = self;
-		if (target?.group !== group || target.zone !== zone) target = { group, zone };
+		if (target?.group !== group || target.zone !== zone || target.before !== before)
+			target = { group, zone, before };
+	}
+
+	/** Over a tab in the bar: the dragged one goes before it, or after, by which half it is over. */
+	function overTab(event: DragEvent & { currentTarget: HTMLElement }, group: Group, index: number) {
+		const rect = event.currentTarget.getBoundingClientRect();
+		const after = event.clientX > rect.left + rect.width / 2;
+		over(event, group.id, 'center', group.tabs[index + (after ? 1 : 0)] ?? null);
 	}
 
 	function drop(event: DragEvent) {
 		event.preventDefault();
+		event.stopPropagation();
 		if (drag.tab && target && droppable) {
-			if (drag.source === self) onchange(move(layout, drag.tab, target.group, target.zone));
-			else onreceive?.(drag.tab, target.group, target.zone);
+			const { group, zone, before } = target;
+			if (drag.source === self) onchange(move(layout, drag.tab, group, zone, before));
+			else onreceive?.(drag.tab, group, zone, before);
 		}
 		endDrag();
 	}
@@ -105,11 +133,12 @@
 				role="tablist"
 				tabindex="-1"
 				class="pane-bar gap-1 overflow-x-auto px-2"
-				ondragover={(event) => over(event, n.id, 'center')}
+				ondragover={(event) => over(event, n.id, 'center', null)}
 				ondrop={drop}
 			>
 				{#each n.tabs as id, index (id)}
 					{@const active = id === n.active}
+					{@const here = droppable && target?.group === n.id && target.before !== undefined}
 					<!-- The tab and its close button are siblings: a tab can't hold another control. -->
 					<div
 						role="presentation"
@@ -120,6 +149,8 @@
 							event.dataTransfer?.setData('text/plain', id);
 						}}
 						ondragend={endDrag}
+						ondragover={(event) => overTab(event, n, index)}
+						ondrop={drop}
 						onmousedown={(event) => {
 							// the middle button closes; it is not for scrolling by here
 							if (event.button === 1) event.preventDefault();
@@ -132,7 +163,10 @@
 						class={[
 							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
 							closable(id) ? 'pr-1' : 'pr-2.5',
-							active && 'item-active font-medium'
+							active && 'item-active font-medium',
+							// where the dragged tab would go: a line before this one, or after the last
+							here && target?.before === id && 'tab-drop-before',
+							here && target?.before === null && index === n.tabs.length - 1 && 'tab-drop-after'
 						]}
 					>
 						<button
@@ -198,7 +232,7 @@
 						{@render empty?.()}
 					</div>
 				{/each}
-				{#if droppable && target?.group === n.id}
+				{#if droppable && target?.group === n.id && target.before === undefined}
 					<div
 						class={[
 							'pointer-events-none absolute z-20 rounded-control bg-accent/15 ring-2 ring-accent/60 ring-inset',

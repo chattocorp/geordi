@@ -188,7 +188,8 @@
 								? `Enter to steer, ${modifier}Enter to queue`
 								: 'Enter to send, Shift+Enter for a new line'}
 						</p>
-						<div class="flex items-center gap-2">
+						<!-- as high as its tallest buttons, whichever are there: the box keeps its height -->
+						<div class="flex h-9 items-center gap-2">
 							{#if running}
 								<Button icon="icon-[lucide--square]" onclick={() => stopAgent(workspace.id)}>
 									Stop

@@ -159,6 +159,14 @@
 	@apply rounded-control bg-surface px-3 py-2 shadow-soft ring-1 ring-line/60 placeholder:text-muted/70;
 }
 
+/* Where a dragged tab would land among the others: a line at that side of a tab. */
+@utility tab-drop-before {
+	@apply relative before:absolute before:inset-y-1 before:-left-1 before:w-0.5 before:rounded-full before:bg-accent;
+}
+@utility tab-drop-after {
+	@apply relative after:absolute after:inset-y-1 after:-right-1 after:w-0.5 after:rounded-full after:bg-accent;
+}
+
 /* The bar at the top of a pane: tabs, or a title. */
 @utility pane-bar {
 	@apply flex h-10 shrink-0 items-center border-b border-line bg-sidebar;

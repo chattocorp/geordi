@@ -15,6 +15,7 @@
 	import {
 		add,
 		close,
+		flatten,
 		groupsOf,
 		insert,
 		open,
@@ -128,7 +129,12 @@
 			placed.push(...tabsOf(layout));
 			return layout;
 		};
-		let [main, side, dock] = [arranged('main'), arranged('side'), arranged('dock')];
+		// only the main area is split into more: beside it, each area is one row of tabs
+		let [main, side, dock]: Layout[] = [
+			arranged('main'),
+			flatten(arranged('side'), 'side'),
+			flatten(arranged('dock'), 'dock')
+		];
 		// What nobody has placed yet goes where it belongs, without pushing to the front:
 		// the conversation in the main area, what the workspace has done beside it, terminals
 		// (opened in another browser, say) in the dock.
@@ -298,14 +304,15 @@
 	}
 
 	/** A window dragged from one area was dropped in another. */
-	const receive = (to: Area) => (tab: string, groupId: string, zone: Zone) => {
-		const from = areaOf(tab);
-		if (!from || from === to) return;
-		const placed = insert(layouts[to], tab, groupId, zone);
-		// nowhere to put it (the group is gone): leave the window where it is
-		if (placed === layouts[to]) return;
-		arrange({ [to]: placed, [from]: close(layouts[from], tab) });
-	};
+	const receive =
+		(to: Area) => (tab: string, groupId: string, zone: Zone, before?: string | null) => {
+			const from = areaOf(tab);
+			if (!from || from === to) return;
+			const placed = insert(layouts[to], tab, groupId, zone, before);
+			// nowhere to put it (the group is gone): leave the window where it is
+			if (placed === layouts[to]) return;
+			arrange({ [to]: placed, [from]: close(layouts[from], tab) });
+		};
 	/** The conversation stays where it is, and what a workspace always has can't be closed. */
 	const movable = (tab: string) => tab !== CHAT;
 	const closable = (tab: string) =>
@@ -713,6 +720,7 @@
 							{closable}
 							accepts={movable}
 							onreceive={receive('side')}
+							splits={false}
 						/>
 					{/snippet}
 					{#snippet b()}
@@ -724,6 +732,7 @@
 							{closable}
 							accepts={movable}
 							onreceive={receive('dock')}
+							splits={false}
 							newTab={workspace.archivedAt ? undefined : newTerminal}
 							newLabel="New terminal"
 							actions={runActions}

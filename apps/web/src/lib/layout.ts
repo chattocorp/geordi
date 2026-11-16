@@ -71,11 +71,19 @@ function without(group: Group, tab: string): Group | null {
 	return { ...group, tabs, active };
 }
 
-const withTab = (group: Group, tab: string, activate = true): Group => ({
-	...group,
-	tabs: group.tabs.includes(tab) ? group.tabs : [...group.tabs, tab],
-	active: activate || !group.active ? tab : group.active
-});
+/**
+ * The group with `tab` in it: before the tab `before`, at the end (`null`), or where it is
+ * already, else at the end (not said).
+ */
+function withTab(group: Group, tab: string, activate = true, before?: string | null): Group {
+	let tabs = group.tabs;
+	if (before !== undefined && before !== tab) {
+		const others = tabs.filter((other) => other !== tab);
+		const index = before === null ? -1 : others.indexOf(before);
+		tabs = index < 0 ? [...others, tab] : [...others.slice(0, index), tab, ...others.slice(index)];
+	} else if (!tabs.includes(tab)) tabs = [...tabs, tab];
+	return { ...group, tabs, active: activate || !group.active ? tab : group.active };
+}
 
 /** Shows `tab`: activates it if it is open, else adds it to the given (or first) group. */
 export function open(layout: Layout, tab: string, groupId?: string): Layout {
@@ -108,13 +116,20 @@ export function prune(layout: Layout, keep: (tab: string) => boolean): Layout {
 }
 
 /**
- * Puts a tab that is not in the layout yet into a group (`center`), or into a new group on
- * one of its sides. Does nothing if there is no such group.
+ * Puts a tab that is not in the layout yet into a group (`center`: before the tab `before`,
+ * or at the end), or into a new group on one of its sides. Does nothing if there is no
+ * such group.
  */
-export function insert(layout: Layout, tab: string, groupId: string, zone: Zone): Layout {
+export function insert(
+	layout: Layout,
+	tab: string,
+	groupId: string,
+	zone: Zone,
+	before?: string | null
+): Layout {
 	return mapGroups(layout, (g) => {
 		if (g.id !== groupId) return g;
-		if (zone === 'center') return withTab(g, tab);
+		if (zone === 'center') return withTab(g, tab, true, before);
 		const fresh = group([tab]);
 		const first = zone === 'left' || zone === 'top';
 		return splitOf(
@@ -126,15 +141,42 @@ export function insert(layout: Layout, tab: string, groupId: string, zone: Zone)
 	})!;
 }
 
-/** Moves a tab into another group (`center`), or into a new group on one of its sides. */
-export function move(layout: Layout, tab: string, groupId: string, zone: Zone): Layout {
+/**
+ * Moves a tab into another group (`center`), or into a new group on one of its sides. With
+ * `before` (a tab, or `null` for the end) it goes to that place among the group's tabs,
+ * also within its own group: that is how tabs are put in another order.
+ */
+export function move(
+	layout: Layout,
+	tab: string,
+	groupId: string,
+	zone: Zone,
+	before?: string | null
+): Layout {
 	const source = groupsOf(layout).find((g) => g.tabs.includes(tab));
 	if (!source) return layout;
-	// Splitting a group off its own only tab would change nothing.
-	if (source.id === groupId && (zone === 'center' || source.tabs.length === 1)) return layout;
+	if (source.id === groupId) {
+		if (zone === 'center') {
+			if (before === undefined || before === tab) return layout;
+			const placed = withTab(source, tab, true, before);
+			// dropped where it is
+			if (placed.tabs.every((other, index) => other === source.tabs[index])) return layout;
+			return mapGroups(layout, (g) => (g === source ? placed : g))!;
+		}
+		// Splitting a group off its own only tab would change nothing.
+		if (source.tabs.length === 1) return layout;
+	}
 
 	const removed = mapGroups(layout, (g) => (g === source ? without(g, tab) : g))!;
-	return insert(removed, tab, groupId, zone);
+	return insert(removed, tab, groupId, zone, before);
+}
+
+/** All of a layout's tabs in one group, in their order: for where there is no splitting. */
+export function flatten(layout: Layout, id: string): Group {
+	if (layout.kind === 'group') return layout;
+	const groups = groupsOf(layout);
+	const tabs = groups.flatMap((g) => g.tabs);
+	return { kind: 'group', id, tabs, active: groups[0]?.active ?? tabs[0] ?? null };
 }
 
 export function resize(layout: Layout, splitId: string, ratio: number): Layout {

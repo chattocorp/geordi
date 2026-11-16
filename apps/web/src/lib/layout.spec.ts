@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	add,
 	close,
+	flatten,
 	groupsOf,
 	insert,
 	move,
@@ -75,5 +76,30 @@ describe('layout', () => {
 
 	it('prunes tabs', () => {
 		expect(shape(prune(start, (tab) => tab !== 'b'))).toBe('a* c');
+	});
+
+	it('puts tabs in another order, within a group and coming from another', () => {
+		const one = singleGroup(['a', 'b', 'c'], { id: 'one' });
+		expect(shape(move(one, 'c', 'one', 'center', 'a'))).toBe('c* a b');
+		expect(shape(move(one, 'a', 'one', 'center', null))).toBe('b c a*');
+		expect(shape(move(one, 'a', 'one', 'center', 'c'))).toBe('b a* c');
+		// dropped where it is, or on itself: nothing changes
+		expect(move(one, 'a', 'one', 'center', 'b')).toBe(one);
+		expect(move(one, 'b', 'one', 'center', 'b')).toBe(one);
+		expect(move(one, 'c', 'one', 'center', null)).toBe(one);
+
+		expect(shape(insert(one, 'x', 'one', 'center', 'b'))).toBe('a x* b c');
+		const two = move(one, 'c', 'one', 'right');
+		const other = groupsOf(two)[1].id;
+		expect(shape(move(two, 'c', 'one', 'center', 'b'))).toBe('a c* b');
+		expect(shape(move(two, 'a', other, 'center', 'c'))).toEqual(['row', 'b*', 'a* c']);
+	});
+
+	it('flattens a split layout into one group', () => {
+		const one = singleGroup(['a', 'b', 'c'], { id: 'one' });
+		const flat = flatten(move(one, 'c', 'one', 'bottom'), 'all');
+		expect(flat.id).toBe('all');
+		expect(shape(flat)).toBe('a* b c');
+		expect(flatten(one, 'all')).toBe(one);
 	});
 });
