@@ -8,6 +8,7 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Settings from '#lib/components/Settings.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
+	import { byRepository } from '#lib/family.ts';
 	import { modifierKey, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -27,22 +28,16 @@
 
 	type Item = NonNullable<typeof nav.current>['workspaces'][number];
 
-	/**
-	 * Workspaces as a tree of who started what (FDR-002): the ones people started at the top,
-	 * the ones their agents started beneath them.
-	 */
-	const tree = $derived.by(() => {
-		const all = nav.current?.workspaces ?? [];
-		const ids = new Set(all.map((workspace) => workspace.id));
-		const children = Object.groupBy(all, (workspace: Item) =>
-			ids.has(workspace.parentId ?? '') ? workspace.parentId! : ''
+	/** The workspaces by repository, each agent-started one after the one that started it. */
+	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
+	/** A workspace counts as working, for archiving, while anything its agent started is. */
+	const working = (workspace: Item): boolean =>
+		workspace.status === 'running' ||
+		(nav.current?.workspaces ?? []).some(
+			(other) => other.parentId === workspace.id && working(other)
 		);
-		const of = (id: string | null) => children[id ?? ''] ?? [];
-		/** A workspace counts as working while anything beneath it is. */
-		const working = (workspace: Item): boolean =>
-			workspace.status === 'running' || of(workspace.id).some(working);
-		return { of, working };
-	});
+	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
+	let pointedAt = $state<string | null>(null);
 
 	/** Archives a workspace from the sidebar, wherever we are. */
 	async function archiveFromHere(workspace: Item) {
@@ -58,7 +53,7 @@
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
 		// archiving takes the workspaces its agent started along: none of them may be working
-		const working = tree.working(workspace);
+		const busy = working(workspace);
 		return [
 			{
 				label: 'Open in new tab',
@@ -87,7 +82,7 @@
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
 				danger: true,
-				disabled: working,
+				disabled: busy,
 				onselect: () => archiveFromHere(workspace)
 			}
 		];
@@ -120,8 +115,6 @@
 		event.preventDefault();
 		sidebar.current = { ...sidebar.current, width: clampWidth(sidebar.current.width + step) };
 	}
-
-	const repoName = (id: string) => nav.current?.repos.find((repo) => repo.id === id)?.name;
 </script>
 
 <svelte:head>
@@ -184,7 +177,9 @@
 				The sidebar's part of the title bar. In the desktop app the window's buttons are on
 				its left, so the logo makes way and the toggle moves up beside them.
 			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 desktop:pl-22">
+			<div
+				class="flex h-14 shrink-0 items-center gap-1 border-b border-line pr-2.5 pl-4 desktop:pl-22"
+			>
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
@@ -194,7 +189,7 @@
 				>
 			</div>
 
-			<nav class="flex-1 space-y-6 overflow-y-auto px-2.5 pb-4" aria-label="Main">
+			<nav class="flex-1 space-y-6 overflow-y-auto px-2.5 py-3" aria-label="Main">
 				<div class="space-y-0.5">
 					{@render link(
 						resolve('/'),
@@ -210,12 +205,21 @@
 					)}
 				</div>
 
-				{#if tree.of(null).length > 0}
+				{#each (await nav).repos.filter((repo) => listed.has(repo.id)) as repo (repo.id)}
 					<div>
-						<p class="px-2.5 pb-1 label">Workspaces</p>
-						{@render workspaces(null)}
+						<a
+							href={resolve('/repos/[id]', { id: repo.id })}
+							class="block truncate px-2.5 pb-1 label hover:text-ink"
+						>
+							{repo.name}
+						</a>
+						<ul class="space-y-px">
+							{#each listed.get(repo.id) ?? [] as { workspace, parent } (workspace.id)}
+								{@render row(workspace, parent)}
+							{/each}
+						</ul>
 					</div>
-				{/if}
+				{/each}
 			</nav>
 
 			<div class="border-t border-line p-2.5">
@@ -263,54 +267,49 @@
 <ContextMenu />
 <Settings />
 
-{#snippet workspaces(parent: string | null)}
-	<ul class={['space-y-px', parent && 'ml-3.5 border-l border-line pl-1.5']}>
-		{#each tree.of(parent) as workspace (workspace.id)}
-			{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
-			{@const working = tree.working(workspace)}
-			<li>
-				<!-- the whole row is the item: the link, and what appears beside it on hover -->
-				<div
-					class={['group item pr-1', current && 'item-active']}
-					{@attach contextMenu(() => workspaceMenu(workspace))}
-				>
-					<a
-						href={resolve('/workspaces/[id]', { id: workspace.id })}
-						class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-2.5"
-						aria-current={current ? 'page' : undefined}
-					>
-						{#if working}<Spinner />{:else}<span class="dot"></span>{/if}
-						<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
-						{#if !parent}
-							<!-- makes way for the archive button, where there is one -->
-							<span
-								class={[
-									'max-w-20 shrink-0 truncate text-xs text-muted/80',
-									!working && 'group-focus-within:hidden group-hover:hidden'
-								]}
-							>
-								{repoName(workspace.repoId)}
-							</span>
-						{/if}
-					</a>
-					{#if !working}
-						<button
-							type="button"
-							class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-focus-within:grid group-hover:grid hover:bg-sunken hover:text-ink"
-							title="Archive workspace"
-							aria-label="Archive {workspace.title}"
-							onclick={() => archiveFromHere(workspace)}
-						>
-							<span class="icon-[lucide--archive] size-3.5"></span>
-						</button>
-					{/if}
-				</div>
-				{#if tree.of(workspace.id).length > 0}
-					{@render workspaces(workspace.id)}
+{#snippet row(workspace: Item, parent: Item | null)}
+	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
+	{@const busy = working(workspace)}
+	<li>
+		<!-- the whole row is the item: the link, and what appears beside it on hover -->
+		<div
+			class={[
+				'group item pr-1',
+				current && 'item-active',
+				pointedAt === workspace.id && 'bg-surface/60 text-ink'
+			]}
+			{@attach contextMenu(() => workspaceMenu(workspace))}
+		>
+			<a
+				href={resolve('/workspaces/[id]', { id: workspace.id })}
+				class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-2.5"
+				aria-current={current ? 'page' : undefined}
+				title={parent ? `Started by the agent in "${parent.title}"` : undefined}
+				onpointerenter={() => (pointedAt = parent?.id ?? null)}
+				onpointerleave={() => (pointedAt = null)}
+				onfocus={() => (pointedAt = parent?.id ?? null)}
+				onblur={() => (pointedAt = null)}
+			>
+				{#if workspace.status === 'running'}<Spinner />{:else}<span class="dot"></span>{/if}
+				{#if workspace.parentId}
+					<!-- started by an agent: the one above it, where that is still around -->
+					<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0 text-muted/80"></span>
 				{/if}
-			</li>
-		{/each}
-	</ul>
+				<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
+			</a>
+			{#if !busy}
+				<button
+					type="button"
+					class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-focus-within:grid group-hover:grid hover:bg-sunken hover:text-ink"
+					title="Archive workspace"
+					aria-label="Archive {workspace.title}"
+					onclick={() => archiveFromHere(workspace)}
+				>
+					<span class="icon-[lucide--archive] size-3.5"></span>
+				</button>
+			{/if}
+		</div>
+	</li>
 {/snippet}
 
 {#snippet link(href: string, icon: string, label: string, current: boolean, working = 0)}

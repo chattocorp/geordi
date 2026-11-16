@@ -9,7 +9,7 @@
 
 <Story name="With a title and actions" asChild>
 	<div class="card">
-		<TitleBar class="border-b border-line">
+		<TitleBar>
 			<h1 class="min-w-0 flex-1 truncate heading">Never look inside submodules</h1>
 			<Badge>Idle</Badge>
 			<Button variant="ghost" icon="icon-[lucide--archive]" label="Archive" />

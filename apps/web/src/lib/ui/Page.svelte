@@ -15,10 +15,18 @@
 
 <svelte:head><title>{title} · Geordi</title></svelte:head>
 
-<!-- only there with a hidden sidebar, for the way back to it -->
-<TitleBar class="-mb-6 hidden md:flex" />
+<!--
+	A page with a title: in its title bar, as on every page, with the description as the line
+	beneath. On small screens, where the layout has a bar of its own, both head the content.
+-->
+<TitleBar class="hidden md:flex">
+	<div class="min-w-0">
+		<h1 class="truncate heading">{title}</h1>
+		{#if description}<div class="truncate text-xs text-muted">{@render description()}</div>{/if}
+	</div>
+</TitleBar>
 <main class={['page', wide && 'max-w-5xl']}>
-	<header class="space-y-1">
+	<header class="space-y-1 md:hidden">
 		<h1 class="title">{title}</h1>
 		{#if description}<div class="text-muted">{@render description()}</div>{/if}
 	</header>

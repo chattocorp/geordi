@@ -1,0 +1,28 @@
+/**
+ * Workspaces as the sidebar lists them (FDR-002): by repository, as a plain list in which
+ * a workspace started by an agent comes right after the one whose agent started it.
+ */
+type Member = { id: string; repoId: string; parentId: string | null };
+
+export type Listed<T> = {
+	workspace: T;
+	/** The workspace whose agent started this one, if it is still around. */
+	parent: T | null;
+};
+
+export function byRepository<T extends Member>(all: T[]): Map<string, Listed<T>[]> {
+	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
+	const parentOf = (workspace: T) => byId.get(workspace.parentId ?? '') ?? null;
+	// a workspace follows its parent only where the parent is listed: in the same repository
+	const follows = (workspace: T) => parentOf(workspace)?.repoId === workspace.repoId;
+
+	const repos = new Map<string, Listed<T>[]>();
+	const list = (workspace: T) => {
+		const listed = repos.get(workspace.repoId) ?? [];
+		repos.set(workspace.repoId, listed);
+		listed.push({ workspace, parent: parentOf(workspace) });
+		for (const child of all) if (child.parentId === workspace.id && follows(child)) list(child);
+	};
+	for (const workspace of all) if (!follows(workspace)) list(workspace);
+	return repos;
+}

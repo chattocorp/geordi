@@ -3,6 +3,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
 import { AGENTS, type FileVersions, type Harness } from '@geordi/protocol';
 import { live } from '#lib/server/events/index.ts';
+import type { WorkspaceSummary } from '#lib/server/workspaces.ts';
 import {
 	archiveWorkspace as archive,
 	hub,
@@ -26,6 +27,9 @@ export const getWorkspaces = query.live(v.string(), async function* (repoId) {
  * whenever something changes. `null` until first loaded.
  * `terminals` names the workspace's terminals whose shells are running.
  */
+/** What a workspace shows of the one that started it, and of those it started. */
+const relative = ({ id, title, status }: WorkspaceSummary) => ({ id, title, status });
+
 export const getWorkspace = query.live(v.string(), async function* (id) {
 	yield* live(
 		() => {
@@ -33,7 +37,8 @@ export const getWorkspace = query.live(v.string(), async function* (id) {
 			const parent = workspace.parentId ? workspaces().summary(workspace.parentId) : null;
 			return {
 				...workspace,
-				parent: parent && { id: parent.id, title: parent.title },
+				parent: parent && relative(parent),
+				children: workspaces().children(id).map(relative),
 				git: watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id)
 			};

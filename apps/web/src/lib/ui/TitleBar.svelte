@@ -18,13 +18,14 @@
 </script>
 
 <!--
-	The bar at the top of a page: what the page is, and what can be done with it. It starts
-	with what the app's shell puts there. In the desktop app, the row of title bars is what
-	the window is dragged by. A bar with nothing in it takes no room.
+	The bar at the top of a page: what the page is, and what can be done with it. Every page
+	has one, also with nothing to put in it, so that the bar runs across the whole window. It
+	starts with what the app's shell puts there. In the desktop app, the row of title bars is
+	what the window is dragged by.
 -->
-{#if children || lead?.()}
-	<header class={['flex h-14 shrink-0 items-center gap-3 px-5', extra]}>
-		{@render lead?.()?.()}
-		{@render children?.()}
-	</header>
-{/if}
+<header
+	class={['flex h-14 shrink-0 items-center gap-3 border-b border-line bg-sidebar px-5', extra]}
+>
+	{@render lead?.()?.()}
+	{@render children?.()}
+</header>

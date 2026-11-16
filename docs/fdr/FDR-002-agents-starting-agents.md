@@ -1,7 +1,7 @@
 # FDR-002: Agents starting and supervising agents
 
 **Status:** Active
-**Last reviewed:** 2026-11-14
+**Last reviewed:** 2026-11-16
 
 ## Overview
 
@@ -15,8 +15,8 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - The parent can message a child, wait until it has finished its turn, read its latest reply, stop it, and archive it once it is done with it (after merging its branch, say). Archiving on an agent's behalf never discards uncommitted work. Children can start children of their own, up to a limit.
 - An agent can only see and control the agents it started, directly or indirectly.
 - Work from a child with its own worktree comes back by the parent merging the child's branch. Geordi does not merge on its own.
-- The sidebar shows workspaces as a tree by who started what, not grouped by repository. The repository is shown on each workspace. A parent shows as working while any of its descendants is.
-- A workspace started by an agent links back to the one that started it, and says so if it works in that one's directory. Its changes are measured against the parent's branch.
+- The sidebar lists workspaces by repository, as a plain list. A workspace started by an agent is marked as such and comes right after the one that started it; pointing at it lights that one up.
+- A workspace's page says who started whom, under its title: the workspace whose agent started it (and whether it works in that one's directory), and the workspaces its own agent started, each with its status and a link. Its changes are measured against the parent's branch.
 - People can open, message and stop any child like any other workspace.
 - Limits on nesting depth and on the number of children running at once stop runaway delegation; hitting one is reported to the calling agent as an error it can act on.
 - Archiving a workspace archives the workspaces its agent started along with it: they are part of the same piece of work.

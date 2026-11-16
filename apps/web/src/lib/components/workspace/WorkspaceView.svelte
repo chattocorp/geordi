@@ -33,6 +33,7 @@
 	import Changes from './Changes.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
+	import Family from './Family.svelte';
 	import { effortName } from './HarnessPicker.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from './WorkspaceActions.svelte';
@@ -231,7 +232,7 @@
 {/snippet}
 
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
-	<TitleBar class="border-b border-line">
+	<TitleBar>
 		<div class="min-w-0 flex-1">
 			<h1 class="truncate heading" title={workspace.title}>
 				{workspace.title}
@@ -244,18 +245,6 @@
 					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
 					{repo.name}
 				</a>
-				{#if workspace.parent}
-					<a
-						href={resolve('/workspaces/[id]', { id: workspace.parent.id })}
-						class="flex min-w-0 items-center gap-1 hover:text-ink"
-						title={workspace.worktreeId === workspace.id
-							? `Started by the agent in "${workspace.parent.title}"`
-							: `Started by the agent in "${workspace.parent.title}", and working in its directory`}
-					>
-						<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0"></span>
-						<span class="truncate">{workspace.parent.title}</span>
-					</a>
-				{/if}
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
@@ -320,6 +309,11 @@
 			{/if}
 		{/if}
 	</TitleBar>
+	<Family
+		parent={workspace.parent}
+		sharesWorktree={workspace.worktreeId !== workspace.id}
+		children={workspace.children}
+	/>
 
 	{#if archiveProblem}
 		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">

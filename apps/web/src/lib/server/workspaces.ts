@@ -559,6 +559,9 @@ export function createWorkspaces(
 
 		get: (id: string): Workspace => view(find(id)),
 
+		/** The workspaces in use that this one's agent started itself, oldest first. */
+		children: (id: string): WorkspaceSummary[] => childrenOf(id).map(summarise),
+
 		/** The IDs of the workspaces in use that this one's agent started, and theirs: parents first. */
 		descendants: (id: string): string[] => descendantsOf(id).map((workspace) => workspace.id),
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
