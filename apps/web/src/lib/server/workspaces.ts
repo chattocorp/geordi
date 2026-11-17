@@ -6,6 +6,7 @@ import {
 	type AgentEvent,
 	type AgentSettings,
 	type ForgeMessage,
+	type Harness,
 	type WorktreeMode,
 	type WorktreeRef
 } from '@geordi/protocol';
@@ -471,6 +472,34 @@ export function createWorkspaces(
 		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });
 	}
 
+	/**
+	 * What an agent started by another runs with: what it inherits, but for what was asked
+	 * for. An inherited effort goes with a new model only if that model offers it; an effort
+	 * asked for must be one the model offers (when known: a model not on offer can still be
+	 * named, as in the UI).
+	 */
+	function settingsFor(
+		agent: Agent,
+		inherited: AgentSettings,
+		asked: AgentSettings,
+		harness: Harness | undefined
+	): AgentSettings {
+		const model = asked.model ?? inherited.model;
+		const efforts = harness
+			? (harness.models.find((offer) => offer.id === model)?.efforts ?? harness.efforts)
+			: null;
+		if (asked.effort && efforts && !efforts.includes(asked.effort))
+			error(
+				400,
+				efforts.length > 0
+					? `${model ? `${model} (${agent})` : agent} offers no effort ${asked.effort}; it offers ${efforts.join(', ')}`
+					: `${model ? `${model} (${agent})` : agent} offers no choice of effort`
+			);
+		const keeps = !asked.model || !efforts || efforts.includes(inherited.effort ?? '');
+		const effort = asked.effort ?? (keeps ? inherited.effort : undefined);
+		return { ...(model && { model }), ...(effort && { effort }) };
+	}
+
 	/** Only what was chosen, and only what can safely be handed to a CLI. */
 	function chosenOf(settings: AgentSettings): AgentSettings {
 		const chosen: AgentSettings = {};
@@ -631,15 +660,27 @@ export function createWorkspaces(
 		/**
 		 * Starts an agent on the caller's behalf, as a workspace of its own: in a new worktree
 		 * branched from the caller's (`own`), or working in the caller's worktree (`shared`).
+		 * An agent of the caller's kind runs as the caller does, but for the `model` and
+		 * `effort` asked for. An effort is checked against what is `offered`, when that is known.
 		 */
 		start(
 			callerId: string,
 			{
 				worktree,
 				agent,
+				model,
+				effort,
 				prompt,
 				title
-			}: { worktree: WorktreeMode; agent?: Agent; prompt: string; title?: string }
+			}: {
+				worktree: WorktreeMode;
+				agent?: Agent;
+				model?: string;
+				effort?: string;
+				prompt: string;
+				title?: string;
+			},
+			offered: Harness[] | null = null
 		): AgentReport {
 			const caller = find(callerId);
 			if (depthOf(caller) + 1 > limits.depth)
@@ -649,12 +690,18 @@ export function createWorkspaces(
 			const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
 			if (!branch) error(409, 'Your workspace has no worktree yet');
 
+			const kind = agent ?? caller.agent;
+			const settings = settingsFor(
+				kind,
+				kind === caller.agent ? caller.settings : {},
+				{ model, effort },
+				offered?.find((harness) => harness.agent === kind)
+			);
 			const id = create(
 				{
 					repoId: caller.repoId,
-					agent: agent ?? caller.agent,
-					// an agent of the same kind runs the way its parent does
-					...((agent ?? caller.agent) === caller.agent && { settings: caller.settings }),
+					agent: kind,
+					settings,
 					prompt,
 					title,
 					parentId: callerId,

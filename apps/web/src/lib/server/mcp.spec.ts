@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { CONFIG_SETTINGS, type RepoConfig } from '@geordi/protocol';
+import { CONFIG_SETTINGS, type Harness, type RepoConfig } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { handleMcp } from './mcp.ts';
@@ -18,8 +18,27 @@ function setup() {
 	const caller = workspaces.create({
 		repoId: repos.register(repoPath).id,
 		agent: 'claude',
+		settings: { model: 'opus', effort: 'high' },
 		prompt: 'Lead'
 	});
+	/** What a daemon would offer; `null` as if none were connected. */
+	const offered: { current: Harness[] | null } = {
+		current: [
+			{
+				agent: 'claude',
+				models: [
+					{ id: 'opus', name: 'Opus', efforts: ['low', 'medium', 'high'] },
+					{ id: 'haiku', name: 'Haiku', efforts: ['low'] }
+				],
+				efforts: ['low', 'medium', 'high']
+			},
+			{
+				agent: 'codex',
+				models: [{ id: 'gpt-5', name: 'GPT-5', efforts: ['minimal', 'high'] }],
+				efforts: ['high']
+			}
+		]
+	};
 
 	const config: { current: RepoConfig } = {
 		current: {
@@ -42,7 +61,8 @@ function setup() {
 			archived.push(id);
 		},
 		/** What a daemon would read; set per test. */
-		configuration: async () => config.current
+		configuration: async () => config.current,
+		harnesses: () => offered.current
 	};
 
 	let next = 0;
@@ -65,7 +85,7 @@ function setup() {
 	const read = async (name: string) =>
 		((await rpc('tools/call', { name, arguments: {} })).result as { content: { text: string }[] })
 			.content[0].text;
-	return { workspaces, agents, archived, caller, rpc, call, read, config };
+	return { workspaces, agents, archived, caller, rpc, call, read, config, offered };
 }
 
 describe('naming workspaces', () => {
@@ -94,6 +114,59 @@ describe('naming workspaces', () => {
 		// without one, it is named after its task, until someone knows better
 		const unnamed = await call('start_agent', { prompt: 'Review the changes' });
 		expect(workspaces.get(unnamed.id)).toMatchObject({ title: 'Review the changes', named: false });
+	});
+});
+
+describe('choosing what an agent runs', () => {
+	const begun = () => {
+		const it = setup();
+		it.workspaces.record(it.caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const settingsOf = async (args: object) => {
+			const started = await it.call('start_agent', { prompt: 'Review', ...args });
+			return started.error ?? it.workspaces.get(started.id).settings;
+		};
+		return { ...it, settingsOf };
+	};
+
+	it('lists the models and effort levels on offer, per agent', async () => {
+		const { rpc, offered } = begun();
+		const describe = async () =>
+			((await rpc('tools/list')).result as { tools: { description: string }[] }).tools[0]
+				.description;
+		const description = await describe();
+		expect(description).toContain('- claude:\n  - opus (Opus): low, medium, high');
+		expect(description).toContain('- codex:\n  - gpt-5 (GPT-5): minimal, high');
+
+		offered.current = null;
+		expect(await describe()).toMatch(/no daemon is connected/);
+	});
+
+	it('runs an agent of the same kind as its parent, but for what was asked', async () => {
+		const { settingsOf } = begun();
+		expect(await settingsOf({})).toEqual({ model: 'opus', effort: 'high' });
+		expect(await settingsOf({ effort: 'medium' })).toEqual({ model: 'opus', effort: 'medium' });
+		// the parent's effort goes with another model only if it offers it
+		expect(await settingsOf({ model: 'haiku' })).toEqual({ model: 'haiku' });
+		// another kind inherits nothing
+		expect(await settingsOf({ agent: 'codex' })).toEqual({});
+		expect(await settingsOf({ agent: 'codex', model: 'gpt-5', effort: 'minimal' })).toEqual({
+			model: 'gpt-5',
+			effort: 'minimal'
+		});
+	});
+
+	it('refuses an effort the model does not offer, and says what it does', async () => {
+		const { settingsOf, offered } = begun();
+		expect(await settingsOf({ model: 'haiku', effort: 'high' })).toBe(
+			'haiku (claude) offers no effort high; it offers low'
+		);
+		expect(await settingsOf({ effort: 'max; rm -rf /' })).toMatch(/not an effort level/);
+		// what is not known is not checked
+		offered.current = null;
+		expect(await settingsOf({ model: 'haiku', effort: 'high' })).toEqual({
+			model: 'haiku',
+			effort: 'high'
+		});
 	});
 });
 
