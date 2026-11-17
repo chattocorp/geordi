@@ -30,7 +30,7 @@
 	// Each workspace needs its own instance of the form.
 	const form = $derived(sendMessage.for(workspace.id));
 	// What is written and not sent yet stays, when one goes elsewhere and comes back.
-	draft(
+	const written = draft(
 		() => `reply:${workspace.id}`,
 		() => form.fields.text
 	);
@@ -103,6 +103,7 @@
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
 				<MessageComposer
+					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
 					disabled={form.pending > 0}
 					{form}

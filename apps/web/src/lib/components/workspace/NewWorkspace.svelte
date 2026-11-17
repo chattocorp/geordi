@@ -59,6 +59,7 @@
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
 <MessageComposer
+	bind:images={written.images}
 	imageField={createWorkspace.fields.images.as('hidden', '[]')}
 	{form}
 	disabled={createWorkspace.pending > 0}
