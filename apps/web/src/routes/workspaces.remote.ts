@@ -175,6 +175,15 @@ export const startJobs = command(
 	({ workspaceId, jobs: names, seen }) => jobs().start(workspaceId, names, seen)
 );
 
+/**
+ * Waits for jobs that were started to be up (something listens on their port), for what
+ * shows them booting.
+ */
+export const jobsReady = command(
+	v.object({ workspaceId: v.string(), jobs: v.array(jobName) }),
+	({ workspaceId, jobs: names }) => jobs().ready(workspaceId, names)
+);
+
 /** Runs the repository's setup script in the workspace, as the person asking saw it. */
 export const runSetup = command(
 	v.object({ workspaceId: v.string(), command: v.pipe(v.string(), v.nonEmpty()) }),

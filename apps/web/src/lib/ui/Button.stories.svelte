@@ -27,6 +27,13 @@
 	</div>
 </Story>
 
+<Story name="Working" asChild>
+	<div class="flex flex-wrap items-center gap-3">
+		<Button variant="ghost" size="sm" icon="icon-[lucide--play]" working>Run</Button>
+		<Button variant="ghost" size="sm" icon="icon-[lucide--square]" working>Stop</Button>
+	</div>
+</Story>
+
 <Story name="Icon only" asChild>
 	<div class="flex flex-wrap items-center gap-3">
 		<Button variant="primary" icon="icon-[lucide--arrow-up]" label="Send" />

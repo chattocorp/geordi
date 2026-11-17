@@ -48,6 +48,7 @@
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
+		jobsReady,
 		openLink,
 		restoreWorktree,
 		runSetup,
@@ -243,7 +244,7 @@
 		then();
 	}
 
-	/** The jobs that were asked for and are on their way up. */
+	/** The jobs that were asked for and are on their way up: until they listen on their port. */
 	const launching = new SvelteSet<string>();
 
 	/** Starts jobs (and what they need), and brings the last of them to the front of the dock. */
@@ -259,6 +260,7 @@
 				const front = jobTab(names.at(-1)!);
 				const at = areaOf(front) ?? 'dock';
 				arrange({ [at]: open(layouts[at], front) });
+				await jobsReady({ workspaceId: id, jobs: order });
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not start that');
 			} finally {
@@ -275,6 +277,8 @@
 			// a new tab has to be opened while the click still counts; where to comes later
 			// (`window` is the name of a snippet in here)
 			const tab = globalThis.open('about:blank', '_blank');
+			const booting = startOrder(jobs, link.needs).filter((name) => !isUp(name));
+			for (const name of booting) launching.add(name);
 			mergeProblem = null;
 			try {
 				const href = await openLink({ workspaceId: id, link: link.name, seen });
@@ -284,6 +288,8 @@
 			} catch (error) {
 				tab?.close();
 				mergeProblem = problemOf(error, 'Could not open that');
+			} finally {
+				for (const name of booting) launching.delete(name);
 			}
 		});
 	}
@@ -599,7 +605,10 @@
 		{#if job}
 			{@const status = workspace.finished[terminalOf(tab) ?? '']}
 			<!-- running; or over, and how it went: its output is still there to be read -->
-			{#if status === undefined}
+			{#if status === undefined && launching.has(job)}
+				<!-- on its way up: until it listens on its port -->
+				<span class="grid size-3.5 shrink-0 place-items-center"><Spinner label="Starting" /></span>
+			{:else if status === undefined}
 				<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
 			{:else if status === 0}
 				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
