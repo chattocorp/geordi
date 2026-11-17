@@ -569,19 +569,24 @@
 	<RunControls {jobs} {links} {isUp} {launching} {start} {stop} {visit} problem={config?.problem} />
 {/snippet}
 
+<!-- A count at the end of a tab: nearer the tab's edge than text would be, being a shape itself. -->
+{#snippet count(n: number)}
+	<span class="-mr-1 flex"><Badge>{n}</Badge></span>
+{/snippet}
+
 {#snippet tab(tab: string)}
 	{@const path = pathOf(tab)}
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
-		{#if git?.changes?.files.length}<Badge>{git.changes.files.length}</Badge>{/if}
+		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
 	{:else if tab === CHANGESET}
 		{@const added = (git?.release?.packages ?? [])
 			.flatMap((pkg) => pkg.notes)
 			.filter((note) => note.added).length}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
 		<span class="truncate">Changeset</span>
-		{#if added > 0}<Badge>{added}</Badge>{/if}
+		{#if added > 0}{@render count(added)}{/if}
 	{:else if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>

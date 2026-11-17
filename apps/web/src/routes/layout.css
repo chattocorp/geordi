@@ -243,12 +243,11 @@
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
 /*
- * The current tab in a pane's bar: lifted by its ground and a faint ring alone. A shadow is
- * too much on something this small inside a sheet; the ring is inside it, so that it is no
- * larger than a tab pointed at.
+ * The current tab in a pane's bar: lifted by its ground alone. A shadow or a rim is too
+ * much on something this small inside a sheet.
  */
 @utility tab-active {
-	@apply bg-surface text-ink ring-1 ring-line/60 ring-inset hover:bg-surface;
+	@apply bg-surface text-ink hover:bg-surface;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
