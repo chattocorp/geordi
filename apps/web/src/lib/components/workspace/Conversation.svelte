@@ -91,19 +91,19 @@
 		/>
 	{/key}
 
-	<div class="relative shrink-0">
+	<div class="relative mx-auto w-full max-w-5xl shrink-0">
 		{#if !following}
+			<!-- beside what is read, not on it: in the margin the messages leave at their end -->
 			<Button
 				icon="icon-[lucide--arrow-down]"
+				label="Jump to latest"
 				onclick={toLatest}
-				class="absolute -top-12 left-1/2 -translate-x-1/2 bg-surface shadow-float"
-			>
-				Jump to latest
-			</Button>
+				class="absolute -top-11 right-5 bg-surface shadow-float"
+			/>
 		{/if}
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
-			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
+			<div class="px-5 pb-4" onsubmit={toLatest}>
 				<MessageComposer
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}

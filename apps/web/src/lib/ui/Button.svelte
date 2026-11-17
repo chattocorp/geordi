@@ -79,7 +79,7 @@
 	{#if busy}
 		<!-- as wide as the icon it stands in for, so that the button keeps its shape -->
 		<span class={['grid place-items-center', size === 'sm' ? 'size-3.5' : 'size-4']}>
-			<Spinner plain label="Under way" />
+			<Spinner label="Under way" />
 		</span>
 	{:else if icon}
 		<span class={[icon, size === 'sm' ? 'size-3.5' : 'size-4']}></span>

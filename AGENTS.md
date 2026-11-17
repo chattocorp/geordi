@@ -213,7 +213,7 @@ it, perhaps you.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
     `item-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `#lib/ui/` (`Button`, `ButtonGroup`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `Notice`, `Page`, `Panes`,
+  - **Components** in `#lib/ui/` (`Button`, `ButtonGroup`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Ring`, `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a

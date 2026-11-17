@@ -42,7 +42,9 @@
 	const tones = {
 		ok: 'bg-ok/12 text-ok',
 		danger: 'bg-danger-soft text-danger',
-		accent: 'bg-accent-soft text-accent-ink',
+		// something to do: quiet, like the rest; it is the next step that is in ink. Not in
+		// gold, which is the reply box's (to send, and at work)
+		accent: 'bg-sunken text-muted',
 		merged: 'bg-merged/15 text-merged',
 		neutral: 'bg-sunken text-muted'
 	};
@@ -78,7 +80,7 @@
 			role="status"
 			class={['inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3', tones.neutral]}
 		>
-			<Spinner plain label="Checking" />
+			<Spinner label="Checking" />
 			<span class="text-sm font-medium whitespace-nowrap">Checking</span>
 		</div>
 	{:else if standing || actions.length > 0 || working}
@@ -92,14 +94,13 @@
 					'rounded-full pl-3',
 					// buttons reach the end of the pill; text keeps its distance
 					actions.length > 0 ? 'pr-1' : 'pr-3',
-					// with nothing else to say, it is the agent's own colour: at work
-					tones[standing?.tone ?? (working ? 'accent' : 'neutral')]
+					tones[standing?.tone ?? 'neutral']
 				]
 			]}
 		>
 			{#if working}
 				<span class="flex items-center gap-2 text-sm font-medium whitespace-nowrap" role="status">
-					<Spinner plain />
+					<Spinner />
 					Working
 				</span>
 				{#if standing || actions.length > 0}
@@ -114,16 +115,18 @@
 				<!-- several ways to go are one pill, not several -->
 				<ButtonGroup label="Actions">
 					{#each ordered as action (action.id)}
-						<!-- the next step stands out; what else is possible, and what is beside it, doesn't -->
+						<!--
+							The next step stands out; what else is possible, and what is beside it, doesn't.
+							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
+							colour; otherwise in ink. Never in gold: that is the one way to send a message.
+						-->
 						{@const next = action === primary}
+						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
 						<Button
 							size="sm"
-							variant={next ? 'primary' : 'soft'}
-							tone={standing?.tone === 'merged'
-								? 'merged'
-								: standing?.tone === 'ok'
-									? 'ok'
-									: 'accent'}
+							variant={next && filled ? 'primary' : 'soft'}
+							tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
+							class={next && !filled ? 'text-ink' : undefined}
 							icon={action.icon}
 							busy={pending.includes(action.id)}
 							onclick={() => onaction(action)}

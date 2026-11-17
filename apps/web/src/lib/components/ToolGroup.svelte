@@ -37,7 +37,8 @@
 	used; a click shows each call, with its input and output.
 -->
 <!-- with room on both sides: it stands between what was said before and after -->
-<details class="group/tools py-1">
+<!-- first in a reply, its row is centred on the avatar beside it -->
+<details class="group/tools py-1 first:pt-0">
 	<summary
 		class="flex h-7 list-none items-center gap-2.5 rounded-control text-sm text-muted select-none hover:text-ink"
 	>

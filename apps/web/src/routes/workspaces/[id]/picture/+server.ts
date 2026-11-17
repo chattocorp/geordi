@@ -17,6 +17,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	return new Response(Buffer.from(picture.data, 'base64'), {
 		headers: {
 			'Content-Type': picture.mediaType,
+			// saved, it keeps its own name
+			'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(path.split('/').pop()!)}`,
 			// the agent may well write the file again
 			'Cache-Control': 'private, max-age=60',
 			'X-Content-Type-Options': 'nosniff'

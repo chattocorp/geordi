@@ -312,15 +312,16 @@
 
 				<div>
 					{#each nav.current?.repos ?? [] as repo, index (repo.id)}
-						<div class={[index > 0 && 'pt-4']}>
+						<!-- (each has something under it: its own workspace, at the least) -->
+						<div class={[index > 0 && 'pt-5']}>
 							<!--
-								A heading for what is under it: its picture, its name (quieter than what is under it,
-								set apart by weight), and the way to start something in it. What is under it lines up
-								with it: icon under picture, title under name.
+								A label for what is under it: its picture, its name (small and quiet: the
+								workspaces are what is read here), and the way to start something in it. What is
+								under it lines up with it: icon under picture, title under name.
 							-->
-							<div class="group flex h-9 items-center pr-1.5">
+							<div class="group flex h-7 items-center pr-1.5">
 								<div
-									class="flex min-w-0 flex-1 items-center gap-2 pr-2 pl-1.5 text-sm font-semibold text-muted"
+									class="flex min-w-0 flex-1 items-center gap-2 pr-2 pl-1.5 text-xs font-medium text-muted"
 								>
 									<RepoIcon id={repo.id} />
 									<span class="truncate">{repo.name}</span>
@@ -430,7 +431,7 @@
 						<Spinner label="Archiving" />
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
-						<Spinner />
+						<Spinner live />
 					{:else if workspace.home}
 						<!-- the repository's own: its checkout, always there -->
 						<span class="icon-[lucide--house] size-4"></span>
