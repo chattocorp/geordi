@@ -36,6 +36,8 @@ export type WorkspacesEvent =
 				worktreeId?: string;
 				/** The branch its worktree starts from, if not the repository's checked-out one. */
 				base?: string;
+				/** The repository's own workspace (FDR-009): it works in the repository's checkout. */
+				home?: true;
 			};
 	  }
 	/**
@@ -78,6 +80,11 @@ export type WorkspacesEvent =
 	 * renamed it, or switched to another. It is what the worktree comes back from.
 	 */
 	| { type: 'workspace.switched'; stream: WorkspaceStream; data: { id: string; branch: string } }
+	/**
+	 * The conversation starts afresh (FDR-009): what was said is gone from view, and the
+	 * agent begins without it. The workspace is the same one.
+	 */
+	| { type: 'workspace.cleared'; stream: WorkspaceStream; data: { id: string } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
@@ -131,6 +138,13 @@ export type Workspace = {
 	worktreeId: string;
 	/** The branch the worktree started from, if not the repository's checked-out one. */
 	base: string | null;
+	/**
+	 * Whether it is its repository's own workspace (FDR-009): always there, at work in the
+	 * repository's checkout rather than in a worktree made for it.
+	 */
+	home: boolean;
+	/** How many turns it has had, including one that is running: cleared conversations' too. */
+	turns: number;
 	worktree: { path: string; branch: string } | null;
 	/** The agent CLI's session ID, for resuming the conversation. */
 	resumeId: string | null;
@@ -189,6 +203,9 @@ const continuedBriefing = (branch: string) =>
 /** What a workspace is called until it is told what to do, or named. */
 export const UNTITLED = 'New workspace';
 
+/** What a repository's own workspace (FDR-009) is called, in every repository. */
+export const HOME_TITLE = 'Home';
+
 /** How often an agent may name its own workspace. */
 const MAX_NAMES = 3;
 
@@ -229,11 +246,18 @@ export function createWorkspaces(
 				worktreeId = event.data.id,
 				base = null,
 				settings = {},
+				home = false,
 				...data
 			} = event.data;
 			workspaces.set(data.id, {
 				...data,
-				named: false,
+				// a repository's own workspace is called the same everywhere, whatever it was
+				// called when it was made (after its repository, at first)
+				...(home && { title: HOME_TITLE }),
+				home,
+				turns: 0,
+				// a repository's own workspace has a name already, and keeps it
+				named: home,
 				settings,
 				status: 'idle',
 				lastTurn: null,
@@ -288,6 +312,16 @@ export function createWorkspaces(
 				workspace.worktree = { ...workspace.worktree, branch: event.data.branch };
 			return;
 		}
+		if (event.type === 'workspace.cleared') {
+			transcript.length = 0;
+			workspace.resumeId = null;
+			workspace.lastTurn = null;
+			workspace.briefing = null;
+			workspace.queue = [];
+			workspace.attachments = { queue: [], steering: [] };
+			workspace.sentBy = { queue: [], steering: null };
+			return;
+		}
 		if (event.type === 'workspace.archived') {
 			workspace.archivedAt = at;
 			workspace.queue = [];
@@ -327,6 +361,7 @@ export function createWorkspaces(
 				workspace.sentBy.steering = null;
 			}
 			workspace.status = 'running';
+			workspace.turns += 1;
 			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
@@ -410,10 +445,12 @@ export function createWorkspaces(
 	/** What a daemon needs to find the worktree a workspace works in. */
 	function ref(id: string): WorktreeRef {
 		const { repoId, worktreeId, base } = find(id);
-		const branch = projection.get().get(worktreeId)?.worktree?.branch;
+		const owner = projection.get().get(worktreeId);
+		const branch = owner?.worktree?.branch;
 		return {
 			worktreeId,
 			repoPath: repos.get(repoId).path,
+			...(owner?.home && { home: true as const }),
 			...(base && { base }),
 			...(branch && { branch })
 		};
@@ -446,8 +483,17 @@ export function createWorkspaces(
 	}
 
 	/** A workspace's turns so far, including a running one. */
-	const turnsOf = (workspace: Workspace) =>
-		workspace.transcript.filter((item) => item.kind === 'user').length;
+	const turnsOf = (workspace: Workspace) => workspace.turns;
+
+	/**
+	 * Whether a workspace's work goes back to the agent that started it. Not what a
+	 * repository's own workspace started (FDR-009): that goes where all work goes.
+	 */
+	const isChild = (workspace: Workspace) =>
+		!!workspace.parentId && !projection.get().get(workspace.parentId)?.home;
+
+	/** Whether a workspace works in its repository's own checkout: its own workspace, or an agent alongside it. */
+	const atHome = (workspace: Workspace) => !!projection.get().get(workspace.worktreeId)?.home;
 
 	/**
 	 * The agent API token for a workspace's current turn. Tokens are derived, not stored: one
@@ -513,6 +559,7 @@ export function createWorkspaces(
 			instructions: instructionsFor({
 				parent: (workspace.parentId && projection.get().get(workspace.parentId)) || null,
 				sharesWorktree: workspace.worktreeId !== id,
+				home: atHome(workspace),
 				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
@@ -573,7 +620,8 @@ export function createWorkspaces(
 			.replace(/^["'“‘]+|["'”’.]+$/g, '')
 			.slice(0, 80)
 			.trim();
-		if (!clean || clean === find(id).title) return;
+		// a repository's own workspace keeps the name it has in every repository
+		if (!clean || clean === find(id).title || find(id).home) return;
 		store.append(
 			{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: clean } },
 			{ actor }
@@ -601,7 +649,13 @@ export function createWorkspaces(
 			settings = {},
 			title: given,
 			...workspace
-		}: NewWorkspace & { parentId?: string; worktreeId?: string; base?: string; title?: string },
+		}: NewWorkspace & {
+			parentId?: string;
+			worktreeId?: string;
+			base?: string;
+			title?: string;
+			home?: true;
+		},
 		actor: string | null = null
 	): string {
 		imageStore.resolve(images);
@@ -610,7 +664,9 @@ export function createWorkspaces(
 		const id = randomUUID();
 		// The first line; the UI clamps long titles visually. One started without a word is
 		// named when it is first told something (`nameAfter`).
-		const title = prompt.split('\n')[0].trim().slice(0, 300) || UNTITLED;
+		const title = workspace.home
+			? HOME_TITLE
+			: prompt.split('\n')[0].trim().slice(0, 300) || UNTITLED;
 		store.append(
 			{
 				type: 'workspace.created',
@@ -694,6 +750,7 @@ export function createWorkspaces(
 	 */
 	const agents = {
 		authenticate,
+		child: (id: string) => isChild(find(id)),
 
 		/**
 		 * Names the caller's own workspace, so that people can tell it from the others. A few
@@ -759,7 +816,10 @@ export function createWorkspaces(
 					parentId: callerId,
 					...(worktree === 'shared'
 						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
-						: { base: branch })
+						: // from the repository's own checkout, work starts where all work does (FDR-009)
+							atHome(caller)
+							? {}
+							: { base: branch })
 				},
 				callerId
 			);
@@ -899,6 +959,33 @@ export function createWorkspaces(
 		},
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
+		child: agents.child,
+
+		/**
+		 * The repository's own workspace (FDR-009): the one that is always there, made the
+		 * first time it is asked for. Returns its ID.
+		 */
+		home(repoId: string, agent: Agent, actor: string | null = null): string {
+			const existing = [...projection.get().values()].find(
+				(workspace) => workspace.home && workspace.repoId === repoId && !workspace.archivedAt
+			);
+			return existing?.id ?? create({ repoId, agent, prompt: '', home: true }, actor);
+		},
+
+		/**
+		 * Starts a repository's own workspace's conversation afresh (FDR-009): there is no
+		 * archiving it, and a conversation that never ends would only grow.
+		 */
+		clear(id: string, actor: string | null = null) {
+			const workspace = find(id);
+			if (!workspace.home) error(409, "Only a repository's own workspace can be cleared");
+			if (workspace.status === 'running') error(409, 'Stop the agent first');
+			if (workspace.transcript.length === 0 && workspace.queue.length === 0) return;
+			store.append(
+				{ type: 'workspace.cleared', stream: `workspace:${id}`, data: { id } },
+				{ actor }
+			);
+		},
 
 		/** Starts a workspace with a first message to its agent. Returns the workspace's ID. */
 		create: (workspace: NewWorkspace, actor: string | null = null) => create(workspace, actor),

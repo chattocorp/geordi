@@ -48,6 +48,7 @@
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
+		clearConversation,
 		openLink,
 		restoreWorktree,
 		runSetup,
@@ -85,6 +86,8 @@
 		}
 	);
 	const running = $derived(workspace.status === 'running');
+	/** The repository's own workspace (FDR-009): at work in its checkout, and always there. */
+	const home = $derived(workspace.home);
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
 	// the other (the side, and the dock). Windows are tabs named after what they show: the
@@ -300,7 +303,10 @@
 	 * with the way to see it and agree. One that was agreed to runs by itself, and is
 	 * nothing to speak of.
 	 */
-	const setupPending = $derived(!!config?.setup && !config.setup.approved);
+	const setupPending = $derived(
+		// (nothing is set up in a repository's own checkout: FDR-009)
+		!home && !!config?.setup && !config.setup.approved
+	);
 
 	// Another agent in this workspace: a conversation of its own, in the same directory. It
 	// begins as a window to write the first message in, and to say who it is for; the agent
@@ -425,7 +431,8 @@
 	 * while the agent is at work, which is when it comes back.
 	 */
 	const worktreeGone = $derived(
-		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt
+		// (a repository's checkout is not ours to bring back)
+		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt && !home
 	);
 	const standingState = $derived(
 		workspace.archivedAt || !git?.changes
@@ -434,7 +441,8 @@
 					changes: git.changes,
 					upstream: git.upstream,
 					failed: workspace.lastTurn === 'failed',
-					child: !!workspace.parentId
+					child: workspace.child,
+					home
 				}
 	);
 	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
@@ -479,8 +487,17 @@
 			workspace.children.length === 0 && git?.changes
 				? { changes: git.changes, upstream: git.upstream }
 				: undefined;
-		if (await archiveWorkspace(id, known))
-			await goto(resolve('/repos/[id]', { id: workspace.repoId }));
+		if (await archiveWorkspace(id, known)) await goto(resolve('/'));
+	}
+
+	/** Starts the conversation afresh: only in a repository's own workspace, which never ends. */
+	async function clear() {
+		mergeProblem = null;
+		try {
+			await clearConversation(id);
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not clear the conversation');
+		}
 	}
 
 	/** The pull request is being merged right now. */
@@ -671,13 +688,10 @@
 				{workspace.title}
 			</h1>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
-				<a
-					href={resolve('/repos/[id]', { id: repo.id })}
-					class="flex shrink-0 items-center gap-1 hover:text-ink"
-				>
+				<span class="flex shrink-0 items-center gap-1">
 					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
 					{repo.name}
-				</a>
+				</span>
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
@@ -715,6 +729,16 @@
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
 		{:else}
+			{#if home}
+				<!-- it can't be archived: its conversation starts afresh instead -->
+				<Button
+					variant="ghost"
+					icon="icon-[lucide--eraser]"
+					label="Clear conversation"
+					disabled={running || workspace.transcript.length === 0}
+					onclick={clear}
+				/>
+			{/if}
 			<Button
 				variant="ghost"
 				icon={frame.current.open

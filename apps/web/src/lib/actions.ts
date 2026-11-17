@@ -9,6 +9,7 @@ export type WorkspaceAction = {
 	id:
 		| 'merge-upstream'
 		| 'commit'
+		| 'push'
 		| 'create-pull'
 		| 'update-pull'
 		| 'resolve-conflicts'
@@ -42,7 +43,16 @@ type State = {
 	failed?: boolean;
 	/** Whether an agent started the workspace: its work goes back to that one. */
 	child?: boolean;
+	/**
+	 * Whether it is the repository's own workspace (FDR-009), at work in the repository's
+	 * checkout: there is no pull request to work towards, and no end to come to.
+	 */
+	home?: boolean;
 };
+
+/** Committed work that the remote doesn't have: commits ahead of it, or a branch not there at all. */
+const hasUnpushed = (changes: NonNullable<State['changes']>) =>
+	changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
 
 /** Whether everything the workspace did is in the branch it started from, with no pull request to say so. */
 const landedLocally = ({ changes, upstream }: State) =>
@@ -73,11 +83,12 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		!incoming ||
 		incoming.commits <= 0 ||
 		state.failed ||
-		landedLocally(state) ||
-		pull?.state === 'merged' ||
-		pull?.state === 'closed' ||
-		// resolving them is updating already
-		pull?.conflicts
+		(!state.home &&
+			(landedLocally(state) ||
+				pull?.state === 'merged' ||
+				pull?.state === 'closed' ||
+				// resolving them is updating already
+				pull?.conflicts))
 	)
 		return actions;
 	return [
@@ -106,27 +117,36 @@ function nextActions(state: State): WorkspaceAction[] {
 					'Your last turn ended with an error before you were done. Carry on where you left off.'
 			}
 		];
+	const uncommitted = changes.uncommitted > 0;
+	const commit: WorkspaceAction = {
+		id: 'commit',
+		label: 'Commit',
+		icon: 'icon-[lucide--git-commit-horizontal]',
+		prompt: 'Commit the uncommitted changes, with clear commit messages.'
+	};
+	// The repository's own checkout: what is there is committed, then pushed, and that is all.
+	if (state.home) {
+		if (uncommitted) return [commit];
+		return upstream && hasUnpushed(changes)
+			? [
+					{
+						id: 'push',
+						label: 'Push',
+						icon: 'icon-[lucide--arrow-up-from-line]',
+						prompt: 'Push the commits on the current branch that its upstream does not have yet.'
+					}
+				]
+			: [];
+	}
 	// Its work is where it was headed, without a pull request: done with.
 	if (landedLocally(state))
 		return [{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }];
-	const uncommitted = changes.uncommitted > 0;
-	// committed work that the remote doesn't have: commits ahead of it, or a branch not there at all
-	const unpushed = changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
+	const unpushed = hasUnpushed(changes);
 	const local = uncommitted || unpushed;
 	const pull = upstream?.pull;
 
 	// Without a forge to send work to, committing is as far as it goes.
-	if (!upstream)
-		return uncommitted
-			? [
-					{
-						id: 'commit',
-						label: 'Commit',
-						icon: 'icon-[lucide--git-commit-horizontal]',
-						prompt: 'Commit the uncommitted changes, with clear commit messages.'
-					}
-				]
-			: [];
+	if (!upstream) return uncommitted ? [commit] : [];
 
 	if (!pull || pull.state === 'unknown')
 		return local || awaitsPull(state)
@@ -202,7 +222,7 @@ function nextActions(state: State): WorkspaceAction[] {
  * Actions that publish the work. Not offered while an agent is still at it: the work is not
  * done, and what would be committed or put into a pull request is whatever is there then.
  */
-export const PUBLISHING: WorkspaceAction['id'][] = ['commit', 'create-pull', 'update-pull'];
+export const PUBLISHING: WorkspaceAction['id'][] = ['commit', 'push', 'create-pull', 'update-pull'];
 
 /** Where a workspace stands, in a few words, with a tone for how that should feel. */
 export type WorkspaceStanding = {
@@ -227,6 +247,15 @@ export function standingOf(state: State): WorkspaceStanding | null {
 	if (!changes) return null;
 	if (state.failed)
 		return { label: 'Turn failed', tone: 'danger', icon: 'icon-[lucide--triangle-alert]' };
+	if (state.home) {
+		const label =
+			changes.uncommitted > 0
+				? 'Uncommitted changes'
+				: upstream && hasUnpushed(changes)
+					? 'Unpushed commits'
+					: null;
+		return label ? { label, tone: 'accent', icon: 'icon-[lucide--circle-dot]' } : null;
+	}
 	if (landedLocally(state))
 		return {
 			label: state.child ? 'Merged into parent' : 'Merged',
@@ -234,7 +263,7 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			icon: 'icon-[lucide--git-merge]'
 		};
 	const uncommitted = changes.uncommitted > 0;
-	const unpushed = changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
+	const unpushed = hasUnpushed(changes);
 	const pull = upstream?.pull;
 	const todo = (label: string): WorkspaceStanding => ({
 		label,
