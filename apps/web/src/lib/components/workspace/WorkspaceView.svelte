@@ -29,6 +29,7 @@
 	} from '#lib/layout.ts';
 	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
 	import RunControls from './RunControls.svelte';
+	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
@@ -376,6 +377,22 @@
 
 	/** Opens a file's diff, next to the conversation. */
 	const openDiff = (path: string) => arrange({ main: open(main, `diff:${path}`, chatGroup) });
+
+	// Its conversations link the files it has changed to their diffs. The list is compared as
+	// text: the changes are new with every update, and each new set renders every reply again.
+	const changedList = $derived(
+		workspace.git?.changes?.files.map((file) => file.path).join('\n') ?? ''
+	);
+	const changedPaths = $derived(new Set(changedList.split('\n').filter(Boolean)));
+	setChangedFiles({
+		get paths() {
+			return changedPaths;
+		},
+		get root() {
+			return workspace.worktree?.path;
+		},
+		open: openDiff
+	});
 
 	// A link to an agent working alongside leads here, to its conversation (`?agent=`). So
 	// does beginning one: it takes the place of the window it was begun in.

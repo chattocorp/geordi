@@ -70,9 +70,40 @@ const fence = md.renderer.rules.fence!;
 md.renderer.rules.fence = (...args) =>
 	`<div class="code-block"><button type="button" data-copy aria-label="Copy code"></button>${fence(...args)}</div>`;
 
+// Code that names a file the workspace has changed (`file` says which, if any) opens its
+// diff when clicked; `Markdown.svelte` handles the clicks.
+const codeInline = md.renderer.rules.code_inline!;
+md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
+	const code = codeInline(tokens, index, options, env, self);
+	const path = (env as Options | undefined)?.file?.(tokens[index].content);
+	if (!path) return code;
+	return `<button type="button" data-file="${escapeHtml(path)}" title="Show the changes to this file">${code}</button>`;
+};
+
+type Options = {
+	/**
+	 * The address that serves the pictures of the workspace this was written in
+	 * (`/workspaces/<id>/picture`). Without it, as for text from elsewhere, none are shown.
+	 */
+	pictures?: string;
+	/** The changed file that code in a sentence names, if it names one. */
+	file?: (code: string) => string | undefined;
+};
+
+export const renderMarkdown = (text: string, options: Options = {}): string =>
+	md.render(text, options);
+
 /**
- * `pictures` is the address that serves the pictures of the workspace this was written in
- * (`/workspaces/<id>/picture`). Without it, as for text from elsewhere, none are shown.
+ * The file among `changed` that `code` names, if any: as a path in the worktree (`root`),
+ * absolute or relative, perhaps followed by a line (`:12`) and column.
  */
-export const renderMarkdown = (text: string, pictures?: string): string =>
-	md.render(text, { pictures });
+export function changedFileIn(
+	code: string,
+	changed: ReadonlySet<string>,
+	root?: string
+): string | undefined {
+	let path = code.trim().replace(/:\d+(:\d+)?$/, '');
+	if (root && path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
+	path = path.replace(/^\.\//, '');
+	return changed.has(path) ? path : undefined;
+}

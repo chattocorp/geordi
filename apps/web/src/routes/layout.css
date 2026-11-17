@@ -362,6 +362,11 @@
 		@apply decoration-accent underline-offset-2;
 	}
 
+	/* A file the workspace has changed, named in code (see markdown.ts): opens its diff. */
+	[data-file] {
+		@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
+	}
+
 	/* A picture the agent shows (see markdown.ts): no taller than leaves the words around it in view. */
 	[data-picture] {
 		@apply max-h-96 rounded-control ring-1 ring-line/60;
