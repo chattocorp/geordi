@@ -10,7 +10,15 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import type { Changes, FileChange, FileVersions } from '@geordi/protocol';
-import { branchRef, gitIn, headOf, startOf, upstreamBranchOf, type Worktree } from './worktree.ts';
+import {
+	branchOf,
+	branchRef,
+	gitIn,
+	headOf,
+	startOf,
+	upstreamBranchOf,
+	type Worktree
+} from './worktree.ts';
 
 /** Files are for reading; beyond this size (in characters) they are not shown. */
 const MAX_FILE = 1_000_000;
@@ -203,6 +211,7 @@ export function status(worktree: Worktree, origin: Origin): Changes {
 	}
 
 	return {
+		branch: branchOf(worktree),
 		files: changes(worktree, origin),
 		uncommitted,
 		unpushed,

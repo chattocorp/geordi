@@ -274,6 +274,12 @@ export function headOf({ path, adminDir }: Worktree): string {
 	return commit;
 }
 
+/** The branch a worktree is on, by name; `null` for a detached HEAD. */
+export function branchOf(worktree: Worktree): string | null {
+	const head = headOf(worktree);
+	return head.startsWith('refs/heads/') ? head.slice('refs/heads/'.length) : null;
+}
+
 /**
  * The environment in which git, run by us or by a tool we run, looks at a worktree's files
  * without trusting the worktree's own Git metadata (see `gitIn`).

@@ -90,6 +90,11 @@ export type FileChange = {
 
 /** What a workspace has changed, and how far that has got. */
 export type Changes = {
+	/**
+	 * The branch the worktree is on; `null` if it is on none (a detached HEAD). Not always the
+	 * one Geordi made: the agent may rename it, or switch to another.
+	 */
+	branch: string | null;
 	/** Every file that differs from where the workspace branched off, committed or not. */
 	files: FileChange[];
 	/** How many files have changes that are not committed yet. */
@@ -423,7 +428,8 @@ export type DaemonRequest =
 
 export type DaemonResults = {
 	changes: Changes;
-	removeWorktree: null;
+	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
+	removeWorktree: { branch: string | null };
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;

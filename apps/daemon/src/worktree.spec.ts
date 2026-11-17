@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { changes, readText, status, versions } from './changes.ts';
 import { removeWorktree } from './remove.ts';
 import {
+	branchOf,
 	branchRef,
 	continueOn,
 	ensureWorktree,
@@ -107,6 +108,33 @@ describe('ensureWorktree', () => {
 			restored: false
 		});
 		expect(existsSync(join(path, 'committed.txt'))).toBe(false);
+	});
+
+	it('reports a branch the agent renamed, and comes back from it', () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const git = (...args: string[]) =>
+			execFileSync('git', [
+				'-C',
+				worktree.path,
+				'-c',
+				'user.name=t',
+				'-c',
+				'user.email=t@t',
+				...args
+			]);
+		git('branch', '-m', 'geordi/fix-login');
+		writeFileSync(join(worktree.path, 'committed.txt'), 'kept\n');
+		git('add', '.');
+		git('commit', '-qm', 'work');
+		expect(branchOf(worktree)).toBe('geordi/fix-login');
+		expect(status(worktree, { repoPath })).toMatchObject({ branch: 'geordi/fix-login' });
+
+		removeWorktree(base, repoPath, '12345678-aaaa', false);
+		const again = ensureWorktree(base, repoPath, '12345678-aaaa', undefined, 'geordi/fix-login');
+		expect(again).toMatchObject({ restored: true, branch: 'geordi/fix-login' });
+		expect(readFileSync(join(worktree.path, 'committed.txt'), 'utf8')).toBe('kept\n');
 	});
 
 	it('knows a branch by the name it was pushed under', () => {
