@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { contextMenus, type MenuItem } from './menu.svelte.ts';
+	import { contextMenus, type MenuItem, type MenuTone } from './menu.svelte.ts';
+
+	const tones: Record<MenuTone, string> = {
+		danger: 'text-danger focus:text-danger',
+		accent: 'text-accent-ink focus:text-accent-ink',
+		ok: 'text-ok focus:text-ok',
+		merged: 'text-merged focus:text-merged'
+	};
 
 	let popup: HTMLDivElement;
 	const open = $derived(contextMenus.open);
@@ -70,7 +77,7 @@
 				onpointermove={(event) => event.currentTarget.focus()}
 				class={[
 					'menu-item focus:menu-item-active focus:outline-none disabled:opacity-50',
-					item.danger && 'text-danger focus:text-danger'
+					item.tone && tones[item.tone]
 				]}
 			>
 				{#if item.icon}<span class={['size-4 shrink-0', item.icon]}></span>{/if}
