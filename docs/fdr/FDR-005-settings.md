@@ -16,7 +16,7 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 - **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. A path to a Git repository on the machine adds one; a path Geordi can't make sense of is refused with the reason, in the dialog.
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
 - Where there are no repositories yet, the new-workspace page says so and opens the settings at Repositories.
-- The sidebar does not list repositories as such: it lists workspaces under their repository's name, which leads to the repository's page.
+- The sidebar does not list repositories as such: it lists workspaces under their repository's name, which folds them away: then a count of them follows the name. Which repositories are folded is remembered in this browser.
 
 ## Design Decisions
 

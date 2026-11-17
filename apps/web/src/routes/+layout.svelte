@@ -187,6 +187,12 @@
 
 	// The sidebar can be hidden and made wider or narrower; both are remembered here.
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
+	/** The repositories whose workspaces are folded away under their name. */
+	const folded = persisted<string[]>('geordi:folded', []);
+	const toggleFolded = (id: string) =>
+		(folded.current = folded.current.includes(id)
+			? folded.current.filter((other) => other !== id)
+			: [...folded.current, id]);
 	const toggleSidebar = () =>
 		(sidebar.current = { ...sidebar.current, open: !sidebar.current.open });
 	setTitleBarLead(() => (sidebar.current.open ? undefined : lead));
@@ -298,15 +304,19 @@
 						)}
 					</div>
 
-					<!-- every repository, also one nothing is going on in: its name is the way to its page -->
+					<!-- every repository, also one nothing is going on in: its name folds its workspaces away -->
 					<!--
 					Apart from each other by what is in them: repositories with nothing going on, one
 					after the other, stand close together as a list of names.
 				-->
 					<div>
 						{#each nav.current?.repos ?? [] as repo, index (repo.id)}
-							{@const quiet = (at: number) =>
-								!listed.get((nav.current?.repos ?? [])[at]?.id ?? '')?.length}
+							{@const quiet = (at: number) => {
+								const id = (nav.current?.repos ?? [])[at]?.id ?? '';
+								return !listed.get(id)?.length || folded.current.includes(id);
+							}}
+							{@const rows = listed.get(repo.id) ?? []}
+							{@const isFolded = folded.current.includes(repo.id)}
 							<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-1' : 'pt-5')]}>
 								<!--
 								A label for what is under it: its picture, its name (small and quiet: the
@@ -314,13 +324,18 @@
 								under it lines up with it: icon under picture, title under name.
 							-->
 								<div class="group flex h-7 items-center pr-1.5">
-									<a
-										href={resolve('/repos/[id]', { id: repo.id })}
-										class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-xs font-medium text-muted hover:text-ink"
+									<button
+										type="button"
+										class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-xs font-medium text-muted hover:text-ink"
+										aria-expanded={!isFolded}
+										onclick={() => toggleFolded(repo.id)}
 									>
 										<RepoIcon id={repo.id} />
 										<span class="truncate">{repo.name}</span>
-									</a>
+										{#if isFolded && rows.length > 0}
+											<span class="shrink-0 font-normal tabular-nums">{rows.length}</span>
+										{/if}
+									</button>
 									<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 									<a
 										href="{resolve('/')}?repo={repo.id}"
@@ -332,11 +347,13 @@
 									</a>
 									<!-- eslint-enable svelte/no-navigation-without-resolve -->
 								</div>
-								<ul class="space-y-px">
-									{#each listed.get(repo.id) ?? [] as { workspace, parent, depth } (workspace.id)}
-										{@render row(workspace, parent, depth)}
-									{/each}
-								</ul>
+								{#if !isFolded}
+									<ul class="space-y-px">
+										{#each rows as { workspace, parent, depth } (workspace.id)}
+											{@render row(workspace, parent, depth)}
+										{/each}
+									</ul>
+								{/if}
 							</div>
 						{/each}
 					</div>
