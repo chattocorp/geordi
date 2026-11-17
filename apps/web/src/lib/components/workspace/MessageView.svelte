@@ -15,6 +15,7 @@
 		agent,
 		running = false,
 		cwd,
+		pictures,
 		senders,
 		queue = [],
 		queueImages = [],
@@ -25,6 +26,8 @@
 		agent: Agent;
 		running?: boolean;
 		cwd?: string;
+		/** Where the pictures the agent refers to are served. */
+		pictures?: string;
 		senders?: Record<string, string>;
 		queue?: string[];
 		queueImages?: string[][];
@@ -129,7 +132,7 @@
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
 									{#each block.parts as part, j (j)}
 										{#if part.kind === 'text'}
-											<Markdown text={part.text} dimmed={j !== lastText} />
+											<Markdown text={part.text} dimmed={j !== lastText} {pictures} />
 										{:else if part.kind === 'tools'}
 											<!-- live: the agent is at work, and this is the last thing it did -->
 											<ToolGroup

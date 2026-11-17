@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import MessageView from './MessageView.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
 	import { modifierKey } from '#lib/keys.ts';
@@ -75,6 +76,7 @@
 			agent={workspace.agent}
 			{running}
 			{cwd}
+			pictures={resolve('/workspaces/[id]/picture', { id: workspace.id })}
 			{senders}
 			queue={workspace.queue}
 			queueImages={workspace.attachments.queue}

@@ -241,7 +241,10 @@ it, perhaps you.
   (https://diffs.com) from both whole file versions, which is what makes context
   expandable. It renders into a shadow root; style it through its `--diffs-*` properties.
 - **Agent output** is rendered as Markdown with `markdown-it` (raw HTML disabled), via
-  `#lib/components/Markdown.svelte`.
+  `#lib/components/Markdown.svelte`. An image in it is shown only if it is a file where the
+  agent works: the daemon reads it (`picture.ts`, pictures only) and the forge serves it at
+  `/workspaces/[id]/picture`. Never load one from the web: displaying output must not send
+  anything anywhere.
 - Shared tool versions live in the pnpm catalog (`pnpm-workspace.yaml`); reference them as
   `"catalog:"`.
 - Conventional commits; mention planning item IDs and ADRs where relevant.

@@ -1,11 +1,18 @@
-export { IMAGE_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES, type MessageImage } from './images.ts';
+export {
+	IMAGE_TYPES,
+	MAX_IMAGE_BYTES,
+	MAX_IMAGES,
+	imageTypeOf,
+	type ImageType,
+	type MessageImage
+} from './images.ts';
 import type { MessageImage } from './images.ts';
 /**
  * Messages exchanged between the forge (apps/web) and daemons (apps/daemon).
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 27;
+export const PROTOCOL_VERSION = 28;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -390,6 +397,12 @@ export type DaemonRequest =
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
+	/**
+	 * A picture on the daemon's machine that the workspace's agent referred to, to be shown
+	 * where it did. `path` is as the agent wrote it: from the worktree, or absolute. `null`
+	 * if there is no such file, or it is not a picture.
+	 */
+	| ({ kind: 'picture'; path: string } & WorktreeRef)
 	/** The workspace's branch on the repository's upstream forge. */
 	| ({
 			kind: 'upstream';
@@ -420,6 +433,7 @@ export type DaemonResults = {
 	title: string;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
+	picture: MessageImage | null;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */

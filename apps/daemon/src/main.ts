@@ -1,4 +1,5 @@
 import { repoIcon } from './icon.ts';
+import { readPicture } from './picture.ts';
 import { readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -428,6 +429,8 @@ async function answer(request: DaemonRequest) {
 			return (await configFor(worktree, request)).config;
 		case 'diff':
 			return versions(worktree, request, request.path);
+		case 'picture':
+			return readPicture(worktree.path, request.path);
 		case 'upstream':
 			return upstream(worktree, request);
 		case 'mergePull':

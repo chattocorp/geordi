@@ -43,11 +43,26 @@ const md = new MarkdownIt({
 
 const { escapeHtml } = md.utils;
 
-// Images become plain links. Loading them would let agent output (which may be steered by
-// prompt injection) send data to any server, simply by being displayed.
-md.renderer.rules.image = (tokens, index) => {
+/** Whether a link leads to a file where the agent works, rather than somewhere on the net. */
+const local = (src: string) => src !== '' && !/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src);
+
+// Pictures the agent has where it works are shown: the forge serves them (`pictures` is
+// where it does), and `Markdown.svelte` puts the path back where one cannot be had. Any
+// other image becomes a plain link. Loading it would let agent output (which may be
+// steered by prompt injection) send data to any server, simply by being displayed.
+md.renderer.rules.image = (tokens, index, _options, env) => {
+	const pictures = (env as { pictures?: string } | undefined)?.pictures;
 	const src = String(tokens[index].attrGet('src') ?? '');
-	return `<a href="${escapeHtml(src)}">${escapeHtml(tokens[index].content || src)}</a>`;
+	const alt = escapeHtml(tokens[index].content);
+	if (!pictures || !local(src)) return `<a href="${escapeHtml(src)}">${alt || escapeHtml(src)}</a>`;
+	let path = src; // markdown-it has it encoded as a URL
+	try {
+		path = decodeURIComponent(src);
+	} catch {
+		// not encoded the way it looked: as written, then
+	}
+	const url = escapeHtml(`${pictures}?path=${encodeURIComponent(path)}`);
+	return `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${alt}" data-picture="${escapeHtml(path)}" loading="lazy"></a>`;
 };
 
 // Code blocks get a copy button; `Markdown.svelte` handles its clicks.
@@ -55,4 +70,9 @@ const fence = md.renderer.rules.fence!;
 md.renderer.rules.fence = (...args) =>
 	`<div class="code-block"><button type="button" data-copy aria-label="Copy code"></button>${fence(...args)}</div>`;
 
-export const renderMarkdown = (text: string): string => md.render(text);
+/**
+ * `pictures` is the address that serves the pictures of the workspace this was written in
+ * (`/workspaces/<id>/picture`). Without it, as for text from elsewhere, none are shown.
+ */
+export const renderMarkdown = (text: string, pictures?: string): string =>
+	md.render(text, { pictures });
