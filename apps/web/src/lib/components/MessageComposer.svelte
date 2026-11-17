@@ -23,6 +23,7 @@
 	let uploading = $state(false);
 	let imageProblem = $state('');
 	let picker = $state<HTMLInputElement>();
+	let text: HTMLTextAreaElement | null = null;
 
 	async function addImages(files: File[]) {
 		if (disabled || uploading || !files.length) return;
@@ -68,10 +69,12 @@
 	}
 
 	const manageImages: Attachment<HTMLFormElement> = (node) => {
+		text = node.querySelector('textarea');
 		const reset = () => {
 			images = [];
 			imageProblem = '';
 		};
+		// (the text stays open while images upload: sending waits for them instead)
 		const submit = (event: SubmitEvent) => {
 			if (uploading || disabled) {
 				event.preventDefault();
@@ -87,12 +90,7 @@
 	};
 </script>
 
-<Composer
-	{...props}
-	form={{ ...form, [imageKey]: manageImages }}
-	disabled={disabled || uploading}
-	onpaste={paste}
->
+<Composer {...props} form={{ ...form, [imageKey]: manageImages }} {disabled} onpaste={paste}>
 	{#snippet attachments()}
 		<input {...imageField} type="hidden" value={JSON.stringify(images)} />
 		<input
@@ -105,6 +103,8 @@
 			onchange={() => {
 				void addImages([...(picker?.files ?? [])]);
 				if (picker) picker.value = '';
+				// chosen for the message: back to writing it
+				text?.focus();
 			}}
 		/>
 		<ImageAttachments
