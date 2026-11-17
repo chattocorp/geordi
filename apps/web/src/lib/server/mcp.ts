@@ -5,11 +5,14 @@ import {
 	CONFIG_SETTINGS,
 	SETTING,
 	WORKTREE_MODES,
+	type Changes,
 	type Harness,
-	type RepoConfig
+	type RepoConfig,
+	type Upstream
 } from '@geordi/protocol';
 import { toJsonSchema } from '@valibot/to-json-schema';
 import * as v from 'valibot';
+import { actionsFor, standingOf } from '#lib/actions.ts';
 import type { createWorkspaces } from './workspaces.ts';
 
 /**
@@ -24,6 +27,8 @@ type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
 	archive(caller: string, id: string): Promise<void>;
 	/** What the repository's configuration says for the caller's workspace, as a daemon reads it. */
 	configuration(caller: string): Promise<RepoConfig>;
+	/** How a worktree's work stands, as a daemon says. Rejects if none can. */
+	standing(worktreeId: string): Promise<{ changes: Changes; upstream: Upstream | null }>;
 	/** The models and effort levels on offer, per agent; `null` while no daemon is connected. */
 	harnesses(): Harness[] | null;
 };
@@ -228,6 +233,64 @@ const tools = {
 				...(commands.some((command) => !command.approved) && {
 					note: 'Nobody has agreed to run some of these commands yet. The person is shown them and asked before they first run; you cannot agree on their behalf.'
 				})
+			};
+		}
+	},
+	workspace_status: {
+		description:
+			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Your own workspace, or that of an agent you started (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
+		input: v.object({
+			agent_id: v.pipe(
+				v.optional(v.string()),
+				v.description('The id of an agent you started. Defaults to your own workspace.')
+			)
+		}),
+		run: async (agents: Agents, caller: string, input: { agent_id?: string }) => {
+			const workspace = agents.workspace(caller, input.agent_id);
+			const { changes, upstream } = await agents.standing(workspace.worktreeId);
+			const state = {
+				changes,
+				upstream,
+				failed: workspace.lastTurn === 'failed',
+				child: !!workspace.parentId
+			};
+			const pull = upstream?.pull;
+			return {
+				id: workspace.id,
+				title: workspace.title,
+				status: workspace.status,
+				branch: upstream?.branch ?? workspace.worktree?.branch ?? null,
+				standing: standingOf(state)?.label ?? null,
+				changes: {
+					files: changes.files.length,
+					uncommitted: changes.uncommitted,
+					unpushed: changes.unpushed,
+					landed: changes.landed,
+					incoming: changes.incoming ?? null
+				},
+				upstream: upstream && {
+					repo: upstream.repo,
+					pushed: upstream.pushed,
+					pull: pull && {
+						number: pull.number,
+						title: pull.title,
+						url: pull.url,
+						state: pull.state,
+						draft: pull.draft,
+						base: pull.base,
+						checks: pull.checks && {
+							state: pull.checks.state,
+							...(pull.checks.counts ?? { total: pull.checks.total, failed: pull.checks.failed })
+						},
+						review: pull.review,
+						conflicts: pull.conflicts ?? null
+					}
+				},
+				next: actionsFor(state).map(({ id, label, prompt }) => ({
+					id,
+					label,
+					...(prompt && { prompt })
+				}))
 			};
 		}
 	},

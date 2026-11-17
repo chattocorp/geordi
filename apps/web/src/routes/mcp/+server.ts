@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { archiveWorkspace, hub, workspaces } from '#lib/server/app.ts';
+import { archiveWorkspace, hub, loadStanding, standings, workspaces } from '#lib/server/app.ts';
 import { handleMcp } from '#lib/server/mcp.ts';
 import type { RequestHandler } from './$types';
 
@@ -27,6 +27,14 @@ export const POST: RequestHandler = async ({ request }) => {
 				.request({ kind: 'config', ...workspaces().ref(id) })
 				// no daemon, or no worktree: something the agent can be told
 				.catch((cause) => error(502, cause instanceof Error ? cause.message : String(cause))),
+		standing: async (worktreeId: string) => {
+			const standing = await loadStanding(worktreeId).catch((cause) =>
+				error(502, cause instanceof Error ? cause.message : String(cause))
+			);
+			// what an agent learns, the sidebar shows too
+			standings().note(worktreeId, standing);
+			return standing;
+		},
 		harnesses: () => hub().harnesses()
 	};
 	const answer = await handleMcp(agents, caller, message);
