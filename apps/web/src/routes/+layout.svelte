@@ -315,7 +315,7 @@
 								<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 								<a
 									href="{resolve('/')}?repo={repo.id}"
-									class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-focus-within:visible group-hover:visible hover:bg-sunken hover:text-ink"
+									class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink"
 									title="New workspace in {repo.name}"
 									aria-label="New workspace in {repo.name}"
 								>
@@ -436,7 +436,7 @@
 					<span
 						class={[
 							'col-start-1 row-start-1 grid place-items-center',
-							archivable && 'group-focus-within:invisible group-hover:invisible',
+							archivable && 'group-hover:invisible group-has-focus-visible:invisible',
 							tones[standing.tone]
 						]}
 						title={standing.label}
@@ -462,7 +462,7 @@
 				{#if archivable}
 					<button
 						type="button"
-						class="invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control text-muted group-focus-within:visible group-hover:visible hover:bg-sunken hover:text-ink"
+						class="invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink"
 						title="Archive workspace"
 						aria-label="Archive {workspace.title}"
 						onclick={() => archiveFromHere(workspace)}
