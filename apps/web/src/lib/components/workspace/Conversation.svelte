@@ -123,12 +123,13 @@
 							<span class="h-px flex-1 bg-line"></span>
 						</p>
 					{:else}
+						{@const lastText = block.parts.findLastIndex((part) => part.kind === 'text')}
 						<div class="flex gap-3.5">
 							<AgentAvatar agent={workspace.agent} />
 							<div class="min-w-0 flex-1 space-y-3 pt-0.5">
 								{#each block.parts as part, j (j)}
 									{#if part.kind === 'text'}
-										<Markdown text={part.text} />
+										<Markdown text={part.text} dimmed={j !== lastText} />
 									{:else if part.kind === 'tools'}
 										<!-- live: the agent is at work, and this is the last thing it did -->
 										<ToolGroup
