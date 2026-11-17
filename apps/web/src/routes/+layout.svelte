@@ -311,28 +311,20 @@
 					</div>
 
 					<!-- every repository, also one nothing is going on in: its name folds its workspaces away -->
-					<!--
-					Apart from each other by what is in them: repositories with nothing going on, one
-					after the other, stand close together as a list of names.
-				-->
-					<div>
-						{#each nav.current?.repos ?? [] as repo, index (repo.id)}
-							{@const quiet = (at: number) => {
-								const id = (nav.current?.repos ?? [])[at]?.id ?? '';
-								return !listed.get(id)?.length || folded.current.includes(id);
-							}}
+					<div class="space-y-4">
+						{#each nav.current?.repos ?? [] as repo (repo.id)}
 							{@const rows = listed.get(repo.id) ?? []}
 							{@const isFolded = folded.current.includes(repo.id)}
-							<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-1' : 'pt-5')]}>
+							<div>
 								<!--
-								A label for what is under it: its picture, its name (small and quiet: the
+								A label for what is under it: its picture, its name (quiet, by its colour: the
 								workspaces are what is read here), and the way to start something in it. What is
 								under it lines up with it: icon under picture, title under name.
 							-->
 								<div class="group flex h-7 items-center pr-1.5">
 									<button
 										type="button"
-										class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-xs font-medium text-muted hover:text-ink"
+										class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-sm font-semibold text-muted/50 hover:text-ink"
 										aria-expanded={!isFolded}
 										onclick={() => toggleFolded(repo.id)}
 									>
