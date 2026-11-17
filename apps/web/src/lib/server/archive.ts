@@ -38,13 +38,11 @@ export function createArchiver({ workspaces, closeTerminals, removeWorktree }: P
 		try {
 			for (const workspace of family) {
 				if (workspace.archivedAt) continue;
-				// (a repository's own checkout is never removed, whoever worked in it: FDR-009)
-				const ref = workspaces.ref(workspace.id);
-				if (workspace.worktree && !ref.home && !workspaces.worktreeInUse(workspace.id)) {
+				if (workspace.worktree && !workspaces.worktreeInUse(workspace.id)) {
 					try {
 						// The teardown runs what is in the worktree, as the person: only when they archive.
 						// An agent archiving the agents it started leaves it to the person (FDR-006).
-						await removeWorktree(ref, discard, actor === null);
+						await removeWorktree(workspaces.ref(workspace.id), discard, actor === null);
 					} catch (problem) {
 						const reason = problem instanceof Error ? problem.message : String(problem);
 						error(422, workspace.id === id ? reason : `“${workspace.title}”: ${reason}`);

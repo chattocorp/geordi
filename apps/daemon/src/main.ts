@@ -1,6 +1,5 @@
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
-import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -47,8 +46,6 @@ import {
 	ensureWorktree,
 	fetchUpstream,
 	hasWorktree,
-	homeWorktree,
-	homeWritableRoots,
 	locateWorktree,
 	verifyLinks,
 	type Worktree
@@ -239,21 +236,10 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 /** Turns waiting for their worktree's setup, by workspace: what stops one. */
 const waiting = new Map<string, () => void>();
 
-/**
- * Where a workspace's files are: the worktree made for it, or the repository's own checkout
- * (FDR-009). Throws if there is no such directory.
- */
-const locate = ({ repoPath, worktreeId, home }: WorktreeRef): Worktree =>
-	home ? homeWorktree(repoPath) : locateWorktree(worktreesDir, repoPath, worktreeId);
-
-/** The repository's own checkout is nobody's to remove, or to move to another branch. */
-function notHome({ home }: WorktreeRef) {
-	if (home) throw new Error("This is the repository's own checkout: it stays as it is");
-}
-
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
-const watches = createWatches(locate, (worktreeId) =>
-	sendLive({ type: 'worktree.changed', worktreeId })
+const watches = createWatches(
+	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
+	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
 );
 
 // --- Connection to the forge --------------------------------------------------------------
@@ -383,7 +369,6 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
-		notHome(request);
 		const { repoPath, worktreeId, force } = request;
 		const worktree = removable(worktreesDir, repoPath, worktreeId, force);
 		if (worktree && request.teardown) await tearDown(worktree, request);
@@ -399,10 +384,6 @@ async function answer(request: DaemonRequest) {
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return { branch };
 	}
-	if (request.kind === 'releasePorts') {
-		ports.release(request.worktreeId);
-		return null;
-	}
 	if (request.kind === 'approveRun') {
 		for (const command of request.commands) approvals.add(request.repoPath, command);
 		sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId }); // it shows as agreed to
@@ -411,9 +392,8 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'portReady')
 		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
 	if (request.kind === 'continueWorktree') {
-		notHome(request);
 		const { repoPath, worktreeId } = request;
-		const worktree = locate(request);
+		const worktree = locateWorktree(worktreesDir, repoPath, worktreeId);
 		if (turns.has(worktreeId)) throw new Error('Its agent is still at work');
 		if (uncommittedFiles(worktree).length > 0)
 			throw new Error('It has uncommitted changes: commit or discard them first');
@@ -426,13 +406,6 @@ async function answer(request: DaemonRequest) {
 	}
 	if (request.kind === 'prepareWorktree') {
 		const { repoPath, worktreeId, base, branch } = request;
-		// the repository's own checkout is there already, as it is: nothing to make or set up
-		if (request.home) {
-			const home = homeWorktree(repoPath);
-			watches.restart(worktreeId);
-			sendLive({ type: 'worktree.changed', worktreeId });
-			return { path: home.path, branch: home.branch };
-		}
 		// a new one starts from where its upstream stands now, as with a first turn
 		if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
 			const problem = await fetchUpstream(repoPath);
@@ -445,7 +418,7 @@ async function answer(request: DaemonRequest) {
 		return { path: worktree.path, branch: worktree.branch };
 	}
 
-	const worktree = locate(request);
+	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
 			return status(worktree, request);
@@ -514,28 +487,18 @@ async function handle(message: ForgeMessage) {
 			try {
 				// A workspace of its own starts from where its upstream stands now. (One started
 				// by an agent starts from that agent's branch, which is here already.)
-				if (!message.home && !base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+				if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
 					const problem = await fetchUpstream(repoPath);
 					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 				}
-				// The repository's own workspace (FDR-009) works in its checkout, as it is: nothing
-				// is made for it. It is new to a forge that does not know which branch it is on.
-				const home = message.home ? homeWorktree(repoPath) : null;
-				const worktree = home
-					? {
-							...home,
-							writableRoots: homeWritableRoots(home),
-							created: !message.branch,
-							restored: false
-						}
-					: ensureWorktree(worktreesDir, repoPath, worktreeId, base, message.branch);
+				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, message.branch);
 				if (worktree.created)
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
 				if (worktree.created || worktree.restored) {
 					// there is a directory to watch now (again), and to look at
 					watches.restart(worktreeId);
 					sendLive({ type: 'worktree.changed', worktreeId });
-					if (!home) setUp(worktree, message);
+					setUp(worktree, message);
 				}
 
 				// The agent starts once the directory is set up, and hears how that went. Stopped
@@ -567,9 +530,7 @@ async function handle(message: ForgeMessage) {
 					adapter,
 					{ agent, turn: message.turn },
 					{
-						// Claude takes a session ID of ours once only. A later turn with no session to
-						// resume (its conversation was cleared: FDR-009) needs one that is new.
-						sessionId: message.turn > 1 && !resumeId ? randomUUID() : workspaceId,
+						sessionId: workspaceId,
 						prompt,
 						images: message.images,
 						resumeId,
@@ -609,7 +570,7 @@ async function handle(message: ForgeMessage) {
 			const { terminalId } = message;
 			const { output, exit } = relay(terminalId);
 			try {
-				const worktree = locate(message);
+				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
 				const { config, env } = await configFor(worktree, message);
 				// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
