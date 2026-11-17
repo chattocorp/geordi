@@ -334,7 +334,10 @@ export function resumeSessions(
  * one CLI per turn: nobody follows them any more, and no agent may work on unseen.
  */
 export function endLegacyTurns(turnsDir: string) {
-	if (!existsSync(turnsDir) || statSync(turnsDir).uid !== process.getuid?.()) return;
+	if (!existsSync(turnsDir)) return;
+	// It names processes to signal: only one that nobody else could have written to is trusted.
+	const { uid, mode } = statSync(turnsDir);
+	if (uid !== process.getuid?.() || mode & 0o022) return;
 	for (const name of readdirSync(turnsDir)) {
 		try {
 			const meta = JSON.parse(readFileSync(join(turnsDir, name, 'meta.json'), 'utf8'));

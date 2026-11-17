@@ -144,20 +144,22 @@ function completed(item: Item): AgentEvent[] {
 /**
  * What to answer when Codex asks whether it may do something. Nothing is configured to
  * ask, but whatever asks anyway must not wait for a person who was never going to be asked.
+ * Without its sandbox there is nothing to give away, and the answer is yes. In its sandbox,
+ * what it asks for is a way out of it, which nobody is there to grant: the answer is no.
  */
 function allowed(method: string, params: Message['params']): unknown {
 	switch (method) {
 		case 'item/commandExecution/requestApproval':
 		case 'item/fileChange/requestApproval':
-			return { decision: 'accept' };
+			return { decision: sandboxed ? 'decline' : 'accept' };
 		case 'item/permissions/requestApproval':
-			return { permissions: params?.permissions ?? {} };
+			return { permissions: sandboxed ? {} : (params?.permissions ?? {}) };
 		// the same two questions, as older versions of the protocol ask them
 		case 'execCommandApproval':
 		case 'applyPatchApproval':
-			return { decision: 'approved' };
+			return { decision: sandboxed ? 'denied' : 'approved' };
 		case 'mcpServer/elicitation/request':
-			return { action: 'accept', content: {} };
+			return sandboxed ? { action: 'decline' } : { action: 'accept', content: {} };
 	}
 }
 
