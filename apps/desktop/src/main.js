@@ -228,7 +228,37 @@ function open() {
 		event.preventDefault();
 		if (/^https?:/.test(target)) shell.openExternal(target);
 	});
+	webContents.on('context-menu', (_event, params) => contextMenu(window, params));
 	window.loadURL(first ? url + lastPage() : url);
+}
+
+/**
+ * What a browser's right-click menu offers, which Electron leaves out: for a picture, text
+ * that is selected, and a field. Where the page shows a menu of its own, there is no event.
+ */
+function contextMenu(window, { mediaType, srcURL, selectionText, isEditable, editFlags, x, y }) {
+	const picture = mediaType === 'image' && srcURL;
+	const items = [
+		...(picture
+			? [
+					{ label: 'Copy Image', click: () => window.webContents.copyImageAt(x, y) },
+					{ label: 'Save Image As…', click: () => window.webContents.downloadURL(srcURL) }
+				]
+			: []),
+		...(isEditable
+			? [
+					{ role: 'cut', enabled: editFlags.canCut },
+					{ role: 'copy', enabled: editFlags.canCopy },
+					{ role: 'paste', enabled: editFlags.canPaste },
+					{ type: 'separator' },
+					{ role: 'selectAll' }
+				]
+			: selectionText.trim()
+				? [{ role: 'copy' }]
+				: [])
+	];
+	if (picture && items.length > 2) items.splice(2, 0, { type: 'separator' });
+	if (items.length) Menu.buildFromTemplate(items).popup({ window });
 }
 
 function menu() {
