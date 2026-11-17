@@ -472,8 +472,7 @@
 			workspace.children.length === 0 && git?.changes
 				? { changes: git.changes, upstream: git.upstream }
 				: undefined;
-		if (await archiveWorkspace(id, known))
-			await goto(resolve('/repos/[id]', { id: workspace.repoId }));
+		if (await archiveWorkspace(id, known)) await goto(resolve('/'));
 	}
 
 	/** The pull request is being merged right now. */
@@ -681,13 +680,10 @@
 				{workspace.title}
 			</h1>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
-				<a
-					href={resolve('/repos/[id]', { id: repo.id })}
-					class="flex shrink-0 items-center gap-1 hover:text-ink"
-				>
+				<span class="flex shrink-0 items-center gap-1">
 					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
 					{repo.name}
-				</a>
+				</span>
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>

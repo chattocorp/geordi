@@ -171,7 +171,7 @@ it, perhaps you.
   query, an event stream) holds one, and once they are used up no navigation and no click
   gets through, though the page looks alive. So nothing live is a request: the forge has a
   WebSocket server for browsers (`live.ts`, on `GEORDI_LIVE_PORT`), which sends **views**
-  (`views.ts`: `navigation`, `workspace`, `repoWorkspaces`) and terminal output to whoever
+  (`views.ts`: `navigation`, `workspace`) and terminal output to whoever
   follows them. Pages follow with `follow()` / `followTerminal()` (`#lib/live.svelte.ts`)
   and read `.current`; never `await` data inside a component within a page. Commands and
   forms stay remote functions. Something new that is live becomes a view.

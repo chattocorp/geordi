@@ -132,18 +132,8 @@ export const workspace = (id: string) =>
 		}
 	}) satisfies View<unknown>;
 
-/** A repository's workspaces: those that stand for themselves (see `withAides`), newest first. */
-export const repoWorkspaces = (repoId: string) =>
-	({
-		read: () =>
-			withAides(workspaces().all())
-				.map(({ workspace }) => workspace)
-				.filter((workspace) => workspace.repoId === repoId)
-	}) satisfies View<unknown>;
-
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace, repoWorkspaces };
+export const views = { navigation, workspace };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceLive = ReturnType<ReturnType<typeof workspace>['read']>;
-export type RepoWorkspaces = ReturnType<ReturnType<typeof repoWorkspaces>['read']>;
