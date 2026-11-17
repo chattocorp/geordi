@@ -53,7 +53,8 @@
 		runSetup,
 		say,
 		startJobs,
-		stopJob
+		stopJob,
+		updateWorkspace
 	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import Changes from './Changes.svelte';
@@ -458,7 +459,7 @@
 		return actions
 			.filter((action) =>
 				action.prompt
-					? asked.includes(action.prompt)
+					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
 					: (action.id === 'merge-pull' && merging) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
@@ -509,6 +510,21 @@
 		}
 	}
 
+	/** The latest of its base branch is being brought in right now, by Geordi itself. */
+	let updating = $state(false);
+
+	async function update(prompt: string) {
+		mergeProblem = null;
+		updating = true;
+		try {
+			await updateWorkspace({ workspaceId: id, prompt });
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not update the branch');
+		} finally {
+			updating = false;
+		}
+	}
+
 	/** The workspace is being moved to a new branch right now, to carry on with new work. */
 	let continuing = $state(false);
 
@@ -537,7 +553,9 @@
 	);
 
 	function act(action: WorkspaceAction) {
-		if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		// Geordi's to do where git can, the agent's where it takes judgement
+		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
+		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
 		else if (action.id === 'merge-pull') merge();
 		else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();

@@ -29,7 +29,7 @@ const MAX_FILE = 1_000_000;
 const SAFE = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
 
 /** Where a workspace's changes are measured from: its repository, and the branch it started from. */
-type Origin = { repoPath: string; base?: string };
+export type Origin = { repoPath: string; base?: string };
 
 /**
  * The commit the workspace's changes are measured against: where its branch forked off the
@@ -174,15 +174,28 @@ function landed(worktree: Worktree, { repoPath, base }: Origin, head: string): b
 	}
 }
 
-/** Compare against the base as last fetched; a missing base is unknown, not up to date. */
-function incoming(worktree: Worktree, { repoPath, base }: Origin): Changes['incoming'] {
+/**
+ * The branch a workspace's work is based on, as a full ref (`refs/remotes/origin/main`, or
+ * the branch of the workspace that started it); `null` where there is none to name.
+ */
+export function baseOf({ repoPath, base }: Origin): string | null {
 	try {
 		const ref = base ? branchRef(base) : startOf(repoPath);
 		// Resolve HEAD in the source repository, never in the workspace.
 		const branch = execFileSync('git', ['-C', repoPath, 'rev-parse', '--symbolic-full-name', ref], {
 			encoding: 'utf8'
 		}).trim();
-		if (!branch.startsWith('refs/')) return null;
+		return branch.startsWith('refs/') ? branch : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Compare against the base as last fetched; a missing base is unknown, not up to date. */
+function incoming(worktree: Worktree, origin: Origin): Changes['incoming'] {
+	const branch = baseOf(origin);
+	if (!branch) return null;
+	try {
 		const commits = Number(
 			gitIn(worktree, 'rev-list', '--count', `${headOf(worktree)}..${branch}`).trim()
 		);

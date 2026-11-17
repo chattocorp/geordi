@@ -39,7 +39,13 @@
 	import type { Navigation } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
-	import { continueWorkspace, mergePull, say, stopAgent } from './workspaces.remote';
+	import {
+		continueWorkspace,
+		mergePull,
+		say,
+		stopAgent,
+		updateWorkspace
+	} from './workspaces.remote';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -113,6 +119,8 @@
 
 	/** Does what a workspace's action says, from the sidebar. */
 	async function act(workspace: Item, action: WorkspaceAction) {
+		if (action.id === 'merge-upstream' && action.prompt)
+			return updateWorkspace({ workspaceId: workspace.id, prompt: action.prompt });
 		if (action.prompt) return say({ workspaceId: workspace.id, text: action.prompt });
 		if (action.id !== 'merge-pull') return;
 		try {

@@ -419,6 +419,11 @@ export type DaemonRequest =
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
 	| ({ kind: 'mergePull' } & WorktreeRef)
+	/**
+	 * Brings the latest of the branch the workspace's work is based on into its branch, where
+	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
+	 */
+	| ({ kind: 'updateWorktree' } & WorktreeRef)
 	/** A short title for a piece of work, from the request that starts it. */
 	| { kind: 'title'; text: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
@@ -444,6 +449,8 @@ export type DaemonResults = {
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
 	mergePull: 'merged' | 'queued';
+	/** `false` if it was left alone: bringing it up to date takes an agent's judgement. */
+	updateWorktree: boolean;
 	/**
 	 * `end` is the terminal's output position after `data`: output with a lower `offset` is
 	 * already part of it. `null` if the terminal isn't running.

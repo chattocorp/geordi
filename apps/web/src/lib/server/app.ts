@@ -198,6 +198,31 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 }
 
 /**
+ * Brings the latest of the branch a workspace's work is based on into it (FDR-003). Where
+ * there is nothing to decide (no agent at work in it, nothing uncommitted, no conflicts),
+ * the daemon does it with git, at once. Otherwise the agent is asked to, with `prompt`.
+ */
+export async function updateWorkspace(id: string, prompt: string) {
+	const idle = workspaces()
+		.sharing(id)
+		.every((other) => other.status !== 'running');
+	if (idle)
+		try {
+			const ref = workspaces().ref(id);
+			if (await hub().request({ kind: 'updateWorktree', ...ref }, 90_000)) {
+				watchers().changed(ref.worktreeId);
+				// nobody looking at it: the sidebar still shows how it stands
+				if (!watchers().state(ref.worktreeId)) void standings().refresh(ref.worktreeId);
+				return;
+			}
+		} catch (cause) {
+			// no daemon, no worktree: the agent's turn says what is wrong
+			console.warn(`[update] ${cause instanceof Error ? cause.message : String(cause)}`);
+		}
+	workspaces().send(id, prompt);
+}
+
+/**
  * How long after a turn's end its workspace is looked at once more. A forge does not always
  * have what was just done there (a pull request opened a second ago) when it is first asked.
  */

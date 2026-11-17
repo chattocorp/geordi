@@ -37,6 +37,7 @@ import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import { titleFor } from './titles.ts';
 import { resumeTurns, runTurn, type Turn } from './turn.ts';
+import { update } from './update.ts';
 import { mergePull, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
@@ -443,6 +444,8 @@ async function answer(request: DaemonRequest) {
 			return upstream(worktree, request);
 		case 'mergePull':
 			return mergePull(worktree, request);
+		case 'updateWorktree':
+			return !turns.has(request.worktreeId) && update(worktree, request);
 	}
 }
 

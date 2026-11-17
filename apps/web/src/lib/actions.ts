@@ -22,7 +22,10 @@ export type WorkspaceAction = {
 	label: string;
 	/** An Iconify class. */
 	icon: string;
-	/** What to say to the agent. Absent for actions Geordi carries out itself. */
+	/**
+	 * What to say to the agent. Absent for actions Geordi carries out itself. Updating is
+	 * both: Geordi's where git can do it alone, and this message where it can't.
+	 */
 	prompt?: string;
 	/** An alternative to the next step rather than the next step itself: offered beside it, quietly. */
 	aside?: boolean;
