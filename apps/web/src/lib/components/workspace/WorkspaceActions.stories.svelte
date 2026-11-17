@@ -55,19 +55,6 @@
 	>{@render bar({ changes: dirty, upstream: upstream(null) })}</Story
 >
 
-<!-- A repository's own workspace (FDR-009): no pull request to work towards, and no end. -->
-<Story name="A repository's own: to commit" asChild
-	>{@render bar({ changes: dirty, upstream: upstream(null), home: true })}</Story
->
-
-<Story name="A repository's own: to push" asChild
-	>{@render bar({
-		changes: { ...pushed, unpushed: 2 },
-		upstream: upstream(null),
-		home: true
-	})}</Story
->
-
 <Story name="Ready to merge" asChild
 	>{@render bar({ changes: pushed, upstream: upstream({}) })}</Story
 >

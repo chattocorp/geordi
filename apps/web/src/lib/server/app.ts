@@ -4,13 +4,7 @@ import { views } from './views.ts';
 import { createStandings } from './standings.ts';
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
-import {
-	AGENTS,
-	NO_WORKTREE,
-	REMOVE_TIMEOUT_MS,
-	type RepoIcon,
-	type WorktreeRef
-} from '@geordi/protocol';
+import { NO_WORKTREE, REMOVE_TIMEOUT_MS, type RepoIcon, type WorktreeRef } from '@geordi/protocol';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
@@ -69,8 +63,7 @@ const changesOf = (ref: WorktreeRef) =>
 	hub()
 		.request({ kind: 'changes', ...ref })
 		.then((changes) => {
-			// (a repository's own checkout shows what it is on, also when that is no branch)
-			workspaces().onBranch(ref.worktreeId, changes.branch ?? (ref.home ? 'HEAD' : null));
+			workspaces().onBranch(ref.worktreeId, changes.branch);
 			return changes;
 		});
 
@@ -185,8 +178,6 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 	const workspace = workspaces().summary(id);
 	if (workspace.archivedAt) error(409, 'This workspace is archived');
 	if (!workspace.worktree) error(409, 'This workspace has no worktree yet');
-	if (workspaces().ref(id).home)
-		error(409, "This is the repository's own workspace: it stays on the repository's checkout");
 	// everyone in that directory is moved along: none of them may be in the middle of something
 	const busy = workspaces()
 		.sharing(id)
@@ -277,8 +268,6 @@ export const hub = lazy(() =>
 	createHub(GEORDI_DAEMON_PORT, loadSecret(join(GEORDI_DATA_DIR, 'daemon-token')), {
 		onHello: (_daemonId, running, runningTerminals, ended) => {
 			workspaces().reconcile(running);
-			// every repository has its own workspace (FDR-009), and now someone to say where it is
-			for (const repo of repos().list()) homeWorkspace(repo.id);
 			terminals().reconcile(runningTerminals, ended);
 			watchers().resync();
 			// a daemon is there to ask: how the workspaces stand is wanted right away
@@ -351,10 +340,8 @@ export async function concernsAboutArchiving(id: string): Promise<string[]> {
 }
 
 /** Archives a workspace and the workspaces its agent started; see `createArchiver`. */
-export const archiveWorkspace = (id: string, discard: boolean, actor: string | null = null) => {
-	if (workspaces().summary(id).home)
-		error(409, "A repository's own workspace can't be archived: it goes with the repository");
-	return createArchiver({
+export const archiveWorkspace = (id: string, discard: boolean, actor: string | null = null) =>
+	createArchiver({
 		workspaces: workspaces(),
 		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
 		// with the repository's teardown script first, which may take a while
@@ -366,45 +353,6 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 			workspaces().onBranch(ref.worktreeId, branch);
 		}
 	})(id, discard, actor);
-};
-
-/**
- * A repository's own workspace (FDR-009), made if it is not there yet: with the agent that
- * was last set to work in the repository, or anywhere. A daemon is asked where its checkout
- * stands, if that is not known yet. Called when a repository is added, and for all of them
- * whenever a daemon connects.
- */
-export function homeWorkspace(repoId: string): string {
-	const all = workspaces().all();
-	const last = all.find((workspace) => workspace.repoId === repoId) ?? all[0];
-	const id = workspaces().home(repoId, last?.agent ?? AGENTS[0]);
-	if (!workspaces().summary(id).worktree)
-		prepareWorktree(id).catch((cause) => console.warn(`[worktree] ${reason(cause)}`));
-	return id;
-}
-
-/**
- * Forgets a repository, and with it its own workspace and the agents alongside it. Its
- * other workspaces go first, by hand; nothing on disk changes.
- */
-export function removeRepo(repoId: string, actor: string | null = null) {
-	const all = workspaces().list(repoId);
-	const home = all.find((workspace) => workspace.home);
-	if (all.some((workspace) => workspace.worktreeId !== home?.id))
-		error(409, 'Archive its workspaces first');
-	if (all.some((workspace) => workspace.status === 'running'))
-		error(409, 'Stop the agent in its workspace first');
-	// its ports are anyone's again; a daemon that is not there keeps them noted, which costs little
-	if (home)
-		hub()
-			.request({ kind: 'releasePorts', ...workspaces().ref(home.id) })
-			.catch(() => {});
-	for (const workspace of all) {
-		terminals().closeAll(workspace.id);
-		workspaces().archive(workspace.id, actor);
-	}
-	repos().remove(repoId, actor);
-}
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */
 const ICON_MS = 10 * 60_000;

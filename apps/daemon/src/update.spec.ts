@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { status } from './changes.ts';
 import { update } from './update.ts';
-import { ensureWorktree, homeWorktree } from './worktree.ts';
+import { ensureWorktree } from './worktree.ts';
 
 const dir = (name: string) => realpathSync(mkdtempSync(join(tmpdir(), `geordi-${name}-`)));
 const git = (cwd: string, ...args: string[]) =>
@@ -105,19 +105,6 @@ describe('update', () => {
 		const fetch = () => Promise.reject(new Error('fetched'));
 		expect(await update(child, { repoPath, base: worktree.branch }, fetch)).toBe(true);
 		expect(readFileSync(join(child.path, 'parent.txt'), 'utf8')).toBe('from the parent\n');
-	});
-
-	it("updates the repository's own checkout, on whatever it has checked out", async () => {
-		const { upstream, repoPath, origin } = setup();
-		commit(repoPath, 'mine.txt', 'mine\n');
-		commit(upstream, 'b.txt', 'new upstream\n');
-
-		expect(await update(homeWorktree(repoPath), origin)).toBe(true);
-		expect(readFileSync(join(repoPath, 'b.txt'), 'utf8')).toBe('new upstream\n');
-		expect(git(repoPath, 'log', '-1', '--format=%s')).toBe(
-			"Merge remote-tracking branch 'origin/main' into main"
-		);
-		expect(git(repoPath, 'status', '--porcelain')).toBe('');
 	});
 
 	it('makes no commit where commits are to be signed', async () => {

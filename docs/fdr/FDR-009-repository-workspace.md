@@ -1,7 +1,11 @@
 # FDR-009: The repository's own workspace
 
-**Status:** Active
+**Status:** Withdrawn
 **Last reviewed:** 2026-11-17
+
+## Withdrawn
+
+Removed again the same day: a workspace that lives in the repository's checkout was confusing to use next to the others, and Geordi is back to workspaces in worktrees of their own only. Event logs that recorded Home workspaces are read without them (`legacy.ts`); what one started in a worktree of its own stays, without a parent.
 
 ## Overview
 

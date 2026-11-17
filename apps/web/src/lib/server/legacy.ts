@@ -37,7 +37,12 @@ function isSkillText(event: { data: unknown }): boolean {
 
 type Created = Extract<WorkspacesEvent, { type: 'workspace.created' }>['data'];
 /** A workspace as it used to be created: without an agent, which came with its first session. */
-type LegacyCreated = Omit<Created, 'agent'> & { agent?: Agent; parentSessionId?: string };
+type LegacyCreated = Omit<Created, 'agent'> & {
+	agent?: Agent;
+	parentSessionId?: string;
+	/** A repository's own workspace, in its checkout: there are none any more. */
+	home?: true;
+};
 
 type Current<E> = E extends { type: infer T; data: infer D } ? { type: T; data: D } : never;
 /** What the projection understands: today's events, without the envelope. */
@@ -50,6 +55,9 @@ export type CurrentEvent = Current<WorkspacesEvent>;
  * - A session of old becomes the conversation of its workspace: the first session of a
  *   workspace *is* that workspace, any further one a workspace of its own that shares the
  *   first one's worktree.
+ * - For a while, each repository had a workspace of its own that worked in its checkout
+ *   ("Home"). They are gone, with the agents that worked alongside them; what they started
+ *   in worktrees of their own stays, without a parent.
  */
 export function createUpcaster() {
 	/** Which workspace an old session's messages and output belong to now. */
@@ -58,6 +66,11 @@ export function createUpcaster() {
 	const waiting = new Map<string, LegacyCreated>();
 	/** What later sessions of an old workspace need to know about it. */
 	const known = new Map<string, { repoId: string; base?: string }>();
+	/**
+	 * Workspaces that are no more: Home workspaces, and the agents in their checkout. Their
+	 * other events need no filtering: the projection ignores events of unknown workspaces.
+	 */
+	const gone = new Set<string>();
 
 	const created = (data: Created): CurrentEvent[] => {
 		known.set(data.id, { repoId: data.repoId, base: data.base });
@@ -68,7 +81,12 @@ export function createUpcaster() {
 	return (event: { type: string; data: unknown }): CurrentEvent[] => {
 		switch (event.type) {
 			case 'workspace.created': {
-				const data = event.data as LegacyCreated;
+				const { home, ...data } = event.data as LegacyCreated;
+				if (home || (data.worktreeId && gone.has(data.worktreeId))) {
+					gone.add(data.id);
+					return [];
+				}
+				if (data.parentId && gone.has(data.parentId)) delete data.parentId;
 				if (data.agent) return created(data as Created);
 				waiting.set(data.id, data);
 				return [];
@@ -131,7 +149,6 @@ export function createUpcaster() {
 			case 'workspace.switched':
 			case 'workspace.steered':
 			case 'workspace.archived':
-			case 'workspace.cleared':
 				return [event as CurrentEvent];
 
 			default:

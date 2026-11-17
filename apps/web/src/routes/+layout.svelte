@@ -66,9 +66,6 @@
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav.current?.workspaces ?? [], notifiedAt));
-	/** A repository's rows: its own workspace (FDR-009) first, where it always is. */
-	const rowsOf = (repoId: string) =>
-		(listed.get(repoId) ?? []).toSorted((a, b) => +b.workspace.home - +a.workspace.home);
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
 	const working = (workspace: Item): boolean =>
 		workspace.working ||
@@ -80,16 +77,7 @@
 
 	// Tells of workspaces that need the person, out of their sight (FDR-008)…
 	$effect(() => {
-		const repos = nav.current?.repos ?? [];
-		// (a repository's own workspace is called the same in each: say whose it is)
-		const all = nav.current?.workspaces.map((workspace) =>
-			workspace.home
-				? {
-						...workspace,
-						title: `${workspace.title} · ${repos.find((repo) => repo.id === workspace.repoId)?.name ?? ''}`
-					}
-				: workspace
-		);
+		const all = nav.current?.workspaces;
 		if (all) untrack(() => watch(all, viewed, (id) => goto(resolve('/workspaces/[id]', { id }))));
 	});
 	// …and what they look at, they have seen. The rest is counted on the Dock.
@@ -183,34 +171,25 @@
 				onselect: () => navigator.clipboard.writeText(workspace.branch ?? '')
 			},
 			'separator',
-			// a repository's own workspace (FDR-009) stays where it is, and is always there
-			...(workspace.home
-				? []
-				: [
-						{
-							label: 'Continue on a new branch',
-							icon: 'icon-[lucide--git-branch-plus]',
-							disabled: busy,
-							onselect: () => carryOn(workspace)
-						}
-					]),
+			{
+				label: 'Continue on a new branch',
+				icon: 'icon-[lucide--git-branch-plus]',
+				disabled: busy,
+				onselect: () => carryOn(workspace)
+			},
 			{
 				label: 'Stop agent',
 				icon: 'icon-[lucide--square]',
 				disabled: !running,
 				onselect: () => stopAgent(workspace.id)
 			},
-			...(workspace.home
-				? []
-				: [
-						{
-							label: 'Archive',
-							icon: 'icon-[lucide--archive]',
-							tone: 'danger' as const,
-							disabled: busy,
-							onselect: () => archiveFromHere(workspace)
-						}
-					])
+			{
+				label: 'Archive',
+				icon: 'icon-[lucide--archive]',
+				tone: 'danger',
+				disabled: busy,
+				onselect: () => archiveFromHere(workspace)
+			}
 		];
 	}
 
@@ -327,22 +306,29 @@
 					)}
 				</div>
 
+				<!-- every repository, also one nothing is going on in: its name is the way to its page -->
+				<!--
+					Apart from each other by what is in them: repositories with nothing going on, one
+					after the other, stand close together as a list of names.
+				-->
 				<div>
 					{#each nav.current?.repos ?? [] as repo, index (repo.id)}
-						<!-- (each has something under it: its own workspace, at the least) -->
-						<div class={[index > 0 && 'pt-5']}>
+						{@const quiet = (at: number) =>
+							!listed.get((nav.current?.repos ?? [])[at]?.id ?? '')?.length}
+						<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-1' : 'pt-5')]}>
 							<!--
 								A label for what is under it: its picture, its name (small and quiet: the
 								workspaces are what is read here), and the way to start something in it. What is
 								under it lines up with it: icon under picture, title under name.
 							-->
 							<div class="group flex h-7 items-center pr-1.5">
-								<div
-									class="flex min-w-0 flex-1 items-center gap-2 pr-2 pl-1.5 text-xs font-medium text-muted"
+								<a
+									href={resolve('/repos/[id]', { id: repo.id })}
+									class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-xs font-medium text-muted hover:text-ink"
 								>
 									<RepoIcon id={repo.id} />
 									<span class="truncate">{repo.name}</span>
-								</div>
+								</a>
 								<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 								<a
 									href="{resolve('/')}?repo={repo.id}"
@@ -355,7 +341,7 @@
 								<!-- eslint-enable svelte/no-navigation-without-resolve -->
 							</div>
 							<ul class="space-y-px">
-								{#each rowsOf(repo.id) as { workspace, parent } (workspace.id)}
+								{#each listed.get(repo.id) ?? [] as { workspace, parent } (workspace.id)}
 									{@render row(workspace, parent)}
 								{/each}
 							</ul>
@@ -416,7 +402,7 @@
 	{@const leaving = beingArchived.has(workspace.id)}
 	<!-- not work that is merely unpublished: that is most workspaces, and no news -->
 	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
-	{@const archivable = !busy && !leaving && !workspace.home}
+	{@const archivable = !busy && !leaving}
 	<li>
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
@@ -449,9 +435,6 @@
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
 						<Spinner live />
-					{:else if workspace.home}
-						<!-- the repository's own: its checkout, always there -->
-						<span class="icon-[lucide--house] size-4"></span>
 					{:else if workspace.parentId}
 						<!-- started by an agent: the one above it, where that is still around -->
 						<span class="icon-[lucide--corner-down-right] size-4"></span>

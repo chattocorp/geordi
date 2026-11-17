@@ -27,11 +27,6 @@ export type Worktree = {
 	adminDir: string;
 	/** The repository's shared .git directory. */
 	commonDir: string;
-	/**
-	 * The repository's own checkout (FDR-009), not a worktree made for a workspace. It is the
-	 * person's, and trusted as such: there are no links of ours to verify in it.
-	 */
-	home?: true;
 };
 
 /**
@@ -40,8 +35,7 @@ export type Worktree = {
  * afterwards trusts them: repointing one at a directory with its own git config or hooks
  * would run the agent's code outside its sandbox.
  */
-export function verifyLinks({ path, adminDir, commonDir, home }: Worktree) {
-	if (home) return;
+export function verifyLinks({ path, adminDir, commonDir }: Worktree) {
 	try {
 		const intact =
 			same(resolve(adminDir, read(join(adminDir, 'commondir'))), commonDir) &&
@@ -84,39 +78,11 @@ export function branchRef(branch: string): string {
 	return `refs/heads/${branch}`;
 }
 
-/**
- * The repository's own checkout, as the place a workspace works in (FDR-009): on whatever
- * it has checked out. Its admin directory is its own Git directory, which for a plain
- * repository is the shared one.
- */
-export function homeWorktree(repoPath: string): Worktree {
-	if (!existsSync(repoPath)) throw new Error(NO_WORKTREE);
-	const home: Worktree = {
-		path: repoPath,
-		branch: '',
-		adminDir: git(repoPath, 'rev-parse', '--absolute-git-dir'),
-		commonDir: resolve(repoPath, git(repoPath, 'rev-parse', '--git-common-dir')),
-		home: true
-	};
-	return { ...home, branch: branchOf(home) ?? 'HEAD' };
-}
-
-/**
- * What an agent at work in the repository's own checkout may write outside it: nothing, for
- * a plain repository, whose Git directory is inside. All of that directory is its to write,
- * `config` and `hooks/` included, unlike with a worktree made for a workspace: a commit
- * makes its lock files right in it, so there is no granting less and still committing.
- * That is the price of working in the person's checkout, and FDR-009 says so.
- */
-export const homeWritableRoots = ({ adminDir, commonDir }: Worktree) => [
-	...new Set([commonDir, adminDir])
-];
-
+/** The workspace's existing worktree. Throws if there is none yet, or it was tampered with. */
 /** Whether the workspace's worktree is there already. */
 export const hasWorktree = (baseDir: string, repoPath: string, workspaceId: string) =>
 	existsSync(describe(baseDir, repoPath, workspaceId).path);
 
-/** The workspace's existing worktree. Throws if there is none yet, or it was tampered with. */
 export function locateWorktree(baseDir: string, repoPath: string, workspaceId: string): Worktree {
 	const worktree = describe(baseDir, repoPath, workspaceId);
 	if (!existsSync(worktree.path)) throw new Error(NO_WORKTREE);
@@ -334,9 +300,7 @@ export const gitEnv = ({ path, adminDir, commonDir }: Worktree): NodeJS.ProcessE
  * index. `HEAD` therefore means the repository's HEAD here: use `headOf` for the worktree's.
  */
 export function gitIn(worktree: Worktree, ...args: string[]): string {
-	// No file-system monitor: that is a command from the repository's config, which an agent
-	// at work in the repository's own checkout (FDR-009) can write.
-	return execFileSync('git', ['--literal-pathspecs', '-c', 'core.fsmonitor=false', ...args], {
+	return execFileSync('git', ['--literal-pathspecs', ...args], {
 		cwd: worktree.path,
 		env: gitEnv(worktree),
 		encoding: 'utf8',
