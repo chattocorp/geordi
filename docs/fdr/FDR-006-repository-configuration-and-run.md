@@ -1,7 +1,7 @@
 # FDR-006: Repository configuration: jobs, ports, links, setup and teardown
 
 **Status:** Active
-**Last reviewed:** 2026-11-16
+**Last reviewed:** 2026-11-17
 
 ## Overview
 
@@ -15,6 +15,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - `run: pnpm dev` names the one command that runs the project. It is short for a single job called `run`.
 - `jobs:` names several, each under its name: each has a `command`, and may list the jobs it `needs`.
 - `urls:` names places to open, each under its name: each has a `url`, in which `{job}` stands for that job's port. A link needs the jobs it mentions, and any it lists under `needs`. Links only lead to this machine (`localhost`).
+- Jobs and links may have an optional human-readable `label`, shown in Run/Open controls and command reviews. Without a label, the key is shown. Labels do not change dependencies, assigned ports, command approvals or terminal identities. This lets repositories use readable names without breaking references.
 - `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No job can be called `setup` or `teardown`.
 - A workspace gets one port per job. `ports: 20` asks for that many instead, for spare ones. (Where a repository names no jobs, a workspace gets ten.)
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). They are not merged. So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.

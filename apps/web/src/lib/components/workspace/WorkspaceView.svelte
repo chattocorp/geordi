@@ -27,7 +27,7 @@
 		type Zone
 	} from '#lib/layout.ts';
 	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
-	import { openMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
+	import RunControls from './RunControls.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
@@ -191,7 +191,7 @@
 	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
 	// per command and repository. The daemon keeps what was agreed to, and runs nothing else.
 	type Seen = Record<string, string>;
-	type Command = Script & { name: string };
+	type Command = Script & { name: string; label?: string };
 	let asking = $state<{ jobs: Command[]; then: () => void } | null>(null);
 
 	/**
@@ -299,38 +299,6 @@
 	 * nothing to speak of.
 	 */
 	const setupPending = $derived(!!config?.setup && !config.setup.approved);
-
-	/** What the Run button offers where there is more than one thing to run. */
-	const jobMenu = (): MenuItem[] => [
-		...jobs.map(({ name }): MenuItem =>
-			isUp(name)
-				? { label: `Stop ${name}`, icon: 'icon-[lucide--square]', onselect: () => stop(name) }
-				: { label: `Start ${name}`, icon: 'icon-[lucide--play]', onselect: () => start([name]) }
-		),
-		...(jobs.length === 0
-			? []
-			: [
-					'separator' as const,
-					{
-						label: 'Start all',
-						icon: 'icon-[lucide--list-video]',
-						disabled: jobs.every((job) => isUp(job.name)),
-						onselect: () => start(jobs.map((job) => job.name))
-					},
-					{
-						label: 'Stop all',
-						icon: 'icon-[lucide--circle-stop]',
-						disabled: !jobs.some((job) => isUp(job.name)),
-						onselect: () => jobs.filter((job) => isUp(job.name)).forEach((job) => stop(job.name))
-					}
-				])
-	];
-	const linkMenu = (): MenuItem[] =>
-		links.map((link) => ({
-			label: `${link.name}  ${link.href.replace(/^https?:\/\//, '')}`,
-			icon: 'icon-[lucide--external-link]',
-			onselect: () => visit(link)
-		}));
 
 	// Another agent in this workspace: a conversation of its own, in the same directory. It
 	// begins as a window to write the first message in, and to say who it is for; the agent
@@ -571,67 +539,7 @@
 
 <!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
 {#snippet runActions()}
-	{#if jobs.length === 1 && links.length === 0}
-		<!-- one thing to run: a button says it all -->
-		{@const [job] = jobs}
-		{#if isUp(job.name) || launching.has(job.name)}
-			<Button
-				variant="ghost"
-				size="sm"
-				icon="icon-[lucide--square]"
-				label="Stop {job.name}"
-				onclick={() => stop(job.name)}
-			>
-				Stop
-			</Button>
-		{:else}
-			<Button
-				variant="ghost"
-				size="sm"
-				icon="icon-[lucide--play]"
-				label="Run: {job.command}"
-				onclick={() => start([job.name])}
-			>
-				Run
-			</Button>
-		{/if}
-	{:else if jobs.length > 0 || links.length > 0}
-		{#if jobs.length > 0}
-			<Button
-				variant="ghost"
-				size="sm"
-				icon="icon-[lucide--play]"
-				label="Start and stop what the project runs"
-				aria-haspopup="menu"
-				onclick={(event) => openMenu(event.currentTarget, jobMenu())}
-			>
-				Run
-				{#if jobs.some((job) => isUp(job.name))}<span class="dot dot-live"></span>{/if}
-				<span class="icon-[lucide--chevron-down] size-3.5"></span>
-			</Button>
-		{/if}
-		{#if links.length > 0}
-			<Button
-				variant="ghost"
-				size="sm"
-				icon="icon-[lucide--globe]"
-				label="Open what the project serves, in the browser"
-				aria-haspopup="menu"
-				onclick={(event) => openMenu(event.currentTarget, linkMenu())}
-			>
-				Open
-				<span class="icon-[lucide--chevron-down] size-3.5"></span>
-			</Button>
-		{/if}
-	{:else if git?.config?.problem}
-		<!-- a configuration nobody can read is worth knowing about, quietly -->
-		<span
-			class="mr-1.5 icon-[lucide--triangle-alert] size-4 shrink-0 text-muted"
-			role="img"
-			aria-label={git.config.problem}
-			title={git.config.problem}
-		></span>
-	{/if}
+	<RunControls {jobs} {links} {isUp} {launching} {start} {stop} {visit} problem={config?.problem} />
 {/snippet}
 
 {#snippet tab(tab: string)}
@@ -911,9 +819,11 @@
 		<ul class="space-y-2">
 			{#each asking?.jobs ?? [] as job (job.name)}
 				<li class="space-y-1">
-					{#if (asking?.jobs.length ?? 0) > 1 || job.name !== 'run'}
+					{#if (asking?.jobs.length ?? 0) > 1 || job.name !== 'run' || job.label}
 						<p class="label">
-							{job.name === 'teardown' ? 'teardown, when the workspace is archived' : job.name}
+							{job.name === 'teardown'
+								? 'teardown, when the workspace is archived'
+								: (job.label ?? job.name)}
 						</p>
 					{/if}
 					<pre

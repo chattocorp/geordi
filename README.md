@@ -47,6 +47,27 @@ The tests render the UI's stories in a real browser; install it once with
 `pnpm dev` starts the forge on http://localhost:5173 and a daemon that connects to it. In
 development, forge data is stored in `./.data`.
 
+### Testing in a Geordi workspace
+
+Use **Open → Geordi** to start an isolated development copy. The **Web server** and
+**Agent daemon** jobs run in separate terminals. Use **Open → Storybook** to browse the
+components, or the **Run** menu to start and stop individual jobs.
+The setup script installs dependencies when Geordi creates the worktree.
+
+These jobs use the workspace's assigned ports and keep all Geordi state in that
+worktree's ignored `.data/` directory, including test worktrees, agent turns, tokens,
+command approvals and port allocations. They do not use the installed app's `~/.geordi`
+state. Register a repository in the test app to begin testing; it starts empty.
+
+The web server reloads frontend changes, and the daemon restarts when its source changes.
+Use the Run menu to stop and start jobs when testing reconnection. Data stays in place
+between runs. Stop test agents before discarding a test instance: agent turns can survive
+their daemon, just as they do in the installed app.
+
+Use these jobs for workspace testing instead of `pnpm dev`, which uses fixed ports.
+They test the browser app; `pnpm desktop` still uses the desktop app's usual ports and
+profile, and `pnpm desktop:install` replaces the installed app.
+
 Register a repository on the home page, open it, and start a workspace: one conversation
 with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See
 [FDR-001](docs/fdr/FDR-001-workspaces.md).
@@ -83,6 +104,24 @@ urls:
   app:
     url: http://localhost:{web}/
 ```
+
+Jobs and links accept an optional `label` for their display name:
+
+```yaml
+jobs:
+  web:
+    label: Development server
+    command: pnpm dev --port $PORT
+urls:
+  app:
+    label: Open the app
+    url: http://localhost:{web}/
+```
+
+Labels are single-line strings of 1–100 characters, with surrounding spaces removed.
+Without a label, Geordi shows the key. Dependencies, URL placeholders, port variables,
+and terminal identities always use the key. To label a single `run` command, write it
+as `jobs.run` with a `command` and `label` instead of the `run` shorthand.
 
 For a project with one thing to run, `run: pnpm dev --port $PORT` is enough. (A
 `.geordi.toml` saying the same in TOML is still read where there is no `.geordi.yml`.)

@@ -174,7 +174,13 @@ const tools = {
 							: `none: there is no ${CONFIG_FILE}`,
 				problem,
 				ports,
-				jobs: jobs.map(({ name, command, needs, port }) => ({ name, command, needs, port })),
+				jobs: jobs.map(({ name, label, command, needs, port }) => ({
+					name,
+					label,
+					command,
+					needs,
+					port
+				})),
 				urls,
 				setup: setup?.command ?? null,
 				teardown: teardown?.command ?? null,
