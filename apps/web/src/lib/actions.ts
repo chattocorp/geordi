@@ -7,9 +7,11 @@ import type { Changes, Upstream } from '@geordi/protocol';
  */
 export type WorkspaceAction = {
 	id:
+		| 'merge-upstream'
 		| 'commit'
 		| 'create-pull'
 		| 'update-pull'
+		| 'resolve-conflicts'
 		| 'fix-checks'
 		| 'address-review'
 		| 'merge-pull'
@@ -28,7 +30,12 @@ export type WorkspaceAction = {
 
 type State = {
 	/** `null` while unknown (no daemon, or not asked yet). */
-	changes: (Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & { landed?: boolean }) | null;
+	changes:
+		| (Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & {
+				landed?: boolean;
+				incoming?: Changes['incoming'];
+		  })
+		| null;
 	/** `null` if the repository is not on a forge we know, or not asked yet. */
 	upstream: Upstream | null;
 	/** Whether the agent's latest turn failed (and was not just stopped). */
@@ -50,11 +57,42 @@ const awaitsPull = ({ changes, upstream }: State) =>
 	(!upstream.pull || upstream.pull.state === 'unknown') &&
 	changes.files.length > 0;
 
+/** What to tell the agent to bring the latest of the branch its work is based on into it. */
+const mergeFrom = (branch: string | null) =>
+	`Merge the latest commits from ${branch ? `the base branch ${JSON.stringify(branch)}` : 'its base branch'} into this workspace's current branch. Fetch first if it is a remote-tracking branch. Preserve uncommitted work, resolve any merge conflicts keeping the intent of both sides, and run the relevant checks.`;
+
 /**
  * The actions that make sense now, the most pressing first. The first one is what the UI
  * presents as *the* next step.
  */
 export function actionsFor(state: State): WorkspaceAction[] {
+	const actions = nextActions(state);
+	const incoming = state.changes?.incoming;
+	const pull = state.upstream?.pull;
+	if (
+		!incoming ||
+		incoming.commits <= 0 ||
+		state.failed ||
+		landedLocally(state) ||
+		pull?.state === 'merged' ||
+		pull?.state === 'closed' ||
+		// resolving them is updating already
+		pull?.conflicts
+	)
+		return actions;
+	return [
+		...actions,
+		{
+			id: 'merge-upstream',
+			label: 'Update',
+			icon: 'icon-[lucide--git-merge]',
+			aside: actions.length > 0,
+			prompt: mergeFrom(incoming.branch)
+		}
+	];
+}
+
+function nextActions(state: State): WorkspaceAction[] {
 	const { changes, upstream } = state;
 	if (!changes) return [];
 	// Before anything else: the agent did not get to the end of what it was doing.
@@ -118,6 +156,14 @@ export function actionsFor(state: State): WorkspaceAction[] {
 
 	const number = `pull request #${pull.number}`;
 	const actions: WorkspaceAction[] = [];
+	if (pull.conflicts)
+		actions.push({
+			id: 'resolve-conflicts',
+			label: 'Resolve conflicts',
+			icon: 'icon-[lucide--git-merge-conflict]',
+			// the base upstream (`origin`, as in `upstream.ts`): what the pull request merges into
+			prompt: `Pull request #${pull.number} conflicts with its base branch. ${mergeFrom(pull.base && `origin/${pull.base}`)} Then push.`
+		});
 	if (pull.checks?.state === 'failure')
 		actions.push({
 			id: 'fix-checks',
@@ -203,6 +249,8 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		return { label: 'Merged', tone: 'merged', icon: 'icon-[lucide--git-merge]' };
 	if (pull.state === 'closed')
 		return { label: 'Closed', tone: 'neutral', icon: 'icon-[lucide--circle-slash]' };
+	if (pull.conflicts)
+		return { label: 'Conflicts', tone: 'danger', icon: 'icon-[lucide--git-merge-conflict]' };
 	if (pull.checks?.state === 'failure')
 		return { label: 'Checks failing', tone: 'danger', icon: 'icon-[lucide--circle-x]' };
 	if (pull.review === 'changes_requested')
@@ -216,7 +264,7 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		return {
 			label: 'Checks running',
 			tone: 'neutral',
-			icon: 'icon-[lucide--circle-dashed]',
+			icon: 'icon-[lucide--circle-dashed] animate-spin',
 			checks: pull.checks.counts
 		};
 	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };

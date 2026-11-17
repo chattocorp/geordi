@@ -279,7 +279,7 @@
 
 @layer base {
 	body {
-		@apply bg-bg font-sans text-base text-ink antialiased;
+		@apply bg-bg font-sans text-base text-ink subpixel-antialiased;
 	}
 
 	/* Everything you can click says so. (Tailwind leaves buttons with the default cursor.) */

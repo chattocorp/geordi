@@ -315,3 +315,59 @@ describe('resolve', () => {
 		});
 	});
 });
+
+describe('display labels', () => {
+	it.each([
+		[
+			'yaml',
+			'jobs:\n  web:\n    label: "  Web app  "\n    command: serve\nurls:\n  app:\n    label: "  Open app  "\n    url: http://localhost:{web}/',
+			'.geordi.yml'
+		],
+		[
+			'toml',
+			'[jobs.web]\nlabel = "  Web app  "\ncommand = "serve"\n[urls.app]\nlabel = "  Open app  "\nurl = "http://localhost:{web}/"',
+			'.geordi.toml'
+		]
+	])('preserves keys, ports and approvals with %s labels', (_, text, file) => {
+		const settings = parseConfig(text, file);
+		const config = resolve(
+			{ settings, problem: null, source: 'workspace', file },
+			{ blocks: [{ first: 20000, count: 1 }], jobs: { web: 0 } },
+			(command) => command === 'serve'
+		);
+		expect(config.jobs).toEqual([
+			{ name: 'web', label: 'Web app', command: 'serve', needs: [], port: 20000, approved: true }
+		]);
+		expect(config.urls).toEqual([
+			{ name: 'app', label: 'Open app', href: 'http://localhost:20000/', needs: ['web'] }
+		]);
+	});
+
+	it.each([null, 42, true, [], {}, '', '   ', 'a\nb', 'a\tb', 'x'.repeat(101)])(
+		'rejects invalid labels: %j',
+		(label) => {
+			for (const section of ['jobs', 'urls']) {
+				const entry =
+					section === 'jobs' ? { command: 'serve' } : { url: 'http://localhost:20000/' };
+				expect(() =>
+					parseConfig(JSON.stringify({ [section]: { app: { ...entry, label } } }))
+				).toThrow(`${section}.app.label`);
+			}
+		}
+	);
+
+	it('accepts labels at the length limit and lets different keys share a label', () => {
+		const config = parseConfig(
+			JSON.stringify({
+				jobs: {
+					web: { command: 'serve', label: 'x'.repeat(100) },
+					other: { command: 'other', label: 'x'.repeat(100), needs: ['web'] }
+				}
+			})
+		);
+		expect(config.jobs.map(({ name, needs }) => ({ name, needs }))).toEqual([
+			{ name: 'web', needs: [] },
+			{ name: 'other', needs: ['web'] }
+		]);
+	});
+});

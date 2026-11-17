@@ -27,8 +27,8 @@ const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
 /** What a `.geordi.yml` says, before a workspace's ports are filled in. */
 export type Settings = {
 	ports: number;
-	jobs: { name: string; command: string; needs: string[] }[];
-	urls: { name: string; url: string; needs: string[] }[];
+	jobs: { label?: string; name: string; command: string; needs: string[] }[];
+	urls: { label?: string; name: string; url: string; needs: string[] }[];
 	/** The commands run when a worktree is made, and before it is removed. */
 	setup: string | null;
 	teardown: string | null;
@@ -39,6 +39,19 @@ const fail = (message: string): never => {
 };
 const isTable = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Display names never replace the keys used by dependencies and ports. */
+function displayLabel(value: unknown, where: string): { label?: string } {
+	if (value === undefined) return {};
+	if (
+		typeof value !== 'string' ||
+		!value.trim() ||
+		value.trim().length > 100 ||
+		/[\r\n\t]/.test(value)
+	)
+		fail(`${where}.label must be a non-empty, single-line string of at most 100 characters`);
+	return { label: (value as string).trim() };
+}
 
 function names(value: unknown, what: string, known: Set<string>): string[] {
 	if (value === undefined) return [];
@@ -64,12 +77,12 @@ function read(text: string, file: string): Record<string, unknown> {
 export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Settings {
 	const said = read(text, file);
 
-	const commands = new Map<string, { command: unknown; needs: unknown }>();
+	const commands = new Map<string, { command: unknown; needs: unknown; label?: unknown }>();
 	if (said.jobs !== undefined) {
 		if (!isTable(said.jobs)) fail('`jobs` must be a table of jobs');
 		for (const [name, job] of Object.entries(said.jobs as Record<string, unknown>)) {
 			if (!isTable(job)) fail(`jobs.${name} must be a table with a command`);
-			commands.set(name, job as { command: unknown; needs: unknown });
+			commands.set(name, job as { command: unknown; needs: unknown; label?: unknown });
 		}
 	}
 	// `run = "…"` is short for a single job of that name
@@ -79,7 +92,7 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 	}
 
 	const known = new Set(commands.keys());
-	const jobs = [...commands].map(([name, { command, needs }]) => {
+	const jobs = [...commands].map(([name, { command, needs, label }]) => {
 		if (!CONFIG_NAME.test(name))
 			fail(`"${name}" is not a job name: lower case letters, digits and dashes`);
 		if ((SCRIPTS as readonly string[]).includes(name))
@@ -90,6 +103,7 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 			);
 		return {
 			name,
+			...displayLabel(label, `jobs.${name}`),
 			command: (command as string).trim(),
 			needs: names(needs, `jobs.${name}.needs`, known)
 		};
@@ -128,7 +142,12 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 			if (!address || !/^https?:$/.test(address.protocol) || !LOCAL.test(address.hostname))
 				fail(`urls.${name}.url must be an http address on this machine (localhost)`);
 			const needs = names((link as Record<string, unknown>).needs, `urls.${name}.needs`, known);
-			urls.push({ name, url: url as string, needs: [...new Set([...mentioned, ...needs])] });
+			urls.push({
+				name,
+				...displayLabel((link as Record<string, unknown>).label, `urls.${name}`),
+				url: url as string,
+				needs: [...new Set([...mentioned, ...needs])]
+			});
 		}
 	}
 
@@ -220,10 +239,9 @@ export function resolve(
 			port: port(job.name),
 			approved: approved(job.command)
 		})),
-		urls: (settings?.urls ?? []).map(({ name, url, needs }) => ({
-			name,
-			href: url.replace(PLACEHOLDER, (_, job: string) => String(port(job))),
-			needs
+		urls: (settings?.urls ?? []).map(({ url, ...link }) => ({
+			...link,
+			href: url.replace(PLACEHOLDER, (_, job: string) => String(port(job)))
 		})),
 		setup: script(settings?.setup, approved),
 		teardown: script(settings?.teardown, approved),

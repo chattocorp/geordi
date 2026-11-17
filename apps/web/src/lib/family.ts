@@ -10,20 +10,37 @@ export type Listed<T> = {
 	parent: T | null;
 };
 
-export function byRepository<T extends Member>(all: T[]): Map<string, Listed<T>[]> {
+export function byRepository<T extends Member>(
+	all: T[],
+	notifiedAt: ReadonlyMap<string, number> = new Map()
+): Map<string, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
 	const parentOf = (workspace: T) => byId.get(workspace.parentId ?? '') ?? null;
 	// a workspace follows its parent only where the parent is listed: in the same repository
 	const follows = (workspace: T) => parentOf(workspace)?.repoId === workspace.repoId;
+
+	// Keep families together; a child's notification brings its family up with it.
+	const latest = new Map(all.map((workspace) => [workspace.id, notifiedAt.get(workspace.id) ?? 0]));
+	for (const workspace of all) {
+		const at = notifiedAt.get(workspace.id) ?? 0;
+		let ancestor = workspace;
+		const visited = new Set<string>();
+		while (follows(ancestor) && !visited.has(ancestor.id)) {
+			visited.add(ancestor.id);
+			ancestor = parentOf(ancestor)!;
+			latest.set(ancestor.id, Math.max(latest.get(ancestor.id) ?? 0, at));
+		}
+	}
+	const ordered = all.toSorted((a, b) => latest.get(b.id)! - latest.get(a.id)!);
 
 	const repos = new Map<string, Listed<T>[]>();
 	const list = (workspace: T) => {
 		const listed = repos.get(workspace.repoId) ?? [];
 		repos.set(workspace.repoId, listed);
 		listed.push({ workspace, parent: parentOf(workspace) });
-		for (const child of all) if (child.parentId === workspace.id && follows(child)) list(child);
+		for (const child of ordered) if (child.parentId === workspace.id && follows(child)) list(child);
 	};
-	for (const workspace of all) if (!follows(workspace)) list(workspace);
+	for (const workspace of ordered) if (!follows(workspace)) list(workspace);
 	return repos;
 }
 

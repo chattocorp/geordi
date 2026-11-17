@@ -31,6 +31,13 @@
 		onaction
 	}: Props = $props();
 
+	const primary = $derived(actions.find((action) => !action.aside));
+	// Keep priority in the action rules; put the main action at the right edge of the ribbon.
+	const ordered = $derived([
+		...actions.filter((action) => action !== primary),
+		...(primary ? [primary] : [])
+	]);
+
 	const tones = {
 		ok: 'bg-ok/12 text-ok',
 		danger: 'bg-danger-soft text-danger',
@@ -98,9 +105,9 @@
 				<span class={['size-4 shrink-0', standing.icon]}></span>
 				<span class="pr-1.5 pl-1 text-sm font-medium whitespace-nowrap">{standing.label}</span>
 			{/if}
-			{#each actions as action (action.id)}
+			{#each ordered as action (action.id)}
 				<!-- the next step stands out; what else is possible, and what is beside it, doesn't -->
-				{@const next = action === actions.find((candidate) => !candidate.aside)}
+				{@const next = action === primary}
 				<Button
 					size="sm"
 					variant={next ? 'primary' : 'soft'}

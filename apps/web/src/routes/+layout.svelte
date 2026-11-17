@@ -11,8 +11,16 @@
 	import Settings from '#lib/components/Settings.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
-	import { modifierKey, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
-	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
+	import { modifierKey, newWorkspaceShortcut, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
+	import {
+		ask,
+		badge,
+		isLooking,
+		notifiedAt,
+		seen,
+		unread,
+		watch
+	} from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import {
@@ -43,7 +51,7 @@
 	type Item = Navigation['workspaces'][number];
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
+	const listed = $derived(byRepository(nav.current?.workspaces ?? [], notifiedAt));
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
 	const working = (workspace: Item): boolean =>
 		workspace.working ||
@@ -183,7 +191,10 @@
 <svelte:window
 	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
-		if (settingsShortcut(event)) {
+		if (newWorkspaceShortcut(event)) {
+			event.preventDefault();
+			if (!event.repeat && page.url.pathname !== resolve('/')) void goto(resolve('/'));
+		} else if (settingsShortcut(event)) {
 			event.preventDefault();
 			openSettings();
 		} else if (sidebarToggle(event) === 'left') {

@@ -1,5 +1,14 @@
-import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import {
+	cpSync,
+	mkdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+	openSync,
+	closeSync
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { packager } from '@electron/packager';
 import { build } from 'esbuild';
@@ -14,14 +23,16 @@ import { build } from 'esbuild';
 
 const root = join(import.meta.dirname, '..');
 const repo = join(root, '../..');
-const stage = join(root, 'stage');
+const stage = process.argv.includes('--dev')
+	? join(repo, '.data/desktop/stage')
+	: join(root, 'stage');
 const run = (cmd, args, options = {}) => execFileSync(cmd, args, { stdio: 'inherit', ...options });
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 // --- Stage: everything the app consists of, in one directory ---------------------------------
 
 rmSync(stage, { recursive: true, force: true });
-mkdirSync(stage);
+mkdirSync(stage, { recursive: true });
 writeFileSync(
 	join(stage, 'package.json'),
 	JSON.stringify({
@@ -33,6 +44,7 @@ writeFileSync(
 	})
 );
 cpSync(join(root, 'src/main.js'), join(stage, 'main.js'));
+cpSync(join(root, 'src/runtime.js'), join(stage, 'runtime.js'));
 cpSync(join(root, 'src/preload.cjs'), join(stage, 'preload.cjs'));
 
 // The sounds of its notifications: made by the web app's own code, as files for the system
@@ -105,31 +117,20 @@ if (install || process.argv.includes('--package')) {
 	console.log(`packaged ${packaged}`);
 
 	if (install) {
-		const installed = '/Applications/Geordi.app';
-		// Quitting leaves the agents working; the new version picks them up again (ADR-007).
-		try {
-			run('osascript', ['-e', 'tell application id "com.github.chattocorp.geordi" to quit'], {
-				stdio: 'ignore'
-			});
-		} catch {
-			// it wasn't installed yet
-		}
-		for (let n = 0; n < 50 && running(); n++) await new Promise((r) => setTimeout(r, 200));
-		rmSync(installed, { recursive: true, force: true });
-		run('ditto', [packaged, installed]);
-		// Signed as a whole, if only by ourselves: macOS takes an app it cannot tell from another
-		// for nobody, and shows none of its notifications.
-		run('codesign', ['--force', '--deep', '--sign', '-', installed]);
-		run('open', [installed]);
-		console.log(`installed ${installed}`);
-	}
-}
-
-function running() {
-	try {
-		run('pgrep', ['-f', '/Applications/Geordi.app/Contents/MacOS/Geordi'], { stdio: 'ignore' });
-		return true;
-	} catch {
-		return false;
+		// The app owns this terminal. The replacement must survive its shutdown.
+		const logFile = join(root, 'dist', 'install.log');
+		const log = openSync(logFile, 'w');
+		console.log(`Installing and restarting Geordi. Installer log: ${logFile}`);
+		const installer = spawn(process.execPath, [join(root, 'scripts/install.js'), packaged], {
+			detached: true,
+			stdio: ['ignore', log, log]
+		});
+		closeSync(log);
+		await new Promise((resolve, reject) => {
+			installer.once('error', reject);
+			installer.once('exit', (code) =>
+				code === 0 ? resolve() : reject(new Error(`Installation failed; see ${logFile}`))
+			);
+		});
 	}
 }

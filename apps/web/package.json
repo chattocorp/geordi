@@ -41,6 +41,7 @@
 		"@valibot/to-json-schema": "^1.8.0",
 		"@vitest/browser-playwright": "catalog:",
 		"@xterm/addon-fit": "^0.11.0",
+		"@xterm/addon-web-links": "^0.12.0",
 		"@xterm/xterm": "^6.0.0",
 		"markdown-it": "^15.0.3",
 		"playwright": "^1.65.0",
@@ -51,6 +52,7 @@
 		"tailwindcss": "^4.3.0",
 		"typescript": "catalog:",
 		"valibot": "^1.5.0",
+		"virtua": "^0.54.2",
 		"vite": "^8.3.0",
 		"vitest": "catalog:",
 		"ws": "^8.23.0"

@@ -1,3 +1,4 @@
+import { desktopRuntime } from './runtime.js';
 import { execFileSync } from 'node:child_process';
 import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,10 +23,18 @@ import {
  * Only "Stop Daemon" ends them, as Ctrl+C does for a daemon in a terminal.
  */
 
-// Ports of our own, so that a Geordi under development (`pnpm dev`) can run alongside. The
-// web port is fixed, because the browser keeps preferences by origin.
-const WEB_PORT = 7717;
-const DAEMON_PORT = 7718;
+const runtime = desktopRuntime(process.env);
+const WEB_PORT = runtime.web;
+const DAEMON_PORT = runtime.daemon;
+if (runtime.directory) {
+	mkdirSync(runtime.profile, { recursive: true });
+	app.setName('Geordi Dev');
+	app.setPath('userData', runtime.profile);
+	app.setPath('sessionData', runtime.profile);
+	app.setAppLogsPath(join(runtime.directory, 'logs'));
+	process.on('SIGINT', () => app.quit());
+	process.on('SIGTERM', () => app.quit());
+}
 const url = `http://127.0.0.1:${WEB_PORT}`;
 
 const here = import.meta.dirname;
@@ -65,7 +74,7 @@ function start(/** @type {string} */ name, /** @type {string} */ entry, env = {}
 	const child = utilityProcess.fork(join(here, entry), [], {
 		serviceName: `Geordi ${name}`,
 		stdio: 'pipe',
-		env: { ...process.env, ...shellEnv(), ...env }
+		env: { ...process.env, ...shellEnv(), ...runtime.env, ...env }
 	});
 	for (const stream of [child.stdout, child.stderr])
 		stream?.on('data', (data) => log.write(`[${name}] ${data}`));
@@ -83,7 +92,8 @@ function startForge() {
 		BODY_SIZE_LIMIT: String(5 * 1024 * 1024),
 		PORT: String(WEB_PORT),
 		ORIGIN: url,
-		GEORDI_DAEMON_PORT: String(DAEMON_PORT)
+		GEORDI_DAEMON_PORT: String(DAEMON_PORT),
+		GEORDI_LIVE_PORT: String(runtime.live)
 	});
 	forge.on('exit', (code) => {
 		if (quitting) return;
@@ -145,7 +155,7 @@ function stopDaemon({ agents = false } = {}) {
 
 // --- Window and menu -------------------------------------------------------------------------
 
-/** Where the window was when it was last closed, and whether it filled the screen. */
+/** Where the window was when it was last closed, whether it filled the screen, and what it showed. */
 const placeFile = join(app.getPath('userData'), 'window.json');
 
 /** The window's last place, if it is still on a screen that is there. */
@@ -165,16 +175,27 @@ function lastPlace() {
 	}
 }
 
+/** The page the window showed when it was last closed (a path of the forge's), if any. */
+function lastPage() {
+	try {
+		const { page } = JSON.parse(readFileSync(placeFile, 'utf8'));
+		return typeof page === 'string' && page.startsWith('/') && !page.startsWith('//') ? page : '/';
+	} catch {
+		return '/';
+	}
+}
+
 function open() {
-	// the first window goes where it was; any further one where the system puts it
-	const place = BrowserWindow.getAllWindows().length === 0 ? lastPlace() : {};
+	// the first window goes where it was and shows what it did; any further one starts afresh
+	const first = BrowserWindow.getAllWindows().length === 0;
+	const place = first ? lastPlace() : {};
 	const window = new BrowserWindow({
 		width: 1440,
 		height: 900,
 		...place,
 		minWidth: 840, // the sidebar, a conversation and the changes beside it, each at its least
 		minHeight: 480,
-		title: 'Geordi',
+		title: runtime.directory ? 'Geordi Dev' : 'Geordi',
 		// No title bar: the window's buttons sit in the sidebar's top row, which the web app
 		// makes room for (and makes draggable) where `data-desktop` is set; see `app.html`.
 		titleBarStyle: 'hiddenInset',
@@ -184,7 +205,12 @@ function open() {
 	});
 	window.on('close', () => {
 		try {
-			const place = { ...window.getNormalBounds(), fullscreen: window.isFullScreen() };
+			const shown = URL.parse(window.webContents.getURL());
+			const place = {
+				...window.getNormalBounds(),
+				fullscreen: window.isFullScreen(),
+				page: shown?.origin === url ? shown.pathname + shown.search : '/'
+			};
 			writeFileSync(placeFile, JSON.stringify(place));
 		} catch (error) {
 			note(`could not remember the window's place: ${error}`);
@@ -202,7 +228,7 @@ function open() {
 		event.preventDefault();
 		if (/^https?:/.test(target)) shell.openExternal(target);
 	});
-	window.loadURL(url);
+	window.loadURL(first ? url + lastPage() : url);
 }
 
 function menu() {

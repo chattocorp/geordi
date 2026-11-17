@@ -28,3 +28,10 @@ export function submitOnEnter(event: KeyboardEvent & { currentTarget: HTMLTextAr
 	event.preventDefault();
 	event.currentTarget.form?.requestSubmit();
 }
+
+/** Cmd+N (Ctrl+N elsewhere than on a Mac) starts a workspace or chooses its repository. */
+export function newWorkspaceShortcut(event: KeyboardEvent): boolean {
+	const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+	if (event.code !== 'KeyN' || event.altKey || event.shiftKey || event.isComposing) return false;
+	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+}
