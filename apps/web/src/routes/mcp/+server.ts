@@ -26,7 +26,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			hub()
 				.request({ kind: 'config', ...workspaces().ref(id) })
 				// no daemon, or no worktree: something the agent can be told
-				.catch((cause) => error(502, cause instanceof Error ? cause.message : String(cause)))
+				.catch((cause) => error(502, cause instanceof Error ? cause.message : String(cause))),
+		harnesses: () => hub().harnesses()
 	};
 	const answer = await handleMcp(agents, caller, message);
 	return answer ? json(answer) : new Response(null, { status: 202 });

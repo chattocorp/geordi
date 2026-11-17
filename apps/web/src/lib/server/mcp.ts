@@ -3,7 +3,9 @@ import {
 	AGENTS,
 	CONFIG_FILE,
 	CONFIG_SETTINGS,
+	SETTING,
 	WORKTREE_MODES,
+	type Harness,
 	type RepoConfig
 } from '@geordi/protocol';
 import { toJsonSchema } from '@valibot/to-json-schema';
@@ -22,7 +24,28 @@ type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
 	archive(caller: string, id: string): Promise<void>;
 	/** What the repository's configuration says for the caller's workspace, as a daemon reads it. */
 	configuration(caller: string): Promise<RepoConfig>;
+	/** The models and effort levels on offer, per agent; `null` while no daemon is connected. */
+	harnesses(): Harness[] | null;
 };
+
+/** What `start_agent` can be asked to run, as the daemon offers it. */
+export const offersOf = (harnesses: Harness[] | null) =>
+	harnesses
+		? [
+				'On offer (pass a model by its id, and one of its effort levels):',
+				...harnesses.map(({ agent, models, efforts }) =>
+					[
+						`- ${agent}:`,
+						...(models.length > 0
+							? models.map(
+									(model) =>
+										`  - ${model.id} (${model.name}): ${model.efforts.join(', ') || 'no choice of effort'}`
+								)
+							: [`  - no models to choose from; effort: ${efforts.join(', ') || 'no choice'}`])
+					].join('\n')
+				)
+			].join('\n')
+		: 'What models and effort levels are on offer is not known right now: no daemon is connected.';
 
 /**
  * How to configure a repository for Geordi (FDR-006), for an agent about to do so. Made
@@ -53,8 +76,12 @@ const agentId = v.pipe(v.string(), v.description('The id of an agent you started
 /** Each tool: what agents are told about it, its input, and what it does for a caller. */
 const tools = {
 	start_agent: {
-		description:
-			'Start another coding agent and give it a task. Returns immediately; use wait_for_agent to get its reply.',
+		description: (harnesses: Harness[] | null) =>
+			[
+				'Start another coding agent and give it a task. Returns immediately; use wait_for_agent to get its reply.',
+				'An agent of your kind runs with your model and effort unless you ask for others; another kind runs with its defaults.',
+				offersOf(harnesses)
+			].join('\n\n'),
 		input: v.object({
 			prompt: v.pipe(
 				v.string(),
@@ -73,6 +100,18 @@ const tools = {
 				v.optional(v.picklist(AGENTS)),
 				v.description('Which agent to start. Defaults to the same kind as you.')
 			),
+			model: v.pipe(
+				v.optional(v.pipe(v.string(), v.regex(SETTING, 'That is not a model'))),
+				v.description(
+					'The model it runs, by its id (see what is on offer). Defaults to yours, for an agent of your kind.'
+				)
+			),
+			effort: v.pipe(
+				v.optional(v.pipe(v.string(), v.regex(SETTING, 'That is not an effort level'))),
+				v.description(
+					"How hard it thinks: one of its model's effort levels. Defaults to yours, for an agent of your kind."
+				)
+			),
 			title: v.pipe(
 				v.optional(v.pipe(v.string(), v.maxLength(80))),
 				v.description(
@@ -87,9 +126,11 @@ const tools = {
 				prompt: string;
 				worktree: 'own' | 'shared';
 				agent?: (typeof AGENTS)[number];
+				model?: string;
+				effort?: string;
 				title?: string;
 			}
-		) => agents.start(caller, input)
+		) => agents.start(caller, input, agents.harnesses())
 	},
 	name_workspace: {
 		description:
@@ -260,7 +301,10 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 			return result(id, {
 				tools: Object.entries(tools).map(([name, tool]) => ({
 					name,
-					description: tool.description,
+					description:
+						typeof tool.description === 'function'
+							? tool.description(agents.harnesses())
+							: tool.description,
 					inputSchema: toJsonSchema(tool.input)
 				}))
 			});

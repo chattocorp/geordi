@@ -16,7 +16,7 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 - What is on offer comes from the daemon, pushed to the page: the moment a daemon connects, the choices are there. While none is connected the composer says "Waiting for the daemon" in their place, and a workspace can't be started.
 - The browser remembers the choice, per agent: the next workspace starts out the way the last one was set up. A remembered model that is no longer on offer falls back to the agent's first; an effort, to the default.
 - The choice belongs to the workspace, and can be changed there: the box for replying to the agent has the same two choices, for the workspace's agent only. A change holds from the agent's next turn on; a turn under way carries on as it was started.
-- An agent started by another agent (FDR-002) runs with its parent's model and effort if it is the same kind of agent, and with the defaults otherwise.
+- An agent started by another agent (FDR-002) runs with its parent's model and effort if it is the same kind of agent, and with the defaults otherwise, unless the parent asks for a model or effort. `start_agent` lists what is on offer, per agent, in its description, and refuses an effort the model doesn't offer.
 
 ## Design Decisions
 
