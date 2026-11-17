@@ -166,6 +166,24 @@ function landed(worktree: Worktree, { repoPath, base }: Origin, head: string): b
 	}
 }
 
+/** Compare against the base as last fetched; a missing base is unknown, not up to date. */
+function incoming(worktree: Worktree, { repoPath, base }: Origin): Changes['incoming'] {
+	try {
+		const ref = base ? branchRef(base) : startOf(repoPath);
+		// Resolve HEAD in the source repository, never in the workspace.
+		const branch = execFileSync('git', ['-C', repoPath, 'rev-parse', '--symbolic-full-name', ref], {
+			encoding: 'utf8'
+		}).trim();
+		if (!branch.startsWith('refs/')) return null;
+		const commits = Number(
+			gitIn(worktree, 'rev-list', '--count', `${headOf(worktree)}..${branch}`).trim()
+		);
+		return { branch, commits };
+	} catch {
+		return null;
+	}
+}
+
 /** The workspace's changes, and how far they have got: committed? pushed? */
 export function status(worktree: Worktree, origin: Origin): Changes {
 	const head = headOf(worktree);
@@ -188,7 +206,8 @@ export function status(worktree: Worktree, origin: Origin): Changes {
 		files: changes(worktree, origin),
 		uncommitted,
 		unpushed,
-		landed: landed(worktree, origin, head)
+		landed: landed(worktree, origin, head),
+		incoming: incoming(worktree, origin)
 	};
 }
 

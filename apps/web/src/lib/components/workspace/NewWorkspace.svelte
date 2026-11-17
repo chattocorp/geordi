@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { submitOnEnter } from '#lib/keys.ts';
+	import { newWorkspaceShortcut, submitOnEnter } from '#lib/keys.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
@@ -73,6 +73,7 @@
 		<div class="flex min-w-0 flex-wrap items-center gap-1">
 			{#if repos.length > 1}
 				<Select
+					shortcut={focused ? newWorkspaceShortcut : undefined}
 					label="Repository"
 					options={repos.map((repo) => ({ value: repo.id, label: repo.name }))}
 					bind:value={() => repo.id, (id) => (picked = id)}

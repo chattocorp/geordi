@@ -412,6 +412,38 @@ describe('changes', () => {
 });
 
 describe('status', () => {
+	it('detects fetched base commits and clears them after a merge', async () => {
+		const upstream = repo();
+		const git = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8'
+			}).trim();
+		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
+		git(upstream, 'clone', '-q', upstream, repoPath);
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = ensureWorktree(base, repoPath, 'incoming-1');
+		const origin = { repoPath };
+		const branch = startOf(repoPath);
+		expect(status(worktree, origin).incoming).toEqual({ branch, commits: 0 });
+		git(worktree.path, 'commit', '-qm', 'workspace work', '--allow-empty');
+		git(upstream, 'commit', '-qm', 'upstream work', '--allow-empty');
+		expect(status(worktree, origin).incoming?.commits).toBe(0);
+		await fetchUpstream(repoPath);
+		expect(status(worktree, origin).incoming).toEqual({ branch, commits: 1 });
+		git(worktree.path, 'merge', '-qm', 'Merge upstream', branch);
+		expect(status(worktree, origin).incoming?.commits).toBe(0);
+	});
+
+	it('compares child workspaces with their parent branch', () => {
+		const { repoPath, base, worktree, git } = workspace();
+		const child = ensureWorktree(base, repoPath, 'child-1', worktree.branch);
+		git('commit', '-qm', 'parent work', '--allow-empty');
+		expect(status(child, { repoPath, base: worktree.branch }).incoming).toEqual({
+			branch: branchRef(worktree.branch),
+			commits: 1
+		});
+	});
+
 	function workspace() {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
@@ -443,7 +475,7 @@ describe('status', () => {
 
 	it('tells uncommitted from committed from pushed', () => {
 		const { repoPath, worktree, git, origin } = workspace();
-		expect(status(worktree, origin)).toEqual({
+		expect(status(worktree, origin)).toMatchObject({
 			files: [],
 			uncommitted: 0,
 			unpushed: null,

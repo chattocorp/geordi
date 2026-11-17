@@ -93,6 +93,8 @@ export type Changes = {
 	 * any more. Not so for a branch nothing was ever committed on.
 	 */
 	landed: boolean;
+	/** Known commits in the base branch that this workspace does not contain. */
+	incoming?: { branch: string; commits: number } | null;
 };
 
 /**
@@ -125,6 +127,8 @@ export type PullRequest = {
 	} | null;
 	/** Where its reviews stand, the most decisive first; `null` if nobody was asked. */
 	review: 'changes_requested' | 'approved' | 'pending' | null;
+	/** Whether it conflicts with its base, so cannot be merged as it is. Absent where the forge does not say. */
+	conflicts?: boolean;
 };
 
 /**
@@ -162,6 +166,8 @@ export const DEFAULT_PORTS = 10;
  */
 export type Job = {
 	name: string;
+	/** Optional display name; the key remains the job identity. */
+	label?: string;
 	command: string;
 	/** The jobs that have to be up before this one starts. Stopping one of them stops this one too. */
 	needs: string[];
@@ -194,6 +200,8 @@ export const SCRIPTS = ['setup', 'teardown'] as const;
 /** A place to look at what the jobs serve: a link, with the jobs that have to be up for it to lead anywhere. */
 export type Link = {
 	name: string;
+	/** Optional display name; the key remains the link identity. */
+	label?: string;
 	/** With the workspace's ports filled in. Always on this machine. */
 	href: string;
 	needs: string[];
@@ -230,13 +238,13 @@ export const CONFIG_SETTINGS = {
 		example: 'run: pnpm dev --port $PORT'
 	},
 	jobs: {
-		does: "Several things to run, each a `command` under a name (lower case letters, digits and dashes). `needs` lists the jobs that have to be up first: starting a job starts those, and stopping one stops the jobs that need it. Each job runs in a terminal of its own, in the workspace's directory, and should keep running until stopped.",
+		does: "Several things to run, each a `command` under a name (lower case letters, digits and dashes). `needs` lists the jobs that have to be up first: starting a job starts those, and stopping one stops the jobs that need it. An optional `label` supplies a human-readable display name (1–100 characters); the key still identifies dependencies and ports. Each job runs in a terminal of its own, in the workspace's directory, and should keep running until stopped.",
 		example:
-			'jobs:\n  db:\n    command: docker compose up db\n  web:\n    command: pnpm dev --port $PORT\n    needs: [db]'
+			'jobs:\n  db:\n    command: docker compose up db\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    needs: [db]'
 	},
 	urls: {
-		does: "Places to open in the browser, each a `url` under a name. `{job}` stands for that job's port. Opening one first starts the jobs it mentions (and any listed under `needs`) and waits for them. Only addresses on this machine (`localhost`).",
-		example: 'urls:\n  app:\n    url: http://localhost:{web}/'
+		does: "Places to open in the browser, each a `url` under a name. `{job}` stands for that job's port. Opening one first starts the jobs it mentions (and any listed under `needs`) and waits for them. An optional `label` supplies a human-readable display name (1–100 characters); otherwise the key is shown. Only addresses on this machine (`localhost`).",
+		example: 'urls:\n  app:\n    label: Open app\n    url: http://localhost:{web}/'
 	},
 	setup: {
 		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
@@ -247,7 +255,7 @@ export const CONFIG_SETTINGS = {
 		example: 'teardown: docker compose down --volumes'
 	},
 	ports: {
-		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. Never hard-code a port: two workspaces would collide.`,
+		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. \`GEORDI_ASSIGNED_PORTS\` is a JSON array of every assigned port, in allocation order; use it for spare ports because allocations need not be contiguous. Never hard-code a port: two workspaces would collide.`,
 		example: 'ports: 20'
 	}
 } as const;

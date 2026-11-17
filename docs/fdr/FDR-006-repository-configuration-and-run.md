@@ -1,7 +1,7 @@
 # FDR-006: Repository configuration: jobs, ports, links, setup and teardown
 
 **Status:** Active
-**Last reviewed:** 2026-11-16
+**Last reviewed:** 2026-11-17
 
 ## Overview
 
@@ -15,6 +15,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - `run: pnpm dev` names the one command that runs the project. It is short for a single job called `run`.
 - `jobs:` names several, each under its name: each has a `command`, and may list the jobs it `needs`.
 - `urls:` names places to open, each under its name: each has a `url`, in which `{job}` stands for that job's port. A link needs the jobs it mentions, and any it lists under `needs`. Links only lead to this machine (`localhost`).
+- Jobs and links may have an optional human-readable `label`, shown in Run/Open controls and command reviews. Without a label, the key is shown. Labels do not change dependencies, assigned ports, command approvals or terminal identities. This lets repositories use readable names without breaking references.
 - `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No job can be called `setup` or `teardown`.
 - A workspace gets one port per job. `ports: 20` asks for that many instead, for spare ones. (Where a repository names no jobs, a workspace gets ten.)
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). They are not merged. So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.
@@ -26,6 +27,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - A workspace gets a run of ports of its own (one per job, unless the file asks for more) the first time it needs one. The daemon picks a run in which every port is free at that moment, and otherwise looks further.
 - Those ports are the workspace's for as long as it lives: across restarts of its jobs, of the daemon and of the machine. They are given up when the workspace is archived.
 - Every job has one of them as its own, from the first time the job is seen. It keeps it when jobs are added, removed or reordered.
+- Jobs and agents also receive `GEORDI_ASSIGNED_PORTS`, the full list of assigned ports as JSON. Spare ports must come from this list: a workspace that grows can have several separate blocks.
 - A workspace that outgrows its ports (more jobs, or a bigger `ports`) keeps what it has and gets more.
 - A job's command gets its port as `PORT`. Everything in the workspace (jobs, terminals, and the agent) gets every job's port as `GEORDI_PORT_<NAME>`, the first of the workspace's ports as `GEORDI_PORT`, and their number as `GEORDI_PORTS`. Agents are told to use these, never a default port.
 

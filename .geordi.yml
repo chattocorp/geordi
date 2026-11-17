@@ -1,0 +1,33 @@
+setup: pnpm install --frozen-lockfile
+
+# The install job needs no listener; web uses its port for the browser WebSocket.
+ports: 8
+
+jobs:
+  web:
+    label: Web server
+    command: node scripts/workspace-dev.mjs web
+  daemon:
+    label: Agent daemon
+    command: node scripts/workspace-dev.mjs daemon
+    needs: [web]
+  storybook:
+    label: Storybook
+    command: node scripts/workspace-dev.mjs storybook
+
+  desktop:
+    label: Electron dev app
+    command: pnpm desktop:dev
+
+  desktop-install:
+    label: Install Electron app (restarts Geordi)
+    command: pnpm desktop:install
+
+urls:
+  app:
+    label: Geordi
+    url: http://localhost:{web}/
+    needs: [daemon]
+  components:
+    label: Storybook
+    url: http://localhost:{storybook}/

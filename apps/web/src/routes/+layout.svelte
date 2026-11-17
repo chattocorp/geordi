@@ -11,7 +11,7 @@
 	import Settings from '#lib/components/Settings.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
-	import { modifierKey, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
+	import { modifierKey, newWorkspaceShortcut, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
 	import {
 		ask,
 		badge,
@@ -191,7 +191,10 @@
 <svelte:window
 	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
-		if (settingsShortcut(event)) {
+		if (newWorkspaceShortcut(event)) {
+			event.preventDefault();
+			if (!event.repeat && page.url.pathname !== resolve('/')) void goto(resolve('/'));
+		} else if (settingsShortcut(event)) {
 			event.preventDefault();
 			openSettings();
 		} else if (sidebarToggle(event) === 'left') {
