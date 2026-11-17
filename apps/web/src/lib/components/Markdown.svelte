@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Attachment } from 'svelte/attachments';
-	import { renderMarkdown } from '#lib/markdown.ts';
+	import { changedFiles } from '#lib/changedFiles.ts';
+	import { changedFileIn, renderMarkdown } from '#lib/markdown.ts';
 
 	/** `pictures` is where the pictures of the workspace this was written in are served. */
 	let {
@@ -9,12 +10,24 @@
 		pictures
 	}: { text: string; dimmed?: boolean; pictures?: string } = $props();
 
-	const html = $derived(renderMarkdown(text, pictures));
+	const files = changedFiles();
+	const html = $derived(
+		renderMarkdown(text, {
+			pictures,
+			file: files && ((code) => changedFileIn(code, files.paths, files.root))
+		})
+	);
 
-	/** Copies a code block when its copy button (rendered by `renderMarkdown`) is clicked. */
-	const copyButtons: Attachment<HTMLElement> = (node) => {
+	/**
+	 * Clicks on what `renderMarkdown` made a button: a code block's copy button, and a changed
+	 * file's name, which opens its diff.
+	 */
+	const buttons: Attachment<HTMLElement> = (node) => {
 		const onclick = async (event: MouseEvent) => {
-			const button = (event.target as Element).closest<HTMLElement>('[data-copy]');
+			const target = event.target as Element;
+			const file = target.closest<HTMLElement>('[data-file]')?.dataset.file;
+			if (file) return files?.open(file);
+			const button = target.closest<HTMLElement>('[data-copy]');
 			if (!button) return;
 			await navigator.clipboard.writeText(button.nextElementSibling?.textContent ?? '');
 			button.dataset.copied = '';
@@ -42,7 +55,7 @@
 <div
 	class="prose max-w-none prose-pre:rounded-control"
 	class:opacity-75={dimmed}
-	{@attach copyButtons}
+	{@attach buttons}
 	{@attach missingPictures}
 >
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it escapes raw HTML -->
