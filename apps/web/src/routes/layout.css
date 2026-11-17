@@ -362,6 +362,11 @@
 		@apply decoration-accent underline-offset-2;
 	}
 
+	/* A picture the agent shows (see markdown.ts): no taller than leaves the words around it in view. */
+	[data-picture] {
+		@apply max-h-96 rounded-control ring-1 ring-line/60;
+	}
+
 	/* Highlighted code (see markdown.ts): our own background, the theme's colours per mode. */
 	.shiki span {
 		color: var(--shiki-light);

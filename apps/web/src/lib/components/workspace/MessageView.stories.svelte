@@ -105,3 +105,32 @@
 		<MessageView blocks={[]} agent="claude" onremove={() => {}} />
 	</div>
 </Story>
+
+<!-- A picture the agent refers to is asked of the workspace; one that cannot be had leaves its path. -->
+<Story
+	name="Picture that cannot be had"
+	asChild
+	play={async ({ canvasElement, canvas }) => {
+		await waitFor(() => expect(canvas.getByText('shots/sidebar.png')).toBeVisible());
+		expect(canvasElement.querySelector('img[data-picture]')).toBeNull();
+	}}
+>
+	<div class="flex h-80 flex-col overflow-hidden card">
+		<MessageView
+			blocks={[
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'text',
+							text: 'The sidebar now looks like this:\n\n![The sidebar](shots/sidebar.png)'
+						}
+					]
+				}
+			]}
+			agent="claude"
+			pictures="/no-such-workspace/picture"
+			onremove={() => {}}
+		/>
+	</div>
+</Story>
