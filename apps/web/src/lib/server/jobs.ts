@@ -86,6 +86,14 @@ export function createJobs(
 		start: (workspaceId: string, names: string[], seen: Record<string, string>) =>
 			start(workspaceId, names, seen),
 
+		/** Waits for jobs that were started to be up. */
+		async ready(workspaceId: string, names: string[]) {
+			const { jobs } = await configOf(workspaceId);
+			await Promise.all(
+				jobs.filter((job) => names.includes(job.name)).map((job) => up(workspaceId, job))
+			);
+		},
+
 		/** Runs the setup script again, as `command`: the one the person asking saw. */
 		setUp(workspaceId: string, command: string) {
 			const at = terminalOf(workspaceId, 'setup');

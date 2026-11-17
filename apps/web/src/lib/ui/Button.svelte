@@ -24,6 +24,11 @@
 		 * again until that is over.
 		 */
 		busy?: boolean;
+		/**
+		 * What it started is still at work (a server booting): its icon turns into a spinner,
+		 * but it can still be pressed, to stop it, say.
+		 */
+		working?: boolean;
 		/** What the button does. Required when it has no text: it becomes the accessible name. */
 		label?: string;
 		children?: Snippet;
@@ -35,6 +40,7 @@
 		size = 'md',
 		icon,
 		busy = false,
+		working = false,
 		label,
 		children,
 		class: extra,
@@ -76,7 +82,7 @@
 	disabled={busy || rest.disabled}
 	aria-busy={busy || undefined}
 >
-	{#if busy}
+	{#if busy || working}
 		<!-- as wide as the icon it stands in for, so that the button keeps its shape -->
 		<span class={['grid place-items-center', size === 'sm' ? 'size-3.5' : 'size-4']}>
 			<Spinner label="Under way" />
