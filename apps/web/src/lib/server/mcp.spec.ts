@@ -2,7 +2,14 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { CONFIG_SETTINGS, type Harness, type RepoConfig } from '@geordi/protocol';
+import {
+	CONFIG_SETTINGS,
+	type Changes,
+	type Harness,
+	type RepoConfig,
+	type Upstream
+} from '@geordi/protocol';
+import { error } from '@sveltejs/kit';
 import { describe, expect, it } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { handleMcp } from './mcp.ts';
@@ -52,6 +59,8 @@ function setup() {
 			file: '.geordi.yml'
 		}
 	};
+	/** How worktrees stand, as a daemon would say; set per test. None: no daemon can say. */
+	const standings = new Map<string, { changes: Changes; upstream: Upstream | null }>();
 	/** Archiving needs a daemon in real life; here it just happens, and is noted. */
 	const archived: string[] = [];
 	const agents = {
@@ -62,6 +71,11 @@ function setup() {
 		},
 		/** What a daemon would read; set per test. */
 		configuration: async () => config.current,
+		standing: async (worktreeId: string) => {
+			const standing = standings.get(worktreeId);
+			if (!standing) throw error(502, 'No daemon is connected');
+			return standing;
+		},
 		harnesses: () => offered.current
 	};
 
@@ -85,7 +99,7 @@ function setup() {
 	const read = async (name: string) =>
 		((await rpc('tools/call', { name, arguments: {} })).result as { content: { text: string }[] })
 			.content[0].text;
-	return { workspaces, agents, archived, caller, rpc, call, read, config, offered };
+	return { workspaces, agents, archived, caller, rpc, call, read, config, offered, standings };
 }
 
 describe('naming workspaces', () => {
@@ -248,6 +262,7 @@ describe('the agent API as an MCP server', () => {
 			'archive_agent',
 			'configuration_reference',
 			'check_configuration',
+			'workspace_status',
 			'stop_agent'
 		]);
 		expect(tools[0].inputSchema).toMatchObject({
@@ -304,5 +319,95 @@ describe('the agent API as an MCP server', () => {
 		expect((await call('start_agent', {})).error).toMatch(/Invalid input/);
 		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not started/);
 		expect((await call('launch_missiles')).error).toMatch(/Unknown tool/);
+	});
+});
+
+describe('workspace status', () => {
+	const changes = (over: Partial<Changes> = {}): Changes => ({
+		files: [],
+		uncommitted: 0,
+		branch: 'geordi/lead',
+		unpushed: 0,
+		landed: false,
+		...over
+	});
+	const upstream = (pull: Partial<NonNullable<Upstream['pull']>> | null): Upstream => ({
+		forge: 'github',
+		repo: 'acme/app',
+		repoUrl: 'https://github.com/acme/app',
+		branch: 'geordi/lead',
+		pushed: true,
+		createUrl: null,
+		pull: pull && {
+			number: '7',
+			title: 'Speed up the tests',
+			url: 'https://github.com/acme/app/pull/7',
+			state: 'open',
+			draft: false,
+			base: 'main',
+			checks: null,
+			review: null,
+			...pull
+		}
+	});
+	const file = { path: 'a.ts', status: 'modified' } as Changes['files'][number];
+
+	it("says how the caller's own workspace stands, and what to do next", async () => {
+		const { caller, call, standings } = setup();
+		standings.set(caller, {
+			changes: changes({ files: [file] }),
+			upstream: upstream({
+				checks: { state: 'failure', total: 3, failed: 1, url: null }
+			})
+		});
+		const status = await call('workspace_status');
+		expect(status).toMatchObject({
+			id: caller,
+			branch: 'geordi/lead',
+			standing: 'Checks failing',
+			changes: { files: 1, uncommitted: 0 },
+			upstream: { pull: { number: '7', checks: { state: 'failure', total: 3, failed: 1 } } }
+		});
+		expect(status.next.map((step: { id: string }) => step.id)).toEqual(['fix-checks']);
+		expect(status.next[0].prompt).toMatch(/checks on pull request #7 are failing/);
+	});
+
+	it('leaves out the prompt of a step the person takes', async () => {
+		const { caller, call, standings } = setup();
+		standings.set(caller, { changes: changes({ files: [file] }), upstream: upstream({}) });
+		expect(await call('workspace_status')).toMatchObject({
+			standing: 'Ready to merge',
+			next: [{ id: 'merge-pull', label: 'Merge PR' }]
+		});
+		expect((await call('workspace_status')).next[0]).not.toHaveProperty('prompt');
+	});
+
+	it('says how an agent the caller started stands, and nobody else', async () => {
+		const { workspaces, caller, call, standings } = setup();
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = await call('start_agent', { prompt: 'Review', worktree: 'shared' });
+		// it works in the caller's worktree: how that stands is how it stands
+		standings.set(caller, { changes: changes({ uncommitted: 2 }), upstream: null });
+		expect(await call('workspace_status', { agent_id: child.id })).toMatchObject({
+			id: child.id,
+			standing: 'Uncommitted changes',
+			upstream: null,
+			next: [{ id: 'commit' }]
+		});
+
+		const stranger = workspaces.create({
+			repoId: workspaces.get(caller).repoId,
+			agent: 'claude',
+			settings: {},
+			prompt: 'Unrelated'
+		});
+		expect((await call('workspace_status', { agent_id: stranger })).error).toMatch(
+			/not started an agent/
+		);
+	});
+
+	it('says so when no daemon can tell', async () => {
+		const { call } = setup();
+		expect((await call('workspace_status')).error).toMatch(/No daemon/);
 	});
 });

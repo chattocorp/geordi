@@ -770,6 +770,10 @@ export function createWorkspaces(
 
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
+		/** The caller's own workspace, or (`id`) one it started. */
+		workspace: (callerId: string, id?: string): Workspace =>
+			id === undefined ? find(callerId) : findControlled(callerId, id),
+
 		/**
 		 * Says something to an agent the caller started: at once if it is idle; otherwise once
 		 * it has finished what it is doing, or (`interrupt`) now, stopping what it is doing.

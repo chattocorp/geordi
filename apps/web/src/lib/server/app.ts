@@ -118,6 +118,22 @@ async function loadWorktreeState(worktreeId: string, fresh = false): Promise<Wor
 }
 
 /**
+ * Asks a daemon how a worktree's work stands: its changes, and its branch and pull request
+ * on the forge (`null` where there is none, or no telling). Rejects if no daemon can say.
+ * `fresh`: as of now, not from what was learnt a moment ago.
+ */
+export async function loadStanding(worktreeId: string, fresh = false) {
+	const ref = workspaces().ref(worktreeId);
+	const [changes, upstream] = await Promise.all([
+		changesOf(ref),
+		hub()
+			.request({ kind: 'upstream', fresh, ...ref })
+			.catch(() => null)
+	]);
+	return { changes, upstream };
+}
+
+/**
  * How every workspace in use stands (see `createStandings`): asked about in the background,
  * the stalest first, for as long as the forge runs.
  */
@@ -131,16 +147,7 @@ export const standings = lazy(() => {
 					.map((workspace) => workspace.worktreeId)
 			)
 		],
-		async load(worktreeId, fresh) {
-			const ref = workspaces().ref(worktreeId);
-			const [changes, upstream] = await Promise.all([
-				changesOf(ref),
-				hub()
-					.request({ kind: 'upstream', fresh, ...ref })
-					.catch(() => null)
-			]);
-			return { changes, upstream };
-		}
+		load: loadStanding
 	});
 	setInterval(() => void standings.tick(), STANDINGS_TICK_MS).unref();
 	void standings.tick();
