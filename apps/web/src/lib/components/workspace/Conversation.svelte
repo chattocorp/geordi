@@ -55,6 +55,7 @@
 	// Follow new output while the reader is at the bottom; leave them alone once they scroll up.
 	let scroller: HTMLElement | undefined;
 	let following = $state(true);
+	let shownWorkspace: string | undefined;
 	const toLatest = () => {
 		following = true;
 		if (scroller) scroller.scrollTop = scroller.scrollHeight;
@@ -81,7 +82,9 @@
 	$effect(() => {
 		// what is said, and what waits to be said, both make the conversation longer
 		void [blocks, workspace.queue.length, workspace.steering.length];
-		if (untrack(() => following)) toLatest();
+		// Svelte can reuse this view when navigating to another workspace.
+		if (workspace.id !== shownWorkspace || untrack(() => following)) toLatest();
+		shownWorkspace = workspace.id;
 	});
 </script>
 
