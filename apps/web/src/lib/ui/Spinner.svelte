@@ -4,10 +4,13 @@
 	/** Something is working. `label` says what, for those who can't see it turn. */
 	type Props = {
 		label?: string;
-		/** Takes the colour of the text around it instead of the accent: for inside something coloured. */
-		plain?: boolean;
+		/**
+		 * In the accent, not the colour of the text around it. For the one place in a view
+		 * that says what is at work (a workspace's row in the sidebar): gold is rationed.
+		 */
+		live?: boolean;
 	};
-	let { label = 'Working', plain = false }: Props = $props();
+	let { label = 'Working', live = false }: Props = $props();
 
 	/**
 	 * The classic Braille dots going round: two columns of three, half of them lit. Drawn
@@ -39,7 +42,7 @@
 	role="img"
 	aria-label={label}
 	title={label}
-	class={['spinner shrink-0', !plain && 'text-accent-ink']}
+	class={['spinner shrink-0', live && 'text-accent-ink']}
 	{@attach inStep}
 >
 	{#each DOTS as [column, row], index (index)}

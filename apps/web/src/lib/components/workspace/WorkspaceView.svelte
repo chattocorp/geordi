@@ -572,7 +572,7 @@
 			.filter((note) => note.added).length}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
 		<span class="truncate">Changeset</span>
-		{#if added > 0}<Badge tone="accent">{added}</Badge>{/if}
+		{#if added > 0}<Badge>{added}</Badge>{/if}
 	{:else if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
