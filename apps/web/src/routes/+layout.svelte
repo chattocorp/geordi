@@ -11,7 +11,13 @@
 	import Settings from '#lib/components/Settings.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
-	import { modifierKey, newWorkspaceShortcut, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
+	import {
+		modifierKey,
+		newWorkspaceShortcut,
+		repoShortcut,
+		settingsShortcut,
+		sidebarToggle
+	} from '#lib/keys.ts';
 	import {
 		ask,
 		badge,
@@ -29,6 +35,7 @@
 		beingArchived
 	} from '#lib/components/workspace/archive.svelte.ts';
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
+	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
@@ -246,9 +253,11 @@
 <svelte:window
 	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
-		if (newWorkspaceShortcut(event)) {
+		if (newWorkspaceShortcut(event) || repoShortcut(event)) {
 			event.preventDefault();
-			if (!event.repeat && page.url.pathname !== resolve('/')) void goto(resolve('/'));
+			if (event.repeat) return;
+			if (repoShortcut(event)) pickRepo();
+			if (page.url.pathname !== resolve('/')) void goto(resolve('/'));
 		} else if (settingsShortcut(event)) {
 			event.preventDefault();
 			openSettings();

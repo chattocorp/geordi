@@ -1,5 +1,13 @@
+<script lang="ts" module>
+	/** Whether the repository is to be chosen first, when the page for a new workspace is open. */
+	const asked = $state({ repo: false });
+
+	/** Asks for the repository picker of the page for a new workspace (Cmd+Shift+N). */
+	export const pickRepo = () => (asked.repo = true);
+</script>
+
 <script lang="ts">
-	import { newWorkspaceShortcut, submitOnEnter } from '#lib/keys.ts';
+	import { submitOnEnter } from '#lib/keys.ts';
 	import { draft } from '#lib/drafts.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
@@ -55,6 +63,14 @@
 	// The next workspace starts out the way the last one was set up.
 	const choice = persisted<HarnessChoice>('geordi:harness', { agent: 'claude', settings: {} });
 	const chosen = $derived(harnesses ? resolveChoice(harnesses, choice.current) : null);
+
+	let pickingRepo = $state(false);
+	// only where repositories are to be chosen from: on the page for a new workspace
+	$effect(() => {
+		if (!focused || alongside || !asked.repo) return;
+		asked.repo = false;
+		pickingRepo = repos.length > 1;
+	});
 </script>
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
@@ -89,7 +105,7 @@
 		<div class="flex min-w-0 flex-wrap items-center gap-1">
 			{#if repos.length > 1}
 				<Select
-					shortcut={focused ? newWorkspaceShortcut : undefined}
+					bind:open={pickingRepo}
 					label="Repository"
 					options={repos.map((repo) => ({ value: repo.id, label: repo.name }))}
 					bind:value={() => repo.id, (id) => (picked = id)}

@@ -16,8 +16,8 @@
 	type Props = {
 		/** What is being chosen; read out, not shown. */
 		label: string;
-		/** A keyboard shortcut that opens and focuses this picker. */
-		shortcut?: (event: KeyboardEvent) => boolean;
+		/** A keyboard shortcut that opens and focuses this picker, given its button. */
+		shortcut?: (event: KeyboardEvent, button: HTMLElement) => boolean;
 		value?: T;
 		options: Option[];
 		/** What the button says, instead of the chosen option's label. */
@@ -29,8 +29,19 @@
 		 * too. Once chosen, one has to be among `options`.
 		 */
 		create?: (typed: string) => Option[];
+		/** Whether the list is open; set it to open the list, to search it. */
+		open?: boolean;
 	};
-	let { label, value = $bindable(), options, trigger, icon, create, shortcut }: Props = $props();
+	let {
+		label,
+		value = $bindable(),
+		options,
+		trigger,
+		icon,
+		create,
+		shortcut,
+		open = $bindable(false)
+	}: Props = $props();
 
 	/** In a composer, a choice made goes back to the text; elsewhere, to this button. */
 	const backToText = composerText();
@@ -40,7 +51,6 @@
 	let popup: HTMLDivElement;
 	let search: HTMLInputElement;
 
-	let open = $state(false);
 	let query = $state('');
 	/** The option the keyboard is on: an index into `matches`. */
 	let active = $state(0);
@@ -84,6 +94,16 @@
 		reveal();
 	}
 
+	function show() {
+		popup.showPopover();
+		search.focus();
+	}
+
+	// opened from outside
+	$effect(() => {
+		if (open && !popup.matches(':popover-open')) show();
+	});
+
 	const reveal = () =>
 		document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: 'nearest' });
 
@@ -117,11 +137,9 @@
 <svelte:window
 	onresize={() => open && popup.hidePopover()}
 	onkeydown={(event) => {
-		if (!shortcut?.(event)) return;
+		if (!shortcut?.(event, button)) return;
 		event.preventDefault();
-		if (event.repeat) return;
-		popup.showPopover();
-		search.focus();
+		if (!event.repeat) show();
 	}}
 />
 
