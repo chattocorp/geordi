@@ -198,6 +198,12 @@ function nextActions(state: State): WorkspaceAction[] {
 	return actions;
 }
 
+/**
+ * Actions that publish the work. Not offered while an agent is still at it: the work is not
+ * done, and what would be committed or put into a pull request is whatever is there then.
+ */
+export const PUBLISHING: WorkspaceAction['id'][] = ['commit', 'create-pull', 'update-pull'];
+
 /** Where a workspace stands, in a few words, with a tone for how that should feel. */
 export type WorkspaceStanding = {
 	label: string;

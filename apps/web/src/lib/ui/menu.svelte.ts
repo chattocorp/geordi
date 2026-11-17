@@ -1,13 +1,18 @@
 import type { Attachment } from 'svelte/attachments';
 
+export type MenuTone = 'danger' | 'accent' | 'ok' | 'merged';
+
 /** One thing a menu offers, or a line between groups of them. */
 export type MenuItem =
 	| {
 			label: string;
 			/** An Iconify class. */
 			icon?: string;
-			/** Something that can't be taken back. */
-			danger?: boolean;
+			/**
+			 * A colour for it: `danger` for something that can't be taken back; the others for
+			 * what a menu suggests doing, in the colour of why.
+			 */
+			tone?: MenuTone;
 			disabled?: boolean;
 			onselect(): void;
 	  }

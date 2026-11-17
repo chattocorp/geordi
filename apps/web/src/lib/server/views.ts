@@ -1,4 +1,4 @@
-import { standingOf } from '#lib/actions.ts';
+import { actionsFor, PUBLISHING, standingOf } from '#lib/actions.ts';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';
@@ -25,20 +25,26 @@ export const navigation = () =>
 			const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
 			const listed = withAides(all).map(({ workspace, aides }) => {
 				const { id, title, repoId, parentId, status, worktree } = workspace;
+				const working = status === 'running' || aides.some((aide) => aide.status === 'running');
+				// how its work stands, as far as is known: asked about in the background
+				const state = {
+					...(standings().get(workspace.worktreeId) ?? { changes: null, upstream: null }),
+					failed: workspace.lastTurn === 'failed',
+					child: !!parentId
+				};
 				return {
 					id,
 					title,
 					repoId,
 					parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
 					status,
-					working: status === 'running' || aides.some((aide) => aide.status === 'running'),
+					working,
 					outcome: outcome([workspace, ...aides]),
-					// how its work stands, as far as is known: asked about in the background
-					standing: standingOf({
-						...(standings().get(workspace.worktreeId) ?? { changes: null, upstream: null }),
-						failed: workspace.lastTurn === 'failed',
-						child: !!parentId
-					}),
+					standing: standingOf(state),
+					// what could happen next (FDR-003): offered in its context menu
+					actions: actionsFor(state).filter(
+						(action) => !working || !PUBLISHING.includes(action.id)
+					),
 					branch: worktree?.branch ?? null
 				};
 			});

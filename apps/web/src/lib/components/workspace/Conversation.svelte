@@ -67,11 +67,6 @@
 </script>
 
 <div class="relative flex min-h-0 flex-1 flex-col">
-	{#if running}
-		<!-- on the line under the tabs, not below it -->
-		<div class="visor absolute inset-x-0 -top-px z-10" role="status" aria-label="Working"></div>
-	{/if}
-
 	{#key workspace.id}
 		<MessageView
 			bind:this={messages}

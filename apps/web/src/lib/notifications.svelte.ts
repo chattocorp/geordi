@@ -206,13 +206,14 @@ const TEST = 'geordi:test';
 function show(workspace: Listed, open: (id: string) => void) {
 	if (permission !== 'granted') return;
 	const failed = workspace.outcome === 'failed';
-	const body = failed ? 'The agent ran into a problem.' : 'The agent is done.';
+	const title = failed ? 'Agent ran into a problem' : 'Agent finished';
+	const body = workspace.title;
 	if (desktop) {
 		opens = open;
-		return desktop.notify({ id: workspace.id, title: workspace.title, body, failed });
+		return desktop.notify({ id: workspace.id, title, body, failed });
 	}
 	shown.get(workspace.id)?.close();
-	const notification = new Notification(workspace.title, {
+	const notification = new Notification(title, {
 		body,
 		tag: workspace.id, // one per workspace, also across tabs
 		silent: true // the sound is our own
@@ -234,16 +235,17 @@ function show(workspace: Listed, open: (id: string) => void) {
  * settings, a focus mode), which nothing here can tell.
  */
 export async function test(): Promise<'sent' | 'blocked' | 'unsupported'> {
+	const title = 'Agent finished';
 	const body = 'This is what it looks like when an agent is done.';
 	if (desktop) {
-		desktop.notify({ id: TEST, title: 'Geordi', body, failed: false });
+		desktop.notify({ id: TEST, title, body, failed: false });
 		return 'sent';
 	}
 	chime(false);
 	if (permission === 'unsupported') return 'unsupported';
 	if (permission === 'default') permission = await Notification.requestPermission();
 	if (permission !== 'granted') return 'blocked';
-	const notification = new Notification('Geordi', { body, tag: TEST, silent: true });
+	const notification = new Notification(title, { body, tag: TEST, silent: true });
 	notification.onclick = () => {
 		window.focus();
 		notification.close();
