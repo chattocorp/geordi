@@ -2,6 +2,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Button from './Button.svelte';
 	import Composer from './Composer.svelte';
+	import Select from './Select.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Composer', component: Composer });
 
@@ -12,6 +13,27 @@
 	<div class="max-w-2xl">
 		<Composer {form} label="New workspace" placeholder="What should the agent do?">
 			{#snippet footer()}
+				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
+					Start workspace
+				</Button>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<!-- Choosing an option puts the cursor back in the text. -->
+<Story name="With a picker" asChild>
+	<div class="max-w-2xl">
+		<Composer {form} placeholder="What should the agent do?">
+			{#snippet footer()}
+				<Select
+					label="Model"
+					value="opus"
+					options={[
+						{ value: 'opus', label: 'Opus' },
+						{ value: 'sonnet', label: 'Sonnet' }
+					]}
+				/>
 				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
 					Start workspace
 				</Button>
