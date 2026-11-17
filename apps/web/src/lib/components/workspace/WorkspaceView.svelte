@@ -472,7 +472,11 @@
 			workspace.children.length === 0 && git?.changes
 				? { changes: git.changes, upstream: git.upstream }
 				: undefined;
-		if (await archiveWorkspace(id, known)) await goto(resolve('/'));
+		if (await archiveWorkspace(id, known))
+			// from a workspace an agent started, back to the one whose agent started it
+			await goto(
+				workspace.parent ? resolve('/workspaces/[id]', { id: workspace.parent.id }) : resolve('/')
+			);
 	}
 
 	/** The pull request is being merged right now. */
@@ -730,11 +734,7 @@
 			{/if}
 		{/if}
 	</TitleBar>
-	<Family
-		parent={workspace.parent}
-		sharesWorktree={workspace.worktreeId !== workspace.id}
-		children={workspace.children}
-	/>
+	<Family parent={workspace.parent} sharesWorktree={workspace.worktreeId !== workspace.id} />
 
 	{#if archiveProblem}
 		<div class="flex items-center gap-3 px-5 py-2.5">
