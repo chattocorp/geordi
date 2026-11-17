@@ -5,7 +5,7 @@
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import RunControls from './RunControls.svelte';
 
-	const { Story } = defineMeta({ title: 'Geordi/Run and Open', component: RunControls });
+	const { Story } = defineMeta({ title: 'Geordi/Run', component: RunControls });
 	const web: Job = {
 		name: 'web',
 		label: 'Development server',
@@ -26,13 +26,13 @@
 	let last = $state('No action');
 </script>
 
-{#snippet controls(jobs: Job[], links: Link[], running = false)}
+{#snippet controls(jobs: Job[], links: Link[], running = false, booting: string[] = [])}
 	<div class="flex items-center gap-2">
 		<RunControls
 			{jobs}
 			{links}
 			isUp={() => running}
-			launching={new Set()}
+			launching={new Set(booting)}
 			start={(names) => (last = `Start: ${names.join(', ')}`)}
 			stop={(name) => (last = `Stop: ${name}`)}
 			visit={(link) => (last = `Open: ${link.name}`)}
@@ -56,7 +56,7 @@
 			await canvas.findByRole('menuitem', { name: 'Start Development server' })
 		);
 		await expect(canvas.getByText('Start: web')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Open' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Run' }));
 		await userEvent.click(await canvas.findByRole('menuitem', { name: /Geordi dev app/ }));
 		await expect(canvas.getByText('Open: app')).toBeVisible();
 	}}>{@render controls([web, { ...web, name: 'daemon', label: 'Agent daemon' }], [app])}</Story
@@ -64,6 +64,9 @@
 <Story name="Key fallback" asChild
 	>{@render controls([{ ...web, label: undefined }], [{ ...app, label: undefined }])}</Story
 >
+<Story name="Booting" asChild>{@render controls([web], [app], true, ['web'])}</Story>
+<Story name="Booting one job" asChild>{@render controls([web], [], true, ['web'])}</Story>
+<Story name="Only links" asChild>{@render controls([], [app])}</Story>
 <Story name="One named job" asChild>{@render controls([web], [])}</Story>
 <Story name="Stop a named job" asChild>{@render controls([web], [], true)}</Story>
 <Story name="Run shorthand" asChild

@@ -23,45 +23,45 @@
 		problem?: string | null;
 	} = $props();
 
-	/** What the Run button offers where there is more than one thing to run. */
-	const jobMenu = (): MenuItem[] => [
-		...jobs.map(({ name, label }): MenuItem =>
-			isUp(name)
-				? {
-						label: `Stop ${label ?? name}`,
-						icon: 'icon-[lucide--square]',
-						onselect: () => stop(name)
-					}
-				: {
-						label: `Start ${label ?? name}`,
-						icon: 'icon-[lucide--play]',
-						onselect: () => start([name])
-					}
-		),
-		...(jobs.length === 0
-			? []
-			: [
-					'separator' as const,
-					{
-						label: 'Start all',
-						icon: 'icon-[lucide--list-video]',
-						disabled: jobs.every((job) => isUp(job.name)),
-						onselect: () => start(jobs.map((job) => job.name))
-					},
-					{
-						label: 'Stop all',
-						icon: 'icon-[lucide--circle-stop]',
-						disabled: !jobs.some((job) => isUp(job.name)),
-						onselect: () => jobs.filter((job) => isUp(job.name)).forEach((job) => stop(job.name))
-					}
-				])
-	];
-	const linkMenu = (): MenuItem[] =>
-		links.map((link) => ({
+	/** What the Run button offers where there is more than one thing: links first, then jobs. */
+	const menu = (): MenuItem[] => {
+		const opens = links.map((link): MenuItem => ({
 			label: `${link.label ?? link.name}  ${link.href.replace(/^https?:\/\//, '')}`,
 			icon: 'icon-[lucide--external-link]',
 			onselect: () => visit(link)
 		}));
+		if (jobs.length === 0) return opens;
+		return [
+			...opens,
+			...(opens.length > 0 ? ['separator' as const] : []),
+			...jobs.map(({ name, label }): MenuItem =>
+				isUp(name)
+					? {
+							label: `Stop ${label ?? name}`,
+							icon: 'icon-[lucide--square]',
+							onselect: () => stop(name)
+						}
+					: {
+							label: `Start ${label ?? name}`,
+							icon: 'icon-[lucide--play]',
+							onselect: () => start([name])
+						}
+			),
+			'separator',
+			{
+				label: 'Start all',
+				icon: 'icon-[lucide--list-video]',
+				disabled: jobs.every((job) => isUp(job.name)),
+				onselect: () => start(jobs.map((job) => job.name))
+			},
+			{
+				label: 'Stop all',
+				icon: 'icon-[lucide--circle-stop]',
+				disabled: !jobs.some((job) => isUp(job.name)),
+				onselect: () => jobs.filter((job) => isUp(job.name)).forEach((job) => stop(job.name))
+			}
+		];
+	};
 </script>
 
 {#if jobs.length === 1 && links.length === 0}
@@ -72,6 +72,7 @@
 			variant="ghost"
 			size="sm"
 			icon="icon-[lucide--square]"
+			working={launching.has(job.name)}
 			label="Stop {job.label ?? job.name}"
 			onclick={() => stop(job.name)}
 		>
@@ -89,33 +90,18 @@
 		</Button>
 	{/if}
 {:else if jobs.length > 0 || links.length > 0}
-	{#if jobs.length > 0}
-		<Button
-			variant="ghost"
-			size="sm"
-			icon="icon-[lucide--play]"
-			label="Start and stop what the project runs"
-			aria-haspopup="menu"
-			onclick={(event) => openMenu(event.currentTarget, jobMenu())}
-		>
-			Run
-			{#if jobs.some((job) => isUp(job.name))}<span class="dot dot-live"></span>{/if}
-			<span class="icon-[lucide--chevron-down] size-3.5"></span>
-		</Button>
-	{/if}
-	{#if links.length > 0}
-		<Button
-			variant="ghost"
-			size="sm"
-			icon="icon-[lucide--globe]"
-			label="Open what the project serves, in the browser"
-			aria-haspopup="menu"
-			onclick={(event) => openMenu(event.currentTarget, linkMenu())}
-		>
-			Open
-			<span class="icon-[lucide--chevron-down] size-3.5"></span>
-		</Button>
-	{/if}
+	<Button
+		variant="ghost"
+		size="sm"
+		icon="icon-[lucide--play]"
+		working={jobs.some((job) => launching.has(job.name))}
+		label="Open what the project serves, and start and stop what it runs"
+		aria-haspopup="menu"
+		onclick={(event) => openMenu(event.currentTarget, menu())}
+	>
+		Run
+		<span class="icon-[lucide--chevron-down] size-3.5"></span>
+	</Button>
 {:else if problem}
 	<!-- a configuration nobody can read is worth knowing about, quietly -->
 	<span
