@@ -49,8 +49,9 @@ development, forge data is stored in `./.data`.
 
 ### Testing in a Geordi workspace
 
-Use the workspace's **Geordi dev app** link to start an isolated development copy. Its **web**
-and **daemon** jobs run in separate terminals; the **Component library** link starts Storybook.
+Use **Open → Geordi** to start an isolated development copy. The **Web server** and
+**Agent daemon** jobs run in separate terminals. Use **Open → Storybook** to browse the
+components, or the **Run** menu to start and stop individual jobs.
 The setup script installs dependencies when Geordi creates the worktree.
 
 These jobs use the workspace's assigned ports and keep all Geordi state in that
