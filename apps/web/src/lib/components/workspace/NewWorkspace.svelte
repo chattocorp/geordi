@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { newWorkspaceShortcut, submitOnEnter } from '#lib/keys.ts';
+	import { draft } from '#lib/drafts.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
@@ -28,7 +29,17 @@
 	const { repoId, agent, model, effort, prompt, alongside: within } = createWorkspace.fields;
 	// Each time this is begun, it is begun empty: the form is one for the whole app, and
 	// would otherwise still hold what the workspace before was started with.
+	// What was written and not sent yet is still there when one comes back, though: one
+	// draft for a new workspace, and one for each workspace to start a conversation in.
 	prompt.set('');
+	const written = draft(
+		() => (alongside ? `alongside:${alongside}` : 'new'),
+		() => prompt
+	);
+	// (Starting one goes to it, so the form is not reset: the draft is forgotten here.)
+	const form = createWorkspace.enhance(async ({ submit }) => {
+		if (await submit()) written.clear();
+	});
 
 	/** The repository picked here, if one was; otherwise the preferred one, or the first. */
 	let picked = $state<string>();
@@ -48,7 +59,7 @@
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
 <Composer
-	form={createWorkspace}
+	{form}
 	{label}
 	{focused}
 	placeholder="What should the agent do?"
