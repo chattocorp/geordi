@@ -1,24 +1,39 @@
 <script module lang="ts">
+	import { expect, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { Terminal } from '@xterm/xterm';
-	import '@xterm/xterm/css/xterm.css';
-	import type { Attachment } from 'svelte/attachments';
-	import { terminalLinks } from './terminal-links.ts';
+	import Terminal from './Terminal.svelte';
 
-	const { Story } = defineMeta({ title: 'Geordi/Terminal links' });
-	const terminal: Attachment<HTMLElement> = (node) => {
-		const term = new Terminal({ cols: 60, rows: 8 });
-		term.loadAddon(terminalLinks());
-		term.open(node);
-		term.writeln('Local server: http://localhost:20000/');
-		term.writeln('Documentation: https://example.com/docs?q=terminal#links');
-		term.writeln('Wrapped: https://example.com/a/long/path/that/wraps/across/terminal/lines');
-		term.writeln('Click a URL to open it, or drag to select text.');
-		term.onData((data) => term.write(data));
-		return () => term.dispose();
-	};
+	const { Story } = defineMeta({ title: 'Geordi/Terminal', component: Terminal });
 </script>
 
-<Story name="Clickable URLs" asChild>
-	<div {@attach terminal}></div>
+<Story
+	name="New terminal receives focus"
+	asChild
+	play={async ({ canvasElement }) => {
+		await waitFor(() => {
+			const input = canvasElement.querySelector('.xterm-helper-textarea');
+			expect(input).not.toBeNull();
+			expect(input).toHaveFocus();
+		});
+	}}
+>
+	<div class="flex h-64 flex-col bg-bg">
+		<Terminal workspaceId="story" terminal="new" start={false} autofocus />
+	</div>
+</Story>
+
+<Story
+	name="Existing terminal leaves focus alone"
+	asChild
+	play={async ({ canvasElement }) => {
+		await waitFor(() => {
+			const input = canvasElement.querySelector('.xterm-helper-textarea');
+			expect(input).not.toBeNull();
+			expect(input).not.toHaveFocus();
+		});
+	}}
+>
+	<div class="flex h-64 flex-col bg-bg">
+		<Terminal workspaceId="story" terminal="existing" start={false} />
+	</div>
 </Story>

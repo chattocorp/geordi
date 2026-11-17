@@ -11,8 +11,11 @@
 		terminal: string;
 		/** Whether the user just asked for this terminal: start its shell right away. */
 		start: boolean;
+		/** Focus a terminal opened with + once its input is ready. */
+		autofocus?: boolean;
+		onautofocus?: () => void;
 	};
-	let { workspaceId, terminal, start }: Props = $props();
+	let { workspaceId, terminal, start, autofocus = false, onautofocus }: Props = $props();
 
 	/** xterm paints its own colours; take them from our tokens. */
 	function theme(): ITheme {
@@ -53,6 +56,10 @@
 			term.loadAddon(terminalLinks());
 			term.open(node);
 			fit.fit();
+			if (autofocus) {
+				term.focus();
+				onautofocus?.();
+			}
 
 			// Output: recent scrollback first (again after every reconnect), then live.
 			// Old output may contain questions to the terminal (e.g. "what are you?") that
