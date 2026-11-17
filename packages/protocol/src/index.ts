@@ -127,6 +127,8 @@ export type PullRequest = {
 	} | null;
 	/** Where its reviews stand, the most decisive first; `null` if nobody was asked. */
 	review: 'changes_requested' | 'approved' | 'pending' | null;
+	/** Whether it conflicts with its base, so cannot be merged as it is. Absent where the forge does not say. */
+	conflicts?: boolean;
 };
 
 /**

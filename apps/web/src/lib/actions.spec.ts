@@ -28,6 +28,30 @@ const upstream = (pull: Partial<PullRequest> | null = null, pushed = true): Upst
 const ids = (...args: Parameters<typeof actionsFor>) => actionsFor(...args).map((a) => a.id);
 
 describe('actionsFor', () => {
+	it('says when the pull request conflicts with its base, and offers to resolve that before anything else', () => {
+		const state = {
+			changes: clean,
+			upstream: upstream({
+				conflicts: true,
+				checks: { state: 'failure', total: 3, failed: 1, url: null }
+			})
+		};
+		expect(ids(state)).toEqual(['resolve-conflicts', 'fix-checks']);
+		expect(standingOf(state)).toMatchObject({ label: 'Conflicts', tone: 'danger' });
+		// nothing else in the way: still not mergeable
+		expect(ids({ changes: clean, upstream: upstream({ conflicts: true }) })).toEqual([
+			'resolve-conflicts'
+		]);
+		expect(ids({ changes: clean, upstream: upstream({ conflicts: false }) })).toEqual([
+			'merge-pull'
+		]);
+		// resolving them is updating: no second button for it
+		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
+		expect(
+			ids({ changes: { ...clean, incoming }, upstream: upstream({ conflicts: true }) })
+		).toEqual(['resolve-conflicts']);
+	});
+
 	it('offers known base commits beside the next step, with an agent prompt', () => {
 		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
 		const changes = { ...clean, incoming };
