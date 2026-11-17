@@ -12,15 +12,7 @@
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
 	import { modifierKey, newWorkspaceShortcut, settingsShortcut, sidebarToggle } from '#lib/keys.ts';
-	import {
-		ask,
-		badge,
-		isLooking,
-		notifiedAt,
-		seen,
-		unread,
-		watch
-	} from '#lib/notifications.svelte.ts';
+	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import {
@@ -58,7 +50,7 @@
 	type Item = Navigation['workspaces'][number];
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(nav.current?.workspaces ?? [], notifiedAt));
+	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
 	/** A repository's rows: its own workspace (FDR-009) first, where it always is. */
 	const rowsOf = (repoId: string) =>
 		(listed.get(repoId) ?? []).toSorted((a, b) => +b.workspace.home - +a.workspace.home);
@@ -346,8 +338,8 @@
 								<!-- eslint-enable svelte/no-navigation-without-resolve -->
 							</div>
 							<ul class="space-y-px">
-								{#each rowsOf(repo.id) as { workspace, parent } (workspace.id)}
-									{@render row(workspace, parent)}
+								{#each rowsOf(repo.id) as { workspace, parent, depth } (workspace.id)}
+									{@render row(workspace, parent, depth)}
 								{/each}
 							</ul>
 						</div>
@@ -401,14 +393,15 @@
 <Settings />
 <ArchiveConfirm />
 
-{#snippet row(workspace: Item, parent: Item | null)}
+{#snippet row(workspace: Item, parent: Item | null, depth: number)}
 	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
 	<!-- not work that is merely unpublished: that is most workspaces, and no news -->
 	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
 	{@const archivable = !busy && !leaving && !workspace.home}
-	<li>
+	<!-- one started by an agent sits a little in from the one that started it -->
+	<li style:margin-inline-start="calc(var(--spacing) * {3 * depth})">
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
 			class={[
