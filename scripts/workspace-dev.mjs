@@ -15,24 +15,14 @@ function port(name) {
 	return value;
 }
 
-const first = port('GEORDI_PORT');
 const web = port('GEORDI_PORT_WEB');
 const daemon = port('GEORDI_PORT_DAEMON');
 const storybook = port('GEORDI_PORT_STORYBOOK');
-const live = first + 3;
-// This repository's four ports must fit in its initial allocation. Refuse stale
-// assignments instead of silently borrowing a port from another workspace.
-if (
-	!Number.isInteger(Number(process.env.GEORDI_PORTS)) ||
-	Number(process.env.GEORDI_PORTS) < 4 ||
-	web !== first ||
-	daemon !== first + 1 ||
-	storybook !== first + 2 ||
-	live > 65535
-) {
-	throw new Error(
-		'These jobs need a workspace with web, daemon and storybook as its first three ports. Create a new workspace.'
-	);
+// Installation has no server. Use that job's assigned port for browser updates,
+// rather than assuming a workspace's allocations stay contiguous as jobs are added.
+const live = port('GEORDI_PORT_DESKTOP_INSTALL');
+if (new Set([web, daemon, storybook, live]).size !== 4) {
+	throw new Error('The workspace jobs must have distinct assigned ports.');
 }
 
 const data = join(root, '.data');

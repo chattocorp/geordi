@@ -5,6 +5,7 @@
 	"type": "module",
 	"main": "src/main.js",
 	"scripts": {
+		"test": "node --test scripts/*.test.js",
 		"start": "node scripts/build.js && electron stage",
 		"package": "node scripts/build.js --package",
 		"app:install": "node scripts/build.js --install"

@@ -66,7 +66,20 @@ their daemon, just as they do in the installed app.
 
 Use these jobs for workspace testing instead of `pnpm dev`, which uses fixed ports.
 They test the browser app; `pnpm desktop` still uses the desktop app's usual ports and
-profile, and `pnpm desktop:install` replaces the installed app.
+profile.
+
+Use `pnpm desktop:package` to build the Electron app without stopping the installed app.
+The bundle is written under `apps/desktop/dist/`.
+
+**Run → Install Electron app (restarts Geordi)** builds, installs, and reopens the desktop
+app, as does `pnpm desktop:install`. This briefly closes Geordi and ends its terminals and
+jobs; agent turns continue and reconnect. The replacement is copied and signed before
+Geordi quits. A separate installer process finishes the update even when the job's terminal
+closes. Its output is in `apps/desktop/dist/install.log`. If Geordi refuses to quit, the
+installer leaves the existing app in place.
+
+The install job is also included in **Start all**. Start individual development jobs, or
+use **Open → Geordi**, when you only want the local browser copy.
 
 Register a repository on the home page, open it, and start a workspace: one conversation
 with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See

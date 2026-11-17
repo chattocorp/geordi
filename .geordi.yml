@@ -1,6 +1,6 @@
 setup: pnpm install --frozen-lockfile
 
-# Three job ports, plus the browser WebSocket on the fourth port.
+# The install job needs no listener; web uses its port for the browser WebSocket.
 ports: 4
 
 jobs:
@@ -14,6 +14,10 @@ jobs:
   storybook:
     label: Storybook
     command: node scripts/workspace-dev.mjs storybook
+
+  desktop-install:
+    label: Install Electron app (restarts Geordi)
+    command: pnpm desktop:install
 
 urls:
   app:
