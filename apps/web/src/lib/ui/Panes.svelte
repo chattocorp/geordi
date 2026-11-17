@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import {
 		groupsOf,
 		close,
@@ -143,6 +144,7 @@
 					<div
 						role="presentation"
 						draggable="true"
+						transition:fade={{ duration: 120 }}
 						ondragstart={(event) => {
 							drag.tab = id;
 							drag.source = self;
