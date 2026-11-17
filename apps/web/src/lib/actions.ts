@@ -247,7 +247,7 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		return {
 			label: 'Checks running',
 			tone: 'neutral',
-			icon: 'icon-[lucide--circle-dashed]',
+			icon: 'icon-[lucide--circle-dashed] animate-spin',
 			checks: pull.checks.counts
 		};
 	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };
