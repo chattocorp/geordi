@@ -1,7 +1,7 @@
 ---
 data:
   priority: normal
-  status: done
+  status: canceled
   tags:
     - agents
     - ui
@@ -22,3 +22,5 @@ Done (FDR-009):
 - Removing a repository retires its own workspace.
 
 Open: pull request actions when the checkout is on a branch with one; reading cleared conversations; choosing another agent for it after it was made (further conversations can use any).
+
+Canceled: removed again on 2026-11-17 (see FDR-009, Withdrawn). Workspaces work in worktrees of their own only.

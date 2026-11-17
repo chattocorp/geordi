@@ -13,8 +13,7 @@ export type View<T> = { read: () => T; also?: (changed: () => void) => () => voi
 
 /**
  * Everything that every page needs. What the sidebar shows: repositories, and the
- * workspaces that stand for themselves (newest first); a repository's own workspace (`home`,
- * FDR-009) is among them. An agent working in another
+ * workspaces that stand for themselves (newest first). An agent working in another
  * workspace's directory is part of that one: it makes it `working`, and what it started
  * counts as started there. `outcome` is how all of their work came to rest, `null` while
  * any of it goes on (FDR-008).
@@ -25,22 +24,18 @@ export const navigation = () =>
 			const all = workspaces().all();
 			const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
 			const listed = withAides(all).map(({ workspace, aides }) => {
-				const { id, title, repoId, status, worktree, home } = workspace;
-				// (what a repository's own workspace started stands for itself: FDR-009)
-				const parentId = workspaces().child(id) ? workspace.parentId : null;
+				const { id, title, repoId, parentId, status, worktree } = workspace;
 				const working = status === 'running' || aides.some((aide) => aide.status === 'running');
 				// how its work stands, as far as is known: asked about in the background
 				const state = {
 					...(standings().get(workspace.worktreeId) ?? { changes: null, upstream: null }),
 					failed: workspace.lastTurn === 'failed',
-					child: !!parentId,
-					home
+					child: !!parentId
 				};
 				return {
 					id,
 					title,
 					repoId,
-					home,
 					parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
 					status,
 					working,
@@ -57,9 +52,7 @@ export const navigation = () =>
 				repos: repos()
 					.list()
 					.map((repo) => {
-						const all = listed.filter((workspace) => workspace.repoId === repo.id);
-						// the workspaces started in it: its own is always there, and no work to speak of
-						const own = all.filter((workspace) => !workspace.home);
+						const own = listed.filter((workspace) => workspace.repoId === repo.id);
 						return {
 							...repo,
 							workspaceCount: own.length,
@@ -104,8 +97,6 @@ export const workspace = (id: string) =>
 				.filter((other) => other.id !== id && workspace.worktreeId === id);
 			return {
 				...workspace,
-				/** Whether its work goes back to the agent that started it. */
-				child: workspaces().child(id),
 				parent: parent && relative(parent),
 				// who but the person may have written in its conversation: the agents above it
 				senders: Object.fromEntries(
@@ -141,8 +132,18 @@ export const workspace = (id: string) =>
 		}
 	}) satisfies View<unknown>;
 
+/** A repository's workspaces: those that stand for themselves (see `withAides`), newest first. */
+export const repoWorkspaces = (repoId: string) =>
+	({
+		read: () =>
+			withAides(workspaces().all())
+				.map(({ workspace }) => workspace)
+				.filter((workspace) => workspace.repoId === repoId)
+	}) satisfies View<unknown>;
+
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace };
+export const views = { navigation, workspace, repoWorkspaces };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceLive = ReturnType<ReturnType<typeof workspace>['read']>;
+export type RepoWorkspaces = ReturnType<ReturnType<typeof repoWorkspaces>['read']>;

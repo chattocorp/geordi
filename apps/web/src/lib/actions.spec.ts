@@ -215,31 +215,3 @@ describe('standingOf', () => {
 		expect(label({ changes, upstream: upstream({ state: 'closed' }) })).toBe('Closed');
 	});
 });
-
-describe("in a repository's own workspace", () => {
-	it('offers to commit, then to push, and nothing about pull requests or archiving', () => {
-		const dirty = { files: [file], uncommitted: 1, unpushed: 1 };
-		const state = { changes: dirty, upstream: upstream(), home: true };
-		expect(ids(state)).toEqual(['commit']);
-		expect(standingOf(state)).toMatchObject({ label: 'Uncommitted changes' });
-
-		const ahead = { ...state, changes: { ...dirty, uncommitted: 0 } };
-		expect(ids(ahead)).toEqual(['push']);
-		expect(standingOf(ahead)).toMatchObject({ label: 'Unpushed commits' });
-
-		// all of it upstream: that is how it should be, and no end to anything
-		const settled = { changes: { ...clean, landed: true }, upstream: upstream(), home: true };
-		expect(ids(settled)).toEqual([]);
-		expect(standingOf(settled)).toBeNull();
-	});
-
-	it('offers to update when the upstream has moved on, also with nothing of its own', () => {
-		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
-		const state = {
-			changes: { ...clean, landed: true, incoming },
-			upstream: upstream(),
-			home: true
-		};
-		expect(ids(state)).toEqual(['merge-upstream']);
-	});
-});

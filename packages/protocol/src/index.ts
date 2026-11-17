@@ -12,7 +12,7 @@ import type { MessageImage } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 29;
+export const PROTOCOL_VERSION = 30;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -59,11 +59,6 @@ export const NO_WORKTREE = 'This workspace has no worktree';
 export type WorktreeRef = {
 	worktreeId: string;
 	repoPath: string;
-	/**
-	 * The repository's own workspace (FDR-009): its files are the repository's checkout
-	 * itself, as it is. Nothing is made for it, and nothing of it is ever removed.
-	 */
-	home?: true;
 	/**
 	 * The branch the worktree started from, and that its changes are measured against.
 	 * Absent for worktrees started from where work in the repository starts.
@@ -382,11 +377,6 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
-	/**
-	 * The workspace is gone without a worktree to remove (a repository's own, FDR-009, when
-	 * its repository is forgotten): its ports are anyone's again.
-	 */
-	| ({ kind: 'releasePorts' } & WorktreeRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -429,6 +419,11 @@ export type DaemonRequest =
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
 	| ({ kind: 'mergePull' } & WorktreeRef)
+	/**
+	 * Brings the latest of the branch the workspace's work is based on into its branch, where
+	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
+	 */
+	| ({ kind: 'updateWorktree' } & WorktreeRef)
 	/** A short title for a piece of work, from the request that starts it. */
 	| { kind: 'title'; text: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
@@ -443,7 +438,6 @@ export type DaemonResults = {
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
-	releasePorts: null;
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
@@ -455,6 +449,8 @@ export type DaemonResults = {
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
 	mergePull: 'merged' | 'queued';
+	/** `false` if it was left alone: bringing it up to date takes an agent's judgement. */
+	updateWorktree: boolean;
 	/**
 	 * `end` is the terminal's output position after `data`: output with a lower `offset` is
 	 * already part of it. `null` if the terminal isn't running.

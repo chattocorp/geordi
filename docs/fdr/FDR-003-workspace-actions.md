@@ -22,12 +22,12 @@ The top bar of a workspace shows what could or should happen next: publish the w
   | The pull request is open, its checks pass (or it has none), it is not a draft, and nothing above applies | Merge PR       |
   | The pull request is merged or closed                                                                     | Archive        |
 
-- When the base branch has known commits that the workspace does not contain, the ribbon offers **Update** beside its next step. It asks the agent to fetch remote updates, merge the base branch, preserve uncommitted work, resolve conflicts, and run checks. Detection uses the base branch as last fetched (or the parent branch for a child workspace). The action is not offered for completed work or a failed turn. It can be queued while the agent works.
+- When the base branch has known commits that the workspace does not contain, the ribbon offers **Update** beside its next step. Detection uses the base branch as last fetched (or the parent branch for a child workspace). The action is not offered for completed work or a failed turn.
+- Update is done by Geordi itself where git can do it alone: no agent is at work in the workspace, nothing is uncommitted, and the two don't conflict. It fetches, then fast-forwards the branch, or makes a merge commit where the branch has commits of its own; it never rebases. In every other case it asks the agent to fetch, merge the base branch, preserve uncommitted work, resolve conflicts, and run checks; that message can be queued while the agent works.
 - Most actions say something to the workspace's agent: the message appears in the conversation like any other, and the agent does the work. If the agent is busy, the message waits its turn (FDR-001).
 - An action that has been asked for and is not done yet is shown as under way and can't be asked for twice.
 - Merge PR is done by Geordi itself, through the upstream forge's API: at once, without an agent turn. It merges only a pull request that is at the very commit the workspace has, the one way the repository allows, or squashed where it allows several. If the forge refuses, the top bar says why.
 - Archive is done by Geordi itself, not by the agent. It is also always available as a quiet button, not only when it is the obvious next step.
-- A repository's own workspace (FDR-009) has no pull request to work towards, and no end: it offers **Commit** for uncommitted changes, then **Push** for commits its upstream doesn't have, and **Update**; never a pull request action, Continue or Archive.
 - Nothing is offered while Geordi doesn't know the workspace's changes (no daemon connected).
 - A workspace whose own commits are all in the branch it started from, with no pull request to say so (an agent's work, merged by the agent that started it), stands as merged, and can be archived.
 - A branch that is pushed and has work on it, but no pull request, says so, and offers to open one.
@@ -41,7 +41,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 
 **Decision:** An action sends a message to the workspace's agent instead of doing the thing itself.
 **Why:** The agent knows the work: it writes the commit message and the pull request's description, finds out why a check fails, follows the repository's conventions. It also keeps one thread of history: everything that happened in a workspace is in its conversation.
-**Exception:** Merging and archiving need no judgement, and a click on "Merge PR" should merge, not start a conversation about it. Geordi does those itself.
+**Exception:** Merging and archiving need no judgement, and a click on "Merge PR" should merge, not start a conversation about it. Geordi does those itself. So it does with Update on a clean branch that merges without conflicts: that is one git command's worth of work, and an agent turn for it costs minutes. What Geordi leaves out there is what an agent would add: no checks are run afterwards, no hooks run, and the conversation doesn't mention it.
 **Tradeoff:** An action costs an agent turn and is only as reliable as the agent. It needs agents that may push and use the forge's tools, which is why they run without permission prompts by default.
 
 ### 2. One next step, derived, not configured

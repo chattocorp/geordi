@@ -10,6 +10,7 @@ import {
 	jobs,
 	prepareWorktree,
 	terminals,
+	updateWorkspace as update,
 	watchers,
 	workspaces
 } from '#lib/server/app.ts';
@@ -139,6 +140,15 @@ export const mergePull = command(v.string(), async (workspaceId) => {
 	watchers().changed(ref.worktreeId);
 });
 
+/**
+ * Brings the latest of the branch the workspace's work is based on into it. Geordi does it
+ * itself where git can; where it takes judgement, the agent is asked to, with `prompt`.
+ */
+export const updateWorkspace = command(
+	v.object({ workspaceId: v.string(), prompt: text }),
+	({ workspaceId, prompt }) => update(workspaceId, prompt)
+);
+
 /** A job's name, and each job's command as the person asking saw it (FDR-006). */
 const jobName = v.pipe(v.string(), v.regex(CONFIG_NAME));
 const seen = v.record(jobName, v.string());
@@ -200,11 +210,6 @@ export const restoreWorktree = command(v.string(), async (workspaceId) => {
 		);
 	}
 });
-
-/** Starts the conversation of a repository's own workspace afresh (FDR-009). */
-export const clearConversation = command(v.string(), (workspaceId) =>
-	workspaces().clear(workspaceId)
-);
 
 /** Takes back a message that is waiting for the agent to finish its turn. */
 export const removeQueued = command(

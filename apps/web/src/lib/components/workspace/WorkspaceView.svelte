@@ -48,13 +48,13 @@
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
-		clearConversation,
 		openLink,
 		restoreWorktree,
 		runSetup,
 		say,
 		startJobs,
-		stopJob
+		stopJob,
+		updateWorkspace
 	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import Changes from './Changes.svelte';
@@ -86,8 +86,6 @@
 		}
 	);
 	const running = $derived(workspace.status === 'running');
-	/** The repository's own workspace (FDR-009): at work in its checkout, and always there. */
-	const home = $derived(workspace.home);
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
 	// the other (the side, and the dock). Windows are tabs named after what they show: the
@@ -295,10 +293,7 @@
 	 * with the way to see it and agree. One that was agreed to runs by itself, and is
 	 * nothing to speak of.
 	 */
-	const setupPending = $derived(
-		// (nothing is set up in a repository's own checkout: FDR-009)
-		!home && !!config?.setup && !config.setup.approved
-	);
+	const setupPending = $derived(!!config?.setup && !config.setup.approved);
 
 	// Another agent in this workspace: a conversation of its own, in the same directory. It
 	// begins as a window to write the first message in, and to say who it is for; the agent
@@ -423,8 +418,7 @@
 	 * while the agent is at work, which is when it comes back.
 	 */
 	const worktreeGone = $derived(
-		// (a repository's checkout is not ours to bring back)
-		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt && !home
+		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt
 	);
 	const standingState = $derived(
 		workspace.archivedAt || !git?.changes
@@ -433,8 +427,7 @@
 					changes: git.changes,
 					upstream: git.upstream,
 					failed: workspace.lastTurn === 'failed',
-					child: workspace.child,
-					home
+					child: !!workspace.parentId
 				}
 	);
 	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
@@ -458,7 +451,7 @@
 		return actions
 			.filter((action) =>
 				action.prompt
-					? asked.includes(action.prompt)
+					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
 					: (action.id === 'merge-pull' && merging) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
@@ -479,17 +472,8 @@
 			workspace.children.length === 0 && git?.changes
 				? { changes: git.changes, upstream: git.upstream }
 				: undefined;
-		if (await archiveWorkspace(id, known)) await goto(resolve('/'));
-	}
-
-	/** Starts the conversation afresh: only in a repository's own workspace, which never ends. */
-	async function clear() {
-		mergeProblem = null;
-		try {
-			await clearConversation(id);
-		} catch (error) {
-			mergeProblem = problemOf(error, 'Could not clear the conversation');
-		}
+		if (await archiveWorkspace(id, known))
+			await goto(resolve('/repos/[id]', { id: workspace.repoId }));
 	}
 
 	/** The pull request is being merged right now. */
@@ -515,6 +499,21 @@
 			await restoreWorktree(id);
 		} catch (error) {
 			mergeProblem = problemOf(error, 'Could not restore the worktree');
+		}
+	}
+
+	/** The latest of its base branch is being brought in right now, by Geordi itself. */
+	let updating = $state(false);
+
+	async function update(prompt: string) {
+		mergeProblem = null;
+		updating = true;
+		try {
+			await updateWorkspace({ workspaceId: id, prompt });
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not update the branch');
+		} finally {
+			updating = false;
 		}
 	}
 
@@ -546,7 +545,9 @@
 	);
 
 	function act(action: WorkspaceAction) {
-		if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		// Geordi's to do where git can, the agent's where it takes judgement
+		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
+		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
 		else if (action.id === 'merge-pull') merge();
 		else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
@@ -680,10 +681,13 @@
 				{workspace.title}
 			</h1>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
-				<span class="flex shrink-0 items-center gap-1">
+				<a
+					href={resolve('/repos/[id]', { id: repo.id })}
+					class="flex shrink-0 items-center gap-1 hover:text-ink"
+				>
 					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
 					{repo.name}
-				</span>
+				</a>
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
@@ -710,16 +714,6 @@
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
 		{:else}
-			{#if home}
-				<!-- it can't be archived: its conversation starts afresh instead -->
-				<Button
-					variant="ghost"
-					icon="icon-[lucide--eraser]"
-					label="Clear conversation"
-					disabled={running || workspace.transcript.length === 0}
-					onclick={clear}
-				/>
-			{/if}
 			<Button
 				variant="ghost"
 				icon={frame.current.open

@@ -1,10 +1,16 @@
 import * as v from 'valibot';
-import { command } from '$app/server';
-import { homeWorkspace, removeRepo as remove, repos } from '#lib/server/app.ts';
+import { error } from '@sveltejs/kit';
+import { command, query } from '$app/server';
+import { repos, workspaces } from '#lib/server/app.ts';
+
+export const getRepo = query(v.string(), (id) => repos().get(id));
 
 export const registerRepo = command(v.pipe(v.string(), v.trim(), v.nonEmpty()), (path) => {
-	// with its own workspace, which every repository has (FDR-009)
-	homeWorkspace(repos().register(path).id);
+	repos().register(path);
 });
 
-export const removeRepo = command(v.string(), (id) => remove(id));
+export const removeRepo = command(v.string(), (id) => {
+	// its workspaces' agents work in it: they go first
+	if (workspaces().list(id).length > 0) error(409, 'Archive its workspaces first');
+	repos().remove(id);
+});
