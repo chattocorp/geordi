@@ -34,6 +34,20 @@
 			await userEvent.click(canvas.getByRole('button', { name: 'Remove image 1' }));
 			expect(new FormData(element).get('images')).toBe('[]');
 
+			const dragged = new DataTransfer();
+			dragged.items.add(file);
+			const drag = (type: string) =>
+				textarea.dispatchEvent(
+					new DragEvent(type, { dataTransfer: dragged, bubbles: true, cancelable: true })
+				);
+			drag('dragenter');
+			await waitFor(() => expect(element).toHaveAttribute('data-dropping'));
+			drag('drop');
+			await canvas.findByRole('img', { name: 'Attached image 1' });
+			expect(element).not.toHaveAttribute('data-dropping');
+			expect(new FormData(element).get('images')).toBe('["image-2"]');
+			await userEvent.click(canvas.getByRole('button', { name: 'Remove image 1' }));
+
 			const picker = canvas.getByLabelText('Choose images');
 			await userEvent.upload(picker, file);
 			await canvas.findByRole('img', { name: 'Attached image 1' });
@@ -50,7 +64,7 @@
 				Array.from({ length: 5 }, () => file)
 			);
 			expect(canvas.getByRole('alert')).toHaveTextContent('Add up to 4 images');
-			expect(uploads).toBe(3);
+			expect(uploads).toBe(4);
 			element.reset();
 		} finally {
 			window.fetch = original;
@@ -58,7 +72,7 @@
 	}
 </script>
 
-<Story name="Paste, choose, remove and retry" play={exercise} asChild>
+<Story name="Paste, drop, choose, remove and retry" play={exercise} asChild>
 	<div class="max-w-2xl">
 		<MessageComposer imageField={{ name: 'images' }} {form} placeholder="Reply to the agent">
 			{#snippet footer()}
