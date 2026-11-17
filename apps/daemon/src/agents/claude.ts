@@ -54,7 +54,7 @@ export const claude: AgentAdapter = {
 		efforts: EFFORTS
 	}),
 
-	command({ sessionId, prompt, resumeId, api, settings, instructions }) {
+	command({ sessionId, prompt, images = [], resumeId, api, settings, instructions }) {
 		const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 		args.push('--permission-mode', permissionMode);
 		if (settings.model) args.push('--model', settings.model);
@@ -70,6 +70,21 @@ export const claude: AgentAdapter = {
 		}
 		// Claude accepts our own UUID as its session ID, so the first turn doesn't need to wait for one.
 		args.push(...(resumeId ? ['--resume', resumeId] : ['--session-id', sessionId]));
+		if (images.length) {
+			args.push('--input-format', 'stream-json');
+			const content = [
+				...images.map((image) => ({
+					type: 'image',
+					source: { type: 'base64', media_type: image.mediaType, data: image.data }
+				})),
+				...(prompt ? [{ type: 'text', text: prompt }] : [])
+			];
+			return {
+				cmd: 'claude',
+				args,
+				stdin: JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n'
+			};
+		}
 		// `--` keeps prompts starting with `-` from being parsed as flags.
 		args.push('--', prompt);
 		return { cmd: 'claude', args };

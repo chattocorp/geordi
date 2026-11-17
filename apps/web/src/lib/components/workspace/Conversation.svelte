@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import MessageImages from '#lib/components/MessageImages.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
 	import { modifierKey } from '#lib/keys.ts';
 	import { toBlocks } from '#lib/transcript.ts';
 	import Button from '#lib/ui/Button.svelte';
-	import Composer from '#lib/ui/Composer.svelte';
+	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { follow } from '#lib/live.svelte.ts';
@@ -109,8 +110,9 @@
 									: 'From another agent'}
 							</p>
 						{/if}
-						<div class="ml-auto message bg-bubble whitespace-pre-wrap">
-							{block.text}
+						<div class="ml-auto message bg-bubble">
+							{#if block.text}<p class="whitespace-pre-wrap">{block.text}</p>{/if}
+							<MessageImages images={block.images} />
 						</div>
 					{:else if block.kind === 'note'}
 						<!-- something that happened to the workspace: said in passing, between the two -->
@@ -149,12 +151,19 @@
 						size="sm"
 						icon="icon-[lucide--x]"
 						label="Don't send this"
-						onclick={() => removeQueued({ workspaceId: workspace.id, index, text })}
+						onclick={() =>
+							removeQueued({
+								workspaceId: workspace.id,
+								index,
+								text,
+								images: workspace.attachments.queue[index]
+							})}
 						class="mt-1.5"
 					/>
 					<div class="message ring-1 ring-line">
 						<p class="label">Queued</p>
 						<p class="whitespace-pre-wrap text-muted">{text}</p>
+						<MessageImages images={workspace.attachments.queue[index]} />
 					</div>
 				</li>
 			{/each}
@@ -174,7 +183,9 @@
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
-				<Composer
+				<MessageComposer
+					imageField={form.fields.images.as('hidden', '[]')}
+					disabled={form.pending > 0}
 					{form}
 					live={running}
 					rows={2}
@@ -185,7 +196,10 @@
 							: 'Reply to the agent'}
 					onkeydown={keys}
 					field={form.fields.text.as('text')}
-					problems={form.fields.text.issues()?.map((problem) => problem.message)}
+					problems={[
+						...(form.fields.text.issues() ?? []),
+						...(form.fields.images.issues() ?? [])
+					].map((problem) => problem.message)}
 				>
 					{#snippet header()}
 						<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
@@ -242,7 +256,7 @@
 							/>
 						</div>
 					{/snippet}
-				</Composer>
+				</MessageComposer>
 			</div>
 		{/if}
 	</div>

@@ -23,6 +23,9 @@
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
 		/** What is wrong with the input, if anything. */
 		problems?: string[];
+		/** Optional attachments between the text and footer. */
+		attachments?: Snippet;
+		onpaste?: (event: ClipboardEvent) => void;
 		/** Fields above the text (and hidden inputs). */
 		header?: Snippet;
 		/** The row under the text: options on the left, the submit button on the right. */
@@ -38,6 +41,8 @@
 		disabled = false,
 		onkeydown = submitOnEnter,
 		problems = [],
+		attachments,
+		onpaste,
 		header,
 		footer,
 		live = false,
@@ -63,6 +68,9 @@
 		get 'aria-label'() {
 			return label ? undefined : placeholder;
 		},
+		get onpaste() {
+			return onpaste;
+		},
 		get onkeydown() {
 			return onkeydown;
 		},
@@ -80,15 +88,18 @@
 		live && 'edge-live'
 	]}
 >
-	{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
-	{@render header?.()}
-	{#if field}
-		<textarea {...field} {...textarea} {@attach focus}></textarea>
-	{:else}
-		<textarea bind:value {...textarea} {@attach focus}></textarea>
-	{/if}
-	{#each problems as problem (problem)}
-		<p class="px-4 text-sm text-danger">{problem}</p>
-	{/each}
-	<div class="flex flex-wrap items-center gap-2 px-3 pt-1 pb-3">{@render footer()}</div>
+	<fieldset {disabled} class="min-w-0">
+		{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
+		{@render header?.()}
+		{#if field}
+			<textarea {...field} {...textarea} {@attach focus}></textarea>
+		{:else}
+			<textarea bind:value {...textarea} {@attach focus}></textarea>
+		{/if}
+		{@render attachments?.()}
+		{#each problems as problem (problem)}
+			<p class="px-4 text-sm text-danger">{problem}</p>
+		{/each}
+		<div class="flex flex-wrap items-center gap-2 px-3 pt-1 pb-3">{@render footer()}</div>
+	</fieldset>
 </form>

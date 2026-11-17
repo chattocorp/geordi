@@ -179,6 +179,33 @@ describe('prompt handling', () => {
 		settings: {}
 	};
 
+	it('passes images natively on first and resumed turns without putting bytes in arguments', () => {
+		const image = { mediaType: 'image/png' as const, data: 'aGVsbG8=' };
+		for (const resumeId of [null, 'r1']) {
+			const options = { ...base, resumeId, images: [image], imagePaths: ['/private/image 0.png'] };
+			const command = claude.command(options);
+			expect(command.args).toContain('--input-format');
+			expect(command.args).not.toContain(image.data);
+			expect(JSON.parse(command.stdin!)).toMatchObject({
+				type: 'user',
+				message: {
+					role: 'user',
+					content: [
+						{
+							type: 'image',
+							source: { type: 'base64', media_type: image.mediaType, data: image.data }
+						},
+						{ type: 'text', text: base.prompt }
+					]
+				}
+			});
+			const { args } = codex.command(options);
+			expect(args[args.indexOf('--image') + 1]).toBe('/private/image 0.png');
+			expect(args.indexOf('--image')).toBeLessThan(args.indexOf('--'));
+			expect(args.at(-1)).toBe(base.prompt);
+		}
+	});
+
 	it('runs the model that was chosen, as hard as was chosen, on every turn', () => {
 		const settings = { model: 'opus', effort: 'high' };
 		for (const resumeId of [null, 'r1']) {

@@ -80,6 +80,7 @@ let quitting = false;
 function startForge() {
 	const forge = start('forge', 'forge/index.js', {
 		HOST: '127.0.0.1',
+		BODY_SIZE_LIMIT: String(5 * 1024 * 1024),
 		PORT: String(WEB_PORT),
 		ORIGIN: url,
 		GEORDI_DAEMON_PORT: String(DAEMON_PORT)

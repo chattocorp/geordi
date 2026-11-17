@@ -1,7 +1,7 @@
 # FDR-001: Workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-14
+**Last reviewed:** 2026-11-17
 
 ## Overview
 
@@ -12,6 +12,8 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - A workspace is started with an agent and a repository, and usually with a first prompt (without one, it is there with its worktree, waiting to be told what to do): from "New workspace" in the sidebar, where the repository worked in last is preselected, or from a repository's page. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first. Its agent then gives it a short name that says what the work is about, once it knows (the agent API's `name_workspace`), and may change it a couple of times if the work turns out to be about something else. If the daemon has been given a key to ask a model, a title made from the prompt bridges the moments until then.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - While the agent is working, Enter steers it: the agent is interrupted, and the message is the next thing it reads. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
+- Messages can include images, with or without text. Use **Add images** to choose files or paste an image from the clipboard. The composer shows previews with a remove button. Each message accepts up to four PNG, JPEG, WebP or GIF files, at most 5 MB each. Sending waits until uploads finish; an upload error leaves the draft in place.
+- Images work in first prompts, replies, queued messages and steering messages, with both Claude and Codex. Sent and queued messages show thumbnails that open the full image. Images remain available after a restart and after the workspace is archived.
 - The workspace's ID is shown in its header; a click copies it.
 - Cmd/Ctrl+B hides and shows the navigation on the left, and with Alt/Option the changes and dock on the right. Both also have a button, and the navigation's edge can be dragged to resize it.
 - A workspace has a fixed frame: the main area, and beside it the changes above the dock. The lines between them can be dragged to resize, and that is all that can be changed about the frame.
@@ -90,6 +92,12 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 **Decision:** Neither changes nor terminal output become part of the workspace's history.
 **Why:** See ADR-003.
 **Tradeoff:** Both need a connected daemon, and terminal history doesn't survive a daemon restart.
+
+### 11. Images belong to the conversation
+
+**Decision:** Keep uploaded images with the conversation history (ADR-001), with small previews in the composer and transcript. Messages refer to each image rather than copying it.
+**Why:** A screenshot is part of what the person asked, and must remain available when the forge or daemon restarts. Image data need not travel with each live conversation update.
+**Tradeoff:** Uploads use disk space in the event log. Removing a preview or taking back a queued message does not delete its uploaded bytes. Drafts that have not been sent are not restored after closing the page.
 
 ## Related
 

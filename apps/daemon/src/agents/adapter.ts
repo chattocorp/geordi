@@ -1,9 +1,12 @@
-import type { Agent, AgentEvent, AgentSettings, Harness } from '@geordi/protocol';
+import type { Agent, AgentEvent, AgentSettings, Harness, MessageImage } from '@geordi/protocol';
 
 export type TurnOptions = {
 	/** The workspace's ID, for CLIs that let us name their session (so a first turn needs no round trip). */
 	sessionId: string;
 	prompt: string;
+	images?: MessageImage[];
+	/** Local image files prepared in the private turn directory for Codex. */
+	imagePaths?: string[];
 	/** The workspace's worktree. */
 	cwd: string;
 	/**
@@ -36,7 +39,7 @@ export const API_SERVER = 'geordi';
  * resume the CLI's own session via `resumeId`.
  */
 export type AgentAdapter = {
-	command(options: TurnOptions): { cmd: string; args: string[] };
+	command(options: TurnOptions): { cmd: string; args: string[]; stdin?: string };
 	/** The models and effort levels the CLI offers on this machine, as far as we can tell. */
 	offers(): Omit<Harness, 'agent'>;
 	/** Maps one line of the CLI's JSON output to session events. */

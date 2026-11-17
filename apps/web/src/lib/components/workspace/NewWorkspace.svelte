@@ -2,7 +2,7 @@
 	import { submitOnEnter } from '#lib/keys.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
-	import Composer from '#lib/ui/Composer.svelte';
+	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -47,8 +47,10 @@
 </script>
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
-<Composer
+<MessageComposer
+	imageField={createWorkspace.fields.images.as('hidden', '[]')}
 	form={createWorkspace}
+	disabled={createWorkspace.pending > 0}
 	{label}
 	{focused}
 	placeholder="What should the agent do?"
@@ -58,7 +60,9 @@
 		if (harnesses) submitOnEnter(event);
 		else if (event.key === 'Enter' && !event.shiftKey) event.preventDefault();
 	}}
-	problems={prompt.issues()?.map((problem) => problem.message)}
+	problems={[...(prompt.issues() ?? []), ...(createWorkspace.fields.images.issues() ?? [])].map(
+		(problem) => problem.message
+	)}
 >
 	{#snippet header()}
 		<input {...repoId.as('hidden', repo?.id ?? '')} />
@@ -119,4 +123,4 @@
 			</Button>
 		{/if}
 	{/snippet}
-</Composer>
+</MessageComposer>

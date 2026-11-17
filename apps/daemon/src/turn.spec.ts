@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { readFileSync, statSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentEvent } from '@geordi/protocol';
@@ -270,4 +270,44 @@ describe('a daemon restart', () => {
 		await turns.get('w')!.done;
 		expect(after).toEqual([{ kind: 'turn.failed', error: 'Stopped' }]);
 	});
+});
+
+it('keeps image files and stdin available when a daemon detaches and reconnects', async () => {
+	const dir = turnsDir();
+	const image = { mediaType: 'image/png' as const, data: 'aGVsbG8=' };
+	const adapter: AgentAdapter = {
+		...fake(''),
+		command(options) {
+			const path = options.imagePaths![0];
+			expect(readFileSync(path, 'utf8')).toBe('hello');
+			expect(statSync(path).mode & 0o777).toBe(0o600);
+			return {
+				cmd: process.execPath,
+				args: [
+					'-e',
+					`setTimeout(() => { const fs = require('node:fs'); console.log(JSON.stringify({ kind: 'text', text: fs.readFileSync(0, 'utf8') + fs.readFileSync(${JSON.stringify(path)}, 'utf8') })); }, 400);`
+				],
+				stdin: 'image input: '
+			};
+		}
+	};
+	const before: AgentEvent[] = [];
+	const turn = runTurn(
+		adapter,
+		{ agent: 'claude', turn: 1 },
+		{ ...options, images: [image] },
+		(event) => before.push(event),
+		join(dir, 'w')
+	);
+	turn.detach();
+	await turn.done;
+	const after: AgentEvent[] = [];
+	const resumed = await resumeTurns(
+		dir,
+		async () => adapter,
+		() => (event) => after.push(event)
+	);
+	await resumed.get('w')!.done;
+	expect(before).toEqual([]);
+	expect(after).toContainEqual({ kind: 'text', text: 'image input: hello' });
 });

@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, CONFIG_NAME, JOB_TERMINAL, type FileVersions } from '@geordi/protocol';
+import { AGENTS, CONFIG_NAME, JOB_TERMINAL, MAX_IMAGES, type FileVersions } from '@geordi/protocol';
 import {
 	archiveWorkspace as archive,
 	concernsAboutArchiving,
@@ -13,6 +13,19 @@ import {
 	watchers,
 	workspaces
 } from '#lib/server/app.ts';
+
+const imageIds = v.pipe(
+	v.optional(v.string(), '[]'),
+	v.transform((value) => {
+		try {
+			return JSON.parse(value) as unknown;
+		} catch {
+			return null;
+		}
+	}),
+	v.array(v.pipe(v.string(), v.uuid())),
+	v.maxLength(MAX_IMAGES)
+);
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 
@@ -30,6 +43,7 @@ export const configureWorkspace = command(
 export const createWorkspace = form(
 	v.object({
 		repoId: v.string(),
+		images: imageIds,
 		agent: v.picklist(AGENTS),
 		/** Empty for "whatever the agent's CLI would use". */
 		model: v.optional(v.string()),
@@ -53,7 +67,7 @@ export const createWorkspace = form(
 		const id = workspaces().create({ ...data, settings });
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
-		if (!data.prompt)
+		if (!data.prompt && !data.images.length)
 			prepareWorktree(id).catch((cause) => console.warn(`[worktree] ${cause?.message ?? cause}`));
 		redirect(303, `/workspaces/${id}`);
 	}
@@ -64,14 +78,24 @@ export const createWorkspace = form(
  * interrupts it with the message, and `queue` lets it finish first.
  */
 export const sendMessage = form(
-	v.object({
-		workspaceId: v.string(),
-		text,
-		mode: v.optional(v.picklist(['steer', 'queue']), 'steer')
-	}),
-	({ workspaceId, text, mode }) => {
-		if (mode === 'queue') workspaces().send(workspaceId, text);
-		else workspaces().steer(workspaceId, text);
+	v.pipe(
+		v.object({
+			workspaceId: v.string(),
+			text: v.pipe(v.string(), v.trim()),
+			images: imageIds,
+			mode: v.optional(v.picklist(['steer', 'queue']), 'steer')
+		}),
+		v.forward(
+			v.check(
+				(message) => !!message.text || message.images.length > 0,
+				'Write something or add an image first'
+			),
+			['text']
+		)
+	),
+	({ workspaceId, text, mode, images }) => {
+		if (mode === 'queue') workspaces().send(workspaceId, text, null, images);
+		else workspaces().steer(workspaceId, text, null, images);
 	}
 );
 
@@ -183,9 +207,11 @@ export const removeQueued = command(
 		workspaceId: v.string(),
 		index: v.pipe(v.number(), v.integer(), v.minValue(0)),
 		/** The message that is meant, in case the queue has moved on. */
-		text: v.string()
+		text: v.string(),
+		images: v.optional(v.array(v.string()))
 	}),
-	({ workspaceId, index, text }) => workspaces().dequeue(workspaceId, index, text)
+	({ workspaceId, index, text, images }) =>
+		workspaces().dequeue(workspaceId, index, text, null, images)
 );
 
 /** Stops the workspace's agent, if it is working. */
