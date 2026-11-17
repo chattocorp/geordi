@@ -309,10 +309,12 @@
 		return DRAFT;
 	}
 
-	function newTerminal() {
+	let focusTerminal = $state<string>();
+	function newTerminal(focus = true) {
 		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
 		const name = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 4)}`;
 		starting.add(name);
+		if (focus) focusTerminal = name;
 		return `terminal:${name}`;
 	}
 
@@ -324,7 +326,7 @@
 		begun = true;
 		untrack(() => {
 			if (workspace.terminals.length === 0 && starting.size === 0)
-				arrange({ dock: open(dock, newTerminal()) });
+				arrange({ dock: open(dock, newTerminal(false)) });
 		});
 	});
 
@@ -621,7 +623,13 @@
 		<!-- loaded again whenever the worktree's files may have changed -->
 		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 	{:else if terminal}
-		<Terminal workspaceId={id} {terminal} start={starting.has(terminal)} />
+		<Terminal
+			workspaceId={id}
+			{terminal}
+			start={starting.has(terminal)}
+			autofocus={focusTerminal === terminal}
+			onautofocus={() => (focusTerminal = undefined)}
+		/>
 	{:else if tab === DRAFT}
 		<!-- begun as a workspace is: say what to do, and who does it; where the reply box will be -->
 		<div class="flex min-h-0 flex-1 flex-col justify-end">
