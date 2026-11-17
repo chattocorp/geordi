@@ -45,6 +45,41 @@ describe('actionsFor', () => {
 		expect(ids({ changes: clean, upstream: upstream({ conflicts: false }) })).toEqual([
 			'merge-pull'
 		]);
+		// resolving them is updating: no second button for it
+		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
+		expect(
+			ids({ changes: { ...clean, incoming }, upstream: upstream({ conflicts: true }) })
+		).toEqual(['resolve-conflicts']);
+	});
+
+	it('offers known base commits beside the next step, with an agent prompt', () => {
+		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
+		const changes = { ...clean, incoming };
+		expect(ids({ changes, upstream: null })).toEqual(['merge-upstream']);
+		const actions = actionsFor({ changes, upstream: upstream({}) });
+		expect(actions.map((action) => action.id)).toEqual(['merge-pull', 'merge-upstream']);
+		expect(actions[1]).toMatchObject({
+			aside: true,
+			label: 'Update',
+			prompt: expect.stringContaining(incoming.branch)
+		});
+		expect(ids({ changes: { ...changes, uncommitted: 1 }, upstream: upstream() })).toEqual([
+			'create-pull',
+			'merge-upstream'
+		]);
+		for (const commits of [0, -1])
+			expect(
+				ids({ changes: { ...clean, incoming: { ...incoming, commits } }, upstream: null })
+			).toEqual([]);
+		expect(ids({ changes: { ...clean, incoming: null }, upstream: null })).toEqual([]);
+	});
+
+	it('does not offer upstream merges for completed work or a failed turn', () => {
+		const changes = { ...clean, incoming: { branch: 'refs/heads/parent', commits: 1 } };
+		for (const state of ['closed', 'merged'] as const)
+			expect(ids({ changes, upstream: upstream({ state }) })).toEqual(['continue', 'archive']);
+		expect(ids({ changes: { ...changes, landed: true }, upstream: null })).toEqual(['archive']);
+		expect(ids({ changes, upstream: null, failed: true })).toEqual(['retry']);
 	});
 
 	it('offers nothing while it knows nothing, or when there is nothing to do', () => {
