@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { expect, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest, Upstream } from '@geordi/protocol';
 	import { actionsFor, standingOf } from '#lib/actions.ts';
@@ -119,5 +120,22 @@
 			incoming: { branch: 'refs/remotes/origin/main', commits: 1 }
 		},
 		upstream: null
+	})}
+</Story>
+
+<Story
+	name="Update branch before Create PR"
+	asChild
+	play={async ({ canvasElement }) => {
+		const buttons = within(canvasElement).getAllByRole('button');
+		await expect(buttons.map((button) => button.textContent?.trim())).toEqual([
+			'Update branch',
+			'Create PR'
+		]);
+	}}
+>
+	{@render bar({
+		changes: { ...dirty, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
+		upstream: upstream(null)
 	})}
 </Story>

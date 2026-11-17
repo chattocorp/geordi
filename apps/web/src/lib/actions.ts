@@ -77,7 +77,7 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		...actions,
 		{
 			id: 'merge-upstream',
-			label: 'Merge upstream',
+			label: 'Update branch',
 			icon: 'icon-[lucide--git-merge]',
 			aside: actions.length > 0,
 			prompt: `Merge the latest commits from the base branch ${JSON.stringify(incoming.branch)} into this workspace's current branch. Fetch first if it is a remote-tracking branch. Preserve uncommitted work, resolve any merge conflicts, and run the relevant checks.`
