@@ -49,8 +49,8 @@ development, forge data is stored in `./.data`.
 
 ### Testing in a Geordi workspace
 
-Use the workspace's **app** link to start an isolated development copy. Its **web**
-and **daemon** jobs run in separate terminals; the **components** link starts Storybook.
+Use the workspace's **Geordi dev app** link to start an isolated development copy. Its **web**
+and **daemon** jobs run in separate terminals; the **Component library** link starts Storybook.
 The setup script installs dependencies when Geordi creates the worktree.
 
 These jobs use the workspace's assigned ports and keep all Geordi state in that
@@ -103,6 +103,24 @@ urls:
   app:
     url: http://localhost:{web}/
 ```
+
+Jobs and links accept an optional `label` for their display name:
+
+```yaml
+jobs:
+  web:
+    label: Development server
+    command: pnpm dev --port $PORT
+urls:
+  app:
+    label: Open the app
+    url: http://localhost:{web}/
+```
+
+Labels are single-line strings of 1–100 characters, with surrounding spaces removed.
+Without a label, Geordi shows the key. Dependencies, URL placeholders, port variables,
+and terminal identities always use the key. To label a single `run` command, write it
+as `jobs.run` with a `command` and `label` instead of the `run` shorthand.
 
 For a project with one thing to run, `run: pnpm dev --port $PORT` is enough. (A
 `.geordi.toml` saying the same in TOML is still read where there is no `.geordi.yml`.)

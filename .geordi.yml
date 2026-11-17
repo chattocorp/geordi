@@ -5,16 +5,21 @@ ports: 4
 
 jobs:
   web:
+    label: Web app
     command: node scripts/workspace-dev.mjs web
   daemon:
+    label: Agent daemon
     command: node scripts/workspace-dev.mjs daemon
     needs: [web]
   storybook:
+    label: Storybook
     command: node scripts/workspace-dev.mjs storybook
 
 urls:
   app:
+    label: Geordi dev app
     url: http://localhost:{web}/
     needs: [daemon]
   components:
+    label: Component library
     url: http://localhost:{storybook}/
