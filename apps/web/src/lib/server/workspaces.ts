@@ -251,6 +251,9 @@ export function createWorkspaces(
 			} = event.data;
 			workspaces.set(data.id, {
 				...data,
+				// a repository's own workspace is called the same everywhere, whatever it was
+				// called when it was made (after its repository, at first)
+				...(home && { title: HOME_TITLE }),
 				home,
 				turns: 0,
 				// a repository's own workspace has a name already, and keeps it

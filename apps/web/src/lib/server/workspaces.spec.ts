@@ -47,6 +47,17 @@ describe("a repository's own workspace (FDR-009)", () => {
 		expect(workspaces.get(id).title).toBe('Home');
 	});
 
+	it('is called Home also where it was made under another name', () => {
+		const { store, workspaces, repo } = setup();
+		store.append({
+			type: 'workspace.created',
+			stream: 'workspace:old',
+			data: { id: 'old', repoId: repo.id, title: repo.name, agent: 'claude', home: true }
+		});
+		expect(workspaces.get('old').title).toBe('Home');
+		expect(workspaces.home(repo.id, 'claude')).toBe('old');
+	});
+
 	it('has the agents it starts branch off where all work starts, or work in the checkout too', () => {
 		const { workspaces, repo } = setup();
 		const id = workspaces.home(repo.id, 'claude');
