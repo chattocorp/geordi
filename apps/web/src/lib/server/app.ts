@@ -4,7 +4,7 @@ import { views } from './views.ts';
 import { createStandings } from './standings.ts';
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
-import { NO_WORKTREE, REMOVE_TIMEOUT_MS, type RepoIcon } from '@geordi/protocol';
+import { NO_WORKTREE, REMOVE_TIMEOUT_MS, type RepoIcon, type WorktreeRef } from '@geordi/protocol';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
@@ -55,6 +55,18 @@ export const terminals = lazy(() =>
 
 const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+/**
+ * Asks a daemon what a worktree has changed, and notes the branch it says the worktree is on,
+ * which its agent may have renamed: that is what the worktree comes back from.
+ */
+const changesOf = (ref: WorktreeRef) =>
+	hub()
+		.request({ kind: 'changes', ...ref })
+		.then((changes) => {
+			workspaces().onBranch(ref.worktreeId, changes.branch);
+			return changes;
+		});
+
 /** Asks a daemon how a worktree's files and branch stand. Never rejects. */
 async function loadWorktreeState(worktreeId: string, fresh = false): Promise<WorktreeState> {
 	const state: WorktreeState = {
@@ -73,7 +85,7 @@ async function loadWorktreeState(worktreeId: string, fresh = false): Promise<Wor
 	}
 
 	const [changes, upstream, config, release] = await Promise.allSettled([
-		hub().request({ kind: 'changes', ...ref }),
+		changesOf(ref),
 		hub().request({ kind: 'upstream', fresh, ...ref }),
 		hub().request({ kind: 'config', ...ref }),
 		hub().request({ kind: 'release', ...ref })
@@ -113,7 +125,7 @@ async function loadWorktreeState(worktreeId: string, fresh = false): Promise<Wor
 export async function loadStanding(worktreeId: string, fresh = false) {
 	const ref = workspaces().ref(worktreeId);
 	const [changes, upstream] = await Promise.all([
-		hub().request({ kind: 'changes', ...ref }),
+		changesOf(ref),
 		hub()
 			.request({ kind: 'upstream', fresh, ...ref })
 			.catch(() => null)
@@ -275,9 +287,7 @@ async function standingFor(worktreeId: string): Promise<Standing> {
 	}
 	const late = new Promise<undefined>((resolve) => setTimeout(resolve, UPSTREAM_PATIENCE_MS));
 	const [changes, upstream] = await Promise.all([
-		hub()
-			.request({ kind: 'changes', ...ref })
-			.catch(() => null),
+		changesOf(ref).catch(() => null),
 		Promise.race([hub().request({ kind: 'upstream', ...ref }), late]).catch(() => undefined)
 	]);
 	return { changes, upstream };
@@ -310,8 +320,13 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 		workspaces: workspaces(),
 		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
 		// with the repository's teardown script first, which may take a while
-		removeWorktree: (ref, force, teardown) =>
-			hub().request({ kind: 'removeWorktree', force, teardown, ...ref }, REMOVE_TIMEOUT_MS)
+		removeWorktree: async (ref, force, teardown) => {
+			const { branch } = await hub().request(
+				{ kind: 'removeWorktree', force, teardown, ...ref },
+				REMOVE_TIMEOUT_MS
+			);
+			workspaces().onBranch(ref.worktreeId, branch);
+		}
 	})(id, discard, actor);
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */

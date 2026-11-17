@@ -326,6 +326,7 @@ describe('workspace status', () => {
 	const changes = (over: Partial<Changes> = {}): Changes => ({
 		files: [],
 		uncommitted: 0,
+		branch: 'geordi/lead',
 		unpushed: 0,
 		landed: false,
 		...over

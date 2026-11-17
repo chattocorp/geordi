@@ -50,6 +50,22 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).title).toBe('Fix the flaky login test');
 	});
 
+	it('notes a branch its agent renamed, and brings the worktree back from that', () => {
+		const { store, workspaces, create } = setup();
+		const id = create('Fix the bug');
+		workspaces.record(id, { kind: 'worktree', path: '/wt/abc', branch: 'geordi/abc' }, 1);
+
+		workspaces.onBranch(id, 'geordi/fix-the-bug');
+		expect(workspaces.get(id).worktree).toEqual({ path: '/wt/abc', branch: 'geordi/fix-the-bug' });
+		expect(workspaces.ref(id)).toMatchObject({ branch: 'geordi/fix-the-bug' });
+
+		// nothing new, or nothing to go by (a detached HEAD), is not news
+		const events = store.readAll().length;
+		workspaces.onBranch(id, 'geordi/fix-the-bug');
+		workspaces.onBranch(id, null);
+		expect(store.readAll()).toHaveLength(events);
+	});
+
 	it('carries on in a workspace on a new branch, and tells its agent with the next message', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('Fix the bug');

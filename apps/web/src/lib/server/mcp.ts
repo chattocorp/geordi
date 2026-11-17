@@ -259,7 +259,7 @@ const tools = {
 				id: workspace.id,
 				title: workspace.title,
 				status: workspace.status,
-				branch: upstream?.branch ?? workspace.worktree?.branch ?? null,
+				branch: changes.branch,
 				standing: standingOf(state)?.label ?? null,
 				changes: {
 					files: changes.files.length,

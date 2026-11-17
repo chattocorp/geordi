@@ -21,7 +21,7 @@ export function instructionsFor(workspace: {
 
 		workspace.sharesWorktree
 			? 'Your working directory is the Git worktree of another workspace, which you work alongside: its agent sees and changes the same files as you.'
-			: 'Your working directory is a Git worktree made for this workspace, on a branch of its own. Nothing you do here touches anyone else’s checkout.',
+			: 'Your working directory is a Git worktree made for this workspace, on a branch of its own. Nothing you do here touches anyone else’s checkout. The branch starts with a name that says nothing (`geordi/` and an ID): once you know what the work is about, and before you push, rename it to something that says so, in the style the repository uses for its branches (`geordi/fix-login-redirect` where it has none), with `git branch -m`. Push it under its own name (`git push -u origin HEAD`).',
 
 		parent
 			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`

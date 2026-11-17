@@ -40,6 +40,7 @@ import { resumeTurns, runTurn, type Turn } from './turn.ts';
 import { mergePull, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
+	branchOf,
 	continueOn,
 	ensureWorktree,
 	fetchUpstream,
@@ -370,10 +371,17 @@ async function answer(request: DaemonRequest) {
 		const { repoPath, worktreeId, force } = request;
 		const worktree = removable(worktreesDir, repoPath, worktreeId, force);
 		if (worktree && request.teardown) await tearDown(worktree, request);
+		// what it comes back from if the workspace is brought back, which the agent may have renamed
+		let branch: string | null = null;
+		try {
+			if (worktree) branch = branchOf(worktree);
+		} catch {
+			// an unreadable HEAD (forced removal of a tampered worktree): the forge keeps what it knows
+		}
 		removeWorktree(worktreesDir, repoPath, worktreeId, force);
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
-		return null;
+		return { branch };
 	}
 	if (request.kind === 'approveRun') {
 		for (const command of request.commands) approvals.add(request.repoPath, command);

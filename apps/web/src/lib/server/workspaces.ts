@@ -73,6 +73,11 @@ export type WorkspacesEvent =
 	 * work in the repository starts. Its conversation goes on.
 	 */
 	| { type: 'workspace.continued'; stream: WorkspaceStream; data: { id: string; branch: string } }
+	/**
+	 * The workspace's worktree turned out to be on another branch than was known: its agent
+	 * renamed it, or switched to another. It is what the worktree comes back from.
+	 */
+	| { type: 'workspace.switched'; stream: WorkspaceStream; data: { id: string; branch: string } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
@@ -276,6 +281,11 @@ export function createWorkspaces(
 			const owner = workspaces.get(workspace.worktreeId);
 			if (owner?.worktree) owner.worktree = { ...owner.worktree, branch };
 			transcript.push({ kind: 'note', text: `Continued on a new branch, ${branch}`, at });
+			return;
+		}
+		if (event.type === 'workspace.switched') {
+			if (workspace.worktree)
+				workspace.worktree = { ...workspace.worktree, branch: event.data.branch };
 			return;
 		}
 		if (event.type === 'workspace.archived') {
@@ -1009,6 +1019,20 @@ export function createWorkspaces(
 				},
 				{ actor }
 			);
+		},
+
+		/**
+		 * Notes the branch a daemon says the worktree is on, if that is news: its agent may
+		 * have renamed it (as it is asked to) or switched to another. Takes a worktree's ID.
+		 */
+		onBranch(worktreeId: string, branch: string | null) {
+			const known = projection.get().get(worktreeId)?.worktree;
+			if (!branch || !known || known.branch === branch) return;
+			store.append({
+				type: 'workspace.switched',
+				stream: `workspace:${worktreeId}`,
+				data: { id: worktreeId, branch }
+			});
 		},
 
 		/**
