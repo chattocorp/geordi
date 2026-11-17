@@ -37,6 +37,7 @@
 <script lang="ts">
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import { agentName } from '#lib/format.ts';
+	import { effortShortcut, modelShortcut } from '#lib/keys.ts';
 	import Select, { type SelectOption } from '#lib/ui/Select.svelte';
 
 	type Props = {
@@ -96,6 +97,7 @@
 -->
 <Select
 	label="Model"
+	shortcut={modelShortcut}
 	{options}
 	create={named}
 	bind:value={() => harness.agent + SEPARATOR + (model?.id ?? ''), pick}
@@ -112,6 +114,7 @@
 {#if efforts.length}
 	<Select
 		label="Reasoning effort"
+		shortcut={effortShortcut}
 		options={[
 			{ value: '', label: 'Default effort' },
 			...efforts.map((effort) => ({ value: effort, label: effortName(effort) }))

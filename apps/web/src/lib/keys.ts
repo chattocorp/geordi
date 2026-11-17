@@ -29,9 +29,29 @@ export function submitOnEnter(event: KeyboardEvent & { currentTarget: HTMLTextAr
 	event.currentTarget.form?.requestSubmit();
 }
 
-/** Cmd+N (Ctrl+N elsewhere than on a Mac) starts a workspace or chooses its repository. */
-export function newWorkspaceShortcut(event: KeyboardEvent): boolean {
+/** Cmd (Ctrl elsewhere than on a Mac) with a key, Shift if asked, and no other modifier. */
+function command(event: KeyboardEvent, code: string, shift = false): boolean {
 	const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-	if (event.code !== 'KeyN' || event.altKey || event.shiftKey || event.isComposing) return false;
+	if (event.code !== code || event.altKey || event.shiftKey !== shift || event.isComposing)
+		return false;
 	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 }
+
+/** Cmd+N (Ctrl+N elsewhere than on a Mac) starts a workspace or chooses its repository. */
+export const newWorkspaceShortcut = (event: KeyboardEvent) => command(event, 'KeyN');
+
+/** Cmd+Shift+N (Ctrl+Shift+N) starts a workspace, beginning with which repository. */
+export const repoShortcut = (event: KeyboardEvent) => command(event, 'KeyN', true);
+
+/**
+ * Cmd+Shift+M (Ctrl+Shift+M) chooses the model, Cmd+Shift+E (Ctrl+Shift+E) the effort, of
+ * the composer in use.
+ */
+export const modelShortcut = (event: KeyboardEvent, at: Element) =>
+	command(event, 'KeyM', true) && inSameForm(event, at);
+export const effortShortcut = (event: KeyboardEvent, at: Element) =>
+	command(event, 'KeyE', true) && inSameForm(event, at);
+
+/** Whether a key was pressed in the form `at` is in: with several on screen, the one in use. */
+const inSameForm = (event: KeyboardEvent, at: Element) =>
+	!!at.closest('form')?.contains(event.target as Node | null);

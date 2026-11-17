@@ -211,11 +211,6 @@ export const restoreWorktree = command(v.string(), async (workspaceId) => {
 	}
 });
 
-/** Starts the conversation of a repository's own workspace afresh (FDR-009). */
-export const clearConversation = command(v.string(), (workspaceId) =>
-	workspaces().clear(workspaceId)
-);
-
 /** Takes back a message that is waiting for the agent to finish its turn. */
 export const removeQueued = command(
 	v.object({

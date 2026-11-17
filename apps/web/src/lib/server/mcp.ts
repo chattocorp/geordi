@@ -252,8 +252,7 @@ const tools = {
 				changes,
 				upstream,
 				failed: workspace.lastTurn === 'failed',
-				child: agents.child(workspace.id),
-				home: workspace.home
+				child: !!workspace.parentId
 			};
 			const pull = upstream?.pull;
 			return {

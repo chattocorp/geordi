@@ -27,75 +27,6 @@ function setup({ connected = true } = {}) {
 const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'turn.start' }>).apiToken;
 
-describe("a repository's own workspace (FDR-009)", () => {
-	it('is made once, keeps its name, and works in its checkout', () => {
-		const { workspaces, sent, repo } = setup();
-		const id = workspaces.home(repo.id, 'claude');
-		expect(workspaces.home(repo.id, 'codex')).toBe(id);
-		expect(workspaces.get(id)).toMatchObject({ home: true, title: 'Home', named: true });
-		expect(workspaces.ref(id)).toMatchObject({ home: true, repoPath: repo.path });
-
-		workspaces.send(id, 'What does this repository do?');
-		expect(sent.at(-1)).toMatchObject({
-			type: 'turn.start',
-			home: true,
-			instructions: expect.stringContaining("the repository's own checkout")
-		});
-		// it keeps its name, whoever would give it another
-		workspaces.agents.name(id, 'Something else');
-		workspaces.suggestTitle(id, 'Something else');
-		expect(workspaces.get(id).title).toBe('Home');
-	});
-
-	it('is called Home also where it was made under another name', () => {
-		const { store, workspaces, repo } = setup();
-		store.append({
-			type: 'workspace.created',
-			stream: 'workspace:old',
-			data: { id: 'old', repoId: repo.id, title: repo.name, agent: 'claude', home: true }
-		});
-		expect(workspaces.get('old').title).toBe('Home');
-		expect(workspaces.home(repo.id, 'claude')).toBe('old');
-	});
-
-	it('has the agents it starts branch off where all work starts, or work in the checkout too', () => {
-		const { workspaces, repo } = setup();
-		const id = workspaces.home(repo.id, 'claude');
-		workspaces.send(id, 'Go');
-		workspaces.record(id, { kind: 'worktree', path: repo.path, branch: 'main' }, 1);
-
-		const own = workspaces.agents.start(id, { worktree: 'own', prompt: 'Build it' });
-		expect(workspaces.get(own.id).base).toBeNull();
-		expect(workspaces.ref(own.id).home).toBeUndefined();
-		// its work goes where all work goes, not back into the checkout
-		expect(workspaces.child(own.id)).toBe(false);
-
-		const shared = workspaces.agents.start(id, { worktree: 'shared', prompt: 'Review it' });
-		expect(workspaces.ref(shared.id)).toMatchObject({ home: true, worktreeId: id });
-	});
-
-	it('starts its conversation afresh, as the same workspace with its turns still numbered on', () => {
-		const { workspaces, sent, repo, create } = setup();
-		const id = workspaces.home(repo.id, 'claude');
-		workspaces.send(id, 'One');
-		workspaces.record(id, { kind: 'resume', id: 'session-1' }, 1);
-		expect(() => workspaces.clear(id)).toThrow(); // not from under an agent at work
-		workspaces.record(id, { kind: 'turn.completed' }, 1);
-
-		workspaces.clear(id);
-		expect(workspaces.get(id)).toMatchObject({ transcript: [], resumeId: null, turns: 1 });
-
-		workspaces.send(id, 'Two');
-		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', turn: 2, resumeId: null });
-		// what the turn before the clearing still says is not of this one
-		workspaces.record(id, { kind: 'text', text: 'late' }, 1);
-		expect(workspaces.get(id).transcript).toHaveLength(1);
-
-		// any other workspace ends by being archived instead
-		expect(() => workspaces.clear(create('Fix the bug'))).toThrow();
-	});
-});
-
 describe('workspaces', () => {
 	it('can be started without a word, and is told what Geordi is with its first message', () => {
 		const { workspaces, sent, repo } = setup();
@@ -633,6 +564,32 @@ describe('event logs from before a workspace had one conversation', () => {
 		check(workspaces);
 		// and it survives a replay
 		check(createWorkspaces(store, repos, dispatch));
+	});
+
+	it("leaves out a repository's Home workspace and the agents in its checkout, but keeps what it started elsewhere", () => {
+		const { store, workspaces, repo } = setup();
+		const created = (id: string, data: Record<string, unknown>) =>
+			store.append({
+				type: 'workspace.created',
+				stream: `workspace:${id}`,
+				data: { id, repoId: repo.id, agent: 'claude', title: id, ...data } as never
+			});
+		created('home', { home: true });
+		store.append({
+			type: 'workspace.message',
+			stream: 'workspace:home',
+			data: { id: 'home', text: 'Hi' }
+		});
+		store.append({
+			type: 'workspace.cleared',
+			stream: 'workspace:home',
+			data: { id: 'home' }
+		} as never);
+		created('aide', { parentId: 'home', worktreeId: 'home' });
+		created('task', { parentId: 'home' });
+
+		expect(workspaces.list(repo.id).map((workspace) => workspace.id)).toEqual(['task']);
+		expect(workspaces.get('task').parentId).toBeNull();
 	});
 });
 

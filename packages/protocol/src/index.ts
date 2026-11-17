@@ -12,7 +12,7 @@ import type { MessageImage } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 29;
+export const PROTOCOL_VERSION = 30;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -59,11 +59,6 @@ export const NO_WORKTREE = 'This workspace has no worktree';
 export type WorktreeRef = {
 	worktreeId: string;
 	repoPath: string;
-	/**
-	 * The repository's own workspace (FDR-009): its files are the repository's checkout
-	 * itself, as it is. Nothing is made for it, and nothing of it is ever removed.
-	 */
-	home?: true;
 	/**
 	 * The branch the worktree started from, and that its changes are measured against.
 	 * Absent for worktrees started from where work in the repository starts.
@@ -382,11 +377,6 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
-	/**
-	 * The workspace is gone without a worktree to remove (a repository's own, FDR-009, when
-	 * its repository is forgotten): its ports are anyone's again.
-	 */
-	| ({ kind: 'releasePorts' } & WorktreeRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -448,7 +438,6 @@ export type DaemonResults = {
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
-	releasePorts: null;
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;

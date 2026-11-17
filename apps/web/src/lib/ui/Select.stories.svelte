@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Select from './Select.svelte';
-	import { newWorkspaceShortcut } from '#lib/keys.ts';
+	import { repoShortcut } from '#lib/keys.ts';
 
 	const { Story } = defineMeta({ title: 'UI/Select', component: Select });
 
@@ -56,6 +56,6 @@
 	</Select>
 </Story>
 
-<Story name="Opened with Ctrl or Cmd N" asChild>
-	<Select label="Size" options={sizes} bind:value={size} shortcut={newWorkspaceShortcut} />
+<Story name="Opened with Ctrl or Cmd Shift N" asChild>
+	<Select label="Size" options={sizes} bind:value={size} shortcut={repoShortcut} />
 </Story>
