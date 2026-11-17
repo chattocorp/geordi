@@ -85,3 +85,29 @@
 		</Composer>
 	</div>
 </Story>
+
+<Story name="With attachments" asChild>
+	<div class="max-w-2xl">
+		<Composer {form} placeholder="Describe this image">
+			{#snippet attachments()}
+				<div class="px-4 py-2">
+					<img
+						src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+						alt="Screenshot attachment"
+						class="size-20 rounded-control bg-sunken object-contain"
+					/>
+				</div>
+			{/snippet}
+			{#snippet footer()}
+				<Button type="button" variant="ghost" icon="icon-[lucide--image-plus]" label="Add images" />
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>

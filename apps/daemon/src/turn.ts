@@ -216,11 +216,22 @@ export function runTurn(
 	/** Whether there is somebody to report to right now; see `follow`. */
 	ready: () => boolean = () => true
 ): Turn {
-	const { cmd, args } = adapter.command(options);
 	rmSync(dir, { recursive: true, force: true });
 	// Private to this user: the output holds everything the agent read and said.
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	chmodSync(dir, 0o700);
+	const imagePaths = (options.images ?? []).map((image, index) => {
+		const path = join(dir, `image-${index}.${image.mediaType.split('/')[1]}`);
+		writeFileSync(path, Buffer.from(image.data, 'base64'), { mode: 0o600 });
+		return path;
+	});
+	const { cmd, args, stdin } = adapter.command({ ...options, imagePaths });
+	// A file descriptor survives daemon exit, unlike a pipe fed by the daemon.
+	let input: number | undefined;
+	if (stdin !== undefined) {
+		writeFileSync(join(dir, 'input.jsonl'), stdin, { mode: 0o600 });
+		input = openSync(join(dir, 'input.jsonl'), 'r');
+	}
 
 	const out = openSync(join(dir, 'out.jsonl'), 'a', 0o600);
 	const err = openSync(join(dir, 'err.log'), 'a', 0o600);
@@ -234,7 +245,7 @@ export function runTurn(
 		child = spawn('/bin/sh', ['-c', script, 'sh', cmd, ...args], {
 			cwd: options.cwd,
 			detached: true, // its own process group, which no signal meant for us reaches
-			stdio: ['ignore', out, err],
+			stdio: [input ?? 'ignore', out, err],
 			env: {
 				...process.env,
 				...options.env,
@@ -245,6 +256,7 @@ export function runTurn(
 	} finally {
 		closeSync(out);
 		closeSync(err);
+		if (input !== undefined) closeSync(input);
 	}
 	child.on('error', () => {}); // reported right below, or by whoever follows the turn
 	const { pid } = child;

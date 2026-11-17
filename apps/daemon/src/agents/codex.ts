@@ -129,7 +129,7 @@ export const codex: AgentAdapter = {
 		return { models, efforts };
 	},
 
-	command({ prompt, cwd, writableRoots, resumeId, api, settings, instructions }) {
+	command({ prompt, imagePaths = [], cwd, writableRoots, resumeId, api, settings, instructions }) {
 		const config = sandboxed
 			? [
 					'sandbox_mode="workspace-write"',
@@ -148,6 +148,7 @@ export const codex: AgentAdapter = {
 			);
 		const options = [
 			'--json',
+			...imagePaths.flatMap((path) => ['--image', path]),
 			...(sandboxed ? [] : ['--dangerously-bypass-approvals-and-sandbox']),
 			...config.flatMap((entry) => ['-c', entry])
 		];

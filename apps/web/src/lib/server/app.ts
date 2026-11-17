@@ -1,3 +1,4 @@
+import { createImages } from './images.ts';
 import { createLive } from './live.ts';
 import { views } from './views.ts';
 import { createStandings } from './standings.ts';
@@ -27,6 +28,7 @@ import { createWorkspaces } from './workspaces.ts';
 
 /** The forge's services, wired together. Everything is created on first use. */
 
+export const images = lazy(() => createImages(store()));
 export const repos = lazy(() => createRepos(store()));
 export const workspaces = lazy(() =>
 	createWorkspaces(store(), repos(), (message) => hub().send(message), {
