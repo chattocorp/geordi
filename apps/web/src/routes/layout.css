@@ -176,16 +176,20 @@
 }
 
 /*
- * The surface that is read: a page's content, a workspace's conversation. A rounded sheet
- * laid into the frame (the sidebar, the title bar and what is beside the sheet are one
- * tone), so that its shape sets it apart and no lines are needed. `--pane` says what is
- * behind something, to what paints its own background (a terminal, the end of a tab bar).
+ * Everything on screen is a sheet: a rounded surface laid into the frame (`bg-frame`: the
+ * window, and its title bar), a little apart from the next, so that shapes part things
+ * and no lines are needed. `sheet` is the one that is read: a page's content, a
+ * workspace's conversation. `--pane` says what is behind something, to what paints its
+ * own background (a terminal, the end of a tab bar).
  */
 @utility sheet {
 	--pane: var(--bg);
 	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line/60;
 }
-/* A sheet for what is beside the thing that is read (the sidebar, a workspace's changes and terminals): a tone between the frame's and that of what is read. */
+/*
+ * A sheet for what is beside the one that is read (the sidebar, a workspace's changes and
+ * terminals): in a tone between the frame's and that of what is read, and without a shadow.
+ */
 @utility sheet-quiet {
 	--pane: var(--sidebar);
 	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/60;
@@ -238,7 +242,11 @@
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
-/* The current tab in a pane's bar: lifted by its ground and a faint ring alone, without a shadow, which is too much on something this small inside a sheet. */
+/*
+ * The current tab in a pane's bar: lifted by its ground and a faint ring alone. A shadow is
+ * too much on something this small inside a sheet; the ring is inside it, so that it is no
+ * larger than a tab pointed at.
+ */
 @utility tab-active {
 	@apply bg-surface text-ink ring-1 ring-line/60 ring-inset hover:bg-surface;
 }

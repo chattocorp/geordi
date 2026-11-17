@@ -768,8 +768,14 @@
 		}
 	>
 		{#snippet a()}
-			<!-- what is read, as a sheet in the frame; what is beside it stays in the frame's tone -->
-			<div class="mr-1 mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet">
+			<!-- what is read, as a sheet in the frame: as far from the window's edge as the others, -->
+			<!-- and half a gap from what is beside it, where there is something -->
+			<div
+				class={[
+					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
+					frame.current.open ? 'mr-1' : 'mr-2'
+				]}
+			>
 				<Panes
 					layout={main}
 					onchange={(next) => arrange({ main: next })}

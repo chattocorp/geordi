@@ -5,7 +5,8 @@
 
 	const colours = [
 		['bg', 'The page.'],
-		['sidebar', 'Navigation and pane bars: a step back from the page.'],
+		['frame', 'What the sheets lie in: the window itself, and its title bar.'],
+		['sidebar', 'Sheets beside what is read: the sidebar, changes and terminals.'],
 		['surface', 'Cards and anything raised.'],
 		['sunken', 'Wells: code, counts, secondary buttons.'],
 		['bubble', 'What the user said.'],
