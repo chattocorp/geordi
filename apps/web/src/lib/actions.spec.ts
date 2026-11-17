@@ -36,7 +36,7 @@ describe('actionsFor', () => {
 		expect(actions.map((action) => action.id)).toEqual(['merge-pull', 'merge-upstream']);
 		expect(actions[1]).toMatchObject({
 			aside: true,
-			label: 'Update branch',
+			label: 'Update',
 			prompt: expect.stringContaining(incoming.branch)
 		});
 		expect(ids({ changes: { ...changes, uncommitted: 1 }, upstream: upstream() })).toEqual([

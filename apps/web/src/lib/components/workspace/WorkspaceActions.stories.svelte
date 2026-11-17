@@ -124,12 +124,12 @@
 </Story>
 
 <Story
-	name="Update branch before Create PR"
+	name="Update before Create PR"
 	asChild
 	play={async ({ canvasElement }) => {
 		const buttons = within(canvasElement).getAllByRole('button');
 		await expect(buttons.map((button) => button.textContent?.trim())).toEqual([
-			'Update branch',
+			'Update',
 			'Create PR'
 		]);
 	}}

@@ -13,6 +13,6 @@ FDR-003 and the reworked FDR-001. A workspace is one conversation; messages queu
 
 Outcome: implemented and run end to end with Claude and Codex on a scratch repository (action to commit, queued message, archive). The pull-request actions are covered by tests of the rules only: no real pull request was created or merged.
 
-Follow-up complete: the ribbon offers Update branch when the base branch has known commits absent from the workspace. The action asks the agent to merge them and also supports parent branches. Verified with real Git fetch/merge tests, action-rule tests, browser stories, pnpm check, pnpm lint, pnpm test, and sweet doctor.
+Follow-up complete: the ribbon offers Update when the base branch has known commits absent from the workspace. The action asks the agent to merge them and also supports parent branches. Verified with real Git fetch/merge tests, action-rule tests, browser stories, pnpm check, pnpm lint, pnpm test, and sweet doctor.
 
-Label and layout refinement: use Update branch to make the merge direction clear, and keep the main ribbon action at the far right.
+Label and layout refinement: use Update to make the merge direction clear, and keep the main ribbon action at the far right.
