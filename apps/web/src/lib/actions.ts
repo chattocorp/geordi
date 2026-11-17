@@ -57,6 +57,10 @@ const awaitsPull = ({ changes, upstream }: State) =>
 	(!upstream.pull || upstream.pull.state === 'unknown') &&
 	changes.files.length > 0;
 
+/** What to tell the agent to bring the latest of the branch its work is based on into it. */
+const mergeFrom = (branch: string | null) =>
+	`Merge the latest commits from ${branch ? `the base branch ${JSON.stringify(branch)}` : 'its base branch'} into this workspace's current branch. Fetch first if it is a remote-tracking branch. Preserve uncommitted work, resolve any merge conflicts keeping the intent of both sides, and run the relevant checks.`;
+
 /**
  * The actions that make sense now, the most pressing first. The first one is what the UI
  * presents as *the* next step.
@@ -83,7 +87,7 @@ export function actionsFor(state: State): WorkspaceAction[] {
 			label: 'Update',
 			icon: 'icon-[lucide--git-merge]',
 			aside: actions.length > 0,
-			prompt: `Merge the latest commits from the base branch ${JSON.stringify(incoming.branch)} into this workspace's current branch. Fetch first if it is a remote-tracking branch. Preserve uncommitted work, resolve any merge conflicts, and run the relevant checks.`
+			prompt: mergeFrom(incoming.branch)
 		}
 	];
 }
@@ -157,7 +161,8 @@ function nextActions(state: State): WorkspaceAction[] {
 			id: 'resolve-conflicts',
 			label: 'Resolve conflicts',
 			icon: 'icon-[lucide--git-merge-conflict]',
-			prompt: `Pull request #${pull.number} conflicts with ${pull.base ?? 'its base branch'}. Fetch and merge the latest ${pull.base ?? 'base branch'} from the remote into this branch and resolve the conflicts, keeping the intent of both sides. Check that everything still works, then commit and push.`
+			// the base upstream (`origin`, as in `upstream.ts`): what the pull request merges into
+			prompt: `Pull request #${pull.number} conflicts with its base branch. ${mergeFrom(pull.base && `origin/${pull.base}`)} Then push.`
 		});
 	if (pull.checks?.state === 'failure')
 		actions.push({
