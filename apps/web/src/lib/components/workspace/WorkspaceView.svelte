@@ -627,8 +627,8 @@
 	{:else}
 		<!-- a tab like the others: a small mark and a name -->
 		<AgentAvatar agent={workspace.agent} bare />
+		<!-- that its agent works is said by the ribbon, and round the reply box -->
 		<span class="truncate">Conversation</span>
-		{#if running}<Spinner />{/if}
 	{/if}
 {/snippet}
 
