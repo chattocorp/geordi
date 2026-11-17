@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import MessageView from './MessageView.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
+	import { draft } from '#lib/drafts.svelte.ts';
 	import { modifierKey } from '#lib/keys.ts';
 	import { toBlocks } from '#lib/transcript.ts';
 	import Button from '#lib/ui/Button.svelte';
@@ -29,6 +30,11 @@
 	const blocks = $derived(toBlocks(workspace.transcript));
 	// Each workspace needs its own instance of the form.
 	const form = $derived(sendMessage.for(workspace.id));
+	// What is written and not sent yet stays, when one goes elsewhere and comes back.
+	const written = draft(
+		() => `reply:${workspace.id}`,
+		() => form.fields.text
+	);
 
 	// The agent of a conversation is who it is; which of its models answers next, and how hard
 	// it thinks, can be chosen with every message (FDR-004). Only this agent's are on offer.
@@ -99,6 +105,7 @@
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
 				<MessageComposer
+					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
 					disabled={form.pending > 0}
 					{form}
