@@ -1,7 +1,7 @@
 # FDR-008: Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-11-16
+**Last reviewed:** 2026-11-17
 
 ## Overview
 
@@ -14,6 +14,7 @@ Agents work for minutes at a time, and people do other things meanwhile. Geordi 
 - Nothing fires for the workspace the person is looking at. "Looking at" means its page is open and Geordi's window or tab is in front. With the window behind another app, or the tab hidden, the workspace on screen notifies too.
 - Clicking the notification brings Geordi to the front and opens the workspace.
 - A workspace someone was told about shows in bold in the sidebar until they open it. Opening it also takes its notification away.
+- The sidebar orders workspaces within each repository by their latest notification, newest first. Reading one keeps its position. A child stays with its parent and brings that family up when it notifies. Ties and workspaces with no notification keep their existing order. This order is remembered in this browser across reloads; notifications that are suppressed do not change it.
 - The desktop app's Dock icon shows how many workspaces are unread in this way. (So does an installed web app's icon, where the browser allows it.)
 - No notification for a turn someone stopped, or for a message that steers the agent: they know. No notification between a turn and a waiting message it goes straight on to.
 - A workspace started by an agent notifies only once that agent has stopped working too. While its agent is waiting for it, the reply goes to the agent, not the person.
