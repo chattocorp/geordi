@@ -116,14 +116,6 @@
 	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
-	/** The workspace's ID was just copied: say so for a moment. */
-	let copied = $state(false);
-	async function copyId() {
-		await navigator.clipboard.writeText(id);
-		copied = true;
-		setTimeout(() => (copied = false), 1500);
-	}
-
 	/** Terminals asked for just now, whose shells are still starting. */
 	const starting = new SvelteSet<string>();
 	$effect(() => {
@@ -716,17 +708,6 @@
 						<span class="truncate code-dense">{workspace.worktree.branch}</span>
 					</span>
 				{/if}
-				<!-- For telling someone (or an agent) exactly which workspace this is. -->
-				<button
-					type="button"
-					onclick={copyId}
-					class="flex shrink-0 items-center gap-1 hover:text-ink"
-					title="Copy this workspace's ID: {id}"
-				>
-					<span class={['size-3.5', copied ? 'icon-[lucide--check]' : 'icon-[lucide--hash]']}
-					></span>
-					<span class="code-dense">{id.slice(0, 8)}</span>
-				</button>
 				{#if !connected}
 					<span class="flex items-center gap-1 text-danger">
 						<span class="icon-[lucide--unplug] size-3.5"></span>

@@ -57,21 +57,9 @@
 {/snippet}
 
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
+	<!-- how many files there are is on the tab; with no pull request there is nothing to say here -->
 	{#if git?.upstream?.pull}
 		<UpstreamStatus upstream={git.upstream} />
-	{:else if git?.changes}
-		<!-- no pull request to speak of (the next step is in the title bar): what there is, in sum -->
-		<header class="flex items-center gap-2 border-b border-line px-3.5 py-2.5 text-sm text-muted">
-			<span class="icon-[lucide--file-diff] size-4 shrink-0"></span>
-			<span class="min-w-0 flex-1 truncate">
-				{#if files.length === 0}
-					No changes yet
-				{:else}
-					{files.length} {files.length === 1 ? 'file' : 'files'} changed
-				{/if}
-			</span>
-			{@render stats(sum('added'), sum('removed'))}
-		</header>
 	{/if}
 
 	<div class="scroller py-1.5">
@@ -117,10 +105,17 @@
 						</button>
 					</li>
 				{:else}
-					{#if git.upstream?.pull}
-						<li class="px-3.5 py-2 text-sm text-muted">No changes yet.</li>
-					{/if}
+					<li class="px-3.5 py-2 text-sm text-muted">No changes yet.</li>
 				{/each}
+				{#if files.length > 1}
+					<!-- in sum, under the column it adds up -->
+					<li
+						class="mx-3.5 mt-1.5 flex justify-end border-t border-line pt-1.5"
+						aria-label="In all"
+					>
+						{@render stats(sum('added'), sum('removed'))}
+					</li>
+				{/if}
 			</ul>
 		{/if}
 	</div>
