@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
 	import Button from '#lib/ui/Button.svelte';
+	import ButtonGroup from '#lib/ui/ButtonGroup.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 
 	type Props = {
@@ -105,20 +106,29 @@
 				<span class={['size-4 shrink-0', standing.icon]}></span>
 				<span class="pr-1.5 pl-1 text-sm font-medium whitespace-nowrap">{standing.label}</span>
 			{/if}
-			{#each ordered as action (action.id)}
-				<!-- the next step stands out; what else is possible, and what is beside it, doesn't -->
-				{@const next = action === primary}
-				<Button
-					size="sm"
-					variant={next ? 'primary' : 'soft'}
-					tone={standing?.tone === 'merged' ? 'merged' : standing?.tone === 'ok' ? 'ok' : 'accent'}
-					icon={action.icon}
-					busy={pending.includes(action.id)}
-					onclick={() => onaction(action)}
-				>
-					{action.label}
-				</Button>
-			{/each}
+			{#if ordered.length > 0}
+				<!-- several ways to go are one pill, not several -->
+				<ButtonGroup label="Actions">
+					{#each ordered as action (action.id)}
+						<!-- the next step stands out; what else is possible, and what is beside it, doesn't -->
+						{@const next = action === primary}
+						<Button
+							size="sm"
+							variant={next ? 'primary' : 'soft'}
+							tone={standing?.tone === 'merged'
+								? 'merged'
+								: standing?.tone === 'ok'
+									? 'ok'
+									: 'accent'}
+							icon={action.icon}
+							busy={pending.includes(action.id)}
+							onclick={() => onaction(action)}
+						>
+							{action.label}
+						</Button>
+					{/each}
+				</ButtonGroup>
+			{/if}
 		</div>
 	{/if}
 </div>
