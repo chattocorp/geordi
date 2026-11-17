@@ -63,14 +63,14 @@
 	<div class="max-w-2xl">
 		<Composer {form} live rows={2} placeholder="Steer the agent, or queue a message">
 			{#snippet footer()}
-				<p class="pl-1 text-xs text-muted">Enter to send, Shift+Enter for a new line</p>
-				<Button
-					type="submit"
-					variant="primary"
-					icon="icon-[lucide--arrow-up]"
-					label="Send"
-					class="ml-auto"
-				/>
+				<p class="pl-1 text-xs text-muted">Enter to steer, ⌘Enter to queue</p>
+				<div class="ml-auto flex items-center gap-2">
+					<Button icon="icon-[lucide--square]" label="Stop the agent" />
+					<Button type="submit" icon="icon-[lucide--list-plus]">Queue</Button>
+					<Button type="submit" variant="primary" icon="icon-[lucide--corner-down-right]">
+						Steer
+					</Button>
+				</div>
 			{/snippet}
 		</Composer>
 	</div>
