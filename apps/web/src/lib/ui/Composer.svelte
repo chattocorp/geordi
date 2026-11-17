@@ -96,7 +96,8 @@
 	{...form}
 	class={[
 		// (a container: what is in it goes by its width, not the window's)
-		'group/composer @container card-float pt-2 focus-within:ring-accent/60',
+		// (`data-dropping`: something is being dragged in to be attached)
+		'group/composer @container card-float pt-2 focus-within:ring-accent/60 data-dropping:ring-accent/60',
 		live && 'edge-live'
 	]}
 >

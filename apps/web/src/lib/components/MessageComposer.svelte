@@ -23,6 +23,7 @@
 	const imageKey = createAttachmentKey();
 
 	let uploading = $state(false);
+	let dropping = $state(false);
 	let imageProblem = $state('');
 	let picker = $state<HTMLInputElement>();
 	let text: HTMLTextAreaElement | null = null;
@@ -83,16 +84,57 @@
 				event.stopImmediatePropagation();
 			}
 		};
+		// images dropped anywhere on the composer are attached, like pasted ones
+		let depth = 0; // (entering a child leaves its parent: count, so the hint doesn't flicker)
+		const carriesFiles = (event: DragEvent) =>
+			!disabled && !uploading && !!event.dataTransfer?.types.includes('Files');
+		const enter = (event: DragEvent) => {
+			if (!carriesFiles(event)) return;
+			depth++;
+			dropping = true;
+		};
+		const over = (event: DragEvent) => {
+			if (!carriesFiles(event)) return;
+			event.preventDefault(); // (or the browser opens the file instead)
+			event.dataTransfer!.dropEffect = 'copy';
+		};
+		const leave = (event: DragEvent) => {
+			if (!carriesFiles(event)) return;
+			depth = Math.max(0, depth - 1);
+			dropping = depth > 0;
+		};
+		const drop = (event: DragEvent) => {
+			depth = 0;
+			dropping = false;
+			const files = [...(event.dataTransfer?.files ?? [])];
+			if (!files.length) return; // dropped text goes into the text as usual
+			event.preventDefault();
+			void addImages(files);
+			text?.focus();
+		};
 		node.addEventListener('submit', submit, true);
 		node.addEventListener('reset', reset);
+		node.addEventListener('dragenter', enter);
+		node.addEventListener('dragover', over);
+		node.addEventListener('dragleave', leave);
+		node.addEventListener('drop', drop);
 		return () => {
 			node.removeEventListener('submit', submit, true);
 			node.removeEventListener('reset', reset);
+			node.removeEventListener('dragenter', enter);
+			node.removeEventListener('dragover', over);
+			node.removeEventListener('dragleave', leave);
+			node.removeEventListener('drop', drop);
 		};
 	};
 </script>
 
-<Composer {...props} form={{ ...form, [imageKey]: manageImages }} {disabled} onpaste={paste}>
+<Composer
+	{...props}
+	form={{ ...form, 'data-dropping': dropping || undefined, [imageKey]: manageImages }}
+	{disabled}
+	onpaste={paste}
+>
 	{#snippet attachments()}
 		<input {...imageField} type="hidden" value={JSON.stringify(images)} />
 		<input
