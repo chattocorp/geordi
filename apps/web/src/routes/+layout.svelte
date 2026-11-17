@@ -298,16 +298,16 @@
 					{#each nav.current?.repos ?? [] as repo, index (repo.id)}
 						{@const quiet = (at: number) =>
 							!listed.get((nav.current?.repos ?? [])[at]?.id ?? '')?.length}
-						<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-2' : 'pt-4')]}>
+						<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-1' : 'pt-5')]}>
 							<!--
-								A heading for what is under it: its picture, its name (quieter than what is under it,
-								set apart by weight), and the way to start something in it. What is under it lines up
-								with it: icon under picture, title under name.
+								A label for what is under it: its picture, its name (small and quiet: the
+								workspaces are what is read here), and the way to start something in it. What is
+								under it lines up with it: icon under picture, title under name.
 							-->
-							<div class="group flex h-9 items-center pr-1.5">
+							<div class="group flex h-7 items-center pr-1.5">
 								<a
 									href={resolve('/repos/[id]', { id: repo.id })}
-									class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-sm font-semibold text-muted hover:text-ink"
+									class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-xs font-medium text-muted hover:text-ink"
 								>
 									<RepoIcon id={repo.id} />
 									<span class="truncate">{repo.name}</span>
@@ -417,7 +417,7 @@
 						<Spinner label="Archiving" />
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
-						<Spinner />
+						<Spinner live />
 					{:else if workspace.parentId}
 						<!-- started by an agent: the one above it, where that is still around -->
 						<span class="icon-[lucide--corner-down-right] size-4"></span>

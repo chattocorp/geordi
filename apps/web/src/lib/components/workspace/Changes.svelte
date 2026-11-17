@@ -100,15 +100,18 @@
 							type="button"
 							onclick={() => onopen(file.path)}
 							title="{means}: {file.path}"
-							class="flex w-full items-center gap-2.5 px-3.5 py-1 text-left code-dense hover:bg-sunken"
+							class="flex w-full items-center gap-2.5 overflow-hidden px-3.5 py-1 text-left code-dense whitespace-nowrap hover:bg-sunken"
 						>
 							<span class={['w-2 shrink-0 text-center font-semibold', tone]} aria-label={means}>
 								{letter}
 							</span>
-							<span
-								class={['min-w-0 flex-1 truncate', file.status === 'deleted' && 'line-through']}
-							>
-								<span class="text-muted">{file.path.slice(0, slash)}</span>{file.path.slice(slash)}
+							<!-- the name is what is looked for: where room runs out, the directory gives way -->
+							<span class={['flex min-w-0 flex-1', file.status === 'deleted' && 'line-through']}>
+								{#if slash > 0}
+									<span class="min-w-0 truncate text-muted">{file.path.slice(0, slash - 1)}</span>
+									<span class="shrink-0 text-muted">/</span>
+								{/if}
+								<span class="shrink-0">{file.path.slice(slash)}</span>
 							</span>
 							{@render stats(file.added, file.removed)}
 						</button>
