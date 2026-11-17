@@ -25,3 +25,4 @@ Built as designed in FDR-008:
 - One switch, Settings → General → Notifications (per browser, on by default). Permission is asked on the first form submit (sending to an agent) or when the switch is turned on.
 - Decided against: checks/PR events, a sound file.
 - Known limits: nothing is told with no Geordi window open; two open tabs both play the sound.
+- Sidebar workspaces now sort by latest notification within each repository. Parent/child families stay together; reading a workspace keeps its position, and order persists across reloads. Covered by sorting regression tests; type checks, lint, the full test suite, and `sweet doctor` passed.

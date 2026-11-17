@@ -279,7 +279,7 @@
 
 @layer base {
 	body {
-		@apply bg-bg font-sans text-base text-ink antialiased;
+		@apply bg-bg font-sans text-base text-ink subpixel-antialiased;
 	}
 
 	/* Everything you can click says so. (Tailwind leaves buttons with the default cursor.) */
@@ -390,8 +390,8 @@
 }
 
 /*
- * Someone is at work behind this: a soft light goes slowly round its edge. Only the edge:
- * drawn as a ring around it, a pixel wide, that takes its corners. A still, faint ring
+ * Someone is at work behind this: a defined light goes slowly round its edge. Only the edge:
+ * drawn as a ring around it, two pixels wide, that takes its corners. A still, faint ring
  * when the user prefers reduced motion.
  */
 @property --edge-turn {
@@ -406,12 +406,12 @@
 		content: '';
 		@apply pointer-events-none absolute -inset-px;
 		border-radius: inherit;
-		padding: 1px;
+		padding: 2px;
 		background: conic-gradient(
 			from var(--edge-turn),
-			transparent 0 55%,
-			color-mix(in srgb, var(--accent) 80%, transparent) 80%,
-			transparent 100%
+			transparent 0 72%,
+			var(--accent) 84% 90%,
+			transparent 98% 100%
 		);
 		/* everything but the edge is cut out */
 		mask:
@@ -455,41 +455,11 @@
 	}
 }
 
-/*
- * The visor: a light that travels along a separator while an agent is working. It is no
- * line of its own (that would make the separator thicker for as long as it shows): it is
- * as thin as the line it runs along, and lies exactly on it. The only ambient motion in
- * the app; a still glow when the user prefers reduced motion.
- */
-.visor {
-	@apply pointer-events-none relative h-px overflow-hidden;
-
-	&::after {
-		content: '';
-		@apply absolute inset-y-0 w-1/3;
-		background: linear-gradient(
-			90deg,
-			transparent,
-			var(--accent) 45%,
-			var(--accent) 55%,
-			transparent
-		);
-		animation: visor-sweep 1.8s ease-in-out infinite;
-	}
-}
-
 @keyframes visor-sweep {
 	from {
 		transform: translateX(-100%);
 	}
 	to {
 		transform: translateX(300%);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.visor::after {
-		@apply w-full opacity-60;
-		animation: none;
 	}
 }

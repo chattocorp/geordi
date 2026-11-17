@@ -154,7 +154,7 @@ function stopDaemon({ agents = false } = {}) {
 
 // --- Window and menu -------------------------------------------------------------------------
 
-/** Where the window was when it was last closed, and whether it filled the screen. */
+/** Where the window was when it was last closed, whether it filled the screen, and what it showed. */
 const placeFile = join(app.getPath('userData'), 'window.json');
 
 /** The window's last place, if it is still on a screen that is there. */
@@ -174,9 +174,20 @@ function lastPlace() {
 	}
 }
 
+/** The page the window showed when it was last closed (a path of the forge's), if any. */
+function lastPage() {
+	try {
+		const { page } = JSON.parse(readFileSync(placeFile, 'utf8'));
+		return typeof page === 'string' && page.startsWith('/') && !page.startsWith('//') ? page : '/';
+	} catch {
+		return '/';
+	}
+}
+
 function open() {
-	// the first window goes where it was; any further one where the system puts it
-	const place = BrowserWindow.getAllWindows().length === 0 ? lastPlace() : {};
+	// the first window goes where it was and shows what it did; any further one starts afresh
+	const first = BrowserWindow.getAllWindows().length === 0;
+	const place = first ? lastPlace() : {};
 	const window = new BrowserWindow({
 		width: 1440,
 		height: 900,
@@ -193,7 +204,12 @@ function open() {
 	});
 	window.on('close', () => {
 		try {
-			const place = { ...window.getNormalBounds(), fullscreen: window.isFullScreen() };
+			const shown = URL.parse(window.webContents.getURL());
+			const place = {
+				...window.getNormalBounds(),
+				fullscreen: window.isFullScreen(),
+				page: shown?.origin === url ? shown.pathname + shown.search : '/'
+			};
 			writeFileSync(placeFile, JSON.stringify(place));
 		} catch (error) {
 			note(`could not remember the window's place: ${error}`);
@@ -211,7 +227,7 @@ function open() {
 		event.preventDefault();
 		if (/^https?:/.test(target)) shell.openExternal(target);
 	});
-	window.loadURL(url);
+	window.loadURL(first ? url + lastPage() : url);
 }
 
 function menu() {

@@ -2,7 +2,7 @@
 	import type { Attachment } from 'svelte/attachments';
 	import { renderMarkdown } from '#lib/markdown.ts';
 
-	let { text }: { text: string } = $props();
+	let { text, dimmed = false }: { text: string; dimmed?: boolean } = $props();
 
 	const html = $derived(renderMarkdown(text));
 
@@ -20,7 +20,11 @@
 	};
 </script>
 
-<div class="prose max-w-none prose-pre:rounded-control" {@attach copyButtons}>
+<div
+	class="prose max-w-none prose-pre:rounded-control"
+	class:opacity-75={dimmed}
+	{@attach copyButtons}
+>
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it escapes raw HTML -->
 	{@html html}
 </div>

@@ -1,4 +1,4 @@
-import { SvelteSet } from 'svelte/reactivity';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import { cameToRest, type TurnEnd, type Watched } from './attention.ts';
 import { chimeWav } from './chime.ts';
 
@@ -57,11 +57,31 @@ function stored(): string[] {
 		return []; // corrupt: start afresh
 	}
 }
+/** Latest notification times stay after reading, so the sidebar does not jump back. */
+export const notifiedAt = new SvelteMap<string, number>(browser ? storedTimes() : []);
+
+function storedTimes(): [string, number][] {
+	try {
+		const value: unknown = JSON.parse(load('geordi:notifiedAt') ?? '{}');
+		if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+		return Object.entries(value).filter(
+			(entry): entry is [string, number] =>
+				typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] > 0
+		);
+	} catch {
+		return [];
+	}
+}
+
 const saveUnread = () => save('geordi:unread', unread.size ? JSON.stringify([...unread]) : null);
 
 // another tab or window read or was told something: so has this one
 if (browser)
 	window.addEventListener('storage', ({ key }) => {
+		if (key === 'geordi:notifiedAt' || key === null) {
+			notifiedAt.clear();
+			for (const [id, at] of storedTimes()) notifiedAt.set(id, at);
+		}
 		if (key !== 'geordi:unread' && key !== null) return;
 		const now = stored();
 		for (const id of unread) if (!now.includes(id)) unread.delete(id);
@@ -163,11 +183,14 @@ export function watch(all: Listed[], viewed: string | null, open: (id: string) =
 	if (!on) return;
 
 	const told = rested.filter((workspace) => !(looking && workspace.id === viewed));
+	const at = Date.now();
 	for (const workspace of told) {
 		unread.add(workspace.id);
+		notifiedAt.set(workspace.id, at);
 		show(workspace, open);
 	}
 	if (told.length) {
+		save('geordi:notifiedAt', JSON.stringify(Object.fromEntries(notifiedAt)));
 		saveUnread();
 		chime(told.some((workspace) => workspace.outcome === 'failed'));
 	}

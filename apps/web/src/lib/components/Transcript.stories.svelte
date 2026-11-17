@@ -65,6 +65,15 @@
 	<div class="max-w-2xl"><Markdown text={reply} /></div>
 </Story>
 
+<Story name="Earlier messages are dimmed" asChild>
+	<div class="max-w-2xl space-y-6">
+		<Markdown text="I’ll check the **changes pane** and its `git diff` command." dimmed />
+		<ToolGroup tools={tools.slice(0, 2)} cwd="/work" />
+		<Markdown text="The command includes submodules. I’ll update it and run the checks." dimmed />
+		<Markdown text={reply} />
+	</div>
+</Story>
+
 <!-- Finished, failed and still-running tool calls. Open one to see its input and output. -->
 <Story name="Tool calls" asChild>
 	<div class="max-w-2xl space-y-6">
