@@ -1,9 +1,11 @@
+export { IMAGE_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES, type MessageImage } from './images.ts';
+import type { MessageImage } from './images.ts';
 /**
  * Messages exchanged between the forge (apps/web) and daemons (apps/daemon).
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 26;
+export const PROTOCOL_VERSION = 27;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -467,6 +469,7 @@ export type ForgeMessage =
 			/** What the agent is told on top of its CLI's own system prompt: that it works in Geordi, and how. */
 			instructions?: string;
 			prompt: string;
+			images?: MessageImage[];
 	  } & WorktreeRef)
 	| { type: 'turn.stop'; workspaceId: string }
 	| { type: 'request'; id: string; request: DaemonRequest }

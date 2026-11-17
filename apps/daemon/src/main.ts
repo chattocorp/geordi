@@ -510,6 +510,7 @@ async function handle(message: ForgeMessage) {
 					{
 						sessionId: workspaceId,
 						prompt,
+						images: message.images,
 						resumeId,
 						settings: message.settings,
 						env: (await configFor(worktree, message)).env,

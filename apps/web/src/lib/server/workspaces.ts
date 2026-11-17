@@ -1,3 +1,4 @@
+import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { error } from '@sveltejs/kit';
 import {
@@ -45,12 +46,20 @@ export type WorkspacesEvent =
 	| {
 			type: 'workspace.message';
 			stream: WorkspaceStream;
-			data: { id: string; text: string; queued?: boolean; steered?: boolean };
+			data: { id: string; text: string; images?: string[]; queued?: boolean; steered?: boolean };
 	  }
 	/** A message that interrupts the working agent: it is sent as soon as its turn has stopped. */
-	| { type: 'workspace.steered'; stream: WorkspaceStream; data: { id: string; text: string } }
+	| {
+			type: 'workspace.steered';
+			stream: WorkspaceStream;
+			data: { id: string; text: string; images?: string[] };
+	  }
 	/** A message to send once the agent has finished what it is doing. */
-	| { type: 'workspace.queued'; stream: WorkspaceStream; data: { id: string; text: string } }
+	| {
+			type: 'workspace.queued';
+			stream: WorkspaceStream;
+			data: { id: string; text: string; images?: string[] };
+	  }
 	/** The workspace got a better name than the first line of its first message. */
 	| { type: 'workspace.titled'; stream: WorkspaceStream; data: { id: string; title: string } }
 	/** The agent is to run with another model or effort from its next turn on; all of what is chosen. */
@@ -77,7 +86,7 @@ export type WorkspacesEvent =
 
 export type TranscriptItem =
 	/** `from`: the workspace whose agent said it, where it was not a person. */
-	| { kind: 'user'; text: string; at: string; from?: string }
+	| { kind: 'user'; text: string; images?: string[]; at: string; from?: string }
 	| { kind: 'text'; text: string; at: string }
 	| {
 			kind: 'tool';
@@ -124,6 +133,7 @@ export type Workspace = {
 	queue: string[];
 	/** Messages that interrupted the agent and go out as soon as its turn has stopped. */
 	steering: string[];
+	attachments: { queue: string[][]; steering: string[] };
 	/**
 	 * Something the agent has to be told before anything else, with its next message: what
 	 * happened to its workspace since it last looked.
@@ -177,7 +187,13 @@ export const UNTITLED = 'New workspace';
 /** How often an agent may name its own workspace. */
 const MAX_NAMES = 3;
 
-type NewWorkspace = { repoId: string; agent: Agent; settings?: AgentSettings; prompt: string };
+type NewWorkspace = {
+	repoId: string;
+	agent: Agent;
+	settings?: AgentSettings;
+	prompt: string;
+	images?: string[];
+};
 
 export function createWorkspaces(
 	store: EventStore<GeordiEvent>,
@@ -195,6 +211,7 @@ export function createWorkspaces(
 		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
+	const imageStore = createImages(store);
 	function apply(
 		workspaces: Map<string, Workspace>,
 		event: CurrentEvent,
@@ -222,6 +239,7 @@ export function createWorkspaces(
 				resumeId: null,
 				queue: [],
 				steering: [],
+				attachments: { queue: [], steering: [] },
 				sentBy: { queue: [], steering: null },
 				briefing: null,
 				archivedAt: null,
@@ -263,20 +281,24 @@ export function createWorkspaces(
 		if (event.type === 'workspace.archived') {
 			workspace.archivedAt = at;
 			workspace.queue = [];
+			workspace.attachments.queue = [];
 			return;
 		}
 		if (event.type === 'workspace.queued') {
 			workspace.queue.push(event.data.text);
+			workspace.attachments.queue.push(event.data.images ?? []);
 			workspace.sentBy.queue.push(actor);
 			return;
 		}
 		if (event.type === 'workspace.dequeued') {
 			workspace.queue.splice(event.data.index, 1);
+			workspace.attachments.queue.splice(event.data.index, 1);
 			workspace.sentBy.queue.splice(event.data.index, 1);
 			return;
 		}
 		if (event.type === 'workspace.steered') {
 			workspace.steering.push(event.data.text);
+			workspace.attachments.steering.push(...(event.data.images ?? []));
 			workspace.sentBy.steering = actor;
 			return;
 		}
@@ -285,10 +307,12 @@ export function createWorkspaces(
 			let sender = actor;
 			if (event.data.queued) {
 				workspace.queue.shift();
+				workspace.attachments.queue.shift();
 				sender = workspace.sentBy.queue.shift() ?? null;
 			}
 			if (event.data.steered) {
 				workspace.steering = [];
+				workspace.attachments.steering = [];
 				sender = workspace.sentBy.steering;
 				workspace.sentBy.steering = null;
 			}
@@ -297,7 +321,13 @@ export function createWorkspaces(
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
 			const from = sender && workspaces.has(sender) ? sender : undefined;
-			transcript.push({ kind: 'user', text: event.data.text, at, ...(from && { from }) });
+			transcript.push({
+				kind: 'user',
+				text: event.data.text,
+				...(event.data.images?.length && { images: event.data.images }),
+				at,
+				...(from && { from })
+			});
 			return;
 		}
 
@@ -438,16 +468,25 @@ export function createWorkspaces(
 		workspace: Workspace,
 		text: string,
 		actor: string | null,
-		from?: 'queued' | 'steered'
+		from?: 'queued' | 'steered',
+		images: string[] = []
 	) {
 		const { id } = workspace;
+		images =
+			from === 'queued'
+				? workspace.attachments.queue[0]
+				: from === 'steered'
+					? workspace.attachments.steering
+					: images;
+		// Each steering message is bounded on entry; several may be combined into one turn.
+		const resolved = images.map(imageStore.get);
 		// what the agent has to know first (read before the message makes it old news)
 		const briefing = find(id).briefing;
 		store.append(
 			{
 				type: 'workspace.message',
 				stream: `workspace:${id}`,
-				data: { id, text, ...(from && { [from]: true }) }
+				data: { id, text, ...(images.length && { images }), ...(from && { [from]: true }) }
 			},
 			{ actor }
 		);
@@ -467,6 +506,7 @@ export function createWorkspaces(
 				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
+			...(resolved.length && { images: resolved }),
 			prompt: briefing ? `${briefing}\n\n${text}` : text
 		});
 		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });
@@ -547,12 +587,14 @@ export function createWorkspaces(
 	function create(
 		{
 			prompt,
+			images = [],
 			settings = {},
 			title: given,
 			...workspace
 		}: NewWorkspace & { parentId?: string; worktreeId?: string; base?: string; title?: string },
 		actor: string | null = null
 	): string {
+		imageStore.resolve(images);
 		repos.get(workspace.repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
@@ -575,8 +617,8 @@ export function createWorkspaces(
 		// whoever starts it may name it; otherwise that is left to others (`onCreated`, its agent)
 		if (given && actor) retitle(id, given, actor);
 		// started with nothing to do, it waits to be told: its first turn is its first message
-		if (!prompt) return id;
-		startTurn(find(id), prompt, actor);
+		if (!prompt && !images.length) return id;
+		startTurn(find(id), prompt, actor, undefined, images);
 		if (!find(id).named) onCreated?.(id, prompt);
 		return id;
 	}
@@ -820,8 +862,9 @@ export function createWorkspaces(
 			{
 				agent,
 				settings,
-				prompt = ''
-			}: Partial<Pick<NewWorkspace, 'agent' | 'settings' | 'prompt'>> = {},
+				prompt = '',
+				images = []
+			}: Partial<Pick<NewWorkspace, 'agent' | 'settings' | 'prompt' | 'images'>> = {},
 			actor: string | null = null
 		): string {
 			const workspace = find(id);
@@ -833,6 +876,7 @@ export function createWorkspaces(
 					agent: agent ?? owner.agent,
 					settings: settings ?? owner.settings,
 					prompt,
+					images,
 					worktreeId: owner.worktreeId,
 					...(owner.base && { base: owner.base })
 				},
@@ -849,15 +893,20 @@ export function createWorkspaces(
 		 * Says something to the workspace's agent: at once if it is idle (and nothing is
 		 * waiting to go first), otherwise once it has finished what it is doing.
 		 */
-		send(id: string, text: string, actor: string | null = null) {
+		send(id: string, text: string, actor: string | null = null, images: string[] = []) {
+			imageStore.resolve(images);
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (held.has(id)) error(409, 'This workspace is being archived');
 			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
-				return startTurn(workspace, text, actor);
+				return startTurn(workspace, text, actor, undefined, images);
 			store.append(
-				{ type: 'workspace.queued', stream: `workspace:${id}`, data: { id, text } },
+				{
+					type: 'workspace.queued',
+					stream: `workspace:${id}`,
+					data: { id, text, ...(images.length && { images }) }
+				},
 				{ actor }
 			);
 			// idle with messages waiting: the turn before failed, and this is the nudge to go on
@@ -868,15 +917,20 @@ export function createWorkspaces(
 		 * Says something to the workspace's agent now: if it is working, its turn is stopped
 		 * and the message goes out as soon as it has. Waiting messages keep waiting.
 		 */
-		steer(id: string, text: string, actor: string | null = null) {
+		steer(id: string, text: string, actor: string | null = null, images: string[] = []) {
+			imageStore.resolve(images);
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (held.has(id)) error(409, 'This workspace is being archived');
 
 			nameAfter(workspace, text);
-			if (workspace.status === 'idle') return startTurn(workspace, text, actor);
+			if (workspace.status === 'idle') return startTurn(workspace, text, actor, undefined, images);
 			store.append(
-				{ type: 'workspace.steered', stream: `workspace:${id}`, data: { id, text } },
+				{
+					type: 'workspace.steered',
+					stream: `workspace:${id}`,
+					data: { id, text, ...(images.length && { images }) }
+				},
 				{ actor }
 			);
 			stop(id);
@@ -887,8 +941,16 @@ export function createWorkspaces(
 		 * was meant: the queue may have moved on since it was looked at, and then nothing is
 		 * taken back rather than the wrong message.
 		 */
-		dequeue(id: string, index: number, text: string, actor: string | null = null) {
+		dequeue(
+			id: string,
+			index: number,
+			text: string,
+			actor: string | null = null,
+			images?: string[]
+		) {
 			if (find(id).queue[index] !== text) return;
+			if (images && JSON.stringify(find(id).attachments.queue[index]) !== JSON.stringify(images))
+				return;
 			store.append(
 				{ type: 'workspace.dequeued', stream: `workspace:${id}`, data: { id, index } },
 				{ actor }

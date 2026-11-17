@@ -1,3 +1,4 @@
+import { createImages } from './images.ts';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -769,5 +770,70 @@ describe('agents talking to the agents they started', () => {
 		workspaces.stop(child);
 		workspaces.record(child, { kind: 'turn.failed', error: 'Stopped' });
 		expect(workspaces.summary(child).lastTurn).toBe('stopped');
+	});
+});
+
+describe('messages with images', () => {
+	const png = Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+		'base64'
+	);
+	it('starts an image-only workspace and replays queued and steered attachments after forge restart', () => {
+		const { store, repos, workspaces, repo, sent, dispatch } = setup();
+		const imageStore = createImages(store);
+		const first = imageStore.add(png);
+		const second = imageStore.add(png);
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: '', images: [first] });
+		expect(sent.at(-1)).toMatchObject({
+			type: 'turn.start',
+			prompt: '',
+			images: [imageStore.get(first)]
+		});
+		workspaces.send(id, '', null, [second]);
+		workspaces.steer(id, 'Look here', null, [first]);
+		workspaces.steer(id, '', null, [second]);
+		const restarted = createWorkspaces(store, repos, dispatch);
+		expect(restarted.get(id).attachments).toEqual({ queue: [[second]], steering: [first, second] });
+		restarted.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		expect(sent.at(-1)).toMatchObject({
+			prompt: 'Look here\n\n',
+			images: [imageStore.get(first), imageStore.get(second)]
+		});
+		restarted.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ prompt: '', images: [imageStore.get(second)] });
+		expect(restarted.get(id)).toMatchObject({
+			queue: [],
+			attachments: { queue: [], steering: [] },
+			transcript: [
+				{ kind: 'user', images: [first] },
+				{ kind: 'user', images: [first, second] },
+				{ kind: 'user', images: [second] }
+			]
+		});
+	});
+
+	it('keeps identical image-only queued messages distinct when taking one back', () => {
+		const { store, workspaces, create } = setup();
+		const imageStore = createImages(store);
+		const first = imageStore.add(png);
+		const second = imageStore.add(png);
+		const id = create('Go');
+		workspaces.send(id, '', null, [first]);
+		workspaces.send(id, '', null, [second]);
+		workspaces.dequeue(id, 0, '', null, [first]);
+		workspaces.dequeue(id, 0, '', null, [first]); // stale browser snapshot
+		expect(workspaces.get(id).attachments.queue).toEqual([[second]]);
+	});
+
+	it('validates image references before recording a message or workspace', () => {
+		const { store, workspaces, repo, create } = setup();
+		const id = create('Go');
+		const count = store.readAll().length;
+		expect(() => workspaces.send(id, '', null, ['missing'])).toThrow();
+		expect(() => workspaces.steer(id, '', null, ['missing'])).toThrow();
+		expect(() =>
+			workspaces.create({ repoId: repo.id, agent: 'codex', prompt: '', images: ['missing'] })
+		).toThrow();
+		expect(store.readAll()).toHaveLength(count);
 	});
 });

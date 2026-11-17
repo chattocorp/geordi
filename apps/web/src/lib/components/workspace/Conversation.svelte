@@ -5,7 +5,7 @@
 	import { modifierKey } from '#lib/keys.ts';
 	import { toBlocks } from '#lib/transcript.ts';
 	import Button from '#lib/ui/Button.svelte';
-	import Composer from '#lib/ui/Composer.svelte';
+	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -83,7 +83,9 @@
 			{cwd}
 			{senders}
 			queue={workspace.queue}
-			onremove={(index, text) => removeQueued({ workspaceId: workspace.id, index, text })}
+			queueImages={workspace.attachments.queue}
+			onremove={(index, text, images) =>
+				removeQueued({ workspaceId: workspace.id, index, text, images })}
 		/>
 	{/key}
 
@@ -100,7 +102,9 @@
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
-				<Composer
+				<MessageComposer
+					imageField={form.fields.images.as('hidden', '[]')}
+					disabled={form.pending > 0}
 					{form}
 					live={running}
 					rows={2}
@@ -111,7 +115,10 @@
 							: 'Reply to the agent'}
 					onkeydown={keys}
 					field={form.fields.text.as('text')}
-					problems={form.fields.text.issues()?.map((problem) => problem.message)}
+					problems={[
+						...(form.fields.text.issues() ?? []),
+						...(form.fields.images.issues() ?? [])
+					].map((problem) => problem.message)}
 				>
 					{#snippet header()}
 						<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
@@ -168,7 +175,7 @@
 							/>
 						</div>
 					{/snippet}
-				</Composer>
+				</MessageComposer>
 			</div>
 		{/if}
 	</div>

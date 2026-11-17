@@ -4,6 +4,7 @@
 	import type { Agent } from '@geordi/protocol';
 	import type { Block } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import MessageImages from '#lib/components/MessageImages.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -16,6 +17,7 @@
 		cwd,
 		senders,
 		queue = [],
+		queueImages = [],
 		onremove,
 		following = $bindable(true)
 	}: {
@@ -25,13 +27,19 @@
 		cwd?: string;
 		senders?: Record<string, string>;
 		queue?: string[];
-		onremove: (index: number, text: string) => void;
+		queueImages?: string[][];
+		onremove: (index: number, text: string, images: string[]) => void;
 		following?: boolean;
 	} = $props();
 
 	const rows = $derived([
 		...blocks.map((block) => ({ kind: 'block' as const, block })),
-		...queue.map((text, index) => ({ kind: 'queue' as const, text, index }))
+		...queue.map((text, index) => ({
+			kind: 'queue' as const,
+			text,
+			index,
+			images: queueImages[index] ?? []
+		}))
 	]);
 	let list: VirtualizerHandle | undefined = $state();
 	// A fresh view, including a workspace switch, starts at the latest message.
@@ -103,8 +111,9 @@
 										: 'From another agent'}
 								</p>
 							{/if}
-							<div class="ml-auto message bg-bubble whitespace-pre-wrap">
-								{block.text}
+							<div class="ml-auto message bg-bubble">
+								{#if block.text}<p class="whitespace-pre-wrap">{block.text}</p>{/if}
+								<MessageImages images={block.images} />
 							</div>
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
@@ -137,19 +146,20 @@
 						{/if}
 					</div>
 				{:else}
-					{@const { text, index } = row}
+					{@const { text, index, images } = row}
 					<div class="flex items-start justify-end gap-2">
 						<Button
 							variant="ghost"
 							size="sm"
 							icon="icon-[lucide--x]"
 							label="Don't send this"
-							onclick={() => onremove(index, text)}
+							onclick={() => onremove(index, text, images)}
 							class="mt-1.5"
 						/>
 						<div class="message ring-1 ring-line">
 							<p class="label">Queued</p>
 							<p class="whitespace-pre-wrap text-muted">{text}</p>
+							<MessageImages {images} />
 						</div>
 					</div>
 				{/if}

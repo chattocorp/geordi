@@ -9,7 +9,7 @@ export type Part =
 
 /** A user message, everything the agent did in reply to one, or something said in passing. */
 export type Block =
-	| { kind: 'user'; text: string; from?: string }
+	| Pick<Extract<TranscriptItem, { kind: 'user' }>, 'kind' | 'text' | 'from' | 'images'>
 	| { kind: 'agent'; parts: Part[] }
 	| { kind: 'note'; text: string };
 
@@ -23,7 +23,12 @@ export function toBlocks(transcript: TranscriptItem[]): Block[] {
 			continue;
 		}
 		if (item.kind === 'user') {
-			blocks.push({ kind: 'user', text: item.text, ...(item.from && { from: item.from }) });
+			blocks.push({
+				kind: 'user',
+				text: item.text,
+				...(item.images?.length && { images: item.images }),
+				...(item.from && { from: item.from })
+			});
 			continue;
 		}
 
