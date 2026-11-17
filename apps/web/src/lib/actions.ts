@@ -7,6 +7,7 @@ import type { Changes, Upstream } from '@geordi/protocol';
  */
 export type WorkspaceAction = {
 	id:
+		| 'merge-upstream'
 		| 'commit'
 		| 'create-pull'
 		| 'update-pull'
@@ -28,7 +29,12 @@ export type WorkspaceAction = {
 
 type State = {
 	/** `null` while unknown (no daemon, or not asked yet). */
-	changes: (Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & { landed?: boolean }) | null;
+	changes:
+		| (Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & {
+				landed?: boolean;
+				incoming?: Changes['incoming'];
+		  })
+		| null;
 	/** `null` if the repository is not on a forge we know, or not asked yet. */
 	upstream: Upstream | null;
 	/** Whether the agent's latest turn failed (and was not just stopped). */
@@ -55,6 +61,31 @@ const awaitsPull = ({ changes, upstream }: State) =>
  * presents as *the* next step.
  */
 export function actionsFor(state: State): WorkspaceAction[] {
+	const actions = nextActions(state);
+	const incoming = state.changes?.incoming;
+	const pull = state.upstream?.pull;
+	if (
+		!incoming ||
+		incoming.commits <= 0 ||
+		state.failed ||
+		landedLocally(state) ||
+		pull?.state === 'merged' ||
+		pull?.state === 'closed'
+	)
+		return actions;
+	return [
+		...actions,
+		{
+			id: 'merge-upstream',
+			label: 'Merge upstream',
+			icon: 'icon-[lucide--git-merge]',
+			aside: actions.length > 0,
+			prompt: `Merge the latest commits from the base branch ${JSON.stringify(incoming.branch)} into this workspace's current branch. Fetch first if it is a remote-tracking branch. Preserve uncommitted work, resolve any merge conflicts, and run the relevant checks.`
+		}
+	];
+}
+
+function nextActions(state: State): WorkspaceAction[] {
 	const { changes, upstream } = state;
 	if (!changes) return [];
 	// Before anything else: the agent did not get to the end of what it was doing.
