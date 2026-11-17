@@ -13,13 +13,15 @@
 		imageField,
 		footer,
 		disabled = false,
+		images = $bindable([]),
 		...props
 	}: Omit<ComponentProps<typeof Composer>, 'attachments' | 'onpaste'> & {
 		imageField: HTMLInputAttributes;
+		/** The images attached, by ID: bind it to keep them (a draft). */
+		images?: string[];
 	} = $props();
 	const imageKey = createAttachmentKey();
 
-	let images = $state<string[]>([]);
 	let uploading = $state(false);
 	let imageProblem = $state('');
 	let picker = $state<HTMLInputElement>();
