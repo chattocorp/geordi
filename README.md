@@ -68,6 +68,18 @@ Use these jobs for workspace testing instead of `pnpm dev`, which uses fixed por
 They test the browser app; `pnpm desktop` still uses the desktop app's usual ports and
 profile.
 
+Use **Run → Electron dev app** (or `pnpm desktop:dev` in a workspace terminal) to build
+and launch a separate desktop app. Its data, profile, logs, and staged build stay in
+`.data/desktop/`, separate from both the installed app and the browser dev instance.
+It uses three assigned workspace ports and can run alongside both. Quit **Geordi Dev**
+or stop its job when done. Start the job again to rebuild after source changes; this is
+a production build in a dev shell, without hot reload.
+
+The job needs a daemon that supplies `GEORDI_ASSIGNED_PORTS`. If it reports that variable
+missing, update the installed Geordi first. This variable is a JSON array of all assigned
+ports, including separate blocks added when a workspace grows; never infer spare ports
+by adding to `GEORDI_PORT`.
+
 Use `pnpm desktop:package` to build the Electron app without stopping the installed app.
 The bundle is written under `apps/desktop/dist/`.
 

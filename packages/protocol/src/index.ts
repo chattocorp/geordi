@@ -251,7 +251,7 @@ export const CONFIG_SETTINGS = {
 		example: 'teardown: docker compose down --volumes'
 	},
 	ports: {
-		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. Never hard-code a port: two workspaces would collide.`,
+		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. \`GEORDI_ASSIGNED_PORTS\` is a JSON array of every assigned port, in allocation order; use it for spare ports because allocations need not be contiguous. Never hard-code a port: two workspaces would collide.`,
 		example: 'ports: 20'
 	}
 } as const;

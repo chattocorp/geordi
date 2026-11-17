@@ -23,14 +23,16 @@ import { build } from 'esbuild';
 
 const root = join(import.meta.dirname, '..');
 const repo = join(root, '../..');
-const stage = join(root, 'stage');
+const stage = process.argv.includes('--dev')
+	? join(repo, '.data/desktop/stage')
+	: join(root, 'stage');
 const run = (cmd, args, options = {}) => execFileSync(cmd, args, { stdio: 'inherit', ...options });
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 // --- Stage: everything the app consists of, in one directory ---------------------------------
 
 rmSync(stage, { recursive: true, force: true });
-mkdirSync(stage);
+mkdirSync(stage, { recursive: true });
 writeFileSync(
 	join(stage, 'package.json'),
 	JSON.stringify({
@@ -42,6 +44,7 @@ writeFileSync(
 	})
 );
 cpSync(join(root, 'src/main.js'), join(stage, 'main.js'));
+cpSync(join(root, 'src/runtime.js'), join(stage, 'runtime.js'));
 cpSync(join(root, 'src/preload.cjs'), join(stage, 'preload.cjs'));
 
 // The sounds of its notifications: made by the web app's own code, as files for the system

@@ -1,3 +1,4 @@
+import { desktopRuntime } from './runtime.js';
 import { execFileSync } from 'node:child_process';
 import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,10 +23,18 @@ import {
  * Only "Stop Daemon" ends them, as Ctrl+C does for a daemon in a terminal.
  */
 
-// Ports of our own, so that a Geordi under development (`pnpm dev`) can run alongside. The
-// web port is fixed, because the browser keeps preferences by origin.
-const WEB_PORT = 7717;
-const DAEMON_PORT = 7718;
+const runtime = desktopRuntime(process.env);
+const WEB_PORT = runtime.web;
+const DAEMON_PORT = runtime.daemon;
+if (runtime.directory) {
+	mkdirSync(runtime.profile, { recursive: true });
+	app.setName('Geordi Dev');
+	app.setPath('userData', runtime.profile);
+	app.setPath('sessionData', runtime.profile);
+	app.setAppLogsPath(join(runtime.directory, 'logs'));
+	process.on('SIGINT', () => app.quit());
+	process.on('SIGTERM', () => app.quit());
+}
 const url = `http://127.0.0.1:${WEB_PORT}`;
 
 const here = import.meta.dirname;
@@ -65,7 +74,7 @@ function start(/** @type {string} */ name, /** @type {string} */ entry, env = {}
 	const child = utilityProcess.fork(join(here, entry), [], {
 		serviceName: `Geordi ${name}`,
 		stdio: 'pipe',
-		env: { ...process.env, ...shellEnv(), ...env }
+		env: { ...process.env, ...shellEnv(), ...runtime.env, ...env }
 	});
 	for (const stream of [child.stdout, child.stderr])
 		stream?.on('data', (data) => log.write(`[${name}] ${data}`));
@@ -82,7 +91,8 @@ function startForge() {
 		HOST: '127.0.0.1',
 		PORT: String(WEB_PORT),
 		ORIGIN: url,
-		GEORDI_DAEMON_PORT: String(DAEMON_PORT)
+		GEORDI_DAEMON_PORT: String(DAEMON_PORT),
+		GEORDI_LIVE_PORT: String(runtime.live)
 	});
 	forge.on('exit', (code) => {
 		if (quitting) return;
@@ -173,7 +183,7 @@ function open() {
 		...place,
 		minWidth: 840, // the sidebar, a conversation and the changes beside it, each at its least
 		minHeight: 480,
-		title: 'Geordi',
+		title: runtime.directory ? 'Geordi Dev' : 'Geordi',
 		// No title bar: the window's buttons sit in the sidebar's top row, which the web app
 		// makes room for (and makes draggable) where `data-desktop` is set; see `app.html`.
 		titleBarStyle: 'hiddenInset',
