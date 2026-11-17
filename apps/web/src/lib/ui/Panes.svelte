@@ -161,11 +161,12 @@
 							onchange(close(layout, id));
 						}}
 						class={[
-							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-1.5 select-none',
-							closable(id) ? 'pr-1' : 'pr-2.5',
+							// as much room before what it starts with as after what it ends with
+							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
+							closable(id) ? 'pr-1' : 'pr-2',
 							// told apart by its ground and colour alone: a heavier face would make it wider,
 							// and move every tab after it
-							active && 'item-active',
+							active && 'tab-active',
 							// where the dragged tab would go: a line before this one, or after the last
 							here && target?.before === id && 'tab-drop-before',
 							here && target?.before === null && index === n.tabs.length - 1 && 'tab-drop-after'
@@ -199,7 +200,7 @@
 				{/each}
 				{#if newTab || (actions && groupsOf(layout)[0]?.id === n.id)}
 					<!-- at the far end, where it stays however many tabs there are to scroll through -->
-					<div class="sticky right-0 ml-auto flex shrink-0 items-center gap-1 bg-sidebar pl-2">
+					<div class="sticky right-0 ml-auto flex shrink-0 items-center gap-1 bg-pane pl-2">
 						{#if actions && groupsOf(layout)[0]?.id === n.id}{@render actions()}{/if}
 						{#if newTab}
 							<Button

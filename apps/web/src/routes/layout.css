@@ -32,10 +32,12 @@
  */
 :root {
 	color-scheme: light;
+	--pane: var(--frame);
+	--frame: #e3e3eb;
 	--bg: #f6f6f9;
 	--sidebar: #eeeef4;
 	--surface: #ffffff;
-	--sunken: #f0f0f5;
+	--sunken: #dcdce5;
 	--ink: #1b1c24;
 	--muted: #6a6c7b;
 	--line: #e2e2ea;
@@ -60,7 +62,8 @@
 .dark {
 	color-scheme: dark;
 	--bg: #23252f;
-	--sidebar: #1d1f28;
+	--frame: #17191f;
+	--sidebar: #1a1c24;
 	--surface: #2c2f3b;
 	--sunken: #262833;
 	--ink: #eceef4;
@@ -116,7 +119,9 @@
 	--radius-control: 0.5rem;
 
 	--color-bg: var(--bg);
+	--color-frame: var(--frame);
 	--color-sidebar: var(--sidebar);
+	--color-pane: var(--pane);
 	--color-surface: var(--surface);
 	--color-sunken: var(--sunken);
 	--color-ink: var(--ink);
@@ -170,9 +175,32 @@
 	@apply relative after:absolute after:inset-y-1 after:-right-1 after:w-0.5 after:rounded-full after:bg-accent;
 }
 
-/* The bar at the top of a pane: tabs, or a title. */
+/*
+ * Everything on screen is a sheet: a rounded surface laid into the frame (`bg-frame`: the
+ * window, and its title bar), a little apart from the next, so that shapes part things
+ * and no lines are needed. `sheet` is the one that is read: a page's content, a
+ * workspace's conversation. `--pane` says what is behind something, to what paints its
+ * own background (a terminal, the end of a tab bar).
+ */
+@utility sheet {
+	--pane: var(--bg);
+	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line/60;
+}
+/*
+ * A sheet for what is beside the one that is read (the sidebar, a workspace's changes and
+ * terminals): in a tone between the frame's and that of what is read, and without a shadow.
+ */
+@utility sheet-quiet {
+	--pane: var(--sidebar);
+	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/60;
+}
+
+/*
+ * The bar at the top of a pane: tabs, or a title. As high as leaves its tabs as far from
+ * the top of a sheet as from its side, so that their corners follow the sheet's.
+ */
 @utility pane-bar {
-	@apply flex h-10 shrink-0 items-center border-b border-line bg-sidebar;
+	@apply flex h-11 shrink-0 items-center;
 }
 
 /*
@@ -213,6 +241,13 @@
 }
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
+}
+/*
+ * The current tab in a pane's bar: lifted by its ground alone. A shadow or a rim is too
+ * much on something this small inside a sheet.
+ */
+@utility tab-active {
+	@apply bg-surface text-ink hover:bg-surface;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
@@ -279,7 +314,7 @@
 
 @layer base {
 	body {
-		@apply bg-bg font-sans text-base text-ink subpixel-antialiased;
+		@apply bg-frame font-sans text-base text-ink subpixel-antialiased;
 	}
 
 	/* Everything you can click says so. (Tailwind leaves buttons with the default cursor.) */

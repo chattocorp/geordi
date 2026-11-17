@@ -281,16 +281,14 @@
 <div class="flex min-h-dvh">
 	{#if sidebar.current.open}
 		<aside
-			class="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-sidebar md:flex"
+			class="sticky top-0 hidden h-dvh shrink-0 flex-col bg-frame md:flex"
 			style:width="{clampWidth(sidebar.current.width)}px"
 		>
 			<!--
 				The sidebar's part of the title bar. In the desktop app the window's buttons are on
 				its left, so the logo makes way and the toggle moves up beside them.
 			-->
-			<div
-				class="flex h-14 shrink-0 items-center gap-1 border-b border-line pr-2.5 pl-4 window-drag desktop:pl-22"
-			>
+			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag desktop:pl-22">
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
@@ -300,81 +298,84 @@
 				>
 			</div>
 
-			<nav class="flex-1 space-y-6 overflow-y-auto px-2.5 py-3" aria-label="Main">
-				<div class="space-y-0.5">
-					{@render link(
-						resolve('/'),
-						'icon-[lucide--plus]',
-						'New workspace',
-						page.url.pathname === '/'
-					)}
-				</div>
+			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
+			<div class="mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet-quiet">
+				<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
+					<div class="space-y-0.5">
+						{@render link(
+							resolve('/'),
+							'icon-[lucide--plus]',
+							'New workspace',
+							page.url.pathname === '/'
+						)}
+					</div>
 
-				<!-- every repository, also one nothing is going on in: its name folds its workspaces away -->
-				<!--
+					<!-- every repository, also one nothing is going on in: its name folds its workspaces away -->
+					<!--
 					Apart from each other by what is in them: repositories with nothing going on, one
 					after the other, stand close together as a list of names.
 				-->
-				<div>
-					{#each nav.current?.repos ?? [] as repo, index (repo.id)}
-						{@const quiet = (at: number) => {
-							const id = (nav.current?.repos ?? [])[at]?.id ?? '';
-							return !listed.get(id)?.length || folded.current.includes(id);
-						}}
-						{@const rows = listed.get(repo.id) ?? []}
-						{@const isFolded = folded.current.includes(repo.id)}
-						<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-1' : 'pt-5')]}>
-							<!--
+					<div>
+						{#each nav.current?.repos ?? [] as repo, index (repo.id)}
+							{@const quiet = (at: number) => {
+								const id = (nav.current?.repos ?? [])[at]?.id ?? '';
+								return !listed.get(id)?.length || folded.current.includes(id);
+							}}
+							{@const rows = listed.get(repo.id) ?? []}
+							{@const isFolded = folded.current.includes(repo.id)}
+							<div class={[index > 0 && (quiet(index) && quiet(index - 1) ? 'pt-1' : 'pt-5')]}>
+								<!--
 								A label for what is under it: its picture, its name (small and quiet: the
 								workspaces are what is read here), and the way to start something in it. What is
 								under it lines up with it: icon under picture, title under name.
 							-->
-							<div class="group flex h-7 items-center pr-1.5">
-								<button
-									type="button"
-									class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-xs font-medium text-muted hover:text-ink"
-									aria-expanded={!isFolded}
-									onclick={() => toggleFolded(repo.id)}
-								>
-									<RepoIcon id={repo.id} />
-									<span class="truncate">{repo.name}</span>
-									{#if isFolded && rows.length > 0}
-										<span class="shrink-0 font-normal tabular-nums">{rows.length}</span>
-									{/if}
-								</button>
-								<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
-								<a
-									href="{resolve('/')}?repo={repo.id}"
-									class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink"
-									title="New workspace in {repo.name}"
-									aria-label="New workspace in {repo.name}"
-								>
-									<span class="icon-[lucide--plus] size-4"></span>
-								</a>
-								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+								<div class="group flex h-7 items-center pr-1.5">
+									<button
+										type="button"
+										class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-xs font-medium text-muted hover:text-ink"
+										aria-expanded={!isFolded}
+										onclick={() => toggleFolded(repo.id)}
+									>
+										<RepoIcon id={repo.id} />
+										<span class="truncate">{repo.name}</span>
+										{#if isFolded && rows.length > 0}
+											<span class="shrink-0 font-normal tabular-nums">{rows.length}</span>
+										{/if}
+									</button>
+									<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
+									<a
+										href="{resolve('/')}?repo={repo.id}"
+										class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink"
+										title="New workspace in {repo.name}"
+										aria-label="New workspace in {repo.name}"
+									>
+										<span class="icon-[lucide--plus] size-4"></span>
+									</a>
+									<!-- eslint-enable svelte/no-navigation-without-resolve -->
+								</div>
+								{#if !isFolded}
+									<ul class="space-y-px">
+										{#each rows as { workspace, parent, depth } (workspace.id)}
+											{@render row(workspace, parent, depth)}
+										{/each}
+									</ul>
+								{/if}
 							</div>
-							{#if !isFolded}
-								<ul class="space-y-px">
-									{#each rows as { workspace, parent, depth } (workspace.id)}
-										{@render row(workspace, parent, depth)}
-									{/each}
-								</ul>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			</nav>
+						{/each}
+					</div>
+				</nav>
 
-			<div class="border-t border-line p-2.5">
-				<button
-					type="button"
-					class="item w-full gap-2.5 px-2.5 py-1.5 text-base"
-					onclick={() => openSettings()}
-				>
-					<span class="icon-[lucide--settings] size-4 shrink-0"></span>
-					Settings
-					<kbd class="ml-auto font-sans text-xs text-muted/80">{settingsHint}</kbd>
-				</button>
+				<div class="p-2">
+					<button
+						type="button"
+						class="item w-full gap-2.5 px-2.5 py-1.5 text-base"
+						onclick={() => openSettings()}
+					>
+						<span class="icon-[lucide--settings] size-4 shrink-0"></span>
+						Settings
+						<kbd class="ml-auto font-sans text-xs text-muted/80">{settingsHint}</kbd>
+					</button>
+				</div>
 			</div>
 
 			<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->
@@ -387,13 +388,13 @@
 				aria-valuenow={sidebar.current.width}
 				onpointerdown={resize}
 				onkeydown={nudge}
-				class="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none transition-colors select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-accent focus-visible:after:bg-accent"
+				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none transition-colors select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-accent focus-visible:after:bg-accent"
 			></div>
 		</aside>
 	{/if}
 
 	<div class="flex min-w-0 flex-1 flex-col">
-		<header class="flex h-14 items-center gap-4 border-b border-line bg-sidebar px-4 md:hidden">
+		<header class="flex h-14 items-center gap-4 bg-frame px-4 md:hidden">
 			{@render logo()}
 			<Button
 				variant="ghost"

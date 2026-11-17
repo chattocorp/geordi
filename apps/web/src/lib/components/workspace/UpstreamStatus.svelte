@@ -84,7 +84,7 @@
 	</svelte:element>
 {/snippet}
 
-<section class="space-y-1.5 border-b border-line px-3.5 py-2.5 text-sm" aria-label="Pull request">
+<section class="space-y-1.5 px-3.5 py-2.5 text-sm" aria-label="Pull request">
 	{#if pull}
 		<div class="flex items-center gap-2">
 			<span class="icon-[lucide--git-pull-request] size-4 shrink-0 text-muted"></span>

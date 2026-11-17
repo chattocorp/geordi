@@ -32,6 +32,16 @@
 	</div>
 </Story>
 
+<!-- For sheets, whose shapes part them: the gap between them is what is dragged. -->
+<Story name="Without a line" asChild>
+	<div class="flex h-48 rounded-card bg-frame p-2">
+		<Split dir="row" bind:ratio={across} bare>
+			{#snippet a()}<div class="mr-1 flex flex-1 sheet">{@render pane('A')}</div>{/snippet}
+			{#snippet b()}<div class="ml-1 flex flex-1 sheet-quiet">{@render pane('B')}</div>{/snippet}
+		</Split>
+	</div>
+</Story>
+
 <Story name="Collapsed" asChild>
 	<div class="flex h-48 card">
 		<Split dir="row" ratio={0.6} collapsed>

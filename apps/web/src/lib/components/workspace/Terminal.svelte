@@ -18,14 +18,14 @@
 	let { workspaceId, terminal, start, autofocus = false, onautofocus }: Props = $props();
 
 	/** xterm paints its own colours; take them from our tokens. */
-	function theme(): ITheme {
-		const token = (name: string) =>
-			getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+	function theme(node: HTMLElement): ITheme {
+		// from where it stands: what is behind it (`--pane`) depends on the area it is in
+		const token = (name: string) => getComputedStyle(node).getPropertyValue(name).trim();
 		return {
-			background: token('--bg'),
+			background: token('--pane'),
 			foreground: token('--ink'),
 			cursor: token('--accent'),
-			cursorAccent: token('--bg'),
+			cursorAccent: token('--pane'),
 			selectionBackground: `${token('--accent')}55`
 		};
 	}
@@ -49,7 +49,7 @@
 				// the design system's small size (`text-xs`, on the element), in pixels
 				fontSize: parseFloat(getComputedStyle(node).fontSize),
 				cursorBlink: true,
-				theme: theme()
+				theme: theme(node)
 			});
 			const fit = new FitAddon();
 			term.loadAddon(fit);
@@ -113,7 +113,7 @@
 			const resized = new ResizeObserver(() => fit.fit());
 			resized.observe(node);
 
-			const themed = new MutationObserver(() => (term.options.theme = theme()));
+			const themed = new MutationObserver(() => (term.options.theme = theme(node)));
 			themed.observe(document.documentElement, { attributeFilter: ['class'] });
 
 			dispose = () => {

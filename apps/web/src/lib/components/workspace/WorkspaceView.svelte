@@ -573,19 +573,24 @@
 	<RunControls {jobs} {links} {isUp} {launching} {start} {stop} {visit} problem={config?.problem} />
 {/snippet}
 
+<!-- A count at the end of a tab: nearer the tab's edge than text would be, being a shape itself. -->
+{#snippet count(n: number)}
+	<span class="-mr-1 flex"><Badge>{n}</Badge></span>
+{/snippet}
+
 {#snippet tab(tab: string)}
 	{@const path = pathOf(tab)}
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
-		{#if git?.changes?.files.length}<Badge>{git.changes.files.length}</Badge>{/if}
+		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
 	{:else if tab === CHANGESET}
 		{@const added = (git?.release?.packages ?? [])
 			.flatMap((pkg) => pkg.notes)
 			.filter((note) => note.added).length}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
 		<span class="truncate">Changeset</span>
-		{#if added > 0}<Badge>{added}</Badge>{/if}
+		{#if added > 0}{@render count(added)}{/if}
 	{:else if path}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
@@ -662,7 +667,7 @@
 	{:else if tab === DRAFT}
 		<!-- begun as a workspace is: say what to do, and who does it; where the reply box will be -->
 		<div class="flex min-h-0 flex-1 flex-col justify-end">
-			<div class="mx-auto w-full max-w-5xl px-5 pb-4">
+			<div class="mx-auto w-full max-w-5xl px-5 pb-5">
 				<NewWorkspace repos={[repo]} alongside={id} focused />
 			</div>
 		</div>
@@ -732,7 +737,7 @@
 	<Family parent={workspace.parent} sharesWorktree={workspace.worktreeId !== workspace.id} />
 
 	{#if archiveProblem}
-		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
+		<div class="flex items-center gap-3 px-5 py-2.5">
 			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
 			<Button variant="ghost" onclick={() => delete archiveProblems[id]}>Dismiss</Button>
 		</div>
@@ -740,7 +745,7 @@
 
 	{#if setupPending}
 		<!-- said once, quietly, until someone has looked: it is what a new workspace would run -->
-		<div class="flex items-center gap-3 border-b border-line px-5 py-2 text-sm text-muted">
+		<div class="flex items-center gap-3 px-5 py-2 text-sm text-muted">
 			<span class="icon-[lucide--package-check] size-4 shrink-0"></span>
 			<p class="min-w-0 flex-1 truncate">
 				This repository has a setup script that nobody has agreed to yet. It has not run.
@@ -750,7 +755,7 @@
 	{/if}
 
 	{#if mergeProblem}
-		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
+		<div class="flex items-center gap-3 px-5 py-2.5">
 			<div class="min-w-0 flex-1"><Notice>{mergeProblem}</Notice></div>
 			<Button variant="ghost" onclick={() => (mergeProblem = null)}>Dismiss</Button>
 		</div>
@@ -759,6 +764,7 @@
 	<!-- room for a conversation to be read in, and for file names beside their line counts -->
 	<Split
 		dir="row"
+		bare
 		min={[320, 260]}
 		collapsed={!frame.current.open}
 		bind:ratio={
@@ -767,22 +773,33 @@
 		}
 	>
 		{#snippet a()}
-			<Panes
-				layout={main}
-				onchange={(next) => arrange({ main: next })}
-				{tab}
-				{window}
-				{closable}
-				accepts={movable}
-				onreceive={receive('main')}
-				newTab={workspace.archivedAt ? undefined : newConversation}
-				newLabel="New conversation"
-			/>
+			<!-- what is read, as a sheet in the frame: as far from the window's edge as the others, -->
+			<!-- and half a gap from what is beside it, where there is something -->
+			<div
+				class={[
+					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
+					frame.current.open ? 'mr-1' : 'mr-2'
+				]}
+			>
+				<Panes
+					layout={main}
+					onchange={(next) => arrange({ main: next })}
+					{tab}
+					{window}
+					{closable}
+					accepts={movable}
+					onreceive={receive('main')}
+					newTab={workspace.archivedAt ? undefined : newConversation}
+					newLabel="New conversation"
+				/>
+			</div>
 		{/snippet}
 		{#snippet b()}
 			{#if workspace.worktree}
+				<!-- each a sheet of its own, like the conversation: their shapes are what parts them -->
 				<Split
 					dir="column"
+					bare
 					min={[120, 120]}
 					bind:ratio={
 						() => frame.current.changes,
@@ -791,31 +808,35 @@
 				>
 					{#snippet a()}
 						<!-- what the workspace has done: its changes, and what they mean for the next releases -->
-						<Panes
-							layout={layouts.side}
-							onchange={(next) => arrange({ side: next })}
-							{tab}
-							{window}
-							{closable}
-							accepts={movable}
-							onreceive={receive('side')}
-							splits={false}
-						/>
+						<div class="mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
+							<Panes
+								layout={layouts.side}
+								onchange={(next) => arrange({ side: next })}
+								{tab}
+								{window}
+								{closable}
+								accepts={movable}
+								onreceive={receive('side')}
+								splits={false}
+							/>
+						</div>
 					{/snippet}
 					{#snippet b()}
-						<Panes
-							layout={dock}
-							onchange={(next) => arrange({ dock: next })}
-							{tab}
-							{window}
-							{closable}
-							accepts={movable}
-							onreceive={receive('dock')}
-							splits={false}
-							newTab={workspace.archivedAt ? undefined : newTerminal}
-							newLabel="New terminal"
-							actions={runActions}
-						/>
+						<div class="mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
+							<Panes
+								layout={dock}
+								onchange={(next) => arrange({ dock: next })}
+								{tab}
+								{window}
+								{closable}
+								accepts={movable}
+								onreceive={receive('dock')}
+								splits={false}
+								newTab={workspace.archivedAt ? undefined : newTerminal}
+								newLabel="New terminal"
+								actions={runActions}
+							/>
+						</div>
 					{/snippet}
 				</Split>
 			{:else}

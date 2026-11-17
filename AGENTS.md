@@ -198,13 +198,13 @@ it, perhaps you.
     `$env/*` is deprecated).
 - **Design system (ADR-005).** Three layers; use them in this order before writing raw
   Tailwind:
-  - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `sidebar`,
+  - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `frame`, `sidebar`,
     `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`, `accent-soft`,
     `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `message`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
-    `item-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
+    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
+    `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
   - **Components** in `#lib/ui/` (`Button`, `ButtonGroup`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Ring`, `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
     `#lib/components/`.
@@ -216,6 +216,14 @@ it, perhaps you.
   - Every `lib/ui` component has a `*.stories.svelte` next to it (Svelte CSF; use
     `<Story name="…" asChild>` to render your own markup). `pnpm test` renders every story
     in a browser. Add or update stories with every UI change.
+- **Sheets, not lines.** Everything on screen is a rounded sheet laid into the frame
+  (`bg-frame`: the window and its title bar), 8px from the window's edge and from the next
+  sheet: the sidebar, a page's content, and in a workspace the conversation, the changes
+  and the terminals. `sheet` is what is read (the lightest tone); `sheet-quiet` is what is
+  beside it (a tone between that and the frame's). Shapes part things: no separator lines
+  between or inside sheets (a `Split` between sheets is `bare`, and its gap is what is
+  dragged). What sits in a sheet's corner (a tab, a row) is 8px from both edges, so that its
+  corner follows the sheet's. What paints its own background takes it from `--pane`.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
   the primary action and things that are live. The only ambient motion is for things at
   work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` for checks still running, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via

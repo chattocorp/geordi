@@ -89,7 +89,7 @@
 -->
 <!-- set like the changes beside it: a line that says how things stand, then what there is -->
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changeset">
-	<header class="flex items-center gap-2 border-b border-line px-3.5 py-2.5 text-sm text-muted">
+	<header class="flex items-center gap-2 px-3.5 py-2.5 text-sm text-muted">
 		<span class="icon-[lucide--package] size-4 shrink-0"></span>
 		<span class="min-w-0 flex-1 truncate">
 			{#if plan.ask}

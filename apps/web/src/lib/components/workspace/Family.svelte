@@ -17,9 +17,7 @@
 	sidebar shows them, indented under it.
 -->
 {#if parent}
-	<div
-		class="flex shrink-0 items-center gap-1.5 border-b border-line bg-sidebar px-5 py-1.5 text-xs text-muted"
-	>
+	<div class="flex shrink-0 items-center gap-1.5 bg-frame px-5 py-1.5 text-xs text-muted">
 		<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0"></span>
 		<span class="shrink-0">
 			{sharesWorktree ? 'Started by, and working alongside' : 'Started by'}

@@ -109,10 +109,7 @@
 				{/each}
 				{#if files.length > 1}
 					<!-- in sum, under the column it adds up -->
-					<li
-						class="mx-3.5 mt-1.5 flex justify-end border-t border-line pt-1.5"
-						aria-label="In all"
-					>
+					<li class="mx-3.5 flex justify-end pt-1.5" aria-label="In all">
 						{@render stats(sum('added'), sum('removed'))}
 					</li>
 				{/if}

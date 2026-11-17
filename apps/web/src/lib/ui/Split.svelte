@@ -14,8 +14,18 @@
 		 * whatever room there is: in a small window it alone would squeeze them to nothing.
 		 */
 		min?: [a: number, b: number];
+		/** No line between the two: for where their shapes already set them apart. */
+		bare?: boolean;
 	};
-	let { dir, ratio = $bindable(), a, b, collapsed = false, min = [0, 0] }: Props = $props();
+	let {
+		dir,
+		ratio = $bindable(),
+		a,
+		b,
+		collapsed = false,
+		min = [0, 0],
+		bare = false
+	}: Props = $props();
 
 	const MIN = 0.12;
 	/** Keeps a share within what leaves both sides their least room, of `size` pixels in all. */
@@ -76,7 +86,8 @@
 		onkeydown={nudge}
 		class={[
 			collapsed && 'hidden',
-			'relative z-10 shrink-0 touch-none bg-line transition-colors select-none after:absolute hover:bg-accent focus-visible:bg-accent',
+			!bare && 'bg-line',
+			'relative z-10 shrink-0 touch-none transition-colors select-none after:absolute hover:bg-accent focus-visible:bg-accent',
 			dir === 'row'
 				? 'w-px cursor-col-resize after:-inset-x-1 after:inset-y-0'
 				: 'h-px cursor-row-resize after:inset-x-0 after:-inset-y-1'
