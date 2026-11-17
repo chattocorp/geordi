@@ -23,7 +23,7 @@
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
 		/** What is wrong with the input, if anything. */
 		problems?: string[];
-		/** Optional attachments between the text and footer. */
+		/** Optional attachments above the text. */
 		attachments?: Snippet;
 		onpaste?: (event: ClipboardEvent) => void;
 		/** Fields above the text (and hidden inputs). */
@@ -91,12 +91,12 @@
 	<fieldset {disabled} class="min-w-0">
 		{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
 		{@render header?.()}
+		{@render attachments?.()}
 		{#if field}
 			<textarea {...field} {...textarea} {@attach focus}></textarea>
 		{:else}
 			<textarea bind:value {...textarea} {@attach focus}></textarea>
 		{/if}
-		{@render attachments?.()}
 		{#each problems as problem (problem)}
 			<p class="px-4 text-sm text-danger">{problem}</p>
 		{/each}

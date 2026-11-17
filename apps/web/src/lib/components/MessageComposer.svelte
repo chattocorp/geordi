@@ -4,6 +4,7 @@
 	import type { HTMLInputAttributes } from 'svelte/elements';
 	import { createAttachmentKey, type Attachment } from 'svelte/attachments';
 	import { IMAGE_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from '@geordi/protocol';
+	import ImageAttachments from '#lib/ui/ImageAttachments.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 	import Button from '#lib/ui/Button.svelte';
 
@@ -106,27 +107,15 @@
 				if (picker) picker.value = '';
 			}}
 		/>
-		{#if images.length}
-			<div class="flex flex-wrap gap-2 px-4 py-2">
-				{#each images as image, index (image)}
-					<div class="relative">
-						<img
-							src={resolve('/images/[id]', { id: image })}
-							alt={`Attached image ${index + 1}`}
-							class="size-20 rounded-control object-cover"
-						/>
-						<Button
-							type="button"
-							size="sm"
-							icon="icon-[lucide--x]"
-							label={`Remove image ${index + 1}`}
-							class="absolute top-0 right-0 bg-surface"
-							onclick={() => (images = images.filter((id) => id !== image))}
-						/>
-					</div>
-				{/each}
-			</div>
-		{/if}
+		<ImageAttachments
+			images={images.map((id, index) => ({
+				id,
+				src: resolve('/images/[id]', { id }),
+				alt: `Attached image ${index + 1}`
+			}))}
+			onremove={(id) => (images = images.filter((image) => image !== id))}
+		/>
+
 		{#if uploading}<p class="px-4 text-sm text-muted" role="status">Adding images…</p>{/if}
 		{#if imageProblem}<p class="px-4 text-sm text-danger" role="alert">{imageProblem}</p>{/if}
 	{/snippet}
