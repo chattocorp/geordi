@@ -15,6 +15,8 @@
 	type Props = {
 		/** What is being chosen; read out, not shown. */
 		label: string;
+		/** A keyboard shortcut that opens and focuses this picker. */
+		shortcut?: (event: KeyboardEvent) => boolean;
 		value?: T;
 		options: Option[];
 		/** What the button says, instead of the chosen option's label. */
@@ -27,7 +29,7 @@
 		 */
 		create?: (typed: string) => Option[];
 	};
-	let { label, value = $bindable(), options, trigger, icon, create }: Props = $props();
+	let { label, value = $bindable(), options, trigger, icon, create, shortcut }: Props = $props();
 
 	const id = $props.id();
 	let button: HTMLButtonElement;
@@ -107,7 +109,16 @@
 </script>
 
 <!-- The popup is placed once, when it opens: let go of it when the page changes shape. -->
-<svelte:window onresize={() => open && popup.hidePopover()} />
+<svelte:window
+	onresize={() => open && popup.hidePopover()}
+	onkeydown={(event) => {
+		if (!shortcut?.(event)) return;
+		event.preventDefault();
+		if (event.repeat) return;
+		popup.showPopover();
+		search.focus();
+	}}
+/>
 
 <!--
 	A choice among many: quiet text that opens a list to search. Type a few letters of what
