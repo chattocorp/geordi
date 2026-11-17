@@ -22,6 +22,8 @@ import {
 	continueOn,
 	ensureWorktree,
 	fetchUpstream,
+	homeWorktree,
+	homeWritableRoots,
 	locateWorktree,
 	startOf,
 	upstreamBranchOf
@@ -259,6 +261,38 @@ describe('ensureWorktree', () => {
 			`${gitDir}/logs`,
 			`${gitDir}/worktrees/abcdefgh`
 		]);
+	});
+});
+
+describe("the repository's own checkout (FDR-009)", () => {
+	it('is a place to work in as it is: its branch, its changes, its Git directory', () => {
+		const repoPath = repo();
+		const git = (...args: string[]) =>
+			execFileSync('git', ['-C', repoPath, ...args], { encoding: 'utf8' }).trim();
+		const home = homeWorktree(repoPath);
+		expect(home).toMatchObject({
+			path: repoPath,
+			home: true,
+			branch: git('branch', '--show-current'),
+			adminDir: join(repoPath, '.git'),
+			commonDir: join(repoPath, '.git')
+		});
+		expect(homeWritableRoots(home)).toEqual([join(repoPath, '.git')]);
+
+		writeFileSync(join(repoPath, 'new.txt'), 'hello\n');
+		expect(status(home, { repoPath })).toMatchObject({
+			branch: home.branch,
+			uncommitted: 1,
+			files: [{ path: 'new.txt', status: 'added' }]
+		});
+
+		// it follows the checkout to whatever branch that is on
+		git('checkout', '-q', '-b', 'other');
+		expect(homeWorktree(repoPath).branch).toBe('other');
+	});
+
+	it('is not there when the repository is not', () => {
+		expect(() => homeWorktree(join(tmpdir(), 'geordi-no-such-repository'))).toThrow(NO_WORKTREE);
 	});
 });
 

@@ -7,7 +7,6 @@
 	import { toBlocks } from '#lib/transcript.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import {
@@ -91,19 +90,19 @@
 		/>
 	{/key}
 
-	<div class="relative shrink-0">
+	<div class="relative mx-auto w-full max-w-5xl shrink-0">
 		{#if !following}
+			<!-- beside what is read, not on it: in the margin the messages leave at their end -->
 			<Button
 				icon="icon-[lucide--arrow-down]"
+				label="Jump to latest"
 				onclick={toLatest}
-				class="absolute -top-12 left-1/2 -translate-x-1/2 bg-surface shadow-float"
-			>
-				Jump to latest
-			</Button>
+				class="absolute -top-11 right-5 bg-surface shadow-float"
+			/>
 		{/if}
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
-			<div class="mx-auto max-w-5xl px-5 pb-4" onsubmit={toLatest}>
+			<div class="px-5 pb-4" onsubmit={toLatest}>
 				<MessageComposer
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
@@ -149,33 +148,38 @@
 									: 'Enter to send, Shift+Enter for a new line'}
 							</p>
 							{#if running}
-								<!-- at work, which it shows; pointed at, it is the way to stop that -->
-								<button
-									type="button"
+								<!--
+									Three things to do, each saying what it is: stop the agent, or say something
+									to it, later or now. (That it works is said by the box's edge, and the ribbon.)
+								-->
+								<Button
+									icon="icon-[lucide--square]"
+									label="Stop the agent"
 									onclick={() => stopAgent(workspace.id)}
-									title="Stop the agent"
-									aria-label="Stop the agent"
-									class="group/stop grid size-8 shrink-0 place-items-center rounded-full bg-sunken text-sm ring-1 ring-line hover:bg-line/50"
+								/>
+								<Button
+									{...form.fields.mode.as('submit', 'queue')}
+									icon="icon-[lucide--list-plus]"
+									label="Queue: send this when the agent is done"
 								>
-									<span
-										class="grid place-items-center group-hover/stop:hidden group-focus-visible/stop:hidden"
-									>
-										<Spinner label="Working" />
-									</span>
-									<span
-										class="icon-[lucide--square] hidden size-3.5 group-hover/stop:block group-focus-visible/stop:block"
-									></span>
-								</button>
-								<Button {...form.fields.mode.as('submit', 'queue')} icon="icon-[lucide--list-plus]">
 									Queue
 								</Button>
+								<Button
+									{...form.fields.mode.as('submit', 'steer')}
+									variant="primary"
+									icon="icon-[lucide--corner-down-right]"
+									label="Steer: interrupt the agent with this"
+								>
+									Steer
+								</Button>
+							{:else}
+								<Button
+									{...form.fields.mode.as('submit', 'steer')}
+									variant="primary"
+									icon="icon-[lucide--arrow-up]"
+									label="Send"
+								/>
 							{/if}
-							<Button
-								{...form.fields.mode.as('submit', 'steer')}
-								variant="primary"
-								icon={running ? 'icon-[lucide--corner-down-right]' : 'icon-[lucide--arrow-up]'}
-								label={running ? 'Steer: interrupt the agent with this' : 'Send'}
-							/>
 						</div>
 					{/snippet}
 				</MessageComposer>
