@@ -31,7 +31,7 @@
 -->
 {#if parent || children.length > 0}
 	<div
-		class="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-b border-line bg-sidebar px-5 py-1.5 text-xs text-muted"
+		class="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 bg-sidebar px-5 py-1.5 text-xs text-muted"
 	>
 		{#if parent}
 			<div class="flex min-w-0 items-center gap-1.5">

@@ -23,12 +23,7 @@
 	starts with what the app's shell puts there. In the desktop app it is what the window is
 	dragged by (`window-drag`), except where there is something in it to use.
 -->
-<header
-	class={[
-		'flex h-14 shrink-0 items-center gap-3 border-b border-line bg-sidebar px-5 window-drag',
-		extra
-	]}
->
+<header class={['flex h-14 shrink-0 items-center gap-3 bg-sidebar px-5 window-drag', extra]}>
 	{@render lead?.()?.()}
 	{@render children?.()}
 </header>

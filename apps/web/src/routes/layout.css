@@ -32,10 +32,11 @@
  */
 :root {
 	color-scheme: light;
+	--pane: var(--sidebar);
 	--bg: #f6f6f9;
 	--sidebar: #eeeef4;
 	--surface: #ffffff;
-	--sunken: #f0f0f5;
+	--sunken: #e8e8ef;
 	--ink: #1b1c24;
 	--muted: #6a6c7b;
 	--line: #e2e2ea;
@@ -117,6 +118,7 @@
 
 	--color-bg: var(--bg);
 	--color-sidebar: var(--sidebar);
+	--color-pane: var(--pane);
 	--color-surface: var(--surface);
 	--color-sunken: var(--sunken);
 	--color-ink: var(--ink);
@@ -170,9 +172,20 @@
 	@apply relative after:absolute after:inset-y-1 after:-right-1 after:w-0.5 after:rounded-full after:bg-accent;
 }
 
+/*
+ * The surface that is read: a page's content, a workspace's conversation. A rounded sheet
+ * laid into the frame (the sidebar, the title bar and what is beside the sheet are one
+ * tone), so that its shape sets it apart and no lines are needed. `--pane` says what is
+ * behind something, to what paints its own background (a terminal, the end of a tab bar).
+ */
+@utility sheet {
+	--pane: var(--bg);
+	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line/60;
+}
+
 /* The bar at the top of a pane: tabs, or a title. */
 @utility pane-bar {
-	@apply flex h-10 shrink-0 items-center border-b border-line bg-sidebar;
+	@apply flex h-10 shrink-0 items-center;
 }
 
 /*
@@ -213,6 +226,10 @@
 }
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
+}
+/* The current tab in a pane's bar: lifted by its ground and a faint ring alone, without a shadow, which is too much on something this small inside a sheet. */
+@utility tab-active {
+	@apply bg-surface text-ink ring-1 ring-line/60 hover:bg-surface;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
@@ -279,7 +296,7 @@
 
 @layer base {
 	body {
-		@apply bg-bg font-sans text-base text-ink subpixel-antialiased;
+		@apply bg-sidebar font-sans text-base text-ink subpixel-antialiased;
 	}
 
 	/* Everything you can click says so. (Tailwind leaves buttons with the default cursor.) */

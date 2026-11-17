@@ -742,7 +742,7 @@
 	/>
 
 	{#if archiveProblem}
-		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
+		<div class="flex items-center gap-3 px-5 py-2.5">
 			<div class="min-w-0 flex-1"><Notice>{archiveProblem}</Notice></div>
 			<Button variant="ghost" onclick={() => delete archiveProblems[id]}>Dismiss</Button>
 		</div>
@@ -750,7 +750,7 @@
 
 	{#if setupPending}
 		<!-- said once, quietly, until someone has looked: it is what a new workspace would run -->
-		<div class="flex items-center gap-3 border-b border-line px-5 py-2 text-sm text-muted">
+		<div class="flex items-center gap-3 px-5 py-2 text-sm text-muted">
 			<span class="icon-[lucide--package-check] size-4 shrink-0"></span>
 			<p class="min-w-0 flex-1 truncate">
 				This repository has a setup script that nobody has agreed to yet. It has not run.
@@ -760,7 +760,7 @@
 	{/if}
 
 	{#if mergeProblem}
-		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">
+		<div class="flex items-center gap-3 px-5 py-2.5">
 			<div class="min-w-0 flex-1"><Notice>{mergeProblem}</Notice></div>
 			<Button variant="ghost" onclick={() => (mergeProblem = null)}>Dismiss</Button>
 		</div>
@@ -769,6 +769,7 @@
 	<!-- room for a conversation to be read in, and for file names beside their line counts -->
 	<Split
 		dir="row"
+		bare
 		min={[320, 260]}
 		collapsed={!frame.current.open}
 		bind:ratio={
@@ -777,22 +778,27 @@
 		}
 	>
 		{#snippet a()}
-			<Panes
-				layout={main}
-				onchange={(next) => arrange({ main: next })}
-				{tab}
-				{window}
-				{closable}
-				accepts={movable}
-				onreceive={receive('main')}
-				newTab={workspace.archivedAt ? undefined : newConversation}
-				newLabel="New conversation"
-			/>
+			<!-- what is read, as a sheet in the frame; what is beside it stays in the frame's tone -->
+			<div class="mr-1 mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet">
+				<Panes
+					layout={main}
+					onchange={(next) => arrange({ main: next })}
+					{tab}
+					{window}
+					{closable}
+					accepts={movable}
+					onreceive={receive('main')}
+					newTab={workspace.archivedAt ? undefined : newConversation}
+					newLabel="New conversation"
+				/>
+			</div>
 		{/snippet}
 		{#snippet b()}
 			{#if workspace.worktree}
+				<!-- each a sheet of its own, like the conversation: their shapes are what parts them -->
 				<Split
 					dir="column"
+					bare
 					min={[120, 120]}
 					bind:ratio={
 						() => frame.current.changes,
@@ -801,31 +807,35 @@
 				>
 					{#snippet a()}
 						<!-- what the workspace has done: its changes, and what they mean for the next releases -->
-						<Panes
-							layout={layouts.side}
-							onchange={(next) => arrange({ side: next })}
-							{tab}
-							{window}
-							{closable}
-							accepts={movable}
-							onreceive={receive('side')}
-							splits={false}
-						/>
+						<div class="mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet">
+							<Panes
+								layout={layouts.side}
+								onchange={(next) => arrange({ side: next })}
+								{tab}
+								{window}
+								{closable}
+								accepts={movable}
+								onreceive={receive('side')}
+								splits={false}
+							/>
+						</div>
 					{/snippet}
 					{#snippet b()}
-						<Panes
-							layout={dock}
-							onchange={(next) => arrange({ dock: next })}
-							{tab}
-							{window}
-							{closable}
-							accepts={movable}
-							onreceive={receive('dock')}
-							splits={false}
-							newTab={workspace.archivedAt ? undefined : newTerminal}
-							newLabel="New terminal"
-							actions={runActions}
-						/>
+						<div class="mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet">
+							<Panes
+								layout={dock}
+								onchange={(next) => arrange({ dock: next })}
+								{tab}
+								{window}
+								{closable}
+								accepts={movable}
+								onreceive={receive('dock')}
+								splits={false}
+								newTab={workspace.archivedAt ? undefined : newTerminal}
+								newLabel="New terminal"
+								actions={runActions}
+							/>
+						</div>
 					{/snippet}
 				</Split>
 			{:else}

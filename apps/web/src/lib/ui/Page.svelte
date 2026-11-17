@@ -23,10 +23,12 @@
 		{#if description}<div class="truncate text-xs text-muted">{@render description()}</div>{/if}
 	</div>
 </TitleBar>
-<main class="page">
-	<header class="space-y-1 md:hidden">
-		<h1 class="title">{title}</h1>
-		{#if description}<div class="text-muted">{@render description()}</div>{/if}
-	</header>
-	{@render children()}
-</main>
+<div class="mx-2 mb-2 flex-1 sheet">
+	<main class="page">
+		<header class="space-y-1 md:hidden">
+			<h1 class="title">{title}</h1>
+			{#if description}<div class="text-muted">{@render description()}</div>{/if}
+		</header>
+		{@render children()}
+	</main>
+</div>
