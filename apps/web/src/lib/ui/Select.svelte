@@ -10,6 +10,7 @@
 <script lang="ts" generics="T extends string">
 	import { tick, type Snippet } from 'svelte';
 	import { fuzzyFilter, fuzzySegments } from '#lib/fuzzy.ts';
+	import { composerText } from './Composer.svelte';
 
 	type Option = SelectOption<T>;
 	type Props = {
@@ -30,6 +31,9 @@
 		create?: (typed: string) => Option[];
 	};
 	let { label, value = $bindable(), options, trigger, icon, create, shortcut }: Props = $props();
+
+	/** In a composer, a choice made goes back to the text; elsewhere, to this button. */
+	const backToText = composerText();
 
 	const id = $props.id();
 	let button: HTMLButtonElement;
@@ -86,7 +90,8 @@
 	function choose(option: Option) {
 		value = option.value;
 		popup.hidePopover();
-		button.focus();
+		if (backToText) backToText();
+		else button.focus();
 	}
 
 	async function onkeydown(event: KeyboardEvent) {

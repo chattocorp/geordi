@@ -1,6 +1,14 @@
+<script lang="ts" module>
+	import { getContext, setContext, type Snippet } from 'svelte';
+
+	const TEXT = Symbol('composer text');
+
+	/** Puts the cursor back in the text of the composer around, if there is one. */
+	export const composerText = () => getContext<(() => void) | undefined>(TEXT);
+</script>
+
 <script lang="ts">
 	import type { Attachment } from 'svelte/attachments';
-	import type { Snippet } from 'svelte';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
 	import { submitOnEnter } from '#lib/keys.ts';
 
@@ -49,9 +57,13 @@
 		focused = false
 	}: Props = $props();
 
+	let text: HTMLTextAreaElement | undefined;
 	const focus: Attachment<HTMLTextAreaElement> = (node) => {
+		text = node;
 		if (focused) node.focus();
 	};
+	// what is chosen in it (an agent, a model) is chosen for the text: back to writing it
+	setContext(TEXT, () => text?.focus());
 
 	const id = $props.id();
 	const textarea = {
