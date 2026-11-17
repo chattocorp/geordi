@@ -468,8 +468,16 @@ async function answer(request: DaemonRequest) {
 			return readPicture(worktree.path, request.path);
 		case 'upstream':
 			return upstream(worktree, request);
-		case 'mergePull':
-			return mergePull(worktree, request);
+		case 'mergePull': {
+			const status = await mergePull(worktree, request);
+			// The merge is a new commit upstream: fetching it lets every workspace of the
+			// repository see it (their watchers notice the refs change). Not waited for.
+			if (status === 'merged')
+				void fetchUpstream(request.repoPath).then((problem) => {
+					if (problem) console.warn(`could not fetch ${request.repoPath}: ${problem}`);
+				});
+			return status;
+		}
 	}
 }
 
