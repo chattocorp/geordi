@@ -725,11 +725,7 @@
 			{/if}
 		{/if}
 	</TitleBar>
-	<Family
-		parent={workspace.parent}
-		sharesWorktree={workspace.worktreeId !== workspace.id}
-		children={workspace.children}
-	/>
+	<Family parent={workspace.parent} sharesWorktree={workspace.worktreeId !== workspace.id} />
 
 	{#if archiveProblem}
 		<div class="flex items-center gap-3 border-b border-line px-5 py-2.5">

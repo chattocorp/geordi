@@ -8,46 +8,29 @@
 		parent: Relative | null;
 		/** Whether this one works in its parent's directory rather than one of its own. */
 		sharesWorktree?: boolean;
-		/** The workspaces this one's agent started. */
-		children: Relative[];
 	};
-	let { parent, sharesWorktree = false, children }: Props = $props();
+	let { parent, sharesWorktree = false }: Props = $props();
 </script>
 
-{#snippet relative({ id, title, status }: Relative)}
-	<a
-		href={resolve('/workspaces/[id]', { id })}
-		class="item max-w-64 gap-1.5 px-2 py-0.5 text-xs"
-		{title}
-	>
-		{#if status === 'running'}<Spinner />{:else}<span class="dot"></span>{/if}
-		<span class="truncate">{title}</span>
-	</a>
-{/snippet}
-
 <!--
-	Who started whom (FDR-002): the workspace whose agent started this one, and the ones its
-	own agent started. Not there for a workspace that has neither.
+	Who started this workspace (FDR-002). The ones it started are not listed here: the
+	sidebar shows them, indented under it.
 -->
-{#if parent || children.length > 0}
+{#if parent}
 	<div
-		class="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-b border-line bg-sidebar px-5 py-1.5 text-xs text-muted"
+		class="flex shrink-0 items-center gap-1.5 border-b border-line bg-sidebar px-5 py-1.5 text-xs text-muted"
 	>
-		{#if parent}
-			<div class="flex min-w-0 items-center gap-1.5">
-				<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0"></span>
-				<span class="shrink-0">
-					{sharesWorktree ? 'Started by, and working alongside' : 'Started by'}
-				</span>
-				{@render relative(parent)}
-			</div>
-		{/if}
-		{#if children.length > 0}
-			<div class="flex min-w-0 flex-wrap items-center gap-1.5">
-				<span class="icon-[lucide--split] size-3.5 shrink-0 rotate-90"></span>
-				<span class="shrink-0">Agents it started</span>
-				{#each children as child (child.id)}{@render relative(child)}{/each}
-			</div>
-		{/if}
+		<span class="icon-[lucide--corner-down-right] size-3.5 shrink-0"></span>
+		<span class="shrink-0">
+			{sharesWorktree ? 'Started by, and working alongside' : 'Started by'}
+		</span>
+		<a
+			href={resolve('/workspaces/[id]', { id: parent.id })}
+			class="item max-w-64 gap-1.5 px-2 py-0.5 text-xs"
+			title={parent.title}
+		>
+			{#if parent.status === 'running'}<Spinner />{:else}<span class="dot"></span>{/if}
+			<span class="truncate">{parent.title}</span>
+		</a>
 	</div>
 {/if}
