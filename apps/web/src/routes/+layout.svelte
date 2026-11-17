@@ -269,7 +269,7 @@
 <div class="flex min-h-dvh">
 	{#if sidebar.current.open}
 		<aside
-			class="sticky top-0 hidden h-dvh shrink-0 flex-col bg-sidebar md:flex"
+			class="sticky top-0 hidden h-dvh shrink-0 flex-col bg-frame md:flex"
 			style:width="{clampWidth(sidebar.current.width)}px"
 		>
 			<!--
@@ -287,8 +287,8 @@
 			</div>
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
-			<div class="mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet">
-				<nav class="flex-1 space-y-6 overflow-y-auto px-2.5 py-3" aria-label="Main">
+			<div class="mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet-quiet">
+				<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
 					<div class="space-y-0.5">
 						{@render link(
 							resolve('/'),
@@ -342,7 +342,7 @@
 					</div>
 				</nav>
 
-				<div class="p-2.5">
+				<div class="p-2">
 					<button
 						type="button"
 						class="item w-full gap-2.5 px-2.5 py-1.5 text-base"
@@ -365,13 +365,13 @@
 				aria-valuenow={sidebar.current.width}
 				onpointerdown={resize}
 				onkeydown={nudge}
-				class="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none transition-colors select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-accent focus-visible:after:bg-accent"
+				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none transition-colors select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-accent focus-visible:after:bg-accent"
 			></div>
 		</aside>
 	{/if}
 
 	<div class="flex min-w-0 flex-1 flex-col">
-		<header class="flex h-14 items-center gap-4 bg-sidebar px-4 md:hidden">
+		<header class="flex h-14 items-center gap-4 bg-frame px-4 md:hidden">
 			{@render logo()}
 			<Button
 				variant="ghost"

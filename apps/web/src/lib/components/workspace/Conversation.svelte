@@ -102,7 +102,7 @@
 		{/if}
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
-			<div class="px-5 pb-4" onsubmit={toLatest}>
+			<div class="px-5 pb-5" onsubmit={toLatest}>
 				<MessageComposer
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}

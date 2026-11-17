@@ -32,11 +32,12 @@
  */
 :root {
 	color-scheme: light;
-	--pane: var(--sidebar);
+	--pane: var(--frame);
+	--frame: #e3e3eb;
 	--bg: #f6f6f9;
 	--sidebar: #eeeef4;
 	--surface: #ffffff;
-	--sunken: #e8e8ef;
+	--sunken: #dcdce5;
 	--ink: #1b1c24;
 	--muted: #6a6c7b;
 	--line: #e2e2ea;
@@ -61,7 +62,8 @@
 .dark {
 	color-scheme: dark;
 	--bg: #23252f;
-	--sidebar: #1d1f28;
+	--frame: #17191f;
+	--sidebar: #1a1c24;
 	--surface: #2c2f3b;
 	--sunken: #262833;
 	--ink: #eceef4;
@@ -117,6 +119,7 @@
 	--radius-control: 0.5rem;
 
 	--color-bg: var(--bg);
+	--color-frame: var(--frame);
 	--color-sidebar: var(--sidebar);
 	--color-pane: var(--pane);
 	--color-surface: var(--surface);
@@ -182,10 +185,18 @@
 	--pane: var(--bg);
 	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line/60;
 }
+/* A sheet for what is beside the thing that is read (the sidebar, a workspace's changes and terminals): a tone between the frame's and that of what is read. */
+@utility sheet-quiet {
+	--pane: var(--sidebar);
+	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/60;
+}
 
-/* The bar at the top of a pane: tabs, or a title. */
+/*
+ * The bar at the top of a pane: tabs, or a title. As high as leaves its tabs as far from
+ * the top of a sheet as from its side, so that their corners follow the sheet's.
+ */
 @utility pane-bar {
-	@apply flex h-10 shrink-0 items-center;
+	@apply flex h-11 shrink-0 items-center;
 }
 
 /*
@@ -229,7 +240,7 @@
 }
 /* The current tab in a pane's bar: lifted by its ground and a faint ring alone, without a shadow, which is too much on something this small inside a sheet. */
 @utility tab-active {
-	@apply bg-surface text-ink ring-1 ring-line/60 hover:bg-surface;
+	@apply bg-surface text-ink ring-1 ring-line/60 ring-inset hover:bg-surface;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
@@ -296,7 +307,7 @@
 
 @layer base {
 	body {
-		@apply bg-sidebar font-sans text-base text-ink subpixel-antialiased;
+		@apply bg-frame font-sans text-base text-ink subpixel-antialiased;
 	}
 
 	/* Everything you can click says so. (Tailwind leaves buttons with the default cursor.) */

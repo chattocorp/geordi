@@ -659,7 +659,7 @@
 	{:else if tab === DRAFT}
 		<!-- begun as a workspace is: say what to do, and who does it; where the reply box will be -->
 		<div class="flex min-h-0 flex-1 flex-col justify-end">
-			<div class="mx-auto w-full max-w-5xl px-5 pb-4">
+			<div class="mx-auto w-full max-w-5xl px-5 pb-5">
 				<NewWorkspace repos={[repo]} alongside={id} focused />
 			</div>
 		</div>
@@ -801,7 +801,7 @@
 				>
 					{#snippet a()}
 						<!-- what the workspace has done: its changes, and what they mean for the next releases -->
-						<div class="mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet">
+						<div class="mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
 							<Panes
 								layout={layouts.side}
 								onchange={(next) => arrange({ side: next })}
@@ -815,7 +815,7 @@
 						</div>
 					{/snippet}
 					{#snippet b()}
-						<div class="mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet">
+						<div class="mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
 							<Panes
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
