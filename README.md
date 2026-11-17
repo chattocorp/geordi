@@ -47,6 +47,26 @@ The tests render the UI's stories in a real browser; install it once with
 `pnpm dev` starts the forge on http://localhost:5173 and a daemon that connects to it. In
 development, forge data is stored in `./.data`.
 
+### Testing in a Geordi workspace
+
+Use the workspace's **app** link to start an isolated development copy. Its **web**
+and **daemon** jobs run in separate terminals; the **components** link starts Storybook.
+The setup script installs dependencies when Geordi creates the worktree.
+
+These jobs use the workspace's assigned ports and keep all Geordi state in that
+worktree's ignored `.data/` directory, including test worktrees, agent turns, tokens,
+command approvals and port allocations. They do not use the installed app's `~/.geordi`
+state. Register a repository in the test app to begin testing; it starts empty.
+
+The web server reloads frontend changes, and the daemon restarts when its source changes.
+Use the Run menu to stop and start jobs when testing reconnection. Data stays in place
+between runs. Stop test agents before discarding a test instance: agent turns can survive
+their daemon, just as they do in the installed app.
+
+Use these jobs for workspace testing instead of `pnpm dev`, which uses fixed ports.
+They test the browser app; `pnpm desktop` still uses the desktop app's usual ports and
+profile, and `pnpm desktop:install` replaces the installed app.
+
 Register a repository on the home page, open it, and start a workspace: one conversation
 with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See
 [FDR-001](docs/fdr/FDR-001-workspaces.md).

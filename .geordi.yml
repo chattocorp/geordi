@@ -1,0 +1,20 @@
+setup: pnpm install --frozen-lockfile
+
+# Three job ports, plus the browser WebSocket on the fourth port.
+ports: 4
+
+jobs:
+  web:
+    command: node scripts/workspace-dev.mjs web
+  daemon:
+    command: node scripts/workspace-dev.mjs daemon
+    needs: [web]
+  storybook:
+    command: node scripts/workspace-dev.mjs storybook
+
+urls:
+  app:
+    url: http://localhost:{web}/
+    needs: [daemon]
+  components:
+    url: http://localhost:{storybook}/
