@@ -24,6 +24,15 @@ describe('instructionsFor', () => {
 		expect(named).not.toContain('`name_workspace`');
 	});
 
+	it("tells an agent in the repository's own checkout to tread carefully", () => {
+		const text = instructionsFor({ ...own, home: true, named: true });
+		expect(text).toContain("the repository's own checkout");
+		expect(text).toContain('Commit only when asked to');
+		expect(text).not.toContain('a branch of its own, ');
+		expect(text).not.toContain('`name_workspace`');
+		expect(text).not.toContain('git branch -m');
+	});
+
 	it('says so when the directory is shared, and when there is no delegating', () => {
 		const text = instructionsFor({
 			parent: { title: 'x' },

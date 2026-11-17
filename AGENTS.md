@@ -94,6 +94,14 @@ it, perhaps you.
     another's worktree (`worktreeId`): such an agent is shown in that workspace, as a
     conversation tab (`agent:<id>`), and not in the sidebar (`withAides` in `#lib/family.ts`). The daemon derives a worktree from that ID
     (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
+  - Each repository has a workspace of its own that is always there (FDR-009; `home`):
+    it works in the repository's checkout, on whatever is checked out, and is the first
+    entry under the repository's name in the sidebar (made when the repository is added,
+    and for every repository when a daemon connects: `homeWorkspace`). A
+    `WorktreeRef` says so (`home`), and the daemon then uses the checkout as it is
+    (`homeWorktree`): nothing is made, set up, moved or removed there, and its Git metadata
+    is trusted as the person's. It can't be archived or continued; its conversation can be
+    cleared instead (`workspace.cleared`), and its actions are commit, push and update.
   - Turns are numbered. A daemon says which turn its events are of, and the forge drops
     what is not of the workspace's current turn: a daemon may report late, or twice.
   - A message to a working agent either steers it (`workspace.steered`: the turn is stopped
@@ -171,7 +179,7 @@ it, perhaps you.
   query, an event stream) holds one, and once they are used up no navigation and no click
   gets through, though the page looks alive. So nothing live is a request: the forge has a
   WebSocket server for browsers (`live.ts`, on `GEORDI_LIVE_PORT`), which sends **views**
-  (`views.ts`: `navigation`, `workspace`, `repoWorkspaces`) and terminal output to whoever
+  (`views.ts`: `navigation`, `workspace`) and terminal output to whoever
   follows them. Pages follow with `follow()` / `followTerminal()` (`#lib/live.svelte.ts`)
   and read `.current`; never `await` data inside a component within a page. Commands and
   forms stay remote functions. Something new that is live becomes a view.
