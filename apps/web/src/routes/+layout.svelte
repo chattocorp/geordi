@@ -94,7 +94,13 @@
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const here = page.url.pathname === href;
 		if (await archive(workspace.id)) {
-			if (here) await goto(resolve('/'));
+			// from a workspace an agent started, back to the one whose agent started it
+			if (here)
+				await goto(
+					workspace.parentId
+						? resolve('/workspaces/[id]', { id: workspace.parentId })
+						: resolve('/')
+				);
 		}
 		// it didn't work (rather than: they said no): the workspace's page says why
 		else if (archiveProblems[workspace.id]) await goto(href);
