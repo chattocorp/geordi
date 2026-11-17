@@ -138,7 +138,10 @@ export function createPorts(file: string, isFree: (port: number) => Promise<bool
 export function portEnv(assigned: Assigned): Record<string, string> {
 	const env: Record<string, string> = {
 		GEORDI_PORT: String(portAt(assigned, 0)),
-		GEORDI_PORTS: String(total(assigned))
+		GEORDI_PORTS: String(total(assigned)),
+		GEORDI_ASSIGNED_PORTS: JSON.stringify(
+			Array.from({ length: total(assigned) }, (_, index) => portAt(assigned, index))
+		)
 	};
 	for (const [job, index] of Object.entries(assigned.jobs))
 		env[`GEORDI_PORT_${job.toUpperCase().replaceAll('-', '_')}`] = String(portAt(assigned, index));

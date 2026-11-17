@@ -68,6 +68,9 @@ describe('workspace ports', () => {
 		expect(portEnv(assigned)).toEqual({
 			GEORDI_PORT: '20000',
 			GEORDI_PORTS: '10',
+			GEORDI_ASSIGNED_PORTS: JSON.stringify(
+				Array.from({ length: 10 }, (_, i) => assigned.blocks[0].first + i)
+			),
 			GEORDI_PORT_WEB: '20000',
 			GEORDI_PORT_API_SERVER: '20001'
 		});
@@ -81,4 +84,16 @@ describe('workspace ports', () => {
 		await new Promise((resolve) => server.close(resolve));
 		expect(await waitForPort(port, 300)).toBe(false);
 	});
+});
+
+it('exports the exact assigned port list when allocations span several blocks', () => {
+	const env = portEnv({
+		blocks: [
+			{ first: 20000, count: 2 },
+			{ first: 24000, count: 2 }
+		],
+		jobs: { web: 0, desktop: 2 }
+	});
+	expect(JSON.parse(env.GEORDI_ASSIGNED_PORTS)).toEqual([20000, 20001, 24000, 24001]);
+	expect(env.GEORDI_PORT_DESKTOP).toBe('24000');
 });

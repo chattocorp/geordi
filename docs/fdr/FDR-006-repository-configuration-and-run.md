@@ -27,6 +27,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - A workspace gets a run of ports of its own (one per job, unless the file asks for more) the first time it needs one. The daemon picks a run in which every port is free at that moment, and otherwise looks further.
 - Those ports are the workspace's for as long as it lives: across restarts of its jobs, of the daemon and of the machine. They are given up when the workspace is archived.
 - Every job has one of them as its own, from the first time the job is seen. It keeps it when jobs are added, removed or reordered.
+- Jobs and agents also receive `GEORDI_ASSIGNED_PORTS`, the full list of assigned ports as JSON. Spare ports must come from this list: a workspace that grows can have several separate blocks.
 - A workspace that outgrows its ports (more jobs, or a bigger `ports`) keeps what it has and gets more.
 - A job's command gets its port as `PORT`. Everything in the workspace (jobs, terminals, and the agent) gets every job's port as `GEORDI_PORT_<NAME>`, the first of the workspace's ports as `GEORDI_PORT`, and their number as `GEORDI_PORTS`. Agents are told to use these, never a default port.
 

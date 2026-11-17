@@ -47,6 +47,10 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Let the test viewport settle: resizing deliberately closes an open menu.
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+		);
 		await userEvent.click(canvas.getByRole('button', { name: 'Run' }));
 		await userEvent.click(
 			await canvas.findByRole('menuitem', { name: 'Start Development server' })

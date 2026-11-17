@@ -66,7 +66,32 @@ their daemon, just as they do in the installed app.
 
 Use these jobs for workspace testing instead of `pnpm dev`, which uses fixed ports.
 They test the browser app; `pnpm desktop` still uses the desktop app's usual ports and
-profile, and `pnpm desktop:install` replaces the installed app.
+profile.
+
+Use **Run → Electron dev app** (or `pnpm desktop:dev` in a workspace terminal) to build
+and launch a separate desktop app. Its data, profile, logs, and staged build stay in
+`.data/desktop/`, separate from both the installed app and the browser dev instance.
+It uses three assigned workspace ports and can run alongside both. Quit **Geordi Dev**
+or stop its job when done. Start the job again to rebuild after source changes; this is
+a production build in a dev shell, without hot reload.
+
+The job needs a daemon that supplies `GEORDI_ASSIGNED_PORTS`. If it reports that variable
+missing, update the installed Geordi first. This variable is a JSON array of all assigned
+ports, including separate blocks added when a workspace grows; never infer spare ports
+by adding to `GEORDI_PORT`.
+
+Use `pnpm desktop:package` to build the Electron app without stopping the installed app.
+The bundle is written under `apps/desktop/dist/`.
+
+**Run → Install Electron app (restarts Geordi)** builds, installs, and reopens the desktop
+app, as does `pnpm desktop:install`. This briefly closes Geordi and ends its terminals and
+jobs; agent turns continue and reconnect. The replacement is copied and signed before
+Geordi quits. A separate installer process finishes the update even when the job's terminal
+closes. Its output is in `apps/desktop/dist/install.log`. If Geordi refuses to quit, the
+installer leaves the existing app in place.
+
+The install job is also included in **Start all**. Start individual development jobs, or
+use **Open → Geordi**, when you only want the local browser copy.
 
 Register a repository on the home page, open it, and start a workspace: one conversation
 with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See
