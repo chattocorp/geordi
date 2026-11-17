@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "GEORDI_DAEMON_TOKEN_FILE=../../.data/daemon-token GEORDI_TURNS_DIR=../../.data/turns GEORDI_FORGE_HTTP_URL=http://localhost:5173 node --watch src/main.ts",
+		"dev": "GEORDI_DAEMON_TOKEN_FILE=../../.data/daemon-token GEORDI_SESSIONS_DIR=../../.data/sessions GEORDI_FORGE_HTTP_URL=http://localhost:5173 node --watch src/main.ts",
 		"start": "node src/main.ts",
 		"check": "tsc",
 		"test": "vitest --run"

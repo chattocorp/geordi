@@ -5,6 +5,7 @@ type Tool = Extract<TranscriptItem, { kind: 'tool' }>;
 export type Part =
 	| { kind: 'text'; text: string }
 	| { kind: 'tools'; tools: Tool[] }
+	| Omit<Extract<TranscriptItem, { kind: 'question' }>, 'at'>
 	| { kind: 'error'; error: string };
 
 /** A user message, everything the agent did in reply to one, or something said in passing. */
@@ -41,6 +42,10 @@ export function toBlocks(transcript: TranscriptItem[]): Block[] {
 			else agent.parts.push({ kind: 'tools', tools: [item] });
 		} else if (item.kind === 'text') {
 			agent.parts.push({ kind: 'text', text: item.text });
+		} else if (item.kind === 'question') {
+			const { at, ...question } = item;
+			void at;
+			agent.parts.push(question);
 		} else {
 			agent.parts.push({ kind: 'error', error: item.error });
 		}

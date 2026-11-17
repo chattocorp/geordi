@@ -60,11 +60,12 @@ const sounds = ['done', 'failed'].map((name) => {
 run('pnpm', ['--filter', '@geordi/web', 'build'], { cwd: repo });
 cpSync(join(repo, 'apps/web/build'), join(stage, 'forge'), { recursive: true });
 
-// The daemon: one file. Its TypeScript can't run from inside an app as it does from the
+// The daemon: one file each for it and what it starts. Its TypeScript can't run from inside an app as it does from the
 // repository (Node won't strip types below node_modules, where the protocol would end up).
 await build({
-	entryPoints: [join(repo, 'apps/daemon/src/main.ts')],
-	outfile: join(stage, 'daemon/main.js'),
+	// and next to it the host of an agent's session, a process of its own (ADR-010)
+	entryPoints: [join(repo, 'apps/daemon/src/main.ts'), join(repo, 'apps/daemon/src/host.ts')],
+	outdir: join(stage, 'daemon'),
 	bundle: true,
 	platform: 'node',
 	format: 'esm',

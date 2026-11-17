@@ -6,6 +6,7 @@
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import MessageImages from '#lib/components/MessageImages.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
+	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
@@ -20,6 +21,7 @@
 		queue = [],
 		queueImages = [],
 		onremove,
+		onanswer,
 		following = $bindable(true)
 	}: {
 		blocks: Block[];
@@ -32,6 +34,8 @@
 		queue?: string[];
 		queueImages?: string[][];
 		onremove: (index: number, text: string, images: string[]) => void;
+		/** Answers something the agent asked: one answer per question. */
+		onanswer: (question: string, answers: string[]) => unknown;
 		following?: boolean;
 	} = $props();
 
@@ -139,6 +143,13 @@
 												tools={part.tools}
 												{cwd}
 												live={running && i === blocks.length - 1 && j === block.parts.length - 1}
+											/>
+										{:else if part.kind === 'question'}
+											<QuestionCard
+												questions={part.questions}
+												answers={part.answers}
+												open={part.open}
+												onanswer={(answers) => onanswer(part.id, answers)}
 											/>
 										{:else}
 											<Notice>{part.error}</Notice>

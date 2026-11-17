@@ -713,6 +713,7 @@
 			actions={offered}
 			{pending}
 			{working}
+			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
 			checking={!workspace.archivedAt && !!workspace.worktree && (!git || git.checking)}
 			onaction={act}
 		/>

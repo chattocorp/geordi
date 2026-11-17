@@ -11,7 +11,9 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 - A workspace is started with an agent and a repository, and usually with a first prompt (without one, it is there with its worktree, waiting to be told what to do): from "New workspace" in the sidebar, where the repository worked in last is preselected, or from the + beside a repository's name. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first. Its agent then gives it a short name that says what the work is about, once it knows (the agent API's `name_workspace`), and may change it a couple of times if the work turns out to be about something else. If the daemon has been given a key to ask a model, a title made from the prompt bridges the moments until then.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
-- While the agent is working, Enter steers it: the agent is interrupted, and the message is the next thing it reads. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
+- While the agent is working, Enter steers it: the message reaches the agent in the middle of its turn, which goes on, and is the next thing it reads (ADR-010). Stop stops the turn, and with it what was said and not read yet. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
+- An agent can start something in the background and come to rest; when it has finished, the agent takes up work again by itself, and the workspace shows as working.
+- An agent can ask the person something: the question shows in the conversation with the answers it offers, any of which can be given, or one in the person's own words. The agent waits; the workspace says so in its ribbon and the sidebar. A question nobody answered before the turn ended is closed.
 - Messages can include images, with or without text. Use **Add images** to choose files or paste an image from the clipboard. The composer shows previews above the text in one horizontally scrolling row. Previews keep the full image visible at its original aspect ratio and open the full image when clicked. A small remove button appears on hover or keyboard focus; touch screens always show it. Each message accepts up to four PNG, JPEG, WebP or GIF files, at most 5 MB each. Sending waits until uploads finish; an upload error leaves the draft in place.
 - Images work in first prompts, replies, queued messages and steering messages, with both Claude and Codex. Sent and queued messages show thumbnails that open the full image. Images remain available after a restart and after the workspace is archived.
 - An agent shows a picture (a screenshot, a chart) by writing a Markdown image with the path of its file: it appears in its reply, and opens in full when clicked. The file is read where the agent works, when the reply is shown: PNG, JPEG, WebP or GIF, at most 5 MB, from the worktree or anywhere else on that machine. A file that is gone, or is no picture, leaves its path. Images from the web are never loaded, only linked.
@@ -48,9 +50,9 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ### 3. A working agent can be steered or queued for, never refused
 
-**Decision:** A message to a working agent either interrupts it (steering, the default) or waits its turn (queueing). Steering stops the agent's turn and starts a new one with the message; the agent keeps its conversation.
+**Decision:** A message to a working agent either reaches it now (steering, the default) or waits its turn (queueing). Steering is said to the agent's CLI as it runs (ADR-010): the turn goes on, and takes the message in at its next step.
 **Why:** People see an agent go wrong and want to correct it now, or think of the next thing and want it done after. The workspace's actions (FDR-003) queue, so they can be used at any time.
-**Tradeoff:** Steering cuts off whatever the agent was in the middle of, which can leave a half-made change behind. A queued message is written without knowing how the current turn ends, which is why the queue stops after a failed turn rather than pressing on.
+**Tradeoff:** A steering message is read at the agent's next step, not at once: a long command runs to its end first (Stop is for that). A queued message is written without knowing how the current turn ends, which is why the queue stops after a failed turn rather than pressing on.
 
 ### 4. Changes are measured against the fork point
 
@@ -102,7 +104,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006
+- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-010
 - **FDRs:** FDR-002, FDR-003
 
 ## Open Questions

@@ -15,6 +15,8 @@
 		pending?: WorkspaceAction['id'][];
 		/** Whether the agent is at work right now. */
 		working?: boolean;
+		/** Whether an agent has asked the person something, and waits for the answer. */
+		asking?: boolean;
 		/**
 		 * How it stands is being found out right now (or again): what was known may no longer
 		 * be so, and is not shown, nor offered to act on, until it is.
@@ -28,6 +30,7 @@
 		actions,
 		pending = [],
 		working = false,
+		asking = false,
 		checking = false,
 		onaction
 	}: Props = $props();
@@ -100,8 +103,14 @@
 		>
 			{#if working}
 				<span class="flex items-center gap-2 text-sm font-medium whitespace-nowrap" role="status">
-					<Spinner />
-					Working
+					{#if asking}
+						<!-- at work, but not going on until it has heard from the person -->
+						<span class="icon-[lucide--message-circle-question] size-4"></span>
+						Waiting for your answer
+					{:else}
+						<Spinner />
+						Working
+					{/if}
 				</span>
 				{#if standing || actions.length > 0}
 					<span class="mx-2 h-4 w-px shrink-0 bg-current opacity-25"></span>

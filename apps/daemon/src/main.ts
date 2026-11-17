@@ -36,7 +36,14 @@ import { releasePlan } from './releases.ts';
 import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import { titleFor } from './titles.ts';
-import { resumeTurns, runTurn, type Turn } from './turn.ts';
+import {
+	endLegacyTurns,
+	resumeSessions,
+	startSession,
+	type Said,
+	type Session
+} from './session.ts';
+import type { Meta } from './host.ts';
 import { update } from './update.ts';
 import { mergePull, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
@@ -55,8 +62,8 @@ const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 /** Where agents on this machine reach the forge's agent API (ADR-004). */
 const apiUrl = new URL('/mcp', process.env.GEORDI_FORGE_HTTP_URL || 'http://127.0.0.1:3000').href;
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
-/** Where running agent turns keep their output, so that they outlive this process (ADR-007). */
-const turnsDir = process.env.GEORDI_TURNS_DIR || join(homedir(), '.geordi', 'turns');
+/** Where agents' sessions keep what they are told and what they do, so that they outlive this process (ADR-007). */
+const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
 const daemonId = hostname();
@@ -233,7 +240,7 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 	}
 }
 
-/** Turns waiting for their worktree's setup, by workspace: what stops one. */
+/** Agents waiting for their worktree's setup, by workspace: what stops one. */
 const waiting = new Map<string, () => void>();
 
 /** File watchers for the workspaces someone is looking at; see the `watch` message. */
@@ -255,38 +262,67 @@ function send(message: DaemonMessage) {
 }
 
 /** Reports what a workspace's agent does. Queued while there is no forge to tell. */
-const emitFor = (workspaceId: string, turn?: number) => (event: AgentEvent) =>
-	send({ type: 'workspace.event', workspaceId, turn, event });
+const emitFor = (workspaceId: string) => (event: AgentEvent) =>
+	send({ type: 'workspace.event', workspaceId, event });
 
-/** The turns running right now, by workspace: ones we started, and ones we found running. */
 /**
- * Whether the forge is there to be told things. Turns are only followed while it is: what
+ * Whether the forge is there to be told things. Sessions are only followed while it is: what
  * they write waits in their files, which survive us, rather than in the outbox, which doesn't.
  */
 const connected = () => socket?.readyState === WebSocket.OPEN;
 
-const turns = await resumeTurns(turnsDir, adapterFor, emitFor, connected);
-for (const [workspaceId, turn] of turns) forget(workspaceId, turn);
+endLegacyTurns(join(sessionsDir, '..', 'turns'));
+/** The agents' sessions (ADR-010), by workspace: ones we started, and ones we found running. */
+const sessions = resumeSessions(sessionsDir, emitFor, connected);
+for (const [workspaceId, session] of sessions) attend(workspaceId, session);
 
-function forget(workspaceId: string, turn: Turn) {
-	turn.done.then(() => {
-		if (turns.get(workspaceId) === turn) turns.delete(workspaceId);
+/** Starts a workspace's session with what is to be said to it, the first thing first. */
+function begin(workspaceId: string, meta: Meta, [first, ...rest]: Said[]) {
+	const dir = join(sessionsDir, workspaceId);
+	const options = { ...meta.options, dir };
+	const session = startSession({ ...meta, options }, first, emitFor(workspaceId), dir, connected);
+	rest.forEach(session.say);
+	sessions.set(workspaceId, session);
+	attend(workspaceId, session);
+}
+
+/**
+ * Forgets a session once it is over. What was said to it too late (its CLI had just been
+ * ended, for having nothing to do) is said to a new one, which carries on where it left off.
+ */
+function attend(workspaceId: string, session: Session) {
+	void session.done.then((unheard) => {
+		if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
+		if (unheard.length === 0) return;
+		const { agent, options, apiToken } = session;
+		try {
+			begin(
+				workspaceId,
+				{ agent, apiToken, options: { ...options, resumeId: session.resumeId() } },
+				unheard
+			);
+		} catch (error) {
+			emitFor(workspaceId)({ kind: 'turn.failed', error: errorMessage(error) });
+		}
 	});
 }
 
-/** Workspaces whose next turn is about to start, once the one before it has gone. */
-const starting = new Set<string>();
+/**
+ * Workspaces whose session is about to start (its worktree is being made, or set up), with
+ * what was said to them since: all of it is the new session's to hear.
+ */
+const beginning = new Map<string, Said[]>();
 
 /**
- * The workspaces whose turn the forge has not heard the end of: those still running, those
- * about to start, and those with events waiting in the outbox. Leaving
- * the latter out would have the forge give them up as lost, a moment before their ending
- * arrives.
+ * The workspaces whose agent the forge takes to be at work, and must not give up: those at
+ * work as far as it was told, those about to start, and those with events waiting in the
+ * outbox. Leaving the latter out would have the forge give them up as lost, a moment before
+ * their ending arrives.
  */
 const unreported = () => [
 	...new Set([
-		...turns.keys(),
-		...starting,
+		...[...sessions].flatMap(([id, session]) => (session.working() ? [id] : [])),
+		...beginning.keys(),
 		...outbox.flatMap((m) => (m.type === 'workspace.event' ? [m.workspaceId] : []))
 	])
 ];
@@ -354,7 +390,7 @@ function connect(delay = 500) {
 	ws.onclose = (event) => {
 		if (socket === ws) console.log('disconnected; reconnecting');
 		else if (event.reason) console.log(`connection refused: ${event.reason}`);
-		// Turns and terminals keep running: the forge picks them up again when it is back.
+		// Agents and terminals keep running: the forge picks them up again when it is back.
 		if (socket === ws) socket = null;
 		retry();
 	};
@@ -379,6 +415,9 @@ async function answer(request: DaemonRequest) {
 		} catch {
 			// an unreadable HEAD (forced removal of a tampered worktree): the forge keeps what it knows
 		}
+		// an agent whose CLI is still running there (with nothing to do) goes with its directory
+		for (const session of sessions.values())
+			if (worktree && session.options.cwd === worktree.path) session.kill();
 		removeWorktree(worktreesDir, repoPath, worktreeId, force);
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
@@ -394,7 +433,7 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'continueWorktree') {
 		const { repoPath, worktreeId } = request;
 		const worktree = locateWorktree(worktreesDir, repoPath, worktreeId);
-		if (turns.has(worktreeId)) throw new Error('Its agent is still at work');
+		if (sessions.get(worktreeId)?.working()) throw new Error('Its agent is still at work');
 		if (uncommittedFiles(worktree).length > 0)
 			throw new Error('It has uncommitted changes: commit or discard them first');
 		// from where the upstream stands now, as a new workspace would
@@ -453,38 +492,45 @@ async function answer(request: DaemonRequest) {
 			return status;
 		}
 		case 'updateWorktree':
-			return !turns.has(request.worktreeId) && update(worktree, request);
+			return !sessions.get(request.worktreeId)?.working() && update(worktree, request);
 	}
 }
 
 async function handle(message: ForgeMessage) {
 	switch (message.type) {
-		case 'turn.start': {
-			const { workspaceId, worktreeId, agent, repoPath, base, resumeId } = message;
-			const emit = emitFor(workspaceId, message.turn);
+		case 'agent.message': {
+			const { workspaceId, worktreeId, agent, repoPath, base, settings } = message;
+			const emit = emitFor(workspaceId);
+			const said: Said = {
+				prompt: message.prompt,
+				...(message.images && { images: message.images })
+			};
 
-			// The forge only starts a turn when it knows of none. If we still have one (the forge
-			// gave up on it while we were apart, say), it has to go first: two agents must never
-			// be at work in one conversation. It gets a moment to end, then is stopped, and if
-			// even that leads nowhere we let go of it.
-			const previous = turns.get(workspaceId);
-			if (previous) {
-				starting.add(workspaceId);
-				try {
-					const within = (ms: number) =>
-						Promise.race([previous.done, new Promise((resolve) => setTimeout(resolve, ms))]);
-					await within(10_000);
-					if (turns.get(workspaceId) === previous) {
-						previous.stop();
-						await within(15_000);
-						previous.detach();
-					}
-				} finally {
-					starting.delete(workspaceId);
-				}
+			// one that is about to start hears it when it does
+			const sooner = beginning.get(workspaceId);
+			if (sooner) {
+				sooner.push(said);
+				break;
 			}
-
+			const heard = [said];
+			beginning.set(workspaceId, heard);
 			try {
+				let session = sessions.get(workspaceId);
+				// A CLI runs as it was started. Told to run otherwise (with another model, say), it
+				// is started anew, unless it is in the middle of something: then that waits.
+				const same = JSON.stringify(session?.options.settings) === JSON.stringify(settings);
+				if (session && !session.over() && !session.working() && !same) {
+					session.close();
+					await Promise.race([session.done, new Promise((resolve) => setTimeout(resolve, 15_000))]);
+					session = sessions.get(workspaceId);
+				}
+				// An agent whose CLI is running is simply told: between turns that starts one,
+				// during a turn it steers.
+				if (session && !session.over()) {
+					heard.forEach(session.say);
+					break;
+				}
+
 				// A workspace of its own starts from where its upstream stands now. (One started
 				// by an agent starts from that agent's branch, which is here already.)
 				if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
@@ -503,10 +549,8 @@ async function handle(message: ForgeMessage) {
 
 				// The agent starts once the directory is set up, and hears how that went. Stopped
 				// meanwhile, the turn ends; the setup goes on, for the next one to wait for.
-				let prompt = message.prompt;
 				const setup = setups.get(worktreeId);
 				if (setup) {
-					starting.add(workspaceId);
 					const stopped = new Promise<'stopped'>((resolve) =>
 						waiting.set(workspaceId, () => resolve('stopped'))
 					);
@@ -514,7 +558,6 @@ async function handle(message: ForgeMessage) {
 					try {
 						note = await Promise.race([setup, stopped]);
 					} finally {
-						starting.delete(workspaceId);
 						waiting.delete(workspaceId);
 					}
 					if (note === 'stopped') {
@@ -522,34 +565,25 @@ async function handle(message: ForgeMessage) {
 						break;
 					}
 					if (setups.get(worktreeId) === setup) setups.delete(worktreeId);
-					if (note) prompt = `${note}\n\n${prompt}`;
+					if (note) heard[0] = { ...said, prompt: `${note}\n\n${said.prompt}` };
 				}
 
-				const adapter = await adapterFor(agent);
-				const turn = runTurn(
-					adapter,
-					{ agent, turn: message.turn },
-					{
-						sessionId: workspaceId,
-						prompt,
-						images: message.images,
-						resumeId,
-						settings: message.settings,
-						env: (await configFor(worktree, message)).env,
-						instructions: message.instructions,
-						cwd: worktree.path,
-						writableRoots: worktree.writableRoots,
-						api: { url: apiUrl }
-					},
-					emit,
-					join(turnsDir, workspaceId),
-					message.apiToken,
-					connected
-				);
-				turns.set(workspaceId, turn);
-				forget(workspaceId, turn);
+				const options = {
+					sessionId: workspaceId,
+					dir: '', // `begin` knows where
+					resumeId: message.resumeId,
+					settings,
+					env: (await configFor(worktree, message)).env,
+					instructions: message.instructions,
+					cwd: worktree.path,
+					writableRoots: worktree.writableRoots,
+					api: { url: apiUrl }
+				};
+				begin(workspaceId, { agent, options, apiToken: message.apiToken }, heard);
 			} catch (error) {
 				emit({ kind: 'turn.failed', error: errorMessage(error) });
+			} finally {
+				beginning.delete(workspaceId);
 			}
 			break;
 		}
@@ -619,9 +653,13 @@ async function handle(message: ForgeMessage) {
 			closeTerminal(message.terminalId);
 			break;
 
-		case 'turn.stop':
-			turns.get(message.workspaceId)?.stop();
+		case 'agent.stop':
+			sessions.get(message.workspaceId)?.stop();
 			waiting.get(message.workspaceId)?.();
+			break;
+
+		case 'agent.answer':
+			sessions.get(message.workspaceId)?.answer(message.questionId, message.answers);
 			break;
 
 		default:
@@ -632,7 +670,7 @@ async function handle(message: ForgeMessage) {
 // Ctrl+C is someone stopping Geordi: the agents stop with it. Any other way of going away
 // (a restart, a crash, being replaced) leaves them working for the next daemon to pick up.
 process.on('SIGINT', () => {
-	for (const turn of turns.values()) turn.stop();
+	for (const session of sessions.values()) session.kill();
 	closeTerminals();
 	process.exit(0);
 });

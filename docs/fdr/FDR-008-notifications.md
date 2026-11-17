@@ -10,6 +10,7 @@ Agents work for minutes at a time, and people do other things meanwhile. Geordi 
 ## Behavior
 
 - When a workspace's agents stop working, because the turn ended or failed, Geordi shows a system notification titled with what happened ("Agent finished", or "Agent ran into a problem") and the workspace's title below it, and plays two soft notes: rising when it is done, falling when it failed.
+- When an agent asks the person something (FDR-001), that notifies at once ("Agent has a question"), though the agent is still at work, and whoever else waits for it: the answer is the person's to give.
 - This counts the agents working alongside a workspace (FDR-002) as well: it tells when all of them have stopped, not when each one does.
 - Nothing fires for the workspace the person is looking at. "Looking at" means its page is open and Geordi's window or tab is in front. With the window behind another app, or the tab hidden, the workspace on screen notifies too.
 - Clicking the notification brings Geordi to the front and opens the workspace.
@@ -63,5 +64,5 @@ Agents work for minutes at a time, and people do other things meanwhile. Geordi 
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-003, ADR-008
+- **ADRs:** ADR-001, ADR-003, ADR-008, ADR-010
 - **FDRs:** FDR-001, FDR-002, FDR-005

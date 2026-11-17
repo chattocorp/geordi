@@ -25,7 +25,7 @@ function setup({ connected = true } = {}) {
 }
 
 const tokenOf = (message: ForgeMessage | undefined) =>
-	(message as Extract<ForgeMessage, { type: 'turn.start' }>).apiToken;
+	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
 describe('workspaces', () => {
 	it('can be started without a word, and is told what Geordi is with its first message', () => {
@@ -40,8 +40,7 @@ describe('workspaces', () => {
 
 		workspaces.send(id, 'Fix the flaky login test\nIt times out on CI');
 		expect(sent.at(-1)).toMatchObject({
-			type: 'turn.start',
-			turn: 1,
+			type: 'agent.message',
 			resumeId: null,
 			instructions: expect.stringContaining('inside Geordi'),
 			prompt: 'Fix the flaky login test\nIt times out on CI'
@@ -53,7 +52,7 @@ describe('workspaces', () => {
 	it('notes a branch its agent renamed, and brings the worktree back from that', () => {
 		const { store, workspaces, create } = setup();
 		const id = create('Fix the bug');
-		workspaces.record(id, { kind: 'worktree', path: '/wt/abc', branch: 'geordi/abc' }, 1);
+		workspaces.record(id, { kind: 'worktree', path: '/wt/abc', branch: 'geordi/abc' });
 
 		workspaces.onBranch(id, 'geordi/fix-the-bug');
 		expect(workspaces.get(id).worktree).toEqual({ path: '/wt/abc', branch: 'geordi/fix-the-bug' });
@@ -69,8 +68,8 @@ describe('workspaces', () => {
 	it('carries on in a workspace on a new branch, and tells its agent with the next message', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('Fix the bug');
-		workspaces.record(id, { kind: 'worktree', path: '/wt/abc', branch: 'geordi/abc' }, 1);
-		workspaces.record(id, { kind: 'turn.completed' }, 1);
+		workspaces.record(id, { kind: 'worktree', path: '/wt/abc', branch: 'geordi/abc' });
+		workspaces.record(id, { kind: 'turn.completed' });
 
 		workspaces.continued(id, 'geordi/abc-2');
 		const workspace = workspaces.get(id);
@@ -81,7 +80,7 @@ describe('workspaces', () => {
 		expect(workspaces.ref(id)).toMatchObject({ branch: 'geordi/abc-2' });
 
 		workspaces.send(id, 'Now the next thing');
-		const turn = sent.at(-1) as Extract<ForgeMessage, { type: 'turn.start' }>;
+		const turn = sent.at(-1) as Extract<ForgeMessage, { type: 'agent.message' }>;
 		expect(turn.prompt).toMatch(
 			/^\(A note from Geordi.*geordi\/abc-2[\s\S]*\n\nNow the next thing$/
 		);
@@ -90,7 +89,7 @@ describe('workspaces', () => {
 			kind: 'user',
 			text: 'Now the next thing'
 		});
-		workspaces.record(id, { kind: 'turn.completed' }, 2);
+		workspaces.record(id, { kind: 'turn.completed' });
 		workspaces.send(id, 'And another');
 		expect((sent.at(-1) as typeof turn).prompt).toBe('And another');
 	});
@@ -98,7 +97,7 @@ describe('workspaces', () => {
 	it('runs the next turn with the model and effort chosen since', () => {
 		const { workspaces, sent, create, store } = setup();
 		const id = create('Fix the bug');
-		workspaces.record(id, { kind: 'turn.completed' }, 1);
+		workspaces.record(id, { kind: 'turn.completed' });
 
 		workspaces.configure(id, { model: 'opus', effort: 'high' });
 		workspaces.configure(id, { model: 'opus', effort: 'high' }); // nothing new: nothing recorded
@@ -108,7 +107,7 @@ describe('workspaces', () => {
 		expect(() => workspaces.configure(id, { model: '--evil' })).toThrow();
 
 		workspaces.send(id, 'And the other one');
-		expect(sent.at(-1)).toMatchObject({ turn: 2, settings: { model: 'opus', effort: 'high' } });
+		expect(sent.at(-1)).toMatchObject({ settings: { model: 'opus', effort: 'high' } });
 
 		// taking a choice back leaves it to the agent's CLI again
 		workspaces.configure(id, { model: 'opus' });
@@ -121,11 +120,10 @@ describe('workspaces', () => {
 
 		expect(sent).toEqual([
 			{
-				type: 'turn.start',
+				type: 'agent.message',
 				workspaceId: id,
 				worktreeId: id,
 				agent: 'claude',
-				turn: 1,
 				settings: {},
 				repoPath: repo.path,
 				apiToken: expect.any(String),
@@ -168,7 +166,7 @@ describe('workspaces', () => {
 		const same = workspaces.agents.start(id, { worktree: 'own', prompt: 'Help' });
 		const other = workspaces.agents.start(id, { worktree: 'own', agent: 'codex', prompt: 'Help' });
 
-		const turns = sent.filter((message) => message.type === 'turn.start');
+		const turns = sent.filter((message) => message.type === 'agent.message');
 		expect(turns.map((turn) => turn.settings)).toEqual([settings, settings, settings, {}]);
 		expect(workspaces.get(same.id).settings).toEqual(settings);
 		// another kind of agent knows other models
@@ -192,7 +190,7 @@ describe('workspaces', () => {
 		workspaces.record(id, { kind: 'turn.completed' });
 
 		workspaces.send(id, 'Two');
-		expect(sent[1]).toMatchObject({ type: 'turn.start', resumeId: 'thread-1', prompt: 'Two' });
+		expect(sent[1]).toMatchObject({ type: 'agent.message', resumeId: 'thread-1', prompt: 'Two' });
 	});
 
 	it('queues messages sent while the agent works, and sends them one turn at a time', () => {
@@ -204,7 +202,7 @@ describe('workspaces', () => {
 		expect(workspaces.get(id)).toMatchObject({ status: 'running', queue: ['Two', 'Three'] });
 
 		workspaces.record(id, { kind: 'turn.completed' });
-		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', prompt: 'Two' });
+		expect(sent.at(-1)).toMatchObject({ type: 'agent.message', prompt: 'Two' });
 		expect(workspaces.get(id)).toMatchObject({ status: 'running', queue: ['Three'] });
 
 		workspaces.record(id, { kind: 'turn.completed' });
@@ -261,26 +259,19 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).queue).toEqual(['Three']);
 	});
 
-	it('steers a working agent: stops its turn and sends the message as soon as it has', () => {
+	it('steers a working agent: the message reaches it at once, in the middle of its turn', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');
 		workspaces.send(id, 'Later');
 		workspaces.steer(id, 'Not that, this');
-		workspaces.steer(id, 'And this');
-		expect(sent.at(-1)).toEqual({ type: 'turn.stop', workspaceId: id });
-		expect(workspaces.get(id)).toMatchObject({ steering: ['Not that, this', 'And this'] });
-
-		// the daemon reports the turn as stopped: the steering goes out, ahead of the queue
-		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' });
-		expect(sent.at(-1)).toMatchObject({
-			type: 'turn.start',
-			prompt: 'Not that, this\n\nAnd this'
-		});
+		// said to the agent as it works: nothing is stopped for it
+		expect(sent.at(-1)).toMatchObject({ type: 'agent.message', prompt: 'Not that, this' });
+		expect(sent.some((message) => message.type === 'agent.stop')).toBe(false);
 		const workspace = workspaces.get(id);
-		expect(workspace).toMatchObject({ status: 'running', steering: [], queue: ['Later'] });
-		// being stopped for this is not shown as a failure
+		expect(workspace).toMatchObject({ status: 'running', queue: ['Later'] });
 		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'user']);
 
+		// one turn, with both in it; what waits goes out when it is over
 		workspaces.record(id, { kind: 'turn.completed' });
 		expect(sent.at(-1)).toMatchObject({ prompt: 'Later' });
 	});
@@ -290,16 +281,97 @@ describe('workspaces', () => {
 		const id = create('One');
 		workspaces.record(id, { kind: 'turn.completed' });
 		workspaces.steer(id, 'Two');
-		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', prompt: 'Two' });
-		expect(workspaces.get(id).steering).toEqual([]);
+		expect(sent.at(-1)).toMatchObject({ type: 'agent.message', prompt: 'Two' });
+		expect(workspaces.get(id).status).toBe('running');
 	});
 
-	it('still sends the steering if the turn finished on its own first', () => {
+	it('does not take a steering message that no daemon is there to pass on', () => {
+		const { create, store } = setup();
+		const id = create('One');
+		const events = store.readAll().length;
+		const unreachable = createWorkspaces(store, createRepos(store), () => false);
+		expect(() => unreachable.steer(id, 'Two')).toThrow();
+		// the turn goes on, wherever it runs: nothing was said, and nothing given up
+		expect(store.readAll()).toHaveLength(events);
+		expect(unreachable.get(id).status).toBe('running');
+	});
+
+	it('replays steering from before it reached a working agent: stopped, then said', () => {
+		const { store, repos, dispatch, create } = setup();
+		const id = create('One');
+		const stream = `workspace:${id}` as const;
+		store.append({ type: 'workspace.steered', stream, data: { id, text: 'Two' } });
+		store.append({
+			type: 'workspace.output',
+			stream,
+			data: { id, event: { kind: 'turn.failed', error: 'Stopped' } }
+		});
+		store.append({ type: 'workspace.message', stream, data: { id, text: 'Two', steered: true } });
+		const replayed = createWorkspaces(store, repos, dispatch).get(id);
+		// being stopped for it is not shown as a failure
+		expect(replayed.transcript.map((item) => item.kind)).toEqual(['user', 'user']);
+		expect(replayed.status).toBe('running');
+	});
+
+	it('lets an agent begin a turn of its own accord, and takes what it does then', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');
-		workspaces.steer(id, 'Two');
 		workspaces.record(id, { kind: 'turn.completed' });
-		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', prompt: 'Two' });
+		const messages = sent.length;
+
+		// something it ran in the background has finished: it speaks up unasked
+		workspaces.record(id, { kind: 'turn.started' });
+		expect(workspaces.get(id)).toMatchObject({ status: 'running', lastTurn: null });
+		expect(workspaces.agents.authenticate(tokenOf(sent[0]))).toBe(id);
+		workspaces.record(id, { kind: 'text', text: 'The build is green.' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.get(id)).toMatchObject({ status: 'idle', lastTurn: 'completed' });
+		expect(workspaces.get(id).transcript.at(-1)).toMatchObject({ text: 'The build is green.' });
+		expect(sent).toHaveLength(messages); // nothing was asked of the daemon for it
+	});
+
+	it('shows what an agent asks, and passes on the answer', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('One');
+		const questions = [
+			{
+				question: 'Which database?',
+				options: [{ label: 'SQLite' }, { label: 'Postgres' }],
+				multiSelect: false
+			}
+		];
+		workspaces.record(id, { kind: 'question', id: 'q1', questions });
+		expect(workspaces.summary(id).asking).toBe(true);
+		expect(workspaces.get(id).transcript.at(-1)).toMatchObject({ kind: 'question', open: true });
+
+		expect(() => workspaces.answer(id, 'q0', ['SQLite'])).toThrow();
+		workspaces.answer(id, 'q1', ['SQLite']);
+		expect(sent.at(-1)).toEqual({
+			type: 'agent.answer',
+			workspaceId: id,
+			questionId: 'q1',
+			answers: ['SQLite']
+		});
+		expect(workspaces.get(id)).toMatchObject({ asking: false, status: 'running' });
+		expect(workspaces.get(id).transcript.at(-1)).toMatchObject({
+			answers: ['SQLite'],
+			open: false
+		});
+		expect(() => workspaces.answer(id, 'q1', ['Postgres'])).toThrow(); // answered already
+	});
+
+	it('no longer waits for an answer once the turn is over', () => {
+		const { workspaces, create } = setup();
+		const id = create('One');
+		const questions = [{ question: 'Go on?', options: [], multiSelect: false }];
+		workspaces.record(id, { kind: 'question', id: 'q1', questions });
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		expect(workspaces.get(id).asking).toBe(false);
+		expect(workspaces.get(id).transcript.find((item) => item.kind === 'question')).toMatchObject({
+			answers: null,
+			open: false
+		});
+		expect(() => workspaces.answer(id, 'q1', ['Yes'])).toThrow();
 	});
 
 	it('keeps the queue across a restart', () => {
@@ -337,30 +409,34 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).status).toBe('idle');
 
 		workspaces.reconcile([id]);
-		expect(sent.at(-1)).toEqual({ type: 'turn.stop', workspaceId: id });
+		expect(sent.at(-1)).toEqual({ type: 'agent.stop', workspaceId: id });
 	});
 
-	it('takes the end of a turn only once, and only from the turn it is', () => {
+	it('takes the end of a turn only once, and nothing of a turn it gave up', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');
 		workspaces.send(id, 'Two');
 		workspaces.send(id, 'Three');
-		const starts = () => sent.filter((message) => message.type === 'turn.start').length;
+		const starts = () => sent.filter((message) => message.type === 'agent.message').length;
 
 		// said twice, as a daemon that was killed mid-report does
-		workspaces.record(id, { kind: 'turn.completed' }, 1);
-		workspaces.record(id, { kind: 'turn.completed' }, 1);
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.record(id, { kind: 'turn.started' }); // the next one, as the agent begins it
+		workspaces.record(id, { kind: 'turn.started' });
 		expect(starts()).toBe(2);
 		expect(workspaces.get(id).queue).toEqual(['Three']);
 
-		// the end, and the output, of a turn that is not the current one any more
-		workspaces.record(id, { kind: 'text', text: 'late' }, 1);
-		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' }, 1);
-		expect(workspaces.get(id).status).toBe('running');
-		expect(JSON.stringify(workspaces.get(id).transcript)).not.toContain('late');
+		// given up while the daemon was away: what it then still says of it is not taken
+		workspaces.reconcile([]);
+		expect(workspaces.get(id).status).toBe('idle');
+		const transcript = workspaces.get(id).transcript.length;
+		workspaces.record(id, { kind: 'text', text: 'late' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.get(id).transcript).toHaveLength(transcript);
+		expect(starts()).toBe(2); // and its end sets nothing off
 
-		workspaces.record(id, { kind: 'turn.completed' }, 2);
-		expect(sent.at(-1)).toMatchObject({ type: 'turn.start', turn: 3, prompt: 'Three' });
+		workspaces.send(id, 'Four'); // the nudge to go on, with what waited first
+		expect(sent.at(-1)).toMatchObject({ type: 'agent.message', prompt: 'Three' });
 	});
 
 	it('lists workspaces per repository without their transcripts', () => {
@@ -609,20 +685,20 @@ describe('agents starting agents', () => {
 		return { ...context, lead: id, agents: context.workspaces.agents };
 	}
 
-	it('identifies an agent by the token of its running turn only', () => {
+	it('identifies an agent by its token, while it is at work only', () => {
 		const { workspaces, agents, sent, lead: caller } = lead();
 		const first = tokenOf(sent[0]);
 
 		expect(agents.authenticate(first)).toBe(caller);
 		expect(agents.authenticate('made-up')).toBeNull();
-		expect(agents.authenticate(`${caller}.1.forged`)).toBeNull();
+		expect(agents.authenticate(`${caller}.forged`)).toBeNull();
 		workspaces.record(caller, { kind: 'turn.completed' });
 		expect(agents.authenticate(first)).toBeNull();
 
-		// the next turn has a token of its own; the old one stays dead
+		// its CLI runs across turns, and keeps the token it was started with
 		workspaces.send(caller, 'More');
-		expect(agents.authenticate(tokenOf(sent.at(-1)))).toBe(caller);
-		expect(agents.authenticate(first)).toBeNull();
+		expect(tokenOf(sent.at(-1))).toBe(first);
+		expect(agents.authenticate(first)).toBe(caller);
 	});
 
 	it('keeps tokens valid across a restart, given the same secret', () => {
@@ -650,7 +726,7 @@ describe('agents starting agents', () => {
 			worktree: null
 		});
 		expect(sent.at(-1)).toMatchObject({
-			type: 'turn.start',
+			type: 'agent.message',
 			workspaceId: child.id,
 			worktreeId: child.id,
 			base: 'geordi/parent'
@@ -757,7 +833,7 @@ describe('repos', () => {
 
 describe('agents talking to the agents they started', () => {
 	function family() {
-		const { workspaces, create } = setup();
+		const { workspaces, create, sent } = setup();
 		const lead = create('Lead');
 		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
 		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Build' }).id;
@@ -765,7 +841,7 @@ describe('agents talking to the agents they started', () => {
 			workspaces
 				.get(child)
 				.transcript.flatMap((item) => (item.kind === 'user' ? [[item.text, item.from]] : []));
-		return { workspaces, lead, child, said };
+		return { workspaces, lead, child, said, sent };
 	}
 
 	it('has a message to a working agent wait for its turn to end, and marks whose it is', () => {
@@ -788,17 +864,15 @@ describe('agents talking to the agents they started', () => {
 		expect(said().at(-1)).toEqual(['Thanks', undefined]);
 	});
 
-	it('stops a working agent for a message that interrupts', () => {
-		const { workspaces, lead, child, said } = family();
+	it('tells a working agent at once what a message that interrupts says', () => {
+		const { workspaces, lead, child, said, sent } = family();
 		workspaces.agents.send(lead, child, 'Stop: wrong directory', true);
-		expect(workspaces.get(child).steering).toEqual(['Stop: wrong directory']);
-
-		workspaces.record(child, { kind: 'turn.failed', error: 'Stopped' });
-		expect(workspaces.get(child)).toMatchObject({
-			status: 'running',
-			steering: [],
-			lastTurn: null
+		expect(sent.at(-1)).toMatchObject({
+			type: 'agent.message',
+			workspaceId: child,
+			prompt: 'Stop: wrong directory'
 		});
+		expect(workspaces.get(child)).toMatchObject({ status: 'running', lastTurn: null });
 		expect(said().at(-1)).toEqual(['Stop: wrong directory', lead]);
 	});
 
@@ -820,32 +894,30 @@ describe('messages with images', () => {
 		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
 		'base64'
 	);
-	it('starts an image-only workspace and replays queued and steered attachments after forge restart', () => {
+	it('starts an image-only workspace, and keeps queued and steering pictures across a forge restart', () => {
 		const { store, repos, workspaces, repo, sent, dispatch } = setup();
 		const imageStore = createImages(store);
 		const first = imageStore.add(png);
 		const second = imageStore.add(png);
 		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: '', images: [first] });
 		expect(sent.at(-1)).toMatchObject({
-			type: 'turn.start',
+			type: 'agent.message',
 			prompt: '',
 			images: [imageStore.get(first)]
 		});
 		workspaces.send(id, '', null, [second]);
-		workspaces.steer(id, 'Look here', null, [first]);
-		workspaces.steer(id, '', null, [second]);
-		const restarted = createWorkspaces(store, repos, dispatch);
-		expect(restarted.get(id).attachments).toEqual({ queue: [[second]], steering: [first, second] });
-		restarted.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		workspaces.steer(id, 'Look here', null, [first, second]);
 		expect(sent.at(-1)).toMatchObject({
-			prompt: 'Look here\n\n',
+			prompt: 'Look here',
 			images: [imageStore.get(first), imageStore.get(second)]
 		});
+		const restarted = createWorkspaces(store, repos, dispatch);
+		expect(restarted.get(id).attachments).toEqual({ queue: [[second]] });
 		restarted.record(id, { kind: 'turn.completed' });
 		expect(sent.at(-1)).toMatchObject({ prompt: '', images: [imageStore.get(second)] });
 		expect(restarted.get(id)).toMatchObject({
 			queue: [],
-			attachments: { queue: [], steering: [] },
+			attachments: { queue: [] },
 			transcript: [
 				{ kind: 'user', images: [first] },
 				{ kind: 'user', images: [first, second] },

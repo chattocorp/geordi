@@ -94,10 +94,14 @@ it, perhaps you.
     another's worktree (`worktreeId`): such an agent is shown in that workspace, as a
     conversation tab (`agent:<id>`), and not in the sidebar (`withAides` in `#lib/family.ts`). The daemon derives a worktree from that ID
     (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
-  - Turns are numbered. A daemon says which turn its events are of, and the forge drops
-    what is not of the workspace's current turn: a daemon may report late, or twice.
-  - A message to a working agent either steers it (`workspace.steered`: the turn is stopped
-    and the message sent at once) or queues (`workspace.queued`: sent when the turn ends).
+  - Turns are the agent's to begin and end (ADR-010): the daemon says `turn.started` (an
+    agent may start one unasked, when something it ran in the background ends) and how it
+    ended. The forge drops what a daemon says of a workspace that is not working, as far as
+    it knows: a daemon may report late, or twice.
+  - A message to a working agent either steers it (sent at once: it reaches the agent in
+    the middle of its turn) or queues (`workspace.queued`: sent when the turn ends).
+  - An agent can ask the person something (`question`, answered with `workspace.answered`
+    and `agent.answer`); it waits meanwhile, and the workspace is `asking`.
   - Workspaces get their titles from the daemon (`titles.ts`), which asks a small model on
     OpenRouter with a plain HTTP request (`OPENROUTER_API_KEY`). No SDK: prefer a few lines
     of our own over a heavy dependency.
@@ -108,22 +112,26 @@ it, perhaps you.
     forge; the adapters add it to the CLI's system prompt).
   - The daemon runs git in agent-writable worktrees: always through `gitIn`, which never
     trusts the worktree's own Git metadata.
-  - Daemon: one adapter per agent CLI in `apps/daemon/src/agents/` maps the CLI's JSON output
-    to `SessionEvent`s. `turn.ts` runs one CLI invocation per turn and guarantees exactly one
-    terminal event. Turns run detached from the daemon and are
-    followed through files, so they survive a daemon restart (ADR-007); only Ctrl+C stops
-    them. Test changes to turns by restarting the daemon mid-turn. Follow-up turns resume the CLI's own session (`resumeId`).
+  - Daemon: an agent runs as a **session** (ADR-010): its CLI, kept running and talked to in
+    its own protocol by a host process of its own (`host.ts`), which reads what to say from
+    a file the daemon appends to and writes `AgentEvent`s to one the daemon follows
+    (`session.ts`). One adapter per agent CLI in `apps/daemon/src/agents/` says how the CLI
+    is started and how the talk goes (`Dialogue`; it lives in the host, and may remember
+    things). Sessions run detached from the daemon, so they survive its restart (ADR-007);
+    only Ctrl+C stops them. A CLI with nothing to do for a while is ended, and started again
+    where it left off (`resumeId`) with the next message. Test changes to sessions by
+    restarting the daemon mid-turn.
   - A workspace runs with the model and effort chosen for it (FDR-004, `settings`). Each
     adapter says what its CLI offers (`offers()`); the daemon tells the forge in its `hello`.
   - Adding an agent: add it to `AGENTS` in the protocol, write an adapter, register it in
-    `adapterFor`, and add parser tests based on real captured CLI output.
+    `adapterFor`, and add tests of its dialogue based on real captured CLI output.
 - **Upstream forges (ADR-006).** The daemon talks to the forge a repository is hosted on
   through the `forges` library (`apps/daemon/src/upstream.ts`): never a forge-specific
   client. Credentials come from `FORGES_*` variables in the daemon's environment, or the
   GitHub CLI's login. Upstream state is live data: asked on demand, cached briefly, never
   stored.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
-  server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per turn; the
+  server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per workspace; the
   daemon hands URL and token to the CLI. The calling workspace is the parent of what it starts
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
