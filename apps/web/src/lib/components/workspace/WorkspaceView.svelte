@@ -5,6 +5,7 @@
 	import { resolve } from '$app/paths';
 	import {
 		actionsFor,
+		PUBLISHING,
 		standingOf,
 		type WorkspaceAction,
 		type WorkspaceStanding
@@ -509,11 +510,9 @@
 	/** Whether any agent is at work in the workspace: its own, or one working alongside. */
 	const working = $derived(running || workspace.aides.some((aide) => aide.status === 'running'));
 	/**
-	 * What is offered now. Not publishing while an agent is still at it: the work is not
-	 * done, and what would be committed or put into a pull request is whatever is there at
-	 * that moment. (One that was asked for already stays, to show that it is under way.)
+	 * What is offered now: not publishing while an agent is at work (`PUBLISHING`). One that
+	 * was asked for already stays, to show that it is under way.
 	 */
-	const PUBLISHING: WorkspaceAction['id'][] = ['commit', 'create-pull', 'update-pull'];
 	const offered = $derived(
 		actions.filter(
 			(action) => !working || !PUBLISHING.includes(action.id) || pending.includes(action.id)

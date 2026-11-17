@@ -15,6 +15,19 @@
 		<div
 			class="card px-4 py-3 text-sm"
 			{@attach contextMenu(() => [
+				{
+					label: 'Merge PR',
+					icon: 'icon-[lucide--git-merge]',
+					tone: 'ok',
+					onselect: () => (last = 'Merge PR')
+				},
+				{
+					label: 'Fix errors',
+					icon: 'icon-[lucide--wrench]',
+					tone: 'accent',
+					onselect: () => (last = 'Fix errors')
+				},
+				'separator',
 				{ label: 'Open', icon: 'icon-[lucide--external-link]', onselect: () => (last = 'Open') },
 				{ label: 'Copy', icon: 'icon-[lucide--copy]', onselect: () => (last = 'Copy') },
 				{ label: 'Not now', icon: 'icon-[lucide--clock]', disabled: true, onselect: () => {} },
@@ -22,7 +35,7 @@
 				{
 					label: 'Delete',
 					icon: 'icon-[lucide--trash-2]',
-					danger: true,
+					tone: 'danger',
 					onselect: () => (last = 'Delete')
 				}
 			])}

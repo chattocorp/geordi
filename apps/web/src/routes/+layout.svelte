@@ -31,14 +31,15 @@
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
-	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
+	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import Ring from '#lib/ui/Ring.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { connect, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
-	import { continueWorkspace, stopAgent } from './workspaces.remote';
+	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
+	import { continueWorkspace, mergePull, say, stopAgent } from './workspaces.remote';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -106,13 +107,38 @@
 		}
 	}
 
+	/** The colour of what to do next, from how the workspace stands: as in its ribbon. */
+	const actionTone = (standing: WorkspaceStanding | null): MenuTone =>
+		standing?.tone === 'ok' || standing?.tone === 'merged' ? standing.tone : 'accent';
+
+	/** Does what a workspace's action says, from the sidebar. */
+	async function act(workspace: Item, action: WorkspaceAction) {
+		if (action.prompt) return say({ workspaceId: workspace.id, text: action.prompt });
+		if (action.id !== 'merge-pull') return;
+		try {
+			await mergePull(workspace.id);
+		} catch {
+			// its page offers it again, and says why it didn't work
+			await goto(resolve('/workspaces/[id]', { id: workspace.id }));
+		}
+	}
+
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
 		// archiving takes the workspaces its agent started along: none of them may be working
 		const busy = working(workspace);
+		// the menu has these already, below
+		const next = workspace.actions.filter(({ id }) => id !== 'continue' && id !== 'archive');
 		return [
+			...next.map((action) => ({
+				label: action.label,
+				icon: action.icon,
+				tone: actionTone(workspace.standing),
+				onselect: () => act(workspace, action)
+			})),
+			...(next.length > 0 ? ['separator' as const] : []),
 			{
 				label: 'Open in new tab',
 				icon: 'icon-[lucide--external-link]',
@@ -145,7 +171,7 @@
 			{
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
-				danger: true,
+				tone: 'danger',
 				disabled: busy,
 				onselect: () => archiveFromHere(workspace)
 			}
