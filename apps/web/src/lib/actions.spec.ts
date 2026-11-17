@@ -28,6 +28,25 @@ const upstream = (pull: Partial<PullRequest> | null = null, pushed = true): Upst
 const ids = (...args: Parameters<typeof actionsFor>) => actionsFor(...args).map((a) => a.id);
 
 describe('actionsFor', () => {
+	it('says when the pull request conflicts with its base, and offers to resolve that before anything else', () => {
+		const state = {
+			changes: clean,
+			upstream: upstream({
+				conflicts: true,
+				checks: { state: 'failure', total: 3, failed: 1, url: null }
+			})
+		};
+		expect(ids(state)).toEqual(['resolve-conflicts', 'fix-checks']);
+		expect(standingOf(state)).toMatchObject({ label: 'Conflicts', tone: 'danger' });
+		// nothing else in the way: still not mergeable
+		expect(ids({ changes: clean, upstream: upstream({ conflicts: true }) })).toEqual([
+			'resolve-conflicts'
+		]);
+		expect(ids({ changes: clean, upstream: upstream({ conflicts: false }) })).toEqual([
+			'merge-pull'
+		]);
+	});
+
 	it('offers nothing while it knows nothing, or when there is nothing to do', () => {
 		expect(ids({ changes: null, upstream: upstream() })).toEqual([]);
 		expect(ids({ changes: clean, upstream: upstream() })).toEqual([]);

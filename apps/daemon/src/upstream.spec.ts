@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Thread } from 'forges';
 import { describe, expect, it } from 'vitest';
 import { MergeMethodRequiredError, type MergeOptions } from 'forges';
-import { count, merge, summarise, upstream } from './upstream.ts';
+import { conflictsOf, count, merge, summarise, upstream } from './upstream.ts';
 import { ensureWorktree } from './worktree.ts';
 
 /** A pull request as `forges` reports it, with only the fields we read. */
@@ -58,6 +58,24 @@ describe('summarise', () => {
 		expect(review('approved', 'changes_requested', 'pending')).toBe('changes_requested');
 		expect(review('pending', 'commented')).toBe('pending');
 		expect(review('commented')).toBeNull();
+	});
+
+	it('says whether an open pull request conflicts with its base, where the forge says', () => {
+		const conflicts = (raw: unknown, state: Thread['state'] = 'open') =>
+			conflictsOf(pull({ raw, state }));
+		// GitHub: `mergeable_state`, worked out lazily
+		expect(conflicts({ mergeable: false, mergeable_state: 'dirty' })).toBe(true);
+		expect(conflicts({ mergeable: false, mergeable_state: 'blocked' })).toBe(false);
+		expect(conflicts({ mergeable: null, mergeable_state: 'unknown' })).toBeUndefined();
+		// GitLab, then Gitea and Forgejo
+		expect(conflicts({ has_conflicts: true, mergeable: true })).toBe(true);
+		expect(conflicts({ mergeable: false })).toBe(true);
+		expect(conflicts({ mergeable: true })).toBe(false);
+		// nothing to go on, or nothing to merge any more
+		expect(conflicts({})).toBeUndefined();
+		expect(conflicts({ mergeable_state: 'dirty' }, 'merged')).toBeUndefined();
+		expect(summarise(pull({ raw: {} }))).not.toHaveProperty('conflicts');
+		expect(summarise(pull({ raw: { mergeable_state: 'dirty' } })).conflicts).toBe(true);
 	});
 });
 

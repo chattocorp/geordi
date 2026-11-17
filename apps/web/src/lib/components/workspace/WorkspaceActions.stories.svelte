@@ -65,6 +65,10 @@
 	})}
 </Story>
 
+<Story name="Conflicts with its base" asChild
+	>{@render bar({ changes: pushed, upstream: upstream({ conflicts: true }) })}</Story
+>
+
 <Story name="Asked for, not done yet" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'])}
 </Story>

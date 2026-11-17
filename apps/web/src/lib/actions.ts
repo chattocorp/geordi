@@ -10,6 +10,7 @@ export type WorkspaceAction = {
 		| 'commit'
 		| 'create-pull'
 		| 'update-pull'
+		| 'resolve-conflicts'
 		| 'fix-checks'
 		| 'address-review'
 		| 'merge-pull'
@@ -118,6 +119,13 @@ export function actionsFor(state: State): WorkspaceAction[] {
 
 	const number = `pull request #${pull.number}`;
 	const actions: WorkspaceAction[] = [];
+	if (pull.conflicts)
+		actions.push({
+			id: 'resolve-conflicts',
+			label: 'Resolve conflicts',
+			icon: 'icon-[lucide--git-merge-conflict]',
+			prompt: `Pull request #${pull.number} conflicts with ${pull.base ?? 'its base branch'}. Fetch and merge the latest ${pull.base ?? 'base branch'} from the remote into this branch and resolve the conflicts, keeping the intent of both sides. Check that everything still works, then commit and push.`
+		});
 	if (pull.checks?.state === 'failure')
 		actions.push({
 			id: 'fix-checks',
@@ -203,6 +211,8 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		return { label: 'Merged', tone: 'merged', icon: 'icon-[lucide--git-merge]' };
 	if (pull.state === 'closed')
 		return { label: 'Closed', tone: 'neutral', icon: 'icon-[lucide--circle-slash]' };
+	if (pull.conflicts)
+		return { label: 'Conflicts', tone: 'danger', icon: 'icon-[lucide--git-merge-conflict]' };
 	if (pull.checks?.state === 'failure')
 		return { label: 'Checks failing', tone: 'danger', icon: 'icon-[lucide--circle-x]' };
 	if (pull.review === 'changes_requested')

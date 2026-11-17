@@ -106,10 +106,27 @@ async function countChecks(provider: ForgeProvider, repo: Repo, pull: Thread) {
 	}
 }
 
+/**
+ * Whether an open pull request conflicts with its base. `forges` does not say, so we read
+ * the forge's own answer, which comes with the full pull request: GitHub's `mergeable_state`
+ * (`mergeable` is false for other reasons too), GitLab's `has_conflicts`, and Gitea's and
+ * Forgejo's `mergeable`. `undefined` where there is no telling (GitHub works it out lazily,
+ * and says on a later ask).
+ */
+export function conflictsOf(thread: Thread): boolean | undefined {
+	if (thread.state !== 'open' || !thread.raw || typeof thread.raw !== 'object') return;
+	const raw = thread.raw as Record<string, unknown>;
+	if (typeof raw.mergeable_state === 'string')
+		return raw.mergeable_state === 'unknown' ? undefined : raw.mergeable_state === 'dirty';
+	if (typeof raw.has_conflicts === 'boolean') return raw.has_conflicts;
+	if (typeof raw.mergeable === 'boolean') return !raw.mergeable;
+}
+
 /** Boils a pull request down to what the workspace shows. */
 export function summarise(thread: Thread, counts?: Counts): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
 	const { checks } = thread;
+	const conflicts = conflictsOf(thread);
 	return {
 		number: thread.ref.number,
 		title: thread.title,
@@ -131,7 +148,8 @@ export function summarise(thread: Thread, counts?: Counts): PullRequest {
 		review:
 			(['changes_requested', 'approved', 'pending'] as const).find((state) =>
 				reviews.includes(state)
-			) ?? null
+			) ?? null,
+		...(conflicts !== undefined && { conflicts })
 	};
 }
 
