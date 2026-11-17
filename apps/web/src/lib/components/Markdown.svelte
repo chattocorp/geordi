@@ -2,6 +2,7 @@
 	import type { Attachment } from 'svelte/attachments';
 	import { changedFiles } from '#lib/changedFiles.ts';
 	import { changedFileIn, renderMarkdown } from '#lib/markdown.ts';
+	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 
 	/** `pictures` is where the pictures of the workspace this was written in are served. */
 	let {
@@ -11,6 +12,7 @@
 	}: { text: string; dimmed?: boolean; pictures?: string } = $props();
 
 	const files = changedFiles();
+	let viewing = $state<{ src: string; alt: string } | null>(null);
 	const html = $derived(
 		renderMarkdown(text, {
 			pictures,
@@ -19,12 +21,19 @@
 	);
 
 	/**
-	 * Clicks on what `renderMarkdown` made a button: a code block's copy button, and a changed
-	 * file's name, which opens its diff.
+	 * Clicks on what `renderMarkdown` made a button: a code block's copy button, a changed
+	 * file's name, which opens its diff, and a picture, which opens in the viewer (with a
+	 * modifier key, its link opens it on its own instead).
 	 */
 	const buttons: Attachment<HTMLElement> = (node) => {
 		const onclick = async (event: MouseEvent) => {
 			const target = event.target as Element;
+			if (target instanceof HTMLImageElement && target.dataset.picture !== undefined) {
+				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+				event.preventDefault();
+				viewing = { src: target.src, alt: target.alt };
+				return;
+			}
 			const file = target.closest<HTMLElement>('[data-file]')?.dataset.file;
 			if (file) return files?.open(file);
 			const button = target.closest<HTMLElement>('[data-copy]');
@@ -61,3 +70,5 @@
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it escapes raw HTML -->
 	{@html html}
 </div>
+
+{#if viewing}<ImageViewer {...viewing} onclose={() => (viewing = null)} />{/if}
