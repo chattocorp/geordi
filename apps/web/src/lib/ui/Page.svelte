@@ -4,11 +4,12 @@
 
 	type Props = {
 		title: string;
+		wide?: boolean;
 		/** A line under the title. */
 		description?: Snippet;
 		children: Snippet;
 	};
-	let { title, description, children }: Props = $props();
+	let { title, wide = false, description, children }: Props = $props();
 </script>
 
 <svelte:head><title>{title} · Geordi</title></svelte:head>
@@ -24,7 +25,7 @@
 	</div>
 </TitleBar>
 <div class="mx-2 mb-2 flex flex-1 flex-col sheet">
-	<main class="page flex flex-1 flex-col">
+	<main class={['page flex flex-1 flex-col', wide && 'max-w-5xl']}>
 		<header class="space-y-1 md:hidden">
 			<h1 class="title">{title}</h1>
 			{#if description}<div class="text-muted">{@render description()}</div>{/if}

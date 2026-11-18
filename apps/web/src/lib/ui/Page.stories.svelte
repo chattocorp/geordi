@@ -11,3 +11,9 @@
 		<div class="card p-4">The page's content</div>
 	</Page>
 </Story>
+
+<Story name="Wide" asChild>
+	<Page title="New workspace" wide>
+		<div class="card p-4">The page content uses the wider column.</div>
+	</Page>
+</Story>

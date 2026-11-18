@@ -34,7 +34,6 @@
 				/>
 			{/snippet}
 			{#snippet footer()}
-				<Button variant="ghost" icon="icon-[lucide--image-plus]" label="Add images" />
 				<Button
 					type="submit"
 					variant="primary"

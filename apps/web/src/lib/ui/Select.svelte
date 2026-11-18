@@ -163,7 +163,7 @@
 		{@render trigger()}
 	{:else if selected}
 		{@render icon?.(selected)}
-		{selected.label}
+		<span class="truncate text-ink">{selected.label}</span>
 	{/if}
 	<span class="icon-[lucide--chevron-down] size-3.5 shrink-0"></span>
 </button>

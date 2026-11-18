@@ -6,12 +6,10 @@
 	import { IMAGE_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from '@geordi/protocol';
 	import ImageAttachments from '#lib/ui/ImageAttachments.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
-	import Button from '#lib/ui/Button.svelte';
 
 	let {
 		form,
 		imageField,
-		footer,
 		disabled = false,
 		images = $bindable([]),
 		...props
@@ -25,7 +23,6 @@
 	let uploading = $state(false);
 	let dropping = $state(false);
 	let imageProblem = $state('');
-	let picker = $state<HTMLInputElement>();
 	let text: HTMLTextAreaElement | null = null;
 
 	async function addImages(files: File[]) {
@@ -137,20 +134,6 @@
 >
 	{#snippet attachments()}
 		<input {...imageField} type="hidden" value={JSON.stringify(images)} />
-		<input
-			bind:this={picker}
-			type="file"
-			accept={IMAGE_TYPES.join(',')}
-			multiple
-			class="hidden"
-			aria-label="Choose images"
-			onchange={() => {
-				void addImages([...(picker?.files ?? [])]);
-				if (picker) picker.value = '';
-				// chosen for the message: back to writing it
-				text?.focus();
-			}}
-		/>
 		<ImageAttachments
 			images={images.map((id, index) => ({
 				id,
@@ -162,16 +145,5 @@
 
 		{#if uploading}<p class="px-4 text-sm text-muted" role="status">Adding images…</p>{/if}
 		{#if imageProblem}<p class="px-4 text-sm text-danger" role="alert">{imageProblem}</p>{/if}
-	{/snippet}
-	{#snippet footer()}
-		<Button
-			type="button"
-			variant="ghost"
-			icon="icon-[lucide--image-plus]"
-			label="Add images"
-			disabled={images.length >= MAX_IMAGES}
-			onclick={() => picker?.click()}
-		/>
-		{@render footer()}
 	{/snippet}
 </Composer>
