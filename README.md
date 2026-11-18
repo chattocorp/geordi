@@ -118,6 +118,8 @@ level. Its workspaces get buttons to start and stop the jobs and to open the lin
 workspace gets ports of its own that never change, so that several can run side by side:
 
 ```yaml
+default: urls.app
+
 jobs:
   db:
     command: docker compose up db
@@ -129,6 +131,10 @@ urls:
   app:
     url: http://localhost:{web}/
 ```
+
+Click **Run** to open the default URL and start its required jobs. To start a job directly,
+set `default: jobs.web`. Without a default, Run uses the first URL, or the first job if
+there are no URLs. With multiple choices, the chevron opens the full menu.
 
 Jobs and links accept an optional `label` for their display name:
 

@@ -590,7 +590,17 @@
 
 <!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
 {#snippet runActions()}
-	<RunControls {jobs} {links} {isUp} {launching} {start} {stop} {visit} problem={config?.problem} />
+	<RunControls
+		defaultTarget={config?.default}
+		{jobs}
+		{links}
+		{isUp}
+		{launching}
+		{start}
+		{stop}
+		{visit}
+		problem={config?.problem}
+	/>
 {/snippet}
 
 <!-- A count at the end of a tab: nearer the tab's edge than text would be, being a shape itself. -->

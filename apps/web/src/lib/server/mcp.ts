@@ -206,8 +206,17 @@ const tools = {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets, and what is wrong with it if anything. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
-			const { source, file, problem, ports, jobs, urls, setup, teardown } =
-				await agents.configuration(caller);
+			const {
+				default: target,
+				source,
+				file,
+				problem,
+				ports,
+				jobs,
+				urls,
+				setup,
+				teardown
+			} = await agents.configuration(caller);
 			// the file by the name it has; one in the old language is still read, and said to be
 			const name = `${file ?? CONFIG_FILE}${file && file !== CONFIG_FILE ? ` (still read, but ${CONFIG_FILE} is what to write: move its settings there)` : ''}`;
 			const commands = [...jobs, ...(setup ? [setup] : []), ...(teardown ? [teardown] : [])];
@@ -218,6 +227,7 @@ const tools = {
 						: source === 'base'
 							? `the ${name} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
+				default: target,
 				problem,
 				ports,
 				jobs: jobs.map(({ name, label, command, needs, port }) => ({

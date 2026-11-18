@@ -33,7 +33,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ### Running
 
-- The bar of the workspace's dock (where its terminals are) has the controls at its end. With one job and no links, it is a **Run** button that says what it would run, and is **Stop** while it runs. Otherwise there are two menus: **Run**, with every job to start or stop and "Start all" / "Stop all", and **Open**, with every link.
+- **Run** starts the job or opens the URL named by `default` (for example, `jobs.web` or `urls.app`). When the setting is omitted, Run uses the first URL, or the first job if there are no URLs. A job button becomes **Stop** while its job runs. With multiple choices, the adjacent chevron opens the full menu of links, individual jobs, **Start all** and **Stop all**.
 - Each job runs in a terminal tab named after it, in the user's shell, in the workspace's directory.
 - Starting a job first starts the jobs it needs, each once the ones before it are up. A job is up when something listens on its port. One that never does (a desktop app, a game) is taken to be up after half a minute, if it still runs.
 - Stopping a job stops the jobs that need it too. Closing a job's tab is stopping it.
