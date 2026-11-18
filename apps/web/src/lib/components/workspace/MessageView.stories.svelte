@@ -120,6 +120,22 @@
 	</div>
 </Story>
 
+<Story name="Bullet list" asChild>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[
+				{
+					kind: 'user',
+					text: 'The pull request tab should show three things:\n\n- The pull request title\n\n- Its description and review status\n\n- The latest checks'
+				}
+			]}
+			agent="codex"
+			onremove={() => {}}
+			onanswer={() => {}}
+		/>
+	</div>
+</Story>
+
 <Story name="Empty" asChild>
 	<div class="flex h-80 flex-col overflow-hidden card">
 		<MessageView blocks={[]} agent="claude" onremove={() => {}} onanswer={() => {}} />
