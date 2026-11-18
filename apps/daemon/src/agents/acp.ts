@@ -15,7 +15,9 @@ import {
 	type CreateElicitationResponse,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2';
-import type { Agent, AgentEvent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
+import type { Agent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
+import type { HostEvent } from '../host.ts';
+import { BackgroundTasks } from './background-tasks.ts';
 import { TerminalOutput } from './terminal-output.ts';
 import { nativeSubagents } from './subagents.ts';
 import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
@@ -35,11 +37,11 @@ export function connectAgent(
 	token: string | undefined,
 	stdin: Writable,
 	stdout: Readable,
-	emit: (event: AgentEvent) => void
+	emit: (event: HostEvent) => void
 ) {
 	let id = '';
 	let running = false;
-	let background = false;
+	const background = new BackgroundTasks((tasks) => emit({ kind: 'background', tasks }));
 	let steering = false;
 	const messages = new Map<string, string>();
 	// ACP tool IDs belong to the session. A command can span several foreground turns.
@@ -56,7 +58,6 @@ export function connectAgent(
 		if (terminalOutput.receive(u)) return;
 		switch (true) {
 			case SessionUpdate.isStateUpdate(u):
-				if ('background' in u && Array.isArray(u.background)) background = u.background.length > 0;
 				if (u.state === 'running' || u.state === 'requires_action') {
 					if (!running) emit({ kind: 'turn.started' });
 					running = true;
@@ -142,6 +143,7 @@ export function connectAgent(
 		.onNotification(methods.client.session.update, ({ params }) => {
 			if (!id) return;
 			const root = params.sessionId === id;
+			background.receive(root ? undefined : params.sessionId, params.update);
 			if (SessionUpdate.isSubagentUpdate(params.update) && root) flush();
 			if (!children.receive(id, params.sessionId, params.update) && root) update(params.update);
 		})
@@ -271,7 +273,12 @@ export function connectAgent(
 		const info = await agent.request(methods.agent.initialize, {
 			protocolVersion: PROTOCOL_VERSION,
 			info: { name: 'Geordi', version: '1' },
-			capabilities: { elicitation: { form: {} } }
+			capabilities: {
+				elicitation: { form: {} },
+				...(provider === 'codex' && {
+					_meta: { jetbrains: { air: { version: 1, capabilities: ['asyncTasks'] } } }
+				})
+			}
 		});
 		if (info.protocolVersion !== PROTOCOL_VERSION) throw new Error('This wrapper requires ACP v2');
 		steering = (info._meta?.steering as { supported?: boolean } | undefined)?.supported === true;
@@ -364,7 +371,7 @@ export function connectAgent(
 		},
 		interrupt: () => agent.notify(methods.agent.session.cancel, { sessionId: id }),
 		answer: (key: string, answers: string[]) => questions.get(key)?.(answers),
-		busy: () => background || running,
+		busy: () => background.busy() || running,
 		close: () => connection.close()
 	};
 }

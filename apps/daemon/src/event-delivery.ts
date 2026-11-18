@@ -1,14 +1,22 @@
-import type { AgentEvent, DaemonMessage } from '@geordi/protocol';
+import type { DaemonMessage } from '@geordi/protocol';
+
+import type { HostEvent } from './host.ts';
 
 type WorkspaceEvent = Extract<DaemonMessage, { type: 'workspace.event' }>;
 
 /** Keep each host record until the forge acknowledges its durable append. */
 export function eventDelivery(
 	send: (message: WorkspaceEvent) => void,
-	sendLive: (message: WorkspaceEvent) => void
+	sendLive: (
+		message: Extract<DaemonMessage, { type: 'workspace.background' }> | WorkspaceEvent
+	) => void
 ) {
 	const deliveries = new Map<string, { cursor: string; sent: number; acknowledged: boolean }>();
-	const emitFor = (workspaceId: string) => (event: AgentEvent, cursor?: string) => {
+	const emitFor = (workspaceId: string) => (event: HostEvent, cursor?: string) => {
+		if (event.kind === 'background') {
+			sendLive({ type: 'workspace.background', workspaceId, tasks: event.tasks });
+			return true;
+		}
 		if (!cursor) {
 			send({ type: 'workspace.event', workspaceId, event });
 			return true;

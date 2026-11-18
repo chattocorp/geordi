@@ -125,10 +125,15 @@
 	const reviewers = $derived.by(() => {
 		const found = new SvelteMap<
 			string,
-			{ owner: Workspace; child: SubagentItem; parentTab: string; parentName: string }
+			{
+				owner: WorkspaceLive['aides'][number];
+				child: SubagentItem;
+				parentTab: string;
+				parentName: string;
+			}
 		>();
 		function collect(
-			owner: Workspace,
+			owner: WorkspaceLive['aides'][number],
 			items: Workspace['transcript'] | SubagentItem['items'],
 			parentTab: string,
 			parentName: string
@@ -776,6 +781,7 @@
 	{:else if reviewer}
 		<MessageView
 			blocks={subagentBlocks(reviewer.child)}
+			background={reviewer.owner.background?.filter((task) => task.session === reviewer.child.id)}
 			parentAgent={{ name: reviewer.parentName, open: () => showTab(reviewer.parentTab) }}
 			agent={reviewer.owner.agent}
 			running={reviewer.child.state === 'running' || reviewer.child.state === 'waiting'}

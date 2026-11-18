@@ -162,7 +162,7 @@
 							{busy}
 							onclick={() => onaction(action)}
 						>
-							{busy && action.id === 'archive' ? 'Archiving…' : action.label}
+							{action.label}
 							{#if action.incomingCommits !== undefined}
 								<span class="font-normal text-muted/70 tabular-nums">{action.incomingCommits}</span>
 								<span class="sr-only"

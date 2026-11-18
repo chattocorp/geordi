@@ -34,7 +34,9 @@ function backlog(count: number, send: Parameters<typeof eventDelivery>[1]) {
 
 it('delivers a burst in order at the acknowledgment rate', async () => {
 	const received: unknown[] = [];
-	const batch = backlog(30, ({ event, cursor }) => {
+	const batch = backlog(30, (message) => {
+		if (message.type !== 'workspace.event') throw Error(message.type);
+		const { event, cursor } = message;
 		received.push(event);
 		setImmediate(() => batch.ack(cursor!));
 	});
