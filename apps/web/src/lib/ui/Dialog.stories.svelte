@@ -27,10 +27,3 @@
 		</div>
 	</Dialog>
 </Story>
-
-<Story name="Wide" asChild>
-	<Button onclick={() => (open = true)}>Open wide dialog</Button>
-	<Dialog bind:open wide label="Wide dialog" class="h-144">
-		<div class="p-6"><p class="heading">Wide dialog</p></div>
-	</Dialog>
-</Story>
