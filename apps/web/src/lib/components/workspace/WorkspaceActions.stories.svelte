@@ -38,7 +38,7 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'working'> = {}
+	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'working' | 'compact'> = {}
 )}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
@@ -275,4 +275,28 @@
 			autoMerge: { enabled: false, canEnable: true, canDisable: false }
 		})
 	})}
+</Story>
+
+<!-- Small, with only the next step: as on the overview's cards. -->
+<Story
+	name="Compact"
+	asChild
+	play={async ({ canvasElement }) => {
+		// blocked three ways, it offers only the most pressing of them
+		const [blocked] = within(canvasElement).getAllByRole('group', { name: 'Next steps' });
+		await expect(within(blocked).getAllByRole('button')).toHaveLength(1);
+	}}
+>
+	<div class="flex w-72 flex-col gap-3">
+		{@render bar(
+			{ changes: dirty, upstream: upstream({ checks: failing, review: 'changes_requested' }) },
+			{ compact: true }
+		)}
+		{@render bar({ changes: pushed, upstream: upstream({}) }, { compact: true })}
+		{@render bar(
+			{ changes: pushed, upstream: upstream({ checks: failing }) },
+			{ working: true, compact: true }
+		)}
+		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, { compact: true })}
+	</div>
 </Story>
