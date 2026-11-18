@@ -284,7 +284,7 @@
 								<div class="group flex h-7 items-center pr-1.5">
 									<button
 										type="button"
-										class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-sm font-semibold text-muted/50 hover:text-ink"
+										class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-sm font-semibold text-muted hover:text-ink"
 										aria-expanded={!isFolded}
 										onclick={() => toggleFolded(repo.id)}
 									>
@@ -325,7 +325,7 @@
 					>
 						<span class="icon-[lucide--settings] size-4 shrink-0"></span>
 						Settings
-						<kbd class="ml-auto font-sans text-xs text-muted/80">{settingsHint}</kbd>
+						<kbd class="ml-auto font-sans text-xs text-muted">{settingsHint}</kbd>
 					</button>
 				</div>
 			</div>
