@@ -1,7 +1,7 @@
 # FDR-001: Workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-17
+**Last reviewed:** 2026-11-18
 
 ## Overview
 
@@ -11,6 +11,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 - A workspace is started with an agent and a repository, and usually with a first prompt (without one, it is there with its worktree, waiting to be told what to do): from "New workspace" in the sidebar, where the repository worked in last is preselected, or from the + beside a repository's name. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first. Its agent then gives it a short name that says what the work is about, once it knows (the agent API's `name_workspace`), and may change it a couple of times if the work turns out to be about something else. If the daemon has been given a key to ask a model, a title made from the prompt bridges the moments until then.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
+- During a turn, the conversation shows progress as it happens. When the turn ends, the final reply or failure stays visible. Open **Turn activity** to inspect earlier messages and tool calls in order.
 - While the agent is working, Enter steers it: the agent is interrupted, and the message is the next thing it reads. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
 - Messages can include images, with or without text. Use **Add images** to choose files or paste an image from the clipboard. The composer shows previews above the text in one horizontally scrolling row. Previews keep the full image visible at its original aspect ratio and open the full image when clicked. A small remove button appears on hover or keyboard focus; touch screens always show it. Each message accepts up to four PNG, JPEG, WebP or GIF files, at most 5 MB each. Sending waits until uploads finish; an upload error leaves the draft in place.
 - Images work in first prompts, replies, queued messages and steering messages, with both Claude and Codex. Sent and queued messages show thumbnails that open the full image. Images remain available after a restart and after the workspace is archived.

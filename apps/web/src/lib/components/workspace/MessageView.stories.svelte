@@ -26,6 +26,7 @@
 </script>
 
 <script lang="ts">
+	let working = $state(true);
 	let blocks = $state<Block[]>(history);
 	let queue = $state(['Please check the tests.']);
 	let following = $state(true);
@@ -162,5 +163,59 @@
 			agent="codex"
 			onremove={() => {}}
 		/>
+	</div>
+</Story>
+
+<Story
+	name="Inspect a finished turn"
+	asChild
+	play={async ({ canvas }) => {
+		const progress = 'I’ll check the changes.';
+		await waitFor(() => expect(canvas.getByText(progress)).toBeVisible());
+		await userEvent.click(canvas.getByRole('button', { name: 'Finish turn' }));
+		const activity = await canvas.findByRole('button', {
+			name: /Turn activity.*1 message.*1 tool call/
+		});
+		await expect(canvas.queryByText(progress)).toBeNull();
+		await expect(canvas.getByText('The checks passed.')).toBeVisible();
+		await userEvent.click(activity);
+		await expect(canvas.getByText(progress)).toBeVisible();
+		await expect(canvas.getByText('Tools')).toBeVisible();
+		await userEvent.keyboard('{Enter}');
+		await expect(canvas.queryByText(progress)).toBeNull();
+	}}
+>
+	<div class="space-y-3">
+		<Button onclick={() => (working = false)}>Finish turn</Button>
+		<div class="flex h-96 flex-col sheet overflow-hidden">
+			<MessageView
+				blocks={[
+					{
+						kind: 'agent',
+						parts: [
+							{ kind: 'text', text: 'I’ll check the changes.' },
+							{
+								kind: 'tools',
+								tools: [
+									{
+										kind: 'tool',
+										id: '1',
+										name: 'shell',
+										input: 'pnpm check',
+										output: 'OK',
+										isError: false,
+										at: '2026-11-18T12:00:00Z'
+									}
+								]
+							},
+							{ kind: 'text', text: 'The checks passed.' }
+						]
+					}
+				]}
+				agent="codex"
+				running={working}
+				onremove={() => {}}
+			/>
+		</div>
 	</div>
 </Story>

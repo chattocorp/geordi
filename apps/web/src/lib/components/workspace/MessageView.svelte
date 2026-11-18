@@ -2,7 +2,8 @@
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
 	import type { Agent } from '@geordi/protocol';
-	import type { Block } from '#lib/transcript.ts';
+	import { SvelteSet } from 'svelte/reactivity';
+	import type { Block, Part } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import MessageImages from '#lib/components/MessageImages.svelte';
 	import MessageCopy from './MessageCopy.svelte';
@@ -35,6 +36,30 @@
 		onremove: (index: number, text: string, images: string[]) => void;
 		following?: boolean;
 	} = $props();
+
+	const expanded = new SvelteSet<number>();
+
+	function activitySummary(parts: Part[]) {
+		const messages = parts.filter((part) => part.kind === 'text').length;
+		const calls = parts.reduce(
+			(sum, part) => sum + (part.kind === 'tools' ? part.tools.length : 0),
+			0
+		);
+		return [
+			messages && `${messages} message${messages === 1 ? '' : 's'}`,
+			calls && `${calls} tool call${calls === 1 ? '' : 's'}`
+		]
+			.filter(Boolean)
+			.join(' · ');
+	}
+
+	function toggleActivity(index: number) {
+		if (expanded.has(index)) expanded.delete(index);
+		else {
+			following = false;
+			expanded.add(index);
+		}
+	}
 
 	const rows = $derived([
 		...blocks.map((block) => ({ kind: 'block' as const, block })),
@@ -99,6 +124,20 @@
 	</div>
 {/snippet}
 
+{#snippet agentPart(part: Part, dimmed: boolean, live: boolean)}
+	{#if part.kind === 'text'}
+		<div>
+			<Markdown text={part.text} {dimmed} {pictures} />
+			{#if part.text}{@render messageActions(part.text)}{/if}
+		</div>
+	{:else if part.kind === 'tools'}
+		<!-- live: the agent is at work, and this is the last thing it did -->
+		<ToolGroup tools={part.tools} {cwd} {live} />
+	{:else}
+		<Notice>{part.error}</Notice>
+	{/if}
+{/snippet}
+
 <div bind:this={scroller} class="scroller">
 	<Virtualizer
 		bind:this={list}
@@ -144,24 +183,40 @@
 							</p>
 						{:else}
 							{@const lastText = block.parts.findLastIndex((part) => part.kind === 'text')}
+							{@const live = running && i === blocks.length - 1}
+							{@const last = block.parts.at(-1)}
+							{@const hiddenCount = live
+								? 0
+								: block.parts.length - (last && last.kind !== 'tools' ? 1 : 0)}
 							<div class="flex gap-3.5">
 								<AgentAvatar {agent} />
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
+									{#if hiddenCount}
+										<button
+											type="button"
+											class="flex h-7 items-center gap-1.5 rounded-control text-xs text-muted hover:text-ink"
+											aria-expanded={expanded.has(i)}
+											onclick={() => toggleActivity(i)}
+										>
+											Turn activity
+											<span class="text-muted"
+												>{activitySummary(block.parts.slice(0, hiddenCount))}</span
+											>
+											<span
+												class={[
+													'icon-[lucide--chevron-right] size-3.5',
+													expanded.has(i) && 'rotate-90'
+												]}
+											></span>
+										</button>
+									{/if}
 									{#each block.parts as part, j (j)}
-										{#if part.kind === 'text'}
-											<div>
-												<Markdown text={part.text} dimmed={j !== lastText} {pictures} />
-												{#if part.text}{@render messageActions(part.text)}{/if}
-											</div>
-										{:else if part.kind === 'tools'}
-											<!-- live: the agent is at work, and this is the last thing it did -->
-											<ToolGroup
-												tools={part.tools}
-												{cwd}
-												live={running && i === blocks.length - 1 && j === block.parts.length - 1}
-											/>
-										{:else}
-											<Notice>{part.error}</Notice>
+										{#if j >= hiddenCount || expanded.has(i)}
+											{@render agentPart(
+												part,
+												j !== lastText,
+												live && j === block.parts.length - 1
+											)}
 										{/if}
 									{/each}
 								</div>
