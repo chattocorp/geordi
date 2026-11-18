@@ -143,6 +143,13 @@ export type TranscriptItem =
 
 type Asked = Extract<TranscriptItem, { kind: 'question' }>;
 
+function toolById(workspace: Workspace, id: string) {
+	return workspace.transcript.findLast(
+		(item): item is Extract<TranscriptItem, { kind: 'tool' }> =>
+			item.kind === 'tool' && item.id === id
+	);
+}
+
 function questionById(workspace: Workspace, id: string) {
 	return workspace.transcript.findLast(
 		(item): item is Asked => item.kind === 'question' && item.id === id
@@ -454,9 +461,8 @@ export function createWorkspaces(
 				transcript.push({ ...output, output: null, isError: false, at });
 				break;
 			case 'tool.result': {
-				const tool = transcript.findLast((item) => item.kind === 'tool' && item.id === output.id);
-				if (tool?.kind === 'tool')
-					Object.assign(tool, { output: output.output, isError: output.isError });
+				const tool = toolById(workspace, output.id);
+				if (tool) Object.assign(tool, { output: output.output, isError: output.isError });
 				break;
 			}
 			case 'answer.received': {
@@ -559,6 +565,9 @@ export function createWorkspaces(
 			if (event.id === workspace.resumeId) return;
 		} else if (event.kind === 'turn.started') {
 			if (running) return;
+		} else if (!running && event.kind === 'tool.result') {
+			// A background command can finish after its turn. Complete its existing entry once.
+			if (toolById(workspace, event.id)?.output !== null) return;
 		} else if (
 			event.kind !== 'worktree' &&
 			event.kind !== 'message.received' &&
