@@ -43,11 +43,12 @@
 		...(compact ? [] : actions.filter((action) => action !== primary)),
 		...(primary ? [primary] : [])
 	]);
-	const height = $derived(compact ? 'h-7' : 'h-9');
 	const text = $derived(compact ? 'text-xs' : 'text-sm');
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
 	// small, beside a next step or "Working", the colour and icon of how it stands say enough
 	const worded = $derived(!compact || (ordered.length === 0 && !working));
+	// likewise the spinner (or the question) says that the agent is at work beside a next step
+	const saysWorking = $derived(!compact || ordered.length === 0);
 	const linked = $derived(!compact && !!pull?.url);
 
 	const tones = {
@@ -66,9 +67,9 @@
 	unit: the standing colours the whole thing, and the first action is the next step. An
 	agent at work says so at its head; an idle one says nothing.
 -->
-<div class={['flex items-center gap-2', compact ? 'min-w-0' : 'shrink-0']}>
+<div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
 	{#if pull}
-		<div class={['inline-flex shrink-0 items-stretch rounded-full bg-sunken text-muted', height]}>
+		<div class={['inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted']}>
 			<button
 				type="button"
 				class={[
@@ -105,9 +106,11 @@
 			role="group"
 			aria-label="Next steps"
 			class={[
-				'inline-flex items-center gap-1 rounded-full',
-				height,
-				compact ? 'min-w-0 pl-2.5' : 'shrink-0 pl-3',
+				// as tall when small: the pill frames its buttons (`h-7`) all round
+				'inline-flex h-9 items-center gap-1 rounded-full',
+				// never narrower than what is in it: on a card it moves to a line of its own
+				'shrink-0',
+				compact ? 'pl-2.5' : 'pl-3',
 				// buttons reach the end of the pill; text keeps its distance
 				ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
 				tones[standing?.tone ?? 'neutral']
@@ -117,11 +120,16 @@
 				<span class={['flex items-center gap-2 font-medium whitespace-nowrap', text]} role="status">
 					{#if asking}
 						<!-- at work, but not going on until it has heard from the person -->
-						<span class={['icon-[lucide--message-circle-question]', icon]}></span>
-						Waiting for your answer
+						<span
+							class={['icon-[lucide--message-circle-question]', icon]}
+							title={saysWorking ? undefined : 'Waiting for your answer'}
+							role={saysWorking ? undefined : 'img'}
+							aria-label={saysWorking ? undefined : 'Waiting for your answer'}
+						></span>
+						{#if saysWorking}Waiting for your answer{/if}
 					{:else}
 						<Spinner />
-						Working
+						{#if saysWorking}Working{/if}
 					{/if}
 				</span>
 				{#if standing || ordered.length > 0}
@@ -137,13 +145,7 @@
 					aria-label={worded ? undefined : standing.label}
 				></span>
 				{#if worded}
-					<span
-						class={[
-							'pr-1.5 pl-1 font-medium whitespace-nowrap',
-							text,
-							compact && 'min-w-0 truncate'
-						]}>{standing.label}</span
-					>
+					<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span>
 				{/if}
 			{/if}
 			{#if ordered.length > 0}
@@ -153,10 +155,12 @@
 						<!--
 							The next step stands out; what else is possible, and what is beside it, doesn't.
 							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
-							colour. Fix errors and Resolve conflicts take the ribbon colour. Other soft next steps use ink.
+							colour. On a ribbon that says something is wrong, it takes the ribbon's colour too.
+							Other soft next steps use ink.
 						-->
+						{@const busy = pending.includes(action.id)}
 						{@const next = action === primary}
-						{@const ribbonColor = action.id === 'resolve-conflicts' || action.id === 'fix-checks'}
+						{@const ribbonColor = standing?.tone === 'danger'}
 						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
 						<Button
 							size="sm"
@@ -165,10 +169,10 @@
 							class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
 							icon={action.icon}
 							{disabled}
-							busy={pending.includes(action.id)}
+							{busy}
 							onclick={() => onaction(action)}
 						>
-							{action.label}
+							{busy && action.id === 'archive' ? 'Archiving…' : action.label}
 						</Button>
 					{/each}
 				</ButtonGroup>

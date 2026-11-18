@@ -172,7 +172,12 @@
 	name="Picture that cannot be had"
 	asChild
 	play={async ({ canvasElement, canvas }) => {
-		await waitFor(() => expect(canvas.getByText('shots/sidebar.png')).toBeVisible());
+		// The browser can defer lazy images in a background test iframe. Request this
+		// missing image as soon as the virtualized row mounts so its error is exercised.
+		await canvas.findByText('The sidebar now looks like this:');
+		const picture = canvasElement.querySelector<HTMLImageElement>('img[data-picture]');
+		if (picture) picture.loading = 'eager';
+		await expect(await canvas.findByText('shots/sidebar.png')).toBeVisible();
 		expect(canvasElement.querySelector('img[data-picture]')).toBeNull();
 	}}
 >

@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changes, readText, status, versions } from './changes.ts';
+import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
 import { removeWorktree } from './remove.ts';
 import {
 	branchOf,
@@ -36,11 +36,11 @@ function repo() {
 }
 
 describe('ensureWorktree', () => {
-	it('creates a worktree on a new branch, idempotently', () => {
+	it('creates a worktree on a new branch, idempotently', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const first = ensureWorktree(base, repoPath, '12345678-aaaa');
-		const second = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const first = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const second = await ensureWorktree(base, repoPath, '12345678-aaaa');
 
 		expect(first).toMatchObject({ created: true, branch: 'geordi/12345678' });
 		expect(second).toMatchObject({ created: false, path: first.path });
@@ -59,30 +59,30 @@ describe('ensureWorktree', () => {
 		git(repoPath, 'commit', '-q', '--allow-empty', '-m', 'local only');
 
 		expect(await fetchUpstream(repoPath)).toBeNull();
-		expect(startOf(repoPath)).toMatch(/^refs\/remotes\/origin\//);
+		expect(await startOf(repoPath)).toMatch(/^refs\/remotes\/origin\//);
 
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
 		expect(git(worktree.path, 'rev-parse', 'HEAD')).toBe(git(upstream, 'rev-parse', 'HEAD'));
 		// a branch of its own: nothing it would push to by default
 		expect(() => git(worktree.path, 'rev-parse', '--abbrev-ref', '@{upstream}')).toThrow();
-		expect(changes(worktree, { repoPath })).toEqual([]);
+		expect(await changes(worktree, { repoPath })).toEqual([]);
 	});
 
 	it('starts from what is checked out where there is no upstream, or no reaching it', async () => {
 		const repoPath = repo();
 		expect(await fetchUpstream(repoPath)).toBeNull();
-		expect(startOf(repoPath)).toBe('HEAD');
+		expect(await startOf(repoPath)).toBe('HEAD');
 
 		execFileSync('git', ['-C', repoPath, 'remote', 'add', 'origin', '/no/such/upstream']);
 		expect(await fetchUpstream(repoPath)).toEqual(expect.any(String));
-		expect(startOf(repoPath)).toBe('HEAD');
+		expect(await startOf(repoPath)).toBe('HEAD');
 	});
 
-	it('brings a worktree that was removed back from its branch, with what was committed', () => {
+	it('brings a worktree that was removed back from its branch, with what was committed', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const { path } = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const { path } = await ensureWorktree(base, repoPath, '12345678-aaaa');
 		const git = (...args: string[]) =>
 			execFileSync('git', ['-C', path, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
 		writeFileSync(join(path, 'committed.txt'), 'kept\n');
@@ -91,29 +91,31 @@ describe('ensureWorktree', () => {
 		writeFileSync(join(path, 'uncommitted.txt'), 'lost\n');
 
 		rmSync(path, { recursive: true }); // someone tidied up behind Geordi's back
-		expect(() => locateWorktree(base, repoPath, '12345678-aaaa')).toThrow(NO_WORKTREE);
+		await expect(locateWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(NO_WORKTREE);
 
-		const again = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const again = await ensureWorktree(base, repoPath, '12345678-aaaa');
 		expect(again).toMatchObject({ path, created: false, restored: true });
 		expect(readFileSync(join(path, 'committed.txt'), 'utf8')).toBe('kept\n');
 		expect(existsSync(join(path, 'uncommitted.txt'))).toBe(false);
-		expect(ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({ restored: false });
+		expect(await ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({
+			restored: false
+		});
 
 		// with its branch gone too, there is nothing to bring back: it starts afresh
 		rmSync(path, { recursive: true });
 		execFileSync('git', ['-C', repoPath, 'worktree', 'prune']);
 		execFileSync('git', ['-C', repoPath, 'branch', '-qD', 'geordi/12345678']);
-		expect(ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({
+		expect(await ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({
 			created: true,
 			restored: false
 		});
 		expect(existsSync(join(path, 'committed.txt'))).toBe(false);
 	});
 
-	it('reports a branch the agent renamed, and comes back from it', () => {
+	it('reports a branch the agent renamed, and comes back from it', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
 		const git = (...args: string[]) =>
 			execFileSync('git', [
 				'-C',
@@ -129,21 +131,27 @@ describe('ensureWorktree', () => {
 		git('add', '.');
 		git('commit', '-qm', 'work');
 		expect(branchOf(worktree)).toBe('geordi/fix-login');
-		expect(status(worktree, { repoPath })).toMatchObject({ branch: 'geordi/fix-login' });
+		expect(await status(worktree, { repoPath })).toMatchObject({ branch: 'geordi/fix-login' });
 
-		removeWorktree(base, repoPath, '12345678-aaaa', false);
-		const again = ensureWorktree(base, repoPath, '12345678-aaaa', undefined, 'geordi/fix-login');
+		await removeWorktree(base, repoPath, '12345678-aaaa', false);
+		const again = await ensureWorktree(
+			base,
+			repoPath,
+			'12345678-aaaa',
+			undefined,
+			'geordi/fix-login'
+		);
 		expect(again).toMatchObject({ restored: true, branch: 'geordi/fix-login' });
 		expect(readFileSync(join(worktree.path, 'committed.txt'), 'utf8')).toBe('kept\n');
 	});
 
-	it('knows a branch by the name it was pushed under', () => {
+	it('knows a branch by the name it was pushed under', async () => {
 		// an upstream, and a clone of it in which a workspace's branch was pushed under another name
 		const upstream = repo();
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
 		execFileSync('git', ['clone', '-q', upstream, repoPath]);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
 		const git = (...args: string[]) =>
 			execFileSync('git', [
 				'-C',
@@ -154,22 +162,22 @@ describe('ensureWorktree', () => {
 				'user.email=t@t',
 				...args
 			]);
-		expect(upstreamBranchOf(repoPath, worktree.branch)).toBe('geordi/12345678');
-		expect(status(worktree, { repoPath }).unpushed).toBeNull();
+		expect(await upstreamBranchOf(repoPath, worktree.branch)).toBe('geordi/12345678');
+		expect((await status(worktree, { repoPath })).unpushed).toBeNull();
 
 		git('commit', '-q', '--allow-empty', '-m', 'work');
 		git('push', '-q', '-u', 'origin', 'HEAD:a-better-name');
-		expect(upstreamBranchOf(repoPath, worktree.branch)).toBe('a-better-name');
-		expect(status(worktree, { repoPath }).unpushed).toBe(0);
+		expect(await upstreamBranchOf(repoPath, worktree.branch)).toBe('a-better-name');
+		expect((await status(worktree, { repoPath })).unpushed).toBe(0);
 		git('commit', '-q', '--allow-empty', '-m', 'more work');
-		expect(status(worktree, { repoPath }).unpushed).toBe(1);
+		expect((await status(worktree, { repoPath })).unpushed).toBe(1);
 
 		// merely set to follow the main branch, it has no place of its own upstream
 		const main = execFileSync('git', ['-C', upstream, 'branch', '--show-current'], {
 			encoding: 'utf8'
 		}).trim();
 		git('branch', '-q', `--set-upstream-to=origin/${main}`);
-		expect(upstreamBranchOf(repoPath, worktree.branch)).toBe('geordi/12345678');
+		expect(await upstreamBranchOf(repoPath, worktree.branch)).toBe('geordi/12345678');
 	});
 
 	it('carries on, on a new branch off where the upstream stands, and keeps the old one', async () => {
@@ -181,7 +189,7 @@ describe('ensureWorktree', () => {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
 		execFileSync('git', ['clone', '-q', upstream, repoPath]);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
 
 		// work in the workspace, and meanwhile something else lands upstream
 		writeFileSync(join(worktree.path, 'mine.txt'), 'mine\n');
@@ -192,14 +200,14 @@ describe('ensureWorktree', () => {
 		run(upstream, 'commit', '-qm', 'landed upstream');
 		await fetchUpstream(repoPath);
 
-		expect(continueOn(worktree, repoPath)).toBe('geordi/12345678-2');
+		expect(await continueOn(worktree, repoPath)).toBe('geordi/12345678-2');
 		// on the new branch, with the upstream's files and none of its own old ones
 		expect(run(worktree.path, 'branch', '--show-current')).toBe('geordi/12345678-2');
 		expect(run(worktree.path, 'rev-parse', 'HEAD')).toBe(run(upstream, 'rev-parse', 'HEAD'));
 		expect(existsSync(join(worktree.path, 'landed.txt'))).toBe(true);
 		expect(existsSync(join(worktree.path, 'mine.txt'))).toBe(false);
 		expect(run(worktree.path, 'status', '--porcelain')).toBe('');
-		expect(changes(worktree, { repoPath })).toEqual([]);
+		expect(await changes(worktree, { repoPath })).toEqual([]);
 		// what was done before is still on its branch
 		expect(run(repoPath, 'log', '--format=%s', '-1', 'geordi/12345678')).toBe('my work');
 
@@ -209,45 +217,51 @@ describe('ensureWorktree', () => {
 		rmSync(join(worktree.adminDir, 'HEAD'));
 		symlinkSync(elsewhere, join(worktree.adminDir, 'HEAD'));
 		writeFileSync(elsewhere, 'ref: refs/heads/geordi/12345678-2\n'); // what git would read through it
-		continueOn(worktree, repoPath);
+		await continueOn(worktree, repoPath);
 		expect(readFileSync(elsewhere, 'utf8')).toBe('ref: refs/heads/geordi/12345678-2\n');
 		expect(lstatSync(join(worktree.adminDir, 'HEAD')).isSymbolicLink()).toBe(false);
 
 		// and a worktree that goes missing comes back on the branch it was on
 		expect(run(worktree.path, 'branch', '--show-current')).toBe('geordi/12345678-3');
 		rmSync(worktree.path, { recursive: true });
-		const back = ensureWorktree(base, repoPath, '12345678-aaaa', undefined, 'geordi/12345678-3');
+		const back = await ensureWorktree(
+			base,
+			repoPath,
+			'12345678-aaaa',
+			undefined,
+			'geordi/12345678-3'
+		);
 		expect(back).toMatchObject({ restored: true, branch: 'geordi/12345678-3' });
 		expect(run(back.path, 'branch', '--show-current')).toBe('geordi/12345678-3');
 	});
 
-	it('refuses a worktree whose Git metadata was repointed', () => {
+	it('refuses a worktree whose Git metadata was repointed', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const { path, writableRoots } = ensureWorktree(base, repoPath, '12345678-aaaa');
+		const { path, writableRoots } = await ensureWorktree(base, repoPath, '12345678-aaaa');
 		const evil = mkdtempSync(join(tmpdir(), 'geordi-evil-'));
 
 		const commondir = join(writableRoots.at(-1)!, 'commondir');
 		writeFileSync(commondir, evil);
-		expect(() => ensureWorktree(base, repoPath, '12345678-aaaa')).toThrow(/was modified/);
+		await expect(ensureWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(/was modified/);
 
 		writeFileSync(commondir, '../..');
-		expect(() => ensureWorktree(base, repoPath, '12345678-aaaa')).not.toThrow();
+		await expect(ensureWorktree(base, repoPath, '12345678-aaaa')).resolves.toBeDefined();
 
 		writeFileSync(join(path, '.git'), `gitdir: ${evil}`);
-		expect(() => ensureWorktree(base, repoPath, '12345678-aaaa')).toThrow(/was modified/);
+		await expect(ensureWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(/was modified/);
 	});
 
-	it('locates only worktrees that exist', () => {
+	it('locates only worktrees that exist', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		expect(() => locateWorktree(base, repoPath, '12345678-aaaa')).toThrow(/no worktree/);
-		const { path } = ensureWorktree(base, repoPath, '12345678-aaaa');
-		expect(locateWorktree(base, repoPath, '12345678-aaaa').path).toBe(path);
+		await expect(locateWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(/no worktree/);
+		const { path } = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		expect((await locateWorktree(base, repoPath, '12345678-aaaa')).path).toBe(path);
 	});
 
-	it('never makes hooks or config writable', () => {
-		const { writableRoots } = ensureWorktree(
+	it('never makes hooks or config writable', async () => {
+		const { writableRoots } = await ensureWorktree(
 			realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-'))),
 			repo(),
 			'abcdefgh-1'
@@ -263,7 +277,7 @@ describe('ensureWorktree', () => {
 });
 
 describe('changes', () => {
-	it('reports committed, uncommitted and untracked changes against the fork point', () => {
+	it('reports committed, uncommitted and untracked changes against the fork point', async () => {
 		const repoPath = repo();
 		writeFileSync(join(repoPath, 'kept.txt'), 'one\ntwo\n');
 		execFileSync('git', ['-C', repoPath, 'add', '.']);
@@ -280,8 +294,8 @@ describe('changes', () => {
 		]);
 
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
-		expect(changes(worktree, { repoPath })).toEqual([]);
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		expect(await changes(worktree, { repoPath })).toEqual([]);
 
 		// committed in the workspace
 		writeFileSync(join(worktree.path, 'committed.txt'), 'a\n');
@@ -292,42 +306,43 @@ describe('changes', () => {
 		writeFileSync(join(worktree.path, 'kept.txt'), 'one\nTWO\nthree\n');
 		writeFileSync(join(worktree.path, 'new.txt'), 'x\ny\n');
 
-		expect(changes(worktree, { repoPath })).toEqual([
+		expect(await changes(worktree, { repoPath })).toEqual([
 			{ path: 'committed.txt', status: 'added', added: 1, removed: 0 },
 			{ path: 'kept.txt', status: 'modified', added: 2, removed: 1 },
 			{ path: 'new.txt', status: 'added', added: 2, removed: 0 }
 		]);
 		const origin = { repoPath };
-		expect(versions(worktree, origin, 'kept.txt')).toEqual({
+		expect(await versions(worktree, origin, 'kept.txt')).toEqual({
 			old: 'one\ntwo\n',
 			new: 'one\nTWO\nthree\n'
 		});
-		expect(versions(worktree, origin, 'new.txt')).toEqual({ old: null, new: 'x\ny\n' });
-		expect(versions(worktree, origin, 'committed.txt')).toEqual({ old: null, new: 'a\n' });
+		expect(await versions(worktree, origin, 'new.txt')).toEqual({ old: null, new: 'x\ny\n' });
+		expect(await versions(worktree, origin, 'committed.txt')).toEqual({ old: null, new: 'a\n' });
 
 		// deleted, and binary
 		rmSync(join(worktree.path, 'kept.txt'));
 		writeFileSync(join(worktree.path, 'blob.bin'), Buffer.from([1, 0, 2]));
-		expect(versions(worktree, origin, 'kept.txt')).toEqual({ old: 'one\ntwo\n', new: null });
-		expect(versions(worktree, origin, 'blob.bin')).toEqual({
+		expect(await versions(worktree, origin, 'kept.txt')).toEqual({ old: 'one\ntwo\n', new: null });
+		expect(await versions(worktree, origin, 'blob.bin')).toEqual({
 			unavailable: expect.stringMatching(/binary/)
 		});
-		const kept = () => changes(worktree, origin).filter((file) => /kept/.test(file.path));
-		expect(kept()).toEqual([{ path: 'kept.txt', status: 'deleted', added: 0, removed: 2 }]);
+		const kept = async () =>
+			(await changes(worktree, origin)).filter((file) => /kept/.test(file.path));
+		expect(await kept()).toEqual([{ path: 'kept.txt', status: 'deleted', added: 0, removed: 2 }]);
 
 		// moved: one change, not a deletion and an addition, and its old version is the old file's
 		writeFileSync(join(worktree.path, 'kept.txt'), 'one\ntwo\n');
 		git('mv', 'kept.txt', 'kept elsewhere.txt');
-		expect(kept()).toEqual([
+		expect(await kept()).toEqual([
 			{ path: 'kept elsewhere.txt', status: 'renamed', from: 'kept.txt', added: 0, removed: 0 }
 		]);
-		expect(versions(worktree, origin, 'kept elsewhere.txt')).toEqual({
+		expect(await versions(worktree, origin, 'kept elsewhere.txt')).toEqual({
 			old: 'one\ntwo\n',
 			new: 'one\ntwo\n'
 		});
 	});
 
-	it('only shows files that changed, never what a path or a symlink leads to', () => {
+	it('only shows files that changed, never what a path or a symlink leads to', async () => {
 		const repoPath = repo();
 		mkdirSync(join(repoPath, 'sub'));
 		writeFileSync(join(repoPath, 'sub', 'secret.txt'), 'ours');
@@ -344,7 +359,7 @@ describe('changes', () => {
 			'sub'
 		]);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
 		const secret = join(base, 'secret.txt');
 		writeFileSync(secret, 'do not show');
 		symlinkSync(base, join(worktree.path, 'elsewhere'));
@@ -363,10 +378,10 @@ describe('changes', () => {
 
 		const none = { unavailable: expect.stringMatching(/no changes/) };
 		const origin = { repoPath };
-		expect(versions(worktree, origin, '../secret.txt')).toEqual(none);
-		expect(versions(worktree, origin, secret)).toEqual(none);
-		expect(versions(worktree, origin, 'elsewhere/secret.txt')).toEqual(none);
-		expect(versions(worktree, origin, 'README.md')).toEqual(none);
+		expect(await versions(worktree, origin, '../secret.txt')).toEqual(none);
+		expect(await versions(worktree, origin, secret)).toEqual(none);
+		expect(await versions(worktree, origin, 'elsewhere/secret.txt')).toEqual(none);
+		expect(await versions(worktree, origin, 'README.md')).toEqual(none);
 		// a named pipe must not make us wait for a writer that never comes
 		execFileSync('mkfifo', [join(worktree.path, 'pipe')]);
 		expect(readText(worktree, 'pipe')).toBeNull();
@@ -376,47 +391,49 @@ describe('changes', () => {
 		// the file as changed (deleted), while the path now leads out of the worktree
 		rmSync(join(worktree.path, 'sub'), { recursive: true });
 		symlinkSync(base, join(worktree.path, 'sub'));
-		expect(changes(worktree, origin).map((file) => file.path)).toContain('sub/secret.txt');
-		expect(JSON.stringify(versions(worktree, origin, 'sub/secret.txt'))).not.toContain(
+		expect((await changes(worktree, origin)).map((file) => file.path)).toContain('sub/secret.txt');
+		expect(JSON.stringify(await versions(worktree, origin, 'sub/secret.txt'))).not.toContain(
 			'do not show'
 		);
 
 		// the link itself changed (it is new), but what it points to is not ours to show
-		expect(versions(worktree, origin, 'link.txt')).toEqual({
+		expect(await versions(worktree, origin, 'link.txt')).toEqual({
 			unavailable: expect.stringMatching(/not a regular file/)
 		});
 	});
 
-	it('branches sub-workspaces off their parent and measures changes against it', () => {
+	it('branches sub-workspaces off their parent and measures changes against it', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const parent = ensureWorktree(base, repoPath, 'parent00-1');
+		const parent = await ensureWorktree(base, repoPath, 'parent00-1');
 		const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args]);
 		writeFileSync(join(parent.path, 'parent.txt'), 'p\n');
 		git(parent.path, 'add', '.');
 		git(parent.path, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'parent');
 
-		const child = ensureWorktree(base, repoPath, 'child000-1', parent.branch);
+		const child = await ensureWorktree(base, repoPath, 'child000-1', parent.branch);
 		expect(existsSync(join(child.path, 'parent.txt'))).toBe(true);
 		writeFileSync(join(child.path, 'child.txt'), 'c\n');
 
 		// against the parent: only the child's own work; against the repository: both
 		const origin = { repoPath, base: parent.branch };
-		expect(changes(child, origin).map((file) => file.path)).toEqual(['child.txt']);
-		expect(changes(child, { repoPath }).map((file) => file.path)).toEqual([
+		expect((await changes(child, origin)).map((file) => file.path)).toEqual(['child.txt']);
+		expect((await changes(child, { repoPath })).map((file) => file.path)).toEqual([
 			'child.txt',
 			'parent.txt'
 		]);
-		expect(() => ensureWorktree(base, repoPath, 'evil0000-1', '--detach')).toThrow(/branch name/);
+		await expect(ensureWorktree(base, repoPath, 'evil0000-1', '--detach')).rejects.toThrow(
+			/branch name/
+		);
 	});
 
-	it('inherits the target through clean parents and follows a retargeted pull request', () => {
+	it('inherits the target through clean parents and follows a retargeted pull request', async () => {
 		const repoPath = repo();
 		const root = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
 		const git = (cwd: string, ...args: string[]) =>
 			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
-		const parent = ensureWorktree(root, repoPath, 'parent00-1');
-		const child = ensureWorktree(root, repoPath, 'child000-1', parent.branch);
+		const parent = await ensureWorktree(root, repoPath, 'parent00-1');
+		const child = await ensureWorktree(root, repoPath, 'child000-1', parent.branch);
 		git(repoPath, 'update-ref', 'refs/remotes/origin/release', 'HEAD');
 		writeFileSync(join(repoPath, 'from-main.txt'), 'upstream\n');
 		git(repoPath, 'add', '.');
@@ -427,28 +444,31 @@ describe('changes', () => {
 		writeFileSync(join(child.path, 'child.txt'), 'local\n');
 
 		const origin = { repoPath, base: parent.branch };
-		expect(status(child, origin)).toMatchObject({
+		expect(await status(child, origin)).toMatchObject({
 			comparisonTarget: 'main',
 			files: [{ path: 'child.txt' }],
 			uncommitted: 1
 		});
 		const release = { ...origin, pullBase: 'release' };
-		expect(status(child, release)).toMatchObject({
+		expect(await status(child, release)).toMatchObject({
 			comparisonTarget: 'release',
 			files: [{ path: 'child.txt' }, { path: 'from-main.txt' }]
 		});
-		expect(versions(child, release, 'from-main.txt')).toEqual({ old: null, new: 'upstream\n' });
-		expect(versions(child, origin, 'from-main.txt')).toHaveProperty('unavailable');
+		expect(await versions(child, release, 'from-main.txt')).toEqual({
+			old: null,
+			new: 'upstream\n'
+		});
+		expect(await versions(child, origin, 'from-main.txt')).toHaveProperty('unavailable');
 		expect(
-			status(child, { ...origin, parents: [{ branch: parent.branch, pullBase: 'release' }] })
+			await status(child, { ...origin, parents: [{ branch: parent.branch, pullBase: 'release' }] })
 		).toMatchObject({ comparisonTarget: 'release' });
 	});
 
-	it("ignores config an agent plants in the worktree's admin directory", () => {
+	it("ignores config an agent plants in the worktree's admin directory", async () => {
 		const repoPath = repo();
 		execFileSync('git', ['-C', repoPath, 'config', 'extensions.worktreeConfig', 'true']);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
 
 		const marker = join(base, 'pwned');
 		writeFileSync(
@@ -457,16 +477,16 @@ describe('changes', () => {
 		);
 		writeFileSync(join(worktree.path, 'new.txt'), 'x\n');
 
-		expect(changes(worktree, { repoPath })).toEqual([
+		expect(await changes(worktree, { repoPath })).toEqual([
 			{ path: 'new.txt', status: 'added', added: 1, removed: 0 }
 		]);
 		expect(existsSync(marker)).toBe(false);
 	});
 
-	it('never runs git inside a submodule an agent planted', () => {
+	it('never runs git inside a submodule an agent planted', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
 
 		// a nested repository with hostile config, staged as a submodule and then dirtied
 		const nested = join(worktree.path, 'nested');
@@ -479,7 +499,7 @@ describe('changes', () => {
 		git(nested, 'config', 'core.fsmonitor', `touch ${marker}; false`);
 		writeFileSync(join(nested, 'dirty.txt'), 'x\n');
 
-		changes(worktree, { repoPath });
+		await changes(worktree, { repoPath });
 		expect(existsSync(marker)).toBe(false);
 	});
 });
@@ -494,33 +514,33 @@ describe('status', () => {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
 		git(upstream, 'clone', '-q', upstream, repoPath);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, 'incoming-1');
+		const worktree = await ensureWorktree(base, repoPath, 'incoming-1');
 		const origin = { repoPath };
-		const branch = startOf(repoPath);
-		expect(status(worktree, origin).incoming).toEqual({ branch, commits: 0 });
+		const branch = await startOf(repoPath);
+		expect((await status(worktree, origin)).incoming).toEqual({ branch, commits: 0 });
 		git(worktree.path, 'commit', '-qm', 'workspace work', '--allow-empty');
 		git(upstream, 'commit', '-qm', 'upstream work', '--allow-empty');
-		expect(status(worktree, origin).incoming?.commits).toBe(0);
+		expect((await status(worktree, origin)).incoming?.commits).toBe(0);
 		await fetchUpstream(repoPath);
-		expect(status(worktree, origin).incoming).toEqual({ branch, commits: 1 });
+		expect((await status(worktree, origin)).incoming).toEqual({ branch, commits: 1 });
 		git(worktree.path, 'merge', '-qm', 'Merge upstream', branch);
-		expect(status(worktree, origin).incoming?.commits).toBe(0);
+		expect((await status(worktree, origin)).incoming?.commits).toBe(0);
 	});
 
-	it('compares child workspaces with their parent branch', () => {
-		const { repoPath, base, worktree, git } = workspace();
-		const child = ensureWorktree(base, repoPath, 'child-1', worktree.branch);
+	it('compares child workspaces with their parent branch', async () => {
+		const { repoPath, base, worktree, git } = await workspace();
+		const child = await ensureWorktree(base, repoPath, 'child-1', worktree.branch);
 		git('commit', '-qm', 'parent work', '--allow-empty');
-		expect(status(child, { repoPath, base: worktree.branch }).incoming).toEqual({
+		expect((await status(child, { repoPath, base: worktree.branch })).incoming).toEqual({
 			branch: branchRef(worktree.branch),
 			commits: 1
 		});
 	});
 
-	function workspace() {
+	async function workspace() {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
 		const git = (...args: string[]) =>
 			execFileSync('git', [
 				'-C',
@@ -534,21 +554,28 @@ describe('status', () => {
 		return { repoPath, base, worktree, git, origin: { repoPath } };
 	}
 
-	it('knows when all a branch did is in the branch it started from', () => {
-		const { repoPath, worktree, git, origin } = workspace();
+	it('knows when all a branch did is in the branch it started from', async () => {
+		const { repoPath, worktree, git, origin } = await workspace();
 		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
 		git('add', 'a.txt');
 		git('commit', '-q', '-m', 'Add a');
-		expect(status(worktree, origin)).toMatchObject({ landed: false, files: [{ path: 'a.txt' }] });
+		expect(await status(worktree, origin)).toMatchObject({
+			landed: false,
+			files: [{ path: 'a.txt' }]
+		});
 
 		// merged where it came from (as the agent that started this one does)
 		execFileSync('git', ['-C', repoPath, 'merge', '-q', '--ff-only', worktree.branch]);
-		expect(status(worktree, origin)).toMatchObject({ landed: true, files: [], uncommitted: 0 });
+		expect(await status(worktree, origin)).toMatchObject({
+			landed: true,
+			files: [],
+			uncommitted: 0
+		});
 	});
 
-	it('tells uncommitted from committed from pushed', () => {
-		const { repoPath, worktree, git, origin } = workspace();
-		expect(status(worktree, origin)).toMatchObject({
+	it('tells uncommitted from committed from pushed', async () => {
+		const { repoPath, worktree, git, origin } = await workspace();
+		expect(await status(worktree, origin)).toMatchObject({
 			files: [],
 			uncommitted: 0,
 			unpushed: null,
@@ -557,34 +584,34 @@ describe('status', () => {
 
 		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
 		writeFileSync(join(worktree.path, 'b.txt'), 'b\n');
-		expect(status(worktree, origin)).toMatchObject({ uncommitted: 2, unpushed: null });
+		expect(await status(worktree, origin)).toMatchObject({ uncommitted: 2, unpushed: null });
 
 		git('add', 'a.txt');
 		git('commit', '-qm', 'a');
-		expect(status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: null });
+		expect(await status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: null });
 
 		// pushed, as far as this machine knows: the remote-tracking branch is where we are
 		const remote = 'refs/remotes/origin/geordi/abcdefgh';
 		execFileSync('git', ['-C', repoPath, 'update-ref', remote, 'refs/heads/geordi/abcdefgh']);
-		expect(status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: 0 });
+		expect(await status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: 0 });
 
 		git('add', '.');
 		git('commit', '-qm', 'b');
-		expect(status(worktree, origin)).toMatchObject({ uncommitted: 0, unpushed: 1 });
-		expect(status(worktree, origin).files).toHaveLength(2);
+		expect(await status(worktree, origin)).toMatchObject({ uncommitted: 0, unpushed: 1 });
+		expect((await status(worktree, origin)).files).toHaveLength(2);
 	});
 
-	it('removes a clean worktree, keeps its branch, and refuses to discard work unless told to', () => {
-		const { repoPath, base, worktree, git } = workspace();
+	it('removes a clean worktree, keeps its branch, and refuses to discard work unless told to', async () => {
+		const { repoPath, base, worktree, git } = await workspace();
 		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
-		expect(() => removeWorktree(base, repoPath, 'abcdefgh-1', false)).toThrow(
+		await expect(removeWorktree(base, repoPath, 'abcdefgh-1', false)).rejects.toThrow(
 			/uncommitted or untracked/
 		);
 		expect(existsSync(worktree.path)).toBe(true);
 
 		git('add', '.');
 		git('commit', '-qm', 'a');
-		removeWorktree(base, repoPath, 'abcdefgh-1', false);
+		await removeWorktree(base, repoPath, 'abcdefgh-1', false);
 		expect(existsSync(worktree.path)).toBe(false);
 		const branches = execFileSync('git', ['-C', repoPath, 'branch', '--list', 'geordi/*']);
 		expect(String(branches)).toContain('geordi/abcdefgh');
@@ -594,15 +621,15 @@ describe('status', () => {
 		expect(String(listed)).not.toContain('abcdefgh');
 
 		// already gone is fine; and force discards
-		removeWorktree(base, repoPath, 'abcdefgh-1', false);
-		const second = ensureWorktree(base, repoPath, 'second00-1');
+		await removeWorktree(base, repoPath, 'abcdefgh-1', false);
+		const second = await ensureWorktree(base, repoPath, 'second00-1');
 		writeFileSync(join(second.path, 'junk.txt'), 'x\n');
-		removeWorktree(base, repoPath, 'second00-1', true);
+		await removeWorktree(base, repoPath, 'second00-1', true);
 		expect(existsSync(second.path)).toBe(false);
 	});
 
-	it('never runs git on a worktree whose metadata an agent rewired', () => {
-		const { repoPath, base, worktree } = workspace();
+	it('never runs git on a worktree whose metadata an agent rewired', async () => {
+		const { repoPath, base, worktree } = await workspace();
 		const evil = mkdtempSync(join(tmpdir(), 'geordi-evil-'));
 		const marker = join(base, 'pwned');
 		// a fake Git directory with a hostile config, and the worktree pointed at it
@@ -610,9 +637,11 @@ describe('status', () => {
 		execFileSync('git', ['-C', evil, 'config', 'core.fsmonitor', `touch ${marker}; false`]);
 		writeFileSync(join(worktree.path, '.git'), `gitdir: ${join(evil, '.git')}`);
 
-		expect(() => removeWorktree(base, repoPath, 'abcdefgh-1', false)).toThrow(/was modified/);
+		await expect(removeWorktree(base, repoPath, 'abcdefgh-1', false)).rejects.toThrow(
+			/was modified/
+		);
 		expect(existsSync(worktree.path)).toBe(true);
-		removeWorktree(base, repoPath, 'abcdefgh-1', true);
+		await removeWorktree(base, repoPath, 'abcdefgh-1', true);
 		expect(existsSync(worktree.path)).toBe(false);
 		expect(existsSync(marker)).toBe(false);
 	});
@@ -643,4 +672,98 @@ describe('branch names', () => {
 		])
 			expect(() => branchRef(name), name).toThrow('Not a branch name');
 	});
+});
+
+describe('Continue checkout', () => {
+	const file = 'local settings.txt';
+
+	async function setup({ ignored = false } = {}) {
+		const repoPath = repo();
+		const run = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8'
+			}).trim();
+		if (ignored) {
+			writeFileSync(join(repoPath, '.gitignore'), file + '\n');
+			run(repoPath, 'add', '.gitignore');
+			run(repoPath, 'commit', '-qm', 'ignore local settings');
+		}
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		writeFileSync(join(repoPath, file), 'from the target\n');
+		run(repoPath, 'add', '-f', file);
+		run(repoPath, 'commit', '-qm', 'track settings on the target');
+		return { worktree, repoPath, run, local: join(worktree.path, file) };
+	}
+
+	it('keeps an untracked file written after the clean check and rolls back the new branch', async () => {
+		const { worktree, repoPath, run, local } = await setup();
+		const head = run(worktree.path, 'rev-parse', 'HEAD');
+		const index = run(worktree.path, 'write-tree');
+		expect(await uncommittedFiles(worktree)).toEqual([]);
+		writeFileSync(local, 'written during Continue\n');
+
+		await expect(continueOn(worktree, repoPath)).rejects.toThrow(file);
+		expect(readFileSync(local, 'utf8')).toBe('written during Continue\n');
+		expect(branchOf(worktree)).toBe(worktree.branch);
+		expect(run(worktree.path, 'rev-parse', 'HEAD')).toBe(head);
+		expect(run(worktree.path, 'write-tree')).toBe(index);
+		expect(run(repoPath, 'branch', '--list', worktree.branch + '-2')).toBe('');
+	});
+
+	it('replaces an ignored file with the version tracked on the new branch', async () => {
+		const { worktree, repoPath, run, local } = await setup({ ignored: true });
+		writeFileSync(local, 'ignored local settings\n');
+		expect(run(worktree.path, 'check-ignore', '--', file)).toBe(file);
+		expect(await uncommittedFiles(worktree)).toEqual([]);
+
+		const branch = await continueOn(worktree, repoPath);
+		expect(branchOf(worktree)).toBe(branch);
+		expect(readFileSync(local, 'utf8')).toBe('from the target\n');
+		expect(run(worktree.path, 'show', ':' + file)).toBe('from the target');
+		expect(run(worktree.path, 'status', '--porcelain')).toBe('');
+	});
+});
+
+it('abandons a continuation if a turn starts while the branch is being made', async () => {
+	const repoPath = repo();
+	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	let checks = 0;
+	await expect(
+		continueOn(worktree, repoPath, () => {
+			if (++checks === 2) throw new Error('Its agent is still at work');
+		})
+	).rejects.toThrow('Its agent is still at work');
+	expect(branchOf(worktree)).toBe(worktree.branch);
+	expect(await continueOn(worktree, repoPath)).toBe(worktree.branch + '-2');
+});
+
+it('runs Git once for a burst of identical changes requests and reads again afterward', async () => {
+	const repoPath = repo();
+	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	const trace = join(base, 'trace');
+	const original = process.env.GIT_TRACE2_EVENT;
+	process.env.GIT_TRACE2_EVENT = trace;
+	const commands = () =>
+		readFileSync(trace, 'utf8')
+			.trim()
+			.split('\n')
+			.map((line) => JSON.parse(line))
+			.filter((event) => event.event === 'start').length;
+	try {
+		await status(worktree, { repoPath });
+		const single = commands();
+		expect(single).toBeGreaterThan(0);
+		writeFileSync(join(worktree.path, 'new.txt'), 'new');
+		const results = await Promise.all(
+			Array.from({ length: 12 }, () => status(worktree, { repoPath }))
+		);
+		expect(commands()).toBe(2 * single);
+		expect(results.every((result) => result.uncommitted === 1)).toBe(true);
+	} finally {
+		if (original === undefined) delete process.env.GIT_TRACE2_EVENT;
+		else process.env.GIT_TRACE2_EVENT = original;
+	}
 });

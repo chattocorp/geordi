@@ -84,7 +84,7 @@ export function concerns(worktree: Worktree, ref: string): boolean {
  * worktree (and throws if it has none yet).
  */
 export function createWatches(
-	locate: (ref: WorktreeRef) => Worktree,
+	locate: (ref: WorktreeRef) => Promise<Worktree>,
 	onChange: (worktreeId: string) => void
 ) {
 	const wanted: Record<WatchScope, WorktreeRef[]> = { open: [], background: [] };
@@ -103,14 +103,17 @@ export function createWatches(
 			const id = ref.worktreeId;
 			if (watching.has(id)) continue;
 			const files = open.has(id);
-			try {
-				watching.set(id, {
-					stop: watchWorktree(locate(ref), () => onChange(id), files),
-					files
+			const entry = { files, stop: () => {} };
+			watching.set(id, entry);
+			void locate(ref)
+				.then((worktree) => {
+					// The scope, worktree or connection may have changed while locating it.
+					if (watching.get(id) === entry)
+						entry.stop = watchWorktree(worktree, () => onChange(id), files);
+				})
+				.catch(() => {
+					if (watching.get(id) === entry) watching.delete(id);
 				});
-			} catch {
-				// no worktree yet; `refresh()` picks it up once there is one
-			}
 		}
 	}
 

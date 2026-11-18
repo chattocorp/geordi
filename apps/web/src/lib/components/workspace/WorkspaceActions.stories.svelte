@@ -169,6 +169,19 @@
 	{@render bar({ changes: pushed, upstream: upstream({ conflicts: true }) })}
 </Story>
 
+<Story
+	name="Turn failed"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Retry' })).toHaveStyle({
+			color: getComputedStyle(canvas.getByText('Turn failed')).color
+		});
+	}}
+>
+	{@render bar({ changes: dirty, upstream: upstream(null), failed: true })}
+</Story>
+
 <Story name="Asked for, not done yet" asChild>
 	{@render bar(
 		{ changes: pushed, upstream: upstream({ checks: failing }) },
@@ -185,6 +198,21 @@
 
 <Story name="Merged" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
+</Story>
+
+<Story
+	name="Archiving"
+	asChild
+	play={async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole('button', { name: /Archiving…/ });
+		await expect(button).toBeDisabled();
+		await expect(button).toHaveAttribute('aria-busy', 'true');
+	}}
+>
+	{@render bar(
+		{ changes: pushed, upstream: upstream({ state: 'merged' }) },
+		{ pending: ['archive'] }
+	)}
 </Story>
 
 <Story name="Agent at work, nothing else to say" asChild>
@@ -322,6 +350,12 @@
 		// blocked three ways, it offers only the most pressing of them
 		const [blocked] = within(canvasElement).getAllByRole('group', { name: 'Next steps' });
 		await expect(within(blocked).getAllByRole('button')).toHaveLength(1);
+		// at work beside a next step, the spinner alone says so: the pill stays in the card
+		const card = canvasElement.querySelector('.w-72')!;
+		for (const group of within(canvasElement).getAllByRole('group', { name: 'Next steps' }))
+			await expect(group.getBoundingClientRect().right).toBeLessThanOrEqual(
+				card.getBoundingClientRect().right
+			);
 	}}
 >
 	<div class="flex w-72 flex-col gap-3">
@@ -332,6 +366,10 @@
 		{@render bar({ changes: pushed, upstream: upstream({}) }, { compact: true })}
 		{@render bar(
 			{ changes: pushed, upstream: upstream({ checks: failing }) },
+			{ working: true, compact: true }
+		)}
+		{@render bar(
+			{ changes: pushed, upstream: upstream({ conflicts: true }) },
 			{ working: true, compact: true }
 		)}
 		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, { compact: true })}
