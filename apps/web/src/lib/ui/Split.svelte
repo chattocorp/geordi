@@ -90,7 +90,7 @@
 		class={[
 			collapsed && 'hidden',
 			!bare && 'bg-line',
-			'relative z-10 shrink-0 touch-none transition-colors select-none after:absolute hover:bg-accent focus-visible:bg-accent',
+			'relative z-10 shrink-0 touch-none transition-colors select-none after:absolute hover:bg-muted/40 focus-visible:bg-accent',
 			dir === 'row'
 				? 'w-px cursor-col-resize after:-inset-x-1 after:inset-y-0'
 				: 'h-px cursor-row-resize after:inset-x-0 after:-inset-y-1'
