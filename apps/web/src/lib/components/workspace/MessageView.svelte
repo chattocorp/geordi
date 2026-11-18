@@ -57,6 +57,12 @@
 
 	const expanded = new SvelteSet<number>();
 
+	/**
+	 * Where a part's pictures are served: at an address of the part's own, since an agent may
+	 * write the same file again, and the browser would show what it had for an address before.
+	 */
+	const picturesAt = (at: string) => pictures && `${pictures}?at=${at}`;
+
 	function activitySummary(parts: Part[]) {
 		const messages = parts.filter((part) => part.kind === 'text').length;
 		const plans = parts.filter((part) => part.kind === 'plan').length;
@@ -201,7 +207,8 @@
 	</div>
 {/snippet}
 
-{#snippet agentPart(part: Part, dimmed: boolean, live: boolean)}
+{#snippet agentPart(part: Part, dimmed: boolean, live: boolean, at: string)}
+	{@const pictures = picturesAt(at)}
 	{#if part.kind === 'text'}
 		<div>
 			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
@@ -321,7 +328,8 @@
 											{@render agentPart(
 												part,
 												j !== lastText,
-												live && j === block.parts.length - 1
+												live && j === block.parts.length - 1,
+												`${i}.${j}`
 											)}
 										{/if}
 									{/each}
