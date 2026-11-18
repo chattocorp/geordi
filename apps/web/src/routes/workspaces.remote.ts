@@ -119,7 +119,7 @@ export const say = command(v.object({ workspaceId: v.string(), text }), ({ works
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 
 export const archiveWorkspace = command(
-	v.object({ workspaceId: v.string(), confirmed: v.literal(true), discard: v.boolean() }),
+	v.object({ workspaceId: v.string(), discard: v.boolean() }),
 	async ({ workspaceId, discard }) => {
 		await archive(workspaceId, discard);
 	}

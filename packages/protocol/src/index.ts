@@ -113,6 +113,8 @@ export type Changes = {
 	 * any more. Not so for a branch nothing was ever committed on.
 	 */
 	landed: boolean;
+	/** Whether HEAD contains commits outside the base branch, including empty commits. */
+	unmerged?: boolean;
 	/** Known commits in the base branch that this workspace does not contain. */
 	incoming?: { branch: string; commits: number } | null;
 };

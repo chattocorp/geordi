@@ -200,7 +200,7 @@
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
 				tone: 'merged',
-				disabled: busy,
+				disabled: beingArchived.has(workspace.id),
 				onselect: () => archiveFromHere(workspace)
 			}
 		];

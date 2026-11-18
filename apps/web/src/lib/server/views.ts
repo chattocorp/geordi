@@ -106,9 +106,6 @@ export const workspace = (id: string) =>
 					...workspaces().get(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				hasChildWorktrees: workspaces()
-					.children(id)
-					.some((child) => child.worktreeId !== id),
 				git: watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read

@@ -300,51 +300,41 @@ export const hub = lazy(() =>
 	})
 );
 
-/** How long the forge a repository is on gets to say how a pull request stands, before we ask without it. */
-const UPSTREAM_PATIENCE_MS = 400;
-
-/**
- * How a worktree stands, for someone about to archive it, and quickly: they are waiting
- * for a question. What a viewer already has loaded is taken as it is; otherwise the daemon
- * says what changed (which it knows at once), and how the pull request stands only if the
- * forge it is on answers in time.
- */
-async function standingFor(worktreeId: string): Promise<Standing> {
-	const watched = watchers().state(worktreeId);
-	if (watched?.changes && !watched.checking) return watched;
-	let ref;
-	try {
-		ref = workspaces().ref(worktreeId);
-	} catch {
-		return { changes: null };
-	}
-	const late = new Promise<undefined>((resolve) => setTimeout(resolve, UPSTREAM_PATIENCE_MS));
-	const [changes, upstream] = await Promise.all([
-		changesOf(ref).catch(() => null),
-		Promise.race([hub().request({ kind: 'upstream', ...ref }), late]).catch(() => undefined)
-	]);
-	return { changes, upstream };
-}
-
-/**
- * What is unfinished about a workspace and the workspaces its agent started, for someone
- * about to archive it (see `archiveConcerns`). Says nothing where no daemon answers.
- */
-export async function concernsAboutArchiving(id: string): Promise<string[]> {
+/** Check every workspace affected by the archive, including agents sharing a worktree. */
+export async function concernsAboutArchiving(id: string) {
 	const family = [id, ...workspaces().descendants(id)].map(workspaces().summary);
-	// each worktree once: a workspace that works in another's has no work of its own to lose
-	const own = family.filter(
-		(workspace) => workspace.worktree && workspace.worktreeId === workspace.id
-	);
-	const found = await Promise.all(
-		own.map(async (workspace) => {
-			const concerns = archiveConcerns(await standingFor(workspace.id));
-			return workspace.id === id
-				? concerns
-				: concerns.map((text) => `“${workspace.title}”: ${text}`);
+	const previews = await Promise.all(
+		family.map(async (workspace) => {
+			let standing: Standing = { changes: null };
+			if (workspace.worktree && workspace.worktreeId === workspace.id) {
+				try {
+					standing = await loadStanding(workspace.id, true, true);
+				} catch (error) {
+					if (reason(error) !== NO_WORKTREE) throw error;
+				}
+			}
+			const concerns = archiveConcerns(standing);
+			const blocked = workspaces().summary(workspace.id).status === 'running';
+			if (blocked) concerns.push('Stop the running agent before archiving.');
+			if (
+				terminals()
+					.running(workspace.id)
+					.some((terminal) => terminals().isRunning({ workspaceId: workspace.id, terminal }))
+			)
+				concerns.push('Archiving will stop running terminal processes.');
+			return {
+				concerns:
+					workspace.id === id ? concerns : concerns.map((text) => `“${workspace.title}”: ${text}`),
+				discard: !!standing.changes?.uncommitted,
+				blocked
+			};
 		})
 	);
-	return found.flat();
+	return {
+		concerns: previews.flatMap((preview) => preview.concerns),
+		discard: previews.some((preview) => preview.discard),
+		blocked: previews.some((preview) => preview.blocked)
+	};
 }
 
 /** Archives a workspace and the workspaces its agent started; see `createArchiver`. */
