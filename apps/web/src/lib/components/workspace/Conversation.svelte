@@ -11,6 +11,7 @@
 	import type { Navigation } from '#lib/server/views.ts';
 	import {
 		configureWorkspace,
+		answerQuestion,
 		removeQueued,
 		sendMessage,
 		stopAgent
@@ -87,6 +88,8 @@
 			queueImages={workspace.attachments.queue}
 			onremove={(index, text, images) =>
 				removeQueued({ workspaceId: workspace.id, index, text, images })}
+			onanswer={(question, answers) =>
+				answerQuestion({ workspaceId: workspace.id, question, answers })}
 		/>
 	{/key}
 
@@ -168,7 +171,7 @@
 									{...form.fields.mode.as('submit', 'steer')}
 									variant="primary"
 									icon="icon-[lucide--corner-down-right]"
-									label="Steer: interrupt the agent with this"
+									label="Steer: send to the working agent"
 								>
 									Steer
 								</Button>

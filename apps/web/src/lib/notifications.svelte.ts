@@ -1,5 +1,5 @@
 import { SvelteSet } from 'svelte/reactivity';
-import { cameToRest, type TurnEnd, type Watched } from './attention.ts';
+import { cameToRest, type Rest, type Watched } from './attention.ts';
 import { chimeWav } from './chime.ts';
 
 /**
@@ -148,7 +148,7 @@ type Listed = Watched & { title: string };
 
 /** How each workspace was last seen, to tell when one comes to rest. */
 // eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
-const before = new Map<string, TurnEnd | null>();
+const before = new Map<string, Rest | null>();
 
 /**
  * Follows the sidebar's workspaces and tells of those that came to rest, unless the person
@@ -183,7 +183,11 @@ const TEST = 'geordi:test';
 function show(workspace: Listed, open: (id: string) => void) {
 	if (permission !== 'granted') return;
 	const failed = workspace.outcome === 'failed';
-	const title = failed ? 'Agent ran into a problem' : 'Agent finished';
+	const title = failed
+		? 'Agent ran into a problem'
+		: workspace.outcome === 'asking'
+			? 'Agent has a question'
+			: 'Agent finished';
 	const body = workspace.title;
 	if (desktop) {
 		opens = open;

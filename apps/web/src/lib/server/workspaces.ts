@@ -8,6 +8,7 @@ import {
 	type AgentSettings,
 	type ForgeMessage,
 	type Harness,
+	type Question,
 	type WorktreeMode,
 	type WorktreeRef
 } from '@geordi/protocol';
@@ -39,16 +40,27 @@ export type WorkspacesEvent =
 			};
 	  }
 	/**
-	 * Something the user (or another agent) said to the workspace's agent, starting a turn.
+	 * Something the user (or another agent) said to the workspace's agent: it starts a turn,
+	 * or steers the one under way (ADR-010).
 	 * `queued` marks a message that had been waiting: it is the first one in the queue.
-	 * `steered` marks one that interrupted the agent: it is everything that was steered.
+	 * `steered` (from before ADR-010) marks one that had interrupted the agent.
 	 */
 	| {
 			type: 'workspace.message';
 			stream: WorkspaceStream;
-			data: { id: string; text: string; images?: string[]; queued?: boolean; steered?: boolean };
+			data: {
+				id: string;
+				text: string;
+				images?: string[];
+				queued?: boolean;
+				deliveryId?: string;
+				steered?: boolean;
+			};
 	  }
-	/** A message that interrupts the working agent: it is sent as soon as its turn has stopped. */
+	/**
+	 * From before ADR-010, when steering meant stopping the agent's turn: a message that was
+	 * to go out as soon as it had. No longer written; one that steers is a `workspace.message`.
+	 */
 	| {
 			type: 'workspace.steered';
 			stream: WorkspaceStream;
@@ -80,13 +92,19 @@ export type WorkspacesEvent =
 	| { type: 'workspace.switched'; stream: WorkspaceStream; data: { id: string; branch: string } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
+	/** What a person answered to a question the agent asked: one answer per question, in their order. */
+	| {
+			type: 'workspace.answered';
+			stream: WorkspaceStream;
+			data: { id: string; question: string; answers: string[] };
+	  }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
 	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
 	/** Whatever the daemon reports, stored verbatim. */
 	| {
 			type: 'workspace.output';
 			stream: WorkspaceStream;
-			data: { id: string; event: AgentEvent };
+			data: { id: string; event: AgentEvent; cursor?: string };
 	  };
 
 export type TranscriptItem =
@@ -103,6 +121,18 @@ export type TranscriptItem =
 			at: string;
 	  }
 	| { kind: 'error'; error: string; at: string }
+	/**
+	 * Something the agent asked the person, which it waits to hear about. `answers` once it
+	 * was answered; no longer `open` once it was, or the turn ended without.
+	 */
+	| {
+			kind: 'question';
+			id: string;
+			questions: Question[];
+			answers: string[] | null;
+			open: boolean;
+			at: string;
+	  }
 	/** Something that happened to the workspace, said in passing: neither side's words. */
 	| { kind: 'note'; text: string; at: string };
 
@@ -114,6 +144,8 @@ type Status = 'running' | 'idle';
  * worktree instead of its own.
  */
 export type Workspace = {
+	outputCursor?: string;
+	pendingSteers?: { deliveryId: string; text: string; images: string[] }[];
 	id: string;
 	repoId: string;
 	title: string;
@@ -123,6 +155,8 @@ export type Workspace = {
 	/** The model and effort it runs with; what is absent is left to the agent's CLI. */
 	settings: AgentSettings;
 	status: Status;
+	/** Whether its agent has asked the person something, and waits for the answer. */
+	asking: boolean;
 	/** How its latest turn ended; `null` while one is running, and before the first. */
 	lastTurn: TurnEnd | null;
 	/** The workspace whose agent started this one; `null` if a person did. */
@@ -136,16 +170,14 @@ export type Workspace = {
 	resumeId: string | null;
 	/** Messages waiting for the agent to finish its turn, in the order they will be sent. */
 	queue: string[];
-	/** Messages that interrupted the agent and go out as soon as its turn has stopped. */
-	steering: string[];
-	attachments: { queue: string[][]; steering: string[] };
+	attachments: { queue: string[][] };
 	/**
 	 * Something the agent has to be told before anything else, with its next message: what
 	 * happened to its workspace since it last looked.
 	 */
 	briefing: string | null;
-	/** Who sent the messages that wait or steer, in step with `queue` and for `steering`: workspace IDs, `null` for people. */
-	sentBy: { queue: (string | null)[]; steering: string | null };
+	/** Who sent the messages that wait, in step with `queue`: workspace IDs, `null` for people. */
+	sentBy: { queue: (string | null)[] };
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	createdAt: string;
@@ -217,6 +249,11 @@ export function createWorkspaces(
 	} = {}
 ) {
 	const imageStore = createImages(store);
+	/**
+	 * Who steered a workspace's agent in the way of before ADR-010 (`workspace.steered`), until
+	 * the message that came of it: only ever set while old events are replayed.
+	 */
+	const steerers = new Map<string, string | null>();
 	function apply(
 		workspaces: Map<string, Workspace>,
 		event: CurrentEvent,
@@ -236,6 +273,7 @@ export function createWorkspaces(
 				named: false,
 				settings,
 				status: 'idle',
+				asking: false,
 				lastTurn: null,
 				parentId,
 				worktreeId,
@@ -243,9 +281,8 @@ export function createWorkspaces(
 				worktree: null,
 				resumeId: null,
 				queue: [],
-				steering: [],
-				attachments: { queue: [], steering: [] },
-				sentBy: { queue: [], steering: null },
+				attachments: { queue: [] },
+				sentBy: { queue: [] },
 				briefing: null,
 				archivedAt: null,
 				createdAt: at,
@@ -307,12 +344,25 @@ export function createWorkspaces(
 			return;
 		}
 		if (event.type === 'workspace.steered') {
-			workspace.steering.push(event.data.text);
-			workspace.attachments.steering.push(...(event.data.images ?? []));
-			workspace.sentBy.steering = actor;
+			steerers.set(workspace.id, actor);
+			return;
+		}
+		if (event.type === 'workspace.answered') {
+			const question = transcript.findLast(
+				(item) => item.kind === 'question' && item.id === event.data.question
+			);
+			if (question?.kind === 'question')
+				Object.assign(question, { answers: event.data.answers, open: false });
+			workspace.asking = transcript.some((item) => item.kind === 'question' && item.open);
 			return;
 		}
 		if (event.type === 'workspace.message') {
+			if (event.data.deliveryId)
+				(workspace.pendingSteers ??= []).push({
+					deliveryId: event.data.deliveryId,
+					text: event.data.text,
+					images: event.data.images ?? []
+				});
 			// said by whoever queued it, or steered with it, or says it now
 			let sender = actor;
 			if (event.data.queued) {
@@ -321,10 +371,8 @@ export function createWorkspaces(
 				sender = workspace.sentBy.queue.shift() ?? null;
 			}
 			if (event.data.steered) {
-				workspace.steering = [];
-				workspace.attachments.steering = [];
-				sender = workspace.sentBy.steering;
-				workspace.sentBy.steering = null;
+				sender = steerers.get(workspace.id) ?? null;
+				steerers.delete(workspace.id);
 			}
 			workspace.status = 'running';
 			workspace.lastTurn = null;
@@ -341,8 +389,14 @@ export function createWorkspaces(
 			return;
 		}
 
+		if (event.data.cursor) workspace.outputCursor = event.data.cursor;
 		const output = event.data.event;
 		switch (output.kind) {
+			case 'message.received':
+				workspace.pendingSteers = workspace.pendingSteers?.filter(
+					(s) => s.deliveryId !== output.id
+				);
+				break;
 			case 'worktree': {
 				// the worktree belongs to whoever owns it, which may be another workspace
 				const owner = workspaces.get(workspace.worktreeId);
@@ -364,15 +418,28 @@ export function createWorkspaces(
 					Object.assign(tool, { output: output.output, isError: output.isError });
 				break;
 			}
-			case 'turn.completed':
-				workspace.status = 'idle';
-				workspace.lastTurn = 'completed';
+			case 'question':
+				transcript.push({ ...output, answers: null, open: true, at });
+				workspace.asking = true;
 				break;
+			case 'turn.started':
+				workspace.status = 'running';
+				workspace.lastTurn = null;
+				break;
+			case 'turn.completed':
 			case 'turn.failed':
 				workspace.status = 'idle';
+				// a turn that is over waits for no answer
+				workspace.asking = false;
+				for (const item of transcript) if (item.kind === 'question') item.open = false;
+				if (output.kind === 'turn.failed') workspace.pendingSteers = [];
+				if (output.kind === 'turn.completed') {
+					workspace.lastTurn = 'completed';
+					break;
+				}
 				workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
-				// stopped to make way for a steering message: that is not a failure worth showing
-				if (!(output.error === 'Stopped' && workspace.steering.length > 0))
+				// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
+				if (!(output.error === 'Stopped' && steerers.has(workspace.id)))
 					transcript.push({ kind: 'error', error: output.error, at });
 				break;
 		}
@@ -424,39 +491,39 @@ export function createWorkspaces(
 	 * completes, the next waiting message goes out. After a failed or stopped turn, waiting
 	 * messages stay put: sending more into a conversation that just broke would be a guess.
 	 *
-	 * `turn` says which turn the output is of. Output of a turn that is no longer the
-	 * workspace's current one is dropped, and so is the end of a turn that has ended already:
-	 * a daemon may say things twice, or late (after we gave a turn up while it was away), and
-	 * the end of an old turn must never end the new one.
+	 * Turns are the agent's to begin and end (ADR-010): it says when it starts working, which
+	 * it may do unasked, and when it has finished. What it says while it is not at work, as
+	 * far as we know, is dropped: a daemon may say things twice, or late (after we gave a
+	 * turn up while it was away), and the end of a turn that is over must not end the next.
 	 */
-	function record(id: string, event: AgentEvent, turn?: number) {
+	function record(id: string, event: AgentEvent, cursor?: string) {
 		const workspace = projection.get().get(id);
-		if (!workspace) return;
-		if (turn !== undefined && turn !== turnsOf(workspace)) return;
-		const ends = event.kind === 'turn.completed' || event.kind === 'turn.failed';
-		if (ends && workspace.status !== 'running') return;
-		store.append({ type: 'workspace.output', stream: `workspace:${id}`, data: { id, event } });
-		if (event.kind !== 'turn.completed' && event.kind !== 'turn.failed') return;
-
-		// Whatever steered the agent goes first, however its turn ended.
-		if (workspace.steering.length > 0)
-			startTurn(workspace, workspace.steering.join('\n\n'), null, 'steered');
-		else if (event.kind === 'turn.completed' && workspace.queue.length > 0)
-			startTurn(workspace, workspace.queue[0], null, 'queued');
+		if (!workspace || workspace.archivedAt) return;
+		if (cursor && workspace.outputCursor === cursor) return;
+		const running = workspace.status === 'running';
+		// how to resume it is news at any time, and so is where its worktree is
+		if (event.kind === 'resume') {
+			if (event.id === workspace.resumeId) return;
+		} else if (event.kind === 'turn.started') {
+			if (running) return;
+		} else if (event.kind !== 'worktree' && event.kind !== 'message.received' && !running) return;
+		store.append({
+			type: 'workspace.output',
+			stream: `workspace:${id}`,
+			data: { id, event, ...(cursor && { cursor }) }
+		});
+		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
+			say(workspace, workspace.queue[0], null, 'queued');
 	}
 
-	/** A workspace's turns so far, including a running one. */
-	const turnsOf = (workspace: Workspace) =>
-		workspace.transcript.filter((item) => item.kind === 'user').length;
-
 	/**
-	 * The agent API token for a workspace's current turn. Tokens are derived, not stored: one
-	 * is valid exactly while the turn it was made for is running, which the event log knows.
-	 * So agents keep their access across a restart of the forge.
+	 * The agent API token of a workspace. Tokens are derived, not stored: one is valid while
+	 * the workspace's agent is at work, which the event log knows. So agents keep their
+	 * access across a restart of the forge. It is the same for as long as the workspace
+	 * lives: its agent's CLI runs across turns, and is handed it once, when it starts.
 	 */
 	function tokenFor(workspace: Workspace): string {
-		const turn = `${workspace.id}.${turnsOf(workspace)}`;
-		return `${turn}.${createHmac('sha256', secret).update(turn).digest('base64url')}`;
+		return `${workspace.id}.${createHmac('sha256', secret).update(workspace.id).digest('base64url')}`;
 	}
 
 	/** The workspace a valid agent API token belongs to, or `null`. */
@@ -473,52 +540,60 @@ export function createWorkspaces(
 	/** Workspaces that must not start a turn right now; see `hold`. */
 	const held = new Set<string>();
 
-	/** Appends a message to the workspace's agent and asks a daemon to run the turn. */
-	function startTurn(
-		workspace: Workspace,
-		text: string,
-		actor: string | null,
-		from?: 'queued' | 'steered',
-		images: string[] = []
-	) {
-		const { id } = workspace;
-		images =
-			from === 'queued'
-				? workspace.attachments.queue[0]
-				: from === 'steered'
-					? workspace.attachments.steering
-					: images;
-		// Each steering message is bounded on entry; several may be combined into one turn.
-		const resolved = images.map(imageStore.get);
-		// what the agent has to know first (read before the message makes it old news)
-		const briefing = find(id).briefing;
-		store.append(
-			{
-				type: 'workspace.message',
-				stream: `workspace:${id}`,
-				data: { id, text, ...(images.length && { images }), ...(from && { [from]: true }) }
-			},
-			{ actor }
-		);
-
-		const sent = dispatch({
-			type: 'turn.start',
-			workspaceId: id,
-			...ref(id),
+	/**
+	 * Says something to the workspace's agent, through a daemon: that starts a turn, or, if
+	 * the agent is at work, steers it. An agent at work that cannot be reached is not told
+	 * (and that is an error); one that was to start is noted as having failed to.
+	 */
+	function deliver(workspace: Workspace, text: string, images: string[], deliveryId?: string) {
+		return dispatch({
+			type: 'agent.message',
+			workspaceId: workspace.id,
+			...ref(workspace.id),
 			agent: workspace.agent,
-			turn: turnsOf(find(id)),
 			settings: workspace.settings,
 			apiToken: tokenFor(workspace),
 			resumeId: workspace.resumeId,
 			instructions: instructionsFor({
 				parent: (workspace.parentId && projection.get().get(workspace.parentId)) || null,
-				sharesWorktree: workspace.worktreeId !== id,
+				sharesWorktree: workspace.worktreeId !== workspace.id,
 				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
-			...(resolved.length && { images: resolved }),
-			prompt: briefing ? `${briefing}\n\n${text}` : text
+			...(images.length && { images: images.map(imageStore.get) }),
+			...(deliveryId && { deliveryId }),
+			prompt: text
 		});
+	}
+
+	function say(
+		workspace: Workspace,
+		text: string,
+		actor: string | null,
+		from?: 'queued',
+		images: string[] = []
+	) {
+		const { id } = workspace;
+		const steers = workspace.status === 'running';
+		if (from === 'queued') images = workspace.attachments.queue[0];
+		const deliveryId = steers ? randomUUID() : undefined;
+		const prompt = workspace.briefing ? workspace.briefing + '\n\n' + text : text;
+		const sent = deliver(workspace, prompt, images, deliveryId);
+		if (!sent && steers) error(503, 'No daemon is connected: the agent cannot be told right now');
+		store.append(
+			{
+				type: 'workspace.message',
+				stream: `workspace:${id}`,
+				data: {
+					id,
+					text,
+					...(deliveryId && { deliveryId }),
+					...(images.length && { images }),
+					...(from && { [from]: true })
+				}
+			},
+			{ actor }
+		);
 		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });
 	}
 
@@ -628,14 +703,14 @@ export function createWorkspaces(
 		if (given && actor) retitle(id, given, actor);
 		// started with nothing to do, it waits to be told: its first turn is its first message
 		if (!prompt && !images.length) return id;
-		startTurn(find(id), prompt, actor, undefined, images);
+		say(find(id), prompt, actor, undefined, images);
 		if (!find(id).named) onCreated?.(id, prompt);
 		return id;
 	}
 
 	function stop(id: string) {
 		if (find(id).status !== 'running') return;
-		if (!dispatch({ type: 'turn.stop', workspaceId: id }))
+		if (!dispatch({ type: 'agent.stop', workspaceId: id }))
 			record(id, { kind: 'turn.failed', error: 'Stopped' });
 	}
 
@@ -776,7 +851,7 @@ export function createWorkspaces(
 
 		/**
 		 * Says something to an agent the caller started: at once if it is idle; otherwise once
-		 * it has finished what it is doing, or (`interrupt`) now, stopping what it is doing.
+		 * it has finished what it is doing, or (`interrupt`) now, steering what it is doing.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
 			const workspace = findControlled(callerId, id);
@@ -784,15 +859,14 @@ export function createWorkspaces(
 			const data = { id: workspace.id, text };
 			if (workspace.status === 'idle') {
 				if (workspace.parentId) ensureCapacity(workspace.parentId);
-				if (workspace.queue.length === 0) return startTurn(workspace, text, callerId);
+				if (workspace.queue.length === 0) return say(workspace, text, callerId);
 				// messages are waiting (its last turn failed): this one joins them, and sets them off
 				store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
-				return startTurn(workspace, workspace.queue[0], null, 'queued');
+				return say(workspace, workspace.queue[0], null, 'queued');
 			}
 			if (!interrupt)
 				return void store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
-			store.append({ type: 'workspace.steered', stream, data }, { actor: callerId });
-			stop(workspace.id);
+			say(workspace, text, callerId);
 		},
 
 		stop(callerId: string, id: string) {
@@ -914,7 +988,7 @@ export function createWorkspaces(
 			if (held.has(id)) error(409, 'This workspace is being archived');
 			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
-				return startTurn(workspace, text, actor, undefined, images);
+				return say(workspace, text, actor, undefined, images);
 			store.append(
 				{
 					type: 'workspace.queued',
@@ -924,12 +998,12 @@ export function createWorkspaces(
 				{ actor }
 			);
 			// idle with messages waiting: the turn before failed, and this is the nudge to go on
-			if (workspace.status === 'idle') startTurn(workspace, workspace.queue[0], actor, 'queued');
+			if (workspace.status === 'idle') say(workspace, workspace.queue[0], actor, 'queued');
 		},
 
 		/**
-		 * Says something to the workspace's agent now: if it is working, its turn is stopped
-		 * and the message goes out as soon as it has. Waiting messages keep waiting.
+		 * Says something to the workspace's agent now: if it is working, that steers it, in
+		 * the middle of what it is doing (ADR-010). Waiting messages keep waiting.
 		 */
 		steer(id: string, text: string, actor: string | null = null, images: string[] = []) {
 			imageStore.resolve(images);
@@ -938,16 +1012,24 @@ export function createWorkspaces(
 			if (held.has(id)) error(409, 'This workspace is being archived');
 
 			nameAfter(workspace, text);
-			if (workspace.status === 'idle') return startTurn(workspace, text, actor, undefined, images);
+			say(workspace, text, actor, undefined, images);
+		},
+
+		/**
+		 * Answers a question the workspace's agent asked, which it waits to hear about: one
+		 * answer per question, in their order.
+		 */
+		answer(id: string, question: string, answers: string[], actor: string | null = null) {
+			const asked = find(id).transcript.find(
+				(item) => item.kind === 'question' && item.id === question && item.open
+			);
+			if (!asked) error(409, 'That question no longer waits for an answer');
+			if (!dispatch({ type: 'agent.answer', workspaceId: id, questionId: question, answers }))
+				error(503, 'No daemon is connected: the agent cannot be told right now');
 			store.append(
-				{
-					type: 'workspace.steered',
-					stream: `workspace:${id}`,
-					data: { id, text, ...(images.length && { images }) }
-				},
+				{ type: 'workspace.answered', stream: `workspace:${id}`, data: { id, question, answers } },
 				{ actor }
 			);
-			stop(id);
 		},
 
 		/**
@@ -1073,17 +1155,27 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Called when a daemon (re)connects with the workspaces whose turns it is actually
-		 * running. Turns we think are running but the daemon doesn't know about were lost
-		 * (e.g. daemon restart). Turns it runs that we have given up (stopped while it was
-		 * away, say) are stopped now: no agent works on unseen.
+		 * Called when a daemon (re)connects, with the workspaces whose agents are at work as
+		 * far as it has told us. Turns we think are running but the daemon doesn't know about
+		 * were lost. Turns it runs that we have given up (stopped while it was away, say) are
+		 * stopped now: no agent works on unseen. (One that began to work by itself while we
+		 * were apart is not among them; it says so next.)
 		 */
 		reconcile(running: string[]) {
+			for (const workspace of projection.get().values()) {
+				if (workspace.archivedAt) continue;
+				for (const steer of workspace.pendingSteers ?? [])
+					deliver(workspace, steer.text, steer.images, steer.deliveryId);
+			}
 			for (const id of running)
 				if (projection.get().get(id)?.status !== 'running')
-					dispatch({ type: 'turn.stop', workspaceId: id });
+					dispatch({ type: 'agent.stop', workspaceId: id });
 			for (const workspace of projection.get().values())
-				if (workspace.status === 'running' && !running.includes(workspace.id))
+				if (
+					workspace.status === 'running' &&
+					!workspace.pendingSteers?.length &&
+					!running.includes(workspace.id)
+				)
 					record(workspace.id, {
 						kind: 'turn.failed',
 						error: 'The daemon lost this turn (it may have restarted)'

@@ -1,12 +1,11 @@
-import type { Agent, AgentEvent, AgentSettings, Harness, MessageImage } from '@geordi/protocol';
+import type { Agent, AgentSettings, Harness } from '@geordi/protocol';
 
-export type TurnOptions = {
+/** What an agent's CLI is started with, for one session: until it ends, or has been idle a while. */
+export type SessionOptions = {
 	/** The workspace's ID, for CLIs that let us name their session (so a first turn needs no round trip). */
 	sessionId: string;
-	prompt: string;
-	images?: MessageImage[];
-	/** Local image files prepared in the private turn directory for Codex. */
-	imagePaths?: string[];
+	/** The session's own, private directory: a place for files the CLI is to read (pictures). */
+	dir: string;
 	/** The workspace's worktree. */
 	cwd: string;
 	/**
@@ -15,6 +14,7 @@ export type TurnOptions = {
 	 * let a sandboxed agent run code outside its sandbox.
 	 */
 	writableRoots: string[];
+	/** The CLI's own ID of the conversation so far; `null` if this is its beginning. */
 	resumeId: string | null;
 	/** Which model to run, and how hard it should think; the CLI decides what is absent. */
 	settings: AgentSettings;
@@ -34,17 +34,7 @@ export const API_TOKEN_ENV = 'GEORDI_API_TOKEN';
 /** The name agents know the API's MCP server by. */
 export const API_SERVER = 'geordi';
 
-/**
- * Wraps one agent CLI. Each turn runs the CLI once, non-interactively; follow-up turns
- * resume the CLI's own session via `resumeId`.
- */
-export type AgentAdapter = {
-	command(options: TurnOptions): { cmd: string; args: string[]; stdin?: string };
-	/** The models and effort levels the CLI offers on this machine, as far as we can tell. */
-	offers(): Omit<Harness, 'agent'>;
-	/** Maps one line of the CLI's JSON output to session events. */
-	parse(line: unknown): AgentEvent[];
-};
+export type AgentAdapter = { offers(): Omit<Harness, 'agent'> };
 
 /** Tool output can be huge (whole files); keep the event log lean. */
 export function truncate(text: string, max = 4000): string {

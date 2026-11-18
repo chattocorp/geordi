@@ -5,7 +5,6 @@ const member = (over: Partial<Member> = {}): Member => ({
 	status: 'idle',
 	lastTurn: 'completed',
 	queue: [],
-	steering: [],
 	updatedAt: '2026-11-16T10:00:00Z',
 	...over
 });
@@ -18,7 +17,6 @@ describe('busy', () => {
 
 	it('is busy between a completed turn and the waiting message it goes on to', () => {
 		expect(busy(member({ queue: ['next'] }))).toBe(true);
-		expect(busy(member({ lastTurn: 'stopped', steering: ['now this'] }))).toBe(true);
 	});
 
 	it('is at rest after a failed turn, even with messages waiting', () => {
@@ -27,6 +25,18 @@ describe('busy', () => {
 });
 
 describe('outcome', () => {
+	it('is a question for the person as soon as an agent asks one, though it is at work', () => {
+		const asking = member({ status: 'running', lastTurn: null, asking: true });
+		expect(outcome([member(), asking])).toBe('asking');
+		// which is theirs to hear of, whoever else waits for the agent
+		const before = new Map([['child', null]]);
+		const now = [
+			{ id: 'parent', parentId: null, outcome: null },
+			{ id: 'child', parentId: 'parent', outcome: 'asking' as const }
+		];
+		expect(cameToRest(before, now).map((workspace) => workspace.id)).toEqual(['child']);
+	});
+
 	it('is null while anyone is busy, or before any turn', () => {
 		expect(outcome([member(), member({ status: 'running', lastTurn: null })])).toBeNull();
 		expect(outcome([member({ lastTurn: null })])).toBeNull();

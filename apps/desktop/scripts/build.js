@@ -3,13 +3,13 @@ import {
 	cpSync,
 	mkdirSync,
 	readFileSync,
-	realpathSync,
 	rmSync,
+	renameSync,
 	writeFileSync,
 	openSync,
 	closeSync
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { packager } from '@electron/packager';
 import { build } from 'esbuild';
 
@@ -60,11 +60,12 @@ const sounds = ['done', 'failed'].map((name) => {
 run('pnpm', ['--filter', '@geordi/web', 'build'], { cwd: repo });
 cpSync(join(repo, 'apps/web/build'), join(stage, 'forge'), { recursive: true });
 
-// The daemon: one file. Its TypeScript can't run from inside an app as it does from the
+// The daemon: one file each for it and what it starts. Its TypeScript can't run from inside an app as it does from the
 // repository (Node won't strip types below node_modules, where the protocol would end up).
 await build({
-	entryPoints: [join(repo, 'apps/daemon/src/main.ts')],
-	outfile: join(stage, 'daemon/main.js'),
+	// and next to it the host of an agent's session, a process of its own (ADR-010)
+	entryPoints: [join(repo, 'apps/daemon/src/main.ts'), join(repo, 'apps/daemon/src/host.ts')],
+	outdir: join(stage, 'daemon'),
 	bundle: true,
 	platform: 'node',
 	format: 'esm',
@@ -72,19 +73,19 @@ await build({
 	external: ['@lydell/node-pty'],
 	// for the CommonJS among what it bundles
 	banner: {
-		js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
+		js: "import { createRequire as makeBundleRequire } from 'node:module'; const require = makeBundleRequire(import.meta.url);"
 	}
 });
 
-// The one thing the daemon can't have bundled: terminals, with their native code. Its
-// binary for this machine is a package of its own, next to it in pnpm's store.
-const pty = realpathSync(join(repo, 'apps/daemon/node_modules/@lydell/node-pty'));
-const binary = `node-pty-${process.platform}-${process.arch}`;
-for (const [from, name] of [
-	[pty, 'node-pty'],
-	[join(dirname(pty), binary), binary]
-])
-	cpSync(from, join(stage, 'node_modules/@lydell', name), { recursive: true, dereference: true });
+// The wrappers resolve the provider binaries and native modules relative to their own
+// packages. Deploy the production dependency tree with the same lockfile as the daemon.
+run(
+	'pnpm',
+	['--filter', '@geordi/daemon', 'deploy', '--legacy', '--prod', join(stage, 'runtime')],
+	{ cwd: repo }
+);
+renameSync(join(stage, 'runtime/node_modules'), join(stage, 'node_modules'));
+rmSync(join(stage, 'runtime'), { recursive: true });
 
 // --- Package ----------------------------------------------------------------------------------
 
@@ -99,6 +100,15 @@ if (install || process.argv.includes('--package')) {
 		icon: join(root, 'icon.icns'),
 		electronVersion: JSON.parse(readFileSync(electron, 'utf8')).version,
 		overwrite: true,
+		// Electron Packager dereferences pnpm links or rewrites them to absolute staging paths.
+		ignore: /^\/node_modules($|\/)/,
+		afterCopy: [
+			({ buildPath }) =>
+				cpSync(join(stage, 'node_modules'), join(buildPath, 'node_modules'), {
+					recursive: true,
+					verbatimSymlinks: true
+				})
+		],
 		prune: false, // the stage holds exactly what is needed
 		asar: false, // forge and daemon run as processes of their own, from plain files
 		quiet: true,

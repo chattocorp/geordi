@@ -76,7 +76,7 @@ export const createWorkspace = form(
 
 /**
  * Says something to the workspace's agent. While it is working, `steer` (the default)
- * interrupts it with the message, and `queue` lets it finish first.
+ * delivers the message to its live session, and `queue` lets it finish first.
  */
 export const sendMessage = form(
 	v.pipe(
@@ -234,6 +234,16 @@ export const removeQueued = command(
 );
 
 /** Stops the workspace's agent, if it is working. */
+/** Answers something the workspace's agent asked: one answer per question, in their order. */
+export const answerQuestion = command(
+	v.object({
+		workspaceId: v.string(),
+		question: v.string(),
+		answers: v.pipe(v.array(v.pipe(v.string(), v.maxLength(10_000))), v.maxLength(20))
+	}),
+	({ workspaceId, question, answers }) => workspaces().answer(workspaceId, question, answers)
+);
+
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));

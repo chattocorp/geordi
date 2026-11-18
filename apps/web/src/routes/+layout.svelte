@@ -448,6 +448,9 @@
 				<span class="grid size-5 shrink-0 place-items-center text-muted/80">
 					{#if leaving}
 						<Spinner label="Archiving" />
+					{:else if workspace.outcome === 'asking'}
+						<!-- an agent there waits for the person's answer -->
+						<span class="icon-[lucide--message-circle-question] size-4 text-accent-ink"></span>
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
 						<Spinner />

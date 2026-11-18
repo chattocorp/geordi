@@ -7,12 +7,16 @@
 /** How a turn ended: stopped is a failure someone asked for. */
 export type TurnEnd = 'completed' | 'failed' | 'stopped';
 
+/** How work came to rest: as a turn ended, or `asking`, where an agent waits for the person's answer. */
+export type Rest = TurnEnd | 'asking';
+
 /** What there is to know of one agent's conversation. */
 export type Member = {
 	status: 'running' | 'idle';
+	/** Whether the agent has asked the person something, and waits. */
+	asking?: boolean;
 	lastTurn: TurnEnd | null;
 	queue: unknown[];
-	steering: unknown[];
 	updatedAt: string;
 };
 
@@ -22,15 +26,15 @@ export type Member = {
  * failed turn leaves its waiting messages waiting.
  */
 export const busy = (member: Member): boolean =>
-	member.status === 'running' ||
-	member.steering.length > 0 ||
-	(member.lastTurn === 'completed' && member.queue.length > 0);
+	member.status === 'running' || (member.lastTurn === 'completed' && member.queue.length > 0);
 
 /**
  * How the work of a workspace and the agents working alongside it came to rest: as the turn
- * that ended last did. `null` while any of them is still busy, or before any turn ended.
+ * that ended last did, or with a question for the person, which goes before everything
+ * else. `null` while any of them is still busy, or before any turn ended.
  */
-export function outcome(members: Member[]): TurnEnd | null {
+export function outcome(members: Member[]): Rest | null {
+	if (members.some((member) => member.asking)) return 'asking';
 	if (members.some(busy)) return null;
 	const last = members
 		.filter((member) => member.lastTurn)
@@ -43,7 +47,7 @@ export type Watched = {
 	id: string;
 	parentId: string | null;
 	/** How its work came to rest; `null` while it is busy. */
-	outcome: TurnEnd | null;
+	outcome: Rest | null;
 };
 
 /**
@@ -53,13 +57,14 @@ export type Watched = {
  * one an agent that started it is waiting for (it gets the reply). Which of these is in view
  * is for the caller to know.
  */
-export function cameToRest<T extends Watched>(before: Map<string, TurnEnd | null>, now: T[]): T[] {
+export function cameToRest<T extends Watched>(before: Map<string, Rest | null>, now: T[]): T[] {
 	const resting = new Map(now.map((workspace) => [workspace.id, workspace.outcome !== null]));
 	return now.filter(
 		(workspace) =>
 			before.get(workspace.id) === null &&
 			workspace.outcome !== null &&
 			workspace.outcome !== 'stopped' &&
-			resting.get(workspace.parentId ?? '') !== false
+			// a question is the person's to answer, whoever else waits for the agent
+			(workspace.outcome === 'asking' || resting.get(workspace.parentId ?? '') !== false)
 	);
 }
