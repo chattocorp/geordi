@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
-	import Disclosure from '#lib/ui/Disclosure.svelte';
+	import BackgroundTasks from './BackgroundTasks.svelte';
 	import { toolSummary } from '#lib/tools.ts';
 	import type { Agent, BackgroundTask } from '@geordi/protocol';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -20,6 +20,8 @@
 	let {
 		blocks,
 		background = [],
+		withComposer = false,
+		showJump = false,
 		agent,
 		running = false,
 		cwd,
@@ -35,6 +37,8 @@
 	}: {
 		blocks: Block[];
 		background?: BackgroundTask[];
+		withComposer?: boolean;
+		showJump?: boolean;
 		agent: Agent;
 		running?: boolean;
 		cwd?: string;
@@ -89,6 +93,7 @@
 						return {
 							task,
 							label: part.title || fallback,
+							kind: 'Subagent',
 							open: onopensubagent && (() => onopensubagent?.(task.id))
 						};
 					if (part.kind !== 'tools' || !task.toolCallId) continue;
@@ -97,6 +102,10 @@
 						return {
 							task,
 							label: task.label || toolSummary(tool.input, cwd) || tool.name,
+							kind:
+								task.type === 'terminal' || /^(shell|bash|exec_command)$/i.test(tool.name)
+									? 'Terminal'
+									: tool.name,
 							open: () => {
 								following = false;
 								expanded.add(index);
@@ -106,7 +115,13 @@
 						};
 				}
 			}
-			return { task, label: fallback, open: undefined };
+			return {
+				task,
+				label: fallback,
+				kind:
+					task.type === 'terminal' ? 'Terminal' : task.type === 'subagent' ? 'Subagent' : 'Tool',
+				open: undefined
+			};
 		})
 	);
 
@@ -327,37 +342,16 @@
 		{/snippet}
 	</Virtualizer>
 </div>
-{#if backgroundRows.length}
-	<div class="mx-auto w-full max-w-5xl shrink-0 px-5 pb-2">
-		<Disclosure summaryClass="w-fit gap-1.5 px-1 py-1 text-xs text-muted hover:text-ink">
-			{#snippet heading()}
-				<span class="icon-[lucide--activity] size-3.5"></span>
-				{backgroundRows.length} background {backgroundRows.length === 1 ? 'task' : 'tasks'}
-			{/snippet}
-			<ul class="max-h-32 overflow-auto px-1">
-				{#each backgroundRows as row (row.task.type + row.task.id)}
-					<li class="flex items-center gap-2 py-1 text-sm text-muted">
-						<span
-							class={[
-								'size-3.5 shrink-0',
-								row.task.type === 'subagent'
-									? 'icon-[lucide--git-branch]'
-									: 'icon-[lucide--terminal]'
-							]}
-						></span>
-						{#if row.open}
-							<button
-								type="button"
-								class="truncate hover:text-ink hover:underline"
-								title={row.label}
-								onclick={row.open}>{row.label}</button
-							>
-						{:else}
-							<span class="truncate" title={row.label}>{row.label}</span>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		</Disclosure>
+{#if showJump && !following}
+	<div class="relative mx-auto w-full max-w-5xl">
+		<Button
+			icon="icon-[lucide--arrow-down]"
+			label="Jump to latest"
+			onclick={toLatest}
+			class="absolute right-5 bottom-2 bg-surface shadow-float"
+		/>
 	</div>
+{/if}
+{#if backgroundRows.length}
+	<BackgroundTasks rows={backgroundRows} {withComposer} />
 {/if}

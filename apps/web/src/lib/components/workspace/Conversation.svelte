@@ -66,7 +66,6 @@
 	};
 
 	let messages = $state<MessageView>();
-	let following = $state(true);
 	const toLatest = () => messages?.toLatest();
 	const modifier = modifierKey();
 
@@ -87,8 +86,9 @@
 	{#key workspace.id}
 		<MessageView
 			bind:this={messages}
-			bind:following
+			showJump
 			{blocks}
+			withComposer={!workspace.archivedAt}
 			background={workspace.background?.filter((task) => !task.session)}
 			agent={workspace.agent}
 			{running}
@@ -106,15 +106,6 @@
 	{/key}
 
 	<div class="relative mx-auto w-full max-w-5xl shrink-0">
-		{#if !following}
-			<!-- beside what is read, not on it: in the margin the messages leave at their end -->
-			<Button
-				icon="icon-[lucide--arrow-down]"
-				label="Jump to latest"
-				onclick={toLatest}
-				class="absolute -top-11 right-5 bg-surface shadow-float"
-			/>
-		{/if}
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="px-5 pb-5" onsubmit={toLatest}>

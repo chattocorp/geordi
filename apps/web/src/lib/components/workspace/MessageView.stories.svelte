@@ -4,6 +4,7 @@
 	import { subagentBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import Composer from '#lib/ui/Composer.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
@@ -533,8 +534,11 @@
 	name="Background tasks"
 	asChild
 	play={async ({ canvas }) => {
-		await userEvent.click(await canvas.findByText('2 background tasks'));
-		await userEvent.click(canvas.getByRole('button', { name: 'pnpm test' }));
+		const heading = await canvas.findByText('Background tasks');
+		await userEvent.click(heading);
+		await waitFor(() => expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull());
+		await userEvent.click(heading);
+		await userEvent.click(await canvas.findByRole('button', { name: /pnpm test/ }));
 		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
 			'aria-expanded',
 			'true'
@@ -542,15 +546,16 @@
 		await waitFor(() =>
 			expect(
 				canvas
-					.getByRole('button', { name: 'pnpm test' })
+					.getByRole('button', { name: /pnpm test/ })
 					.ownerDocument.activeElement?.closest('details')
 			).toHaveAttribute('open')
 		);
 	}}
 >
-	<div class="mx-auto flex h-96 max-w-3xl flex-col sheet overflow-hidden">
+	<div class="mx-auto flex h-144 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
 			agent="codex"
+			withComposer
 			onopensubagent={openReviewer}
 			background={[
 				{ type: 'tool_call', id: 'tests', toolCallId: 'tests' },
@@ -588,5 +593,20 @@
 				}
 			]}
 		/>
+		<div class="relative px-5 pb-5">
+			<Composer
+				form={{ onsubmit: (event) => event.preventDefault() }}
+				rows={2}
+				placeholder="Reply to the agent"
+			>
+				{#snippet footer()}<Button
+						type="submit"
+						variant="primary"
+						icon="icon-[lucide--arrow-up]"
+						label="Send"
+						class="ml-auto"
+					/>{/snippet}
+			</Composer>
+		</div>
 	</div>
 </Story>

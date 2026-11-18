@@ -111,7 +111,7 @@ After two seconds without a connection, the window shows “Reconnecting” abov
 
 ### 13. Background tasks stay within reach after a reply
 
-A conversation shows a count above the composer while its agent reports background work. Expand the count to see the tasks. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
+While an agent reports background work, a tray above the composer shows its commands and subagents. The tray opens expanded. Collapse it to keep the count and first task name in view. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
 
 ## Related
 

@@ -2,4 +2,4 @@
 type: feature
 ---
 
-See background tasks above the conversation composer and open their tool calls or subagent conversations.
+The reply box now shows running background commands and subagents in a collapsible tray. Select a task to open its tool call or conversation.
