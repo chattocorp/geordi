@@ -27,13 +27,20 @@ const apply = () =>
 // follow the system while that is what was asked for
 if (typeof document !== 'undefined') system().addEventListener('change', apply);
 
+/** Applies the theme, cross-fading to it (the View Transition's default) unless motion is unwelcome. */
+function switchTo() {
+	if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches)
+		return apply();
+	document.startViewTransition(apply);
+}
+
 export const theme = {
 	get current() {
 		return current;
 	},
 	set current(next: Theme) {
 		current = next;
-		apply();
+		switchTo();
 		try {
 			if (next === 'system') localStorage.removeItem('theme');
 			else localStorage.setItem('theme', next);
