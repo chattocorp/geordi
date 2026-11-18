@@ -96,9 +96,18 @@
 	})}
 </Story>
 
-<Story name="Conflicts with its base" asChild
-	>{@render bar({ changes: pushed, upstream: upstream({ conflicts: true }) })}</Story
+<Story
+	name="Conflicts with its base"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Resolve conflicts' })).toHaveStyle({
+			color: getComputedStyle(canvas.getByText('Conflicts')).color
+		});
+	}}
 >
+	{@render bar({ changes: pushed, upstream: upstream({ conflicts: true }) })}
+</Story>
 
 <Story name="Asked for, not done yet" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'])}

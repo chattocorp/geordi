@@ -21,6 +21,8 @@ The sidebar archive icon uses the merged workspace color on hover and keyboard f
 
 The Archive action in the workspace context menu uses the same purple as the sidebar archive icon.
 
+The Resolve conflicts button now uses the conflict indicator’s colour. Its Storybook example checks that the button and indicator match.
+
 The Checks running icon now turns once every two seconds. Verified the animation duration in Chromium.
 
 The incoming-commits action is now labeled Sync.

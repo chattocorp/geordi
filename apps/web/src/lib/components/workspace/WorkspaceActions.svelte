@@ -127,7 +127,7 @@
 						<!--
 							The next step stands out; what else is possible, and what is beside it, doesn't.
 							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
-							colour; otherwise in ink. Never in gold: that is the one way to send a message.
+							colour. Resolve conflicts takes the ribbon colour; other next steps use ink. Never in gold: that is the one way to send a message.
 						-->
 						{@const next = action === primary}
 						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
@@ -135,7 +135,7 @@
 							size="sm"
 							variant={next && filled ? 'primary' : 'soft'}
 							tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
-							class={next && !filled ? 'text-ink' : undefined}
+							class={next && !filled && action.id !== 'resolve-conflicts' ? 'text-ink' : undefined}
 							icon={action.icon}
 							busy={pending.includes(action.id)}
 							onclick={() => onaction(action)}
