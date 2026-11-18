@@ -1,8 +1,9 @@
-import { upstreamFreshFor, type Changes, type Upstream } from '@geordi/protocol';
+import { CI_REFRESH_MS, type Changes, type Upstream } from '@geordi/protocol';
 
 /** How a worktree's work stands: what changed in it, and its pull request, if it has one. */
 export type Standing = {
-	changes: Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> | null;
+	changes:
+		(Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & Partial<Pick<Changes, 'branch'>>) | null;
 	upstream: Upstream | null;
 };
 
@@ -27,6 +28,7 @@ export function createStandings(options: {
 	 */
 	load: (worktreeId: string, fresh: boolean, keepKnown: boolean) => Promise<Standing>;
 	loadUpstream: (worktreeId: string) => Promise<Upstream | null>;
+	publishUpstream?: (id: string, upstream: Upstream | null, branch?: string | null) => void;
 	now?: () => number;
 }) {
 	const { worktrees, load, now = Date.now } = options;
@@ -34,8 +36,15 @@ export function createStandings(options: {
 	const loading = new Map<string, symbol>();
 	const listeners = new Set<() => void>();
 
+	let nextLocalBatch = 0;
+	const retryAfter = new Map<string, number>();
+
 	function note(worktreeId: string, standing: Standing, localAt = now()) {
-		known.set(worktreeId, { at: now(), localAt, standing });
+		const previous = known.get(worktreeId);
+		const stamp = standing.upstream?.checkedAt;
+		const cached = stamp !== undefined && previous?.standing.upstream?.checkedAt === stamp;
+		retryAfter.delete(worktreeId);
+		known.set(worktreeId, { at: cached ? previous.at : now(), localAt, standing });
 		for (const listener of listeners) listener();
 	}
 
@@ -48,12 +57,19 @@ export function createStandings(options: {
 		try {
 			if (upstreamOnly && before) {
 				const upstream = await options.loadUpstream(worktreeId);
-				if (current()) note(worktreeId, { ...before.standing, upstream }, before.localAt);
+				if (current()) {
+					note(worktreeId, { ...before.standing, upstream }, before.localAt);
+					options.publishUpstream?.(worktreeId, upstream, before.standing.changes?.branch);
+				}
 			} else {
 				const standing = await load(worktreeId, fresh, !!before?.standing.upstream);
-				if (current()) note(worktreeId, standing);
+				if (current()) {
+					note(worktreeId, standing);
+					options.publishUpstream?.(worktreeId, standing.upstream, standing.changes?.branch);
+				}
 			}
 		} catch {
+			if (!before && current()) retryAfter.set(worktreeId, now() + 20_000);
 			if (before && current()) {
 				before.at = now();
 				if (!upstreamOnly) before.localAt = now();
@@ -73,26 +89,38 @@ export function createStandings(options: {
 		 * someone is looking at a list with nothing in it. The others, the stalest first, a
 		 * few at a time.
 		 */
-		async tick() {
+		async tick(reconnected = false) {
 			const inUse = worktrees();
 			for (const id of known.keys()) if (!inUse.includes(id)) known.delete(id);
-			const unknown = inUse.filter((id) => !known.has(id));
+			for (const id of retryAfter.keys()) if (!inUse.includes(id)) retryAfter.delete(id);
+			const unknown = inUse.filter(
+				(id) => !known.has(id) && (reconnected || (retryAfter.get(id) ?? 0) <= now())
+			);
 			const available = inUse.flatMap((id) => {
 				const entry = known.get(id);
 				if (!entry || loading.has(id)) return [];
-				const due = entry.at + upstreamFreshFor(entry.standing.upstream, FRESH_MS);
-				return [{ id, due, localAt: entry.localAt, pull: entry.standing.upstream?.pull }];
+				const upstream = entry.standing.upstream;
+				const interval =
+					upstream?.refreshAfterMs ??
+					(upstream?.pull?.checks?.state === 'pending' ? CI_REFRESH_MS : FRESH_MS);
+				return [
+					{
+						id,
+						due: entry.at + interval,
+						localAt: entry.localAt,
+						poll: upstream?.pull?.state === 'open' || upstream?.refreshAfterMs === CI_REFRESH_MS
+					}
+				];
 			});
 			// A full local Git status is expensive. Keep its original budget even when CI is busy.
 			const local = available
-				.filter(({ localAt }) => now() - localAt >= FRESH_MS)
+				.filter(({ localAt }) => now() >= nextLocalBatch && now() - localAt >= FRESH_MS)
 				.sort((a, b) => a.localAt - b.localAt)
 				.slice(0, AT_ONCE)
 				.map(({ id }) => id);
+			if (local.length) nextLocalBatch = now() + 20_000;
 			const pulls = available
-				.filter(
-					({ id, pull, due }) => !local.includes(id) && pull?.state === 'open' && due <= now()
-				)
+				.filter(({ id, poll, due }) => !local.includes(id) && poll && due <= now())
 				.sort((a, b) => a.due - b.due)
 				.slice(0, 20);
 			await Promise.all([

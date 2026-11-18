@@ -52,7 +52,9 @@ describe('standings', () => {
 		state.fails = true;
 		await standings.tick(); // no daemon yet
 		state.fails = false;
-		await standings.tick(); // one connected
+		await standings.tick(); // wait before retrying missing worktrees
+		expect(state.asked).toHaveLength(1);
+		await standings.tick(true); // one connected
 		expect(standings.get('a')).toEqual(standing());
 	});
 

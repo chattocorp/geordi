@@ -50,9 +50,6 @@ const initial: WatchedState = {
 	checking: true
 };
 
-/** How often what happens on upstream forges (checks, reviews) is asked for again. */
-const UPSTREAM_INTERVAL_MS = 60_000;
-
 /**
  * Keeps the state of the worktrees someone is looking at, and tells the viewers when it
  * changes. A daemon watches those worktrees' files and says when something changed; the
@@ -75,6 +72,7 @@ export function createWatchers(
 		loading: boolean;
 		pending: boolean | null;
 		announced: boolean;
+		lastBackgroundAt: number;
 	};
 	const watched = new Map<string, Watched>();
 
@@ -119,6 +117,16 @@ export function createWatchers(
 			});
 		});
 		const standing = Promise.all([local, answers.upstream]).then(([, upstream]) => {
+			const latest = entry.state?.upstream;
+			if (upstream?.localBranch && upstream.localBranch !== entry.state?.changes?.branch)
+				upstream = null;
+			if (
+				latest?.checkedAt !== undefined &&
+				upstream?.checkedAt !== undefined &&
+				latest.localBranch === upstream.localBranch &&
+				latest.checkedAt > upstream.checkedAt
+			)
+				upstream = latest;
 			publish({ upstream, checking: entry.announced });
 			if (watched.get(worktreeId) === entry && entry.state?.changes && !entry.announced)
 				noteStanding(worktreeId, entry.state);
@@ -137,15 +145,16 @@ export function createWatchers(
 		});
 	}
 
-	// Nothing tells us when a check finishes or a review comes in: ask now and then.
+	// Quiet, archived, or unavailable workspaces may get no background answers.
+	const interval = 60_000;
 	let timer: NodeJS.Timeout | undefined;
 	function keepUpstreamFresh() {
-		if (watched.size > 0 && !timer)
-			timer = setInterval(
-				() => [...watched.keys()].forEach((id) => refresh(id, true)),
-				UPSTREAM_INTERVAL_MS
-			).unref();
-		if (watched.size === 0 && timer) timer = void clearInterval(timer);
+		if (watched.size && !timer)
+			timer = setInterval(() => {
+				for (const [id, entry] of watched)
+					if (Date.now() - entry.lastBackgroundAt >= interval) refresh(id, true);
+			}, interval).unref();
+		if (!watched.size && timer) timer = void clearInterval(timer);
 	}
 
 	return {
@@ -164,7 +173,8 @@ export function createWatchers(
 						state: null,
 						loading: false,
 						pending: null,
-						announced: false
+						announced: false,
+						lastBackgroundAt: 0
 					})
 				);
 				sync();
@@ -181,6 +191,22 @@ export function createWatchers(
 					keepUpstreamFresh();
 				}
 			};
+		},
+
+		/** Publish a background answer without reloading files, diffs or release data. */
+		noteUpstream(worktreeId: string, upstream: Upstream | null, branch?: string | null) {
+			const entry = watched.get(worktreeId);
+			if (
+				!entry?.state?.changes ||
+				entry.state.checking ||
+				(upstream?.localBranch ?? branch) !== entry.state.changes.branch ||
+				(upstream?.checkedAt !== undefined &&
+					(entry.state.upstream?.checkedAt ?? 0) > upstream.checkedAt)
+			)
+				return;
+			entry.lastBackgroundAt = Date.now();
+			entry.state = { ...entry.state, upstream };
+			for (const viewer of entry.viewers) viewer();
 		},
 
 		/** The worktree's state as last loaded; `null` if nobody is looking, or not loaded yet. */

@@ -3,7 +3,7 @@ import { mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Thread } from 'forges';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { github, MergeMethodRequiredError, type MergeOptions } from 'forges';
 import { conflictsOf, count, markDraftReady, merge, summarise, upstream } from './upstream.ts';
 import { readPull, rollupCounts } from './pull-batch.ts';
@@ -92,6 +92,50 @@ describe('upstream', () => {
 		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
 		return { worktree, ref: { repoPath, worktreeId: 'abcdefgh-1' } };
 	}
+
+	it.each([true, false])(
+		'follows a pushed commit with authenticated access %s',
+		async (authenticated) => {
+			// A fresh provider registry for each credential mode.
+			vi.resetModules();
+			vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
+			vi.stubEnv('FORGES_GITHUB_TOKEN', authenticated ? 'fixture' : '');
+			const { upstream: read } = await import('./upstream.ts');
+			const search = vi.fn(async () => Response.json({ total_count: 0, items: [] }));
+			vi.stubGlobal('fetch', search);
+			const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+			const git = (...args: string[]) => execFileSync('git', ['-C', ref.repoPath, ...args]);
+			const remoteBranch = 'refs/remotes/origin/geordi/abcdefgh';
+			try {
+				git('update-ref', remoteBranch, 'HEAD');
+				const initial = await read(worktree, ref, 1000);
+				expect(initial?.refreshAfterMs).toBe(authenticated ? 10_000 : 300_000);
+				expect(await read(worktree, ref, 9000)).toBe(initial);
+				await read(worktree, ref, 11_000);
+				const settled = await read(worktree, ref, 61_000);
+				expect(settled?.refreshAfterMs).toBe(authenticated ? undefined : 300_000);
+				expect(search).toHaveBeenCalledTimes(authenticated ? 3 : 1);
+				git(
+					'-c',
+					'user.name=t',
+					'-c',
+					'user.email=t@t',
+					'commit',
+					'-q',
+					'--allow-empty',
+					'-m',
+					'push'
+				);
+				git('update-ref', remoteBranch, 'HEAD');
+				const pushed = await read(worktree, ref, 62_000);
+				expect(pushed?.refreshAfterMs).toBe(authenticated ? 10_000 : 300_000);
+				expect(search).toHaveBeenCalledTimes(authenticated ? 4 : 1);
+			} finally {
+				vi.unstubAllGlobals();
+				vi.unstubAllEnvs();
+			}
+		}
+	);
 
 	it('is nothing for repositories without a remote, or on a forge we do not know', async () => {
 		const local = workspace();

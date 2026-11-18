@@ -165,6 +165,11 @@ export type Upstream = {
 	repo: string;
 	repoUrl: string | null;
 	branch: string;
+	/** Local branch and time of the daemon read. Cached answers keep their original time. */
+	localBranch?: string;
+	checkedAt?: number;
+	/** Provider-specific polling delay while waiting for CI, or when access is anonymous. */
+	refreshAfterMs?: number;
 	/** Whether the branch has been pushed. */
 	pushed: boolean;
 	/** The page for opening a pull request for the branch, if the forge has one. */
@@ -172,10 +177,9 @@ export type Upstream = {
 	pull: PullRequest | null;
 };
 
-/** Pending checks expire before the next 20-second sidebar tick, including the daemon's cache. */
-export function upstreamFreshFor(upstream: Upstream | null | undefined, normalMs: number): number {
-	return upstream?.pull?.checks?.state === 'pending' ? 15_000 : normalMs;
-}
+/** Wake often enough to see ten-second deadlines without delaying a whole extra cycle. */
+export const UPSTREAM_TICK_MS = 2_000;
+export const CI_REFRESH_MS = 10_000;
 
 /** A repository says how Geordi should treat it in this file, at its top level. */
 export const CONFIG_FILE = '.geordi.yml';
