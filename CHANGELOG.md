@@ -1,5 +1,30 @@
 # Geordi Changelog
 
+## 0.5.0
+
+### Fixes
+
+- Pictures an agent shows in its replies are no longer the old ones when it writes a file of the same name again. ([#178](https://github.com/chattocorp/geordi/pull/178))
+- Sync now comes before Disable Auto-merge in a workspace's actions. ([#172](https://github.com/chattocorp/geordi/pull/172))
+- A new workspace whose branch was renamed is no longer shown as merged before it has done any work. ([#166](https://github.com/chattocorp/geordi/pull/166))
+- Pull requests that branch protection or rulesets still block (required checks missing, or the branch out of date) no longer show as ready to merge: Geordi says "Merge blocked", or offers to sync the branch first. ([#173](https://github.com/chattocorp/geordi/pull/173))
+- Dragging a workspace to the end of its repository now shows a drop line only in that repository. ([#165](https://github.com/chattocorp/geordi/pull/165))
+- Rows in the sidebar and tabs turn bold a little faster. ([#183](https://github.com/chattocorp/geordi/pull/183))
+- A pull request that is ready to merge now offers Merge PR instead of Auto-merge. ([#169](https://github.com/chattocorp/geordi/pull/169))
+- The number of incoming commits on the Sync button now takes the colour of the button it is on. ([#171](https://github.com/chattocorp/geordi/pull/171))
+- Very long file names in the Changes tab are now cut short instead of running into the line counts; the directory gives way first. ([#179](https://github.com/chattocorp/geordi/pull/179))
+- Workspaces in the sidebar now ease between regular and bold, rather than jumping. ([#175](https://github.com/chattocorp/geordi/pull/175))
+- The background tasks list above the reply box now starts collapsed. ([#174](https://github.com/chattocorp/geordi/pull/174))
+
+### Features
+
+- The reply box grows with what you write, up to a limit, and scrolls beyond it. ([#170](https://github.com/chattocorp/geordi/pull/170))
+- Geordi on macOS can download updates and restart when you choose. Open Settings → About to check for updates, try beta releases, or install a downloaded update. ([#167](https://github.com/chattocorp/geordi/pull/167))
+- Run Geordi without the desktop app: `npx geordi` starts it in a terminal, on http://localhost:7717. ([#181](https://github.com/chattocorp/geordi/pull/181))
+- The Changes tab now shows how many lines were added and removed, in place of the file count. ([#176](https://github.com/chattocorp/geordi/pull/176))
+- Settings are now a page of their own, beside the sidebar, instead of a dialog. Each section has its own address. ([#182](https://github.com/chattocorp/geordi/pull/182))
+- MCP clients outside Geordi, such as Claude Code or Codex in your terminal, can connect to Geordi with a token from Settings → Agent access. They can find and read any workspace, start agents in any of your repositories and supervise them, and send follow-ups to other agents. Geordi agents can now read workspaces across all repositories too. ([#140](https://github.com/chattocorp/geordi/pull/140))
+
 ## 0.4.0
 
 ### Fixes
