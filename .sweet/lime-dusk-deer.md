@@ -2,4 +2,4 @@
 type: fix
 ---
 
-Workspace tabs have clearer labels and a visible outline around the selected tab.
+Workspace tabs have slightly stronger contrast for inactive labels and the selected tab background.

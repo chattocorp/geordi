@@ -166,7 +166,7 @@
 							// as much room before what it starts with as after what it ends with
 							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
 							closable(id) ? 'pr-1' : 'pr-2',
-							active ? 'tab-active' : 'text-ink/80',
+							active ? 'tab-active' : 'tab-inactive',
 							// where the dragged tab would go: a line before this one, or after the last
 							here && target?.before === id && 'tab-drop-before',
 							here && target?.before === null && index === n.tabs.length - 1 && 'tab-drop-after'

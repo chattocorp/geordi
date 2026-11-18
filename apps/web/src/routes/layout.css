@@ -244,9 +244,11 @@
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
-/* Give the selected tab a visible edge without changing its width. */
+@utility tab-inactive {
+	color: color-mix(in srgb, var(--muted) 80%, var(--ink));
+}
 @utility tab-active {
-	@apply bg-surface text-ink inset-ring-1 inset-ring-muted hover:bg-surface;
+	@apply bg-sunken text-ink hover:bg-sunken dark:bg-line dark:hover:bg-line;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
