@@ -20,6 +20,8 @@
 		await expect(answer).not.toHaveBeenCalled();
 		const cancel = canvas.getByRole('button', { name: 'Cancel' });
 		const archive = canvas.getByRole('button', { name: 'Archive' });
+		const dialog = canvas.getByRole('dialog');
+		await Promise.all(dialog.getAnimations().map((animation) => animation.finished));
 		const bounds = cancel.getBoundingClientRect();
 		await expect(archive.getBoundingClientRect()).toMatchObject({
 			y: bounds.y,
