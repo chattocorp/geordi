@@ -1,6 +1,7 @@
 import { actionsFor, PUBLISHING, standingOf } from '#lib/actions.ts';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
+import { glimpseOf } from '#lib/glimpse.ts';
 import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import { UNTITLED } from './workspaces.ts';
 
@@ -78,6 +79,55 @@ export const navigation = () =>
 	}) satisfies View<unknown>;
 
 /**
+ * Every workspace in use, as the overview shows it: as listed in the navigation, with a
+ * glimpse of its conversation (what an agent there asks, does, said last: the one that
+ * asks, else the one at work, else its own) and how big its change is.
+ */
+export const overview = () =>
+	({
+		read: () => {
+			const members = new Map(
+				withAides(workspaces().all()).map(({ workspace, aides }) => [
+					workspace.id,
+					[workspace, ...aides]
+				])
+			);
+			return navigation()
+				.read()
+				.workspaces.map((listed) => {
+					const all = members.get(listed.id) ?? [];
+					const own = all[0];
+					const focus =
+						all.find((member) => member.asking) ??
+						all.find((member) => member.status === 'running') ??
+						own;
+					const standing = own && standings().get(own.worktreeId);
+					const files = standing?.changes?.files ?? [];
+					const pull = standing?.upstream?.pull;
+					return {
+						...listed,
+						glimpse: focus
+							? glimpseOf(
+									workspaces().transcript(focus.id),
+									focus.status === 'running',
+									focus.worktree?.path
+								)
+							: null,
+						changes: files.length
+							? {
+									files: files.length,
+									added: files.reduce((sum, file) => sum + (file.added ?? 0), 0),
+									removed: files.reduce((sum, file) => sum + (file.removed ?? 0), 0)
+								}
+							: null,
+						pull: pull && pull.state !== 'unknown' ? { number: pull.number, url: pull.url } : null
+					};
+				});
+		},
+		also: (changed) => navigation().also(changed)
+	}) satisfies View<unknown>;
+
+/**
  * One workspace with its conversation.
  *
  * While someone has this open, a daemon watches the workspace's files, and `git` is how
@@ -127,7 +177,8 @@ export const workspace = (id: string) =>
 	}) satisfies View<unknown>;
 
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace };
+export const views = { navigation, overview, workspace };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
+export type Overview = ReturnType<ReturnType<typeof overview>['read']>;
 export type WorkspaceLive = ReturnType<ReturnType<typeof workspace>['read']>;
