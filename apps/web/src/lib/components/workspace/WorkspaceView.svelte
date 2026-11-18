@@ -57,6 +57,7 @@
 		stopJob,
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
+	import { markingReady, readyForReview, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import Changes from './Changes.svelte';
 	import Changeset from './Changeset.svelte';
@@ -475,6 +476,7 @@
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
 					: (action.id === 'merge-pull' && (merging || mergeConfirmed)) ||
+						(action.id === 'ready-for-review' && markingReady.has(id)) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
 			)
@@ -580,6 +582,8 @@
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
 		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		else if (action.id === 'ready-for-review' && action.pullNumber)
+			readyForReview(id, action.pullNumber);
 		else if (action.id === 'merge-pull') merge();
 		else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
@@ -808,10 +812,16 @@
 		</div>
 	{/if}
 
-	{#if mergeProblem}
+	{#if mergeProblem || reviewProblems[id]}
 		<div class="flex items-center gap-3 px-5 py-2.5">
-			<div class="min-w-0 flex-1"><Notice>{mergeProblem}</Notice></div>
-			<Button variant="ghost" onclick={() => (mergeProblem = null)}>Dismiss</Button>
+			<div class="min-w-0 flex-1"><Notice>{mergeProblem ?? reviewProblems[id]}</Notice></div>
+			<Button
+				variant="ghost"
+				onclick={() => {
+					mergeProblem = null;
+					delete reviewProblems[id];
+				}}>Dismiss</Button
+			>
 		</div>
 	{/if}
 

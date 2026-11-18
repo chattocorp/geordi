@@ -36,7 +36,7 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	pending: ('fix-checks' | 'merge-upstream' | 'merge-pull')[] = [],
+	pending: ('fix-checks' | 'merge-upstream' | 'merge-pull' | 'ready-for-review')[] = [],
 	working = false
 )}
 	{@const pull = state.upstream?.pull}
@@ -61,6 +61,18 @@
 
 <Story name="Draft pull request" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ draft: true }) })}
+</Story>
+
+<Story
+	name="Marking draft ready for review"
+	asChild
+	play={async ({ canvasElement }) => {
+		await expect(
+			within(canvasElement).getByRole('button', { name: /Ready for review/ })
+		).toBeDisabled();
+	}}
+>
+	{@render bar({ changes: pushed, upstream: upstream({ draft: true }) }, ['ready-for-review'])}
 </Story>
 
 <Story name="Ready to merge" asChild

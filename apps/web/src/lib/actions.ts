@@ -28,6 +28,8 @@ export type WorkspaceAction = {
 	 * both: Geordi's where git can do it alone, and this message where it can't.
 	 */
 	prompt?: string;
+	/** The pull request shown when Ready for review was offered. */
+	pullNumber?: string;
 	/** An alternative to the next step rather than the next step itself: offered beside it, quietly. */
 	aside?: boolean;
 };
@@ -190,17 +192,17 @@ function nextActions(state: State): WorkspaceAction[] {
 			prompt: `Commit any uncommitted changes with clear commit messages and push them to ${number}. Update its description if the change calls for it.`
 		});
 
-	if (pull.draft)
+	if (pull.draft && upstream.forge === 'github')
 		actions.push({
 			id: 'ready-for-review',
 			label: 'Ready for review',
 			icon: 'icon-[lucide--git-pull-request]',
-			prompt: `Mark ${number} as ready for review on the upstream forge.`
+			pullNumber: pull.number
 		});
 
 	// Merging is the next step once nothing stands in its way.
 	const checksPass = !pull.checks || pull.checks.state === 'success';
-	if (actions.length === 0 && checksPass)
+	if (!pull.draft && actions.length === 0 && checksPass)
 		actions.push({
 			id: 'merge-pull',
 			label: 'Merge PR',

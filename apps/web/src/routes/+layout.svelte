@@ -1,4 +1,9 @@
 <script lang="ts">
+	import {
+		markingReady,
+		readyForReview,
+		reviewProblems
+	} from '#lib/components/workspace/review.svelte.ts';
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { untrack } from 'svelte';
@@ -125,6 +130,12 @@
 
 	/** Does what a workspace's action says, from the sidebar. */
 	async function act(workspace: Item, action: WorkspaceAction) {
+		if (action.id === 'ready-for-review' && action.pullNumber) {
+			await readyForReview(workspace.id, action.pullNumber);
+			if (reviewProblems[workspace.id])
+				await goto(resolve('/workspaces/[id]', { id: workspace.id }));
+			return;
+		}
 		if (action.id === 'merge-upstream' && action.prompt)
 			return updateWorkspace({ workspaceId: workspace.id, prompt: action.prompt });
 		if (action.prompt) return say({ workspaceId: workspace.id, text: action.prompt });
@@ -150,6 +161,7 @@
 				label: action.label,
 				icon: action.icon,
 				tone: actionTone(workspace.standing),
+				disabled: action.id === 'ready-for-review' && markingReady.has(workspace.id),
 				onselect: () => act(workspace, action)
 			})),
 			...(next.length > 0 ? ['separator' as const] : []),

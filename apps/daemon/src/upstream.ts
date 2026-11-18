@@ -294,6 +294,53 @@ export async function upstream(
 	return value;
 }
 
+/** Mark the open pull request the person saw ready, if it still belongs to this branch. */
+export async function markReady(
+	worktree: Worktree,
+	{ repoPath, worktreeId, pullNumber }: { repoPath: string; worktreeId: string; pullNumber: string }
+) {
+	const found = locate(worktree, repoPath);
+	if (!found) throw new Error('This workspace has no branch on a forge Geordi knows');
+	const { provider, repo, branch } = found;
+	const pull = await provider.threads.get({
+		forge: provider.forge,
+		instance: provider.instance,
+		repo,
+		kind: 'pull_request',
+		number: pullNumber
+	});
+	await markDraftReady(provider, repo, branch, pull);
+	cache.delete(worktreeId);
+	return null;
+}
+
+export async function markDraftReady(
+	provider: ForgeProvider,
+	repo: Repo,
+	branch: string,
+	pull: Thread
+) {
+	// forges has no common draft update. Its GitHub provider exposes authenticated GraphQL.
+	if (
+		provider.forge !== 'github' ||
+		!('graphql' in provider) ||
+		typeof provider.graphql !== 'function'
+	)
+		throw new Error(`Geordi cannot mark pull requests ready for review on ${provider.forge}`);
+	if (pull.state !== 'open' || !isFor(pull, repo, branch))
+		throw new Error(`Pull request #${pull.ref.number} is no longer open for ${branch}`);
+	if (pull.isDraft) {
+		const id = pull.ref.externalId;
+		if (!id) throw new Error('The forge did not return a pull request ID');
+		await provider.graphql(
+			`mutation MarkReady($id: ID!) {
+				markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { id } }
+			}`,
+			{ id }
+		);
+	}
+}
+
 /** How Geordi merges where a repository allows several ways: one commit per piece of work. */
 const PREFERRED: MergeMethod[] = ['squash', 'merge', 'rebase'];
 
