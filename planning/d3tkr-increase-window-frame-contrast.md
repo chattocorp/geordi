@@ -6,4 +6,4 @@ data:
 id: d3tkr
 title: Increase window frame contrast
 ---
-Applied a hot-pink frame in light mode and a deeper pink in dark mode. Verified both panel surfaces and title-bar text in Storybook.
+Used a cool slate frame in light mode and a charcoal frame with slightly lighter panels in dark mode. Verified both themes in Storybook.

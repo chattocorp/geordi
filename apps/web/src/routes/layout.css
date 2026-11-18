@@ -33,9 +33,9 @@
 :root {
 	color-scheme: light;
 	--pane: var(--frame);
-	--frame: #ff69b4;
-	--frame-muted: #513044;
-	--frame-danger: #640f24;
+	--frame: #c8cfda;
+	--frame-muted: #4c5563;
+	--frame-danger: #8b2435;
 	--bg: #f6f6f9;
 	--sidebar: #eeeef4;
 	--surface: #ffffff;
@@ -64,11 +64,11 @@
 
 .dark {
 	color-scheme: dark;
-	--bg: #23252f;
-	--frame: #702a52;
-	--frame-muted: #e1c2d3;
-	--frame-danger: #ffd0cb;
-	--sidebar: #1a1c24;
+	--bg: #2a2d37;
+	--frame: #151820;
+	--frame-muted: #a0a3b4;
+	--frame-danger: #ff7b72;
+	--sidebar: #222630;
 	--surface: #2c2f3b;
 	--sunken: #262833;
 	--ink: #eceef4;
