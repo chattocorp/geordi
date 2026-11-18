@@ -1,10 +1,13 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Markdown from './Markdown.svelte';
+	import { expect, fn, userEvent } from 'storybook/test';
+	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import ToolGroup from './ToolGroup.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Transcript' });
 
+	const openDiff = fn();
 	const reply = [
 		'## What I changed',
 		'',
@@ -60,6 +63,26 @@
 		}
 	];
 </script>
+
+<script lang="ts">
+	setChangedFiles({ root: '/work', paths: new Set(), open: openDiff, openSource: fn() });
+</script>
+
+<Story
+	name="Relative file link"
+	asChild
+	play={async ({ canvas }) => {
+		openDiff.mockClear();
+		const file = canvas.getByRole('button', { name: 'changes.ts' });
+		await expect(file).toHaveAttribute('title', 'View the diff');
+		await userEvent.click(file);
+		await expect(openDiff).toHaveBeenCalledWith('src/changes.ts');
+	}}
+>
+	<Markdown
+		text="Review the changes in [`changes.ts`](./src/changes.ts &quot;View the diff&quot;)."
+	/>
+</Story>
 
 <Story name="Agent reply" asChild>
 	<div class="max-w-2xl"><Markdown text={reply} /></div>

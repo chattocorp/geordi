@@ -380,8 +380,13 @@
 		// not from under an agent at work
 		aideOf(tab)?.status !== 'running';
 
-	/** Opens a file's diff, next to the conversation. */
-	const openDiff = (path: string) => arrange({ main: open(main, `diff:${path}`, chatGroup) });
+	/** Focus the file where it is open, or open it next to the conversation. */
+	const openFileTab = (tab: string) => {
+		const area = areaOf(tab) ?? 'main';
+		if (area !== 'main' && !frame.current.open) toggleSide();
+		arrange({ [area]: open(layouts[area], tab, chatGroup) });
+	};
+	const openDiff = (path: string) => openFileTab(`diff:${path}`);
 
 	// Its conversations link the files it has changed to their diffs. The list is compared as
 	// text: the changes are new with every update, and each new set renders every reply again.
@@ -398,11 +403,8 @@
 			return workspace.worktree?.path;
 		},
 		openSource(path, line) {
-			const tab = `source:${path}`;
-			const area = areaOf(tab) ?? 'main';
-			if (area !== 'main' && !frame.current.open) toggleSide();
 			citations.set(path, { line });
-			arrange({ [area]: open(layouts[area], tab, chatGroup) });
+			openFileTab(`source:${path}`);
 		},
 		open: openDiff
 	});
