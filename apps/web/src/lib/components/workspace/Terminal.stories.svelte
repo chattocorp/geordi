@@ -37,3 +37,24 @@
 		<Terminal workspaceId="story" terminal="existing" start={false} />
 	</div>
 </Story>
+
+<Story
+	name="Last row fits after resizing"
+	asChild
+	play={async ({ canvasElement }) => {
+		const pane = canvasElement.querySelector<HTMLElement>('[data-terminal-pane]')!;
+		for (const height of [256, 171]) {
+			pane.style.height = height + 'px';
+			await waitFor(() => {
+				const screen = pane.querySelector('.xterm-screen')!.getBoundingClientRect();
+				const bounds = pane.getBoundingClientRect();
+				expect(screen.height).toBeGreaterThan(0);
+				expect(screen.bottom).toBeLessThanOrEqual(bounds.bottom - (screen.top - bounds.top));
+			});
+		}
+	}}
+>
+	<div data-terminal-pane class="flex h-64 flex-col sheet-quiet">
+		<Terminal workspaceId="story" terminal="resized" start={false} />
+	</div>
+</Story>
