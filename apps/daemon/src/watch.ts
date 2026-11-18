@@ -1,46 +1,80 @@
 import { watch, type FSWatcher } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import type { WatchScope, WorktreeRef } from '@geordi/protocol';
-import type { Worktree } from './worktree.ts';
+import { branchOf, type Worktree } from './worktree.ts';
 
 /** Changes come in bursts (a save, a checkout, an install); report each burst once. */
 const SETTLE_MS = 250;
 
 /**
  * Calls `onChange` when anything changes that the workspace's changes or pull request
- * depend on: its files (unless `files` is false), what it has checked out and staged, and
- * the repository's branches (commits, and pushes, which move the remote-tracking branches).
- * Without the files, it is a handful of small directories, cheap on every platform: our
- * own Git leaves the index alone (`GIT_OPTIONAL_LOCKS`). Returns a function that stops
- * watching.
+ * depend on: its files, what it has checked out and staged, and the repository's branches
+ * (commits, and pushes, which move the remote-tracking branches). Returns a function that
+ * stops watching.
+ *
+ * Without `files` (a worktree nobody has open), only its Git state: a handful of small
+ * directories, cheap on every platform (our own Git leaves the index alone:
+ * `GIT_OPTIONAL_LOCKS`). And of the branches, which every worktree of the repository shares,
+ * only its own, here and on the remotes: a fetch or a commit elsewhere is none of its business.
  */
 export function watchWorktree(worktree: Worktree, onChange: () => void, files = true): () => void {
 	let settle: NodeJS.Timeout | undefined;
-	const changed = (_event: string, file: string | Buffer | null) => {
-		// lock files come and go around every git command, including ones that change nothing
-		if (file?.toString().endsWith('.lock')) return;
+	const report = () => {
 		clearTimeout(settle);
 		settle = setTimeout(onChange, SETTLE_MS);
 	};
+	// lock files come and go around every git command, including ones that change nothing
+	const quiet = (file: string | Buffer | null) => !!file?.toString().endsWith('.lock');
+	const changed = (_event: string, file: string | Buffer | null) => {
+		if (!quiet(file)) report();
+	};
+	const refChanged = (_event: string, file: string | Buffer | null) => {
+		if (!quiet(file) && (files || !file || concerns(worktree, file.toString()))) report();
+	};
+	const repoChanged = (_event: string, file: string | Buffer | null) => {
+		if (!quiet(file) && (files || !file || file.toString() === 'packed-refs')) report();
+	};
 
 	const watchers: FSWatcher[] = [];
-	const add = (path: string, recursive = false) => {
+	const add = (
+		path: string,
+		listener: (event: string, file: string | Buffer | null) => void,
+		recursive = false
+	) => {
 		try {
 			// a vanished directory is not our problem; the next change elsewhere still reports
-			watchers.push(watch(path, { recursive }, changed).on('error', () => {}));
+			watchers.push(watch(path, { recursive }, listener).on('error', () => {}));
 		} catch {
 			// not there (yet): nothing to watch
 		}
 	};
-	if (files) add(worktree.path, true);
-	add(worktree.adminDir);
-	add(worktree.commonDir);
-	add(join(worktree.commonDir, 'refs'), true);
+	if (files) add(worktree.path, changed, true);
+	add(worktree.adminDir, changed);
+	add(worktree.commonDir, repoChanged);
+	add(join(worktree.commonDir, 'refs'), refChanged, true);
 
 	return () => {
 		clearTimeout(settle);
 		for (const watcher of watchers) watcher.close();
 	};
+}
+
+/**
+ * Whether a ref (a path below `refs/`) is the worktree's branch, or that branch on a remote.
+ * The branch is read when asked: the worktree may have moved to another since.
+ */
+export function concerns(worktree: Worktree, ref: string): boolean {
+	let branch: string | null;
+	try {
+		branch = branchOf(worktree);
+	} catch {
+		return true; // can't tell: better once too often
+	}
+	if (!branch) return false;
+	const [kind, ...rest] = ref.split(sep);
+	if (kind === 'heads') return rest.join('/') === branch;
+	// remotes/<remote>/<branch>
+	return kind === 'remotes' && rest.slice(1).join('/') === branch;
 }
 
 /**
