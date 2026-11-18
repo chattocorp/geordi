@@ -56,7 +56,7 @@
 <Dialog bind:open={settings.open} label="Settings" wide class="h-144">
 	<div class="flex h-full">
 		<div
-			class="w-14 shrink-0 space-y-3 overflow-y-auto border-r border-line bg-sidebar p-2.5 sm:w-40"
+			class="w-14 shrink-0 space-y-3 overflow-y-auto border-r border-line bg-sidebar p-2.5 sm:w-50"
 		>
 			<p class="hidden px-2.5 pt-2 heading sm:block">Settings</p>
 			<div role="tablist" aria-orientation="vertical" aria-label="Settings" class="space-y-0.5">
