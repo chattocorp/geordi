@@ -41,11 +41,9 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 
 ### 4. Update preferences belong to the installed app
 
-Signed macOS releases check for stable updates at startup and hourly. The Geordi menu has a
-**Receive Beta Updates** checkbox. Its setting persists across releases. Turning it off keeps
+Signed macOS releases check for stable updates at startup and hourly. **Settings → About** shows update status and lets the person check for updates or choose Stable or Beta. Its setting persists across releases. Choosing Stable keeps
 the installed version until a newer stable release is available. Builds installed from source
 stay on the developer's chosen revision.
 
-After downloading an update, Geordi offers to restart. Choosing **Later** leaves the restart
-action in the Geordi menu. People choose the time because restarting ends terminal sessions
+After downloading an update, About shows its version and a **Restart to update** button. People choose the time because restarting ends terminal sessions
 and jobs. Detached agent turns continue.

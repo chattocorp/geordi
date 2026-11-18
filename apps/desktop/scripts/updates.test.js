@@ -16,13 +16,12 @@ test('release checks remember beta, prevent downgrades and restart only on reque
 		updater,
 		preferences: { read: () => saved, write: (channel) => (saved = channel) },
 		refresh() {},
-		note() {},
-		offerRestart: async () => false
+		note() {}
 	});
 	assert.equal(updater.allowPrerelease, true);
 	assert.equal(updater.channel, 'beta');
 	assert.equal(updater.autoInstallOnAppQuit, false);
-	updates.menuItems().at(-1).click({ checked: false });
+	updates.setBeta(false);
 	assert.equal(saved, 'latest');
 	assert.equal(updater.allowPrerelease, false);
 	assert.equal(updater.allowDowngrade, false);
@@ -31,6 +30,7 @@ test('release checks remember beta, prevent downgrades and restart only on reque
 	updater.emit('update-downloaded', { version: '1.0.0' });
 	await Promise.resolve();
 	assert.equal(installs, 0);
-	updates.menuItems()[0].click();
+	assert.equal(updates.state().ready, '1.0.0');
+	updates.restart();
 	assert.equal(installs, 1);
 });

@@ -271,7 +271,6 @@ function menu() {
 				role: 'appMenu',
 				submenu: [
 					{ role: 'about' },
-					...(updates?.menuItems() ?? []),
 					{ type: 'separator' },
 					{
 						label: 'Settings…',
@@ -371,6 +370,25 @@ else {
 		notified.delete(id);
 	});
 
+	ipcMain.on('geordi:updates', (event, action, value) => {
+		const frame = event.senderFrame;
+		if (!frame || frame !== event.sender.mainFrame || URL.parse(frame.url)?.origin !== url) return;
+		switch (action) {
+			case 'read':
+				event.reply('geordi:update-state', updates?.state() ?? null);
+				break;
+			case 'beta':
+				updates?.setBeta(value);
+				break;
+			case 'check':
+				void updates?.check();
+				break;
+			case 'restart':
+				updates?.restart();
+				break;
+		}
+	});
+
 	app.whenReady().then(async () => {
 		menu();
 		startForge();
@@ -392,17 +410,10 @@ else {
 					read: () => (existsSync(file) ? readFileSync(file, 'utf8') : 'latest'),
 					write: (channel) => writeFileSync(file, channel)
 				},
-				refresh: menu,
-				async offerRestart(version) {
-					const { response } = await dialog.showMessageBox({
-						message: `Geordi ${version} is ready to install.`,
-						detail:
-							'Restarting closes open terminals and stops running jobs. Agent turns continue.',
-						buttons: ['Later', 'Restart to Update'],
-						defaultId: 0,
-						cancelId: 0
-					});
-					return response === 1;
+				refresh() {
+					for (const window of BrowserWindow.getAllWindows()) {
+						window.webContents.send('geordi:update-state', updates.state());
+					}
 				},
 				note
 			});
