@@ -73,8 +73,9 @@ Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`
 
 ## Connect an external agent
 
-In **Settings → Agent access**, name the external agent and click **Create token**. Copy the
-bearer token before closing Settings. It grants access to workspaces across this installation.
+In **Settings → Agent access**, name the external agent, choose the repositories it may work in,
+and click **Create token**. Copy the bearer token before closing Settings. It grants access to the
+workspaces of those repositories only, not to repositories you add later.
 Use **Revoke** to end its access.
 
 The examples below assume the agent runs on the same Mac as the desktop app. If Settings

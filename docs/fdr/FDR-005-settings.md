@@ -15,7 +15,7 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 - **Notifications** turns telling of finished agents on or off (FDR-008), and sends a test: a notification and the sound, as when an agent is done, with a word on what came of it and where to look if nothing showed.
 - **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. A path to a Git repository on the machine adds one; a path Geordi can't make sense of is refused with the reason, on the page.
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
-- **Agent access** issues and revokes named MCP tokens for all workspaces on the installation. Settings shows a new token once, with the URL to use in the client (FDR-002).
+- **Agent access** issues and revokes named MCP tokens, each for the repositories chosen with checkboxes (All and None only change the choice; repositories added later are never included). Settings shows a new token once, with the URL to use in the client (FDR-002).
 - **About** describes Geordi and shows the running release version.
 - Where there are no repositories yet, the new-workspace page says so and opens the settings at Repositories.
 - The sidebar does not list repositories as such: it lists workspaces under their repository's name, which folds them away: then a count of them follows the name. Which repositories are folded is remembered in this browser.
