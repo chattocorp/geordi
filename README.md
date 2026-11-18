@@ -52,7 +52,8 @@ Geordi runs the agent CLIs you already use: sign in to
 [Codex](https://github.com/openai/codex) first. For GitHub, Geordi uses the GitHub CLI's
 login.
 
-To run Geordi without the desktop app, see [Self-hosting](docs/self-hosting.md).
+To run Geordi without the desktop app (Node.js 24 or newer), run `npx geordi` and open
+http://localhost:7717. See [Self-hosting](docs/self-hosting.md).
 
 ## Getting started
 

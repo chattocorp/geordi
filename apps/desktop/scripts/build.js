@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
 	cpSync,
 	mkdirSync,
@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { packager } from '@electron/packager';
 import { build } from 'esbuild';
+import { pnpm, stageServices } from '@geordi/launch/stage.js';
 
 /**
  * Builds the desktop app (ADR-008).
@@ -27,12 +28,6 @@ const repo = join(root, '../..');
 const stage = process.argv.includes('--dev')
 	? join(repo, '.data/desktop/stage')
 	: join(root, 'stage');
-const pnpm = (args) =>
-	execFileSync(
-		process.platform === 'win32' ? process.env.npm_execpath || 'pnpm.exe' : 'pnpm',
-		args,
-		{ cwd: repo, stdio: 'inherit' }
-	);
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 // --- Stage: everything the app consists of, in one directory ---------------------------------
@@ -73,29 +68,11 @@ const sounds = ['done', 'failed'].map((name) => {
 	return file;
 });
 
-// The forge: its production build, which needs nothing but Node.
-pnpm(['--filter', '@geordi/web', 'build']);
-cpSync(join(repo, 'apps/web/build'), join(stage, 'forge'), { recursive: true });
+// The forge and the daemon, as the `geordi` command has them too.
+await stageServices(stage);
 
-// The daemon: one file each for it and what it starts. Its TypeScript can't run from inside an app as it does from the
-// repository (Node won't strip types below node_modules, where the protocol would end up).
-await build({
-	// and next to it the host of an agent's session, a process of its own (ADR-010)
-	entryPoints: [join(repo, 'apps/daemon/src/main.ts'), join(repo, 'apps/daemon/src/host.ts')],
-	outdir: join(stage, 'daemon'),
-	bundle: true,
-	platform: 'node',
-	format: 'esm',
-	target: 'node24',
-	external: ['@lydell/node-pty'],
-	// for the CommonJS among what it bundles
-	banner: {
-		js: "import { createRequire as makeBundleRequire } from 'node:module'; const require = makeBundleRequire(import.meta.url);"
-	}
-});
-
-// The wrappers resolve the provider binaries and native modules relative to their own
-// packages. Deploy the production dependency tree with the same lockfile as the daemon.
+// The daemon's native terminal library, resolved relative to its package. Deploy the
+// production dependency tree with the same lockfile as the daemon.
 pnpm([
 	...(process.platform === 'win32' ? ['--config.node-linker=hoisted'] : []),
 	'--filter',

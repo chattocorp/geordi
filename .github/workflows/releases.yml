@@ -48,3 +48,16 @@ jobs:
       MACOS_NOTARY_API_KEY_BASE64: ${{ secrets.MACOS_NOTARY_API_KEY_BASE64 }}
       MACOS_NOTARY_API_KEY_ID: ${{ secrets.MACOS_NOTARY_API_KEY_ID }}
       MACOS_NOTARY_API_ISSUER_ID: ${{ secrets.MACOS_NOTARY_API_ISSUER_ID }}
+
+  npm:
+    needs: tag
+    if: needs.tag.outputs.tags != '[]'
+    strategy:
+      matrix:
+        release: ${{ fromJSON(needs.tag.outputs.tags) }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/npm.yml
+    with:
+      commit: ${{ matrix.release.commit }}

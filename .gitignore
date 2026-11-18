@@ -34,3 +34,6 @@ storybook-static
 # Desktop app
 /apps/desktop/stage/
 /apps/desktop/dist/
+
+# npm package
+/apps/cli/stage/
