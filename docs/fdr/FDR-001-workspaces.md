@@ -9,7 +9,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ## Behavior
 
-- A workspace is started with an agent and a repository, and usually with a first prompt (without one, it is there with its worktree, waiting to be told what to do): from "New workspace" in the sidebar, where the repository worked in last is preselected, or from the + beside a repository's name. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first. Its agent then gives it a short name that says what the work is about, once it knows (the agent API's `name_workspace`), and may change it a couple of times if the work turns out to be about something else. If the daemon has been given a key to ask a model, a title made from the prompt bridges the moments until then.
+- A workspace is started with an agent and a repository, and usually with a first prompt (without one, it is there with its worktree, waiting to be told what to do): from "New workspace" in the sidebar, where the repository worked in last is preselected, or from the + beside a repository's name. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first. Its agent then gives it a short name that says what the work is about, once it knows (the agent API's `name_workspace`), and may change it a couple of times if the work turns out to be about something else. Until then, the title its agent gives the conversation (Claude makes one from the prompt within seconds; Codex once its first turn ends) bridges the moments, and replaces the first line; a name the agent or whoever started the workspace chose is never replaced by it.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - During a turn, the conversation shows progress as it happens. When the turn ends, the final reply or failure stays visible. Open **Turn activity** to inspect earlier messages and tool calls in order.
 - An agent’s plan updates in place as its steps change. If the agent continues the plan in a later exchange, the card moves into that reply. The current step stands out. When all steps are complete, the plan folds into a summary that can be reopened. Agents can also share a written plan or withdraw a plan.
@@ -112,6 +112,13 @@ After two seconds without a connection, the window shows “Reconnecting” abov
 ### 13. Background tasks stay within reach after a reply
 
 While an agent reports background work, a tray above the composer shows its commands and subagents. The tray opens expanded. Collapse it to keep the count and first task name in view. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
+
+### 14. Titles come from the agent's own session
+
+A workspace takes the title its agent's session goes by (ACP `session_info_update`), only from the root session, and none that merely repeats the start of something it was told. A later one replaces an earlier one; a name someone chose (`name_workspace`, or a title given when it was started) is never replaced.
+
+**Why:** Both agents title their sessions with a small model of their own, so Geordi needs no key and no model of its own for it. Each makes a title once per session and retitles it only on a rename, so a later title is news, not churn.
+**Tradeoff:** Codex makes its title only when its first turn ends; until then, or until the agent names the workspace, it is called after the first line of the prompt.
 
 ## Related
 

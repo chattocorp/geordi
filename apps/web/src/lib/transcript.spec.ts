@@ -48,4 +48,37 @@ describe('toBlocks', () => {
 		]);
 		expect(blocks.map((block) => block.kind)).toEqual(['user', 'agent', 'note', 'user']);
 	});
+
+	it("adds up the usage of a reply's turns, and drops usage with no reply to go with", () => {
+		const usage = (inputTokens: number, cachedReadTokens?: number) => ({
+			kind: 'usage' as const,
+			usage: {
+				totalTokens: inputTokens + 10 + (cachedReadTokens ?? 0),
+				inputTokens,
+				outputTokens: 10,
+				...(cachedReadTokens && { cachedReadTokens })
+			},
+			at
+		});
+		const blocks = toBlocks([
+			usage(1),
+			{ kind: 'user', text: 'Do it', at },
+			{ kind: 'text', text: 'Started.', at },
+			usage(5),
+			// a turn the agent began by itself, when something in the background ended
+			{ kind: 'text', text: 'Finished.', at },
+			usage(2, 100)
+		]);
+		expect(blocks).toEqual([
+			{ kind: 'user', text: 'Do it' },
+			{
+				kind: 'agent',
+				parts: [
+					{ kind: 'text', text: 'Started.' },
+					{ kind: 'text', text: 'Finished.' }
+				],
+				usage: { totalTokens: 127, inputTokens: 7, outputTokens: 20, cachedReadTokens: 100 }
+			}
+		]);
+	});
 });

@@ -39,7 +39,6 @@ import {
 import { releasePlan } from './releases.ts';
 import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
-import { titleFor } from './titles.ts';
 import {
 	endLegacyTurns,
 	resumeSessions,
@@ -436,6 +435,10 @@ function connect(delay = 500) {
 				if (session.over()) continue;
 				const tasks = session.background();
 				if (tasks.length) sendLive({ type: 'workspace.background', workspaceId, tasks });
+				const usage = session.usage();
+				if (usage) sendLive({ type: 'workspace.usage', workspaceId, usage });
+				const commands = session.commands();
+				if (commands) sendLive({ type: 'workspace.commands', workspaceId, commands });
 			}
 			delay = 500;
 			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));
@@ -476,7 +479,6 @@ function answer(request: DaemonRequest) {
 async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
-	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'endSession') {
 		// a CLI still running with nothing to do: its conversation is over, and it goes

@@ -5,6 +5,7 @@ import {
 	methods,
 	ndJsonStream,
 	PROTOCOL_VERSION,
+	AvailableCommand,
 	ContentBlock,
 	CreateElicitationRequest,
 	ElicitationPropertySchema,
@@ -14,13 +15,23 @@ import {
 	StateUpdate,
 	type CreateElicitationResponse,
 	SessionUpdate
-} from '@agentclientprotocol/sdk/experimental/v2';
-import type { Agent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
+} from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import type {
+	Agent,
+	AgentCommand,
+	ContextUsage,
+	MessageImage,
+	PermissionMode,
+	Question,
+	TurnUsage
+} from '@geordi/protocol';
 import type { HostEvent } from '../host.ts';
 import { BackgroundTasks } from './background-tasks.ts';
 import { TerminalOutput } from './terminal-output.ts';
 import { nativeSubagents } from './subagents.ts';
-import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
+import { ToolInfos } from './tool-info.ts';
+import { ToolDiffs } from './diffs.ts';
+import { API_SERVER, type SessionOptions } from './adapter.ts';
 
 /** The choice Codex adds to a question whose answer may be a note instead. */
 const CODEX_OTHER = 'None of the above';
@@ -29,6 +40,66 @@ const ACP_MODES = {
 	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
 	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
 } satisfies Record<Agent, Record<PermissionMode, string>>;
+
+/**
+ * What a turn used, as the state update that ends it says (`usage`, unstable in ACP).
+ * ACP's standard counts only: the wrappers' own `_meta` (per model, quota) is left out.
+ */
+export function turnUsage(usage: IdleStateUpdate['usage']): { usage?: TurnUsage } {
+	if (!usage?.totalTokens) return {};
+	const {
+		totalTokens,
+		inputTokens,
+		outputTokens,
+		thoughtTokens,
+		cachedReadTokens,
+		cachedWriteTokens
+	} = usage;
+	return {
+		usage: {
+			totalTokens,
+			inputTokens,
+			outputTokens,
+			...(thoughtTokens && { thoughtTokens }),
+			...(cachedReadTokens && { cachedReadTokens }),
+			...(cachedWriteTokens && { cachedWriteTokens })
+		}
+	};
+}
+
+/**
+ * The agent's commands that make no sense from Geordi: signing out of the agent, handing the
+ * session to another app, renaming it (Geordi titles workspaces itself), or changing what
+ * Geordi sets for every message and shows (model, effort, settings). Commands that set a
+ * session option (Codex's `/plan`) are left out for that reason too, and hidden ones (`__`).
+ */
+const UNOFFERED: Record<Agent, string[]> = {
+	claude: ['remote-control', 'rename', 'model', 'effort', 'config'],
+	codex: ['logout', 'rename']
+};
+
+/** The commands of a list that work when a message begins with them, as Geordi passes on. */
+export function offeredCommands(provider: Agent, list: AvailableCommand[]): AgentCommand[] {
+	return list.flatMap((command) => {
+		if (
+			!AvailableCommand.isCommand(command) ||
+			command.name.startsWith('__') ||
+			UNOFFERED[provider].includes(command.name)
+		)
+			return [];
+		const action = (command._meta?.jetbrains as { air?: { commandAction?: { kind?: unknown } } })
+			?.air?.commandAction;
+		if (action?.kind === 'setConfigOption') return [];
+		const hint = command.input && 'hint' in command.input ? command.input.hint : undefined;
+		return [
+			{
+				name: command.name,
+				...(command.description && { description: command.description }),
+				...(typeof hint === 'string' && hint && { hint })
+			}
+		];
+	});
+}
 
 /** The host owns this connection across daemon and forge restarts. */
 export function connectAgent(
@@ -46,9 +117,22 @@ export function connectAgent(
 	const messages = new Map<string, string>();
 	// ACP tool IDs belong to the session. A command can span several foreground turns.
 	const tools = new Map<string, 'open' | 'closed'>();
+	const toolInfos = new ToolInfos();
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
 	const terminalOutput = new TerminalOutput();
+	const diffs = new ToolDiffs();
 	const questions = new Map<string, (answers?: string[]) => void>();
+	let cost: ContextUsage['cost'];
+	/** The commands last passed on, to pass them on again only when they change. */
+	let commands: string | undefined;
+	function offer(list: AvailableCommand[] | null | undefined) {
+		if (!list) return;
+		const offered = offeredCommands(provider, list);
+		const said = JSON.stringify(offered);
+		if (said === commands) return;
+		commands = said;
+		emit({ kind: 'commands', commands: offered });
+	}
 
 	function flush() {
 		for (const text of messages.values()) if (text) emit({ kind: 'text', text });
@@ -66,6 +150,7 @@ export function connectAgent(
 					running = false;
 					terminalOutput.retainOpen(tools);
 					for (const cancel of questions.values()) cancel();
+					const usage = turnUsage(u.usage);
 					if (u.stopReason && u.stopReason !== 'end_turn')
 						emit({
 							kind: 'turn.failed',
@@ -73,9 +158,10 @@ export function connectAgent(
 								u.stopReason === 'cancelled'
 									? 'Stopped'
 									: ((IdleStateUpdate.isError(u) ? u.error?.message : undefined) ??
-										String(u.stopReason))
+										String(u.stopReason)),
+							...usage
 						});
-					else emit({ kind: 'turn.completed' });
+					else emit({ kind: 'turn.completed', ...usage });
 				}
 				break;
 			case SessionUpdate.isAgentMessageChunk(u):
@@ -112,6 +198,15 @@ export function connectAgent(
 				}
 				break;
 			}
+			// How full the context is, after every model step. Claude says what the session has
+			// cost so far, but not every time: what it said last stands until it says more.
+			case SessionUpdate.isUsageUpdate(u):
+				if (u.cost) cost = { amount: u.cost.amount, currency: u.cost.currency };
+				emit({ kind: 'usage', usage: { used: u.used, size: u.size, ...(cost && { cost }) } });
+				break;
+			case SessionUpdate.isAvailableCommandsUpdate(u):
+				offer(u.availableCommands);
+				break;
 			// The pinned wrappers use this extension to withdraw one checklist.
 			case u.sessionUpdate === 'plan_removed' && 'planId' in u && typeof u.planId === 'string':
 				emit({ kind: 'plan', id: u.planId, plan: null });
@@ -119,23 +214,40 @@ export function connectAgent(
 			case SessionUpdate.isToolCallUpdate(u): {
 				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
+				diffs.receive(u);
+				const output = terminalOutput.toolResult(provider, u);
+				const { input = '', ...info } = toolInfos.news(u, output !== undefined);
 				if (!tools.has(u.toolCallId)) {
 					tools.set(u.toolCallId, 'open');
 					emit({
 						kind: 'tool',
 						id: u.toolCallId,
 						name: u.name ?? u.title ?? 'Tool',
-						input: truncate(JSON.stringify(u.rawInput) ?? '')
+						input,
+						...info
 					});
+				} else if (input || Object.keys(info).length) {
+					emit({ kind: 'tool.update', id: u.toolCallId, ...(input && { input }), ...info });
 				}
-				const output = terminalOutput.toolResult(provider, u);
 				if (output !== undefined) {
 					tools.set(u.toolCallId, 'closed');
+					toolInfos.delete(u.toolCallId);
+					const diff = diffs.take(u);
 					if (u.status !== 'cancelled')
-						emit({ kind: 'tool.result', id: u.toolCallId, output, isError: u.status === 'failed' });
+						emit({
+							kind: 'tool.result',
+							id: u.toolCallId,
+							output,
+							isError: u.status === 'failed',
+							...(diff && { diff })
+						});
 				}
 				break;
 			}
+			// What the agent calls its session; the forge decides whether it names the workspace.
+			case SessionUpdate.isSessionInfoUpdate(u) && !!u.title?.trim():
+				emit({ kind: 'title', title: u.title! });
+				break;
 		}
 	}
 	const children = nativeSubagents(provider, emit);
@@ -325,6 +437,7 @@ export function connectAgent(
 			: await agent.request(methods.agent.session.new, setup);
 		id = options.resumeId ?? ('sessionId' in session ? String(session.sessionId) : '');
 		if (!id) throw new Error('Missing ACP session ID');
+		offer(session.availableCommands);
 		let config = session.configOptions ?? [];
 		for (const [category, value] of [
 			['model', options.settings.model],

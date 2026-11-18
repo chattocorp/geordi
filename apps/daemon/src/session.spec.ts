@@ -59,6 +59,12 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    update({sessionUpdate:'plan_removed',planId:'review'});
    items('plan',[]);return done();
   }
+  if(said==='titles'){
+   update({sessionUpdate:'session_info_update',_meta:{codex:{threadStatus:{type:'active'}}}});
+   out({method:'session/update',params:{sessionId:'child',update:{sessionUpdate:'session_info_update',title:'A subagent'}}});
+   update({sessionUpdate:'session_info_update',title:'Fix the login',updatedAt:'2026-11-18T21:18:40.805Z'});
+   return done();
+  }
   if(said==='start command'){
    update({sessionUpdate:'tool_call_update',toolCallId:'bg',name:'shell',rawInput:'build',status:'in_progress',content:[{type:'terminal',terminalId:'bg-pty'}]});
    update({sessionUpdate:'terminal_output_chunk',terminalId:'bg-pty',data:Buffer.from('before ').toString('base64')});
@@ -79,6 +85,21 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    const bytes=Buffer.from('Café');
    for(const part of [bytes.subarray(0,4),bytes.subarray(4)]) update({sessionUpdate:'terminal_output_chunk',terminalId:'sh',data:part.toString('base64')});
    update({...tool,status:'completed'});return done();
+  }
+  if(said==='usage'){
+   const usage={sessionUpdate:'usage_update',used:31432,size:1000000,cost:{amount:0.27,currency:'USD'},_meta:{'_claude/model':'opus'}};
+   out({method:'session/update',params:{sessionId:'child',update:{...usage,used:5}}});
+   update(usage);const {cost,...later}=usage;update({...later,used:31500});return done();
+  }
+  if(said==='commands'){
+   const commands=update=>update({sessionUpdate:'available_commands_update',availableCommands:[
+    {type:'command',name:'review',description:'Review the changes',input:{type:'text',hint:'what to look at'}},
+    {type:'command',name:'compact',description:'Summarize',input:null},
+    {type:'command',name:'model',description:'Set the model'},
+    {type:'command',name:'__hidden',description:'Internal'},
+    {type:'command',name:'plan',description:'Plan mode',_meta:{jetbrains:{air:{commandAction:{kind:'setConfigOption'}}}}}
+   ]});
+   commands(update);commands(update);text('listed');return done();
   }
   if(said==='background'){text('started');state('idle',{stopReason:'end_turn',background:[{type:'tool_call',toolCallId:'task'}]});setTimeout(()=>{state('running');text('it finished');done();},700);return;}
   text('Heard: '+said);return done();
@@ -247,6 +268,15 @@ describe('a session', () => {
 			},
 			{ kind: 'plan', id: 'review', plan: null },
 			{ kind: 'plan', id: 'plan', plan: null },
+			{ kind: 'turn.completed' }
+		]);
+	});
+
+	it("passes on the title of the agent's own session, not its subagents'", async () => {
+		const { events, ended } = begin('titles');
+		await ended(1);
+		expect(events.slice(2)).toEqual([
+			{ kind: 'title', title: 'Fix the login' },
 			{ kind: 'turn.completed' }
 		]);
 	});
@@ -511,6 +541,45 @@ describe('a daemon restart', () => {
 			{ kind: 'text', text: 'Steered: still there?' },
 			{ kind: 'turn.completed' }
 		]);
+	});
+
+	it("reports how full the root session's context is, and still knows after a daemon restart", async () => {
+		const sessions = root();
+		const first = begin('usage', { dir: join(sessions, 'w') });
+		await first.ended(1);
+		const cost = { amount: 0.27, currency: 'USD' };
+		// a cost said once stands until the agent says more
+		const usage = { used: 31500, size: 1000000, cost };
+		expect(first.events.filter((event) => event.kind === 'usage')).toEqual([
+			{ kind: 'usage', usage: { ...usage, used: 31432 } },
+			{ kind: 'usage', usage }
+		]);
+		expect(first.session.usage()).toEqual(usage);
+		first.session.detach(); // the daemon goes away
+
+		const session = resumeSessions(sessions, () => () => true).get('w')!;
+		started.push(session);
+		expect(session.usage()).toEqual(usage);
+	});
+
+	it("knows the agent's commands as last offered, without passing them on again", async () => {
+		const sessions = root();
+		const first = begin('commands', { dir: join(sessions, 'w') });
+		await first.ended(1);
+		const offered = [
+			{ name: 'review', description: 'Review the changes', hint: 'what to look at' },
+			{ name: 'compact', description: 'Summarize' }
+		];
+		// the same list, offered twice, is said once; what Geordi can't use is left out
+		expect(first.events.filter((event) => event.kind === 'commands')).toEqual([
+			{ kind: 'commands', commands: offered }
+		]);
+		expect(first.session.commands()).toEqual(offered);
+		first.session.detach();
+
+		const session = resumeSessions(sessions, () => () => true).get('w')!;
+		started.push(session);
+		expect(session.commands()).toEqual(offered);
 	});
 
 	it('reports one answer receipt when a restarted daemon retries an answer in flight', async () => {

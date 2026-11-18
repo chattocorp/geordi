@@ -55,3 +55,24 @@ export function withAides<T extends { id: string; worktreeId: string }>(
 			aides: all.filter((other) => alongside(other) && other.worktreeId === workspace.id).reverse()
 		}));
 }
+
+/**
+ * The rows of a repository's list that show while the workspaces in `folded` have what
+ * their agents started folded away under them; each with how many it has under it.
+ */
+export function unfolded<T extends { id: string }>(
+	rows: Listed<T>[],
+	folded: readonly string[]
+): (Listed<T> & { under: number })[] {
+	const shown: (Listed<T> & { under: number })[] = [];
+	let hiddenBelow = Infinity; // rows deeper than this are folded away
+	rows.forEach((row, index) => {
+		if (row.depth > hiddenBelow) return;
+		hiddenBelow = Infinity;
+		let under = 0;
+		while (rows[index + under + 1]?.depth > row.depth) under++;
+		shown.push({ ...row, under });
+		if (under > 0 && folded.includes(row.workspace.id)) hiddenBelow = row.depth;
+	});
+	return shown;
+}

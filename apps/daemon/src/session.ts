@@ -17,7 +17,13 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentEvent, BackgroundTask, MessageImage } from '@geordi/protocol';
+import type {
+	AgentCommand,
+	AgentEvent,
+	BackgroundTask,
+	ContextUsage,
+	MessageImage
+} from '@geordi/protocol';
 import type { Command, Exit, HostEvent, Meta } from './host.ts';
 
 /**
@@ -58,6 +64,10 @@ export type Session = Meta & {
 	 */
 	working(): boolean;
 	background(): BackgroundTask[];
+	/** How full the agent's context is, as it last said; `undefined` before it has. */
+	usage(): ContextUsage | undefined;
+	/** The agent's commands, as last heard; `null` before it has said. */
+	commands(): AgentCommand[] | null;
 	/** Whether the session is over: there is nobody to say anything to any more. */
 	over(): boolean;
 	/** The CLI's own ID of the conversation, as last heard. */
@@ -130,12 +140,16 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 	let offset = existsSync(file('offset')) ? Number(readFileSync(file('offset'), 'utf8')) : 0;
 	let open = false;
 	let background: BackgroundTask[] = [];
+	let usage: ContextUsage | undefined;
+	let commands: AgentCommand[] | null = null;
 	let expecting = existsSync(file('expecting'));
 	let resumeId = meta.options.resumeId;
 
 	/** Keeps up with what an event means for where the session stands. */
 	function note(event: HostEvent, replay = false) {
 		if (event.kind === 'background') background = event.tasks;
+		if (event.kind === 'usage') usage = event.usage;
+		if (event.kind === 'commands') commands = event.commands;
 		if (event.kind === 'resume') resumeId = event.id;
 		if (event.kind === 'turn.started') {
 			open = true;
@@ -252,6 +266,8 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 		},
 		detach: () => finish(),
 		background: () => background,
+		usage: () => usage,
+		commands: () => commands,
 		working: () => open || expecting,
 		over: () => finished,
 		resumeId: () => resumeId,

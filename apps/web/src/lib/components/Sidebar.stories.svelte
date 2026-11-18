@@ -53,7 +53,7 @@
 	/** One of each state a row can be in: what is at work, what waits, how the work stands. */
 	const nav: Navigation = {
 		repos: [
-			repo('geordi', 'geordi', 6),
+			repo('geordi', 'geordi', 7),
 			repo('sample', 'sample-project', 2),
 			repo('idle', 'no-workspaces', 0)
 		],
@@ -71,6 +71,7 @@
 				outcome: null
 			}),
 			workspace('ready', 'Raise light mode text contrast', { standing: ready }),
+			workspace('tokens', 'Check every token in dark mode', { parentId: 'ready' }),
 			workspace('failing', 'Guard shared worktrees from update and continue', {
 				standing: failing
 			}),

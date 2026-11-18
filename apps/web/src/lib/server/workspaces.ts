@@ -10,11 +10,15 @@ import {
 	type AgentEvent,
 	type AgentPlan,
 	type AgentSettings,
+	type ContextUsage,
 	type SubagentState,
 	type SubagentUpdate,
 	type ForgeMessage,
 	type Harness,
 	type Question,
+	type ToolDiff,
+	type ToolInfo,
+	type TurnUsage,
 	type WorktreeMode,
 	type WorktreeRef
 } from '@geordi/protocol';
@@ -116,6 +120,11 @@ export type WorkspacesEvent =
 			/** Historical answers have no pending flag and were final when recorded. */
 			data: { id: string; question: string; answers: string[]; pending?: true };
 	  }
+	/**
+	 * How full the agent's context was at the end of a turn (or when it said so between
+	 * turns). What it says during a turn is only kept in memory: it says it after every step.
+	 */
+	| { type: 'workspace.usage'; stream: WorkspaceStream; data: { id: string; usage: ContextUsage } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
 	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
 	/** Whatever the daemon reports, stored verbatim. */
@@ -194,16 +203,20 @@ export type TranscriptItem =
 	  }
 	| { kind: 'text'; text: string; at: string }
 	| { kind: 'plan'; id: string; plan: AgentPlan; at: string }
-	| {
+	| ({
 			kind: 'tool';
 			id: string;
 			name: string;
 			input: string;
 			output: string | null;
 			isError: boolean;
+			/** What it changed in files, once it succeeded; absent in events from before diffs were kept. */
+			diff?: ToolDiff;
 			at: string;
-	  }
+	  } & ToolInfo)
 	| { kind: 'error'; error: string; at: string }
+	/** What the turn that ends here used, where its agent said. */
+	| { kind: 'usage'; usage: TurnUsage; at: string }
 	/**
 	 * Something the agent asked the person, which it waits to hear about. `answers` once it
 	 * was answered; no longer `open` once it was, or the turn ended without.
@@ -271,6 +284,8 @@ export type Workspace = {
 	asking: boolean;
 	/** How its latest turn ended; `null` while one is running, and before the first. */
 	lastTurn: TurnEnd | null;
+	/** How full its agent's context is, as it last said; `null` before it has. */
+	usage: ContextUsage | null;
 	/** The workspace whose agent started this one; `null` if a person did. */
 	parentId: string | null;
 	/** The external client (its grant) that started it, if one did: it may supervise it. */
@@ -320,6 +335,7 @@ function initialWorkspace(
 		status: 'idle',
 		asking: false,
 		lastTurn: null,
+		usage: null,
 		parentId,
 		startedBy: actor && isExternal(actor) ? actor : null,
 		worktreeId,
@@ -391,17 +407,14 @@ export function createWorkspaces(
 	dispatch: Dispatch,
 	{
 		limits = { depth: 3, children: 5 },
-		secret = randomBytes(32).toString('base64url'),
-		onCreated
+		secret = randomBytes(32).toString('base64url')
 	}: {
 		limits?: Limits;
 		/** Signs agent API tokens. Must be the same after a restart, or running agents lose access. */
 		secret?: string;
-		/** Called with every new workspace and the message that started it, e.g. to name it. */
-		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
-	const access = createAgentAccess(store);
+	const access = createAgentAccess(store, repos.get);
 	const imageStore = createImages(store);
 	/**
 	 * Who steered a workspace's agent in the way of before ADR-010 (`workspace.steered`), until
@@ -432,6 +445,12 @@ export function createWorkspaces(
 			move(workspaces, event.data.id, event.data.before);
 			return;
 		}
+		// not something that happened in it: it leaves its place in the lists alone
+		if (event.type === 'workspace.usage') {
+			const measured = workspaces.get(event.data.id);
+			if (measured) measured.usage = event.data.usage;
+			return;
+		}
 
 		const workspace = workspaces.get(event.data.id);
 		if (!workspace) return;
@@ -456,7 +475,7 @@ export function createWorkspaces(
 
 		if (event.type === 'workspace.titled') {
 			workspace.title = event.data.title;
-			// a title someone chose, as opposed to one a model made of the first message unasked
+			// a title someone chose, as opposed to one its agent's session goes by
 			if (actor) workspace.named = true;
 			return;
 		}
@@ -597,9 +616,20 @@ export function createWorkspaces(
 			case 'tool':
 				append({ ...output, output: null, isError: false, at });
 				break;
+			case 'tool.update': {
+				const tool = toolById(workspace, output.id);
+				if (tool) replace(tool, { ...tool, ...output, kind: 'tool' });
+				break;
+			}
 			case 'tool.result': {
 				const tool = toolById(workspace, output.id);
-				if (tool) replace(tool, { ...tool, output: output.output, isError: output.isError });
+				if (tool)
+					replace(tool, {
+						...tool,
+						output: output.output,
+						isError: output.isError,
+						...(output.diff && { diff: output.diff })
+					});
 				break;
 			}
 			case 'answer.received': {
@@ -632,15 +662,14 @@ export function createWorkspaces(
 				// a turn that is over waits for no answer
 				workspace.asking = false;
 				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
-				if (output.kind === 'turn.failed') workspace.pendingSteers = [];
-				if (output.kind === 'turn.completed') {
-					workspace.lastTurn = 'completed';
-					break;
-				}
-				workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
-				// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
-				if (!(output.error === 'Stopped' && steering.has(workspace.id)))
-					append({ kind: 'error', error: output.error, at });
+				if (output.kind === 'turn.failed') {
+					workspace.pendingSteers = [];
+					workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
+					// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
+					if (!(output.error === 'Stopped' && steering.has(workspace.id)))
+						append({ kind: 'error', error: output.error, at });
+				} else workspace.lastTurn = 'completed';
+				if (output.usage) append({ kind: 'usage', usage: output.usage, at });
 				break;
 		}
 	}
@@ -712,10 +741,30 @@ export function createWorkspaces(
 		return restored.transcript;
 	}
 
+	/**
+	 * How full each working agent's context is, as it said since its turn began: it says so
+	 * after every step, too often for the event log. Recorded when the turn ends (`keepUsage`);
+	 * after a restart, the daemon says it again.
+	 */
+	const usages = new Map<string, ContextUsage>();
+	const usageListeners = new Set<(id: string) => void>();
+	const sameUsage = (a: ContextUsage | null, b: ContextUsage) =>
+		a?.used === b.used &&
+		a.size === b.size &&
+		a.cost?.amount === b.cost?.amount &&
+		a.cost?.currency === b.cost?.currency;
+	function keepUsage(workspace: Workspace, usage: ContextUsage) {
+		usages.delete(workspace.id);
+		if (sameUsage(workspace.usage, usage)) return;
+		const { id } = workspace;
+		store.append({ type: 'workspace.usage', stream: `workspace:${id}`, data: { id, usage } });
+	}
+
 	const summarise = ({ transcript, ...workspace }: Workspace): WorkspaceSummary => {
 		void transcript;
 		return structuredClone({
 			...workspace,
+			usage: usages.get(workspace.id) ?? workspace.usage,
 			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
 		});
 	};
@@ -780,14 +829,17 @@ export function createWorkspaces(
 		const workspace = projection.get().get(id);
 		if (!workspace || workspace.archivedAt) return;
 		if (cursor && workspace.outputCursor === cursor) return;
+		// what the agent calls its session may come at any time, even after its turn
+		if (event.kind === 'title') return titleFromAgent(workspace, event.title);
 		const running = workspace.status === 'running';
 		// how to resume it is news at any time, and so is where its worktree is
 		if (event.kind === 'resume') {
 			if (event.id === workspace.resumeId) return;
 		} else if (event.kind === 'turn.started') {
 			if (running) return;
-		} else if (!running && event.kind === 'tool.result') {
-			// A background command can finish after its turn. Complete its existing entry once.
+		} else if (!running && (event.kind === 'tool.result' || event.kind === 'tool.update')) {
+			// A background command can finish after its turn (its input held until then, see
+			// `ToolInfos`). Complete its existing entry once.
 			if (toolById(workspace, event.id)?.output !== null) return;
 		} else if (
 			event.kind !== 'subagent' &&
@@ -802,6 +854,8 @@ export function createWorkspaces(
 			stream: `workspace:${id}`,
 			data: { id, event, ...(cursor && { cursor }) }
 		});
+		const measured = usages.get(id);
+		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
 		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
 			say(workspace, workspace.queue[0], null, 'queued');
 	}
@@ -959,12 +1013,28 @@ export function createWorkspaces(
 
 	/**
 	 * Names a workspace that was started without a word after the first thing it is told, as
-	 * one started with a prompt is: the first line, and whatever `onCreated` makes of it.
+	 * one started with a prompt is: its first line.
 	 */
 	function nameAfter(workspace: Workspace, text: string) {
 		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
 		retitle(workspace.id, text.split('\n')[0].slice(0, 300));
-		onCreated?.(workspace.id, text);
+	}
+
+	/**
+	 * The title the agent gives its session (FDR-001). It names the workspace until someone
+	 * names it on purpose, a person or the agent itself (`name_workspace`). A later one
+	 * replaces it: agents title a session once, and again only when it is renamed. A
+	 * title that merely repeats the start of something the agent was told is none: Codex
+	 * says the prompt back until it has made one, and Claude does where it could not.
+	 */
+	function titleFromAgent(workspace: Workspace, title: string) {
+		if (workspace.named) return;
+		const flat = (text: string) => text.replace(/\s+/g, ' ').trim();
+		const said = flat(title).replace(/…$/, '').trimEnd();
+		const echo = workspace.transcript.some(
+			(item) => item.kind === 'user' && flat(item.text).startsWith(said)
+		);
+		if (!echo) retitle(workspace.id, title);
 	}
 
 	/**
@@ -1006,12 +1076,11 @@ export function createWorkspaces(
 			},
 			{ actor }
 		);
-		// whoever starts it may name it; otherwise that is left to others (`onCreated`, its agent)
+		// whoever starts it may name it; otherwise its agent does (`titleFromAgent`, `name_workspace`)
 		if (given && actor) retitle(id, given, actor);
 		// started with nothing to do, it waits to be told: its first turn is its first message
 		if (!prompt && !images.length) return id;
 		say(find(id), prompt, actor, undefined, images);
-		if (!find(id).named) onCreated?.(id, prompt);
 		return id;
 	}
 
@@ -1027,6 +1096,26 @@ export function createWorkspaces(
 	function depthOf(workspace: Workspace): number {
 		const parent = workspace.parentId && projection.get().get(workspace.parentId);
 		return parent ? depthOf(parent) + 1 : 0;
+	}
+
+	/**
+	 * Whether the caller may see a repository's workspaces: an external client, those it was
+	 * granted, and so may the agents it started (directly or not), or they would be its way
+	 * around that.
+	 */
+	function reaches(callerId: string, repoId: string | null): boolean {
+		const workspace = projection.get().get(callerId);
+		const starter = workspace && starterOf(workspace);
+		if (starter) return reaches(starter, repoId);
+		// a token for chosen repositories doesn't reach the Desk, which is in none (FDR-012)
+		return !isExternal(callerId) || (repoId !== null && access.reaches(callerId, repoId));
+	}
+
+	/** A workspace the caller may see. One in a repository it may not doesn't exist for it. */
+	function findFor(callerId: string, id: string): Workspace {
+		const workspace = projection.get().get(id);
+		if (!workspace || !reaches(callerId, workspace.repoId)) error(404, `Workspace ${id} not found`);
+		return workspace;
 	}
 
 	/** Who may supervise a workspace: the workspace or external client that started it. */
@@ -1105,22 +1194,27 @@ export function createWorkspaces(
 	/**
 	 * What agents can do through the agent API (ADR-004, FDR-002). Every function takes the
 	 * caller: a workspace, or an external client's grant. It is recorded as the actor of what
-	 * it causes. Any caller can read any workspace; supervising (messaging, interrupting,
-	 * stopping, archiving) is for whoever started it, directly or not.
+	 * it causes. A workspace's agent can read any workspace, an external client those in the
+	 * repositories it was granted; supervising (messaging, interrupting, stopping, archiving)
+	 * is for whoever started it, directly or not.
 	 */
 	const agents = {
 		authenticate,
 		isDesk,
-		reportWorkspace: (id: string) => report(find(id)),
-		listRepositories: () => repos.list().map(({ id, name, path }) => ({ id, name, path })),
-		listWorkspaces(archived: boolean) {
+		reportWorkspace: (callerId: string, id: string) => report(findFor(callerId, id)),
+		listRepositories: (callerId: string) =>
+			repos
+				.list()
+				.filter((repo) => reaches(callerId, repo.id))
+				.map(({ id, name, path }) => ({ id, name, path })),
+		listWorkspaces(callerId: string, archived: boolean) {
 			return [...projection.get().values()]
 				.reverse()
-				.filter((w) => archived || !w.archivedAt)
+				.filter((w) => (archived || !w.archivedAt) && reaches(callerId, w.repoId))
 				.map(entry);
 		},
-		readWorkspace(id: string, before?: number) {
-			const workspace = find(id);
+		readWorkspace(callerId: string, id: string, before?: number) {
+			const workspace = findFor(callerId, id);
 			const transcript = transcriptOf(workspace);
 			const messages = transcript.filter(
 				(item) =>
@@ -1203,6 +1297,8 @@ export function createWorkspaces(
 							? 'The Desk has no worktree to share'
 							: 'Only an agent in a workspace can share its worktree'
 					);
+				if (!reaches(callerId, repository))
+					error(404, `There is no repository ${repository} you have access to`);
 				where = { repoId: repos.get(repository).id, ...(desk && { parentId: callerId }) };
 			} else {
 				if (repository && repository !== caller.repoId)
@@ -1236,7 +1332,7 @@ export function createWorkspaces(
 		/** Any workspace (`id`), or the caller's own. */
 		workspace(callerId: string, id?: string): Workspace {
 			if (id === undefined && isExternal(callerId)) error(400, 'Say which workspace (agent_id)');
-			const workspace = find(id ?? callerId);
+			const workspace = findFor(callerId, id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
@@ -1248,7 +1344,7 @@ export function createWorkspaces(
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
 			const external = isExternal(callerId);
-			const workspace = external ? find(id) : findControlled(callerId, id);
+			const workspace = external ? findFor(callerId, id) : findControlled(callerId, id);
 			if (workspace.archivedAt) error(409, 'Workspace is archived');
 			if (
 				external &&
@@ -1279,9 +1375,9 @@ export function createWorkspaces(
 			stop(findControlled(callerId, id).id);
 		},
 
-		/** Resolves once any workspace's agent is idle, or after `timeoutMs` at the latest. */
-		async wait(id: string, timeoutMs: number): Promise<AgentReport> {
-			const workspace = find(id);
+		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
+		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
+			const workspace = findFor(callerId, id);
 			if (workspace.status === 'running')
 				await new Promise<void>((resolve) => {
 					const done = () => {
@@ -1296,10 +1392,29 @@ export function createWorkspaces(
 		}
 	};
 
+	/**
+	 * How full a workspace agent's context is, as its daemon says (ACP `usage_update`): kept
+	 * in memory while it works, recorded at once while it does not.
+	 */
+	function measure(id: string, usage: ContextUsage) {
+		const workspace = projection.get().get(id);
+		if (!workspace || workspace.archivedAt) return;
+		if (workspace.status !== 'running') return keepUsage(workspace, usage);
+		if (sameUsage(usages.get(id) ?? workspace.usage, usage)) return;
+		usages.set(id, usage);
+		for (const listener of usageListeners) listener(id);
+	}
+
 	return {
 		access,
 		agents,
 		followTranscript,
+		measure,
+		/** Told which workspace's usage changed between events. */
+		followUsage(listener: (id: string) => void) {
+			usageListeners.add(listener);
+			return () => usageListeners.delete(listener);
+		},
 
 		/**
 		 * All workspaces in use (not archived), newest first or as people moved them, without
@@ -1568,14 +1683,6 @@ export function createWorkspaces(
 		},
 
 		retitle,
-
-		/**
-		 * A title a model made of the workspace's first message. Only until someone has named
-		 * it on purpose: its agent knows better what the work is about.
-		 */
-		suggestTitle(id: string, title: string) {
-			if (!find(id).named) retitle(id, title);
-		},
 
 		/**
 		 * Moves a workspace in the list: right above `before`, another of its repository's,

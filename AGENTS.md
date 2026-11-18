@@ -108,9 +108,10 @@ it, perhaps you.
     the middle of its turn) or queues (`workspace.queued`: sent when the turn ends).
   - An agent can ask the person something (`question`, answered with `workspace.answered`
     and `agent.answer`); the workspace is `asking` while a blocking form needs input. The forge retries saved answers until the host acknowledges the question ID or the request closes.
-  - Workspaces get their titles from the daemon (`titles.ts`), which asks a small model on
-    OpenRouter with a plain HTTP request (`OPENROUTER_API_KEY`). No SDK: prefer a few lines
-    of our own over a heavy dependency.
+  - A workspace is named after the first line of its first message, then after the title
+    its agent gives its root session (ACP `session_info_update`, the `title` event;
+    `titleFromAgent` drops Codex's echo of the prompt), until someone names it on purpose
+    (an `actor` on `workspace.titled`: a caller's `title`, or the agent's `name_workspace`).
   - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
     tested); most just `say` something to the agent.
   - Agents run without permission prompts by default (they must commit, push and use `gh`).
@@ -133,7 +134,7 @@ it, perhaps you.
   stored.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per workspace; the
-  daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`), start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
+  daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`) for chosen repositories (`repoIds`; never later ones), see only those, start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and
@@ -215,7 +216,7 @@ it, perhaps you.
     `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
+    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
   - **Components** in `#lib/ui/` (`Button`, `ButtonGroup`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `Disclosure`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Ring`, `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
@@ -243,8 +244,8 @@ it, perhaps you.
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).
-- **Settings (FDR-005):** one dialog (`#lib/components/Settings.svelte`), opened with
-  `openSettings(section?)` or Cmd/Ctrl+,. Preferences of this browser (the theme,
+- **Settings (FDR-005):** one page, `/settings/[[section]]` (`#lib/components/Settings.svelte`),
+  opened with `openSettings(section?)` or Cmd/Ctrl+,. Preferences of this browser (the theme,
   `#lib/theme.svelte.ts`) live in localStorage; what belongs to the installation
   (repositories) is events.
 - **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed, three

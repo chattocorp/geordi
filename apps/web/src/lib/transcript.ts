@@ -1,3 +1,4 @@
+import type { TurnUsage } from '@geordi/protocol';
 import type { SubagentItem, TranscriptItem } from '#lib/server/workspaces.ts';
 
 type Tool = Extract<TranscriptItem, { kind: 'tool' }>;
@@ -18,7 +19,8 @@ export type Block =
 	  > & {
 			delegated?: boolean;
 	  })
-	| { kind: 'agent'; parts: Part[] }
+	/** `usage`: what the turns of this reply used, together, where their agent said. */
+	| { kind: 'agent'; parts: Part[]; usage?: TurnUsage }
 	| { kind: 'note'; text: string };
 
 /** Groups a flat transcript into turns, merging consecutive tool calls into one part. */
@@ -48,6 +50,12 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 			continue;
 		}
 
+		if (item.kind === 'usage') {
+			const agent = blocks.at(-1);
+			if (agent?.kind === 'agent') agent.usage = addUsage(agent.usage, item.usage);
+			continue;
+		}
+
 		let agent = blocks.at(-1);
 		if (agent?.kind !== 'agent') blocks.push((agent = { kind: 'agent', parts: [] }));
 
@@ -71,6 +79,14 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 	}
 
 	return blocks;
+}
+
+/** Two turns' usage together: a reply can span turns the agent began by itself. */
+function addUsage(a: TurnUsage | undefined, b: TurnUsage): TurnUsage {
+	if (!a) return b;
+	const sum: TurnUsage = { ...a };
+	for (const key of Object.keys(b) as (keyof TurnUsage)[]) sum[key] = (a[key] ?? 0) + (b[key] ?? 0);
+	return sum;
 }
 
 export function subagentBlocks(child: SubagentItem): Block[] {

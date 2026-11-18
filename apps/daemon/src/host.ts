@@ -31,11 +31,23 @@ import {
 import { createRequire } from 'node:module';
 import { delimiter, dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
-import type { Agent, AgentEvent, BackgroundTask, MessageImage } from '@geordi/protocol';
+import type {
+	Agent,
+	AgentCommand,
+	AgentEvent,
+	BackgroundTask,
+	ContextUsage,
+	MessageImage
+} from '@geordi/protocol';
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
 
-export type HostEvent = AgentEvent | { kind: 'background'; tasks: BackgroundTask[] };
+export type HostEvent =
+	| AgentEvent
+	| { kind: 'background'; tasks: BackgroundTask[] }
+	| { kind: 'usage'; usage: ContextUsage }
+	/** The agent's commands, all of them, whenever they change: live data, not history. */
+	| { kind: 'commands'; commands: AgentCommand[] };
 
 export type Meta = {
 	agent: Agent;
@@ -149,8 +161,7 @@ function emit(event: HostEvent) {
 		open = true;
 	} else if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
 		if (!open) return;
-		if (event.kind === 'turn.failed' && stopped())
-			event = { kind: 'turn.failed', error: 'Stopped' };
+		if (event.kind === 'turn.failed' && stopped()) event = { ...event, error: 'Stopped' };
 		open = stopping = false;
 		clearTimeout(unstoppable);
 	}

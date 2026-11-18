@@ -164,9 +164,12 @@ export const workspace = (id: string) => {
 			};
 		},
 		also: (changed) => {
-			const stopTasks = hub().followBackground((source) => {
+			const relevant = (source: string) => {
 				if (source === id || transcripts.has(source)) changed();
-			});
+			};
+			const stopTasks = hub().followBackground(relevant);
+			const stopUsage = workspaces().followUsage(relevant);
+			// the Desk has no worktree to watch (FDR-012)
 			const { repoId, worktreeId } = workspaces().summary(id);
 			const unwatch = repoId === null ? () => {} : watchers().watch(worktreeId, changed);
 			const unsubscribe = terminals().subscribe(changed);
@@ -174,6 +177,7 @@ export const workspace = (id: string) => {
 				for (const follower of transcripts.values()) follower.close();
 				transcripts.clear();
 				stopTasks();
+				stopUsage();
 				unwatch();
 				unsubscribe();
 			};
@@ -181,8 +185,19 @@ export const workspace = (id: string) => {
 	} satisfies View<unknown>;
 };
 
+/**
+ * The commands a workspace's agent offers (its slash commands and skills), for its reply box.
+ * A view of its own, apart from the workspace's: some hundred of them, which change seldom,
+ * and are sent only when they do. `null` until the agent has said.
+ */
+export const commands = (id: string) =>
+	({
+		read: () => hub().commands(id),
+		also: (changed) => hub().followCommands((source) => source === id && changed())
+	}) satisfies View<unknown>;
+
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace };
+export const views = { navigation, workspace, commands };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
