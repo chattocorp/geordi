@@ -134,7 +134,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Sync 1 incoming commit' })).toBeVisible();
 		await expect(canvas.getByRole('button', { name: 'Fix errors' })).toHaveStyle({
 			color: getComputedStyle(canvas.getByText('Checks failing')).color
 		});
@@ -259,7 +259,8 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Behind base branch')).toBeVisible();
-		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+		const sync = canvas.getByRole('button', { name: 'Sync 1 incoming commit' });
+		await expect(within(sync).getByText('1')).toHaveClass('text-muted/70');
 	}}
 >
 	{@render bar({
@@ -278,10 +279,8 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const buttons = within(canvasElement).getAllByRole('button');
-		await expect(buttons.map((button) => button.textContent?.trim())).toEqual([
-			'Sync',
-			'Create PR'
-		]);
+		await expect(buttons[0]).toHaveAccessibleName('Sync 3 incoming commits');
+		await expect(buttons[1]).toHaveAccessibleName('Create PR');
 	}}
 >
 	{@render bar({
