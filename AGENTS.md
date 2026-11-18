@@ -101,7 +101,7 @@ it, perhaps you.
   - A message to a working agent either steers it (sent at once: it reaches the agent in
     the middle of its turn) or queues (`workspace.queued`: sent when the turn ends).
   - An agent can ask the person something (`question`, answered with `workspace.answered`
-    and `agent.answer`); it waits meanwhile, and the workspace is `asking`.
+    and `agent.answer`); the workspace is `asking` while a blocking form needs input. The forge retries saved answers until the host acknowledges the question ID or the request closes.
   - Workspaces get their titles from the daemon (`titles.ts`), which asks a small model on
     OpenRouter with a plain HTTP request (`OPENROUTER_API_KEY`). No SDK: prefer a few lines
     of our own over a heavy dependency.

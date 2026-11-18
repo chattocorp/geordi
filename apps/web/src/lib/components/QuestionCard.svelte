@@ -3,7 +3,7 @@
 	import Button from '#lib/ui/Button.svelte';
 
 	/**
-	 * Something the agent asks the person, and waits to hear about: each question with the
+	 * Something the agent asks the person: each question with the
 	 * answers it offers, any of which can be given, or one in the person's own words. Once
 	 * it is answered (or the agent has gone on without), it only says what was said.
 	 */
@@ -11,13 +11,17 @@
 		questions,
 		answers,
 		open,
+		delivery,
+		blocking = true,
 		onanswer
 	}: {
 		questions: Question[];
 		/** What was answered, one per question; `null` if nothing was. */
 		answers: string[] | null;
-		/** Whether the agent still waits for an answer. */
+		/** Whether the person can still submit an answer. */
 		open: boolean;
+		blocking?: boolean;
+		delivery?: 'pending' | 'unconfirmed';
 		onanswer: (answers: string[]) => unknown;
 	} = $props();
 
@@ -91,12 +95,20 @@
 			{/if}
 		</fieldset>
 	{/each}
+	{#if delivery}
+		<p role="status" class="text-xs text-muted">
+			{delivery === 'pending'
+				? 'Waiting for the agent to receive your answer.'
+				: 'The question closed before delivery was confirmed.'}
+		</p>
+	{/if}
 	{#if open}
 		<div class="flex justify-end">
 			<Button
 				type="submit"
 				variant="primary"
-				disabled={!questions.every((q, i) => q.optional || given[i])}
+				disabled={!questions.every((q, i) => q.optional || given[i]) ||
+					(!blocking && !given.some(Boolean))}
 				busy={sending}
 			>
 				Answer

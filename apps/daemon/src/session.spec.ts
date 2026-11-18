@@ -35,6 +35,11 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
   state('running');result({messageId:String(req.id)});
   if(slow){slow=false;text('Steered: '+said);return done();}
   if(said==='slow'){slow=true;return;}
+  if(said==='withdraw'){
+   out({id:103,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Still working?',requestedSchema:{type:'object',properties:{reply:{type:'string'}}},_meta:{codex:{delivery:'async'}}}});
+   return;
+  }
+  if(said==='withdraw now'){out({method:'$/cancel_request',params:{requestId:103}});return;}
   if(said==='ask'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Tea or coffee?',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',enum:['Tea','Coffee']}}}}});return;}
   if(said==='codex question'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Codex needs your input to continue.',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',description:'Drink',enum:['Tea','Coffee'],_meta:{codex:{isOther:false,isSecret:false}}}}}}});return;}
   if(said==='pick'){out({id:102,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Which drinks?',requestedSchema:{type:'object',properties:{question_0:{type:'array',items:{anyOf:[{const:'Tea',title:'Tea'},{const:'Coffee',title:'Coffee'}]}},question_0_custom:{type:'string'}}}}});return;}
@@ -188,6 +193,21 @@ describe('a session', () => {
 		expect(events.at(-2)).toEqual({ kind: 'text', text: 'You said Coffee' });
 	});
 
+	it('closes a withdrawn Codex async request while its turn keeps running', async () => {
+		const { events, session, kinds } = begin('withdraw', { launch: { ...meta(), agent: 'codex' } });
+		await until(() => kinds().includes('question'));
+		session.say({ prompt: 'withdraw now' });
+		await until(() => kinds().includes('question.closed'));
+		const question = events.find((e) => e.kind === 'question')!;
+		expect(question.blocking).toBe(false);
+		expect(events.at(-1)).toEqual({ kind: 'question.closed', id: question.id });
+		expect(session.working()).toBe(true);
+		session.answer(question.id, ['Late']);
+		session.stop();
+		await until(() => kinds().includes('turn.failed'));
+		expect(kinds()).not.toContain('answer.received');
+	});
+
 	it('keeps shell output across ACP byte chunks', async () => {
 		const { events, ended } = begin('terminal');
 		await ended(1);
@@ -244,6 +264,7 @@ describe('a session', () => {
 		await until(() => kinds().includes('question'));
 		expect(events.at(-1)).toEqual({
 			kind: 'question',
+			blocking: true,
 			id: expect.any(String),
 			questions: [
 				{
@@ -345,6 +366,25 @@ describe('a daemon restart', () => {
 		// nothing is said twice
 		expect(events).toEqual([
 			{ kind: 'text', text: 'Steered: still there?' },
+			{ kind: 'turn.completed' }
+		]);
+	});
+
+	it('reports one answer receipt when a restarted daemon retries an answer in flight', async () => {
+		const sessions = root();
+		const first = begin('ask', { dir: join(sessions, 'w') });
+		await until(() => first.kinds().includes('question'));
+		const question = first.events.find((event) => event.kind === 'question')!;
+		first.session.answer(question.id, ['Coffee']);
+		first.session.detach();
+		const events: AgentEvent[] = [];
+		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
+		started.push(session);
+		session.answer(question.id, ['Tea']);
+		await until(() => events.some((event) => event.kind === 'turn.completed'));
+		expect(events).toEqual([
+			{ kind: 'answer.received', id: question.id },
+			{ kind: 'text', text: 'You said Coffee' },
 			{ kind: 'turn.completed' }
 		]);
 	});

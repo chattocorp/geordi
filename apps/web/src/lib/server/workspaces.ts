@@ -96,7 +96,8 @@ export type WorkspacesEvent =
 	| {
 			type: 'workspace.answered';
 			stream: WorkspaceStream;
-			data: { id: string; question: string; answers: string[] };
+			/** Historical answers have no pending flag and were final when recorded. */
+			data: { id: string; question: string; answers: string[]; pending?: true };
 	  }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
 	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
@@ -129,12 +130,33 @@ export type TranscriptItem =
 			kind: 'question';
 			id: string;
 			questions: Question[];
+			blocking?: boolean;
+			delivery?: 'pending' | 'unconfirmed';
 			answers: string[] | null;
 			open: boolean;
 			at: string;
 	  }
 	/** Something that happened to the workspace, said in passing: neither side's words. */
 	| { kind: 'note'; text: string; at: string };
+
+type Asked = Extract<TranscriptItem, { kind: 'question' }>;
+
+function questionById(workspace: Workspace, id: string) {
+	return workspace.transcript.findLast(
+		(item): item is Asked => item.kind === 'question' && item.id === id
+	);
+}
+
+function closeQuestion(question: Asked) {
+	question.open = false;
+	if (question.delivery === 'pending') question.delivery = 'unconfirmed';
+}
+
+function updateAsking(workspace: Workspace) {
+	workspace.asking = workspace.transcript.some(
+		(item) => item.kind === 'question' && item.open && item.blocking !== false
+	);
+}
 
 type Status = 'running' | 'idle';
 
@@ -348,12 +370,13 @@ export function createWorkspaces(
 			return;
 		}
 		if (event.type === 'workspace.answered') {
-			const question = transcript.findLast(
-				(item) => item.kind === 'question' && item.id === event.data.question
-			);
-			if (question?.kind === 'question')
-				Object.assign(question, { answers: event.data.answers, open: false });
-			workspace.asking = transcript.some((item) => item.kind === 'question' && item.open);
+			const question = questionById(workspace, event.data.question);
+			if (question && (question.open || !event.data.pending)) {
+				question.answers = event.data.answers;
+				question.open = false;
+				if (event.data.pending) question.delivery = 'pending';
+				updateAsking(workspace);
+			}
 			return;
 		}
 		if (event.type === 'workspace.message') {
@@ -418,9 +441,21 @@ export function createWorkspaces(
 					Object.assign(tool, { output: output.output, isError: output.isError });
 				break;
 			}
+			case 'answer.received': {
+				const question = questionById(workspace, output.id);
+				if (question?.answers) delete question.delivery;
+				break;
+			}
+			case 'question.closed': {
+				const question = questionById(workspace, output.id);
+				if (question) closeQuestion(question);
+				updateAsking(workspace);
+				break;
+			}
 			case 'question':
+				if (questionById(workspace, output.id)) break;
 				transcript.push({ ...output, answers: null, open: true, at });
-				workspace.asking = true;
+				if (output.blocking !== false) workspace.asking = true;
 				break;
 			case 'turn.started':
 				workspace.status = 'running';
@@ -431,7 +466,7 @@ export function createWorkspaces(
 				workspace.status = 'idle';
 				// a turn that is over waits for no answer
 				workspace.asking = false;
-				for (const item of transcript) if (item.kind === 'question') item.open = false;
+				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
 				if (output.kind === 'turn.failed') workspace.pendingSteers = [];
 				if (output.kind === 'turn.completed') {
 					workspace.lastTurn = 'completed';
@@ -506,7 +541,13 @@ export function createWorkspaces(
 			if (event.id === workspace.resumeId) return;
 		} else if (event.kind === 'turn.started') {
 			if (running) return;
-		} else if (event.kind !== 'worktree' && event.kind !== 'message.received' && !running) return;
+		} else if (
+			event.kind !== 'worktree' &&
+			event.kind !== 'message.received' &&
+			event.kind !== 'answer.received' &&
+			!running
+		)
+			return;
 		store.append({
 			type: 'workspace.output',
 			stream: `workspace:${id}`,
@@ -1020,16 +1061,32 @@ export function createWorkspaces(
 		 * answer per question, in their order.
 		 */
 		answer(id: string, question: string, answers: string[], actor: string | null = null) {
-			const asked = find(id).transcript.find(
-				(item) => item.kind === 'question' && item.id === question && item.open
-			);
-			if (!asked) error(409, 'That question no longer waits for an answer');
-			if (!dispatch({ type: 'agent.answer', workspaceId: id, questionId: question, answers }))
-				error(503, 'No daemon is connected: the agent cannot be told right now');
+			const asked = questionById(find(id), question);
+			const saved = asked?.answers;
+			if (
+				saved &&
+				asked.delivery !== 'unconfirmed' &&
+				answers.length === saved.length &&
+				answers.every((value, i) => value === saved[i])
+			)
+				return;
+			if (!asked?.open) error(409, 'That question no longer waits for an answer');
+			if (
+				answers.length !== asked.questions.length ||
+				asked.questions.some((q, i) => !q.optional && !answers[i].trim())
+			)
+				error(400, 'Give an answer for each required question');
+			if (asked.blocking === false && !answers.some((value) => value.trim()))
+				error(400, 'Give at least one answer');
 			store.append(
-				{ type: 'workspace.answered', stream: `workspace:${id}`, data: { id, question, answers } },
+				{
+					type: 'workspace.answered',
+					stream: `workspace:${id}`,
+					data: { id, question, answers, pending: true }
+				},
 				{ actor }
 			);
+			dispatch({ type: 'agent.answer', workspaceId: id, questionId: question, answers });
 		},
 
 		/**
@@ -1164,6 +1221,15 @@ export function createWorkspaces(
 		reconcile(running: string[]) {
 			for (const workspace of projection.get().values()) {
 				if (workspace.archivedAt) continue;
+				if (running.includes(workspace.id))
+					for (const item of workspace.transcript)
+						if (item.kind === 'question' && item.delivery === 'pending' && item.answers)
+							dispatch({
+								type: 'agent.answer',
+								workspaceId: workspace.id,
+								questionId: item.id,
+								answers: item.answers
+							});
 				for (const steer of workspace.pendingSteers ?? [])
 					deliver(workspace, steer.text, steer.images, steer.deliveryId);
 			}
