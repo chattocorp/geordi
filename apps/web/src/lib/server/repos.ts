@@ -28,12 +28,20 @@ function gitToplevel(path: string): string {
 }
 
 export function createRepos(store: EventStore<GeordiEvent>) {
+	/**
+	 * Every ID ever given, removed repositories' too, with the path that had it last. An ID
+	 * goes to no other path: what was granted to, or done in, a repository must not pass to
+	 * another that happens to have its name.
+	 */
+	const known = new Map<string, string>();
 	const projection = store.project(
 		'repos',
 		() => new Map<string, Repo>(),
 		(repos, event) => {
-			if (event.type === 'repo.registered')
+			if (event.type === 'repo.registered') {
 				repos.set(event.data.id, { ...event.data, registeredAt: event.at });
+				known.set(event.data.id, event.data.path);
+			}
 			if (event.type === 'repo.removed') repos.delete(event.data.id);
 			return repos;
 		},
@@ -50,7 +58,11 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 		list: (): Repo[] => [...projection.get().values()].map((repo) => ({ ...repo })),
 		get,
 
-		/** Registers a local repository; registering the same path twice returns the existing one. */
+		/**
+		 * Registers a local repository; registering the same path twice returns the existing one.
+		 * A repository registered again after it was removed gets its ID back, and with it its
+		 * workspaces.
+		 */
 		register(path: string, actor: string | null = null): Repo {
 			const toplevel = gitToplevel(path);
 			const repos = projection.get();
@@ -64,8 +76,9 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 					.toLowerCase()
 					.replace(/[^a-z0-9]+/g, '-')
 					.replace(/^-|-$/g, '') || 'repo';
-			let id = slug;
-			for (let n = 2; repos.has(id); n++) id = `${slug}-${n}`;
+			const previous = [...known].find(([id, path]) => path === toplevel && !repos.has(id));
+			let id = previous?.[0] ?? slug;
+			if (!previous) for (let n = 2; known.has(id); n++) id = `${slug}-${n}`;
 
 			store.append(
 				{ type: 'repo.registered', stream: `repo:${id}`, data: { id, name, path: toplevel } },
@@ -76,7 +89,7 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 
 		/**
 		 * Forgets a repository. Nothing on disk changes, and registering it again brings it
-		 * back. Whoever calls this makes sure nothing still works in it.
+		 * back, under the same ID. Its ID is not given to another. Whoever calls this makes sure nothing still works in it.
 		 */
 		remove(id: string, actor: string | null = null) {
 			get(id);

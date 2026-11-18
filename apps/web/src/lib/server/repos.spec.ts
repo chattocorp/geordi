@@ -42,4 +42,18 @@ describe('repositories', () => {
 		expect(restarted.list()).toEqual([]);
 		expect(restarted.register(path).id).toBe('means');
 	});
+
+	it("never gives a removed repository's ID to another", () => {
+		const store = new EventStore<GeordiEvent>(':memory:');
+		const repos = createRepos(store);
+		const path = gitRepo('means');
+		repos.register(path);
+		repos.remove('means');
+
+		const other = gitRepo('means');
+		expect(repos.register(other).id).toBe('means-2');
+		expect(createRepos(store).register(path).id).toBe('means');
+		repos.remove('means-2');
+		expect(createRepos(store).register(gitRepo('means')).id).toBe('means-3');
+	});
 });
