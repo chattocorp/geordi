@@ -120,7 +120,10 @@
 
 	/** Over a row: above it, if that stands at the top and the pointer is on its upper half; else above the next that does. */
 	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
-		if (!dragged || dragged.repoId !== rows[index].workspace.repoId) return;
+		if (!dragged || dragged.repoId !== rows[index].workspace.repoId) {
+			dropBefore = undefined;
+			return;
+		}
 		event.preventDefault();
 		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 		const rect = event.currentTarget.getBoundingClientRect();
@@ -137,9 +140,9 @@
 		dropBefore = stays ? undefined : before;
 	}
 
-	function drop(event: DragEvent) {
+	function drop(event: DragEvent, repoId: string) {
 		event.preventDefault();
-		if (dragged && dropBefore !== undefined)
+		if (dragged?.repoId === repoId && dropBefore !== undefined)
 			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
 		endDrag();
 	}
@@ -250,7 +253,10 @@
 		style:margin-inline-start="calc(var(--spacing) * {3 * depth})"
 		class={[
 			dropBefore === workspace.id && 'row-drop-before',
-			dropBefore === null && index === rows.length - 1 && 'row-drop-after'
+			dragged?.repoId === workspace.repoId &&
+				dropBefore === null &&
+				index === rows.length - 1 &&
+				'row-drop-after'
 		]}
 		draggable={depth === 0 && !leaving}
 		ondragstart={(event) => {
@@ -260,7 +266,7 @@
 		}}
 		ondragend={endDrag}
 		ondragover={(event) => overRow(event, rows, index)}
-		ondrop={drop}
+		ondrop={(event) => drop(event, workspace.repoId)}
 	>
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
