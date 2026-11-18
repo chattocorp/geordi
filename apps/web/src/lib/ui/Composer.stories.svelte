@@ -76,20 +76,22 @@
 	</div>
 </Story>
 
-<Story name="While the agent works, tall prompt" asChild>
-	<div class="max-w-2xl">
-		<Composer {form} live rows={6} placeholder="Steer the agent, or queue a message">
-			{#snippet footer()}
-				<Button
-					type="submit"
-					variant="primary"
-					icon="icon-[lucide--arrow-up]"
-					label="Send"
-					class="ml-auto"
-				/>
-			{/snippet}
-		</Composer>
-	</div>
+<Story name="While the agent works, tall prompt" args={{ live: true }}>
+	{#snippet template(args)}
+		<div class="max-w-2xl">
+			<Composer {form} live={args.live} rows={6} placeholder="Steer the agent, or queue a message">
+				{#snippet footer()}
+					<Button
+						type="submit"
+						variant="primary"
+						icon="icon-[lucide--arrow-up]"
+						label="Send"
+						class="ml-auto"
+					/>
+				{/snippet}
+			</Composer>
+		</div>
+	{/snippet}
 </Story>
 
 <Story name="Busy, with a problem" asChild>

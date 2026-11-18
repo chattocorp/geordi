@@ -94,12 +94,8 @@
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
 <form
 	{...form}
-	class={[
-		// (a container: what is in it goes by its width, not the window's)
-		// (`data-dropping`: something is being dragged in to be attached)
-		'group/composer @container card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60',
-		live && 'edge-live'
-	]}
+	data-live={live || undefined}
+	class="group/composer @container edge-live card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
 >
 	<fieldset {disabled} class="min-w-0">
 		{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
