@@ -256,6 +256,16 @@
 	})}
 </Story>
 
+<Story name="Upstream commits with auto-merge enabled" asChild>
+	{@render bar({
+		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 2 } },
+		upstream: upstream({
+			checks: { state: 'pending', total: 3, failed: 0, url: null },
+			autoMerge: { enabled: true, canEnable: false, canDisable: true }
+		})
+	})}
+</Story>
+
 <Story name="Merging upstream" asChild>
 	{@render bar(
 		{
