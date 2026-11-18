@@ -381,8 +381,12 @@
 	--tw-prose-td-borders: var(--line);
 
 	:where(code):not(:where(pre *)) {
-		@apply rounded-control bg-ink/5 box-decoration-clone px-1 py-px font-normal text-ink inset-ring inset-ring-ink/10;
+		@apply font-normal text-ink;
 		overflow-wrap: anywhere;
+	}
+	:where(code):not(:where(pre *, a *, button *)) {
+		@apply underline decoration-1 underline-offset-2;
+		text-decoration-color: hotpink;
 	}
 	:where(code):not(:where(pre *))::before,
 	:where(code):not(:where(pre *))::after {

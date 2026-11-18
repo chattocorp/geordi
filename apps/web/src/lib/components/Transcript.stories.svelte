@@ -68,7 +68,7 @@
 <Story name="Inline code" asChild>
 	<div class="max-w-2xl">
 		<Markdown
-			text="The `start_agent` tool returns the workspace ID. The route lives in `apps/web/src/routes/workspaces/[id]/+page.svelte`. Use that ID in `/workspaces/[id]` to link to the conversation."
+			text="The `start_agent` tool returns the workspace ID. The route lives in `apps/web/src/routes/workspaces/[id]/+page.svelte`. Use that ID in `/workspaces/[id]` to [open the conversation](/workspaces/example)."
 		/>
 	</div>
 </Story>

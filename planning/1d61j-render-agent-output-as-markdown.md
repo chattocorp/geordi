@@ -17,4 +17,4 @@ Agent messages render as Markdown via markdown-it (raw HTML disabled, unsafe lin
 
 Source citations follow-up (2026-11-18). Absolute Markdown links to worktree files open in a source tab. Verified the cited line, an unchanged file with spaces in its name, and the missing-file message in Chromium against an isolated forge and daemon.
 
-Inline code follow-up. Code spans use a faint rounded background and wrap long paths. Checked the transcript story in light and dark themes and at a 230px viewport width.
+Inline code follow-up. Code spans use a hot-pink underline and wrap long paths. Checked the transcript story in light and dark themes and at a 230px viewport width.
