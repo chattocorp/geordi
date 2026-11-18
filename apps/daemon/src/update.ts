@@ -76,7 +76,7 @@ export async function update(
 	const theirs = await commit(base);
 	const within = async (a: string, b: string) =>
 		await succeeds(worktree, 'merge-base', '--is-ancestor', a, b);
-	if (await within(theirs, ours)) return true; // nothing to bring in
+	if (await within(theirs, ours)) return !working(); // nothing to bring in
 
 	// named as git names them in a merge's message
 	const branch = head.slice('refs/heads/'.length);
@@ -87,12 +87,16 @@ export async function update(
 	const next = forward
 		? theirs
 		: await merged(worktree, ours, theirs, `Merge ${from} into ${branch}`);
-	if (!next) return false;
+	if (!next || working()) return false;
 
 	// The branch first, and only from where we found it: whoever moved it meanwhile wins.
 	const move = async (to: string, was: string, why: string) =>
 		await gitIn(worktree, 'update-ref', '-m', why, head, to, was);
 	await move(next, ours, `merge ${from}: ${forward ? 'Fast-forward' : 'Merge made by Geordi'}`);
+	if (working()) {
+		await move(ours, next, 'reset: the agent is at work');
+		return false;
+	}
 	try {
 		// refuses, before changing anything, to overwrite a file that is in the way
 		await gitIn(worktree, 'read-tree', '-m', '-u', ours, next);

@@ -221,7 +221,11 @@ export async function ensureWorktree(
  * outside, and its HEAD is pointed there by hand. The caller makes sure there is nothing
  * uncommitted to lose.
  */
-export async function continueOn(worktree: Worktree, repoPath: string): Promise<string> {
+export async function continueOn(
+	worktree: Worktree,
+	repoPath: string,
+	requireIdle = () => {}
+): Promise<string> {
 	verifyLinks(worktree);
 	// named after the worktree, like its first branch, and numbered
 	const stem = `geordi/${basename(worktree.path)}`;
@@ -232,8 +236,11 @@ export async function continueOn(worktree: Worktree, repoPath: string): Promise<
 			branch = name;
 	}
 
-	await git(repoPath, ['branch', '--no-track', branch, await startOf(repoPath)]);
+	const start = await startOf(repoPath);
+	requireIdle();
+	await git(repoPath, ['branch', '--no-track', branch, start]);
 	try {
+		requireIdle();
 		await gitIn(worktree, 'read-tree', '--reset', '-u', branchRef(branch));
 	} catch (error) {
 		await git(repoPath, ['branch', '-D', branch]); // nothing is on it yet

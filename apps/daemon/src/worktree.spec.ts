@@ -673,3 +673,17 @@ describe('branch names', () => {
 			expect(() => branchRef(name), name).toThrow('Not a branch name');
 	});
 });
+
+it('abandons a continuation if a turn starts while the branch is being made', async () => {
+	const repoPath = repo();
+	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	let checks = 0;
+	await expect(
+		continueOn(worktree, repoPath, () => {
+			if (++checks === 2) throw new Error('Its agent is still at work');
+		})
+	).rejects.toThrow('Its agent is still at work');
+	expect(branchOf(worktree)).toBe(worktree.branch);
+	expect(await continueOn(worktree, repoPath)).toBe(worktree.branch + '-2');
+});

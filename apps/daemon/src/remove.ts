@@ -57,9 +57,11 @@ export async function removeWorktree(
 	baseDir: string,
 	repoPath: string,
 	worktreeId: string,
-	force: boolean
+	force: boolean,
+	beforeDiscard = () => {}
 ) {
 	const worktree = await removable(baseDir, repoPath, worktreeId, force);
+	beforeDiscard();
 	if (worktree) discard(baseDir, worktree.path);
 	await git(repoPath, ['worktree', 'prune']);
 }
