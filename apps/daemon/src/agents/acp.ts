@@ -10,6 +10,7 @@ import {
 	ElicitationPropertySchema,
 	IdleStateUpdate,
 	MultiSelectItems,
+	PlanUpdateContent,
 	StateUpdate,
 	type CreateElicitationResponse,
 	SessionUpdate
@@ -81,6 +82,33 @@ export function connectAgent(
 						u.messageId,
 						u.content.flatMap((c) => (ContentBlock.isText(c) ? [c.text] : [])).join('')
 					);
+				break;
+			case SessionUpdate.isPlanUpdate(u): {
+				const plan = u.plan;
+				flush();
+				if (PlanUpdateContent.isItems(plan)) {
+					const entries = plan.entries.map(({ content, status }) => ({ content, status }));
+					emit({
+						kind: 'plan',
+						id: plan.planId,
+						plan: entries.length ? { type: 'items', entries } : null
+					});
+				} else if (
+					plan.type === 'markdown' &&
+					'content' in plan &&
+					typeof plan.content === 'string'
+				) {
+					emit({
+						kind: 'plan',
+						id: plan.planId,
+						plan: { type: 'markdown', content: plan.content }
+					});
+				}
+				break;
+			}
+			// The pinned wrappers use this extension to withdraw one checklist.
+			case u.sessionUpdate === 'plan_removed' && 'planId' in u && typeof u.planId === 'string':
+				emit({ kind: 'plan', id: u.planId, plan: null });
 				break;
 			case SessionUpdate.isTerminalOutputChunk(u): {
 				const before = terminalOutput.get(u.terminalId) ?? Buffer.alloc(0);

@@ -474,6 +474,10 @@ export type Question = {
 	multiSelect: boolean;
 };
 
+export type PlanEntry = { content: string; status: string };
+export type AgentPlan =
+	{ type: 'items'; entries: PlanEntry[] } | { type: 'markdown'; content: string };
+
 /**
  * What happens in a workspace's conversation with its agent, normalised across agent CLIs.
  * The daemon emits these; the forge stores them verbatim in its event log.
@@ -485,6 +489,8 @@ export type AgentEvent =
 	/** The agent CLI's own session ID, needed to resume the conversation in the next turn. */
 	| { kind: 'resume'; id: string }
 	| { kind: 'text'; text: string }
+	/** A complete snapshot, or null when the wrapper withdraws this plan. */
+	| { kind: 'plan'; id: string; plan: AgentPlan | null }
 	| { kind: 'tool'; id: string; name: string; input: string }
 	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
 	/** A form stays open until answered, withdrawn, or its turn ends. Older forms block. */
