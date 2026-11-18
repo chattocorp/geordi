@@ -274,9 +274,10 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		icon: 'icon-[lucide--circle-dot]'
 	});
 
-	if (!upstream) return uncommitted ? todo('Uncommitted changes') : null;
-	if (!pull || pull.state === 'unknown')
-		return uncommitted || unpushed ? todo('Changes to publish') : null;
+	if (!pull || pull.state === 'unknown') {
+		if (uncommitted) return todo('Uncommitted changes');
+		return upstream && unpushed ? todo('Changes to publish') : null;
+	}
 
 	if (pull.state === 'merged')
 		return { label: 'Merged', tone: 'merged', icon: 'icon-[lucide--git-merge]' };
@@ -292,7 +293,8 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			tone: 'danger',
 			icon: 'icon-[lucide--message-square-warning]'
 		};
-	if (uncommitted || unpushed) return todo('Unpublished changes');
+	if (uncommitted) return todo('Uncommitted changes');
+	if (unpushed) return todo('Unpublished changes');
 	if (pull.autoMerge?.enabled)
 		return {
 			label: 'Auto-merge enabled',

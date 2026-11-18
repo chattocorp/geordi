@@ -196,8 +196,11 @@ describe('standingOf', () => {
 	it('names what there is to do', () => {
 		const dirty = { files: [file], uncommitted: 1, unpushed: 0 };
 		expect(label({ changes: dirty, upstream: null })).toBe('Uncommitted changes');
-		expect(label({ changes: dirty, upstream: upstream() })).toBe('Changes to publish');
-		expect(label({ changes: dirty, upstream: upstream({}) })).toBe('Unpublished changes');
+		expect(label({ changes: dirty, upstream: upstream() })).toBe('Uncommitted changes');
+		expect(label({ changes: dirty, upstream: upstream({}) })).toBe('Uncommitted changes');
+		const ahead = { ...changes, unpushed: 1 };
+		expect(label({ changes: ahead, upstream: upstream() })).toBe('Changes to publish');
+		expect(label({ changes: ahead, upstream: upstream({}) })).toBe('Unpublished changes');
 	});
 
 	it('puts what is wrong before what is merely unfinished', () => {
