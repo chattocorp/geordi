@@ -10,7 +10,7 @@
 </script>
 
 <script lang="ts">
-	let single = $state.raw<Layout>(start);
+	let single = $state.raw<Layout>(singleGroup(['Conversation', 'WorkspaceView.svelte']));
 	let halves = $state.raw<Layout>(split);
 	let nothing = $state.raw<Layout>(singleGroup([]));
 	let count = 3;
@@ -27,14 +27,24 @@
 
 <!-- Drag a tab onto another group, or towards an edge to split. Drag the dividers to resize. -->
 <Story name="Tabs" asChild>
-	<div class="flex h-80 overflow-hidden card">
+	<div class="flex h-80 sheet overflow-hidden">
 		<Panes
 			layout={single}
 			onchange={(next) => (single = next)}
-			{tab}
+			closable={(id) => id !== 'Conversation'}
 			{window}
 			newTab={() => `Tab ${++count}`}
-		/>
+		>
+			{#snippet tab(id: string)}
+				{#if id === 'Conversation'}
+					<span class="icon-[lucide--code-xml] size-3.5 shrink-0 text-codex"></span>
+					{id}
+				{:else}
+					<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
+					<span class="truncate code-dense">{id}</span>
+				{/if}
+			{/snippet}
+		</Panes>
 	</div>
 </Story>
 
