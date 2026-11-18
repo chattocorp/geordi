@@ -6,4 +6,4 @@ data:
 id: gjtc0
 title: Align confirmation dialog buttons
 ---
-Archive and Run confirmations use the shared dialog-actions layout. The secondary button draws its outline inside its bounds. The archive story checks that Cancel and Archive have equal width and height.
+Archive and Run confirmations pair a soft Cancel button with a primary action. Both use the same flat pill shape. The archive story checks size, alignment, label weight and the absence of an inset ring.

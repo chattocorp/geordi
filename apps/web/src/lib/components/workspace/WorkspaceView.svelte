@@ -952,7 +952,7 @@
 			are asked once per command and repository.
 		</p>
 		<div class="dialog-actions">
-			<Button onclick={() => (asking = null)}>Cancel</Button>
+			<Button variant="soft" onclick={() => (asking = null)}>Cancel</Button>
 			<Button variant="primary" onclick={agree}>Run</Button>
 		</div>
 	</div>

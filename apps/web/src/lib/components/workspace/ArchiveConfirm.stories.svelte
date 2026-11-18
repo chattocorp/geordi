@@ -27,6 +27,7 @@
 			height: bounds.height
 		});
 		await expect(getComputedStyle(cancel).fontWeight).toBe(getComputedStyle(archive).fontWeight);
+		await expect(getComputedStyle(cancel).boxShadow).not.toContain('inset');
 		await userEvent.click(cancel);
 		await expect(answer).toHaveBeenCalledWith(false);
 		await userEvent.click(archive);

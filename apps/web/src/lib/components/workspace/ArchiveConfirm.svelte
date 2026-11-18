@@ -29,7 +29,9 @@
 			Archiving ends its terminals and keeps its branch and conversation.
 		</p>
 		<div class="dialog-actions">
-			<Button disabled={asking?.busy} onclick={() => asking?.answer(false)}>Cancel</Button>
+			<Button variant="soft" disabled={asking?.busy} onclick={() => asking?.answer(false)}
+				>Cancel</Button
+			>
 			<Button
 				variant="primary"
 				disabled={!asking?.concerns}
