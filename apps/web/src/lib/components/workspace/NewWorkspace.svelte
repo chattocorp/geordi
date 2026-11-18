@@ -34,7 +34,15 @@
 	};
 	let { repos, preferred, label, focused = false, alongside }: Props = $props();
 
-	const { repoId, agent, model, effort, prompt, alongside: within } = createWorkspace.fields;
+	const {
+		repoId,
+		agent,
+		model,
+		effort,
+		permissionMode,
+		prompt,
+		alongside: within
+	} = createWorkspace.fields;
 	// Each time this is begun, it is begun empty: the form is one for the whole app, and
 	// would otherwise still hold what the workspace before was started with.
 	// What was written and not sent yet is still there when one comes back, though: one
@@ -99,6 +107,7 @@
 		<input {...agent.as('hidden', chosen?.harness.agent ?? choice.current.agent)} />
 		<!-- empty leaves it to the agent's CLI -->
 		<input {...model.as('hidden', chosen?.model?.id ?? '')} />
+		<input {...permissionMode.as('hidden', chosen?.permissionMode ?? 'full-access')} />
 		<input {...effort.as('hidden', chosen?.effort ?? '')} />
 	{/snippet}
 	{#snippet footer()}

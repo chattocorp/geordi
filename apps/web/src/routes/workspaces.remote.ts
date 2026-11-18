@@ -1,7 +1,14 @@
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, CONFIG_NAME, JOB_TERMINAL, MAX_IMAGES, type FileVersions } from '@geordi/protocol';
+import {
+	AGENTS,
+	PERMISSION_MODES,
+	CONFIG_NAME,
+	JOB_TERMINAL,
+	MAX_IMAGES,
+	type FileVersions
+} from '@geordi/protocol';
 import {
 	archiveWorkspace as archive,
 	concernsAboutArchiving,
@@ -35,6 +42,7 @@ export const configureWorkspace = command(
 	v.object({
 		workspaceId: v.string(),
 		/** Absent for "whatever the agent's CLI would use". */
+		permissionMode: v.optional(v.picklist(PERMISSION_MODES)),
 		model: v.optional(v.string()),
 		effort: v.optional(v.string())
 	}),
@@ -47,6 +55,7 @@ export const createWorkspace = form(
 		images: imageIds,
 		agent: v.picklist(AGENTS),
 		/** Empty for "whatever the agent's CLI would use". */
+		permissionMode: v.optional(v.picklist(PERMISSION_MODES)),
 		model: v.optional(v.string()),
 		effort: v.optional(v.string()),
 		/** May be empty: the workspace is then there to be told what to do, and has its worktree. */
@@ -57,8 +66,8 @@ export const createWorkspace = form(
 		 */
 		alongside: v.optional(v.string())
 	}),
-	({ model, effort, alongside, ...data }) => {
-		const settings = { model, effort };
+	({ model, effort, permissionMode, alongside, ...data }) => {
+		const settings = { model, effort, permissionMode };
 		if (alongside) {
 			const id = workspaces().join(alongside, { ...data, settings });
 			// to the workspace it is in, and its conversation there

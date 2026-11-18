@@ -51,8 +51,8 @@
 		};
 	});
 	const configure = ({ settings }: HarnessChoice) => {
-		const { model, effort } = settings[workspace.agent] ?? {};
-		return configureWorkspace({ workspaceId: workspace.id, model, effort });
+		const { model, effort, permissionMode } = settings[workspace.agent] ?? {};
+		return configureWorkspace({ workspaceId: workspace.id, model, effort, permissionMode });
 	};
 
 	let messages = $state<MessageView>();

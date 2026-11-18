@@ -550,6 +550,10 @@ async function handle(message: ForgeMessage) {
 					session.close();
 					await Promise.race([session.done, new Promise((resolve) => setTimeout(resolve, 15_000))]);
 					session = sessions.get(workspaceId);
+					if (session && !session.over())
+						throw new Error(
+							'Previous session is still closing. Retry the message to apply the new settings.'
+						);
 				}
 				// An agent whose CLI is running is simply told: between turns that starts one,
 				// during a turn it steers.

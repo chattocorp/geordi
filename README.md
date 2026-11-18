@@ -192,16 +192,17 @@ authenticate each other with a shared token that the forge creates in its data d
 | `GEORDI_SESSIONS_DIR`                                                                          | `~/.geordi/sessions`           | Where agents' sessions keep what they are told and what they do, so they survive a daemon restart                                                                              |
 | `GEORDI_RUN_APPROVALS_FILE`                                                                    | `~/.geordi/run-approvals.json` | The run commands you have agreed to run, by repository                                                                                                                         |
 | `GEORDI_PORTS_FILE`                                                                            | `~/.geordi/ports.json`         | The ports each workspace has been given                                                                                                                                        |
-| `GEORDI_CLAUDE_PERMISSION_MODE`                                                                | `bypassPermissions`            | Permission mode for the Claude ACP session, e.g. `auto` or `acceptEdits`                                                                                                       |
 | `OPENROUTER_API_KEY`                                                                           |                                | Lets the daemon name workspaces, by asking a small model on [OpenRouter](https://openrouter.ai). Without it, a workspace keeps the first line of its first message as its name |
 | `GEORDI_TITLE_MODEL`                                                                           | `anthropic/claude-haiku-5.5`   | The OpenRouter model that names workspaces                                                                                                                                     |
-| `GEORDI_CODEX_SANDBOX`                                                                         |                                | Set to `workspace-write` to run Codex in its sandbox: no network, writes only in the worktree                                                                                  |
 | `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables) |                                | Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset                                                    |
 
-With `GEORDI_CODEX_SANDBOX=workspace-write`, Codex runs in its sandbox. So that it can commit, the sandbox may also write
-the repository's Git objects, refs, and logs, plus the worktree's own Git metadata. It can't
-write `.git/hooks` or `.git/config`. Claude runs without a sandbox, limited by its permission
-mode.
+Choose **Auto Mode** or **Full Access** in the workspace composer. In Auto Mode,
+Claude uses automatic permission decisions and Codex uses its sandbox with automatic
+review. Codex can write the worktree and the Git metadata it needs to commit.
+Full Access is the default. Geordi declines tool permission requests in both modes.
+Agents can still ask questions about the task. If you used a restrictive
+`GEORDI_CODEX_SANDBOX` or `GEORDI_CLAUDE_PERMISSION_MODE` setting, choose a mode
+in each existing workspace before its next session.
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
 

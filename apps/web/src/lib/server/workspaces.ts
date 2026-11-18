@@ -690,7 +690,11 @@ export function createWorkspaces(
 			);
 		const keeps = !asked.model || !efforts || efforts.includes(inherited.effort ?? '');
 		const effort = asked.effort ?? (keeps ? inherited.effort : undefined);
-		return { ...(model && { model }), ...(effort && { effort }) };
+		return {
+			...(model && { model }),
+			...(effort && { effort }),
+			...(inherited.permissionMode && { permissionMode: inherited.permissionMode })
+		};
 	}
 
 	/** Only what was chosen, and only what can safely be handed to a CLI. */
@@ -702,6 +706,7 @@ export function createWorkspaces(
 			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
 			chosen[key] = value;
 		}
+		if (settings.permissionMode) chosen.permissionMode = settings.permissionMode;
 		return chosen;
 	}
 
@@ -888,7 +893,9 @@ export function createWorkspaces(
 			const kind = agent ?? caller.agent;
 			const settings = settingsFor(
 				kind,
-				kind === caller.agent ? caller.settings : {},
+				kind === caller.agent
+					? caller.settings
+					: { permissionMode: caller.settings.permissionMode },
 				{ model, effort },
 				offered?.find((harness) => harness.agent === kind)
 			);
@@ -1208,9 +1215,17 @@ export function createWorkspaces(
 		configure(id: string, settings: AgentSettings, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			const chosen = chosenOf(settings);
+			const chosen = chosenOf({
+				...settings,
+				permissionMode: settings.permissionMode ?? workspace.settings.permissionMode
+			});
 			const { model, effort } = workspace.settings;
-			if (chosen.model === model && chosen.effort === effort) return;
+			if (
+				chosen.model === model &&
+				chosen.effort === effort &&
+				chosen.permissionMode === workspace.settings.permissionMode
+			)
+				return;
 			store.append(
 				{ type: 'workspace.configured', stream: `workspace:${id}`, data: { id, settings: chosen } },
 				{ actor }
