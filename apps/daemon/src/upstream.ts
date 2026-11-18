@@ -152,6 +152,17 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 	if (typeof raw.mergeable === 'boolean') return !raw.mergeable;
 }
 
+type GitHubPull = {
+	autoMergeRequest?: { enabledAt: string } | null;
+	viewerCanEnableAutoMerge?: boolean;
+	viewerCanDisableAutoMerge?: boolean;
+	repository?: {
+		squashMergeAllowed: boolean;
+		mergeCommitAllowed: boolean;
+		rebaseMergeAllowed: boolean;
+	};
+};
+
 /** Boils a pull request down to what the workspace shows. */
 export function summarise(thread: Thread, counts?: CheckCounts, items?: PullCheck[]): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
@@ -161,6 +172,7 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 	if (decision === 'REVIEW_REQUIRED') reviews.push('pending');
 	const { checks } = thread;
 	const conflicts = conflictsOf(thread);
+	const raw = thread.raw as GitHubPull | null;
 	return {
 		number: thread.ref.number,
 		title: thread.title,
@@ -168,6 +180,13 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 		url: thread.url ?? null,
 		state: thread.state,
 		draft: thread.isDraft,
+		...(raw?.viewerCanEnableAutoMerge !== undefined && {
+			autoMerge: {
+				enabled: !!raw.autoMergeRequest,
+				canEnable: raw.viewerCanEnableAutoMerge,
+				canDisable: !!raw.viewerCanDisableAutoMerge
+			}
+		}),
 		base: thread.branches?.base.ref ?? null,
 		// "no checks" and "nothing known" both mean there is nothing to show
 		checks:
@@ -211,6 +230,12 @@ async function findPull(
 	repo: Repo,
 	branch: string
 ): Promise<Thread | null> {
+	const get = async (ref: Thread['ref']) =>
+		(provider.forge === 'github' &&
+		provider.authKind !== 'anonymous' &&
+		provider.can('threads.getMany')
+			? await readPull(provider, ref)
+			: null) ?? provider.threads.get(ref);
 	const order = { sort: 'updated', direction: 'desc' } as const;
 
 	if (provider.can('search.threads')) {
@@ -223,7 +248,7 @@ async function findPull(
 			// someone commented on that.
 			const open = (thread: Thread) => (thread.state === 'open' ? 0 : 1);
 			for (const candidate of found.items.toSorted((a, b) => open(a) - open(b))) {
-				const thread = await provider.threads.get(candidate.ref);
+				const thread = await get(candidate.ref);
 				if (isFor(thread, repo, branch)) return thread;
 			}
 			return null;
@@ -236,12 +261,12 @@ async function findPull(
 	for await (const thread of recent) {
 		if (isFor(thread, repo, branch)) {
 			// the list is a summary; checks and reviews come with the full pull request
-			if (thread.state === 'open') return provider.threads.get(thread.ref);
+			if (thread.state === 'open') return get(thread.ref);
 			closed ??= thread;
 		}
 		if (++searched >= SEARCH_LIMIT) break;
 	}
-	return closed ? provider.threads.get(closed.ref) : null;
+	return closed ? get(closed.ref) : null;
 }
 
 /**
@@ -395,6 +420,72 @@ export async function upstream(
 	if (latest === cached || (latest && latest.at < now))
 		cache.set(worktreeId, { key, at: now, includeChecks, value, pushedSha, fastUntil });
 	return value;
+}
+
+/** Set GitHub's native auto-merge on the pull request selected in the workspace. */
+export async function setAutoMerge(
+	worktree: Worktree,
+	{
+		repoPath,
+		worktreeId,
+		pullNumber,
+		enabled
+	}: { repoPath: string; worktreeId: string; pullNumber: string; enabled: boolean }
+) {
+	const found = locate(worktree, repoPath);
+	if (!found) throw new Error('This workspace has no upstream branch');
+	const { provider, repo, branch, head } = found;
+	if (
+		provider.forge !== 'github' ||
+		!('graphql' in provider) ||
+		typeof provider.graphql !== 'function'
+	)
+		throw new Error('This forge does not support auto-merge');
+	const pull = await readPull(provider, {
+		forge: provider.forge,
+		instance: provider.instance,
+		repo,
+		kind: 'pull_request',
+		number: pullNumber
+	});
+	if (pull?.state !== 'open' || !isFor(pull, repo, branch))
+		throw new Error(`Pull request #${pullNumber} is no longer open for ${branch}`);
+	const id = pull.ref.externalId;
+	if (!id) throw new Error('The forge did not return a pull request ID');
+	const raw = pull.raw as GitHubPull;
+	if (!!raw.autoMergeRequest !== enabled) {
+		if (enabled) {
+			const sha = gitIn(worktree, 'rev-parse', '--verify', head).trim();
+			if (pull.branches?.head.sha !== sha)
+				throw new Error('Push the workspace commit before enabling auto-merge');
+			if (pull.isDraft || !raw.viewerCanEnableAutoMerge)
+				throw new Error('Auto-merge is unavailable for this pull request');
+			const methods = raw.repository;
+			const method = methods?.squashMergeAllowed
+				? 'SQUASH'
+				: methods?.mergeCommitAllowed
+					? 'MERGE'
+					: methods?.rebaseMergeAllowed
+						? 'REBASE'
+						: null;
+			if (!method) throw new Error('The repository has no available merge method');
+			await provider.graphql(
+				`mutation EnableAutoMerge($input: EnablePullRequestAutoMergeInput!) {
+				enablePullRequestAutoMerge(input: $input) { pullRequest { id } }
+			}`,
+				{ input: { pullRequestId: id, expectedHeadOid: sha, mergeMethod: method } }
+			);
+		} else {
+			await provider.graphql(
+				`mutation DisableAutoMerge($id: ID!) {
+				disablePullRequestAutoMerge(input: {pullRequestId: $id}) { pullRequest { id } }
+			}`,
+				{ id }
+			);
+		}
+	}
+	cache.delete(worktreeId);
+	return null;
 }
 
 /** Mark the open pull request the person saw ready, if it still belongs to this branch. */

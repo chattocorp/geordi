@@ -93,6 +93,57 @@ describe('upstream', () => {
 		return { worktree, ref: { repoPath, worktreeId: 'abcdefgh-1' } };
 	}
 
+	it('enables auto-merge for the checked-out commit and cancels it through forges', async () => {
+		vi.resetModules();
+		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
+		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
+		const { setAutoMerge } = await import('./upstream.ts');
+		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		const sha = execFileSync('git', ['-C', ref.repoPath, 'rev-parse', 'HEAD'], {
+			encoding: 'utf8'
+		}).trim();
+		const node = {
+			__typename: 'PullRequest',
+			id: 'PR_42',
+			state: 'OPEN',
+			headRefName: 'geordi/abcdefgh',
+			baseRefName: 'main',
+			headRefOid: 'stale',
+			repository: { squashMergeAllowed: true },
+			viewerCanEnableAutoMerge: true,
+			autoMergeRequest: null as { enabledAt: string } | null
+		};
+		const writes: unknown[] = [];
+		vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+			const { operationName, variables } = JSON.parse(String(init.body));
+			if (operationName === 'ThreadsBatch')
+				return Response.json({ data: { t0: { issueOrPullRequest: node } } });
+			writes.push({ operationName, variables });
+			node.autoMergeRequest = operationName === 'EnableAutoMerge' ? { enabledAt: 'today' } : null;
+			return Response.json({ data: {} });
+		});
+		try {
+			const request = { ...ref, pullNumber: '42', enabled: true };
+			await expect(setAutoMerge(worktree, request)).rejects.toThrow('Push the workspace commit');
+			node.headRefOid = sha;
+			await setAutoMerge(worktree, request);
+			await setAutoMerge(worktree, request);
+			await setAutoMerge(worktree, { ...request, enabled: false });
+			expect(writes).toEqual([
+				{
+					operationName: 'EnableAutoMerge',
+					variables: {
+						input: { pullRequestId: 'PR_42', expectedHeadOid: sha, mergeMethod: 'SQUASH' }
+					}
+				},
+				{ operationName: 'DisableAutoMerge', variables: { id: 'PR_42' } }
+			]);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
+
 	it.each([true, false])(
 		'follows a pushed commit with authenticated access %s',
 		async (authenticated) => {

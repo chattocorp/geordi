@@ -14,6 +14,8 @@ export type WorkspaceAction = {
 		| 'resolve-conflicts'
 		| 'fix-checks'
 		| 'address-review'
+		| 'enable-auto-merge'
+		| 'cancel-auto-merge'
 		| 'ready-for-review'
 		| 'merge-pull'
 		| 'restore-worktree'
@@ -28,7 +30,7 @@ export type WorkspaceAction = {
 	 * both: Geordi's where git can do it alone, and this message where it can't.
 	 */
 	prompt?: string;
-	/** The pull request shown when Ready for review was offered. */
+	/** The pull request shown when this action was offered. */
 	pullNumber?: string;
 	/** An alternative to the next step rather than the next step itself: offered beside it, quietly. */
 	aside?: boolean;
@@ -202,7 +204,23 @@ function nextActions(state: State): WorkspaceAction[] {
 
 	// Merging is the next step once nothing stands in its way.
 	const checksPass = !pull.checks || pull.checks.state === 'success';
-	if (!pull.draft && actions.length === 0 && checksPass)
+	if (pull.autoMerge?.enabled) {
+		if (pull.autoMerge.canDisable)
+			actions.push({
+				id: 'cancel-auto-merge',
+				label: 'Disable Auto-merge',
+				icon: 'icon-[lucide--circle-x]',
+				pullNumber: pull.number,
+				aside: true
+			});
+	} else if (pull.autoMerge?.canEnable && !pull.draft && actions.length === 0) {
+		actions.push({
+			id: 'enable-auto-merge',
+			label: 'Auto-merge',
+			icon: 'icon-[lucide--git-merge]',
+			pullNumber: pull.number
+		});
+	} else if (!pull.draft && actions.length === 0 && checksPass)
 		actions.push({
 			id: 'merge-pull',
 			label: 'Merge PR',
@@ -280,6 +298,13 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			icon: 'icon-[lucide--message-square-warning]'
 		};
 	if (uncommitted || unpushed) return todo('Unpublished changes');
+	if (pull.autoMerge?.enabled)
+		return {
+			label: 'Auto-merge enabled',
+			tone: 'neutral',
+			icon: 'icon-[lucide--git-merge]',
+			checks: pull.checks?.counts
+		};
 	if (pull.checks?.state === 'pending')
 		return {
 			label: 'Checks running',
@@ -288,5 +313,7 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			checks: pull.checks.counts
 		};
 	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };
+	if (pull.review === 'pending' && pull.autoMerge?.canEnable)
+		return { label: 'Awaiting review', tone: 'neutral', icon: 'icon-[lucide--clock]' };
 	return { label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' };
 }

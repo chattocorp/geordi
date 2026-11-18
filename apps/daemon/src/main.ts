@@ -46,7 +46,7 @@ import {
 } from './session.ts';
 import type { Meta } from './host.ts';
 import { update } from './update.ts';
-import { markReady, mergePull, upstream } from './upstream.ts';
+import { markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
 	branchOf,
@@ -503,6 +503,8 @@ async function answer(request: DaemonRequest) {
 			return readPicture(worktree.path, request.path);
 		case 'upstream':
 			return upstream(worktree, request);
+		case 'setAutoMerge':
+			return setAutoMerge(worktree, request);
 		case 'markReady':
 			return markReady(worktree, request);
 		case 'mergePull': {

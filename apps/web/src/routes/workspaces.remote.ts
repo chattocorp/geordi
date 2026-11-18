@@ -140,6 +140,29 @@ export const mergePull = command(v.string(), async (workspaceId) => {
 	}
 });
 
+export const setAutoMerge = command(
+	v.object({
+		workspaceId: v.string(),
+		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
+		enabled: v.boolean()
+	}),
+	async ({ workspaceId, pullNumber, enabled }) => {
+		try {
+			await hub().request(
+				{ kind: 'setAutoMerge', ...workspaces().ref(workspaceId), pullNumber, enabled },
+				60_000
+			);
+		} catch (cause) {
+			error(
+				502,
+				`Could not change auto-merge: ${cause instanceof Error ? cause.message : String(cause)}`
+			);
+		} finally {
+			upstreamMayHaveChanged(workspaceId);
+		}
+	}
+);
+
 export const markReady = command(
 	v.object({ workspaceId: v.string(), pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)) }),
 	async ({ workspaceId, pullNumber }) => {

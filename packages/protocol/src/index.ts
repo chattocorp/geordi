@@ -143,6 +143,7 @@ export type PullRequest = {
 	url: string | null;
 	state: 'open' | 'closed' | 'merged' | 'unknown';
 	draft: boolean;
+	autoMerge?: { enabled: boolean; canEnable: boolean; canDisable: boolean };
 	/** The branch it would merge into. */
 	base: string | null;
 	/** The checks on its latest commit, combined; `null` if there are none. */
@@ -456,6 +457,7 @@ export type DaemonRequest =
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
 	| ({ kind: 'mergePull' } & WorktreeRef)
+	| ({ kind: 'setAutoMerge'; pullNumber: string; enabled: boolean } & WorktreeRef)
 	| ({ kind: 'markReady'; pullNumber: string } & WorktreeRef)
 	/**
 	 * Brings the latest of the branch the workspace's work is based on into its branch, where
@@ -489,6 +491,7 @@ export type DaemonResults = {
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
 	mergePull: 'merged' | 'queued';
 	markReady: null;
+	setAutoMerge: null;
 	/** `false` if it was left alone: bringing it up to date takes an agent's judgement. */
 	updateWorktree: boolean;
 	/**
