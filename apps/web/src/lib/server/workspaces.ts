@@ -623,11 +623,20 @@ export function createWorkspaces(
 	/** What a daemon needs to find the worktree a workspace works in. */
 	function ref(id: string): WorktreeRef {
 		const { repoId, worktreeId, base } = find(id);
-		const branch = projection.get().get(worktreeId)?.worktree?.branch;
+		const owner = find(worktreeId);
+		const branch = owner.worktree?.branch;
+		const parents: NonNullable<WorktreeRef['parents']> = [];
+		let child = owner;
+		while (child.base && child.parentId) {
+			const parent = find(find(child.parentId).worktreeId);
+			parents.push({ worktreeId: parent.id, branch: child.base });
+			child = parent;
+		}
 		return {
 			worktreeId,
 			repoPath: repos.get(repoId).path,
 			...(base && { base }),
+			...(parents.length && { parents }),
 			...(branch && { branch })
 		};
 	}

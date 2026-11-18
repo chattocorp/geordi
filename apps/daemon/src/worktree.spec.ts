@@ -410,6 +410,40 @@ describe('changes', () => {
 		expect(() => ensureWorktree(base, repoPath, 'evil0000-1', '--detach')).toThrow(/branch name/);
 	});
 
+	it('inherits the target through clean parents and follows a retargeted pull request', () => {
+		const repoPath = repo();
+		const root = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const git = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
+		const parent = ensureWorktree(root, repoPath, 'parent00-1');
+		const child = ensureWorktree(root, repoPath, 'child000-1', parent.branch);
+		git(repoPath, 'update-ref', 'refs/remotes/origin/release', 'HEAD');
+		writeFileSync(join(repoPath, 'from-main.txt'), 'upstream\n');
+		git(repoPath, 'add', '.');
+		git(repoPath, 'commit', '-qm', 'upstream work');
+		git(repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+		git(repoPath, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+		git(child.path, 'merge', '--ff-only', 'origin/main');
+		writeFileSync(join(child.path, 'child.txt'), 'local\n');
+
+		const origin = { repoPath, base: parent.branch };
+		expect(status(child, origin)).toMatchObject({
+			comparisonTarget: 'main',
+			files: [{ path: 'child.txt' }],
+			uncommitted: 1
+		});
+		const release = { ...origin, pullBase: 'release' };
+		expect(status(child, release)).toMatchObject({
+			comparisonTarget: 'release',
+			files: [{ path: 'child.txt' }, { path: 'from-main.txt' }]
+		});
+		expect(versions(child, release, 'from-main.txt')).toEqual({ old: null, new: 'upstream\n' });
+		expect(versions(child, origin, 'from-main.txt')).toHaveProperty('unavailable');
+		expect(
+			status(child, { ...origin, parents: [{ branch: parent.branch, pullBase: 'release' }] })
+		).toMatchObject({ comparisonTarget: 'release' });
+	});
+
 	it("ignores config an agent plants in the worktree's admin directory", () => {
 		const repoPath = repo();
 		execFileSync('git', ['-C', repoPath, 'config', 'extensions.worktreeConfig', 'true']);

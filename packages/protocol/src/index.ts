@@ -66,10 +66,12 @@ export type WorktreeRef = {
 	worktreeId: string;
 	repoPath: string;
 	/**
-	 * The branch the worktree started from, and that its changes are measured against.
+	 * The branch the worktree started from.
 	 * Absent for worktrees started from where work in the repository starts.
 	 */
 	base?: string;
+	/** Branches this workspace was built on, nearest parent first. */
+	parents?: { worktreeId: string; branch: string }[];
 	/**
 	 * The branch the worktree is on, as far as the forge knows. Only needed to bring back a
 	 * worktree that went missing: one that was continued is no longer on the branch its ID
@@ -101,7 +103,9 @@ export type Changes = {
 	 * one Geordi made: the agent may rename it, or switch to another.
 	 */
 	branch: string | null;
-	/** Every file that differs from where the workspace branched off, committed or not. */
+	/** The branch used for the file comparison. */
+	comparisonTarget?: string;
+	/** Every file that differs from the merge base with that target, committed or not. */
 	files: FileChange[];
 	/** How many files have changes that are not committed yet. */
 	uncommitted: number;
