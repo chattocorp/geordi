@@ -34,3 +34,7 @@ storybook-static
 # Desktop app
 /apps/desktop/stage/
 /apps/desktop/dist/
+
+# Website
+/apps/website/dist/
+.astro

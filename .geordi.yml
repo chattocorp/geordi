@@ -15,6 +15,10 @@ jobs:
     label: Storybook
     command: node scripts/workspace-dev.mjs storybook
 
+  website:
+    label: Website
+    command: pnpm --filter @geordi/website dev --port $PORT
+
   desktop:
     label: Electron dev app
     command: pnpm desktop:dev
@@ -31,3 +35,6 @@ urls:
   components:
     label: Storybook
     url: http://localhost:{storybook}/
+  website:
+    label: Website
+    url: http://localhost:{website}/

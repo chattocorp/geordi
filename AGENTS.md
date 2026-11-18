@@ -9,6 +9,8 @@ pnpm monorepo:
 - `apps/web`: the forge (SvelteKit). Repositories, forge features, and the event log.
 - `apps/daemon`: the agent daemon. Worktrees and agent processes; connects to the forge.
 - `apps/desktop`: the desktop app (Electron). Starts forge and daemon, and shows the forge.
+- `apps/website`: the website (Astro, static). Drawn with the forge's design system: it
+  imports `apps/web/src/routes/layout.css`, so a change to tokens or utilities shows there too.
 - `packages/protocol`: message types shared by forge and daemon.
 - `planning/`: the backlog (means collection).
 - `docs/adr/`, `docs/fdr/`: architecture and feature decision records.

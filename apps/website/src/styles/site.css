@@ -1,0 +1,102 @@
+/*
+ * The website is drawn with the app's own design system: its tokens, its type and its
+ * utilities (`sheet`, `item`, `edge-live`, …), so that what it shows of Geordi is Geordi.
+ * Only what a website needs and an app does not is added here.
+ */
+@import '../../../web/src/routes/layout.css';
+
+@theme inline {
+	/* Two sizes the app has no use for: a headline for the page, and one for its sections. */
+	--text-display: clamp(2.75rem, 1.6rem + 5.2vw, 5.75rem);
+	--text-display--line-height: 0.96;
+	--text-display--letter-spacing: -0.04em;
+	--text-headline: clamp(1.75rem, 1.45rem + 1.4vw, 2.5rem);
+	--text-headline--line-height: 1.1;
+	--text-headline--letter-spacing: -0.03em;
+	/* what introduces a page or a section */
+	--text-lede: 1.1875rem;
+	--text-lede--line-height: 1.55;
+}
+
+/* The column everything is laid into, 8px from the window's edge like the app's sheets. */
+@utility column {
+	@apply mx-auto w-full max-w-7xl px-2;
+}
+
+/* A sheet's own padding, the same for all of them. */
+@utility sheet-pad {
+	@apply p-6 sm:p-8 lg:p-10;
+}
+
+html {
+	scroll-behavior: smooth;
+	scroll-padding-top: --spacing(16);
+
+	@media (prefers-reduced-motion: reduce) {
+		scroll-behavior: auto;
+	}
+}
+
+/* What arrives in the demo while it plays: it fades in, and that is all. */
+@media (prefers-reduced-motion: no-preference) {
+	[data-playing] [data-from]:not([hidden]) {
+		animation: arrive 320ms ease-out;
+	}
+}
+@keyframes arrive {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+}
+
+/* The text cursor of the demo's reply box, while it is being written in. */
+[data-typing]::after {
+	content: '';
+	@apply ml-px inline-block h-4 w-0.5 translate-y-0.5 bg-ink;
+	animation: blink 1s steps(1) infinite;
+}
+@keyframes blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+/*
+ * The app's spinner (`#lib/ui/Spinner.svelte`): Braille dots going round, drawn as dots.
+ */
+.spinner {
+	display: inline-grid;
+	grid-template: repeat(3, 1fr) / repeat(2, 1fr);
+	place-items: center;
+	width: 0.6em;
+	height: 0.9em;
+	vertical-align: -0.1em;
+
+	& > span {
+		width: 0.19em;
+		height: 0.19em;
+		border-radius: 50%;
+		background: currentColor;
+		opacity: 0.2;
+		animation: lit 900ms steps(1) infinite;
+		animation-delay: calc(var(--i) * 150ms);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		& > span {
+			animation: none;
+		}
+		& > span:nth-child(-n + 3) {
+			opacity: 1;
+		}
+	}
+}
+@keyframes lit {
+	0% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.2;
+	}
+}
