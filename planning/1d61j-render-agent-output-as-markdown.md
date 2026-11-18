@@ -20,3 +20,5 @@ Source citations follow-up (2026-11-18). Absolute Markdown links to worktree fil
 Inline code follow-up. Code spans use plum text in light mode and rose text in dark mode, with a hot-pink underline, and wrap long paths. Checked the transcript story in light and dark themes and at a 230px viewport width.
 
 Plain inline code uses a brighter plum in light mode and rose in dark mode, without an underline. Verified snippets and underlined links together in both Storybook themes.
+
+Sent and queued user messages now use the same Markdown renderer as agent replies. The conversation story checks automatic links, explicit Markdown links, and copying the original text.

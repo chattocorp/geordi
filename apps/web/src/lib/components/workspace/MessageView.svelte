@@ -170,7 +170,7 @@
 								</p>
 							{/if}
 							<div class="ml-auto message bg-bubble">
-								{#if block.text}<p class="whitespace-pre-wrap">{block.text}</p>{/if}
+								{#if block.text}<Markdown text={block.text} {pictures} />{/if}
 								<MessageImages images={block.images} />
 							</div>
 							{#if block.text}{@render messageActions(block.text, true)}{/if}
@@ -227,7 +227,7 @@
 					{@const { text, index, images } = row}
 					<div class="ml-auto message ring-1 ring-line">
 						<p class="label">Queued</p>
-						<p class="whitespace-pre-wrap text-muted">{text}</p>
+						{#if text}<Markdown {text} {pictures} dimmed />{/if}
 						<MessageImages {images} />
 					</div>
 					{@render messageActions(text, true, () => onremove(index, text, images))}
