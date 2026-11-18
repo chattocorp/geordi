@@ -196,11 +196,12 @@ async function modifiedFiles(worktree: Worktree) {
 /**
  * Whether the branch has had commits of its own, all of which are in the branch it started
  * from by now. The branch's own history (its reflog, in the repository) says where it was
- * made and how it moved: a branch that was only made, fast-forwarded (as syncing with its
- * base does) or reset has had no work to land.
+ * made and how it moved: a branch that was only made, renamed, fast-forwarded (as syncing
+ * with its base does) or reset has had no work to land.
  */
 /** Whether a reflog entry put commits of the branch's own on it, rather than moving it to others. */
-const ownWork = (move: string) => !/: Fast-forward$|^reset:|^branch:/.test(move);
+// Git writes `branch: Created from …` but `Branch: renamed …`.
+const ownWork = (move: string) => !/: Fast-forward$|^reset:|^branch:/i.test(move);
 
 async function landed(
 	worktree: Worktree,

@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, within } from 'storybook/test';
+	import { expect, fireEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -134,4 +134,35 @@
 
 <Story name="Waiting for navigation" asChild>
 	{@render frame(undefined, '/', true)}
+</Story>
+
+<Story
+	name="Reorder within a repository"
+	asChild
+	play={async ({ canvasElement }) => {
+		const [sourceList, otherList] = within(canvasElement).getAllByRole('list');
+		const sourceRows = within(sourceList).getAllByRole('listitem');
+		const first = sourceRows[0];
+		const last = sourceRows[sourceRows.length - 1];
+		const overLast = () =>
+			fireEvent.dragOver(last, { clientY: last.getBoundingClientRect().bottom - 1 });
+		const markers = () => canvasElement.querySelectorAll('.row-drop-after, .row-drop-before');
+
+		await fireEvent.dragStart(first);
+		await overLast();
+		await expect(markers()).toHaveLength(1);
+		await expect(last).toHaveClass('row-drop-after');
+
+		await fireEvent.dragLeave(sourceList, { relatedTarget: otherList });
+		await expect(markers()).toHaveLength(0);
+		await fireEvent.dragOver(within(otherList).getAllByRole('listitem')[0]);
+		await expect(markers()).toHaveLength(0);
+
+		await overLast();
+		await expect(last).toHaveClass('row-drop-after');
+		await fireEvent.dragEnd(first);
+		await expect(markers()).toHaveLength(0);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
 </Story>

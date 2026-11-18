@@ -558,8 +558,7 @@
 	asChild
 	play={async ({ canvas }) => {
 		const heading = await canvas.findByText('Background tasks');
-		await userEvent.click(heading);
-		await waitFor(() => expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull());
+		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
 		await userEvent.click(heading);
 		await userEvent.click(await canvas.findByRole('button', { name: /pnpm test/ }));
 		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(

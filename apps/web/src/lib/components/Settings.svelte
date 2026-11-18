@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { version } from '../../../package.json';
+	import { onMount } from 'svelte';
 	import AgentAccess from './AgentAccess.svelte';
+	import DesktopUpdates, { type UpdateBridge, type UpdateState } from './DesktopUpdates.svelte';
 	import Logo from './Logo.svelte';
 	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
@@ -14,6 +16,13 @@
 	import { registerRepo, removeRepo } from '../../routes/repos.remote';
 	import { issueAccess, revokeAccess } from '../../routes/access.remote';
 	import { settings, type Section } from './settings.svelte.ts';
+
+	let updates = $state<UpdateBridge>();
+	let updateState = $state<UpdateState | null>(null);
+	onMount(() => {
+		updates = (window as { geordiDesktop?: { updates?: UpdateBridge } }).geordiDesktop?.updates;
+		return updates?.subscribe((state) => (updateState = state));
+	});
 
 	const nav = follow<Navigation>('navigation');
 	const repos = $derived(nav.current?.repos ?? []);
@@ -223,6 +232,7 @@
 					<p class="text-sm text-muted">Version {version}</p>
 					<p>A self-hostable code forge and agent orchestrator.</p>
 				</div>
+				{#if updates && updateState}<DesktopUpdates state={updateState} controls={updates} />{/if}
 			{/if}
 		</div>
 	</div>

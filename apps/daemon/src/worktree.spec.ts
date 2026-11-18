@@ -593,6 +593,12 @@ describe('status', () => {
 		expect(await status(worktree, origin)).toMatchObject({ landed: false, files: [] });
 	});
 
+	it('does not take a renamed branch for one that landed', async () => {
+		const { worktree, git, origin } = await workspace();
+		git('branch', '-m', 'geordi/renamed');
+		expect(await status(worktree, origin)).toMatchObject({ landed: false, files: [] });
+	});
+
 	it('tells uncommitted from committed from pushed', async () => {
 		const { repoPath, worktree, git, origin } = await workspace();
 		expect(await status(worktree, origin)).toMatchObject({
