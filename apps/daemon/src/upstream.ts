@@ -130,6 +130,7 @@ export function summarise(thread: Thread, counts?: Counts): PullRequest {
 	return {
 		number: thread.ref.number,
 		title: thread.title,
+		body: thread.body,
 		url: thread.url ?? null,
 		state: thread.state,
 		draft: thread.isDraft,

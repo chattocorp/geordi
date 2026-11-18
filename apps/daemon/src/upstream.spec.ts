@@ -26,8 +26,9 @@ const reviewer = (state: string) => ({ state }) as Thread['reviewers'][number];
 describe('summarise', () => {
 	it('reports state, target branch and checks', () => {
 		const checks = { state: 'failure', total: 18, failed: 2, url: 'https://checks' } as const;
-		expect(summarise(pull({ checks, isDraft: true }))).toEqual({
+		expect(summarise(pull({ checks, body: 'PR description', isDraft: true }))).toEqual({
 			number: '42',
+			body: 'PR description',
 			title: 'Add the thing',
 			url: 'https://github.com/acme/widgets/pull/42',
 			state: 'open',

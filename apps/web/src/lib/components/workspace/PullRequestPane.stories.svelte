@@ -1,21 +1,13 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { PullRequest, Upstream } from '@geordi/protocol';
-	import UpstreamStatus from './UpstreamStatus.svelte';
+	import type { PullRequest } from '@geordi/protocol';
+	import PullRequestPane from './PullRequestPane.svelte';
 
-	const { Story } = defineMeta({ title: 'Geordi/Upstream status', component: UpstreamStatus });
+	const { Story } = defineMeta({ title: 'Geordi/Pull request', component: PullRequestPane });
 
-	const branch: Upstream = {
-		forge: 'github',
-		repo: 'acme/widgets',
-		repoUrl: 'https://github.com/acme/widgets',
-		branch: 'geordi/8809aa4e',
-		pushed: true,
-		createUrl: 'https://github.com/acme/widgets/compare/main...geordi/8809aa4e',
-		pull: null
-	};
 	const pull: PullRequest = {
 		number: '42',
+		body: 'Keep workspace diffs fast by skipping submodule contents.\n\n- Show changes to the recorded commit.\n- Leave nested working trees alone.',
 		title: 'Never look inside submodules when diffing a workspace',
 		url: 'https://github.com/acme/widgets/pull/42',
 		state: 'open',
@@ -30,21 +22,12 @@
 		},
 		review: 'approved'
 	};
-	const withPull = (overrides: Partial<PullRequest> = {}): Upstream => ({
-		...branch,
-		pull: { ...pull, ...overrides }
-	});
+	const withPull = (overrides: Partial<PullRequest> = {}) => ({ ...pull, ...overrides });
 </script>
 
-{#snippet pane(upstream: Upstream)}
-	<div class="w-96 overflow-hidden card"><UpstreamStatus {upstream} /></div>
+{#snippet pane(pull: PullRequest)}
+	<div class="w-96 sheet"><PullRequestPane {pull} /></div>
 {/snippet}
-
-<Story name="Not pushed" asChild
-	>{@render pane({ ...branch, pushed: false, createUrl: null })}</Story
->
-
-<Story name="Pushed, no pull request" asChild>{@render pane(branch)}</Story>
 
 <Story name="Ready to merge" asChild>{@render pane(withPull())}</Story>
 

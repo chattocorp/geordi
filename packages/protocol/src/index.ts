@@ -120,6 +120,7 @@ export type FileVersions = { old: string | null; new: string | null } | { unavai
 
 /** A pull request (or merge request, or whatever the forge calls it) for a workspace's branch. */
 export type PullRequest = {
+	body?: string;
 	number: string;
 	title: string;
 	url: string | null;

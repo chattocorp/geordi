@@ -58,6 +58,7 @@
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
+	import PullRequestPane from './PullRequestPane.svelte';
 	import Changes from './Changes.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
@@ -94,6 +95,7 @@
 	// `terminal:<name>`. The conversation lives in the main area; everything else can be
 	// dragged from any area to any other.
 	const CHAT = 'chat';
+	const PR = 'pr';
 	const CHANGES = 'changes';
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
@@ -127,6 +129,7 @@
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
+		if (tab === PR) return !!workspace.git?.upstream?.pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
@@ -160,7 +163,7 @@
 		const beside = groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id;
 		for (const aide of workspace.aides)
 			if (!placed.includes(`agent:${aide.id}`)) main = add(main, `agent:${aide.id}`, beside);
-		for (const tab of [CHANGES, CHANGESET])
+		for (const tab of [CHANGES, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
 		for (const name of workspace.terminals)
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
@@ -376,6 +379,7 @@
 	const closable = (tab: string) =>
 		tab !== CHAT &&
 		tab !== CHANGES &&
+		tab !== PR &&
 		tab !== CHANGESET &&
 		// not from under an agent at work
 		aideOf(tab)?.status !== 'running';
@@ -623,6 +627,9 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
 		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
+	{:else if tab === PR}
+		<span class="icon-[lucide--git-pull-request] size-3.5 shrink-0"></span>
+		<span>PR</span>
 	{:else if tab === CHANGESET}
 		{@const added = (git?.release?.packages ?? [])
 			.flatMap((pkg) => pkg.notes)
@@ -685,6 +692,8 @@
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 			onopen={openDiff}
 		/>
+	{:else if tab === PR && git?.upstream?.pull}
+		<PullRequestPane pull={git.upstream.pull} />
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
