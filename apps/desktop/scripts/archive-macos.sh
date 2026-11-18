@@ -15,10 +15,12 @@ trap cleanup EXIT
 
 password=$(openssl rand -hex 32)
 security create-keychain -p "$password" "$keychain"
+security set-keychain-settings -lut 21600 "$keychain"
 security unlock-keychain -p "$password" "$keychain"
 printf '%s' "$MACOS_SIGNING_CERTIFICATE_P12_BASE64" | base64 -D > "$work/identity.p12"
-security import "$work/identity.p12" -k "$keychain" -P "$MACOS_SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+security import "$work/identity.p12" -k "$keychain" -P "$MACOS_SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+security list-keychains -d user -s "$keychain"
 rm "$work/identity.p12"
 printf '%s' "$MACOS_NOTARY_API_KEY_BASE64" | base64 -D > "$work/notary.p8"
 unset password MACOS_SIGNING_CERTIFICATE_P12_BASE64 MACOS_SIGNING_CERTIFICATE_PASSWORD MACOS_NOTARY_API_KEY_BASE64
