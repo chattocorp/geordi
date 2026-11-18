@@ -146,6 +146,8 @@ export type PullRequest = {
 		 * Absent where the forge only says how they stand overall.
 		 */
 		counts?: CheckCounts;
+		/** Checks still pending on this commit, when the forge supplies their names. */
+		running?: { name: string; url?: string }[];
 		url: string | null;
 	} | null;
 	/** Where its reviews stand, the most decisive first; `null` if nobody was asked. */

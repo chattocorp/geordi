@@ -93,21 +93,36 @@ export function count(states: Check['state'][]): CheckCounts {
 	return counts;
 }
 
-/**
- * The checks on an open pull request, one by one: one more request, for a picture of how
- * far they are. `undefined` where there is no telling (and the combined state has to do).
- */
-async function countChecks(provider: ForgeProvider, repo: Repo, pull: Thread) {
+/** Use the grouped result alone when all checks have finished. */
+async function checksFor(provider: ForgeProvider, repo: Repo, pull: Thread) {
+	const counts = rollupCounts(pull);
 	const sha = pull.branches?.head.sha;
-	if (pull.state !== 'open' || !pull.checks || !sha || !provider.can('checks.list')) return;
+	if (
+		counts?.pending === 0 ||
+		pull.state !== 'open' ||
+		!pull.checks ||
+		!sha ||
+		!provider.can('checks.list')
+	)
+		return { counts };
 	try {
 		const page = await provider.checks.list(repo, sha);
-		// more of them than came back: counting these would be wrong
-		if (page.cursor || page.items.length === 0) return;
-		return count(page.items.map((check) => check.state));
+		if (
+			!page.cursor &&
+			!page.warnings?.some((warning) => warning.code === 'checks_unreadable') &&
+			page.items.length
+		) {
+			return {
+				counts: count(page.items.map((check) => check.state)),
+				running: page.items
+					.filter((check) => check.state === 'pending')
+					.map(({ name, url }) => ({ name, url }))
+			};
+		}
 	} catch {
-		return; // nice to have, never worth failing over
+		// The pull request summary is still available.
 	}
+	return { counts };
 }
 
 /**
@@ -129,7 +144,11 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 }
 
 /** Boils a pull request down to what the workspace shows. */
-export function summarise(thread: Thread, counts?: CheckCounts): PullRequest {
+export function summarise(
+	thread: Thread,
+	counts?: CheckCounts,
+	running?: NonNullable<PullRequest['checks']>['running']
+): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
 	const decision = (thread.raw as { reviewDecision?: string } | null)?.reviewDecision;
 	if (decision === 'APPROVED') reviews.push('approved');
@@ -153,6 +172,7 @@ export function summarise(thread: Thread, counts?: CheckCounts): PullRequest {
 						total: checks.total ?? null,
 						failed: checks.failed ?? null,
 						...(counts && { counts }),
+						...(running?.length && { running }),
 						url: checks.url ?? null
 					}
 				: null,
@@ -301,9 +321,10 @@ export async function upstream(
 	pull ??= await findPull(provider, repo, branch);
 	const defaultBranch =
 		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
+	const checks = pull && (await checksFor(provider, repo, pull));
 	const value: Upstream = {
 		...base,
-		pull: pull && summarise(pull, rollupCounts(pull) ?? (await countChecks(provider, repo, pull))),
+		pull: pull && summarise(pull, checks?.counts, checks?.running),
 		createUrl:
 			(defaultBranch &&
 				provider.urlFor({

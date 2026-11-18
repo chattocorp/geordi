@@ -78,6 +78,26 @@
 			</span>
 		</svelte:element>
 	{/if}
+	{#if pull.checks?.running?.length}
+		<details open class="text-xs">
+			<summary class="font-medium">Running checks</summary>
+			<ul class="mt-1.5 space-y-1 pl-4">
+				{#each pull.checks.running as check (check)}
+					<li class="wrap-anywhere">
+						{#if check.url}
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- external check URL from the forge -->
+							<a href={check.url} target="_blank" rel="noreferrer" class="hover:underline"
+								>{check.name}</a
+							>
+							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+						{:else}
+							{check.name}
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</details>
+	{/if}
 	{#if pull.body?.trim()}
 		<div class="wrap-anywhere"><Markdown text={pull.body} /></div>
 	{/if}

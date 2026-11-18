@@ -53,14 +53,30 @@
 	)}
 </Story>
 
-<Story name="Checks under way" asChild>
+<Story
+	name="Checks under way"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const summary = canvas.getByText('Running checks');
+		const link = canvas.getByRole('link', { name: 'Browser tests' });
+		await expect(link).toBeVisible();
+		await userEvent.click(summary);
+		await expect(link).not.toBeVisible();
+		await userEvent.click(summary);
+		await expect(canvas.getByText('Type check')).toBeVisible();
+	}}
+>
 	{@render pane(
 		withPull({
 			checks: {
 				state: 'pending',
-				total: 17,
+				total: 11,
 				failed: 0,
-				counts: { passed: 5, failed: 0, pending: 8, skipped: 4 },
+				counts: { passed: 5, failed: 0, pending: 2, skipped: 4 },
+				running: [
+					{ name: 'Browser tests', url: 'https://github.com/acme/widgets/actions/runs/123' },
+					{ name: 'Type check' }
+				],
 				url: 'https://github.com/acme/widgets/pull/42/checks'
 			},
 			review: null
