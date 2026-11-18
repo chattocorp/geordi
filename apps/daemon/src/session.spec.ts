@@ -86,6 +86,11 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    for(const part of [bytes.subarray(0,4),bytes.subarray(4)]) update({sessionUpdate:'terminal_output_chunk',terminalId:'sh',data:part.toString('base64')});
    update({...tool,status:'completed'});return done();
   }
+  if(said==='usage'){
+   const usage={sessionUpdate:'usage_update',used:31432,size:1000000,cost:{amount:0.27,currency:'USD'},_meta:{'_claude/model':'opus'}};
+   out({method:'session/update',params:{sessionId:'child',update:{...usage,used:5}}});
+   update(usage);const {cost,...later}=usage;update({...later,used:31500});return done();
+  }
   if(said==='background'){text('started');state('idle',{stopReason:'end_turn',background:[{type:'tool_call',toolCallId:'task'}]});setTimeout(()=>{state('running');text('it finished');done();},700);return;}
   text('Heard: '+said);return done();
  }
@@ -526,6 +531,25 @@ describe('a daemon restart', () => {
 			{ kind: 'text', text: 'Steered: still there?' },
 			{ kind: 'turn.completed' }
 		]);
+	});
+
+	it("reports how full the root session's context is, and still knows after a daemon restart", async () => {
+		const sessions = root();
+		const first = begin('usage', { dir: join(sessions, 'w') });
+		await first.ended(1);
+		const cost = { amount: 0.27, currency: 'USD' };
+		// a cost said once stands until the agent says more
+		const usage = { used: 31500, size: 1000000, cost };
+		expect(first.events.filter((event) => event.kind === 'usage')).toEqual([
+			{ kind: 'usage', usage: { ...usage, used: 31432 } },
+			{ kind: 'usage', usage }
+		]);
+		expect(first.session.usage()).toEqual(usage);
+		first.session.detach(); // the daemon goes away
+
+		const session = resumeSessions(sessions, () => () => true).get('w')!;
+		started.push(session);
+		expect(session.usage()).toEqual(usage);
 	});
 
 	it('reports one answer receipt when a restarted daemon retries an answer in flight', async () => {

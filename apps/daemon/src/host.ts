@@ -31,11 +31,20 @@ import {
 import { createRequire } from 'node:module';
 import { delimiter, dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
-import type { Agent, AgentEvent, BackgroundTask, MessageImage } from '@geordi/protocol';
+import type {
+	Agent,
+	AgentEvent,
+	BackgroundTask,
+	ContextUsage,
+	MessageImage
+} from '@geordi/protocol';
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
 
-export type HostEvent = AgentEvent | { kind: 'background'; tasks: BackgroundTask[] };
+export type HostEvent =
+	| AgentEvent
+	| { kind: 'background'; tasks: BackgroundTask[] }
+	| { kind: 'usage'; usage: ContextUsage };
 
 export type Meta = {
 	agent: Agent;

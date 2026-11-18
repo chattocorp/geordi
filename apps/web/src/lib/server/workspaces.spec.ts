@@ -704,6 +704,35 @@ describe('workspaces', () => {
 		expect(() => workspaces.answer(id, 'q1', ['Yes'])).toThrow();
 	});
 
+	it('keeps how full the context is in memory during a turn, and records it once at its end', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('Count');
+		workspaces.record(id, { kind: 'turn.started' });
+		const changed = vi.fn();
+		const unfollow = workspaces.followUsage(changed);
+		const recorded = () => store.readAll().filter((event) => event.type === 'workspace.usage');
+		expect(workspaces.summary(id).usage).toBeNull();
+		for (const used of [1000, 2000, 3000]) workspaces.measure(id, { used, size: 10_000 });
+		workspaces.measure(id, { used: 3000, size: 10_000 });
+		expect(changed).toHaveBeenCalledTimes(3);
+		expect(workspaces.summary(id).usage).toEqual({ used: 3000, size: 10_000 });
+		expect(recorded()).toHaveLength(0);
+
+		const cost = { amount: 0.27, currency: 'USD' };
+		workspaces.measure(id, { used: 3500, size: 10_000, cost });
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(recorded()).toHaveLength(1);
+		// after a restart, as it was; a daemon that says it again records nothing new
+		const restarted = createWorkspaces(store, repos, dispatch);
+		expect(restarted.summary(id).usage).toEqual({ used: 3500, size: 10_000, cost });
+		restarted.measure(id, { used: 3500, size: 10_000, cost });
+		expect(recorded()).toHaveLength(1);
+		// said between turns, it is recorded at once
+		restarted.measure(id, { used: 3600, size: 10_000, cost });
+		expect(recorded()).toHaveLength(2);
+		unfollow();
+	});
+
 	it('keeps the queue across a restart', () => {
 		const { store, repos, workspaces, dispatch, create } = setup();
 		const id = create('One');

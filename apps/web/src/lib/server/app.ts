@@ -289,7 +289,9 @@ export const hub = lazy(() =>
 				// open pull requests, answer reviews. None of that shows in the worktree.
 				if (message.event.kind === 'turn.completed' || message.event.kind === 'turn.failed')
 					upstreamMayHaveChanged(message.workspaceId);
-			} else if (message.type === 'terminal.output')
+			} else if (message.type === 'workspace.usage')
+				workspaces().measure(message.workspaceId, message.usage);
+			else if (message.type === 'terminal.output')
 				terminals().output(message.terminalId, message.data, message.offset);
 			else if (message.type === 'terminal.exit') terminals().exit(message.terminalId);
 			else if (message.type === 'terminal.ended')

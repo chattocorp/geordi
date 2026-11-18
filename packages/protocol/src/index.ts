@@ -577,6 +577,16 @@ export type ToolLocation = { path: string; line?: number };
  */
 export type ToolInfo = { toolKind?: ToolKind; title?: string; locations?: ToolLocation[] };
 
+/**
+ * How full the agent's context is, as its root session last said (ACP `usage_update`):
+ * `used` of `size` tokens, and what the session has cost so far, where the agent says.
+ */
+export type ContextUsage = {
+	used: number;
+	size: number;
+	cost?: { amount: number; currency: string };
+};
+
 export type BackgroundTask = {
 	type: 'terminal' | 'tool_call' | 'subagent';
 	id: string;
@@ -686,6 +696,11 @@ export type ForgeMessage =
 /** Daemon → forge. */
 export type DaemonMessage =
 	| { type: 'workspace.background'; workspaceId: string; tasks: BackgroundTask[] }
+	/**
+	 * How full the agent's context is, said after every model step, and again on reconnect.
+	 * Live, unacknowledged: the forge keeps it in memory and records it once per turn.
+	 */
+	| { type: 'workspace.usage'; workspaceId: string; usage: ContextUsage }
 	| {
 			type: 'hello';
 			protocol: number;

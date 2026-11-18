@@ -130,6 +130,10 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 					setTasks(socket, message.workspaceId, message.tasks);
 				return;
 			}
+			if (message.type === 'workspace.usage') {
+				if (assigned.get(message.workspaceId) === daemonId) handlers.onMessage(message);
+				return;
+			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
 			else if (
 				message.type !== 'workspace.event' ||

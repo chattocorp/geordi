@@ -10,6 +10,7 @@ import {
 	type AgentEvent,
 	type AgentPlan,
 	type AgentSettings,
+	type ContextUsage,
 	type SubagentState,
 	type SubagentUpdate,
 	type ForgeMessage,
@@ -117,6 +118,11 @@ export type WorkspacesEvent =
 			/** Historical answers have no pending flag and were final when recorded. */
 			data: { id: string; question: string; answers: string[]; pending?: true };
 	  }
+	/**
+	 * How full the agent's context was at the end of a turn (or when it said so between
+	 * turns). What it says during a turn is only kept in memory: it says it after every step.
+	 */
+	| { type: 'workspace.usage'; stream: WorkspaceStream; data: { id: string; usage: ContextUsage } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
 	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
 	/** Whatever the daemon reports, stored verbatim. */
@@ -273,6 +279,8 @@ export type Workspace = {
 	asking: boolean;
 	/** How its latest turn ended; `null` while one is running, and before the first. */
 	lastTurn: TurnEnd | null;
+	/** How full its agent's context is, as it last said; `null` before it has. */
+	usage: ContextUsage | null;
 	/** The workspace whose agent started this one; `null` if a person did. */
 	parentId: string | null;
 	/** The external client (its grant) that started it, if one did: it may supervise it. */
@@ -314,6 +322,7 @@ function initialWorkspace(
 		status: 'idle',
 		asking: false,
 		lastTurn: null,
+		usage: null,
 		parentId,
 		startedBy: actor && isExternal(actor) ? actor : null,
 		worktreeId,
@@ -420,6 +429,12 @@ export function createWorkspaces(
 
 		if (event.type === 'workspace.moved') {
 			move(workspaces, event.data.id, event.data.before);
+			return;
+		}
+		// not something that happened in it: it leaves its place in the lists alone
+		if (event.type === 'workspace.usage') {
+			const measured = workspaces.get(event.data.id);
+			if (measured) measured.usage = event.data.usage;
 			return;
 		}
 
@@ -703,10 +718,30 @@ export function createWorkspaces(
 		return restored.transcript;
 	}
 
+	/**
+	 * How full each working agent's context is, as it said since its turn began: it says so
+	 * after every step, too often for the event log. Recorded when the turn ends (`keepUsage`);
+	 * after a restart, the daemon says it again.
+	 */
+	const usages = new Map<string, ContextUsage>();
+	const usageListeners = new Set<(id: string) => void>();
+	const sameUsage = (a: ContextUsage | null, b: ContextUsage) =>
+		a?.used === b.used &&
+		a.size === b.size &&
+		a.cost?.amount === b.cost?.amount &&
+		a.cost?.currency === b.cost?.currency;
+	function keepUsage(workspace: Workspace, usage: ContextUsage) {
+		usages.delete(workspace.id);
+		if (sameUsage(workspace.usage, usage)) return;
+		const { id } = workspace;
+		store.append({ type: 'workspace.usage', stream: `workspace:${id}`, data: { id, usage } });
+	}
+
 	const summarise = ({ transcript, ...workspace }: Workspace): WorkspaceSummary => {
 		void transcript;
 		return structuredClone({
 			...workspace,
+			usage: usages.get(workspace.id) ?? workspace.usage,
 			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
 		});
 	};
@@ -795,6 +830,8 @@ export function createWorkspaces(
 			stream: `workspace:${id}`,
 			data: { id, event, ...(cursor && { cursor }) }
 		});
+		const measured = usages.get(id);
+		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
 		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
 			say(workspace, workspace.queue[0], null, 'queued');
 	}
@@ -1299,10 +1336,29 @@ export function createWorkspaces(
 		}
 	};
 
+	/**
+	 * How full a workspace agent's context is, as its daemon says (ACP `usage_update`): kept
+	 * in memory while it works, recorded at once while it does not.
+	 */
+	function measure(id: string, usage: ContextUsage) {
+		const workspace = projection.get().get(id);
+		if (!workspace || workspace.archivedAt) return;
+		if (workspace.status !== 'running') return keepUsage(workspace, usage);
+		if (sameUsage(usages.get(id) ?? workspace.usage, usage)) return;
+		usages.set(id, usage);
+		for (const listener of usageListeners) listener(id);
+	}
+
 	return {
 		access,
 		agents,
 		followTranscript,
+		measure,
+		/** Told which workspace's usage changed between events. */
+		followUsage(listener: (id: string) => void) {
+			usageListeners.add(listener);
+			return () => usageListeners.delete(listener);
+		},
 
 		/**
 		 * All workspaces in use (not archived), newest first or as people moved them, without
