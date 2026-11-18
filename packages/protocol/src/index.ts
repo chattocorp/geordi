@@ -400,6 +400,8 @@ export type DaemonRequest =
 	| ({ kind: 'release' } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
+	/** Current text of a worktree-relative file, including files with no changes. */
+	| ({ kind: 'source'; path: string } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
 	/**
@@ -444,6 +446,7 @@ export type DaemonResults = {
 	title: string;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
+	source: string | null;
 	picture: MessageImage | null;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;

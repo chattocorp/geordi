@@ -19,7 +19,7 @@ import {
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
-import { changes, status, uncommittedFiles, versions } from './changes.ts';
+import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
 import { resolve, settingsOf } from './config.ts';
 import { createPorts, portEnv, waitForPort } from './ports.ts';
 import {
@@ -438,6 +438,8 @@ async function answer(request: DaemonRequest) {
 			return (await configFor(worktree, request)).config;
 		case 'diff':
 			return versions(worktree, request, request.path);
+		case 'source':
+			return readText(worktree, request.path);
 		case 'picture':
 			return readPicture(worktree.path, request.path);
 		case 'upstream':
