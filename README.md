@@ -2,13 +2,31 @@
 
 A self-hostable code forge and agent orchestrator.
 
-- Browse and manage Git repositories
-- Run coding agents (`claude -p`, `codex`) in workspaces: isolated Git worktrees with
-  one conversation each, a live view of its changes, and terminals
-- Let agents start and supervise other agents, in the same directory or in worktrees of
-  their own, and see who is controlling what
-- See each workspace's pull request, and move it along with one click: create it, fix its
-  checks, merge it, archive
+## Features
+
+- 🌳 **Workspaces.** One conversation with one agent, in its own Git worktree on its own
+  branch. Run as many side by side as you like.
+- 🤖 **Claude and Codex.** Pick the agent, its model and how hard it thinks, per workspace.
+- 💬 **Talk while it works.** Steer an agent mid-turn or queue your next message. Agents
+  can ask you questions, too.
+- 🧑‍🤝‍🧑 **Agents with helpers.** Agents can start and supervise other agents, in their
+  worktree or in one of their own.
+- 👀 **Watch the changes live.** Diffs update as the agent writes, with expandable
+  context.
+- 🖥️ **Terminals built in.** Open shells right next to the conversation.
+- 🚦 **Pull requests at a glance.** The sidebar shows how each workspace's PR and checks
+  stand.
+- 👆 **One click to move on.** Create the PR, fix the checks, resolve conflicts, sync,
+  merge, archive.
+- ▶️ **Run your project.** A `.geordi.yml` names the jobs to run and links to open, and
+  gives every workspace ports of its own.
+- 📦 **Release notes in view.** See the change notes a workspace adds and the versions
+  they lead to.
+- 🔔 **Notifications.** Geordi tells you when a workspace needs you.
+- 🔁 **Survives restarts.** Agents keep working when you quit the app or restart the
+  forge.
+- 🍎 **Desktop app.** A macOS app that runs everything for you.
+- 🏠 **Yours.** Self-hosted, on your machine, with your data in a local SQLite file.
 
 Geordi is in early development.
 
