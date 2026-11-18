@@ -56,7 +56,7 @@
 					? 'bg-ok text-on-ok'
 					: 'bg-accent text-on-accent'
 		],
-		secondary: 'rounded-full bg-sunken font-medium ring-1 ring-line hover:bg-line/50',
+		secondary: 'rounded-full bg-sunken font-medium inset-ring-1 inset-ring-line hover:bg-line/50',
 		ghost: 'rounded-control font-medium text-muted hover:bg-sunken hover:text-ink',
 		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20'
 	});

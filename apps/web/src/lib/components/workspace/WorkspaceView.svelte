@@ -89,7 +89,14 @@
 		}
 	);
 	const git = $derived(workspace.git);
-	const pull = $derived(git?.upstream?.pull);
+	// Local Git can answer before the upstream lookup. Keep the last complete result
+	// for the ribbon and its pull request tab while the next check is in flight.
+	let lastChecked = $state.raw<WorkspaceLive['git']>(null);
+	$effect.pre(() => {
+		if (!git?.checking) lastChecked = git;
+	});
+	const checked = $derived(git?.checking ? lastChecked : git);
+	const pull = $derived(checked?.upstream?.pull);
 	const running = $derived(workspace.status === 'running');
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
@@ -449,14 +456,14 @@
 	 * while the agent is at work, which is when it comes back.
 	 */
 	const worktreeGone = $derived(
-		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt
+		!!workspace.worktree && !!checked?.missing && !running && !workspace.archivedAt
 	);
 	const standingState = $derived(
-		workspace.archivedAt || !git?.changes || git.checking
+		workspace.archivedAt || !checked?.changes
 			? null
 			: {
-					changes: git.changes,
-					upstream: git.upstream,
+					changes: checked.changes,
+					upstream: checked.upstream,
 					failed: workspace.lastTurn === 'failed',
 					child: !!workspace.parentId
 				}
@@ -772,10 +779,10 @@
 			{standing}
 			pull={standingState?.upstream?.pull}
 			actions={offered}
+			disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 			{pending}
 			{working}
 			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
-			checking={!workspace.archivedAt && !!workspace.worktree && (!git || git.checking)}
 			onopenpull={() => showTab(PR)}
 			onaction={act}
 		/>
@@ -945,9 +952,9 @@
 			the agent can change. They run in your own shell, with everything you are allowed to do. You
 			are asked once per command and repository.
 		</p>
-		<div class="flex justify-end gap-2">
-			<Button onclick={() => (asking = null)}>Cancel</Button>
-			<Button variant="primary" icon="icon-[lucide--play]" onclick={agree}>Run</Button>
+		<div class="dialog-actions">
+			<Button variant="soft" onclick={() => (asking = null)}>Cancel</Button>
+			<Button variant="primary" onclick={agree}>Run</Button>
 		</div>
 	</div>
 </Dialog>

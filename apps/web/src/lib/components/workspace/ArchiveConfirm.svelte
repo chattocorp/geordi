@@ -25,11 +25,12 @@
 		<p class="text-sm text-muted">
 			Archiving ends its terminals and keeps its branch and conversation.
 		</p>
-		<div class="flex items-center justify-end gap-2">
-			<Button disabled={asking?.busy} onclick={() => asking?.answer(false)}>Cancel</Button>
+		<div class="dialog-actions">
+			<Button variant="soft" disabled={asking?.busy} onclick={() => asking?.answer(false)}
+				>Cancel</Button
+			>
 			<Button
 				variant="primary"
-				icon="icon-[lucide--archive]"
 				disabled={asking?.blocked}
 				busy={asking?.busy}
 				onclick={() => asking?.answer(true)}
