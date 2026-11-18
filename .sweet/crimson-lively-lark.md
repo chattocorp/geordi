@@ -2,4 +2,4 @@
 type: fix
 ---
 
-Plain inline code in agent replies keeps its theme color without an underline, so links are easier to spot.
+Inline code in agent replies uses a brighter plum in light mode. Only links and clickable file references have underlines.
