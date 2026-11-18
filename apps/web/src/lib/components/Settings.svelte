@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { version } from '../../../package.json';
+	import Logo from './Logo.svelte';
 	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import { theme } from '#lib/theme.svelte.ts';
@@ -17,7 +19,8 @@
 	const sections: { id: Section; label: string; icon: string }[] = [
 		{ id: 'general', label: 'General', icon: 'icon-[lucide--sliders-horizontal]' },
 		{ id: 'notifications', label: 'Notifications', icon: 'icon-[lucide--bell]' },
-		{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' }
+		{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' },
+		{ id: 'about', label: 'About', icon: 'icon-[lucide--info]' }
 	];
 
 	/** What came of the last test notification, if one was sent. */
@@ -50,15 +53,18 @@
 </script>
 
 <!-- Geordi's settings (FDR-005): how it looks, what it tells of, and the repositories it knows. -->
-<Dialog bind:open={settings.open} label="Settings" class="h-112">
+<Dialog bind:open={settings.open} label="Settings" wide class="h-144">
 	<div class="flex h-full">
-		<div class="w-48 shrink-0 space-y-3 border-r border-line bg-sidebar p-2.5">
-			<p class="px-2.5 pt-2 heading">Settings</p>
+		<div
+			class="w-14 shrink-0 space-y-3 overflow-y-auto border-r border-line bg-sidebar p-2.5 sm:w-50"
+		>
+			<p class="hidden px-2.5 pt-2 heading sm:block">Settings</p>
 			<div role="tablist" aria-orientation="vertical" aria-label="Settings" class="space-y-0.5">
 				{#each sections as section (section.id)}
 					<button
 						type="button"
 						role="tab"
+						title={section.label}
 						id="settings-tab-{section.id}"
 						aria-selected={settings.section === section.id}
 						aria-controls="settings-panel"
@@ -66,7 +72,7 @@
 						class={['item w-full px-2.5 py-1.5', settings.section === section.id && 'item-active']}
 					>
 						<span class={[section.icon, 'size-4 shrink-0']}></span>
-						{section.label}
+						<span class="sr-only sm:not-sr-only">{section.label}</span>
 					</button>
 				{/each}
 			</div>
@@ -147,7 +153,7 @@
 						Send a test
 					</Button>
 				</div>
-			{:else}
+			{:else if settings.section === 'repositories'}
 				<h2 class="heading">Repositories</h2>
 				<p class="pb-4 text-sm text-muted">The Git repositories agents can work in.</p>
 
@@ -195,6 +201,16 @@
 					<p class="text-xs text-muted">
 						Removing a repository only makes Geordi forget it. Nothing on disk changes.
 					</p>
+				</div>
+			{:else}
+				<h2 class="heading">About</h2>
+				<div class="mt-6 space-y-2">
+					<div class="flex items-center gap-2.5">
+						<Logo />
+						<h3 class="title">Geordi</h3>
+					</div>
+					<p class="text-sm text-muted">Version {version}</p>
+					<p>A self-hostable code forge and agent orchestrator.</p>
 				</div>
 			{/if}
 		</div>
