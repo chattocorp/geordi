@@ -72,6 +72,13 @@
 		const external = canvas.getByRole('link', { name: 'Open pull request #42 in browser' });
 		await expect(external).toHaveAttribute('href', 'https://example.com/pull/42');
 		await expect(external).toHaveAttribute('target', '_blank');
+		const label = canvas.getByText('#42');
+		const centerY = (element: Element) => {
+			const { top, height } = element.getBoundingClientRect();
+			return top + height / 2;
+		};
+		await expect(centerY(label.previousElementSibling!)).toBeCloseTo(centerY(label));
+		await expect(centerY(external.firstElementChild!)).toBeCloseTo(centerY(label));
 	}}
 >
 	{@render bar({ changes: pushed, upstream: upstream({ draft: true }) })}

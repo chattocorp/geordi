@@ -66,25 +66,25 @@
 			<button
 				type="button"
 				class={[
-					'inline-flex items-center gap-1.5 rounded-full pl-3 code-dense hover:text-ink',
-					pull.url ? 'pr-1' : 'pr-3'
+					'inline-flex items-center gap-1.5 rounded-full pl-3 text-sm leading-none font-medium tabular-nums hover:text-ink',
+					pull.url ? 'pr-0.5' : 'pr-3'
 				]}
 				title={`Show pull request #${pull.number} in this workspace`}
 				onclick={onopenpull}
 			>
 				<span class="icon-[lucide--git-pull-request] size-4"></span>
-				#{pull.number}
+				<span>#{pull.number}</span>
 			</button>
 			{#if pull.url}
 				<a
 					href={pull.url}
 					target="_blank"
 					rel="external noreferrer"
-					class="inline-flex items-center rounded-full pr-3 pl-0.5 hover:text-ink"
+					class="inline-flex items-center rounded-full pr-3 pl-1 hover:text-ink"
 					aria-label={`Open pull request #${pull.number} in browser`}
 					title="Open in browser"
 				>
-					<span class="icon-[lucide--external-link] size-3.5"></span>
+					<span class="icon-[lucide--external-link] size-4"></span>
 				</a>
 			{/if}
 		</div>
