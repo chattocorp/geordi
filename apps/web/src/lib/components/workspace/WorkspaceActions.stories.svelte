@@ -55,6 +55,10 @@
 	>{@render bar({ changes: dirty, upstream: upstream(null) })}</Story
 >
 
+<Story name="Pushed branch awaiting a pull request" asChild
+	>{@render bar({ changes: pushed, upstream: upstream(null) })}</Story
+>
+
 <Story name="Ready to merge" asChild
 	>{@render bar({ changes: pushed, upstream: upstream({}) })}</Story
 >

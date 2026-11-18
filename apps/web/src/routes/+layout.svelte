@@ -408,8 +408,13 @@
 	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
-	<!-- not work that is merely unpublished: that is most workspaces, and no news -->
-	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
+	<!-- Routine publishing steps only need to appear inside the workspace. -->
+	{@const standing =
+		leaving ||
+		workspace.standing?.tone === 'accent' ||
+		workspace.standing?.label === 'No pull request'
+			? null
+			: workspace.standing}
 	{@const archivable = !busy && !leaving}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<li style:margin-inline-start="calc(var(--spacing) * {3 * depth})">
