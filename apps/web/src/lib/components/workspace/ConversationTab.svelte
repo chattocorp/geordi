@@ -1,0 +1,21 @@
+<script lang="ts">
+	import type { Agent } from '@geordi/protocol';
+	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import { agentName } from '#lib/format.ts';
+	import Spinner from '#lib/ui/Spinner.svelte';
+
+	let {
+		agent,
+		title = 'Conversation',
+		running
+	}: { agent: Agent; title?: string; running: boolean } = $props();
+</script>
+
+<span class="grid size-3.5 shrink-0 place-items-center">
+	{#if running}
+		<Spinner label={`${agentName[agent]} working`} />
+	{:else}
+		<AgentAvatar {agent} bare />
+	{/if}
+</span>
+<span class="max-w-48 truncate" {title}>{title}</span>
