@@ -89,10 +89,10 @@
 	};
 </script>
 
-{#snippet frame(nav: Navigation | undefined, path: string)}
+{#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh w-64 bg-frame p-2">
-		<Sidebar {nav} {path} />
+		<Sidebar {nav} {path} {lost} />
 	</div>
 {/snippet}
 
@@ -124,4 +124,12 @@
 	}}
 >
 	{@render frame(undefined, '/')}
+</Story>
+
+<Story name="Reconnecting with workspaces" asChild>
+	{@render frame(nav, '/workspaces/ready', true)}
+</Story>
+
+<Story name="Waiting for navigation" asChild>
+	{@render frame(undefined, '/', true)}
 </Story>

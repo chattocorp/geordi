@@ -76,10 +76,8 @@
 	type Props = {
 		/** The workspace as it is now: it comes live, over the page's one connection. */
 		workspace: WorkspaceLive;
-		/** Whether that is up to date: not while the connection is down. */
-		connected: boolean;
 	};
-	let { workspace, connected }: Props = $props();
+	let { workspace }: Props = $props();
 	// (never another's: the page makes a new view for each workspace)
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
@@ -816,12 +814,6 @@
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
 						<span class="truncate code-dense">{workspace.worktree.branch}</span>
-					</span>
-				{/if}
-				{#if !connected}
-					<span class="flex items-center gap-1 text-danger">
-						<span class="icon-[lucide--unplug] size-3.5"></span>
-						Reconnecting
 					</span>
 				{/if}
 			</div>

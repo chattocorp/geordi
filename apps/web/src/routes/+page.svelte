@@ -4,7 +4,8 @@
 	import NewWorkspace from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
-	import { follow } from '#lib/live.svelte.ts';
+	import WaitingForView from '#lib/components/WaitingForView.svelte';
+	import { connection, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 
 	const live = follow<Navigation>('navigation');
@@ -16,9 +17,8 @@
 <Page title="New workspace" wide>
 	{#snippet description()}Tell an agent what to do. It gets its own branch to do it on.{/snippet}
 
-	<!-- nothing until it is known which: not the wrong one of the two for a moment -->
 	{#if !nav}
-		<!-- still to come -->
+		<WaitingForView lost={connection.state === 'lost'} />
 	{:else if nav.repos.length > 0}
 		<div class="flex flex-1 flex-col justify-center">
 			<NewWorkspace repos={nav.repos} {preferred} focused />
