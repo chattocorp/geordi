@@ -1,9 +1,8 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentEvent } from '@geordi/protocol';
 import { afterAll, describe, expect, it } from 'vitest';
-import type { Meta } from './host.ts';
+import type { HostEvent, Meta } from './host.ts';
 import { resumeSessions, startSession, type Session } from './session.ts';
 
 /** A small ACP peer for the detached host's restart and delivery tests. */
@@ -101,7 +100,8 @@ const meta = (env: Record<string, string> = {}): Meta => ({
 		resumeId: null,
 		api: null,
 		settings: {},
-		env
+		// The fixture stands in for the wrapper and the agent's own program: neither need be installed.
+		env: { CLAUDE_CODE_EXECUTABLE: 'claude', CODEX_PATH: 'codex', ...env }
 	}
 });
 
@@ -133,7 +133,7 @@ function begin(
 		idle?: string;
 	} = {}
 ) {
-	const events: AgentEvent[] = [];
+	const events: HostEvent[] = [];
 	// how long a CLI with nothing to do is kept is the host's to know, from its environment
 	if (idle) process.env.GEORDI_SESSION_IDLE_MS = idle;
 	const session = startSession(
@@ -177,6 +177,18 @@ describe('a session', () => {
 		const { events, ended } = begin('which mode', { launch });
 		await ended(1);
 		expect(events).toContainEqual({ kind: 'text', text: mode });
+	});
+
+	it('fails the turn, saying so, when the agent is not installed', async () => {
+		const { events, ended } = begin('hello', {
+			launch: meta({ PATH: '', CLAUDE_CODE_EXECUTABLE: '' })
+		});
+		await ended(1);
+		expect(events).toContainEqual({
+			kind: 'turn.failed',
+			error: expect.stringContaining('could not find `claude`')
+		});
+		expect(events.some((event) => event.kind === 'text')).toBe(false);
 	});
 
 	it('fails before prompting when the provider keeps a different mode', async () => {
@@ -376,8 +388,11 @@ describe('a session', () => {
 
 	it('reports a turn the agent begins by itself, and is not ended while something runs', async () => {
 		const { session, events, ended } = begin('background', { idle: '200' });
+		await ended(1);
+		expect(session.background()).toEqual([{ type: 'tool_call', id: 'task', toolCallId: 'task' }]);
 		await ended(2);
-		expect(events.slice(4)).toEqual([
+		expect(session.background()).toEqual([]);
+		expect(events.filter((event) => event.kind !== 'background').slice(4)).toEqual([
 			{ kind: 'turn.started' },
 			{ kind: 'text', text: 'it finished' },
 			{ kind: 'turn.completed' }
@@ -484,7 +499,7 @@ describe('a daemon restart', () => {
 		await until(() => first.kinds().includes('resume'));
 		first.session.detach(); // the daemon goes away
 
-		const events: AgentEvent[] = [];
+		const events: HostEvent[] = [];
 		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
 		started.push(session);
 		expect(session.working()).toBe(true); // it knows a turn is under way
@@ -505,7 +520,7 @@ describe('a daemon restart', () => {
 		const question = first.events.find((event) => event.kind === 'question')!;
 		first.session.answer(question.id, ['Coffee']);
 		first.session.detach();
-		const events: AgentEvent[] = [];
+		const events: HostEvent[] = [];
 		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
 		started.push(session);
 		session.answer(question.id, ['Tea']);
@@ -525,7 +540,7 @@ describe('a daemon restart', () => {
 		);
 		first.session.detach();
 
-		const events: AgentEvent[] = [];
+		const events: HostEvent[] = [];
 		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
 		started.push(session);
 		expect(session.working()).toBe(true); // as far as anyone was told
@@ -543,7 +558,7 @@ describe('a daemon restart', () => {
 		const real = JSON.parse(readFileSync(host, 'utf8'));
 		writeFileSync(host, JSON.stringify({ pid: process.pid, started: 'long ago' }));
 
-		const events: AgentEvent[] = [];
+		const events: HostEvent[] = [];
 		let acknowledged = false;
 		const cursors = new Set<string | undefined>();
 		const session = resumeSessions(sessions, () => (event, cursor) => {

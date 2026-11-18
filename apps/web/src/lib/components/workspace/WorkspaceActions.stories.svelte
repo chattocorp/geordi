@@ -38,7 +38,7 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'working' | 'compact'> = {}
+	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'asking' | 'compact'> = {}
 )}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
@@ -57,15 +57,12 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText('Working')).toBeVisible();
+		await expect(canvas.queryByText('Working')).not.toBeInTheDocument();
 		await expect(canvas.getByText('Uncommitted changes')).toBeVisible();
 		await expect(canvas.getByRole('button', { name: /Create PR/ })).toBeDisabled();
 	}}
 >
-	{@render bar(
-		{ changes: dirty, upstream: upstream(null) },
-		{ working: true, pending: ['create-pull'] }
-	)}
+	{@render bar({ changes: dirty, upstream: upstream(null) }, { pending: ['create-pull'] })}
 </Story>
 
 <Story
@@ -123,6 +120,25 @@
 >
 
 <Story
+	name="Merge blocked by rules"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Merge blocked')).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /Merge PR/ })).toBeNull();
+	}}
+>
+	{@render bar({ changes: pushed, upstream: upstream({ blocked: 'rules' }) })}
+</Story>
+
+<Story name="Behind base branch, which must be up to date" asChild
+	>{@render bar({
+		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
+		upstream: upstream({ blocked: 'behind' })
+	})}</Story
+>
+
+<Story
 	name="Waiting for merged standing"
 	asChild
 	play={async ({ canvasElement }) => {
@@ -137,7 +153,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Sync 1 incoming commit' })).toBeVisible();
 		await expect(canvas.getByRole('button', { name: 'Fix errors' })).toHaveStyle({
 			color: getComputedStyle(canvas.getByText('Checks failing')).color
 		});
@@ -196,6 +212,19 @@
 	})}
 </Story>
 
+<Story name="Checking" asChild>
+	<WorkspaceActions
+		standing={{
+			label: 'Checking…',
+			tone: 'neutral',
+			icon: 'icon-[lucide--circle-dashed] animate-checks-spin'
+		}}
+		actions={[]}
+		{onopenpull}
+		{onaction}
+	/>
+</Story>
+
 <Story name="Merged" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
 </Story>
@@ -204,7 +233,7 @@
 	name="Archiving"
 	asChild
 	play={async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole('button', { name: /Archiving…/ });
+		const button = within(canvasElement).getByRole('button', { name: /Archive$/ });
 		await expect(button).toBeDisabled();
 		await expect(button).toHaveAttribute('aria-busy', 'true');
 	}}
@@ -215,25 +244,25 @@
 	)}
 </Story>
 
-<Story name="Agent at work, nothing else to say" asChild>
-	{@render bar(
-		{ changes: { files: [], uncommitted: 0, unpushed: 0 }, upstream: null },
-		{ working: true }
-	)}
-</Story>
-
-<Story name="Agent at work on failing checks" asChild>
-	{@render bar(
-		{ changes: pushed, upstream: upstream({ checks: failing }) },
-		{ pending: ['fix-checks'], working: true }
-	)}
+<Story
+	name="Waiting for an answer"
+	asChild
+	play={async ({ canvasElement }) => {
+		await expect(within(canvasElement).getByRole('status')).toHaveTextContent(
+			'Waiting for your answer'
+		);
+	}}
+>
+	{@render bar({ changes: null, upstream: null }, { asking: true })}
 </Story>
 
 <Story
 	name="Before the first result"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(canvasElement).not.toHaveTextContent(/Checking/);
+		await expect(
+			within(canvasElement).queryByRole('group', { name: 'Next steps' })
+		).not.toBeInTheDocument();
 	}}
 >
 	<WorkspaceActions standing={null} actions={[]} {onopenpull} {onaction} />
@@ -246,13 +275,23 @@
 	})}
 </Story>
 
+<Story name="Upstream commits with auto-merge enabled" asChild>
+	{@render bar({
+		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 2 } },
+		upstream: upstream({
+			checks: { state: 'pending', total: 3, failed: 0, url: null },
+			autoMerge: { enabled: true, canEnable: false, canDisable: true }
+		})
+	})}
+</Story>
+
 <Story name="Merging upstream" asChild>
 	{@render bar(
 		{
 			changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
 			upstream: upstream(null)
 		},
-		{ pending: ['merge-upstream'], working: true }
+		{ pending: ['merge-upstream'] }
 	)}
 </Story>
 
@@ -262,7 +301,8 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Behind base branch')).toBeVisible();
-		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+		const sync = canvas.getByRole('button', { name: 'Sync 1 incoming commit' });
+		await expect(within(sync).getByText('1')).toHaveClass('opacity-60');
 	}}
 >
 	{@render bar({
@@ -281,10 +321,8 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const buttons = within(canvasElement).getAllByRole('button');
-		await expect(buttons.map((button) => button.textContent?.trim())).toEqual([
-			'Sync',
-			'Create PR'
-		]);
+		await expect(buttons[0]).toHaveAccessibleName('Sync 3 incoming commits');
+		await expect(buttons[1]).toHaveAccessibleName('Create PR');
 	}}
 >
 	{@render bar({
@@ -342,6 +380,24 @@
 	})}
 </Story>
 
+<Story
+	name="Merge, not auto-merge, once ready"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: /Merge PR/ })).toBeEnabled();
+		await expect(canvas.queryByRole('button', { name: 'Auto-merge' })).toBeNull();
+	}}
+>
+	{@render bar({
+		changes: pushed,
+		upstream: upstream({
+			checks: { state: 'success', total: 3, failed: 0, url: null },
+			autoMerge: { enabled: false, canEnable: true, canDisable: false }
+		})
+	})}
+</Story>
+
 <!-- Small, with only the next step: as on the overview's cards. -->
 <Story
 	name="Compact"
@@ -350,7 +406,7 @@
 		// blocked three ways, it offers only the most pressing of them
 		const [blocked] = within(canvasElement).getAllByRole('group', { name: 'Next steps' });
 		await expect(within(blocked).getAllByRole('button')).toHaveLength(1);
-		// at work beside a next step, the spinner alone says so: the pill stays in the card
+		// The compact ribbon fits inside its card, including when it shows a question.
 		const card = canvasElement.querySelector('.w-72')!;
 		for (const group of within(canvasElement).getAllByRole('group', { name: 'Next steps' }))
 			await expect(group.getBoundingClientRect().right).toBeLessThanOrEqual(
@@ -366,11 +422,11 @@
 		{@render bar({ changes: pushed, upstream: upstream({}) }, { compact: true })}
 		{@render bar(
 			{ changes: pushed, upstream: upstream({ checks: failing }) },
-			{ working: true, compact: true }
+			{ asking: true, compact: true }
 		)}
 		{@render bar(
 			{ changes: pushed, upstream: upstream({ conflicts: true }) },
-			{ working: true, compact: true }
+			{ asking: true, compact: true }
 		)}
 		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, { compact: true })}
 	</div>

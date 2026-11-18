@@ -2,7 +2,6 @@
 	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import ButtonGroup from '#lib/ui/ButtonGroup.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
 
 	type Props = {
 		/** Where the workspace stands, in a few words. */
@@ -15,8 +14,6 @@
 		disabled?: boolean;
 		/** The actions already under way: asked of the agent and not done yet. */
 		pending?: WorkspaceAction['id'][];
-		/** Whether the agent is at work right now. */
-		working?: boolean;
 		/** Whether an agent has asked the person something, and waits for the answer. */
 		asking?: boolean;
 		/** Small, with only the next step: for showing many at once (the overview). */
@@ -30,7 +27,6 @@
 		actions,
 		disabled = false,
 		pending = [],
-		working = false,
 		asking = false,
 		compact = false,
 		onopenpull,
@@ -45,10 +41,10 @@
 	]);
 	const text = $derived(compact ? 'text-xs' : 'text-sm');
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
-	// small, beside a next step or "Working", the colour and icon of how it stands say enough
-	const worded = $derived(!compact || (ordered.length === 0 && !working));
-	// likewise the spinner (or the question) says that the agent is at work beside a next step
-	const saysWorking = $derived(!compact || ordered.length === 0);
+	// small, beside a next step or a question, the colour and icon of how it stands say enough
+	const worded = $derived(!compact || (ordered.length === 0 && !asking));
+	// In compact ribbons the question icon fits beside the next step.
+	const showQuestionLabel = $derived(!compact || ordered.length === 0);
 	const linked = $derived(!compact && !!pull?.url);
 
 	const tones = {
@@ -64,8 +60,8 @@
 
 <!--
 	Its pull request, as a quiet pill of its own before the rest: the way to it. Then where the workspace stands and what to do about it, as one
-	unit: the standing colours the whole thing, and the first action is the next step. An
-	agent at work says so at its head; an idle one says nothing.
+	unit: the standing colours the whole thing, and the first action is the next step. A
+	question appears at its head while an agent waits for an answer.
 -->
 <div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
 	{#if pull}
@@ -101,7 +97,7 @@
 			{/if}
 		</div>
 	{/if}
-	{#if standing || actions.length > 0 || working}
+	{#if standing || ordered.length > 0 || asking}
 		<div
 			role="group"
 			aria-label="Next steps"
@@ -116,21 +112,15 @@
 				tones[standing?.tone ?? 'neutral']
 			]}
 		>
-			{#if working}
+			{#if asking}
 				<span class={['flex items-center gap-2 font-medium whitespace-nowrap', text]} role="status">
-					{#if asking}
-						<!-- at work, but not going on until it has heard from the person -->
-						<span
-							class={['icon-[lucide--message-circle-question]', icon]}
-							title={saysWorking ? undefined : 'Waiting for your answer'}
-							role={saysWorking ? undefined : 'img'}
-							aria-label={saysWorking ? undefined : 'Waiting for your answer'}
-						></span>
-						{#if saysWorking}Waiting for your answer{/if}
-					{:else}
-						<Spinner />
-						{#if saysWorking}Working{/if}
-					{/if}
+					<span
+						class={['icon-[lucide--message-circle-question]', icon]}
+						title={showQuestionLabel ? undefined : 'Waiting for your answer'}
+						role={showQuestionLabel ? undefined : 'img'}
+						aria-label={showQuestionLabel ? undefined : 'Waiting for your answer'}
+					></span>
+					{#if showQuestionLabel}Waiting for your answer{/if}
 				</span>
 				{#if standing || ordered.length > 0}
 					<span class={['w-px shrink-0 bg-current opacity-25', compact ? 'mx-1 h-3' : 'mx-2 h-4']}
@@ -172,7 +162,13 @@
 							{busy}
 							onclick={() => onaction(action)}
 						>
-							{busy && action.id === 'archive' ? 'Archiving…' : action.label}
+							{action.label}
+							{#if action.incomingCommits !== undefined}
+								<span class="font-normal tabular-nums opacity-60">{action.incomingCommits}</span>
+								<span class="sr-only"
+									>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
+								>
+							{/if}
 						</Button>
 					{/each}
 				</ButtonGroup>

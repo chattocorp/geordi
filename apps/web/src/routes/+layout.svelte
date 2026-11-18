@@ -175,7 +175,7 @@
 				aria-valuenow={clampWidth(sidebar.current.width)}
 				onpointerdown={resize}
 				onkeydown={nudge}
-				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:transition-colors hover:after:bg-muted/40 focus-visible:after:bg-accent"
+				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px focus-visible:after:bg-accent"
 			></div>
 		</aside>
 	{/if}

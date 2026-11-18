@@ -172,6 +172,18 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 	if (typeof raw.mergeable === 'boolean') return !raw.mergeable;
 }
 
+/**
+ * What else keeps an open pull request from being merged, as GitHub says: its GraphQL
+ * `mergeStateStatus`, or the REST API's `mergeable_state`. Other forges don't say.
+ */
+export function blockedOf(thread: Thread): PullRequest['blocked'] {
+	if (thread.state !== 'open' || !thread.raw || typeof thread.raw !== 'object') return;
+	const raw = thread.raw as { mergeStateStatus?: unknown; mergeable_state?: unknown };
+	const state = String(raw.mergeStateStatus ?? raw.mergeable_state ?? '').toLowerCase();
+	if (state === 'behind') return 'behind';
+	if (state === 'blocked') return 'rules';
+}
+
 type GitHubPull = {
 	autoMergeRequest?: { enabledAt: string } | null;
 	viewerCanEnableAutoMerge?: boolean;
@@ -192,6 +204,7 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 	if (decision === 'REVIEW_REQUIRED') reviews.push('pending');
 	const { checks } = thread;
 	const conflicts = conflictsOf(thread);
+	const blocked = blockedOf(thread);
 	const raw = thread.raw as GitHubPull | null;
 	return {
 		number: thread.ref.number,
@@ -224,7 +237,8 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 			(['changes_requested', 'approved', 'pending'] as const).find((state) =>
 				reviews.includes(state)
 			) ?? null,
-		...(conflicts !== undefined && { conflicts })
+		...(conflicts !== undefined && { conflicts }),
+		...(blocked && { blocked })
 	};
 }
 

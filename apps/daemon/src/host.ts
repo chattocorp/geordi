@@ -29,11 +29,13 @@ import {
 	writeFileSync
 } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
-import type { Agent, AgentEvent, MessageImage } from '@geordi/protocol';
+import type { Agent, AgentEvent, BackgroundTask, MessageImage } from '@geordi/protocol';
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
+
+export type HostEvent = AgentEvent | { kind: 'background'; tasks: BackgroundTask[] };
 
 export type Meta = {
 	agent: Agent;
@@ -77,6 +79,14 @@ const entry =
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(signal, () => {});
 
 const env = { ...process.env, ...options.env };
+// The agent's own program is the one the person has installed: the wrappers would otherwise
+// look for a copy of their own, which Geordi leaves out (some 300 MB each).
+const program = agent === 'codex' ? 'codex' : 'claude';
+const programEnv = agent === 'codex' ? 'CODEX_PATH' : 'CLAUDE_CODE_EXECUTABLE';
+env[programEnv] ||= installed(program);
+const missing = env[programEnv]
+	? undefined
+	: `Geordi could not find \`${program}\`. Install it, or put it on your PATH.`;
 if (agent === 'codex') {
 	const config = JSON.parse(env.CODEX_CONFIG || '{}');
 	config.features = { ...config.features, default_mode_request_user_input: true };
@@ -94,6 +104,14 @@ if (agent === 'codex') {
 	}
 	env.CODEX_CONFIG = JSON.stringify(config);
 }
+/** Where a program is on the `PATH`, if it is anywhere. */
+function installed(name: string): string | undefined {
+	const extensions = process.platform === 'win32' ? (env.PATHEXT || '.EXE').split(';') : [''];
+	for (const dir of (env.PATH ?? '').split(delimiter).filter(Boolean))
+		for (const extension of extensions)
+			if (existsSync(join(dir, name + extension))) return join(dir, name + extension);
+}
+
 const err = openSync(file('err.log'), 'a', 0o600);
 const child = spawn(process.execPath, [entry], {
 	cwd: options.cwd,
@@ -119,7 +137,7 @@ let unstoppable: NodeJS.Timeout | undefined;
 
 const stopped = () => stopping || existsSync(file('stopped'));
 
-function emit(event: AgentEvent) {
+function emit(event: HostEvent) {
 	if (event.kind === 'turn.started') {
 		if (open) return;
 		open = true;
@@ -163,6 +181,7 @@ function obey(command: Command) {
 		case 'message':
 			if (command.deliveryId) emit({ kind: 'message.received', id: command.deliveryId });
 			emit({ kind: 'turn.started' }); // told now, rather than when the CLI gets round to it
+			if (missing) return failed(missing);
 			void ready.then(() => dialogue.message(command.prompt, command.images ?? [])).catch(failed);
 			return;
 		case 'interrupt':

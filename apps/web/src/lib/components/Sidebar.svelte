@@ -21,7 +21,7 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
-	import { stopAgent } from '../../routes/workspaces.remote';
+	import { moveWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
 	 * The sidebar's sheet: where to go (the overview, a new workspace), the workspaces by
@@ -108,6 +108,50 @@
 		];
 	}
 
+	type Row = { workspace: Item; parent: Item | null; depth: number };
+
+	/**
+	 * The workspace being dragged to another place in its repository's list, and where it
+	 * would go: above that workspace, `null` for the end, `undefined` for nowhere new. Only
+	 * workspaces that stand at the top move; the ones their agents started go along.
+	 */
+	let dragged = $state<Item | null>(null);
+	let dropBefore = $state<string | null | undefined>(undefined);
+
+	/** Over a row: above it, if that stands at the top and the pointer is on its upper half; else above the next that does. */
+	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
+		if (!dragged || dragged.repoId !== rows[index].workspace.repoId) {
+			dropBefore = undefined;
+			return;
+		}
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+		const rect = event.currentTarget.getBoundingClientRect();
+		const upper = event.clientY < rect.top + rect.height / 2;
+		const next = rows.findIndex(
+			(row, at) => row.depth === 0 && (at > index || (upper && at === index))
+		);
+		const before = next === -1 ? null : rows[next].workspace.id;
+		// where it is already: above itself, or above the one after it
+		const at = rows.findIndex((row) => row.workspace.id === dragged!.id);
+		const after = rows.findIndex((row, i) => i > at && row.depth === 0);
+		const stays =
+			before === dragged.id || before === (after === -1 ? null : rows[after].workspace.id);
+		dropBefore = stays ? undefined : before;
+	}
+
+	function drop(event: DragEvent, repoId: string) {
+		event.preventDefault();
+		if (dragged?.repoId === repoId && dropBefore !== undefined)
+			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
+		endDrag();
+	}
+
+	function endDrag() {
+		dragged = null;
+		dropBefore = undefined;
+	}
+
 	/** The repositories whose workspaces are folded away under their name. */
 	const folded = persisted<string[]>('geordi:folded', []);
 	const toggleFolded = (id: string) =>
@@ -165,9 +209,15 @@
 						<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					</div>
 					{#if !isFolded}
-						<ul class="space-y-px">
-							{#each rows as { workspace, parent, depth } (workspace.id)}
-								{@render row(workspace, parent, depth)}
+						<ul
+							class="space-y-px"
+							ondragleave={(event) => {
+								if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+									dropBefore = undefined;
+							}}
+						>
+							{#each rows as { workspace, parent, depth }, index (workspace.id)}
+								{@render row(workspace, parent, depth, rows, index)}
 							{/each}
 						</ul>
 					{/if}
@@ -190,7 +240,7 @@
 	</div>
 </div>
 
-{#snippet row(workspace: Item, parent: Item | null, depth: number)}
+{#snippet row(workspace: Item, parent: Item | null, depth: number, rows: Row[], index: number)}
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
@@ -198,13 +248,33 @@
 	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
 	{@const archivable = !busy && !leaving}
 	<!-- one started by an agent sits a little in from the one that started it -->
-	<li style:margin-inline-start="calc(var(--spacing) * {3 * depth})">
+	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
+	<li
+		style:margin-inline-start="calc(var(--spacing) * {3 * depth})"
+		class={[
+			dropBefore === workspace.id && 'row-drop-before',
+			dragged?.repoId === workspace.repoId &&
+				dropBefore === null &&
+				index === rows.length - 1 &&
+				'row-drop-after'
+		]}
+		draggable={depth === 0 && !leaving}
+		ondragstart={(event) => {
+			dragged = workspace;
+			event.dataTransfer?.setData('text/plain', workspace.title);
+			if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+		}}
+		ondragend={endDrag}
+		ondragover={(event) => overRow(event, rows, index)}
+		ondrop={(event) => drop(event, workspace.repoId)}
+	>
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
 			class={[
 				'group item pr-1 text-base',
 				// on its way out: it shows, and there is nothing more to do with it
-				leaving && 'pointer-events-none opacity-60',
+				(leaving || dragged?.id === workspace.id) && 'opacity-60',
+				leaving && 'pointer-events-none',
 				current && 'item-active',
 				// it came to rest out of sight, and they haven't looked since
 				unread.has(workspace.id) && 'font-semibold text-ink',
@@ -215,6 +285,7 @@
 			<a
 				href={resolve('/workspaces/[id]', { id: workspace.id })}
 				class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-1.5"
+				draggable="false"
 				aria-current={current ? 'page' : undefined}
 				title={parent ? `Started by the agent in "${parent.title}"` : undefined}
 				onpointerenter={() => (pointedAt = parent?.id ?? null)}

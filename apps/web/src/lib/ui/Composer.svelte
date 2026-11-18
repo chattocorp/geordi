@@ -22,6 +22,7 @@
 		/** A visible label above the text. Without one, the placeholder names the field. */
 		label?: string;
 		placeholder: string;
+		/** How many lines the text has room for at least; it grows with what is written. */
 		rows?: number;
 		/** Attributes for the textarea, e.g. a remote form field. Use this or bind `value`. */
 		field?: HTMLTextareaAttributes;
@@ -71,6 +72,10 @@
 		get rows() {
 			return rows;
 		},
+		// it grows with its text (`field-sizing`), from `rows` lines (and its padding) up to a limit
+		get style() {
+			return `min-height: calc(${rows}lh + 1rem)`;
+		},
 		get placeholder() {
 			return placeholder;
 		},
@@ -87,7 +92,7 @@
 			return onkeydown;
 		},
 		class:
-			'block w-full resize-none bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
+			'block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
 	};
 </script>
 

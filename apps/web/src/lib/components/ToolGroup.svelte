@@ -10,8 +10,10 @@
 		cwd?: string;
 		/** Whether the agent is at work on this very group: its last tool may still be running. */
 		live?: boolean;
+		backgroundIds?: string[];
+		reveal?: { id: string; done: () => void };
 	};
-	let { tools, cwd, live = false }: Props = $props();
+	let { tools, cwd, live = false, backgroundIds = [], reveal }: Props = $props();
 
 	/** The tool that is running right now, if one is: the only one worth watching. */
 	const active = $derived(live ? tools.findLast((tool) => tool.output === null) : undefined);
@@ -61,7 +63,25 @@
 
 	<div class="mt-1.5 divide-y divide-line/70 overflow-hidden card">
 		{#each tools as tool (tool.id)}
-			<ToolCall {...tool} {cwd} running={live && tool === active} />
+			<div
+				{@attach reveal?.id === tool.id
+					? (node) => {
+							const details = node.closest('details');
+							const call = node.querySelector('details');
+							if (details && call) {
+								details.open = call.open = true;
+								call.querySelector('summary')?.focus();
+								reveal?.done();
+							}
+						}
+					: undefined}
+			>
+				<ToolCall
+					{...tool}
+					{cwd}
+					running={backgroundIds.includes(tool.id) || (live && tool === active)}
+				/>
+			</div>
 		{/each}
 	</div>
 </Disclosure>

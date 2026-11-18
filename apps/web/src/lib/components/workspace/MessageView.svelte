@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
-	import type { Agent } from '@geordi/protocol';
+	import BackgroundTasks from './BackgroundTasks.svelte';
+	import { toolSummary } from '#lib/tools.ts';
+	import type { Agent, BackgroundTask } from '@geordi/protocol';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Block, Part } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
@@ -17,6 +19,9 @@
 
 	let {
 		blocks,
+		background = [],
+		withComposer = false,
+		showJump = false,
 		agent,
 		running = false,
 		cwd,
@@ -31,6 +36,9 @@
 		following = $bindable(true)
 	}: {
 		blocks: Block[];
+		background?: BackgroundTask[];
+		withComposer?: boolean;
+		showJump?: boolean;
 		agent: Agent;
 		running?: boolean;
 		cwd?: string;
@@ -64,6 +72,58 @@
 			.filter(Boolean)
 			.join(' · ');
 	}
+
+	let reveal = $state<{ id: string; done: () => void }>();
+	const backgroundIds = $derived(
+		background.flatMap((task) => (task.toolCallId ? [task.toolCallId] : []))
+	);
+	const backgroundRows = $derived(
+		background.map((task) => {
+			const fallback =
+				task.label ||
+				(task.type === 'terminal'
+					? 'Terminal'
+					: task.type === 'subagent'
+						? 'Subagent'
+						: 'Tool call');
+			for (const [index, block] of blocks.entries()) {
+				if (block.kind !== 'agent') continue;
+				for (const part of block.parts) {
+					if (task.type === 'subagent' && part.kind === 'subagent' && part.id === task.id)
+						return {
+							task,
+							label: part.title || fallback,
+							kind: 'Subagent',
+							open: onopensubagent && (() => onopensubagent?.(task.id))
+						};
+					if (part.kind !== 'tools' || !task.toolCallId) continue;
+					const tool = part.tools.find((tool) => tool.id === task.toolCallId);
+					if (tool)
+						return {
+							task,
+							label: task.label || toolSummary(tool.input, cwd) || tool.name,
+							kind:
+								task.type === 'terminal' || /^(shell|bash|exec_command)$/i.test(tool.name)
+									? 'Terminal'
+									: tool.name,
+							open: () => {
+								following = false;
+								expanded.add(index);
+								list?.scrollToIndex(index);
+								reveal = { id: tool.id, done: () => (reveal = undefined) };
+							}
+						};
+				}
+			}
+			return {
+				task,
+				label: fallback,
+				kind:
+					task.type === 'terminal' ? 'Terminal' : task.type === 'subagent' ? 'Subagent' : 'Tool',
+				open: undefined
+			};
+		})
+	);
 
 	function toggleActivity(index: number) {
 		if (expanded.has(index)) expanded.delete(index);
@@ -151,7 +211,7 @@
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
 	{:else if part.kind === 'tools'}
 		<!-- live: the agent is at work, and this is the last thing it did -->
-		<ToolGroup tools={part.tools} {cwd} {live} />
+		<ToolGroup tools={part.tools} {cwd} {live} {reveal} {backgroundIds} />
 	{:else if part.kind === 'plan'}
 		{#key part.id}
 			<PlanCard plan={part.plan} {pictures} />
@@ -282,3 +342,16 @@
 		{/snippet}
 	</Virtualizer>
 </div>
+{#if showJump && !following}
+	<div class="relative mx-auto w-full max-w-5xl">
+		<Button
+			icon="icon-[lucide--arrow-down]"
+			label="Jump to latest"
+			onclick={toLatest}
+			class="absolute right-5 bottom-2 bg-surface shadow-float"
+		/>
+	</div>
+{/if}
+{#if backgroundRows.length}
+	<BackgroundTasks rows={backgroundRows} {withComposer} />
+{/if}

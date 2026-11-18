@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Spinner from '#lib/ui/Spinner.svelte';
+	import DiffStat from '#lib/components/DiffStat.svelte';
 	import type { WorktreeState } from '#lib/server/watchers.ts';
 
 	type Props = {
@@ -17,8 +18,6 @@
 	const files = $derived(git?.changes?.files ?? []);
 
 	type File = (typeof files)[number];
-	const sum = (side: 'added' | 'removed') =>
-		files.reduce((total, file) => total + (file[side] ?? 0), 0);
 	const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1);
 
 	/** Git's letter for what became of a file, and what that means in words. */
@@ -43,17 +42,6 @@
 		}
 	}
 </script>
-
-{#snippet stats(added: number | null, removed: number | null)}
-	<span class="shrink-0 code-dense">
-		{#if added === null}
-			<span class="text-muted">binary</span>
-		{:else}
-			{#if added}<span class="text-ok">+{added}</span>{/if}
-			{#if removed}<span class="text-danger">−{removed}</span>{/if}
-		{/if}
-	</span>
-{/snippet}
 
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
 	<div class="scroller py-1.5">
@@ -100,18 +88,12 @@
 								{/if}
 								<span class="shrink-0">{file.path.slice(slash)}</span>
 							</span>
-							{@render stats(file.added, file.removed)}
+							<DiffStat added={file.added} removed={file.removed} />
 						</button>
 					</li>
 				{:else}
 					<li class="px-3.5 py-2 text-sm text-muted">No changes yet.</li>
 				{/each}
-				{#if files.length > 1}
-					<!-- in sum, under the column it adds up -->
-					<li class="mx-3.5 flex justify-end pt-1.5" aria-label="In all">
-						{@render stats(sum('added'), sum('removed'))}
-					</li>
-				{/if}
 			</ul>
 		{/if}
 	</div>

@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import {
 	PROTOCOL_VERSION,
 	type DaemonMessage,
+	type BackgroundTask,
 	type DaemonRequest,
 	type DaemonResults,
 	type ForgeMessage,
@@ -54,6 +55,13 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 	/** Authenticated daemons, by socket. */
 	const daemons = new Map<WebSocket, string>();
+	const background = new Map<string, { socket: WebSocket; tasks: BackgroundTask[] }>();
+	const taskListeners = new Set<(workspaceId: string) => void>();
+	function setTasks(socket: WebSocket, id: string, tasks: BackgroundTask[]) {
+		if (tasks.length) background.set(id, { socket, tasks });
+		else background.delete(id);
+		for (const listener of taskListeners) listener(id);
+	}
 	/** What each connected daemon's agent CLIs offer, as it said when it connected. */
 	const offers = new Map<WebSocket, Harness[]>();
 	/** Told when a daemon connects or goes away. */
@@ -117,6 +125,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				return;
 			}
 
+			if (message.type === 'workspace.background') {
+				if (assigned.get(message.workspaceId) === daemonId)
+					setTasks(socket, message.workspaceId, message.tasks);
+				return;
+			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
 			else if (
 				message.type !== 'workspace.event' ||
@@ -143,6 +156,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			clearTimeout(timeout);
 			const daemonId = daemons.get(socket);
 			if (daemonId) console.log(`[daemons] ${daemonId} disconnected`);
+			for (const [id, entry] of background) if (entry.socket === socket) setTasks(socket, id, []);
 			daemons.delete(socket);
 			offers.delete(socket);
 			changed();
@@ -151,6 +165,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 	return {
 		send,
+		background: (id: string) => background.get(id)?.tasks ?? [],
+		followBackground(listener: (workspaceId: string) => void) {
+			taskListeners.add(listener);
+			return () => taskListeners.delete(listener);
+		},
 
 		/** Asks a daemon a question about a workspace. Rejects if none answers in time. */
 		request<K extends DaemonRequest['kind']>(

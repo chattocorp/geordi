@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import { expect } from 'storybook/test';
 	import Split from './Split.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Split', component: Split });
@@ -38,7 +39,10 @@
 	name="Without a line"
 	asChild
 	play={async ({ canvas, userEvent }) => {
-		await userEvent.hover(canvas.getByRole('separator'));
+		const divider = canvas.getByRole('separator');
+		const background = getComputedStyle(divider).backgroundColor;
+		await userEvent.hover(divider);
+		await expect(getComputedStyle(divider).backgroundColor).toBe(background);
 	}}
 >
 	<div class="flex h-48 rounded-card bg-frame p-2">

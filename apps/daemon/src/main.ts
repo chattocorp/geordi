@@ -317,6 +317,8 @@ function begin(workspaceId: string, meta: Meta, [first, ...rest]: Said[]) {
  */
 function attend(workspaceId: string, session: Session) {
 	void session.done.then((unheard) => {
+		if (sessions.get(workspaceId) === session && session.background().length)
+			sendLive({ type: 'workspace.background', workspaceId, tasks: [] });
 		if (unheard.length === 0 || retired.has(session)) {
 			if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
 			return;
@@ -434,6 +436,11 @@ function connect(delay = 500) {
 		} else if (message.type === 'welcome' && verify(token, 'forge', nonce, message.proof)) {
 			console.log(`connected to ${forgeUrl}`);
 			socket = ws;
+			for (const [workspaceId, session] of sessions) {
+				if (session.over()) continue;
+				const tasks = session.background();
+				if (tasks.length) sendLive({ type: 'workspace.background', workspaceId, tasks });
+			}
 			delay = 500;
 			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));
 		} else {

@@ -71,6 +71,7 @@
 	import PullRequestTab from './PullRequestTab.svelte';
 	import PullHistory from './PullHistory.svelte';
 	import Changes from './Changes.svelte';
+	import DiffStat from '#lib/components/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import SourceWindow from './SourceWindow.svelte';
@@ -151,10 +152,15 @@
 	const reviewers = $derived.by(() => {
 		const found = new SvelteMap<
 			string,
-			{ owner: Workspace; child: SubagentItem; parentTab: string; parentName: string }
+			{
+				owner: WorkspaceLive['aides'][number];
+				child: SubagentItem;
+				parentTab: string;
+				parentName: string;
+			}
 		>();
 		function collect(
-			owner: Workspace,
+			owner: WorkspaceLive['aides'][number],
 			items: Workspace['transcript'] | SubagentItem['items'],
 			parentTab: string,
 			parentName: string
@@ -535,10 +541,19 @@
 				? actionsFor(standingState)
 				: []
 	);
+	// Until the daemon has said how the worktree stands, say that it is being asked.
 	const standing = $derived<WorkspaceStanding | null>(
 		worktreeGone
 			? { label: 'Worktree removed', tone: 'neutral', icon: 'icon-[lucide--folder-x]' }
-			: standingState && standingOf(standingState)
+			: standingState
+				? standingOf(standingState)
+				: workspace.worktree && !workspace.archivedAt
+					? {
+							label: 'Checking…',
+							tone: 'neutral',
+							icon: 'icon-[lucide--circle-dashed] animate-checks-spin'
+						}
+					: null
 	);
 	// An action is under way while its message waits, or is what the agent is working on.
 	const pending = $derived.by(() => {
@@ -684,7 +699,13 @@
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
-		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
+		{#if git?.changes?.files.length}
+			{@const files = git.changes.files}
+			<DiffStat
+				added={files.reduce((sum, file) => sum + (file.added ?? 0), 0)}
+				removed={files.reduce((sum, file) => sum + (file.removed ?? 0), 0)}
+			/>
+		{/if}
 	{:else if tab === PR && pulls.length}
 		<PullRequestTab {pulls} />
 	{:else if tab === CHANGESET}
@@ -802,6 +823,7 @@
 	{:else if reviewer}
 		<MessageView
 			blocks={subagentBlocks(reviewer.child)}
+			background={reviewer.owner.background?.filter((task) => task.session === reviewer.child.id)}
 			parentAgent={{ name: reviewer.parentName, open: () => showTab(reviewer.parentTab) }}
 			agent={reviewer.owner.agent}
 			running={reviewer.child.state === 'running' || reviewer.child.state === 'waiting'}
@@ -850,7 +872,6 @@
 			actions={offered}
 			disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 			{pending}
-			{working}
 			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
 			onopenpull={() => {
 				selectedPull = pull?.url ?? pull?.number ?? null;

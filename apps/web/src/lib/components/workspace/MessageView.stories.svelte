@@ -4,6 +4,7 @@
 	import { subagentBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import Composer from '#lib/ui/Composer.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
@@ -171,7 +172,12 @@
 	name="Picture that cannot be had"
 	asChild
 	play={async ({ canvasElement, canvas }) => {
-		await waitFor(() => expect(canvas.getByText('shots/sidebar.png')).toBeVisible());
+		// The browser can defer lazy images in a background test iframe. Request this
+		// missing image as soon as the virtualized row mounts so its error is exercised.
+		await canvas.findByText('The sidebar now looks like this:');
+		const picture = canvasElement.querySelector<HTMLImageElement>('img[data-picture]');
+		if (picture) picture.loading = 'eager';
+		await expect(await canvas.findByText('shots/sidebar.png')).toBeVisible();
 		expect(canvasElement.querySelector('img[data-picture]')).toBeNull();
 	}}
 >
@@ -526,5 +532,85 @@
 				]
 			})}
 		/>
+	</div>
+</Story>
+
+<Story
+	name="Background tasks"
+	asChild
+	play={async ({ canvas }) => {
+		const heading = await canvas.findByText('Background tasks');
+		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
+		await userEvent.click(heading);
+		await userEvent.click(await canvas.findByRole('button', { name: /pnpm test/ }));
+		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
+			'aria-expanded',
+			'true'
+		);
+		await waitFor(() =>
+			expect(
+				canvas
+					.getByRole('button', { name: /pnpm test/ })
+					.ownerDocument.activeElement?.closest('details')
+			).toHaveAttribute('open')
+		);
+	}}
+>
+	<div class="mx-auto flex h-144 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="codex"
+			withComposer
+			onopensubagent={openReviewer}
+			background={[
+				{ type: 'tool_call', id: 'tests', toolCallId: 'tests' },
+				{ type: 'subagent', id: 'review' }
+			]}
+			blocks={[
+				{ kind: 'user', text: 'Run the tests and review the changes.' },
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'tools',
+							tools: [
+								{
+									kind: 'tool',
+									id: 'tests',
+									name: 'Shell',
+									input: 'pnpm test',
+									output: null,
+									isError: false,
+									at: ''
+								}
+							]
+						},
+						{
+							kind: 'subagent',
+							id: 'review',
+							title: 'Review changes',
+							at: '',
+							items: [],
+							state: 'running'
+						},
+						{ kind: 'text', text: 'The tests and review are running in the background.' }
+					]
+				}
+			]}
+		/>
+		<div class="relative px-5 pb-5">
+			<Composer
+				form={{ onsubmit: (event) => event.preventDefault() }}
+				rows={2}
+				placeholder="Reply to the agent"
+			>
+				{#snippet footer()}<Button
+						type="submit"
+						variant="primary"
+						icon="icon-[lucide--arrow-up]"
+						label="Send"
+						class="ml-auto"
+					/>{/snippet}
+			</Composer>
+		</div>
 	</div>
 </Story>

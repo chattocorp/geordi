@@ -109,6 +109,10 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 After two seconds without a connection, the window shows “Reconnecting” above Settings, or in the title bar when the sidebar is hidden. All pages share one connection (ADR-009), so the note belongs with the window controls. While connected, the note takes no space. The delay keeps brief interruptions quiet. A page waiting for its first value explains the wait. Work already on screen stays readable.
 
+### 13. Background tasks stay within reach after a reply
+
+While an agent reports background work, a tray above the composer shows its commands and subagents. The tray opens expanded. Collapse it to keep the count and first task name in view. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
+
 ## Related
 
 - **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010

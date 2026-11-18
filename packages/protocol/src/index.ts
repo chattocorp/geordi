@@ -183,6 +183,12 @@ export type PullRequest = {
 	review: 'changes_requested' | 'approved' | 'pending' | null;
 	/** Whether it conflicts with its base, so cannot be merged as it is. Absent where the forge does not say. */
 	conflicts?: boolean;
+	/**
+	 * What else keeps it from being merged now, where the forge says: `behind` its base, which
+	 * the base branch's rules want it up to date with, or those `rules` otherwise (required
+	 * checks or reviews still missing). Absent where nothing does, or the forge does not say.
+	 */
+	blocked?: 'behind' | 'rules';
 };
 
 /**
@@ -552,6 +558,15 @@ export type SubagentUpdate =
 	| { kind: 'message'; id: string; text: string; incoming: boolean }
 	| { kind: 'tool'; id: string; name?: string; input?: string; output?: string; isError?: boolean };
 
+export type BackgroundTask = {
+	type: 'terminal' | 'tool_call' | 'subagent';
+	id: string;
+	/** Absent for work owned by the root ACP session. */
+	session?: string;
+	label?: string;
+	toolCallId?: string;
+};
+
 export type AgentEvent =
 	| { kind: 'subagent'; path: string[]; update: SubagentUpdate }
 	| { kind: 'message.received'; id: string }
@@ -637,6 +652,7 @@ export type ForgeMessage =
 
 /** Daemon → forge. */
 export type DaemonMessage =
+	| { type: 'workspace.background'; workspaceId: string; tasks: BackgroundTask[] }
 	| {
 			type: 'hello';
 			protocol: number;

@@ -783,6 +783,44 @@ describe('titles', () => {
 	});
 });
 
+describe('moving', () => {
+	it('keeps workspaces where a person put them, across a restart', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-move-')), 'events.db');
+		const { workspaces, repo, create } = setup({ database });
+		const [a, b, c] = [create('A'), create('B'), create('C')];
+		const titles = (list = workspaces.list(repo.id)) => list.map(({ title }) => title);
+		expect(titles()).toEqual(['C', 'B', 'A']);
+
+		workspaces.move(a, c);
+		expect(titles()).toEqual(['A', 'C', 'B']);
+		workspaces.move(a, null);
+		expect(titles()).toEqual(['C', 'B', 'A']);
+		workspaces.move(c, a);
+		expect(titles()).toEqual(['B', 'C', 'A']);
+		const updatedAt = workspaces.summary(b).updatedAt;
+		workspaces.move(b, null);
+		// moving is no news from the workspace
+		expect(workspaces.summary(b).updatedAt).toBe(updatedAt);
+		expect(titles()).toEqual(['C', 'A', 'B']);
+
+		// new ones still come first
+		create('D');
+		expect(titles()).toEqual(['D', 'C', 'A', 'B']);
+		expect(titles(setup({ database }).workspaces.all())).toEqual(['D', 'C', 'A', 'B']);
+	});
+
+	it('moves workspaces only among their repository’s', () => {
+		const { workspaces, repos, create } = setup();
+		const id = create('A');
+		const path = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
+		execFileSync('git', ['init', '-q', path]);
+		const elsewhere = repos.register(path);
+		const other = workspaces.create({ repoId: elsewhere.id, agent: 'claude', prompt: 'B' });
+		expect(() => workspaces.move(id, other)).toThrow();
+		expect(() => workspaces.move(id, 'missing')).toThrow();
+	});
+});
+
 describe('archiving', () => {
 	it('takes a workspace out of the lists and keeps its conversation', () => {
 		const { store, repos, workspaces, repo, create, dispatch } = setup();
