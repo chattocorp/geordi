@@ -64,7 +64,9 @@ md.renderer.rules.image = (tokens, index, _options, env) => {
 	} catch {
 		// not encoded the way it looked: as written, then
 	}
-	const url = escapeHtml(`${pictures}?path=${encodeURIComponent(path)}`);
+	const url = escapeHtml(
+		`${pictures}${pictures.includes('?') ? '&' : '?'}path=${encodeURIComponent(path)}`
+	);
 	return `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${alt}" data-picture="${escapeHtml(path)}" loading="lazy"></a>`;
 };
 
@@ -161,7 +163,8 @@ type Options = {
 	root?: string;
 	/**
 	 * The address that serves the pictures of the workspace this was written in
-	 * (`/workspaces/<id>/picture`). Without it, as for text from elsewhere, none are shown.
+	 * (`/workspaces/<id>/picture`, perhaps with a query of its own). Without it, as for text
+	 * from elsewhere, none are shown.
 	 */
 	pictures?: string;
 	/** The changed file that code in a sentence names, if it names one. */
