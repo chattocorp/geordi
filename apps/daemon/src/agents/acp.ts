@@ -12,36 +12,18 @@ import {
 	MultiSelectItems,
 	PlanUpdateContent,
 	StateUpdate,
-	ToolCallContent,
-	type ToolCallUpdate,
 	type CreateElicitationResponse,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2';
 import type { Agent, AgentEvent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
+import { TerminalOutput } from './terminal-output.ts';
+import { nativeSubagents } from './subagents.ts';
 import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
 
 const ACP_MODES = {
 	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
 	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
 } satisfies Record<Agent, Record<PermissionMode, string>>;
-
-// Limit buffered terminal output before decoding arbitrarily large ACP chunks.
-const MAX_TERMINAL_BYTES = 16 * 1024;
-function terminalBytes(data: string, limit: number) {
-	return Buffer.from(data.slice(0, 4 * Math.ceil(limit / 3)), 'base64').subarray(0, limit);
-}
-
-// Codex can finish a background command with its full output in a text block
-// and only its exit code in rawOutput, even if earlier bytes streamed to a terminal.
-function codexCommandText(update: ToolCallUpdate) {
-	const raw = update.rawOutput;
-	if (!raw || typeof raw !== 'object' || !('exit_code' in raw) || Object.keys(raw).length !== 1)
-		return;
-	if (update.content?.length !== 1) return;
-	const [block] = update.content;
-	if (ToolCallContent.isContent(block) && ContentBlock.isText(block.content))
-		return block.content.text;
-}
 
 /** The host owns this connection across daemon and forge restarts. */
 export function connectAgent(
@@ -60,7 +42,7 @@ export function connectAgent(
 	// ACP tool IDs belong to the session. A command can span several foreground turns.
 	const tools = new Map<string, 'open' | 'closed'>();
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
-	const terminalOutput = new Map<string, Buffer>();
+	const terminalOutput = new TerminalOutput();
 	const questions = new Map<string, (answers?: string[]) => void>();
 
 	function flush() {
@@ -68,6 +50,7 @@ export function connectAgent(
 		messages.clear();
 	}
 	function update(u: SessionUpdate) {
+		if (terminalOutput.receive(u)) return;
 		switch (true) {
 			case SessionUpdate.isStateUpdate(u):
 				if ('background' in u && Array.isArray(u.background)) background = u.background.length > 0;
@@ -131,18 +114,6 @@ export function connectAgent(
 			case u.sessionUpdate === 'plan_removed' && 'planId' in u && typeof u.planId === 'string':
 				emit({ kind: 'plan', id: u.planId, plan: null });
 				break;
-			case SessionUpdate.isTerminalOutputChunk(u): {
-				const before = terminalOutput.get(u.terminalId) ?? Buffer.alloc(0);
-				if (before.length < MAX_TERMINAL_BYTES) {
-					const bytes = terminalBytes(u.data, MAX_TERMINAL_BYTES - before.length);
-					terminalOutput.set(u.terminalId, Buffer.concat([before, bytes]));
-				}
-				break;
-			}
-			case SessionUpdate.isTerminalUpdate(u):
-				if (u.output)
-					terminalOutput.set(u.terminalId, terminalBytes(u.output.data, MAX_TERMINAL_BYTES));
-				break;
 			case SessionUpdate.isToolCallUpdate(u):
 				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
@@ -156,11 +127,7 @@ export function connectAgent(
 					});
 				}
 				if (u.status === 'completed' || u.status === 'failed') {
-					const output =
-						(provider === 'codex' ? codexCommandText(u) : undefined) ??
-						terminalOutput.get(u.toolCallId)?.toString('utf8') ??
-						u.rawOutput ??
-						u.content;
+					const output = terminalOutput.result(provider, u);
 					emit({
 						kind: 'tool.result',
 						id: u.toolCallId,
@@ -175,9 +142,13 @@ export function connectAgent(
 				break;
 		}
 	}
+	const children = nativeSubagents(provider, emit);
 	const connection = client({ name: 'Geordi' })
 		.onNotification(methods.client.session.update, ({ params }) => {
-			if (id && params.sessionId === id) update(params.update);
+			if (!id) return;
+			const root = params.sessionId === id;
+			if (SessionUpdate.isSubagentUpdate(params.update) && root) flush();
+			if (!children.receive(id, params.sessionId, params.update) && root) update(params.update);
 		})
 		.onRequest(methods.client.session.requestPermission, ({ params, signal }) => {
 			const deny = params.options.find((option) => option.kind === 'reject_once');

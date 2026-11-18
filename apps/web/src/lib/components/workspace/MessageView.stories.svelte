@@ -397,3 +397,73 @@
 		</div>
 	</div>
 </Story>
+
+<Story
+	name="Native reviewers"
+	asChild
+	play={async ({ canvas }) => {
+		await userEvent.click(await canvas.findByText('Review UI and design'));
+		await expect(
+			await canvas.findByText('The focus indicator is visible on every tab.')
+		).toBeVisible();
+		await expect(canvas.getByText('Running')).toBeVisible();
+	}}
+>
+	<div class="flex h-112 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="claude"
+			onremove={() => {}}
+			onanswer={() => {}}
+			blocks={[
+				{ kind: 'user', text: 'Review the daemon and the conversation UI.' },
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'subagent',
+							id: 'daemon',
+							at: '',
+							title: 'Review daemon and backend',
+							state: 'running',
+							items: []
+						},
+						{
+							kind: 'subagent',
+							id: 'ui',
+							at: '',
+							title: 'Review UI and design',
+							state: 'done',
+							items: [
+								{
+									kind: 'message',
+									id: 'assignment',
+									incoming: true,
+									text: 'Check keyboard navigation in the conversation tabs.'
+								},
+								{
+									kind: 'tool',
+									id: 'read',
+									name: 'Read',
+									input: '{"file_path":"Panes.svelte"}',
+									output: '',
+									isError: false,
+									at: ''
+								},
+								{
+									kind: 'message',
+									id: 'report',
+									incoming: false,
+									text: 'The focus indicator is visible on every tab.'
+								}
+							]
+						},
+						{
+							kind: 'text',
+							text: 'The UI review is in. The daemon reviewer is still checking reconnects.'
+						}
+					]
+				}
+			]}
+		/>
+	</div>
+</Story>

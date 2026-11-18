@@ -8,6 +8,8 @@ import {
 	type AgentEvent,
 	type AgentPlan,
 	type AgentSettings,
+	type SubagentState,
+	type SubagentUpdate,
 	type ForgeMessage,
 	type Harness,
 	type Question,
@@ -110,7 +112,51 @@ export type WorkspacesEvent =
 			data: { id: string; event: AgentEvent; cursor?: string };
 	  };
 
+export type SubagentItem = {
+	kind: 'subagent';
+	id: string;
+	at: string;
+	title?: string | null;
+	description?: string | null;
+	state: SubagentState;
+	items: (
+		| SubagentItem
+		| Extract<SubagentUpdate, { kind: 'message' }>
+		| Extract<TranscriptItem, { kind: 'tool' }>
+	)[];
+};
+
+function applySubagent(
+	transcript: TranscriptItem[],
+	path: string[],
+	update: SubagentUpdate,
+	at: string
+) {
+	let items: (TranscriptItem | SubagentItem['items'][number])[] = transcript;
+	let child: SubagentItem | undefined;
+	for (const id of path) {
+		child = items.find((item): item is SubagentItem => item.kind === 'subagent' && item.id === id);
+		if (!child) {
+			child = { kind: 'subagent', id, at, state: 'unknown', items: [] };
+			items.push(child);
+		}
+		items = child.items;
+	}
+	if (!child) return;
+	if (update.kind === 'info') {
+		if (update.title !== undefined) child.title = update.title;
+		if (update.description !== undefined) child.description = update.description;
+		if (update.state !== undefined) child.state = update.state;
+	} else {
+		const entry = child.items.find((item) => item.kind === update.kind && item.id === update.id);
+		if (entry) Object.assign(entry, update);
+		else if (update.kind === 'message') child.items.push({ ...update });
+		else child.items.push({ name: 'Tool', input: '', output: null, isError: false, at, ...update });
+	}
+}
+
 export type TranscriptItem =
+	| SubagentItem
 	/** `from`: the workspace whose agent said it, where it was not a person. */
 	| { kind: 'user'; text: string; images?: string[]; at: string; from?: string }
 	| { kind: 'text'; text: string; at: string }
@@ -425,6 +471,9 @@ export function createWorkspaces(
 		if (event.data.cursor) workspace.outputCursor = event.data.cursor;
 		const output = event.data.event;
 		switch (output.kind) {
+			case 'subagent':
+				applySubagent(transcript, output.path, output.update, at);
+				break;
 			case 'message.received':
 				workspace.pendingSteers = workspace.pendingSteers?.filter(
 					(s) => s.deliveryId !== output.id
@@ -570,6 +619,7 @@ export function createWorkspaces(
 			// A background command can finish after its turn. Complete its existing entry once.
 			if (toolById(workspace, event.id)?.output !== null) return;
 		} else if (
+			event.kind !== 'subagent' &&
 			event.kind !== 'worktree' &&
 			event.kind !== 'message.received' &&
 			event.kind !== 'answer.received' &&

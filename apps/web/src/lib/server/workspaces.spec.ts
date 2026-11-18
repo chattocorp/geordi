@@ -28,6 +28,50 @@ const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
 describe('workspaces', () => {
+	it('keeps parallel and nested ACP sessions on their original turn across replay', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Review the changes');
+		for (const path of [['daemon'], ['ui'], ['ui', 'design']]) {
+			workspaces.record(id, {
+				kind: 'subagent',
+				path,
+				update: { kind: 'info', state: 'running', title: path.at(-1) }
+			});
+			workspaces.record(id, {
+				kind: 'subagent',
+				path,
+				update: { kind: 'tool', id: 'same', name: 'Read' }
+			});
+		}
+		workspaces.record(id, { kind: 'turn.completed' });
+		const next = createWorkspaces(store, repos, dispatch);
+		for (const path of [['ui', 'design'], ['ui'], ['daemon']]) {
+			next.record(id, {
+				kind: 'subagent',
+				path,
+				update: { kind: 'tool', id: 'same', output: path.join('/') }
+			});
+			next.record(id, { kind: 'subagent', path, update: { kind: 'info', state: 'done' } });
+		}
+		next.send(id, 'Continue');
+		next.record(id, {
+			kind: 'subagent',
+			path: ['daemon'],
+			update: { kind: 'message', id: 'report', text: 'Finished.', incoming: false }
+		});
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).transcript).toMatchObject([
+			{ kind: 'user' },
+			{ title: 'daemon', state: 'done', items: [{ output: 'daemon' }, { text: 'Finished.' }] },
+			{
+				title: 'ui',
+				state: 'done',
+				items: [{ output: 'ui' }, { title: 'design', items: [{ output: 'ui/design' }] }]
+			},
+			{ kind: 'user' }
+		]);
+	});
+
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Plan the change');

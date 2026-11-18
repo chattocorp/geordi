@@ -524,7 +524,15 @@ export type AgentPlan =
  * What happens in a workspace's conversation with its agent, normalised across agent CLIs.
  * The daemon emits these; the forge stores them verbatim in its event log.
  */
+export type SubagentState = 'running' | 'waiting' | 'done' | 'stopped' | 'failed' | 'unknown';
+
+export type SubagentUpdate =
+	| { kind: 'info'; title?: string | null; description?: string | null; state?: SubagentState }
+	| { kind: 'message'; id: string; text: string; incoming: boolean }
+	| { kind: 'tool'; id: string; name?: string; input?: string; output?: string; isError?: boolean };
+
 export type AgentEvent =
+	| { kind: 'subagent'; path: string[]; update: SubagentUpdate }
 	| { kind: 'message.received'; id: string }
 	/** The workspace's worktree is ready. */
 	| { kind: 'worktree'; path: string; branch: string }

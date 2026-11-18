@@ -10,6 +10,7 @@
 	import Markdown from '#lib/components/Markdown.svelte';
 	import PlanCard from '#lib/components/PlanCard.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
+	import SubagentRow from '#lib/components/SubagentRow.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
@@ -137,6 +138,8 @@
 			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
 			{#if part.text}{@render messageActions(part.text)}{/if}
 		</div>
+	{:else if part.kind === 'subagent'}
+		<SubagentRow child={part} {cwd} {pictures} />
 	{:else if part.kind === 'tools'}
 		<!-- live: the agent is at work, and this is the last thing it did -->
 		<ToolGroup tools={part.tools} {cwd} {live} />
@@ -208,10 +211,13 @@
 							{@const hiddenCount = live
 								? 0
 								: block.parts.length - (last && last.kind !== 'tools' ? 1 : 0)}
+							{@const hidden = block.parts
+								.slice(0, hiddenCount)
+								.filter((part) => part.kind !== 'subagent')}
 							<div class="flex gap-3.5">
 								<AgentAvatar {agent} />
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
-									{#if hiddenCount}
+									{#if hidden.length}
 										<button
 											type="button"
 											class="flex h-7 items-center gap-1.5 rounded-control text-xs text-muted hover:text-ink"
@@ -219,9 +225,7 @@
 											onclick={() => toggleActivity(i)}
 										>
 											Turn activity
-											<span class="text-muted"
-												>{activitySummary(block.parts.slice(0, hiddenCount))}</span
-											>
+											<span class="text-muted">{activitySummary(hidden)}</span>
 											<span
 												class={[
 													'icon-[lucide--chevron-right] size-3.5',
@@ -231,7 +235,7 @@
 										</button>
 									{/if}
 									{#each block.parts as part, j (j)}
-										{#if j >= hiddenCount || expanded.has(i)}
+										{#if part.kind === 'subagent' || j >= hiddenCount || expanded.has(i)}
 											{@render agentPart(
 												part,
 												j !== lastText,
