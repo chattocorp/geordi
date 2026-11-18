@@ -8,13 +8,6 @@ on:
       commit:
         type: string
         required: true
-  pull_request:
-    paths:
-      - '.github/actions/package-desktop/**'
-      - '.github/workflows/desktop.yml'
-      - '.github/workflows/releases.yml'
-      - 'apps/desktop/**'
-      - 'pnpm-lock.yaml'
 
 permissions:
   contents: read
@@ -32,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.commit || github.sha }}
+          ref: ${{ inputs.commit }}
       - uses: ./.github/actions/package-desktop
       - name: Archive the desktop app
         working-directory: apps/desktop/dist
@@ -49,14 +42,13 @@ jobs:
           fi
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ inputs.tag || github.sha }}-${{ matrix.target }}
+          name: desktop-${{ inputs.tag }}-${{ matrix.target }}
           path: apps/desktop/dist/*.zip
           if-no-files-found: error
           compression-level: 0
 
   publish:
     needs: package
-    if: inputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
