@@ -52,6 +52,18 @@ describe('actionsFor', () => {
 		).toEqual(['resolve-conflicts']);
 	});
 
+	it('offers auto-merge only while the pull request cannot be merged yet', () => {
+		const autoMerge = { enabled: false, canEnable: true, canDisable: false };
+		const pending = { state: 'pending' as const, total: 3, failed: 0, url: null };
+		expect(ids({ changes: clean, upstream: upstream({ autoMerge }) })).toEqual(['merge-pull']);
+		expect(ids({ changes: clean, upstream: upstream({ autoMerge, checks: pending }) })).toEqual([
+			'enable-auto-merge'
+		]);
+		expect(ids({ changes: clean, upstream: upstream({ autoMerge, review: 'pending' }) })).toEqual([
+			'enable-auto-merge'
+		]);
+	});
+
 	it('offers known base commits beside the next step, with an agent prompt', () => {
 		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
 		const changes = { ...clean, incoming };
