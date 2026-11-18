@@ -1084,7 +1084,7 @@ describe('agents starting agents', () => {
 		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
 		workspaces.record(id, { kind: 'text', text: 'Looking.' });
 
-		const waiting = agents.wait(id, 5000);
+		const waiting = agents.wait(id, id, 5000);
 		workspaces.record(id, { kind: 'text', text: 'Done.' });
 		workspaces.record(id, { kind: 'turn.completed' });
 		expect(await waiting).toMatchObject({
@@ -1097,7 +1097,7 @@ describe('agents starting agents', () => {
 		workspaces.record(id, { kind: 'turn.failed', error: 'boom' });
 		expect(agents.get(caller, id)).toMatchObject({ reply: '', error: 'boom' });
 		agents.send(caller, id, 'Finish');
-		const final = agents.wait(id, 5000);
+		const final = agents.wait(id, id, 5000);
 		workspaces.record(id, { kind: 'text', text: 'Archived reply' });
 		workspaces.record(id, { kind: 'turn.completed' });
 		workspaces.archive(id); // the waiting report resumes after eviction
@@ -1107,7 +1107,7 @@ describe('agents starting agents', () => {
 	it('gives up waiting after the timeout', async () => {
 		const { agents, lead: caller } = lead();
 		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
-		expect(await agents.wait(id, 10)).toMatchObject({ status: 'running' });
+		expect(await agents.wait(id, id, 10)).toMatchObject({ status: 'running' });
 	});
 
 	it('only lets an agent control the agents it started', () => {

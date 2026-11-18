@@ -196,7 +196,12 @@
 					</p>
 				</div>
 			{:else if section === 'access'}
-				<AgentAccess grants={nav.current?.access ?? []} issue={issueAccess} revoke={revokeAccess} />
+				<AgentAccess
+					{repos}
+					grants={nav.current?.access ?? []}
+					issue={issueAccess}
+					revoke={revokeAccess}
+				/>
 			{:else}
 				<h2 class="heading">About</h2>
 				<div class="mt-6 space-y-2">

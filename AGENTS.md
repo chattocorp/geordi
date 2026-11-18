@@ -133,7 +133,7 @@ it, perhaps you.
   stored.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per workspace; the
-  daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`), start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
+  daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`) for chosen repositories (`repoIds`; never later ones), see only those, start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and

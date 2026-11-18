@@ -505,14 +505,17 @@ describe('installation-wide workspace access', () => {
 		).toMatchObject({ kind: 'user', text: 'First' });
 	});
 
-	it('uses one external token across repositories, retains it on replay, and honors revocation', async () => {
+	it('uses one external token across the repositories it was granted, retains it on replay, and honors revocation', async () => {
 		const { store, repos, workspaces, agents, rpcAs, callAs, caller } = setup();
-		const token = workspaces.access.issue('Release assistant');
-		const other = workspaces.create({
-			repoId: repos.register(gitRepository()).id,
-			agent: 'codex',
-			prompt: 'Test the migration'
-		});
+		const otherRepo = repos.register(gitRepository()).id;
+		const hiddenRepo = repos.register(gitRepository()).id;
+		const token = workspaces.access.issue('Release assistant', [
+			workspaces.get(caller).repoId,
+			otherRepo
+		]);
+		const other = workspaces.create({ repoId: otherRepo, agent: 'codex', prompt: 'Test it' });
+		const hidden = workspaces.create({ repoId: hiddenRepo, agent: 'codex', prompt: 'Secret' });
+		const later = repos.register(gitRepository()).id;
 		const actor = agents.authenticate(token)!;
 		expect(actor).toBeTruthy();
 		const call = callAs(actor);
@@ -527,6 +530,23 @@ describe('installation-wide workspace access', () => {
 			expect(listed).toContain(id);
 			expect(await call('read_workspace', { workspace_id: id })).not.toHaveProperty('error');
 		}
+
+		// a repository it was not granted, or that was added later, doesn't exist for it
+		expect(listed).not.toContain(hidden);
+		const repoIds = (await call('list_repositories')).map((repo: { id: string }) => repo.id);
+		expect(repoIds).toEqual(expect.arrayContaining([otherRepo]));
+		expect(repoIds).not.toEqual(expect.arrayContaining([hiddenRepo]));
+		expect(repoIds).not.toEqual(expect.arrayContaining([later]));
+		for (const [tool, input] of [
+			['read_workspace', { workspace_id: hidden }],
+			['workspace_status', { agent_id: hidden }],
+			['wait_for_agent', { agent_id: hidden, timeout_seconds: 0 }],
+			['send_message', { agent_id: hidden, message: 'Hi' }],
+			['start_agent', { prompt: 'Fix it', repository: later }]
+		] as const)
+			expect((await call(tool, input)).error).toMatch(/not found|access to/);
+		expect(workspaces.get(hidden).queue).toEqual([]);
+
 		expect((await call('workspace_status')).error).toMatch(/Say which workspace/);
 		expect((await call('stop_agent', { agent_id: other })).error).toBeTruthy();
 
@@ -552,9 +572,9 @@ describe('installation-wide workspace access', () => {
 
 	it('lets an external client start agents in a repository, and supervise those', async () => {
 		const { repos, workspaces, agents, archived, callAs } = setup();
-		const actor = agents.authenticate(workspaces.access.issue('Desktop'))!;
-		const call = callAs(actor);
 		const repoId = repos.register(gitRepository()).id;
+		const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
+		const call = callAs(actor);
 
 		expect(await call('list_repositories')).toContainEqual(expect.objectContaining({ id: repoId }));
 		expect((await call('start_agent', { prompt: 'Fix it' })).error).toMatch(/which repository/);
@@ -590,20 +610,56 @@ describe('installation-wide workspace access', () => {
 	});
 });
 
-it('requires a fresh token for a client that previously had access to one repository', () => {
+it('requires a fresh token for an older client, for one repository or all of them', () => {
 	const { store, workspaces, caller } = setup();
-	const id = 'external:old';
-	const token = id + '.test';
-	store.append({
-		type: 'access.granted',
-		stream: `access:${id}`,
-		data: {
-			id,
-			name: 'Old client',
-			repoId: workspaces.get(caller).repoId,
-			digest: createHash('sha256').update(token).digest('hex')
-		}
-	});
-	expect(workspaces.agents.authenticate(token)).toBeNull();
+	for (const repoId of [workspaces.get(caller).repoId, undefined]) {
+		const id = `external:old-${repoId}`;
+		const token = id + '.test';
+		store.append({
+			type: 'access.granted',
+			stream: `access:${id}`,
+			data: {
+				id,
+				name: 'Old client',
+				...(repoId && { repoId }),
+				digest: createHash('sha256').update(token).digest('hex')
+			}
+		});
+		expect(workspaces.agents.authenticate(token)).toBeNull();
+	}
 	expect(workspaces.access.list()).toEqual([]);
+});
+
+it('issues tokens only for repositories that exist', () => {
+	const { workspaces, caller } = setup();
+	expect(() => workspaces.access.issue('None', [])).toThrow(
+		expect.objectContaining({ status: 400 })
+	);
+	expect(() => workspaces.access.issue('Unknown', ['made-up'])).toThrow();
+	const repoId = workspaces.get(caller).repoId;
+	workspaces.access.issue('Twice', [repoId, repoId]);
+	expect(workspaces.access.list()).toEqual([
+		expect.objectContaining({ name: 'Twice', repoIds: [repoId] })
+	]);
+});
+
+it('keeps the agents an external client started to its repositories', async () => {
+	const { repos, workspaces, agents, callAs, caller } = setup();
+	const repoId = repos.register(gitRepository()).id;
+	const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
+	const started = await callAs(actor)('start_agent', { prompt: 'Look around', repository: repoId });
+	const child = callAs(started.id);
+	expect(JSON.stringify(await child('list_workspaces'))).not.toContain(caller);
+	expect((await child('read_workspace', { workspace_id: caller })).error).toMatch(/not found/);
+	expect(await child('read_workspace', { workspace_id: started.id })).not.toHaveProperty('error');
+});
+
+it('forgets a removed repository for good, though its ID is used again', () => {
+	const { repos, workspaces, agents } = setup();
+	const path = gitRepository();
+	const repoId = repos.register(path).id;
+	const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
+	repos.remove(repoId);
+	expect(repos.register(path).id).toBe(repoId);
+	expect(workspaces.access.reaches(actor, repoId)).toBe(false);
 });

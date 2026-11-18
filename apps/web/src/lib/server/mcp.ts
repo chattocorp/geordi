@@ -161,10 +161,10 @@ const tools = {
 				v.description('How long to wait at most. Defaults to 45, which is also the most.')
 			)
 		}),
-		run: (agents: Agents, _caller: string, input: { agent_id: string; timeout_seconds: number }) =>
+		run: (agents: Agents, caller: string, input: { agent_id: string; timeout_seconds: number }) =>
 			// Never longer than agent CLIs give a tool call (a minute): a wait that outlasts that
 			// comes back as a failure, and tells the caller nothing.
-			agents.wait(input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
+			agents.wait(caller, input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
 	},
 	list_agents: {
 		description:
@@ -175,14 +175,14 @@ const tools = {
 	list_repositories: {
 		description: 'List the repositories in this Geordi installation, with their IDs.',
 		input: v.object({}),
-		run: (agents: Agents) => agents.listRepositories()
+		run: (agents: Agents, caller: string) => agents.listRepositories(caller)
 	},
 	list_workspaces: {
 		description:
 			'List workspaces in this Geordi installation with their IDs, links, branches and status. Set include_archived to include history.',
 		input: v.object({ include_archived: v.optional(v.boolean(), false) }),
-		run: (agents: Agents, _caller: string, input: { include_archived: boolean }) =>
-			agents.listWorkspaces(input.include_archived)
+		run: (agents: Agents, caller: string, input: { include_archived: boolean }) =>
+			agents.listWorkspaces(caller, input.include_archived)
 	},
 	read_workspace: {
 		description:
@@ -191,8 +191,8 @@ const tools = {
 			workspace_id: v.string(),
 			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
 		}),
-		run: (agents: Agents, _caller: string, input: { workspace_id: string; before?: number }) =>
-			agents.readWorkspace(input.workspace_id, input.before)
+		run: (agents: Agents, caller: string, input: { workspace_id: string; before?: number }) =>
+			agents.readWorkspace(caller, input.workspace_id, input.before)
 	},
 	send_message: {
 		description:
@@ -216,7 +216,7 @@ const tools = {
 			input: { agent_id: string; message: string; interrupt: boolean }
 		) => {
 			agents.send(caller, input.agent_id, input.message, input.interrupt);
-			return agents.reportWorkspace(input.agent_id);
+			return agents.reportWorkspace(caller, input.agent_id);
 		}
 	},
 	archive_agent: {
@@ -377,7 +377,7 @@ const workspaceTools = new Set([
 const available = (caller: string, name: string) =>
 	!isExternal(caller) || !workspaceTools.has(name);
 
-const EXTERNAL_INSTRUCTIONS = `You are connected to Geordi, an agent orchestrator: each workspace is one conversation with a coding agent, in a worktree on its own branch. list_workspaces and read_workspace show you any of them; send_message follows up with an agent, and wait_for_agent waits for its reply. To start work, find a repository with list_repositories and give start_agent a task in it: you may then supervise that agent (interrupt, stop, archive), as you may not others. Questions an agent asks are for the person to answer.`;
+const EXTERNAL_INSTRUCTIONS = `You are connected to Geordi, an agent orchestrator: each workspace is one conversation with a coding agent, in a worktree on its own branch. list_workspaces and read_workspace show you any of them in the repositories you were given access to; send_message follows up with an agent, and wait_for_agent waits for its reply. To start work, find a repository with list_repositories and give start_agent a task in it: you may then supervise that agent (interrupt, stop, archive), as you may not others. Questions an agent asks are for the person to answer.`;
 
 async function callTool(agents: Agents, caller: string, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };

@@ -390,7 +390,7 @@ export function createWorkspaces(
 		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
-	const access = createAgentAccess(store);
+	const access = createAgentAccess(store, repos.get);
 	const imageStore = createImages(store);
 	/**
 	 * Who steered a workspace's agent in the way of before ADR-010 (`workspace.steered`), until
@@ -1006,6 +1006,25 @@ export function createWorkspaces(
 		return parent ? depthOf(parent) + 1 : 0;
 	}
 
+	/**
+	 * Whether the caller may see a repository's workspaces: an external client, those it was
+	 * granted, and so may the agents it started (directly or not), or they would be its way
+	 * around that.
+	 */
+	function reaches(callerId: string, repoId: string): boolean {
+		const workspace = projection.get().get(callerId);
+		const starter = workspace && starterOf(workspace);
+		if (starter) return reaches(starter, repoId);
+		return !isExternal(callerId) || access.reaches(callerId, repoId);
+	}
+
+	/** A workspace the caller may see. One in a repository it may not doesn't exist for it. */
+	function findFor(callerId: string, id: string): Workspace {
+		const workspace = projection.get().get(id);
+		if (!workspace || !reaches(callerId, workspace.repoId)) error(404, `Workspace ${id} not found`);
+		return workspace;
+	}
+
 	/** Who may supervise a workspace: the workspace or external client that started it. */
 	const starterOf = (workspace: Workspace) => workspace.parentId ?? workspace.startedBy;
 
@@ -1067,21 +1086,26 @@ export function createWorkspaces(
 	/**
 	 * What agents can do through the agent API (ADR-004, FDR-002). Every function takes the
 	 * caller: a workspace, or an external client's grant. It is recorded as the actor of what
-	 * it causes. Any caller can read any workspace; supervising (messaging, interrupting,
-	 * stopping, archiving) is for whoever started it, directly or not.
+	 * it causes. A workspace's agent can read any workspace, an external client those in the
+	 * repositories it was granted; supervising (messaging, interrupting, stopping, archiving)
+	 * is for whoever started it, directly or not.
 	 */
 	const agents = {
 		authenticate,
-		reportWorkspace: (id: string) => report(find(id)),
-		listRepositories: () => repos.list().map(({ id, name, path }) => ({ id, name, path })),
-		listWorkspaces(archived: boolean) {
+		reportWorkspace: (callerId: string, id: string) => report(findFor(callerId, id)),
+		listRepositories: (callerId: string) =>
+			repos
+				.list()
+				.filter((repo) => reaches(callerId, repo.id))
+				.map(({ id, name, path }) => ({ id, name, path })),
+		listWorkspaces(callerId: string, archived: boolean) {
 			return [...projection.get().values()]
 				.reverse()
-				.filter((w) => archived || !w.archivedAt)
+				.filter((w) => (archived || !w.archivedAt) && reaches(callerId, w.repoId))
 				.map(entry);
 		},
-		readWorkspace(id: string, before?: number) {
-			const workspace = find(id);
+		readWorkspace(callerId: string, id: string, before?: number) {
+			const workspace = findFor(callerId, id);
 			const transcript = transcriptOf(workspace);
 			const messages = transcript.filter(
 				(item) =>
@@ -1157,6 +1181,8 @@ export function createWorkspaces(
 				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
 				if (worktree === 'shared')
 					error(400, 'Only an agent in a workspace can share its worktree');
+				if (!reaches(callerId, repository))
+					error(404, `There is no repository ${repository} you have access to`);
 				where = { repoId: repos.get(repository).id };
 			} else {
 				if (repository && repository !== caller.repoId)
@@ -1190,7 +1216,7 @@ export function createWorkspaces(
 		/** Any workspace (`id`), or the caller's own. */
 		workspace(callerId: string, id?: string): Workspace {
 			if (id === undefined && isExternal(callerId)) error(400, 'Say which workspace (agent_id)');
-			const workspace = find(id ?? callerId);
+			const workspace = findFor(callerId, id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
@@ -1202,7 +1228,7 @@ export function createWorkspaces(
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
 			const external = isExternal(callerId);
-			const workspace = external ? find(id) : findControlled(callerId, id);
+			const workspace = external ? findFor(callerId, id) : findControlled(callerId, id);
 			if (workspace.archivedAt) error(409, 'Workspace is archived');
 			if (
 				external &&
@@ -1233,9 +1259,9 @@ export function createWorkspaces(
 			stop(findControlled(callerId, id).id);
 		},
 
-		/** Resolves once any workspace's agent is idle, or after `timeoutMs` at the latest. */
-		async wait(id: string, timeoutMs: number): Promise<AgentReport> {
-			const workspace = find(id);
+		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
+		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
+			const workspace = findFor(callerId, id);
 			if (workspace.status === 'running')
 				await new Promise<void>((resolve) => {
 					const done = () => {
