@@ -3,14 +3,7 @@ description: Build the desktop app and its native dependencies on the target pla
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v6
-      with:
-        node-version: '26'
-    - uses: pnpm/action-setup@v6
-      with:
-        version: 12.18.0
-    - run: pnpm install --frozen-lockfile
-      shell: bash
+    - uses: ./.github/actions/install
     - run: pnpm desktop:package
       shell: bash
     - name: Load the packaged runtime
