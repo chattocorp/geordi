@@ -32,7 +32,6 @@
 			<Button disabled={asking?.busy} onclick={() => asking?.answer(false)}>Cancel</Button>
 			<Button
 				variant="primary"
-				icon="icon-[lucide--archive]"
 				disabled={!asking?.concerns}
 				busy={asking?.busy}
 				onclick={() => asking?.answer(true)}

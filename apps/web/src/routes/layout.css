@@ -200,6 +200,10 @@
 
 @utility dialog-actions {
 	@apply ml-auto grid w-fit auto-cols-fr grid-flow-col gap-2;
+
+	& > button {
+		@apply min-w-24 font-semibold shadow-none;
+	}
 }
 
 /*

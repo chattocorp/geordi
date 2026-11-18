@@ -20,8 +20,13 @@
 		await expect(answer).not.toHaveBeenCalled();
 		const cancel = canvas.getByRole('button', { name: 'Cancel' });
 		const archive = canvas.getByRole('button', { name: 'Archive' });
-		await expect(cancel.offsetWidth).toBe(archive.offsetWidth);
-		await expect(cancel.offsetHeight).toBe(archive.offsetHeight);
+		const bounds = cancel.getBoundingClientRect();
+		await expect(archive.getBoundingClientRect()).toMatchObject({
+			y: bounds.y,
+			width: bounds.width,
+			height: bounds.height
+		});
+		await expect(getComputedStyle(cancel).fontWeight).toBe(getComputedStyle(archive).fontWeight);
 		await userEvent.click(cancel);
 		await expect(answer).toHaveBeenCalledWith(false);
 		await userEvent.click(archive);

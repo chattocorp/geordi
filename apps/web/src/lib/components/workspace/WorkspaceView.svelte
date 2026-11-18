@@ -953,7 +953,7 @@
 		</p>
 		<div class="dialog-actions">
 			<Button onclick={() => (asking = null)}>Cancel</Button>
-			<Button variant="primary" icon="icon-[lucide--play]" onclick={agree}>Run</Button>
+			<Button variant="primary" onclick={agree}>Run</Button>
 		</div>
 	</div>
 </Dialog>
