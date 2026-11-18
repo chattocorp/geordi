@@ -12,10 +12,12 @@
 
 <Story name="Working" asChild>
 	<div class="flex sheet overflow-hidden">
-		<Panes layout={singleGroup(['chat', 'aide'])} onchange={() => {}}>
+		<Panes layout={singleGroup(['chat', 'aide', 'reviewer'])} onchange={() => {}}>
 			{#snippet tab(id)}
 				{#if id === 'chat'}
 					<ConversationTab agent="codex" running />
+				{:else if id === 'reviewer'}
+					<ConversationTab agent="claude" subagent title="Backend reviewer" running />
 				{:else}
 					<ConversationTab agent="claude" title="Review" running={false} />
 				{/if}

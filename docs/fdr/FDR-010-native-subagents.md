@@ -11,6 +11,7 @@ An agent can delegate work through its own provider. Each subagent appears where
 
 - Each row shows the subagent's name and latest reported state. Expand it to read its assignment, tool calls, messages and report.
 - Select **Open in tab** inside an expanded row to follow that reviewer in the main pane. Opening it again focuses its existing tab. Closing the tab leaves the reviewer running.
+- A branch icon identifies subagent tabs. Select **Assigned by** to open the conversation of the agent that delegated the work. That conversation can itself belong to a subagent.
 - Parallel reviewers update independently. A subagent can finish after the parent replies. Its row stays in the original turn.
 - When a subagent delegates again, its own transcript contains the next subagent.
 

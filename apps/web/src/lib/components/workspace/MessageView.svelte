@@ -22,6 +22,7 @@
 		cwd,
 		pictures,
 		senders,
+		parentAgent,
 		queue = [],
 		queueImages = [],
 		onopensubagent,
@@ -36,6 +37,7 @@
 		/** Where the pictures the agent refers to are served. */
 		pictures?: string;
 		senders?: Record<string, string>;
+		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
 		onopensubagent?: (id: string) => void;
@@ -70,6 +72,11 @@
 			expanded.add(index);
 		}
 	}
+
+	// Some providers announce the reviewer without forwarding its assignment.
+	const assignmentIndex = $derived(
+		parentAgent ? blocks.findIndex((block) => block.kind === 'user' && block.delegated) : -1
+	);
 
 	const rows = $derived([
 		...blocks.map((block) => ({ kind: 'block' as const, block })),
@@ -184,8 +191,21 @@
 				{#if row.kind === 'block'}
 					{@const block = row.block}
 					<div>
+						{#if parentAgent && i === Math.max(0, assignmentIndex)}
+							<div class={['flex pb-1', block.kind === 'user' && 'justify-end']}>
+								<button
+									type="button"
+									onclick={parentAgent.open}
+									title="Open parent conversation"
+									class="inline-flex items-center gap-1.5 rounded-control text-xs text-muted hover:text-ink hover:underline"
+								>
+									<span class="icon-[lucide--git-branch] size-3.5"></span>
+									Assigned by {parentAgent.name}
+								</button>
+							</div>
+						{/if}
 						{#if block.kind === 'user'}
-							{#if block.from || block.delegated}
+							{#if block.from || (block.delegated && i !== assignmentIndex)}
 								<!-- not the person's words: another agent's, and whose -->
 								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
 									<span class="icon-[lucide--bot] size-3.5"></span>

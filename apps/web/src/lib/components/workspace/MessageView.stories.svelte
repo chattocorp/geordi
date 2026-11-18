@@ -7,6 +7,7 @@
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
+	const openParent = fn();
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const reply =
 		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
@@ -477,7 +478,10 @@
 	name="Subagent conversation tab"
 	asChild
 	play={async ({ canvas }) => {
-		await waitFor(() => expect(canvas.getByText('From another agent')).toBeVisible());
+		openParent.mockClear();
+		const parent = await canvas.findByRole('button', { name: 'Assigned by Backend reviewer' });
+		await userEvent.click(parent);
+		await expect(openParent).toHaveBeenCalledOnce();
 		await expect(
 			canvas.getByText('The daemon restores both reviewers after reconnect.')
 		).toBeVisible();
@@ -488,6 +492,7 @@
 	<div class="flex h-96 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
 			agent="claude"
+			parentAgent={{ name: 'Backend reviewer', open: openParent }}
 			blocks={subagentBlocks({
 				kind: 'subagent',
 				id: 'daemon',

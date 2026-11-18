@@ -14,6 +14,7 @@
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks } from '#lib/transcript.ts';
 	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
+	import { agentName } from '#lib/format.ts';
 	import ConversationTab from './ConversationTab.svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import {
@@ -124,15 +125,30 @@
 	const reviewerTab = (owner: string, child: string) =>
 		'subagent:' + JSON.stringify([owner, child]);
 	const reviewers = $derived.by(() => {
-		const found = new SvelteMap<string, { owner: Workspace; child: SubagentItem }>();
-		function collect(owner: Workspace, items: Workspace['transcript'] | SubagentItem['items']) {
+		const found = new SvelteMap<
+			string,
+			{ owner: Workspace; child: SubagentItem; parentTab: string; parentName: string }
+		>();
+		function collect(
+			owner: Workspace,
+			items: Workspace['transcript'] | SubagentItem['items'],
+			parentTab: string,
+			parentName: string
+		) {
 			for (const child of items) {
 				if (child.kind !== 'subagent') continue;
-				found.set(reviewerTab(owner.id, child.id), { owner, child });
-				collect(owner, child.items);
+				const tab = reviewerTab(owner.id, child.id);
+				found.set(tab, { owner, child, parentTab, parentName });
+				collect(owner, child.items, tab, child.title || 'Subagent');
 			}
 		}
-		for (const owner of [workspace, ...workspace.aides]) collect(owner, owner.transcript);
+		for (const owner of [workspace, ...workspace.aides])
+			collect(
+				owner,
+				owner.transcript,
+				owner.id === id ? CHAT : `agent:${owner.id}`,
+				agentName[owner.agent]
+			);
 		return found;
 	});
 
@@ -701,6 +717,7 @@
 		<span class="truncate">New conversation</span>
 	{:else if reviewer}
 		<ConversationTab
+			subagent
 			agent={reviewer.owner.agent}
 			title={reviewer.child.title || 'Subagent'}
 			running={reviewer.child.state === 'running'}
@@ -769,6 +786,7 @@
 	{:else if reviewer}
 		<MessageView
 			blocks={subagentBlocks(reviewer.child)}
+			parentAgent={{ name: reviewer.parentName, open: () => showTab(reviewer.parentTab) }}
 			agent={reviewer.owner.agent}
 			running={reviewer.child.state === 'running' || reviewer.child.state === 'waiting'}
 			cwd={reviewer.owner.worktree?.path}
