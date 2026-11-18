@@ -57,7 +57,7 @@
 		);
 		await expect(canvas.getByText('Start: web')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Run' }));
-		await userEvent.click(await canvas.findByRole('menuitem', { name: /Geordi dev app/ }));
+		await userEvent.click(await canvas.findByRole('menuitem', { name: 'Geordi dev app' }));
 		await expect(canvas.getByText('Open: app')).toBeVisible();
 	}}>{@render controls([web, { ...web, name: 'daemon', label: 'Agent daemon' }], [app])}</Story
 >

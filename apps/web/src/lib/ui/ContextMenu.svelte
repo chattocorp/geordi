@@ -63,7 +63,7 @@
 	ontoggle={(event) => event.newState === 'closed' && (contextMenus.open = null)}
 	oncontextmenu={(event) => event.preventDefault()}
 	style="inset: auto"
-	class="m-0 min-w-48 card-float p-1 text-ink"
+	class="m-0 min-w-48 card-float p-2 text-ink"
 >
 	{#each open?.items ?? [] as item, index (index)}
 		{#if item === 'separator'}

@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { expect, fireEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import ContextMenu from './ContextMenu.svelte';
 	import { contextMenu } from './menu.svelte.ts';
@@ -10,7 +11,15 @@
 	let last = $state('nothing yet');
 </script>
 
-<Story name="On an element" asChild>
+<Story
+	name="On an element"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.contextMenu(canvas.getByText('Right-click me'));
+		await expect(await canvas.findByRole('menuitem', { name: 'Merge PR' })).toHaveFocus();
+	}}
+>
 	<div class="flex flex-col items-start gap-3">
 		<div
 			class="card px-4 py-3 text-sm"

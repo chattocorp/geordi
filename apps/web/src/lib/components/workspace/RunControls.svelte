@@ -26,7 +26,7 @@
 	/** What the Run button offers where there is more than one thing: links first, then jobs. */
 	const menu = (): MenuItem[] => {
 		const opens = links.map((link): MenuItem => ({
-			label: `${link.label ?? link.name}  ${link.href.replace(/^https?:\/\//, '')}`,
+			label: link.label ?? link.name,
 			icon: 'icon-[lucide--external-link]',
 			onselect: () => visit(link)
 		}));
