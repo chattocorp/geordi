@@ -126,33 +126,46 @@ export type SubagentItem = {
 	)[];
 };
 
-function applySubagent(
-	transcript: TranscriptItem[],
-	path: string[],
+/** Replace only the path to the changed reviewer. Prior edits may still be
+ * waiting for delivery to a follower and must keep their original values. */
+function subagentEdit(
+	items: readonly (TranscriptItem | SubagentItem['items'][number])[],
+	[id, ...nested]: string[],
 	update: SubagentUpdate,
 	at: string
-) {
-	let items: (TranscriptItem | SubagentItem['items'][number])[] = transcript;
-	let child: SubagentItem | undefined;
-	for (const id of path) {
-		child = items.find((item): item is SubagentItem => item.kind === 'subagent' && item.id === id);
-		if (!child) {
-			child = { kind: 'subagent', id, at, state: 'unknown', items: [] };
-			items.push(child);
-		}
-		items = child.items;
-	}
-	if (!child) return;
-	if (update.kind === 'info') {
+): [number, number, SubagentItem] {
+	const index = items.findIndex((item) => item.kind === 'subagent' && item.id === id);
+	const previous = items[index];
+	const child: SubagentItem =
+		previous?.kind === 'subagent'
+			? { ...previous }
+			: { kind: 'subagent', id, at, state: 'unknown', items: [] };
+	if (nested.length) {
+		child.items = child.items.toSpliced(...subagentEdit(child.items, nested, update, at));
+	} else if (update.kind === 'info') {
 		if (update.title !== undefined) child.title = update.title;
 		if (update.description !== undefined) child.description = update.description;
 		if (update.state !== undefined) child.state = update.state;
 	} else {
-		const entry = child.items.find((item) => item.kind === update.kind && item.id === update.id);
-		if (entry) Object.assign(entry, update);
-		else if (update.kind === 'message') child.items.push({ ...update });
-		else child.items.push({ name: 'Tool', input: '', output: null, isError: false, at, ...update });
+		const entryIndex = child.items.findIndex(
+			(item) => item.kind === update.kind && item.id === update.id
+		);
+		const previousEntry = child.items[entryIndex];
+		const entry =
+			update.kind === 'message'
+				? update
+				: {
+						name: 'Tool',
+						input: '',
+						output: null,
+						isError: false,
+						at,
+						...(previousEntry?.kind === 'tool' && previousEntry),
+						...update
+					};
+		child.items = entryIndex < 0 ? [...child.items, entry] : child.items.with(entryIndex, entry);
 	}
+	return index < 0 ? [items.length, 0, child] : [index, 1, child];
 }
 
 export type TranscriptItem =
@@ -502,7 +515,7 @@ export function createWorkspaces(
 		const output = event.data.event;
 		switch (output.kind) {
 			case 'subagent':
-				applySubagent(transcript, output.path, output.update, at);
+				if (output.path.length) edit(...subagentEdit(transcript, output.path, output.update, at));
 				break;
 			case 'message.received':
 				workspace.pendingSteers = workspace.pendingSteers?.filter(

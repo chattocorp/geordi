@@ -28,6 +28,24 @@ const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
 describe('workspaces', () => {
+	it('publishes nested reviewer edits without changing earlier snapshots', () => {
+		const { workspaces, create } = setup();
+		const id = create('Review');
+		const follower = workspaces.followTranscript(id);
+		expect(follower.read()).toMatchObject([{ kind: 'user' }]);
+		const path = ['lead', 'reviewer'];
+		workspaces.record(id, { kind: 'subagent', path, update: { kind: 'info', state: 'running' } });
+		const first = follower.read();
+		workspaces.record(id, { kind: 'subagent', path, update: { kind: 'info', state: 'done' } });
+		expect(first).toMatchObject({
+			edits: [[1, 0, { id: 'lead', items: [{ id: 'reviewer', state: 'running' }] }]]
+		});
+		expect(follower.read()).toMatchObject({
+			edits: [[1, 1, { id: 'lead', items: [{ id: 'reviewer', state: 'done' }] }]]
+		});
+		follower.close();
+	});
+
 	it('keeps parallel and nested ACP sessions on their original turn across replay', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Review the changes');
