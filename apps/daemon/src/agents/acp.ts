@@ -295,17 +295,19 @@ export function connectAgent(
 		const selected = options.settings.permissionMode;
 		// An old installation may have restricted this session at the daemon level.
 		// Require an explicit workspace choice before replacing that policy.
-		const legacy =
-			provider === 'codex'
-				? process.env.GEORDI_CODEX_SANDBOX === 'workspace-write'
-				: !!process.env.GEORDI_CLAUDE_PERMISSION_MODE &&
-					process.env.GEORDI_CLAUDE_PERMISSION_MODE !== 'bypassPermissions';
-		if (!selected && legacy)
-			throw new Error(
-				'Choose Auto Mode or Full Access in this workspace to replace the daemon permission setting.'
-			);
+		if (selected === undefined) {
+			const claudeMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE;
+			const restricted =
+				provider === 'codex'
+					? process.env.GEORDI_CODEX_SANDBOX === 'workspace-write'
+					: claudeMode && claudeMode !== ACP_MODES.claude['full-access'];
+			if (restricted)
+				throw new Error(
+					'Choose Auto Mode or Full Access in this workspace to replace the daemon permission setting.'
+				);
+		}
 		const mode = ACP_MODES[provider][selected ?? 'full-access'];
-		if (!mode) throw new Error('Unknown workspace permission mode: ' + selected);
+		if (typeof mode !== 'string') throw new Error('Unknown workspace permission mode: ' + selected);
 		const setup = {
 			cwd: options.cwd,
 			...(provider === 'codex' &&

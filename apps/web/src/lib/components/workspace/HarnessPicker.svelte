@@ -17,7 +17,7 @@
 	};
 
 	const EFFORT_NAMES: Record<string, string> = { xhigh: 'Extra high' };
-	export const effortName = (effort: string) =>
+	const effortName = (effort: string) =>
 		EFFORT_NAMES[effort] ?? effort.charAt(0).toUpperCase() + effort.slice(1);
 
 	/**

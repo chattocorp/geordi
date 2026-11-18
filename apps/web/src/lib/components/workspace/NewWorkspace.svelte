@@ -34,15 +34,8 @@
 	};
 	let { repos, preferred, label, focused = false, alongside }: Props = $props();
 
-	const {
-		repoId,
-		agent,
-		model,
-		effort,
-		permissionMode,
-		prompt,
-		alongside: within
-	} = createWorkspace.fields;
+	const fields = createWorkspace.fields;
+	const { prompt, images } = fields;
 	// Each time this is begun, it is begun empty: the form is one for the whole app, and
 	// would otherwise still hold what the workspace before was started with.
 	// What was written and not sent yet is still there when one comes back, though: one
@@ -70,7 +63,7 @@
 	const harnesses = $derived(offered.current?.harnesses);
 	// The next workspace starts out the way the last one was set up.
 	const choice = persisted<HarnessChoice>('geordi:harness', { agent: 'claude', settings: {} });
-	const chosen = $derived(harnesses ? resolveChoice(harnesses, choice.current) : null);
+	const chosen = $derived(harnesses?.length ? resolveChoice(harnesses, choice.current) : null);
 
 	let pickingRepo = $state(false);
 	// only where repositories are to be chosen from: on the page for a new workspace
@@ -84,7 +77,7 @@
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
 <MessageComposer
 	bind:images={written.images}
-	imageField={createWorkspace.fields.images.as('hidden', '[]')}
+	imageField={images.as('hidden', '[]')}
 	{form}
 	disabled={createWorkspace.pending > 0}
 	{label}
@@ -94,24 +87,24 @@
 	field={prompt.as('text')}
 	onkeydown={(event) => {
 		// Enter starts the workspace, but not while there is no daemon to run it
-		if (harnesses) submitOnEnter(event);
+		if (chosen) submitOnEnter(event);
 		else if (event.key === 'Enter' && !event.shiftKey) event.preventDefault();
 	}}
-	problems={[...(prompt.issues() ?? []), ...(createWorkspace.fields.images.issues() ?? [])].map(
+	problems={[...(prompt.issues() ?? []), ...(images.issues() ?? [])].map(
 		(problem) => problem.message
 	)}
 >
 	{#snippet header()}
-		<input {...repoId.as('hidden', repo?.id ?? '')} />
-		{#if alongside}<input {...within.as('hidden', alongside)} />{/if}
-		<input {...agent.as('hidden', chosen?.harness.agent ?? choice.current.agent)} />
-		<!-- empty leaves it to the agent's CLI -->
-		<input {...model.as('hidden', chosen?.model?.id ?? '')} />
-		<input {...permissionMode.as('hidden', chosen?.permissionMode ?? 'full-access')} />
-		<input {...effort.as('hidden', chosen?.effort ?? '')} />
+		<input {...fields.repoId.as('hidden', repo?.id ?? '')} />
+		{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />{/if}
+		{#if chosen}
+			<input {...fields.agent.as('hidden', chosen.harness.agent)} />
+			<input {...fields.model.as('hidden', chosen.model?.id ?? '')} />
+			<input {...fields.effort.as('hidden', chosen.effort ?? '')} />
+			<input {...fields.permissionMode.as('hidden', chosen.permissionMode)} />
+		{/if}
 	{/snippet}
 	{#snippet footer()}
-		<!-- where, who, how hard: three quiet choices -->
 		<div class="flex min-w-0 flex-wrap items-center gap-1">
 			{#if repos.length > 1}
 				<RepoPicker
@@ -120,7 +113,7 @@
 					bind:value={() => repo.id, (id) => (picked = id)}
 				/>
 			{/if}
-			{#if harnesses}
+			{#if harnesses?.length}
 				<HarnessPicker
 					{harnesses}
 					choice={choice.current}
@@ -142,7 +135,7 @@
 				icon="icon-[lucide--arrow-up]"
 				label="Send"
 				class="ml-auto"
-				disabled={!harnesses}
+				disabled={!chosen}
 			/>
 		{:else}
 			<Button
@@ -150,7 +143,7 @@
 				variant="primary"
 				icon="icon-[lucide--arrow-up]"
 				class="ml-auto"
-				disabled={!harnesses}
+				disabled={!chosen}
 			>
 				Start workspace
 			</Button>
