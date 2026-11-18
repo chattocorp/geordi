@@ -91,10 +91,14 @@ if (!stopping) {
 
 /**
  * Stops both services with `signal` (SIGINT stops the agents too, SIGTERM leaves them
- * working), and then this process.
+ * working), and then this process. A second Ctrl+C kills them.
  */
 async function stop(signal) {
-	if (stopping) return;
+	if (stopping) {
+		// a second Ctrl+C: don't wait any longer
+		if (signal === 'SIGINT') for (const child of [forge, daemon]) child?.kill('SIGKILL');
+		return;
+	}
 	stopping = true;
 	const running = [forge, daemon].filter(
 		(child) => child && child.exitCode === null && child.signalCode === null
