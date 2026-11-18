@@ -34,7 +34,13 @@
 </Story>
 
 <!-- For sheets, whose shapes part them: the gap between them is what is dragged. -->
-<Story name="Without a line" asChild>
+<Story
+	name="Without a line"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.hover(canvas.getByRole('separator'));
+	}}
+>
 	<div class="flex h-48 rounded-card bg-frame p-2">
 		<Split dir="row" bind:ratio={across} bare>
 			{#snippet a()}<div class="mr-1 flex flex-1 sheet">{@render pane('A')}</div>{/snippet}
