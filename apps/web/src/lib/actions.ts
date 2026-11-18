@@ -14,6 +14,7 @@ export type WorkspaceAction = {
 		| 'resolve-conflicts'
 		| 'fix-checks'
 		| 'address-review'
+		| 'ready-for-review'
 		| 'merge-pull'
 		| 'restore-worktree'
 		| 'retry'
@@ -189,9 +190,17 @@ function nextActions(state: State): WorkspaceAction[] {
 			prompt: `Commit any uncommitted changes with clear commit messages and push them to ${number}. Update its description if the change calls for it.`
 		});
 
+	if (pull.draft)
+		actions.push({
+			id: 'ready-for-review',
+			label: 'Ready for review',
+			icon: 'icon-[lucide--git-pull-request]',
+			prompt: `Mark ${number} as ready for review on the upstream forge.`
+		});
+
 	// Merging is the next step once nothing stands in its way.
 	const checksPass = !pull.checks || pull.checks.state === 'success';
-	if (actions.length === 0 && checksPass && !pull.draft)
+	if (actions.length === 0 && checksPass)
 		actions.push({
 			id: 'merge-pull',
 			label: 'Merge PR',

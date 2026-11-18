@@ -143,7 +143,13 @@ describe('actionsFor', () => {
 
 		const pending = { state: 'pending', total: 3, failed: 0, url: null } as const;
 		expect(ids({ changes, upstream: upstream({ checks: pending }) })).toEqual([]);
-		expect(ids({ changes, upstream: upstream({ draft: true }) })).toEqual([]);
+		expect(ids({ changes, upstream: upstream({ draft: true }) })).toEqual(['ready-for-review']);
+		expect(
+			ids({
+				changes: { ...changes, unpushed: 1 },
+				upstream: upstream({ draft: true, checks: pending })
+			})
+		).toEqual(['update-pull', 'ready-for-review']);
 	});
 
 	it('puts what blocks a merge first, and names the pull request', () => {
