@@ -19,20 +19,18 @@
 	}
 </script>
 
-<div class="absolute top-0 left-full ml-1">
-	<Button
-		variant="ghost"
-		size="sm"
-		icon={status === 'copied'
-			? 'icon-[lucide--check]'
-			: status === 'failed'
-				? 'icon-[lucide--triangle-alert]'
-				: 'icon-[lucide--copy]'}
-		label={status === 'copied'
-			? 'Copied'
-			: status === 'failed'
-				? 'Copy failed. Try again'
-				: 'Copy message'}
-		onclick={copy}
-	/>
-</div>
+<Button
+	variant="ghost"
+	size="sm"
+	icon={status === 'copied'
+		? 'icon-[lucide--check]'
+		: status === 'failed'
+			? 'icon-[lucide--triangle-alert]'
+			: 'icon-[lucide--copy]'}
+	label={status === 'copied'
+		? 'Copied'
+		: status === 'failed'
+			? 'Copy failed. Try again'
+			: 'Copy message'}
+	onclick={copy}
+/>
