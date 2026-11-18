@@ -22,3 +22,5 @@ Inline code follow-up. Code spans use plum text in light mode and rose text in d
 Plain inline code uses a brighter plum in light mode and rose in dark mode, without an underline. Verified snippets and underlined links together in both Storybook themes.
 
 Sent and queued user messages now use the same Markdown renderer as agent replies. The conversation story checks automatic links, explicit Markdown links, and copying the original text.
+
+Bullet lists now have a 2px gap between items, including when the Markdown has blank lines between bullets. Verified the gap in the message view story in Chromium.
