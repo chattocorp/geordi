@@ -1282,3 +1282,62 @@ describe('messages with images', () => {
 		expect(store.readAll()).toHaveLength(count);
 	});
 });
+
+describe('desks (FDR-012)', () => {
+	const setupDesk = () => {
+		const context = setup();
+		const desk = context.workspaces.create({ repoId: null, agent: 'claude', prompt: 'Lead' });
+		return { ...context, desk };
+	};
+	const messageTo = (sent: ForgeMessage[], id: string) =>
+		sent.findLast(
+			(message): message is Extract<ForgeMessage, { type: 'agent.message' }> =>
+				message.type === 'agent.message' && message.workspaceId === id
+		);
+
+	it('belong to no repository, and are told to work in a folder of their own', () => {
+		const { workspaces, sent, desk } = setupDesk();
+		expect(workspaces.get(desk).repoId).toBeNull();
+		const message = messageTo(sent, desk)!;
+		expect(message).toMatchObject({ worktreeId: desk, desk: true });
+		expect(message).not.toHaveProperty('repoPath');
+		expect(message.instructions).toContain('Geordi desk');
+		expect(() => workspaces.ref(desk)).toThrow();
+		expect(() => workspaces.join(desk)).toThrow();
+	});
+
+	it('start agents in any repository they name, as their parent', () => {
+		const { workspaces, repo, desk } = setupDesk();
+		const refusal = (start: () => unknown) => {
+			try {
+				start();
+			} catch (error) {
+				return (error as { body: { message: string } }).body.message;
+			}
+		};
+		expect(
+			refusal(() => workspaces.agents.start(desk, { worktree: 'own', prompt: 'Build' }))
+		).toMatch(/Say which repository/);
+		expect(
+			refusal(() =>
+				workspaces.agents.start(desk, { repository: repo.id, worktree: 'shared', prompt: 'Review' })
+			)
+		).toMatch(/no worktree to share/);
+		const { id } = workspaces.agents.start(desk, {
+			repository: repo.id,
+			worktree: 'own',
+			prompt: 'Build'
+		});
+		expect(workspaces.get(id)).toMatchObject({ repoId: repo.id, parentId: desk, base: null });
+	});
+
+	it('supervise any agent, whoever started it', () => {
+		const { workspaces, sent, create, desk } = setupDesk();
+		const other = create('Someone else’s work');
+		expect(workspaces.agents.get(desk, other).id).toBe(other);
+		workspaces.agents.send(desk, other, 'Change of plan', true);
+		expect(messageTo(sent, other)?.prompt).toBe('Change of plan');
+		workspaces.agents.stop(desk, other);
+		expect(sent.at(-1)).toEqual({ type: 'agent.stop', workspaceId: other });
+	});
+});

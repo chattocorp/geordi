@@ -443,7 +443,7 @@ describe('workspace status', () => {
 		});
 
 		const stranger = workspaces.create({
-			repoId: workspaces.get(caller).repoId,
+			repoId: workspaces.get(caller).repoId!,
 			agent: 'claude',
 			settings: {},
 			prompt: 'Unrelated'
@@ -487,7 +487,7 @@ describe('installation-wide workspace access', () => {
 	it('reads archived pages without restarting the agent', async () => {
 		const { workspaces, caller, call } = setup();
 		const peer = workspaces.create({
-			repoId: workspaces.get(caller).repoId,
+			repoId: workspaces.get(caller).repoId!,
 			agent: 'claude',
 			prompt: 'First'
 		});
@@ -600,7 +600,7 @@ it('requires a fresh token for a client that previously had access to one reposi
 		data: {
 			id,
 			name: 'Old client',
-			repoId: workspaces.get(caller).repoId,
+			repoId: workspaces.get(caller).repoId!,
 			digest: createHash('sha256').update(token).digest('hex')
 		}
 	});

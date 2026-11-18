@@ -2,7 +2,8 @@
  * Workspaces as the sidebar lists them (FDR-002): by repository, as a plain list in which
  * a workspace started by an agent comes right after the one whose agent started it.
  */
-type Member = { id: string; repoId: string; parentId: string | null };
+/** `repoId` is `null` for a desk (FDR-012): desks are listed together, as if theirs were one. */
+type Member = { id: string; repoId: string | null; parentId: string | null };
 
 export type Listed<T> = {
 	workspace: T;
@@ -13,13 +14,13 @@ export type Listed<T> = {
 };
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */
-export function byRepository<T extends Member>(all: T[]): Map<string, Listed<T>[]> {
+export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
 	const parentOf = (workspace: T) => byId.get(workspace.parentId ?? '') ?? null;
 	// a workspace follows its parent only where the parent is listed: in the same repository
 	const follows = (workspace: T) => parentOf(workspace)?.repoId === workspace.repoId;
 
-	const repos = new Map<string, Listed<T>[]>();
+	const repos = new Map<string | null, Listed<T>[]>();
 	const visited = new Set<string>();
 	const list = (workspace: T, depth: number) => {
 		if (visited.has(workspace.id)) return; // a cycle: list it once

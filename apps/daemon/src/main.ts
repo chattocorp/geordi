@@ -1,3 +1,4 @@
+import { deskPath, removeDesk } from './desks.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
@@ -69,6 +70,8 @@ const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 const apiUrl = new URL('/mcp', process.env.GEORDI_FORGE_HTTP_URL || 'http://127.0.0.1:3000').href;
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
 /** Where agents' sessions keep what they are told and what they do, so that they outlive this process (ADR-007). */
+/** Where desks' folders are (FDR-012). */
+const desksDir = process.env.GEORDI_DESKS_DIR || join(homedir(), '.geordi', 'desks');
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
@@ -348,6 +351,7 @@ function attend(workspaceId: string, session: Session) {
  */
 const { beginning, startMessage } = turnStarts({
 	worktreesDir,
+	desksDir,
 	sessions,
 	setups,
 	apiUrl,
@@ -475,6 +479,17 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
+	if (request.kind === 'removeDesk') {
+		// its agent, whose CLI may still be running there with nothing to do, goes with it
+		const path = deskPath(desksDir, request.worktreeId);
+		for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
+		for (const session of sessionsIn(path)) {
+			retired.add(session);
+			session.kill();
+		}
+		removeDesk(desksDir, request.worktreeId);
+		return null;
+	}
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;
 		const worktree = await removable(worktreesDir, repoPath, worktreeId, force);

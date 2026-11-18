@@ -44,7 +44,8 @@ export const navigation = () =>
 					id,
 					title,
 					repoId,
-					parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
+					// one whose parent is gone (an archived desk's, FDR-012) stands for itself
+					parentId: (parentId && ownerOf.get(parentId)) ?? null,
 					status,
 					working,
 					outcome: outcome([workspace, ...aides]),
@@ -155,7 +156,8 @@ export const workspace = (id: string) => {
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				git: watchers().state(workspace.worktreeId),
+				// a desk has no worktree to watch (FDR-012)
+				git: workspace.repoId === null ? null : watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read
 				finished: terminals().finished(id)
@@ -165,7 +167,8 @@ export const workspace = (id: string) => {
 			const stopTasks = hub().followBackground((source) => {
 				if (source === id || transcripts.has(source)) changed();
 			});
-			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
+			const { repoId, worktreeId } = workspaces().summary(id);
+			const unwatch = repoId === null ? () => {} : watchers().watch(worktreeId, changed);
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();

@@ -1,6 +1,6 @@
 # FDR-012: Desks
 
-**Status:** Planned
+**Status:** Active
 **Last reviewed:** 2026-11-18
 
 ## Overview

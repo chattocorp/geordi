@@ -83,12 +83,14 @@
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
 
+	/** A desk (FDR-012) is a conversation and nothing else: no repository, no changes, no terminals. */
+	const desk = $derived(workspace.repoId === null);
 	// its repository, as everyone knows it; by its ID until that has come
 	const everything = follow<Navigation>('navigation');
 	const repo = $derived(
 		everything.current?.repos.find((repo) => repo.id === workspace.repoId) ?? {
-			id: workspace.repoId,
-			name: workspace.repoId
+			id: workspace.repoId ?? '',
+			name: workspace.repoId ?? 'Desk'
 		}
 	);
 	const git = $derived(workspace.git);
@@ -829,7 +831,9 @@
 			</h1>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
 				<span class="flex shrink-0 items-center gap-1">
-					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
+					<span
+						class={[desk ? 'icon-[lucide--lamp-desk]' : 'icon-[lucide--folder-git-2]', 'size-3.5']}
+					></span>
 					{repo.name}
 				</span>
 				{#if workspace.worktree}
@@ -852,7 +856,7 @@
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
-		{:else}
+		{:else if !desk}
 			<Button
 				variant="ghost"
 				icon={frame.current.open
@@ -903,7 +907,7 @@
 		bare
 		min={[320, 260]}
 		minRatio={0.5}
-		collapsed={!frame.current.open}
+		collapsed={!frame.current.open || desk}
 		bind:ratio={
 			() => 1 - frame.current.side,
 			(ratio) => (frame.current = { ...frame.current, side: 1 - ratio })
@@ -915,7 +919,7 @@
 			<div
 				class={[
 					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
-					frame.current.open ? 'mr-1' : 'mr-2'
+					frame.current.open && !desk ? 'mr-1' : 'mr-2'
 				]}
 			>
 				<Panes
@@ -926,7 +930,7 @@
 					{closable}
 					accepts={movable}
 					onreceive={receive('main')}
-					newTab={workspace.archivedAt ? undefined : newConversation}
+					newTab={workspace.archivedAt || desk ? undefined : newConversation}
 					newLabel="New conversation"
 				/>
 			</div>

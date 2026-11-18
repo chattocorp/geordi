@@ -39,12 +39,18 @@
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav?.workspaces ?? []));
 	const sidebarRepos = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	/** The desks (FDR-012): listed above the repositories, as a section of their own. */
+	const desks = $derived(listed.get(null) ?? []);
 	/** How many workspaces wait for the person: counted beside the overview. */
 	const needYou = $derived(lanes(nav?.workspaces ?? [], unread).attention.length);
-	/** A workspace counts as working, for archiving, while anything its agent started is. */
+	/**
+	 * A workspace counts as working, for archiving, while anything its agent started is. Not
+	 * a desk's: what it started carries on without it.
+	 */
 	const working = (workspace: Item): boolean =>
 		workspace.working ||
-		(nav?.workspaces ?? []).some((other) => other.parentId === workspace.id && working(other));
+		(workspace.repoId !== null &&
+			(nav?.workspaces ?? []).some((other) => other.parentId === workspace.id && working(other)));
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
@@ -56,6 +62,8 @@
 	function workspaceMenu(workspace: Item): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
+		// a desk has no branch to copy or carry on from
+		const desk = workspace.repoId === null;
 		// archiving takes the workspaces its agent started along: none of them may be working
 		const busy = working(workspace);
 		// the menu has these already, below
@@ -79,19 +87,27 @@
 				icon: 'icon-[lucide--hash]',
 				onselect: () => navigator.clipboard.writeText(workspace.id)
 			},
-			{
-				label: 'Copy branch name',
-				icon: 'icon-[lucide--git-branch]',
-				disabled: !workspace.branch,
-				onselect: () => navigator.clipboard.writeText(workspace.branch ?? '')
-			},
+			...(desk
+				? []
+				: [
+						{
+							label: 'Copy branch name',
+							icon: 'icon-[lucide--git-branch]',
+							disabled: !workspace.branch,
+							onselect: () => navigator.clipboard.writeText(workspace.branch ?? '')
+						}
+					]),
 			'separator',
-			{
-				label: 'Continue on a new branch',
-				icon: 'icon-[lucide--git-branch-plus]',
-				disabled: busy,
-				onselect: () => continueFromAfar(workspace)
-			},
+			...(desk
+				? []
+				: [
+						{
+							label: 'Continue on a new branch',
+							icon: 'icon-[lucide--git-branch-plus]',
+							disabled: busy,
+							onselect: () => continueFromAfar(workspace)
+						}
+					]),
 			{
 				label: 'Stop agent',
 				icon: 'icon-[lucide--square]',
@@ -140,7 +156,7 @@
 		dropBefore = stays ? undefined : before;
 	}
 
-	function drop(event: DragEvent, repoId: string) {
+	function drop(event: DragEvent, repoId: string | null) {
 		event.preventDefault();
 		if (dragged?.repoId === repoId && dropBefore !== undefined)
 			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
@@ -154,6 +170,8 @@
 
 	/** The repositories whose workspaces are folded away under their name. */
 	const folded = persisted<string[]>('geordi:folded', []);
+	/** What stands for the desks among the folded: no repository has it as its ID. */
+	const DESKS = 'desks';
 	const toggleFolded = (id: string) =>
 		(folded.current = folded.current.includes(id)
 			? folded.current.filter((other) => other !== id)
@@ -172,11 +190,34 @@
 				needYou
 			)}
 			{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
+			{@render link(resolve('/desk'), 'icon-[lucide--lamp-desk]', 'New desk', path === '/desk')}
 		</div>
+
+		{#if desks.length > 0}
+			{@const isFolded = folded.current.includes(DESKS)}
+			<div>
+				<div class="flex h-7 items-center pr-1.5">
+					<button
+						type="button"
+						class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-sm font-semibold text-muted hover:text-ink"
+						aria-expanded={!isFolded}
+						onclick={() => toggleFolded(DESKS)}
+					>
+						<span class="truncate">Desks</span>
+						{#if isFolded}
+							<span class="shrink-0 font-normal text-muted/60 tabular-nums">{desks.length}</span>
+						{/if}
+					</button>
+				</div>
+				{#if !isFolded}
+					{@render workspaceList(desks)}
+				{/if}
+			</div>
+		{/if}
 
 		<div class="space-y-4">
 			{#each sidebarRepos as repo (repo.id)}
-				{@const rows = listed.get(repo.id) ?? []}
+				{@const count = listed.get(repo.id)?.length ?? 0}
 				{@const isFolded = folded.current.includes(repo.id)}
 				<div>
 					<!--
@@ -194,7 +235,7 @@
 							<RepoIcon id={repo.id} />
 							<span class="truncate">{repo.name}</span>
 							{#if isFolded}
-								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{rows.length}</span>
+								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{count}</span>
 							{/if}
 						</button>
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
@@ -209,17 +250,7 @@
 						<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					</div>
 					{#if !isFolded}
-						<ul
-							class="space-y-px"
-							ondragleave={(event) => {
-								if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-									dropBefore = undefined;
-							}}
-						>
-							{#each rows as { workspace, parent, depth }, index (workspace.id)}
-								{@render row(workspace, parent, depth, rows, index)}
-							{/each}
-						</ul>
+						{@render workspaceList(listed.get(repo.id) ?? [])}
 					{/if}
 				</div>
 			{/each}
@@ -239,6 +270,19 @@
 		</button>
 	</div>
 </div>
+
+{#snippet workspaceList(rows: Row[])}
+	<ul
+		class="space-y-px"
+		ondragleave={(event) => {
+			if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dropBefore = undefined;
+		}}
+	>
+		{#each rows as { workspace, parent, depth }, index (workspace.id)}
+			{@render row(workspace, parent, depth, rows, index)}
+		{/each}
+	</ul>
+{/snippet}
 
 {#snippet row(workspace: Item, parent: Item | null, depth: number, rows: Row[], index: number)}
 	{@const current = path === `/workspaces/${workspace.id}`}
@@ -304,6 +348,8 @@
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
 						<Spinner />
+					{:else if workspace.repoId === null}
+						<span class="icon-[lucide--lamp-desk] size-4"></span>
 					{:else if workspace.parentId}
 						<!-- started by an agent: the one above it, where that is still around -->
 						<span class="icon-[lucide--corner-down-right] size-4"></span>

@@ -31,6 +31,7 @@ const env = {
 	GEORDI_DATA_DIR: data,
 	GEORDI_WORKTREES_DIR: join(data, 'worktrees'),
 	GEORDI_SESSIONS_DIR: join(data, 'sessions'),
+	GEORDI_DESKS_DIR: join(data, 'desks'),
 	GEORDI_DAEMON_TOKEN_FILE: join(data, 'daemon-token'),
 	GEORDI_RUN_APPROVALS_FILE: join(data, 'run-approvals.json'),
 	GEORDI_PORTS_FILE: join(data, 'ports.json'),

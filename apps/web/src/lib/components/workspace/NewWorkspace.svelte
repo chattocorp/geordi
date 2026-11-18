@@ -31,8 +31,10 @@
 		 * with an agent that works in its directory.
 		 */
 		alongside?: string;
+		/** Whether this starts a desk (FDR-012): no repository to choose. */
+		desk?: boolean;
 	};
-	let { repos, preferred, label, focused = false, alongside }: Props = $props();
+	let { repos, preferred, label, focused = false, alongside, desk = false }: Props = $props();
 
 	const fields = createWorkspace.fields;
 	const { prompt, images } = fields;
@@ -42,7 +44,7 @@
 	// draft for a new workspace, and one for each workspace to start a conversation in.
 	prompt.set('');
 	const written = draft(
-		() => (alongside ? `alongside:${alongside}` : 'new'),
+		() => (alongside ? `alongside:${alongside}` : desk ? 'desk' : 'new'),
 		() => prompt
 	);
 	// (Starting one goes to it, so the form is not reset: the draft is forgotten here.)
@@ -68,7 +70,7 @@
 	let pickingRepo = $state(false);
 	// only where repositories are to be chosen from: on the page for a new workspace
 	$effect(() => {
-		if (!focused || alongside || !asked.repo) return;
+		if (!focused || alongside || desk || !asked.repo) return;
 		asked.repo = false;
 		pickingRepo = repos.length > 1;
 	});
@@ -83,7 +85,7 @@
 	{label}
 	{focused}
 	rows={alongside ? undefined : 5}
-	placeholder="What should the agent do?"
+	placeholder={desk ? 'What should be done, and where?' : 'What should the agent do?'}
 	field={prompt.as('text')}
 	onkeydown={(event) => {
 		// Enter starts the workspace, but not while there is no daemon to run it
@@ -95,7 +97,7 @@
 	)}
 >
 	{#snippet header()}
-		<input {...fields.repoId.as('hidden', repo?.id ?? '')} />
+		<input {...fields.repoId.as('hidden', desk ? '' : (repo?.id ?? ''))} />
 		{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />{/if}
 		{#if chosen}
 			<input {...fields.agent.as('hidden', chosen.harness.agent)} />
@@ -106,7 +108,7 @@
 	{/snippet}
 	{#snippet footer()}
 		<div class="flex min-w-0 flex-wrap items-center gap-1">
-			{#if repos.length > 1}
+			{#if repos.length > 1 && !desk}
 				<RepoPicker
 					{repos}
 					bind:open={pickingRepo}
@@ -145,7 +147,7 @@
 				class="ml-auto"
 				disabled={!chosen}
 			>
-				Start workspace
+				{desk ? 'Start desk' : 'Start workspace'}
 			</Button>
 		{/if}
 	{/snippet}

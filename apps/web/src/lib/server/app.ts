@@ -363,6 +363,9 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 				REMOVE_TIMEOUT_MS
 			);
 			workspaces().onBranch(ref.worktreeId, branch);
+		},
+		removeDesk: async (deskId) => {
+			await hub().request({ kind: 'removeDesk', worktreeId: deskId, desk: true });
 		}
 	})(id, discard, actor);
 

@@ -110,8 +110,13 @@
 {#snippet card(workspace: Item)}
 	<li class="relative flex flex-col gap-3 card p-4 card-link">
 		<span class="flex items-center gap-2 text-xs text-muted">
-			<span class="scale-80"><RepoIcon id={workspace.repoId} /></span>
-			<span class="truncate">{repoNames.get(workspace.repoId)}</span>
+			{#if workspace.repoId === null}
+				<span class="icon-[lucide--lamp-desk] size-3.5 shrink-0"></span>
+				<span class="truncate">Desk</span>
+			{:else}
+				<span class="scale-80"><RepoIcon id={workspace.repoId} /></span>
+				<span class="truncate">{repoNames.get(workspace.repoId)}</span>
+			{/if}
 			<span class="ml-auto shrink-0 tabular-nums">{timeAgo(workspace.updatedAt, now)}</span>
 		</span>
 

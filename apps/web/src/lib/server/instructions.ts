@@ -6,6 +6,8 @@ import { CONFIG_FILE } from '@geordi/protocol';
  * Goes out with every turn, as an addition to the CLI's system prompt.
  */
 export function instructionsFor(workspace: {
+	/** Whether it is a desk (FDR-012): no repository, there to orchestrate. */
+	desk?: boolean;
 	/** The workspace whose agent started this one, if one did. */
 	parent: { title: string } | null;
 	/** Whether it works in another workspace's directory rather than in one of its own. */
@@ -16,6 +18,7 @@ export function instructionsFor(workspace: {
 	mayDelegate: boolean;
 }): string {
 	const { parent } = workspace;
+	if (workspace.desk) return deskInstructions();
 	return [
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi workspace.',
 
@@ -27,11 +30,11 @@ export function instructionsFor(workspace: {
 			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
 			: 'The person you work for sees your replies, your changes as a diff against where the branch started, and the state of the branch’s pull request.',
 
-		'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.',
+		ASKING,
 
 		'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](/tmp/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too.',
 
-		'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Diagrams cannot load images or follow links.',
+		DIAGRAMS,
 
 		'When you mention another Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.',
 
@@ -47,4 +50,25 @@ export function instructionsFor(workspace: {
 	]
 		.filter(Boolean)
 		.join('\n\n');
+}
+
+const ASKING =
+	'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.';
+const DIAGRAMS =
+	'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Diagrams cannot load images or follow links.';
+const LINKS =
+	'When you mention a Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.';
+
+/** What the agent of a desk is told (FDR-012): it orchestrates Geordi for the person. */
+function deskInstructions(): string {
+	return [
+		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi desk: it belongs to no repository. The person sits at it to have you orchestrate their agents: across repositories, or for work that belongs to no branch.',
+		'Your working directory is an empty folder of this desk’s own, not a Git repository: for notes, and for anything you fetch to look at. It is removed when the desk is archived.',
+		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply, `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. Bring what they report together, and tell the person where things stand.',
+		'You act for the person, who is at this desk with you: you may look at, message, steer and stop any agent in Geordi, whoever started it. Interrupt or stop agents you did not start only when the person asks you to.',
+		ASKING,
+		DIAGRAMS,
+		LINKS,
+		'Once you know what the work is about, give this desk a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name.'
+	].join('\n\n');
 }

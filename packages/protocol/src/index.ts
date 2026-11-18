@@ -83,6 +83,12 @@ export type WorktreeRef = {
 	branch?: string;
 };
 
+/**
+ * Where a desk's agent works (FDR-012): a desk belongs to no repository, and works in an
+ * empty folder of its own that the daemon makes for it, derived from its ID.
+ */
+export type DeskRef = { worktreeId: string; desk: true };
+
 /** Where an agent started by another agent works: in a worktree of its `own`, or `shared` with its parent. */
 export const WORKTREE_MODES = ['own', 'shared'] as const;
 export type WorktreeMode = (typeof WORKTREE_MODES)[number];
@@ -430,6 +436,8 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
+	/** Removes a desk's folder (FDR-012), with whatever its agent left there. */
+	| ({ kind: 'removeDesk' } & DeskRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -494,6 +502,7 @@ export type DaemonResults = {
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
+	removeDesk: null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
@@ -610,7 +619,7 @@ export type ForgeMessage =
 			prompt: string;
 			deliveryId?: string;
 			images?: MessageImage[];
-	  } & WorktreeRef)
+	  } & (WorktreeRef | DeskRef))
 	/** Stops what the agent is doing. Its CLI goes on running, to be told what to do instead. */
 	| { type: 'agent.stop'; workspaceId: string }
 	/** Answers a `question` the agent asked: one answer per question, in their order. */

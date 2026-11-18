@@ -65,7 +65,7 @@ export function createUpcaster() {
 	/** Old workspaces still waiting for their first session, to learn their agent. */
 	const waiting = new Map<string, LegacyCreated>();
 	/** What later sessions of an old workspace need to know about it. */
-	const known = new Map<string, { repoId: string; base?: string }>();
+	const known = new Map<string, { repoId?: string; base?: string }>();
 	/**
 	 * Workspaces that are no more: Home workspaces, and the agents in their checkout. Their
 	 * other events need no filtering: the projection ignores events of unknown workspaces.

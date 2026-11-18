@@ -22,6 +22,8 @@ function setup() {
 	const closed: string[] = [];
 	/** The worktrees whose teardown script was to run. */
 	const tornDown: string[] = [];
+	/** The desks whose folders were to go. */
+	const desksRemoved: string[] = [];
 	const archive = createArchiver({
 		workspaces,
 		closeTerminals: (id) => closed.push(id),
@@ -30,7 +32,8 @@ function setup() {
 				throw new Error('The worktree has uncommitted or untracked files.');
 			removed.push(worktreeId);
 			if (teardown) tornDown.push(worktreeId);
-		}
+		},
+		removeDesk: async (id) => void desksRemoved.push(id)
 	});
 
 	/** A workspace whose agent has a worktree and is idle. */
@@ -46,7 +49,18 @@ function setup() {
 		workspaces.record(parent, { kind: 'turn.completed' });
 		return settle(id);
 	};
-	return { workspaces, repo, archive, removed, dirty, closed, tornDown, lead, start };
+	return {
+		workspaces,
+		repo,
+		archive,
+		removed,
+		dirty,
+		closed,
+		tornDown,
+		desksRemoved,
+		lead,
+		start
+	};
 }
 
 /** Matches the error a refused request throws, by its message. */
@@ -111,6 +125,25 @@ describe('archiving', () => {
 		expect(workspaces.list(repo.id)).toEqual([]);
 	});
 
+	it('archives a desk alone, with its folder: what it started carries on', async () => {
+		const { workspaces, repo, archive, removed, desksRemoved } = setup();
+		const desk = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Orchestrate' });
+		workspaces.record(desk, { kind: 'turn.started' });
+		const { id: child } = workspaces.agents.start(desk, {
+			repository: repo.id,
+			worktree: 'own',
+			prompt: 'Build'
+		});
+		workspaces.record(desk, { kind: 'turn.completed' });
+
+		await archive(desk, false);
+
+		expect(desksRemoved).toEqual([desk]);
+		expect(removed).toEqual([]);
+		expect(workspaces.get(desk).archivedAt).not.toBeNull();
+		expect(workspaces.get(child)).toMatchObject({ archivedAt: null, status: 'running' });
+	});
+
 	it('leaves the shells alone when it is refused', async () => {
 		const { archive, dirty, closed, lead } = setup();
 		dirty.add(lead);
@@ -125,6 +158,7 @@ describe('archiving', () => {
 			workspaces,
 			closeTerminals: () => {},
 			// while the daemon is at it, someone says something
+			removeDesk: async () => {},
 			removeWorktree: async () => {
 				try {
 					workspaces.send(lead, 'One more thing');

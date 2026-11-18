@@ -11,7 +11,11 @@
 	const live = follow<Navigation>('navigation');
 	const nav = $derived(live.current);
 	// the one that was asked for (from its place in the sidebar), else most likely the one worked in last
-	const preferred = $derived(page.url.searchParams.get('repo') ?? nav?.workspaces[0]?.repoId);
+	const preferred = $derived(
+		page.url.searchParams.get('repo') ??
+			nav?.workspaces.find((workspace) => workspace.repoId !== null)?.repoId ??
+			undefined
+	);
 </script>
 
 <Page title="New workspace" wide>

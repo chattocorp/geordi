@@ -2,6 +2,9 @@ import { expect, it, vi } from 'vitest';
 import { turnStarts } from './turn-starts.ts';
 import { ensureWorktree, fetchUpstream, hasWorktree } from './worktree.ts';
 import type { Session } from './session.ts';
+import { mkdtempSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 vi.mock('./worktree.ts', () => ({
 	worktreePath: () => '/worktree',
@@ -22,6 +25,7 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 		const emit = vi.fn();
 		const { beginning, startMessage } = turnStarts({
 			worktreesDir: '/trees',
+			desksDir: '/desks',
 			sessions,
 			setups,
 			apiUrl: '',
@@ -104,3 +108,46 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 		]);
 	}
 );
+
+it('starts a desk in a folder of its own, without a worktree or its configuration', async () => {
+	const desksDir = mkdtempSync(join(tmpdir(), 'desks-'));
+	const begin = vi.fn();
+	const configFor = vi.fn();
+	const prepared = vi.fn();
+	const { startMessage } = turnStarts({
+		worktreesDir: '/trees',
+		desksDir,
+		sessions: new Map(),
+		setups: new Map(),
+		apiUrl: '',
+		prepared,
+		emitFor: () => vi.fn(),
+		begin,
+		configFor
+	});
+	const deskId = '00000000-0000-4000-8000-000000000001';
+	vi.mocked(ensureWorktree).mockClear();
+	await startMessage({
+		type: 'agent.message',
+		agent: 'claude',
+		settings: {},
+		desk: true,
+		worktreeId: deskId,
+		workspaceId: deskId,
+		apiToken: '',
+		resumeId: null,
+		prompt: 'orchestrate'
+	});
+	const path = join(desksDir, deskId);
+	expect(existsSync(path)).toBe(true);
+	expect(ensureWorktree).not.toHaveBeenCalled();
+	expect(configFor).not.toHaveBeenCalled();
+	expect(prepared).not.toHaveBeenCalled();
+	expect(begin).toHaveBeenCalledExactlyOnceWith(
+		deskId,
+		expect.objectContaining({
+			options: expect.objectContaining({ cwd: path, env: {}, writableRoots: [] })
+		}),
+		[{ prompt: 'orchestrate', deliveryId: undefined }]
+	);
+});
