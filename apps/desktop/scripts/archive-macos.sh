@@ -26,11 +26,12 @@ printf '%s' "$MACOS_NOTARY_API_KEY_BASE64" | base64 -D > "$work/notary.p8"
 unset password MACOS_SIGNING_CERTIFICATE_P12_BASE64 MACOS_SIGNING_CERTIFICATE_PASSWORD MACOS_NOTARY_API_KEY_BASE64
 
 app=dist/Geordi-darwin-arm64/Geordi.app
+install -m 644 app-update.yml "$app/Contents/Resources/app-update.yml"
 node scripts/sign-macos.js "$app" "$keychain" "$work/notary.p8"
 
 version=$(node -p "require('./package.json').version")
 archive="dist/Geordi-v${version}-macOS-arm64.zip"
-ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
+node scripts/update-archive.js
 ditto -x -k "$archive" "$work/extracted"
 app="$work/extracted/Geordi.app"
 codesign --verify --deep --strict --verbose=2 "$app"

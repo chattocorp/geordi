@@ -44,6 +44,9 @@ Download the desktop app for macOS (Apple silicon) or Windows from the
 disk image and drag Geordi to Applications. On Windows, extract the ZIP and open Geordi.
 The app runs everything Geordi needs and keeps its data in `~/.geordi`.
 
+On macOS, open **Settings → About** to check for updates, choose the Stable or Beta channel,
+and restart to install a downloaded update. Geordi also checks on startup and hourly.
+
 Geordi runs the agent CLIs you already use: sign in to
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or
 [Codex](https://github.com/openai/codex) first. For GitHub, Geordi uses the GitHub CLI's
