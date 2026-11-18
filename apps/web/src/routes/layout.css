@@ -40,16 +40,16 @@
 	--sunken: #dcdce5;
 	--ink: #1b1c24;
 	--inline-code: #982664;
-	--muted: #6a6c7b;
+	--muted: #585a69;
 	--line: #e2e2ea;
 	--accent: #f5b021;
-	--accent-ink: #9a6400;
+	--accent-ink: #855600;
 	--accent-soft: #fdf1d6;
 	--bubble: #fcefd2;
 	--on-accent: #2a1c00;
-	--danger: #d03b36;
+	--danger: #b32a25;
 	--danger-soft: #fde7e5;
-	--ok: #1f9d7a;
+	--ok: #0f6b50;
 	/* done and landed: a merged pull request, as forges show it */
 	--merged: #8250df;
 	--on-merged: #ffffff;
