@@ -153,15 +153,16 @@
 						<!--
 							The next step stands out; what else is possible, and what is beside it, doesn't.
 							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
-							colour. Resolve conflicts takes the ribbon colour; other next steps use ink. Never in gold: that is the one way to send a message.
+							colour. Fix errors and Resolve conflicts take the ribbon colour. Other soft next steps use ink.
 						-->
 						{@const next = action === primary}
+						{@const ribbonColor = action.id === 'resolve-conflicts' || action.id === 'fix-checks'}
 						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
 						<Button
 							size="sm"
 							variant={next && filled ? 'primary' : 'soft'}
 							tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
-							class={next && !filled && action.id !== 'resolve-conflicts' ? 'text-ink' : undefined}
+							class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
 							icon={action.icon}
 							{disabled}
 							busy={pending.includes(action.id)}

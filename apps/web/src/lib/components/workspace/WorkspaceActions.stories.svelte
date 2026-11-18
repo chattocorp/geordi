@@ -132,6 +132,23 @@
 	{@render bar({ changes: pushed, upstream: upstream({}) }, { pending: ['merge-pull'] })}
 </Story>
 
+<Story
+	name="Failing checks with sync"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Fix errors' })).toHaveStyle({
+			color: getComputedStyle(canvas.getByText('Checks failing')).color
+		});
+	}}
+>
+	{@render bar({
+		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 1 } },
+		upstream: upstream({ checks: failing })
+	})}
+</Story>
+
 <Story name="Blocked three ways" asChild>
 	{@render bar({
 		changes: dirty,
