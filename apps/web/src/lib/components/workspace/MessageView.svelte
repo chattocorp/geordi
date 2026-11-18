@@ -3,7 +3,8 @@
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
 	import BackgroundTasks from './BackgroundTasks.svelte';
 	import { toolSummary } from '#lib/tools.ts';
-	import type { Agent, BackgroundTask } from '@geordi/protocol';
+	import type { Agent, BackgroundTask, TurnUsage } from '@geordi/protocol';
+	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Block, Part } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
@@ -192,9 +193,15 @@
 	});
 </script>
 
-{#snippet messageActions(text: string, outgoing = false, remove?: () => void)}
+{#snippet tokens(usage: TurnUsage)}
+	<!-- what the reply used: in short, and in full on hover -->
+	<span class="px-1 text-xs text-muted" title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
+{/snippet}
+
+{#snippet messageActions(text: string, outgoing = false, remove?: () => void, usage?: TurnUsage)}
 	<div class={['mt-1 flex items-center gap-1', outgoing && 'justify-end']}>
 		{#if text}<MessageCopy {text} />{/if}
+		{#if usage}{@render tokens(usage)}{/if}
 		{#if remove}
 			<Button
 				variant="ghost"
@@ -207,12 +214,18 @@
 	</div>
 {/snippet}
 
-{#snippet agentPart(part: Part, dimmed: boolean, live: boolean, at: string)}
+{#snippet agentPart(
+	part: Part,
+	dimmed: boolean,
+	live: boolean,
+	at: string,
+	usage: TurnUsage | undefined
+)}
 	{@const pictures = picturesAt(at)}
 	{#if part.kind === 'text'}
 		<div>
 			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
-			{#if part.text}{@render messageActions(part.text)}{/if}
+			{#if part.text || usage}{@render messageActions(part.text, false, undefined, usage)}{/if}
 		</div>
 	{:else if part.kind === 'subagent'}
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
@@ -305,6 +318,8 @@
 							{@const hidden = block.parts
 								.slice(0, hiddenCount)
 								.filter((part) => part.kind !== 'subagent')}
+							<!-- said where the reply ends: beside its last words, else on its own -->
+							{@const usage = live ? undefined : block.usage}
 							<div class="flex gap-3.5">
 								<AgentAvatar {agent} />
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
@@ -331,10 +346,14 @@
 												part,
 												j !== lastText,
 												live && j === block.parts.length - 1,
-												`${i}.${j}`
+												`${i}.${j}`,
+												j === block.parts.length - 1 ? usage : undefined
 											)}
 										{/if}
 									{/each}
+									{#if usage && last?.kind !== 'text'}
+										<div class="-mt-2">{@render tokens(usage)}</div>
+									{/if}
 								</div>
 							</div>
 						{/if}

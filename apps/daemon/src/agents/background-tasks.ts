@@ -2,7 +2,7 @@ import {
 	BackgroundWork,
 	SessionUpdate,
 	ToolCallContent
-} from '@agentclientprotocol/sdk/experimental/v2';
+} from '@agentclientprotocol/sdk/experimental/v2/unstable';
 import type { BackgroundTask } from '@geordi/protocol';
 
 /** Each ACP session owns its snapshot and its terminal IDs. Codex reports its

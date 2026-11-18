@@ -3,7 +3,7 @@ import {
 	ToolCallContent,
 	SessionUpdate,
 	type ToolCallUpdate
-} from '@agentclientprotocol/sdk/experimental/v2';
+} from '@agentclientprotocol/sdk/experimental/v2/unstable';
 import { truncate } from './adapter.ts';
 import type { Agent } from '@geordi/protocol';
 

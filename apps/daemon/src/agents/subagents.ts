@@ -1,4 +1,8 @@
-import { ContentBlock, SessionUpdate, StateUpdate } from '@agentclientprotocol/sdk/experimental/v2';
+import {
+	ContentBlock,
+	SessionUpdate,
+	StateUpdate
+} from '@agentclientprotocol/sdk/experimental/v2/unstable';
 import type { Agent, AgentEvent, SubagentState, SubagentUpdate } from '@geordi/protocol';
 import { TerminalOutput } from './terminal-output.ts';
 import { truncate } from './adapter.ts';

@@ -15,6 +15,7 @@ import {
 	type ForgeMessage,
 	type Harness,
 	type Question,
+	type TurnUsage,
 	type WorktreeMode,
 	type WorktreeRef
 } from '@geordi/protocol';
@@ -203,6 +204,8 @@ export type TranscriptItem =
 			at: string;
 	  }
 	| { kind: 'error'; error: string; at: string }
+	/** What the turn that ends here used, where its agent said. */
+	| { kind: 'usage'; usage: TurnUsage; at: string }
 	/**
 	 * Something the agent asked the person, which it waits to hear about. `answers` once it
 	 * was answered; no longer `open` once it was, or the turn ended without.
@@ -618,15 +621,14 @@ export function createWorkspaces(
 				// a turn that is over waits for no answer
 				workspace.asking = false;
 				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
-				if (output.kind === 'turn.failed') workspace.pendingSteers = [];
-				if (output.kind === 'turn.completed') {
-					workspace.lastTurn = 'completed';
-					break;
-				}
-				workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
-				// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
-				if (!(output.error === 'Stopped' && steering.has(workspace.id)))
-					append({ kind: 'error', error: output.error, at });
+				if (output.kind === 'turn.failed') {
+					workspace.pendingSteers = [];
+					workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
+					// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
+					if (!(output.error === 'Stopped' && steering.has(workspace.id)))
+						append({ kind: 'error', error: output.error, at });
+				} else workspace.lastTurn = 'completed';
+				if (output.usage) append({ kind: 'usage', usage: output.usage, at });
 				break;
 		}
 	}

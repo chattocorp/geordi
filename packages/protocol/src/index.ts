@@ -579,9 +579,19 @@ export type AgentEvent =
 	 * ran in the background has finished). Said once per turn, before anything else of it.
 	 */
 	| { kind: 'turn.started' }
-	/** Every turn ends with exactly one of these two. */
-	| { kind: 'turn.completed' }
-	| { kind: 'turn.failed'; error: string };
+	/** Every turn ends with exactly one of these two, with what it used where the agent says. */
+	| { kind: 'turn.completed'; usage?: TurnUsage }
+	| { kind: 'turn.failed'; error: string; usage?: TurnUsage };
+
+/** The tokens one turn used, as ACP's (unstable) `Usage` reports them. */
+export type TurnUsage = {
+	totalTokens: number;
+	inputTokens: number;
+	outputTokens: number;
+	thoughtTokens?: number;
+	cachedReadTokens?: number;
+	cachedWriteTokens?: number;
+};
 
 /** Forge → daemon. */
 export type ForgeMessage =

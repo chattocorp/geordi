@@ -149,8 +149,7 @@ function emit(event: HostEvent) {
 		open = true;
 	} else if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
 		if (!open) return;
-		if (event.kind === 'turn.failed' && stopped())
-			event = { kind: 'turn.failed', error: 'Stopped' };
+		if (event.kind === 'turn.failed' && stopped()) event = { ...event, error: 'Stopped' };
 		open = stopping = false;
 		clearTimeout(unstoppable);
 	}
