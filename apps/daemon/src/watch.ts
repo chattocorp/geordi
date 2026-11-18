@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from 'node:fs';
-import { join } from 'node:path';
-import type { WorktreeRef } from '@geordi/protocol';
-import type { Worktree } from './worktree.ts';
+import { join, sep } from 'node:path';
+import type { WatchScope, WorktreeRef } from '@geordi/protocol';
+import { branchOf, type Worktree } from './worktree.ts';
 
 /** Changes come in bursts (a save, a checkout, an install); report each burst once. */
 const SETTLE_MS = 250;
@@ -11,29 +11,47 @@ const SETTLE_MS = 250;
  * depend on: its files, what it has checked out and staged, and the repository's branches
  * (commits, and pushes, which move the remote-tracking branches). Returns a function that
  * stops watching.
+ *
+ * Without `files` (a worktree nobody has open), only its Git state: a handful of small
+ * directories, cheap on every platform (our own Git leaves the index alone:
+ * `GIT_OPTIONAL_LOCKS`). And of the branches, which every worktree of the repository shares,
+ * only its own, here and on the remotes: a fetch or a commit elsewhere is none of its business.
  */
-export function watchWorktree(worktree: Worktree, onChange: () => void): () => void {
+export function watchWorktree(worktree: Worktree, onChange: () => void, files = true): () => void {
 	let settle: NodeJS.Timeout | undefined;
-	const changed = (_event: string, file: string | Buffer | null) => {
-		// lock files come and go around every git command, including ones that change nothing
-		if (file?.toString().endsWith('.lock')) return;
+	const report = () => {
 		clearTimeout(settle);
 		settle = setTimeout(onChange, SETTLE_MS);
 	};
+	// lock files come and go around every git command, including ones that change nothing
+	const quiet = (file: string | Buffer | null) => !!file?.toString().endsWith('.lock');
+	const changed = (_event: string, file: string | Buffer | null) => {
+		if (!quiet(file)) report();
+	};
+	const refChanged = (_event: string, file: string | Buffer | null) => {
+		if (!quiet(file) && (files || !file || concerns(worktree, file.toString()))) report();
+	};
+	const repoChanged = (_event: string, file: string | Buffer | null) => {
+		if (!quiet(file) && (files || !file || file.toString() === 'packed-refs')) report();
+	};
 
 	const watchers: FSWatcher[] = [];
-	const add = (path: string, recursive = false) => {
+	const add = (
+		path: string,
+		listener: (event: string, file: string | Buffer | null) => void,
+		recursive = false
+	) => {
 		try {
 			// a vanished directory is not our problem; the next change elsewhere still reports
-			watchers.push(watch(path, { recursive }, changed).on('error', () => {}));
+			watchers.push(watch(path, { recursive }, listener).on('error', () => {}));
 		} catch {
 			// not there (yet): nothing to watch
 		}
 	};
-	add(worktree.path, true);
-	add(worktree.adminDir);
-	add(worktree.commonDir);
-	add(join(worktree.commonDir, 'refs'), true);
+	if (files) add(worktree.path, changed, true);
+	add(worktree.adminDir, changed);
+	add(worktree.commonDir, repoChanged);
+	add(join(worktree.commonDir, 'refs'), refChanged, true);
 
 	return () => {
 		clearTimeout(settle);
@@ -42,31 +60,54 @@ export function watchWorktree(worktree: Worktree, onChange: () => void): () => v
 }
 
 /**
- * Keeps watching exactly the workspaces the forge says someone is looking at. `locate`
- * finds a workspace's worktree (and throws if it has none yet).
+ * Whether a ref (a path below `refs/`) is the worktree's branch, or that branch on a remote.
+ * The branch is read when asked: the worktree may have moved to another since.
+ */
+export function concerns(worktree: Worktree, ref: string): boolean {
+	let branch: string | null;
+	try {
+		branch = branchOf(worktree);
+	} catch {
+		return true; // can't tell: better once too often
+	}
+	if (!branch) return false;
+	const [kind, ...rest] = ref.split(sep);
+	if (kind === 'heads') return rest.join('/') === branch;
+	// remotes/<remote>/<branch>
+	return kind === 'remotes' && rest.slice(1).join('/') === branch;
+}
+
+/**
+ * Keeps watching exactly the workspaces the forge asks for: the ones someone is looking at
+ * (`open`), files and all, and every other one in use (`background`), only its Git state,
+ * so that the sidebar can say at once how each stands. `locate` finds a workspace's
+ * worktree (and throws if it has none yet).
  */
 export function createWatches(
 	locate: (ref: WorktreeRef) => Worktree,
 	onChange: (worktreeId: string) => void
 ) {
-	let wanted: WorktreeRef[] = [];
-	const watching = new Map<string, () => void>();
+	const wanted: Record<WatchScope, WorktreeRef[]> = { open: [], background: [] };
+	const watching = new Map<string, { stop: () => void; files: boolean }>();
 
 	function apply() {
-		const ids = new Set(wanted.map((ref) => ref.worktreeId));
-		for (const [id, stop] of watching)
-			if (!ids.has(id)) {
+		const all = [...wanted.open, ...wanted.background];
+		const open = new Set(wanted.open.map((ref) => ref.worktreeId));
+		const ids = new Set(all.map((ref) => ref.worktreeId));
+		for (const [id, { stop, files }] of watching)
+			if (!ids.has(id) || files !== open.has(id)) {
 				stop();
 				watching.delete(id);
 			}
-		for (const ref of wanted) {
+		for (const ref of all) {
 			const id = ref.worktreeId;
 			if (watching.has(id)) continue;
+			const files = open.has(id);
 			try {
-				watching.set(
-					id,
-					watchWorktree(locate(ref), () => onChange(id))
-				);
+				watching.set(id, {
+					stop: watchWorktree(locate(ref), () => onChange(id), files),
+					files
+				});
 			} catch {
 				// no worktree yet; `refresh()` picks it up once there is one
 			}
@@ -76,13 +117,13 @@ export function createWatches(
 	return {
 		/** A discovered or retargeted pull changes this comparison and its descendants. */
 		targetChanged(id: string) {
-			for (const ref of wanted)
+			for (const ref of wanted.open)
 				if (ref.worktreeId === id || ref.parents?.some((parent) => parent.worktreeId === id))
 					onChange(ref.worktreeId);
 		},
-		/** Replaces the set of watched workspaces. */
-		set(worktrees: WorktreeRef[]) {
-			wanted = worktrees;
+		/** Replaces one set of watched workspaces. */
+		set(worktrees: WorktreeRef[], scope: WatchScope = 'open') {
+			wanted[scope] = worktrees;
 			apply();
 		},
 		/**
@@ -90,12 +131,13 @@ export function createWatches(
 		 * waiting for it, or still be watching a directory that is no longer the one there.
 		 */
 		restart(worktreeId: string) {
-			watching.get(worktreeId)?.();
+			watching.get(worktreeId)?.stop();
 			watching.delete(worktreeId);
 			apply();
 		},
 		stop: () => {
-			wanted = [];
+			wanted.open = [];
+			wanted.background = [];
 			apply();
 		}
 	};

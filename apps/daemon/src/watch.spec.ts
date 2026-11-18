@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { status, versions } from './changes.ts';
-import { createWatches } from './watch.ts';
+import { concerns, createWatches } from './watch.ts';
 import { ensureWorktree, locateWorktree } from './worktree.ts';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,6 +35,50 @@ describe('watching workspaces', () => {
 			{ ...ref, worktreeId: 'other' }
 		]);
 		watches.targetChanged(parent.worktreeId);
+		expect(seen).toEqual([ref.worktreeId]);
+		watches.stop();
+	});
+
+	it('keeps watching the Git state of a worktree in the background once nobody has it open', async () => {
+		const { base, ref, git, seen, watches } = setup();
+		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		watches.set([ref], 'background');
+		watches.set([ref]);
+		watches.set([]);
+		await wait(100); // let the watchers start
+
+		// files alone are for whoever has it open; commits are for everyone
+		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
+		await wait(600);
+		expect(seen).toEqual([]);
+		git(worktree.path, 'add', '.');
+		git(worktree.path, 'commit', '-qm', 'work');
+		await wait(600);
+		expect(seen.length).toBeGreaterThan(0);
+
+		const before = seen.length;
+		watches.set([], 'background');
+		git(worktree.path, 'commit', '-qm', 'more', '--allow-empty');
+		await wait(600);
+		expect(seen).toHaveLength(before);
+		watches.stop();
+	});
+
+	it('ignores in the background what happens to other worktrees’ branches', async () => {
+		const { base, ref, git, seen, watches } = setup();
+		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const other = ensureWorktree(base, ref.repoPath, 'otherxyz-1');
+		watches.set([ref], 'background');
+		await wait(100); // let the watchers start
+
+		git(other.path, 'commit', '-qm', 'elsewhere', '--allow-empty');
+		git(ref.repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+		await wait(600);
+		expect(seen).toEqual([]);
+
+		// its own branch pushed: the remote-tracking branch moves
+		git(ref.repoPath, 'update-ref', `refs/remotes/origin/${worktree.branch}`, 'HEAD');
+		await wait(600);
 		expect(seen).toEqual([ref.worktreeId]);
 		watches.stop();
 	});
@@ -106,5 +150,16 @@ describe('watching workspaces', () => {
 		await wait(600);
 		expect(seen).toHaveLength(1);
 		watches.stop();
+	});
+
+	it('knows which refs are a worktree’s own', () => {
+		const { base, ref } = setup();
+		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const branch = worktree.branch;
+		expect(concerns(worktree, `heads/${branch}`)).toBe(true);
+		expect(concerns(worktree, `remotes/origin/${branch}`)).toBe(true);
+		expect(concerns(worktree, 'heads/main')).toBe(false);
+		expect(concerns(worktree, `remotes/origin/x/${branch}`)).toBe(false);
+		expect(concerns(worktree, `tags/${branch}`)).toBe(false);
 	});
 });

@@ -1,0 +1,14 @@
+name: Install dependencies
+description: Set up Node and pnpm and install the locked workspace dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '26'
+    - uses: pnpm/action-setup@v6
+      with:
+        version: 12.18.0
+        cache: true
+    - run: pnpm install --frozen-lockfile
+      shell: bash

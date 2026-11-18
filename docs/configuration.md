@@ -1,0 +1,92 @@
+# Configuring a repository
+
+A repository says what to run and where to look at it in a `.geordi.yml` at its top level.
+Geordi reads the workspace's own file, or else the one on the branch the work starts from.
+(A `.geordi.toml` saying the same in TOML is still read where there is no `.geordi.yml`.)
+
+```yaml
+setup: pnpm install
+default: urls.app
+
+jobs:
+  db:
+    command: docker compose up db
+  web:
+    label: Development server
+    command: pnpm dev --port $PORT
+    needs: [db]
+
+urls:
+  app:
+    label: Open the app
+    url: http://localhost:{web}/
+```
+
+Commands run only once you have seen and agreed to them, once per repository and again
+whenever they change.
+
+## Running
+
+**`run`**: for a project with one thing to run, this is enough:
+
+```yaml
+run: pnpm dev --port $PORT
+```
+
+It is short for a single job called `run`.
+
+**`jobs`**: several things to run, each a `command` under a name (lower case letters,
+digits and dashes). Each job runs in a terminal of its own, in the workspace's directory,
+and should keep running until stopped.
+
+- `needs` lists the jobs that have to be up first. Starting a job starts those; stopping
+  one stops the jobs that need it.
+- `label` is an optional display name (1–100 characters). Without one, Geordi shows the
+  key. Dependencies, URL placeholders and port variables always use the key.
+
+**`urls`**: places to open in the browser, each a `url` under a name, with an optional
+`label`. `{web}` stands for the port of the job `web`. Opening a URL first starts the jobs
+it mentions (and any under its `needs`) and waits for them. Only addresses on this
+machine (`localhost`).
+
+**`default`**: what the **Run** button starts, by key: `urls.app` or `jobs.web`. Without
+it, Run uses the first URL, or the first job if there are no URLs. With several choices,
+the chevron next to Run opens them all.
+
+## Ports
+
+Every workspace gets ports of its own, which never change for as long as it lives, so
+that several workspaces can run side by side. Never hard-code a port.
+
+- A job gets its port as `PORT`.
+- Every job's port is in `GEORDI_PORT_<NAME>` (upper case, dashes as underscores), for
+  all jobs, terminals and agents of the workspace.
+- `GEORDI_PORT` is the workspace's first port, `GEORDI_PORTS` how many there are, and
+  `GEORDI_ASSIGNED_PORTS` a JSON array of all of them. Use the array for spare ports:
+  they need not be contiguous.
+
+**`ports`**: how many ports each workspace gets. By default one per job, or 10 where
+there are no jobs. Only needed for spare ones:
+
+```yaml
+ports: 20
+```
+
+## Setting up and tearing down
+
+**`setup`**: a command that gets a new workspace ready: installing dependencies, copying
+an `.env`, setting up a database. It runs once, when the worktree is made from the main
+line, in a terminal you can watch. The agent's first turn waits for it, and is told if it
+fails.
+
+```yaml
+setup: pnpm install && cp ../.env .env
+```
+
+**`teardown`**: a command that cleans up when you archive a workspace, before its
+directory is removed: stopping services, dropping databases. It gets the same ports as
+everything in the workspace did, and has two minutes.
+
+```yaml
+teardown: docker compose down --volumes
+```

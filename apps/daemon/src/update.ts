@@ -48,14 +48,19 @@ function merged(worktree: Worktree, ours: string, theirs: string, message: strin
 export async function update(
 	worktree: Worktree,
 	origin: Origin,
-	fetch = fetchUpstream
+	{
+		fetch = fetchUpstream,
+		working = () => false
+	}: { fetch?: typeof fetchUpstream; working?: () => boolean } = {}
 ): Promise<boolean> {
+	if (working()) return false;
 	const base = baseOf(origin);
 	if (!base) return false;
 	if (base.startsWith('refs/remotes/')) {
 		const problem = await fetch(origin.repoPath);
 		// then from what is known, which is what was offered
 		if (problem) console.warn(`could not fetch ${origin.repoPath}: ${problem}`);
+		if (working()) return false;
 	}
 
 	const head = headOf(worktree);

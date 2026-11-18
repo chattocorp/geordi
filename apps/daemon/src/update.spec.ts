@@ -47,6 +47,22 @@ describe('update', () => {
 		expect(git(worktree.path, 'status', '--porcelain')).toBe('');
 	});
 
+	it('leaves the worktree alone when an agent starts during the fetch', async () => {
+		const { repoPath, worktree, origin } = setup();
+		const before = git(repoPath, 'rev-parse', worktree.branch);
+		commit(repoPath, 'incoming.txt', 'incoming');
+		git(repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+		let busy = false;
+		const fetch = async () => {
+			busy = true;
+			return null;
+		};
+
+		expect(await update(worktree, origin, { fetch, working: () => busy })).toBe(false);
+		expect(git(repoPath, 'rev-parse', worktree.branch)).toBe(before);
+		expect(existsSync(join(worktree.path, 'incoming.txt'))).toBe(false);
+	});
+
 	it('merges where the branch has commits of its own', async () => {
 		const { upstream, repoPath, worktree, origin, read } = setup();
 		commit(worktree.path, 'mine.txt', 'mine\n');
@@ -103,7 +119,7 @@ describe('update', () => {
 		commit(worktree.path, 'parent.txt', 'from the parent\n');
 
 		const fetch = () => Promise.reject(new Error('fetched'));
-		expect(await update(child, { repoPath, base: worktree.branch }, fetch)).toBe(true);
+		expect(await update(child, { repoPath, base: worktree.branch }, { fetch })).toBe(true);
 		expect(readFileSync(join(child.path, 'parent.txt'), 'utf8')).toBe('from the parent\n');
 	});
 

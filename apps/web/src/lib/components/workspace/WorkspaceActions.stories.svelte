@@ -252,12 +252,32 @@
 	name="Auto-merge enabled"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(within(canvasElement).getByRole('button', { name: 'Disable' })).toBeEnabled();
+		await expect(
+			within(canvasElement).getByRole('button', { name: 'Disable Auto-merge' })
+		).toBeEnabled();
 	}}
 >
 	{@render bar({
 		changes: pushed,
 		upstream: upstream({ autoMerge: { enabled: true, canEnable: false, canDisable: true } })
+	})}
+</Story>
+
+<Story
+	name="Checks running with auto-merge enabled"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Checks running')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Disable Auto-merge' })).toBeEnabled();
+	}}
+>
+	{@render bar({
+		changes: pushed,
+		upstream: upstream({
+			checks: { state: 'pending', total: 3, failed: 0, url: null },
+			autoMerge: { enabled: true, canEnable: false, canDisable: true }
+		})
 	})}
 </Story>
 

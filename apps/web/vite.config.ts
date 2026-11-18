@@ -36,6 +36,10 @@ export default defineConfig({
 			{
 				// Every story is also a test: it must render (in a real browser) without errors.
 				extends: true,
+				// Prebundle lazy imports so a cold cache cannot reload stories during a test.
+				optimizeDeps: {
+					include: ['@pierre/diffs', '@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-web-links']
+				},
 				plugins: [storybookTest({ configDir: `${import.meta.dirname}/.storybook` })],
 				test: {
 					name: 'storybook',
