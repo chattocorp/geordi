@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { WorkspaceStanding } from '#lib/actions.ts';
+	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import StandingIcon from '#lib/components/StandingIcon.svelte';
@@ -28,7 +29,11 @@
 	 * repository, and the settings below. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked.
 	 */
-	let { nav, path }: { nav: Navigation | undefined; path: string } = $props();
+	let {
+		nav,
+		path,
+		lost = false
+	}: { nav: Navigation | undefined; path: string; lost?: boolean } = $props();
 
 	type Item = Navigation['workspaces'][number];
 
@@ -231,6 +236,7 @@
 	</nav>
 
 	<div class="p-2">
+		<ConnectionIndicator {lost} class="px-2.5 py-1" />
 		<button
 			type="button"
 			class="item w-full gap-2.5 px-2.5 py-1.5 text-base"

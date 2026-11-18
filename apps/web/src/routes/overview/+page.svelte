@@ -6,7 +6,8 @@
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
 	import WorkspaceActions from '#lib/components/workspace/WorkspaceActions.svelte';
 	import { timeAgo } from '#lib/format.ts';
-	import { follow } from '#lib/live.svelte.ts';
+	import WaitingForView from '#lib/components/WaitingForView.svelte';
+	import { connection, follow } from '#lib/live.svelte.ts';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes, LANES, type Lane } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -44,10 +45,10 @@
 </script>
 
 <Page title="Overview" wide>
-	{#snippet description()}{summary || 'Nothing going on.'}{/snippet}
+	{#snippet description()}{nav.current ? summary || 'Nothing going on.' : ''}{/snippet}
 
 	{#if !nav.current}
-		<!-- still to come -->
+		<WaitingForView lost={connection.state === 'lost'} />
 	{:else if nav.current.workspaces.length === 0}
 		<div class="empty">
 			<p class="pb-4">Nothing is going on. Tell an agent what to do.</p>

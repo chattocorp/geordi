@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import HistoryButtons from '#lib/components/HistoryButtons.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Settings from '#lib/components/Settings.svelte';
@@ -26,7 +27,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
-	import { connect, follow } from '#lib/live.svelte.ts';
+	import { connect, connection, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import type { LayoutProps } from './$types';
 
@@ -35,6 +36,7 @@
 	// everything live on the page comes over one connection: this is where it starts
 	// svelte-ignore state_referenced_locally
 	connect(data.live);
+	const lost = $derived(connection.state === 'lost');
 	const nav = follow<Navigation>('navigation');
 
 	/** The workspace on screen, if any. */
@@ -125,6 +127,7 @@
 	<div class="hidden items-center gap-1 md:flex desktop:pl-17">
 		{@render toggle('icon-[lucide--panel-left-open]')}
 		<span class="hidden items-center gap-1 desktop:flex"><HistoryButtons /></span>
+		<ConnectionIndicator {lost} />
 	</div>
 {/snippet}
 
@@ -157,7 +160,7 @@
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
 			<div class="mb-2 ml-2 flex min-h-0 flex-1">
-				<Sidebar nav={nav.current} path={page.url.pathname} />
+				<Sidebar {lost} nav={nav.current} path={page.url.pathname} />
 			</div>
 
 			<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->
@@ -180,6 +183,7 @@
 	<div class="flex min-w-0 flex-1 flex-col">
 		<header class="flex h-14 items-center gap-4 bg-frame px-4 md:hidden">
 			{@render logo()}
+			<ConnectionIndicator {lost} />
 			<Button
 				variant="ghost"
 				icon="icon-[lucide--settings]"
