@@ -62,7 +62,6 @@
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import DiffWindow from './DiffWindow.svelte';
-	import Family from './Family.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from './WorkspaceActions.svelte';
@@ -475,13 +474,13 @@
 		// How it stands is on screen already: the question, if there is one, needs no waiting.
 		// (Not with workspaces its agent started: theirs is not known here.)
 		const known =
-			workspace.children.length === 0 && git?.changes
+			!workspace.hasChildWorktrees && git?.changes
 				? { changes: git.changes, upstream: git.upstream }
 				: undefined;
 		if (await archiveWorkspace(id, known))
 			// from a workspace an agent started, back to the one whose agent started it
 			await goto(
-				workspace.parent ? resolve('/workspaces/[id]', { id: workspace.parent.id }) : resolve('/')
+				workspace.parentId ? resolve('/workspaces/[id]', { id: workspace.parentId }) : resolve('/')
 			);
 	}
 
@@ -743,7 +742,6 @@
 			{/if}
 		{/if}
 	</TitleBar>
-	<Family parent={workspace.parent} sharesWorktree={workspace.worktreeId !== workspace.id} />
 
 	{#if archiveProblem}
 		<div class="flex items-center gap-3 px-5 py-2.5">
