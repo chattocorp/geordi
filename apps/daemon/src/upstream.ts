@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import {
 	upstreamFreshFor,
 	type CheckCounts,
+	type PullCheck,
 	type PullRequest,
 	type Upstream
 } from '@geordi/protocol';
@@ -93,13 +94,17 @@ export function count(states: Check['state'][]): CheckCounts {
 	return counts;
 }
 
-/** Use the grouped result alone when all checks have finished. */
-async function checksFor(provider: ForgeProvider, repo: Repo, pull: Thread) {
+/** Background standings need only counts. An open workspace also requests individual checks. */
+async function checksFor(
+	provider: ForgeProvider,
+	repo: Repo,
+	pull: Thread,
+	includeChecks: boolean
+) {
 	const counts = rollupCounts(pull);
 	const sha = pull.branches?.head.sha;
 	if (
-		counts?.pending === 0 ||
-		pull.state !== 'open' ||
+		(!includeChecks && (counts || pull.state !== 'open')) ||
 		!pull.checks ||
 		!sha ||
 		!provider.can('checks.list')
@@ -114,9 +119,15 @@ async function checksFor(provider: ForgeProvider, repo: Repo, pull: Thread) {
 		) {
 			return {
 				counts: count(page.items.map((check) => check.state)),
-				running: page.items
-					.filter((check) => check.state === 'pending')
-					.map(({ name, url }) => ({ name, url }))
+				items: includeChecks
+					? page.items.map(({ ref, name, state, stateRaw, conclusionRaw, url }) => ({
+							id: ref.type + '/' + ref.id,
+							name,
+							state,
+							status: (conclusionRaw || stateRaw).toLowerCase(),
+							url
+						}))
+					: undefined
 			};
 		}
 	} catch {
@@ -144,11 +155,7 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 }
 
 /** Boils a pull request down to what the workspace shows. */
-export function summarise(
-	thread: Thread,
-	counts?: CheckCounts,
-	running?: NonNullable<PullRequest['checks']>['running']
-): PullRequest {
+export function summarise(thread: Thread, counts?: CheckCounts, items?: PullCheck[]): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
 	const decision = (thread.raw as { reviewDecision?: string } | null)?.reviewDecision;
 	if (decision === 'APPROVED') reviews.push('approved');
@@ -172,7 +179,7 @@ export function summarise(
 						total: checks.total ?? null,
 						failed: checks.failed ?? null,
 						...(counts && { counts }),
-						...(running?.length && { running }),
+						...(items?.length && { items }),
 						url: checks.url ?? null
 					}
 				: null,
@@ -259,7 +266,7 @@ function locate(worktree: Worktree, repoPath: string) {
 	return { remote, ...parsed, branch, head, anonymous };
 }
 
-type Cached = { key: string; at: number; value: Upstream };
+type Cached = { key: string; at: number; includeChecks: boolean; value: Upstream };
 const cache = new Map<string, Cached>();
 
 /**
@@ -268,7 +275,12 @@ const cache = new Map<string, Cached>();
  */
 export async function upstream(
 	worktree: Worktree,
-	{ repoPath, worktreeId, fresh: asked }: { repoPath: string; worktreeId: string; fresh?: boolean },
+	{
+		repoPath,
+		worktreeId,
+		fresh: asked,
+		includeChecks = false
+	}: { repoPath: string; worktreeId: string; fresh?: boolean; includeChecks?: boolean },
 	now = Date.now()
 ): Promise<Upstream | null> {
 	const found = locate(worktree, repoPath);
@@ -302,7 +314,13 @@ export async function upstream(
 	// credentials: those few requests are for looking now and then.
 	const normal = upstreamFreshFor(previous, FRESH_MS);
 	const fresh = provider === anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
-	if (cached && previous?.pushed === pushed && now - cached.at < fresh) return previous;
+	if (
+		cached &&
+		(!includeChecks || cached.includeChecks) &&
+		previous?.pushed === pushed &&
+		now - cached.at < fresh
+	)
+		return previous;
 
 	const known = previous?.pull;
 	let pull: Thread | null = null;
@@ -321,10 +339,10 @@ export async function upstream(
 	pull ??= await findPull(provider, repo, branch);
 	const defaultBranch =
 		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
-	const checks = pull && (await checksFor(provider, repo, pull));
+	const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
 	const value: Upstream = {
 		...base,
-		pull: pull && summarise(pull, checks?.counts, checks?.running),
+		pull: pull && summarise(pull, checks?.counts, checks?.items),
 		createUrl:
 			(defaultBranch &&
 				provider.urlFor({
@@ -335,7 +353,7 @@ export async function upstream(
 	// An overlapping refresh (or a merge) may have superseded this read.
 	const latest = cache.get(worktreeId);
 	if (latest === cached || (latest && latest.at < now))
-		cache.set(worktreeId, { key, at: now, value });
+		cache.set(worktreeId, { key, at: now, includeChecks, value });
 	return value;
 }
 

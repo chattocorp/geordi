@@ -6,6 +6,6 @@ data:
 id: bstj7
 title: List running checks in the pull request tab
 ---
-Show the names of active checks on the current pull request and let the person collapse the list.
+Show each check on the current pull request, with failed and active jobs first and links to individual runs.
 
-Verified in Storybook that the list shows linked and unlinked checks and can be collapsed and expanded.
+Verified the status order, queued jobs, collapsed results, keyboard controls, and a narrow PR pane in Chromium.

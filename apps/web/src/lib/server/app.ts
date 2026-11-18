@@ -79,7 +79,7 @@ function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
 			}
 		),
 		upstream: ref
-			.then((ref) => hub().request({ kind: 'upstream', fresh, ...ref }))
+			.then((ref) => hub().request({ kind: 'upstream', includeChecks: true, fresh, ...ref }))
 			.then((upstream) => {
 				if (!upstream) return null;
 				const { pull } = upstream;
@@ -90,7 +90,14 @@ function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
 					pull: pull && {
 						...pull,
 						url: webUrl(pull.url),
-						checks: pull.checks && { ...pull.checks, url: webUrl(pull.checks.url) }
+						checks: pull.checks && {
+							...pull.checks,
+							url: webUrl(pull.checks.url),
+							items: pull.checks.items?.map((item) => ({
+								...item,
+								url: webUrl(item.url) ?? undefined
+							}))
+						}
 					}
 				};
 			})

@@ -2,4 +2,4 @@
 type: feature
 ---
 
-See which checks are still running in the PR tab and open their details.
+Inspect pull request checks in the PR tab. See failures and active jobs first, expand the other results, and open individual runs.
