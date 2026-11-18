@@ -289,7 +289,9 @@
 				The sidebar's part of the title bar. In the desktop app the window's buttons are on
 				its left, so the logo makes way and the toggle moves up beside them.
 			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag desktop:pl-22">
+			<div
+				class="flex h-14 shrink-0 items-center gap-1 frame-bar pr-2.5 pl-4 window-drag desktop:pl-22"
+			>
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
@@ -386,7 +388,7 @@
 	{/if}
 
 	<div class="flex min-w-0 flex-1 flex-col">
-		<header class="flex h-14 items-center gap-4 bg-frame px-4 md:hidden">
+		<header class="flex h-14 items-center gap-4 frame-bar px-4 md:hidden">
 			{@render logo()}
 			<Button
 				variant="ghost"
