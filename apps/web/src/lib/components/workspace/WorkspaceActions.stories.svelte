@@ -208,9 +208,7 @@
 	name="Auto-merge enabled"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).getByRole('button', { name: 'Disable Auto-merge' })
-		).toBeEnabled();
+		await expect(within(canvasElement).getByRole('button', { name: 'Disable' })).toBeEnabled();
 	}}
 >
 	{@render bar({
