@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changes, readText, status, versions } from './changes.ts';
+import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
 import { removeWorktree } from './remove.ts';
 import {
 	branchOf,
@@ -671,6 +671,57 @@ describe('branch names', () => {
 			''
 		])
 			expect(() => branchRef(name), name).toThrow('Not a branch name');
+	});
+});
+
+describe('Continue checkout', () => {
+	const file = 'local settings.txt';
+
+	async function setup({ ignored = false } = {}) {
+		const repoPath = repo();
+		const run = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8'
+			}).trim();
+		if (ignored) {
+			writeFileSync(join(repoPath, '.gitignore'), file + '\n');
+			run(repoPath, 'add', '.gitignore');
+			run(repoPath, 'commit', '-qm', 'ignore local settings');
+		}
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		writeFileSync(join(repoPath, file), 'from the target\n');
+		run(repoPath, 'add', '-f', file);
+		run(repoPath, 'commit', '-qm', 'track settings on the target');
+		return { worktree, repoPath, run, local: join(worktree.path, file) };
+	}
+
+	it('keeps an untracked file written after the clean check and rolls back the new branch', async () => {
+		const { worktree, repoPath, run, local } = await setup();
+		const head = run(worktree.path, 'rev-parse', 'HEAD');
+		const index = run(worktree.path, 'write-tree');
+		expect(await uncommittedFiles(worktree)).toEqual([]);
+		writeFileSync(local, 'written during Continue\n');
+
+		await expect(continueOn(worktree, repoPath)).rejects.toThrow(file);
+		expect(readFileSync(local, 'utf8')).toBe('written during Continue\n');
+		expect(branchOf(worktree)).toBe(worktree.branch);
+		expect(run(worktree.path, 'rev-parse', 'HEAD')).toBe(head);
+		expect(run(worktree.path, 'write-tree')).toBe(index);
+		expect(run(repoPath, 'branch', '--list', worktree.branch + '-2')).toBe('');
+	});
+
+	it('replaces an ignored file with the version tracked on the new branch', async () => {
+		const { worktree, repoPath, run, local } = await setup({ ignored: true });
+		writeFileSync(local, 'ignored local settings\n');
+		expect(run(worktree.path, 'check-ignore', '--', file)).toBe(file);
+		expect(await uncommittedFiles(worktree)).toEqual([]);
+
+		const branch = await continueOn(worktree, repoPath);
+		expect(branchOf(worktree)).toBe(branch);
+		expect(readFileSync(local, 'utf8')).toBe('from the target\n');
+		expect(run(worktree.path, 'show', ':' + file)).toBe('from the target');
+		expect(run(worktree.path, 'status', '--porcelain')).toBe('');
 	});
 });
 
