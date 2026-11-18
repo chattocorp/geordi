@@ -42,6 +42,12 @@
 				{ label: 'Not now', icon: 'icon-[lucide--clock]', disabled: true, onselect: () => {} },
 				'separator',
 				{
+					label: 'Archive',
+					icon: 'icon-[lucide--archive]',
+					tone: 'merged',
+					onselect: () => (last = 'Archive')
+				},
+				{
 					label: 'Delete',
 					icon: 'icon-[lucide--trash-2]',
 					tone: 'danger',

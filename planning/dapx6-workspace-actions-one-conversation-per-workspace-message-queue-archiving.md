@@ -18,3 +18,5 @@ Follow-up complete: the ribbon offers Update when the base branch has known comm
 Label and layout refinement: use Update to make the merge direction clear, and keep the main ribbon action at the far right.
 
 The sidebar archive icon uses the merged workspace color on hover and keyboard focus. Verified the hover color in Chromium.
+
+The Archive action in the workspace context menu uses the same purple as the sidebar archive icon.
