@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import type { ForgeMessage } from '@geordi/protocol';
+import type { AgentEvent, ForgeMessage } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { createRepos } from './repos.ts';
@@ -28,6 +28,46 @@ const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
 describe('workspaces', () => {
+	it('updates a plan in place and restores each plan when the forge restarts', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Plan the change');
+		const written = {
+			kind: 'plan',
+			id: 'review',
+			plan: { type: 'markdown', content: 'Draft' }
+		} as const;
+		workspaces.record(id, written);
+		workspaces.record(id, { kind: 'text', text: 'Checking the details.' });
+		const checklist = {
+			kind: 'plan',
+			id: 'tasks',
+			plan: { type: 'items', entries: [{ content: 'Check', status: 'in_progress' }] }
+		} satisfies AgentEvent;
+		workspaces.record(id, checklist);
+		const restarted = createWorkspaces(store, repos, dispatch);
+		const revised = { ...written, plan: { ...written.plan, content: 'Revised' } };
+		restarted.record(id, revised, 'host/25');
+		restarted.record(id, revised, 'host/25');
+		expect(restarted.get(id).transcript).toMatchObject([
+			{ kind: 'user' },
+			revised,
+			{ kind: 'text' },
+			checklist
+		]);
+		restarted.record(id, { kind: 'plan', id: 'review', plan: null });
+		restarted.record(id, { kind: 'turn.completed' });
+		const next = createWorkspaces(store, repos, dispatch);
+		expect(next.get(id).transcript).toMatchObject([{ kind: 'user' }, { kind: 'text' }, checklist]);
+		next.send(id, 'Continue the plan');
+		next.record(id, checklist);
+		expect(next.get(id).transcript.map((item) => item.kind)).toEqual([
+			'user',
+			'text',
+			'user',
+			'plan'
+		]);
+	});
+
 	it('replays a steer after reconnect until the host receives it, and stores replayed output once', () => {
 		const { workspaces, sent, create, store, repos, dispatch } = setup();
 		const id = create('First');

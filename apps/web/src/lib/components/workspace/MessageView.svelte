@@ -8,6 +8,7 @@
 	import MessageImages from '#lib/components/MessageImages.svelte';
 	import MessageCopy from './MessageCopy.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
+	import PlanCard from '#lib/components/PlanCard.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -45,12 +46,14 @@
 
 	function activitySummary(parts: Part[]) {
 		const messages = parts.filter((part) => part.kind === 'text').length;
+		const plans = parts.filter((part) => part.kind === 'plan').length;
 		const calls = parts.reduce(
 			(sum, part) => sum + (part.kind === 'tools' ? part.tools.length : 0),
 			0
 		);
 		return [
 			messages && `${messages} message${messages === 1 ? '' : 's'}`,
+			plans && `${plans} plan${plans === 1 ? '' : 's'}`,
 			calls && `${calls} tool call${calls === 1 ? '' : 's'}`
 		]
 			.filter(Boolean)
@@ -137,6 +140,10 @@
 	{:else if part.kind === 'tools'}
 		<!-- live: the agent is at work, and this is the last thing it did -->
 		<ToolGroup tools={part.tools} {cwd} {live} />
+	{:else if part.kind === 'plan'}
+		{#key part.id}
+			<PlanCard plan={part.plan} {pictures} />
+		{/key}
 	{:else if part.kind === 'question'}
 		<QuestionCard
 			questions={part.questions}

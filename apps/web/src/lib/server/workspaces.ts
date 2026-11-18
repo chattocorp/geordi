@@ -5,6 +5,7 @@ import {
 	SETTING,
 	type Agent,
 	type AgentEvent,
+	type AgentPlan,
 	type AgentSettings,
 	type ForgeMessage,
 	type Harness,
@@ -111,6 +112,7 @@ export type TranscriptItem =
 	/** `from`: the workspace whose agent said it, where it was not a person. */
 	| { kind: 'user'; text: string; images?: string[]; at: string; from?: string }
 	| { kind: 'text'; text: string; at: string }
+	| { kind: 'plan'; id: string; plan: AgentPlan; at: string }
 	| {
 			kind: 'tool';
 			id: string;
@@ -409,6 +411,22 @@ export function createWorkspaces(
 			case 'text':
 				transcript.push({ kind: 'text', text: output.text, at });
 				break;
+			case 'plan': {
+				const index = transcript.findIndex((item) => item.kind === 'plan' && item.id === output.id);
+				// Wrappers can reuse a session-wide checklist in the next exchange.
+				// Bring it into that reply so live updates stay visible.
+				const previous = transcript[index];
+				const exchange = transcript.findLastIndex(
+					(item) => item.kind === 'user' || item.kind === 'note'
+				);
+				if (output.plan && previous?.kind === 'plan' && index > exchange) {
+					previous.plan = output.plan;
+				} else {
+					if (index >= 0) transcript.splice(index, 1);
+					if (output.plan) transcript.push({ ...output, plan: output.plan, at });
+				}
+				break;
+			}
 			case 'tool':
 				transcript.push({ ...output, output: null, isError: false, at });
 				break;

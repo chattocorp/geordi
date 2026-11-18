@@ -38,6 +38,16 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
   if(said==='ask'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Tea or coffee?',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',enum:['Tea','Coffee']}}}}});return;}
   if(said==='codex question'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Codex needs your input to continue.',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',description:'Drink',enum:['Tea','Coffee'],_meta:{codex:{isOther:false,isSecret:false}}}}}}});return;}
   if(said==='pick'){out({id:102,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Which drinks?',requestedSchema:{type:'object',properties:{question_0:{type:'array',items:{anyOf:[{const:'Tea',title:'Tea'},{const:'Coffee',title:'Coffee'}]}},question_0_custom:{type:'string'}}}}});return;}
+  if(said==='plans'){
+   const items=(id,entries)=>update({sessionUpdate:'plan_update',plan:{type:'items',planId:id,entries}});
+   const step=(status)=>({content:'Run the tests',priority:'medium',status});
+   text('First the plan.');
+   items('codex-structured-plan',[step('in_progress')]);
+   update({sessionUpdate:'plan_update',plan:{type:'markdown',planId:'review',content:'## Proposal'}});
+   items('codex-structured-plan',[step('completed')]);
+   update({sessionUpdate:'plan_removed',planId:'review'});
+   items('plan',[]);return done();
+  }
   if(said==='terminal'){
    const tool={sessionUpdate:'tool_call_update',toolCallId:'sh',name:'shell'};
    update({...tool,status:'in_progress'});
@@ -143,6 +153,28 @@ describe('a session', () => {
 			{ kind: 'message.received', id: 'second' },
 			{ kind: 'turn.started' },
 			{ kind: 'text', text: 'Heard: again' },
+			{ kind: 'turn.completed' }
+		]);
+	});
+
+	it('normalizes checklist and written plan snapshots and withdrawals in conversation order', async () => {
+		const { events, ended } = begin('plans');
+		await ended(1);
+		expect(events.slice(2)).toEqual([
+			{ kind: 'text', text: 'First the plan.' },
+			{
+				kind: 'plan',
+				id: 'codex-structured-plan',
+				plan: { type: 'items', entries: [{ content: 'Run the tests', status: 'in_progress' }] }
+			},
+			{ kind: 'plan', id: 'review', plan: { type: 'markdown', content: '## Proposal' } },
+			{
+				kind: 'plan',
+				id: 'codex-structured-plan',
+				plan: { type: 'items', entries: [{ content: 'Run the tests', status: 'completed' }] }
+			},
+			{ kind: 'plan', id: 'review', plan: null },
+			{ kind: 'plan', id: 'plan', plan: null },
 			{ kind: 'turn.completed' }
 		]);
 	});

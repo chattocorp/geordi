@@ -27,6 +27,7 @@
 
 <script lang="ts">
 	let working = $state(true);
+	let planFinished = $state(false);
 	let blocks = $state<Block[]>(history);
 	let queue = $state(['Please check the tests.']);
 	let following = $state(true);
@@ -272,6 +273,88 @@
 				running={working}
 				onremove={() => {}}
 				onanswer={() => {}}
+			/>
+		</div>
+	</div>
+</Story>
+
+<Story name="Live plan" asChild>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="codex"
+			running
+			onremove={() => {}}
+			onanswer={() => {}}
+			blocks={[
+				{
+					kind: 'user',
+					text: 'Check that the workspace restores its conversation after a restart.'
+				},
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'plan',
+							id: 'tasks',
+							plan: {
+								type: 'items',
+								entries: [
+									{ content: 'Trace how the conversation is stored', status: 'completed' },
+									{ content: 'Restart the forge during a turn', status: 'in_progress' },
+									{ content: 'Compare the restored conversation', status: 'pending' }
+								]
+							}
+						}
+					]
+				}
+			]}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Complete a plan"
+	asChild
+	play={async ({ canvas, canvasElement }) => {
+		const card = await canvas.findByText('Plan');
+		const details = card.closest('details');
+		await expect(details).toHaveAttribute('open');
+		await expect(canvasElement.querySelector('[aria-current="step"]')).toHaveTextContent(
+			'Verify replay'
+		);
+		await userEvent.click(canvas.getByRole('button', { name: 'Complete step' }));
+		await expect(await canvas.findByText('Plan complete')).toBeVisible();
+		await expect(details).not.toHaveAttribute('open');
+		await userEvent.click(canvas.getByText('Plan complete'));
+		await expect(details).toHaveAttribute('open');
+		await expect(canvas.getByText('Verify replay')).toBeVisible();
+	}}
+>
+	<div class="space-y-3">
+		<Button onclick={() => (planFinished = true)}>Complete step</Button>
+		<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+			<MessageView
+				agent="claude"
+				running
+				onremove={() => {}}
+				onanswer={() => {}}
+				blocks={[
+					{
+						kind: 'agent',
+						parts: [
+							{
+								kind: 'plan',
+								id: 'tasks',
+								plan: {
+									type: 'items',
+									entries: [
+										{ content: 'Verify replay', status: planFinished ? 'completed' : 'in_progress' }
+									]
+								}
+							}
+						]
+					}
+				]}
 			/>
 		</div>
 	</div>

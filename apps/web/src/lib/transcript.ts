@@ -6,6 +6,7 @@ export type Part =
 	| { kind: 'text'; text: string }
 	| { kind: 'tools'; tools: Tool[] }
 	| Omit<Extract<TranscriptItem, { kind: 'question' }>, 'at'>
+	| Omit<Extract<TranscriptItem, { kind: 'plan' }>, 'at'>
 	| { kind: 'error'; error: string };
 
 /** A user message, everything the agent did in reply to one, or something said in passing. */
@@ -42,6 +43,8 @@ export function toBlocks(transcript: TranscriptItem[]): Block[] {
 			else agent.parts.push({ kind: 'tools', tools: [item] });
 		} else if (item.kind === 'text') {
 			agent.parts.push({ kind: 'text', text: item.text });
+		} else if (item.kind === 'plan') {
+			agent.parts.push({ kind: 'plan', id: item.id, plan: item.plan });
 		} else if (item.kind === 'question') {
 			const { at, ...question } = item;
 			void at;
