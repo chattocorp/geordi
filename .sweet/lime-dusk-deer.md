@@ -2,4 +2,4 @@
 type: fix
 ---
 
-Workspace tabs have slightly stronger contrast for inactive labels and the selected tab background.
+Inactive workspace tabs have a faint background and clearer labels. The selected tab has a stronger fill.

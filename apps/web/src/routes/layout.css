@@ -245,6 +245,7 @@
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
 @utility tab-inactive {
+	@apply bg-ink/5 hover:bg-ink/8;
 	color: color-mix(in srgb, var(--muted) 80%, var(--ink));
 }
 @utility tab-active {
