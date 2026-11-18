@@ -1,9 +1,5 @@
 <script lang="ts">
-	import {
-		pendingPullAction,
-		runPullAction,
-		reviewProblems
-	} from '#lib/components/workspace/review.svelte.ts';
+	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { untrack } from 'svelte';
@@ -28,12 +24,7 @@
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
-	import {
-		archive,
-		archiving,
-		archiveProblems,
-		beingArchived
-	} from '#lib/components/workspace/archive.svelte.ts';
+	import { archiving, beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -44,15 +35,13 @@
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { connect, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { problemOf } from '#lib/problem.ts';
-	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import {
-		continueWorkspace,
-		mergePull,
-		say,
-		stopAgent,
-		updateWorkspace
-	} from './workspaces.remote';
+		actFromAfar,
+		archiveFromAfar,
+		continueFromAfar
+	} from '#lib/components/workspace/afar.svelte.ts';
+	import { stopAgent } from './workspaces.remote';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -92,58 +81,9 @@
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
-	/** Archives a workspace from the sidebar, wherever we are. */
-	async function archiveFromHere(workspace: Item) {
-		const href = resolve('/workspaces/[id]', { id: workspace.id });
-		const here = page.url.pathname === href;
-		if (await archive(workspace.id, workspace.title)) {
-			// from a workspace an agent started, back to the one whose agent started it
-			if (here)
-				await goto(
-					workspace.parentId
-						? resolve('/workspaces/[id]', { id: workspace.parentId })
-						: resolve('/')
-				);
-		}
-		// it didn't work (rather than: they said no): the workspace's page says why
-		else if (archiveProblems[workspace.id]) await goto(href);
-	}
-
-	/** Has a workspace carry on with new work, on a new branch off the latest upstream. */
-	async function carryOn(workspace: Item) {
-		delete archiveProblems[workspace.id];
-		try {
-			await continueWorkspace(workspace.id);
-		} catch (error) {
-			// its page is where it says why not
-			archiveProblems[workspace.id] = problemOf(error, 'Could not continue the workspace');
-			await goto(resolve('/workspaces/[id]', { id: workspace.id }));
-		}
-	}
-
 	/** The colour of what to do next, from how the workspace stands: as in its ribbon. */
 	const actionTone = (standing: WorkspaceStanding | null): MenuTone =>
 		standing?.tone === 'ok' || standing?.tone === 'merged' ? standing.tone : 'accent';
-
-	/** Does what a workspace's action says, from the sidebar. */
-	async function act(workspace: Item, action: WorkspaceAction) {
-		if (action.pullNumber) {
-			await runPullAction(workspace.id, action);
-			if (reviewProblems[workspace.id])
-				await goto(resolve('/workspaces/[id]', { id: workspace.id }));
-			return;
-		}
-		if (action.id === 'merge-upstream' && action.prompt)
-			return updateWorkspace({ workspaceId: workspace.id, prompt: action.prompt });
-		if (action.prompt) return say({ workspaceId: workspace.id, text: action.prompt });
-		if (action.id !== 'merge-pull') return;
-		try {
-			await mergePull(workspace.id);
-		} catch {
-			// its page offers it again, and says why it didn't work
-			await goto(resolve('/workspaces/[id]', { id: workspace.id }));
-		}
-	}
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
@@ -159,7 +99,7 @@
 				icon: action.icon,
 				tone: actionTone(workspace.standing),
 				disabled: !!action.pullNumber && pendingPullAction.has(workspace.id),
-				onselect: () => act(workspace, action)
+				onselect: () => actFromAfar(workspace, action)
 			})),
 			...(next.length > 0 ? ['separator' as const] : []),
 			{
@@ -183,7 +123,7 @@
 				label: 'Continue on a new branch',
 				icon: 'icon-[lucide--git-branch-plus]',
 				disabled: busy,
-				onselect: () => carryOn(workspace)
+				onselect: () => continueFromAfar(workspace)
 			},
 			{
 				label: 'Stop agent',
@@ -196,7 +136,7 @@
 				icon: 'icon-[lucide--archive]',
 				tone: 'merged',
 				disabled: beingArchived.has(workspace.id),
-				onselect: () => archiveFromHere(workspace)
+				onselect: () => archiveFromAfar(workspace)
 			}
 		];
 	}
@@ -507,7 +447,7 @@
 						]}
 						title="Archive workspace"
 						aria-label="Archive {workspace.title}"
-						onclick={() => archiveFromHere(workspace)}
+						onclick={() => archiveFromAfar(workspace)}
 					>
 						<span class="icon-[lucide--archive] size-3.5"></span>
 					</button>

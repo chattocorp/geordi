@@ -1,7 +1,6 @@
 import { actionsFor, PUBLISHING, standingOf } from '#lib/actions.ts';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
-import { glimpseOf } from '#lib/glimpse.ts';
 import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import { UNTITLED } from './workspaces.ts';
 
@@ -28,8 +27,10 @@ export const navigation = () =>
 				const { id, title, repoId, parentId, status, worktree } = workspace;
 				const working = status === 'running' || aides.some((aide) => aide.status === 'running');
 				// how its work stands, as far as is known: asked about in the background
+				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
+				const pull = known.upstream?.pull;
 				const state = {
-					...(standings().get(workspace.worktreeId) ?? { changes: null, upstream: null }),
+					...known,
 					failed: workspace.lastTurn === 'failed',
 					child: !!parentId
 				};
@@ -47,6 +48,7 @@ export const navigation = () =>
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
+					pull: pull && pull.state !== 'unknown' ? { number: pull.number, url: pull.url } : null,
 					// when anything last happened in it, also in the agents working alongside
 					updatedAt: [workspace, ...aides]
 						.map((member) => member.updatedAt)
@@ -76,55 +78,6 @@ export const navigation = () =>
 			const stops = [standings().subscribe(changed), hub().subscribe(changed)];
 			return () => stops.forEach((stop) => stop());
 		}
-	}) satisfies View<unknown>;
-
-/**
- * Every workspace in use, as the overview shows it: as listed in the navigation, with a
- * glimpse of its conversation (what an agent there asks, does, said last: the one that
- * asks, else the one at work, else its own) and how big its change is.
- */
-export const overview = () =>
-	({
-		read: () => {
-			const members = new Map(
-				withAides(workspaces().all()).map(({ workspace, aides }) => [
-					workspace.id,
-					[workspace, ...aides]
-				])
-			);
-			return navigation()
-				.read()
-				.workspaces.map((listed) => {
-					const all = members.get(listed.id) ?? [];
-					const own = all[0];
-					const focus =
-						all.find((member) => member.asking) ??
-						all.find((member) => member.status === 'running') ??
-						own;
-					const standing = own && standings().get(own.worktreeId);
-					const files = standing?.changes?.files ?? [];
-					const pull = standing?.upstream?.pull;
-					return {
-						...listed,
-						glimpse: focus
-							? glimpseOf(
-									workspaces().transcript(focus.id),
-									focus.status === 'running',
-									focus.worktree?.path
-								)
-							: null,
-						changes: files.length
-							? {
-									files: files.length,
-									added: files.reduce((sum, file) => sum + (file.added ?? 0), 0),
-									removed: files.reduce((sum, file) => sum + (file.removed ?? 0), 0)
-								}
-							: null,
-						pull: pull && pull.state !== 'unknown' ? { number: pull.number, url: pull.url } : null
-					};
-				});
-		},
-		also: (changed) => navigation().also(changed)
 	}) satisfies View<unknown>;
 
 /**
@@ -177,8 +130,7 @@ export const workspace = (id: string) =>
 	}) satisfies View<unknown>;
 
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, overview, workspace };
+export const views = { navigation, workspace };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
-export type Overview = ReturnType<ReturnType<typeof overview>['read']>;
 export type WorkspaceLive = ReturnType<ReturnType<typeof workspace>['read']>;

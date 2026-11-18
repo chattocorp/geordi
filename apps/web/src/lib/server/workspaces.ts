@@ -1044,8 +1044,6 @@ export function createWorkspaces(
 			);
 		},
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
-		/** A workspace's conversation as it is, not copied: to be read, never changed. */
-		transcript: (id: string): readonly TranscriptItem[] => find(id).transcript,
 		ref,
 
 		/** Starts a workspace with a first message to its agent. Returns the workspace's ID. */
