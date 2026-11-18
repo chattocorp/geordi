@@ -201,7 +201,7 @@
 	name="Archiving"
 	asChild
 	play={async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole('button', { name: /Archiving…/ });
+		const button = within(canvasElement).getByRole('button', { name: /Archive$/ });
 		await expect(button).toBeDisabled();
 		await expect(button).toHaveAttribute('aria-busy', 'true');
 	}}
