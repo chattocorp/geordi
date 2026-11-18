@@ -23,6 +23,7 @@ export type WorkspaceAction = {
 		| 'continue'
 		| 'archive';
 	label: string;
+	incomingCommits?: number;
 	/** An Iconify class. */
 	icon: string;
 	/**
@@ -93,6 +94,7 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		{
 			id: 'merge-upstream',
 			label: 'Sync',
+			incomingCommits: incoming.commits,
 			icon: 'icon-[lucide--git-merge]',
 			aside: actions.length > 0,
 			prompt: mergeFrom(incoming.branch)
