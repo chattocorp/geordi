@@ -29,6 +29,7 @@
 			...pending,
 			changes: {
 				branch: 'feature',
+				comparisonTarget: 'main',
 				uncommitted: 1,
 				unpushed: null,
 				landed: false,
@@ -38,6 +39,7 @@
 		onopen: fn()
 	}}
 	play={async ({ canvas, userEvent, args }) => {
+		await expect(canvas.getByText('main')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: /message.txt/ }));
 		await expect(args.onopen).toHaveBeenCalledWith('message.txt');
 	}}

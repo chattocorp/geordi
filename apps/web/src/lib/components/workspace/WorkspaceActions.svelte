@@ -105,17 +105,12 @@
 			role="group"
 			aria-label="Next steps"
 			class={[
-				'inline-flex items-center gap-1',
+				'inline-flex items-center gap-1 rounded-full',
 				height,
-				compact ? 'min-w-0' : 'shrink-0',
-				// with only buttons to show, they are the pill: no frame around them
-				(standing || working) && [
-					'rounded-full',
-					compact ? 'pl-2.5' : 'pl-3',
-					// buttons reach the end of the pill; text keeps its distance
-					ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
-					tones[standing?.tone ?? 'neutral']
-				]
+				compact ? 'min-w-0 pl-2.5' : 'shrink-0 pl-3',
+				// buttons reach the end of the pill; text keeps its distance
+				ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
+				tones[standing?.tone ?? 'neutral']
 			]}
 		>
 			{#if working}

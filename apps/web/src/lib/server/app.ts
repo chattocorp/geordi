@@ -317,9 +317,10 @@ export async function concernsAboutArchiving(id: string) {
 			const blocked = workspaces().summary(workspace.id).status === 'running';
 			if (blocked) concerns.push('Stop the running agent before archiving.');
 			if (
-				terminals()
-					.running(workspace.id)
-					.some((terminal) => terminals().isRunning({ workspaceId: workspace.id, terminal }))
+				terminals().running(workspace.id).length &&
+				(await hub()
+					.request({ kind: 'terminalActivity', workspaceId: workspace.id })
+					.catch(() => true))
 			)
 				concerns.push('Archiving will stop running terminal processes.');
 			return {
@@ -390,7 +391,7 @@ export const liveServer = lazy(() =>
 		allowed: GEORDI_ALLOWED_HOSTS,
 		token: liveToken(),
 		views,
-		values: (view, signal) => store().live(view.read, view.also, signal),
+		values: (view, signal) => store().live(view.read, view.also, signal, view.affects),
 		terminal: (at, listener) => terminals().attach(at, listener)
 	})
 );

@@ -10,7 +10,8 @@ Pages show things that change while they are looked at: the sidebar's workspaces
 
 - The forge has a **WebSocket server for browsers** (`live.ts`), on a port of its own (`GEORDI_LIVE_PORT`, by default the one after `GEORDI_DAEMON_PORT`). A window opens **one** connection to it, and everything live on its pages comes over that. WebSockets are not counted among a browser's six connections.
 - The browser says what it follows, each under a number: a **view** by name and key (`navigation`, `workspace <id>`), or a **terminal**. The forge sends a view's value whenever it is another, and a terminal's output as it comes, its recent output first.
-- **Views** (`views.ts`) are what live queries were: something to read now, and again after every event or when something else says so (`EventStore.live`). They are no longer remote functions.
+- **Views** (`views.ts`) are what live queries were: something to read now, and again after events that affect the view or when something else says so (`EventStore.live`). They are no longer remote functions.
+- Each workspace follow starts with a complete transcript for the workspace and each aide. The forge then sends ordered edits (index, number to remove, items to insert) alongside the latest workspace details. The browser applies them before publishing the complete view. A new aide or a new connection starts with a fresh snapshot. The forge keeps pending edits only while a window follows that conversation.
 - Pages **follow** views (`follow()` in `#lib/live.svelte.ts`) and read `current`; they never await them. Terminals follow their output the same way (`followTerminal`).
 - The connection is opened again whenever it drops, and everything followed is asked for again. Until then what is on screen stays, marked as not up to date (`connected`).
 - **Commands and forms stay remote functions**: short requests, which need nothing held open.

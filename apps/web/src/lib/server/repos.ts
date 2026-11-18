@@ -36,7 +36,8 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 				repos.set(event.data.id, { ...event.data, registeredAt: event.at });
 			if (event.type === 'repo.removed') repos.delete(event.data.id);
 			return repos;
-		}
+		},
+		['repo']
 	);
 
 	function get(id: string): Repo {

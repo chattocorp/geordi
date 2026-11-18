@@ -274,13 +274,12 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		icon: 'icon-[lucide--circle-dot]'
 	});
 
-	if (!upstream) return uncommitted ? todo('Uncommitted changes') : null;
 	if (!pull || pull.state === 'unknown') {
-		if (uncommitted || unpushed) return todo('Changes to publish');
-		// pushed, and that is as far as it got
-		return awaitsPull(state)
-			? { label: 'No pull request', tone: 'neutral', icon: 'icon-[lucide--git-pull-request-draft]' }
-			: null;
+		if (uncommitted) return todo('Uncommitted changes');
+		if (upstream && unpushed) return todo('Changes to publish');
+		if (awaitsPull(state)) return todo('Branch pushed');
+		if (changes.incoming && changes.incoming.commits > 0) return todo('Behind base branch');
+		return null;
 	}
 
 	if (pull.state === 'merged')
@@ -297,7 +296,8 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			tone: 'danger',
 			icon: 'icon-[lucide--message-square-warning]'
 		};
-	if (uncommitted || unpushed) return todo('Unpublished changes');
+	if (uncommitted) return todo('Uncommitted changes');
+	if (unpushed) return todo('Unpublished changes');
 	if (pull.autoMerge?.enabled)
 		return {
 			label: 'Auto-merge enabled',

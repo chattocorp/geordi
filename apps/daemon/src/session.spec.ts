@@ -48,6 +48,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
   }
   if(said==='ask'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Tea or coffee?',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',enum:['Tea','Coffee']}}}}});return;}
   if(said==='codex question'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Codex needs your input to continue.',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',description:'Drink',enum:['Tea','Coffee'],_meta:{codex:{isOther:false,isSecret:false}}}}}}});return;}
+  if(said==='codex other'){out({id:102,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Codex needs your input to continue.',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',oneOf:[{const:'Tea',title:'Tea'},{const:'None of the above',title:'None of the above',description:'Provide a different answer in the note field.'}],_meta:{codex:{isOther:true,isSecret:false}}},drink_note:{type:'string',title:'Additional answer or note',_meta:{codex:{questionId:'drink',role:'user_note',isSecret:false}}}}}}});return;}
   if(said==='pick'){out({id:102,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Which drinks?',requestedSchema:{type:'object',properties:{question_0:{type:'array',items:{anyOf:[{const:'Tea',title:'Tea'},{const:'Coffee',title:'Coffee'}]}},question_0_custom:{type:'string'}}}}});return;}
   if(said==='plans'){
    const items=(id,entries)=>update({sessionUpdate:'plan_update',plan:{type:'items',planId:id,entries}});
@@ -60,8 +61,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    items('plan',[]);return done();
   }
   if(said==='start command'){
-   update({sessionUpdate:'tool_call_update',toolCallId:'bg',name:'shell',rawInput:'build',status:'in_progress'});
-   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg',data:Buffer.from('before ').toString('base64')});
+   update({sessionUpdate:'tool_call_update',toolCallId:'bg',name:'shell',rawInput:'build',status:'in_progress',content:[{type:'terminal',terminalId:'bg-pty'}]});
+   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg-pty',data:Buffer.from('before ').toString('base64')});
    return done();
   }
   if(said==='finish with text'){
@@ -69,7 +70,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    return done();
   }
   if(said==='finish command'){
-   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg',data:Buffer.from('after').toString('base64')});
+   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg-pty',data:Buffer.from('after').toString('base64')});
    const finished={sessionUpdate:'tool_call_update',toolCallId:'bg',status:'completed'};
    update(finished);update(finished);return done();
   }
@@ -277,6 +278,27 @@ describe('a session', () => {
 		session.answer(question.id, ['Coffee']);
 		await ended(1);
 		expect(events.at(-2)).toEqual({ kind: 'text', text: 'You said Coffee' });
+	});
+
+	it.each([
+		['Tea', { drink: 'Tea' }],
+		['Water', { drink_note: 'Water', drink: 'None of the above' }]
+	])('folds the Codex note into the question it belongs to (%j)', async (answer, expected) => {
+		const { events, session, kinds, ended } = begin('codex other', {
+			launch: { ...meta(), agent: 'codex' }
+		});
+		await until(() => kinds().includes('question'));
+		const question = events.find((e) => e.kind === 'question')!;
+		expect(question.questions).toEqual([
+			{
+				question: 'Tea or coffee?',
+				options: [{ label: 'Tea', description: 'Tea' }],
+				multiSelect: false
+			}
+		]);
+		session.answer(question.id, [answer]);
+		await ended(1);
+		expect(events.at(-2)).toEqual({ kind: 'text', text: JSON.stringify(expected) });
 	});
 
 	it('closes a withdrawn Codex async request while its turn keeps running', async () => {

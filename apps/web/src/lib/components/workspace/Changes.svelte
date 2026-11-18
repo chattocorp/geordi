@@ -73,6 +73,11 @@
 		{:else if git.unavailable}
 			<p class="px-3.5 py-2 text-sm text-muted">{git.unavailable}</p>
 		{:else}
+			{#if git.changes?.comparisonTarget}
+				<p class="truncate px-3.5 py-1 text-xs text-muted" title={git.changes.comparisonTarget}>
+					Compared with <span class="code-dense">{git.changes.comparisonTarget}</span>
+				</p>
+			{/if}
 			<ul>
 				{#each files as file (file.path)}
 					{@const slash = dirOf(file.path).length}

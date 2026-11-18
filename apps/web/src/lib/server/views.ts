@@ -2,14 +2,20 @@ import { actionsFor, PUBLISHING, standingOf } from '#lib/actions.ts';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';
-import { UNTITLED } from './workspaces.ts';
+import type { GeordiEvent } from './events/index.ts';
+import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
 /**
  * What pages show that is live, each as something to read now and again whenever it may
- * have changed: after every event, and when `also` says so. They reach browsers over the
+ * have changed: after a relevant event, and when `also` says so. They reach browsers over the
  * one connection each window has (`live.ts`), by these names.
  */
-export type View<T> = { read: () => T; also?: (changed: () => void) => () => void };
+export type View<T> = {
+	read: () => T;
+	incremental?: boolean;
+	affects?: (event: GeordiEvent) => boolean;
+	also?: (changed: () => void) => () => void;
+};
 
 /**
  * Everything that every page needs. What the sidebar shows: repositories, and the
@@ -88,29 +94,62 @@ export const navigation = () =>
  * whenever something changes. `null` until first loaded.
  * `terminals` names the workspace's terminals whose shells are running.
  */
-export const workspace = (id: string) =>
-	({
+export const workspace = (id: string) => {
+	const transcripts = new Map<string, TranscriptFollower>();
+	const readTranscript = (id: string) => {
+		let follower = transcripts.get(id);
+		if (!follower) {
+			follower = workspaces().followTranscript(id);
+			transcripts.set(id, follower);
+		}
+		return follower.read();
+	};
+	let owner = id;
+	let ancestors = new Set<string>();
+	return {
+		incremental: true,
+		affects(event) {
+			if (event.type === 'workspace.created' && event.data.worktreeId === id) return true;
+			if (!event.stream.startsWith('workspace:')) return false;
+			const source = event.data.id;
+			if (source === id || transcripts.has(source)) return true;
+			if (event.type === 'workspace.titled' && ancestors.has(source)) return true;
+			if (
+				source === owner &&
+				(event.type === 'workspace.continued' || event.type === 'workspace.switched')
+			)
+				return true;
+			return (
+				event.type === 'workspace.output' &&
+				event.data.event.kind === 'worktree' &&
+				workspaces().worktreeOf(source) === owner
+			);
+		},
 		read: () => {
-			const workspace = workspaces().get(id);
+			const workspace = workspaces().summary(id);
+			owner = workspace.worktreeId;
+			const parents = workspaces().ancestors(id);
+			ancestors = new Set(parents.map((parent) => parent.id));
 			// the agents working in this workspace's directory are part of it: shown in it, as
 			// conversations beside its own, and not among what it started
 			const aides = workspaces()
 				.sharing(id)
 				.filter((other) => other.id !== id && workspace.worktreeId === id);
+			for (const [other, follower] of transcripts) {
+				if (other !== id && !aides.some((aide) => aide.id === other)) {
+					follower.close();
+					transcripts.delete(other);
+				}
+			}
 			return {
 				...workspace,
+				transcript: readTranscript(id),
 				// who but the person may have written in its conversation: the agents above it
-				senders: Object.fromEntries(
-					workspaces()
-						.ancestors(id)
-						.map(({ id, title }) => [id, title])
-				),
-				// Whole, with their conversations: they are shown in this workspace, and come with it
-				// in the one connection it has. (A browser has six to a server: one each would
-				// soon leave none for anything else.) One that has not been told anything yet has
-				// no name: it is a new conversation.
+				senders: Object.fromEntries(parents.map(({ id, title }) => [id, title])),
+				// Each aide has its own snapshot and subsequent edits.
 				aides: aides.map((aide) => ({
-					...workspaces().get(aide.id),
+					...aide,
+					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
 				git: watchers().state(workspace.worktreeId),
@@ -123,14 +162,19 @@ export const workspace = (id: string) =>
 			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
+				for (const follower of transcripts.values()) follower.close();
+				transcripts.clear();
 				unwatch();
 				unsubscribe();
 			};
 		}
-	}) satisfies View<unknown>;
+	} satisfies View<unknown>;
+};
 
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
 export const views = { navigation, workspace };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
-export type WorkspaceLive = ReturnType<ReturnType<typeof workspace>['read']>;
+export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
+export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
+	Workspace & { aides: Workspace[] };

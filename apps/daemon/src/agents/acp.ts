@@ -12,36 +12,21 @@ import {
 	MultiSelectItems,
 	PlanUpdateContent,
 	StateUpdate,
-	ToolCallContent,
-	type ToolCallUpdate,
 	type CreateElicitationResponse,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2';
 import type { Agent, AgentEvent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
+import { TerminalOutput } from './terminal-output.ts';
+import { nativeSubagents } from './subagents.ts';
 import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
+
+/** The choice Codex adds to a question whose answer may be a note instead. */
+const CODEX_OTHER = 'None of the above';
 
 const ACP_MODES = {
 	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
 	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
 } satisfies Record<Agent, Record<PermissionMode, string>>;
-
-// Limit buffered terminal output before decoding arbitrarily large ACP chunks.
-const MAX_TERMINAL_BYTES = 16 * 1024;
-function terminalBytes(data: string, limit: number) {
-	return Buffer.from(data.slice(0, 4 * Math.ceil(limit / 3)), 'base64').subarray(0, limit);
-}
-
-// Codex can finish a background command with its full output in a text block
-// and only its exit code in rawOutput, even if earlier bytes streamed to a terminal.
-function codexCommandText(update: ToolCallUpdate) {
-	const raw = update.rawOutput;
-	if (!raw || typeof raw !== 'object' || !('exit_code' in raw) || Object.keys(raw).length !== 1)
-		return;
-	if (update.content?.length !== 1) return;
-	const [block] = update.content;
-	if (ToolCallContent.isContent(block) && ContentBlock.isText(block.content))
-		return block.content.text;
-}
 
 /** The host owns this connection across daemon and forge restarts. */
 export function connectAgent(
@@ -60,7 +45,7 @@ export function connectAgent(
 	// ACP tool IDs belong to the session. A command can span several foreground turns.
 	const tools = new Map<string, 'open' | 'closed'>();
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
-	const terminalOutput = new Map<string, Buffer>();
+	const terminalOutput = new TerminalOutput();
 	const questions = new Map<string, (answers?: string[]) => void>();
 
 	function flush() {
@@ -68,6 +53,7 @@ export function connectAgent(
 		messages.clear();
 	}
 	function update(u: SessionUpdate) {
+		if (terminalOutput.receive(u)) return;
 		switch (true) {
 			case SessionUpdate.isStateUpdate(u):
 				if ('background' in u && Array.isArray(u.background)) background = u.background.length > 0;
@@ -77,9 +63,7 @@ export function connectAgent(
 				} else if (StateUpdate.isIdle(u) && running) {
 					flush();
 					running = false;
-					for (const id of terminalOutput.keys()) {
-						if (tools.get(id) !== 'open') terminalOutput.delete(id);
-					}
+					terminalOutput.retainOpen(tools);
 					for (const cancel of questions.values()) cancel();
 					if (u.stopReason && u.stopReason !== 'end_turn')
 						emit({
@@ -131,19 +115,7 @@ export function connectAgent(
 			case u.sessionUpdate === 'plan_removed' && 'planId' in u && typeof u.planId === 'string':
 				emit({ kind: 'plan', id: u.planId, plan: null });
 				break;
-			case SessionUpdate.isTerminalOutputChunk(u): {
-				const before = terminalOutput.get(u.terminalId) ?? Buffer.alloc(0);
-				if (before.length < MAX_TERMINAL_BYTES) {
-					const bytes = terminalBytes(u.data, MAX_TERMINAL_BYTES - before.length);
-					terminalOutput.set(u.terminalId, Buffer.concat([before, bytes]));
-				}
-				break;
-			}
-			case SessionUpdate.isTerminalUpdate(u):
-				if (u.output)
-					terminalOutput.set(u.terminalId, terminalBytes(u.output.data, MAX_TERMINAL_BYTES));
-				break;
-			case SessionUpdate.isToolCallUpdate(u):
+			case SessionUpdate.isToolCallUpdate(u): {
 				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
 				if (!tools.has(u.toolCallId)) {
@@ -155,29 +127,23 @@ export function connectAgent(
 						input: truncate(JSON.stringify(u.rawInput) ?? '')
 					});
 				}
-				if (u.status === 'completed' || u.status === 'failed') {
-					const output =
-						(provider === 'codex' ? codexCommandText(u) : undefined) ??
-						terminalOutput.get(u.toolCallId)?.toString('utf8') ??
-						u.rawOutput ??
-						u.content;
-					emit({
-						kind: 'tool.result',
-						id: u.toolCallId,
-						output: truncate(typeof output === 'string' ? output : (JSON.stringify(output) ?? '')),
-						isError: u.status === 'failed'
-					});
-				}
-				if (u.status === 'completed' || u.status === 'failed' || u.status === 'cancelled') {
+				const output = terminalOutput.toolResult(provider, u);
+				if (output !== undefined) {
 					tools.set(u.toolCallId, 'closed');
-					terminalOutput.delete(u.toolCallId);
+					if (u.status !== 'cancelled')
+						emit({ kind: 'tool.result', id: u.toolCallId, output, isError: u.status === 'failed' });
 				}
 				break;
+			}
 		}
 	}
+	const children = nativeSubagents(provider, emit);
 	const connection = client({ name: 'Geordi' })
 		.onNotification(methods.client.session.update, ({ params }) => {
-			if (id && params.sessionId === id) update(params.update);
+			if (!id) return;
+			const root = params.sessionId === id;
+			if (SessionUpdate.isSubagentUpdate(params.update) && root) flush();
+			if (!children.receive(id, params.sessionId, params.update) && root) update(params.update);
 		})
 		.onRequest(methods.client.session.requestPermission, ({ params, signal }) => {
 			const deny = params.options.find((option) => option.kind === 'reject_once');
@@ -195,13 +161,30 @@ export function connectAgent(
 				)
 					return { action: 'decline' };
 				const { properties, required } = params.requestedSchema;
-				const companion = (name: string) =>
-					provider === 'claude' &&
-					/^question_\d+$/.test(name) &&
-					properties[name + '_custom']?.type === 'string';
-				const fields = Object.entries(properties).filter(
-					([name]) => !(name.endsWith('_custom') && companion(name.slice(0, -7)))
-				);
+				// Where an answer in the person's own words goes, if not into the field itself:
+				// Claude has a `_custom` field beside a question, Codex a note beside a choice
+				// that offers "None of the above".
+				const notes = new Map<string, string>();
+				for (const [name, field] of Object.entries(properties)) {
+					const codex = (field._meta as { codex?: { role?: unknown; questionId?: unknown } })
+						?.codex;
+					if (
+						provider === 'codex' &&
+						codex?.role === 'user_note' &&
+						typeof codex.questionId === 'string' &&
+						properties[codex.questionId]
+					)
+						notes.set(codex.questionId, name);
+					else if (
+						provider === 'claude' &&
+						/^question_\d+_custom$/.test(name) &&
+						field.type === 'string' &&
+						properties[name.slice(0, -7)]
+					)
+						notes.set(name.slice(0, -7), name);
+				}
+				const companions = new Set(notes.values());
+				const fields = Object.entries(properties).filter(([name]) => !companions.has(name));
 				const items: Question[] = [];
 				for (const [name, field] of fields) {
 					const multiple = ElicitationPropertySchema.isArray(field);
@@ -227,10 +210,11 @@ export function connectAgent(
 						question,
 						...(header && header !== question ? { header } : {}),
 						...(!required?.includes(name) ? { optional: true } : {}),
-						options:
+						options: (
 							titled?.map((o) => ({ label: o.const, description: o.description ?? o.title })) ??
 							values?.map((label) => ({ label })) ??
-							[],
+							[]
+						).filter((o) => !(notes.has(name) && o.label === CODEX_OTHER)),
 						multiSelect: multiple
 					});
 				}
@@ -259,11 +243,10 @@ export function connectAgent(
 							if (!value) continue;
 							const item = items[i];
 							const picks = item.multiSelect ? value.split('\n') : [value];
-							if (
-								companion(name) &&
-								picks.some((pick) => !item.options.some((o) => o.label === pick))
-							) {
-								content[name + '_custom'] = value;
+							const note = notes.get(name);
+							if (note && picks.some((pick) => !item.options.some((o) => o.label === pick))) {
+								content[note] = value;
+								if (provider === 'codex') content[name] = CODEX_OTHER;
 							} else {
 								content[name] = item.multiSelect ? picks : value;
 							}

@@ -1,8 +1,19 @@
 import { error } from '@sveltejs/kit';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { createLive } from './live.ts';
-import type { View } from './views.ts';
+import { workspace, type WorkspaceLive, type WorkspaceUpdate, type View } from './views.ts';
+import * as app from './app.ts';
+import { EventStore, type GeordiEvent } from './events/index.ts';
+import { createRepos } from './repos.ts';
+import { createWorkspaces } from './workspaces.ts';
+import { applyWorkspaceUpdate } from '../workspace-update.ts';
+
+vi.mock('./app.ts', () => ({
+	workspaces: vi.fn(),
+	watchers: () => ({ watch: () => () => {}, state: () => null }),
+	terminals: () => ({ subscribe: () => () => {}, running: () => [], finished: () => ({}) })
+}));
 
 /** Lets what is on its way arrive. */
 const settled = () => new Promise((resolve) => setTimeout(resolve, 30));
@@ -10,7 +21,7 @@ const settled = () => new Promise((resolve) => setTimeout(resolve, 30));
 let live: ReturnType<typeof createLive> | undefined;
 afterEach(() => live?.close());
 
-async function setup() {
+async function setup(options?: Pick<Parameters<typeof createLive>[0], 'views' | 'values'>) {
 	/** A view whose value we can change, and say so. */
 	const state = { count: 1, changed: () => {}, following: 0 };
 	const attached: string[] = [];
@@ -48,7 +59,8 @@ async function setup() {
 			outputs.set(name, listener);
 			listener('before', true);
 			return () => attached.splice(attached.indexOf(name), 1);
-		}
+		},
+		...options
 	});
 	await settled();
 	const address = `ws://127.0.0.1:${live.port()}`;
@@ -103,6 +115,101 @@ describe('live', () => {
 		state.changed();
 		await settled();
 		expect(got.at(-1)).toEqual({ id: 7, value: { key: 'a', count: 2 } });
+	});
+
+	it('sends scoped edits for owner and aides, and a fresh snapshot on reconnect', async () => {
+		const store = new EventStore<GeordiEvent>(':memory:');
+		const domain = createWorkspaces(store, createRepos(store), () => true);
+		vi.mocked(app.workspaces).mockReturnValue(domain);
+		for (const id of ['owner', 'elsewhere']) {
+			store.append({
+				type: 'workspace.created',
+				stream: `workspace:${id}`,
+				data: { id, repoId: 'r', title: id, agent: 'codex' }
+			});
+			domain.record(id, { kind: 'turn.started' });
+		}
+		const long = 'history'.repeat(10000);
+		domain.record('owner', { kind: 'text', text: long });
+		const read = vi.fn();
+		const { connect } = await setup({
+			views: { workspace },
+			values: (view, signal) =>
+				store.live(
+					() => {
+						read();
+						return view.read();
+					},
+					view.also,
+					signal,
+					view.affects
+				)
+		});
+		const connection = await connect();
+		const follow = { follow: 1, view: 'workspace', key: 'owner' };
+		connection.say(follow);
+		let current: WorkspaceLive | undefined;
+		let consumed = 0;
+		async function consume() {
+			await vi.waitFor(() => expect(connection.got.length).toBeGreaterThan(consumed));
+			for (const frame of connection.got.slice(consumed)) {
+				const update = frame.value as WorkspaceUpdate;
+				if (current) expect(JSON.stringify(update)).not.toContain(long);
+				current = applyWorkspaceUpdate(current, update);
+			}
+			consumed = connection.got.length;
+			expect(current!.transcript).toEqual(domain.get('owner').transcript);
+			for (const aide of current!.aides)
+				expect(aide.transcript).toEqual(domain.get(aide.id).transcript);
+		}
+		await consume();
+		domain.record('elsewhere', { kind: 'text', text: 'elsewhere' });
+		await settled();
+		expect(read).toHaveBeenCalledTimes(1);
+		const plan = {
+			kind: 'plan',
+			id: 'plan',
+			plan: { type: 'markdown', content: 'first' }
+		} as const;
+		domain.record('owner', plan);
+		domain.record('owner', { kind: 'tool', id: 'tool', name: 'read', input: 'file' });
+		await consume();
+		domain.record('owner', { kind: 'tool.result', id: 'tool', output: 'ok', isError: false });
+		domain.record('owner', { ...plan, plan: { ...plan.plan, content: 'revised' } });
+		store.append({
+			type: 'workspace.message',
+			stream: 'workspace:owner',
+			data: { id: 'owner', text: 'next' }
+		});
+		domain.record('owner', plan); // moves to the new exchange
+		await consume();
+		domain.record('owner', { ...plan, plan: null });
+		store.append({
+			type: 'workspace.created',
+			stream: 'workspace:aide',
+			data: { id: 'aide', repoId: 'r', title: 'aide', agent: 'claude', worktreeId: 'owner' }
+		});
+		domain.record('aide', { kind: 'turn.started' });
+		domain.record('aide', { kind: 'question', id: 'q', questions: [] });
+		await consume();
+		domain.answer('aide', 'q', []);
+		domain.record('aide', { kind: 'answer.received', id: 'q' });
+		domain.record('aide', { kind: 'question', id: 'q2', questions: [] });
+		domain.record('aide', { kind: 'turn.completed' });
+		await consume();
+		domain.archive('aide');
+		await consume();
+		expect(current!.aides).toEqual([]);
+		connection.socket.close();
+		domain.record('owner', { kind: 'text', text: 'while disconnected' });
+		const next = await connect();
+		next.say(follow);
+		await vi.waitFor(() => expect(next.got).toHaveLength(1));
+		const snapshot = next.got[0].value as WorkspaceUpdate;
+		expect(Array.isArray(snapshot.transcript)).toBe(true);
+		expect(applyWorkspaceUpdate(current, snapshot).transcript).toEqual(
+			domain.get('owner').transcript
+		);
 	});
 
 	it('stops when told to, and when the window goes', async () => {

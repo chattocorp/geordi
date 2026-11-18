@@ -66,10 +66,12 @@ export type WorktreeRef = {
 	worktreeId: string;
 	repoPath: string;
 	/**
-	 * The branch the worktree started from, and that its changes are measured against.
+	 * The branch the worktree started from.
 	 * Absent for worktrees started from where work in the repository starts.
 	 */
 	base?: string;
+	/** Branches this workspace was built on, nearest parent first. */
+	parents?: { worktreeId: string; branch: string }[];
 	/**
 	 * The branch the worktree is on, as far as the forge knows. Only needed to bring back a
 	 * worktree that went missing: one that was continued is no longer on the branch its ID
@@ -101,7 +103,9 @@ export type Changes = {
 	 * one Geordi made: the agent may rename it, or switch to another.
 	 */
 	branch: string | null;
-	/** Every file that differs from where the workspace branched off, committed or not. */
+	/** The branch used for the file comparison. */
+	comparisonTarget?: string;
+	/** Every file that differs from the merge base with that target, committed or not. */
 	files: FileChange[];
 	/** How many files have changes that are not committed yet. */
 	uncommitted: number;
@@ -471,6 +475,7 @@ export type DaemonRequest =
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
+	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
 
 export type DaemonResults = {
@@ -500,6 +505,7 @@ export type DaemonResults = {
 	 * `end` is the terminal's output position after `data`: output with a lower `offset` is
 	 * already part of it. `null` if the terminal isn't running.
 	 */
+	terminalActivity: boolean;
 	scrollback: { data: string; end: number } | null;
 };
 
@@ -524,7 +530,15 @@ export type AgentPlan =
  * What happens in a workspace's conversation with its agent, normalised across agent CLIs.
  * The daemon emits these; the forge stores them verbatim in its event log.
  */
+export type SubagentState = 'running' | 'waiting' | 'done' | 'stopped' | 'failed' | 'unknown';
+
+export type SubagentUpdate =
+	| { kind: 'info'; title?: string | null; description?: string | null; state?: SubagentState }
+	| { kind: 'message'; id: string; text: string; incoming: boolean }
+	| { kind: 'tool'; id: string; name?: string; input?: string; output?: string; isError?: boolean };
+
 export type AgentEvent =
+	| { kind: 'subagent'; path: string[]; update: SubagentUpdate }
 	| { kind: 'message.received'; id: string }
 	/** The workspace's worktree is ready. */
 	| { kind: 'worktree'; path: string; branch: string }

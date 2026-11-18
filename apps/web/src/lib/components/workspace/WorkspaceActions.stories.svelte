@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import type { ComponentProps } from 'svelte';
 	import { expect, fn, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest, Upstream } from '@geordi/protocol';
@@ -37,31 +38,47 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	pending: ('fix-checks' | 'merge-upstream' | 'merge-pull' | 'ready-for-review')[] = [],
-	working = false,
-	compact = false
+	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'working' | 'compact'> = {}
 )}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
 		standing={standingOf(state)}
 		pull={pull && { number: pull.number, url: 'https://example.com/pull/42' }}
 		actions={actionsFor(state)}
-		{pending}
-		{working}
-		{compact}
+		{...activity}
 		{onopenpull}
 		{onaction}
 	/>
 {/snippet}
 
 <!-- Each story is a state a workspace can be in; the bar is what `standingOf` and `actionsFor` make of it. -->
-<Story name="Work to publish" asChild
-	>{@render bar({ changes: dirty, upstream: upstream(null) })}</Story
+<Story
+	name="Creating PR with uncommitted changes"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Working')).toBeVisible();
+		await expect(canvas.getByText('Uncommitted changes')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: /Create PR/ })).toBeDisabled();
+	}}
 >
+	{@render bar(
+		{ changes: dirty, upstream: upstream(null) },
+		{ working: true, pending: ['create-pull'] }
+	)}
+</Story>
 
-<Story name="Pushed branch awaiting a pull request" asChild
-	>{@render bar({ changes: pushed, upstream: upstream(null) })}</Story
+<Story
+	name="Pushed branch awaiting a pull request"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Create PR' })).toBeVisible();
+		await expect(canvas.getByText('Branch pushed')).toBeVisible();
+	}}
 >
+	{@render bar({ changes: pushed, upstream: upstream(null) })}
+</Story>
 
 <Story
 	name="Draft pull request"
@@ -95,7 +112,10 @@
 		).toBeDisabled();
 	}}
 >
-	{@render bar({ changes: pushed, upstream: upstream({ draft: true }) }, ['ready-for-review'])}
+	{@render bar(
+		{ changes: pushed, upstream: upstream({ draft: true }) },
+		{ pending: ['ready-for-review'] }
+	)}
 </Story>
 
 <Story name="Ready to merge" asChild
@@ -109,7 +129,7 @@
 		await expect(within(canvasElement).getByRole('button', { name: /Merge PR/ })).toBeDisabled();
 	}}
 >
-	{@render bar({ changes: pushed, upstream: upstream({}) }, ['merge-pull'])}
+	{@render bar({ changes: pushed, upstream: upstream({}) }, { pending: ['merge-pull'] })}
 </Story>
 
 <Story name="Blocked three ways" asChild>
@@ -133,7 +153,10 @@
 </Story>
 
 <Story name="Asked for, not done yet" asChild>
-	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'])}
+	{@render bar(
+		{ changes: pushed, upstream: upstream({ checks: failing }) },
+		{ pending: ['fix-checks'] }
+	)}
 </Story>
 
 <Story name="Checks running with slowly rotating icon" asChild>
@@ -148,11 +171,17 @@
 </Story>
 
 <Story name="Agent at work, nothing else to say" asChild>
-	{@render bar({ changes: { files: [], uncommitted: 0, unpushed: 0 }, upstream: null }, [], true)}
+	{@render bar(
+		{ changes: { files: [], uncommitted: 0, unpushed: 0 }, upstream: null },
+		{ working: true }
+	)}
 </Story>
 
 <Story name="Agent at work on failing checks" asChild>
-	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'], true)}
+	{@render bar(
+		{ changes: pushed, upstream: upstream({ checks: failing }) },
+		{ pending: ['fix-checks'], working: true }
+	)}
 </Story>
 
 <Story
@@ -178,12 +207,19 @@
 			changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
 			upstream: upstream(null)
 		},
-		['merge-upstream'],
-		true
+		{ pending: ['merge-upstream'], working: true }
 	)}
 </Story>
 
-<Story name="Only upstream commits" asChild>
+<Story
+	name="Only upstream commits"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Behind base branch')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+	}}
+>
 	{@render bar({
 		changes: {
 			files: [],
@@ -254,12 +290,13 @@
 	<div class="flex w-72 flex-col gap-3">
 		{@render bar(
 			{ changes: dirty, upstream: upstream({ checks: failing, review: 'changes_requested' }) },
-			[],
-			false,
-			true
+			{ compact: true }
 		)}
-		{@render bar({ changes: pushed, upstream: upstream({}) }, [], false, true)}
-		{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, [], true, true)}
-		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, [], false, true)}
+		{@render bar({ changes: pushed, upstream: upstream({}) }, { compact: true })}
+		{@render bar(
+			{ changes: pushed, upstream: upstream({ checks: failing }) },
+			{ working: true, compact: true }
+		)}
+		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, { compact: true })}
 	</div>
 </Story>

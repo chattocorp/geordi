@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { AgentEvent, ForgeMessage } from '@geordi/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { createRepos } from './repos.ts';
 import { createWorkspaces } from './workspaces.ts';
@@ -28,6 +28,68 @@ const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
 describe('workspaces', () => {
+	it('publishes nested reviewer edits without changing earlier snapshots', () => {
+		const { workspaces, create } = setup();
+		const id = create('Review');
+		const follower = workspaces.followTranscript(id);
+		expect(follower.read()).toMatchObject([{ kind: 'user' }]);
+		const path = ['lead', 'reviewer'];
+		workspaces.record(id, { kind: 'subagent', path, update: { kind: 'info', state: 'running' } });
+		const first = follower.read();
+		workspaces.record(id, { kind: 'subagent', path, update: { kind: 'info', state: 'done' } });
+		expect(first).toMatchObject({
+			edits: [[1, 0, { id: 'lead', items: [{ id: 'reviewer', state: 'running' }] }]]
+		});
+		expect(follower.read()).toMatchObject({
+			edits: [[1, 1, { id: 'lead', items: [{ id: 'reviewer', state: 'done' }] }]]
+		});
+		follower.close();
+	});
+
+	it('keeps parallel and nested ACP sessions on their original turn across replay', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Review the changes');
+		for (const path of [['daemon'], ['ui'], ['ui', 'design']]) {
+			workspaces.record(id, {
+				kind: 'subagent',
+				path,
+				update: { kind: 'info', state: 'running', title: path.at(-1) }
+			});
+			workspaces.record(id, {
+				kind: 'subagent',
+				path,
+				update: { kind: 'tool', id: 'same', name: 'Read' }
+			});
+		}
+		workspaces.record(id, { kind: 'turn.completed' });
+		const next = createWorkspaces(store, repos, dispatch);
+		for (const path of [['ui', 'design'], ['ui'], ['daemon']]) {
+			next.record(id, {
+				kind: 'subagent',
+				path,
+				update: { kind: 'tool', id: 'same', output: path.join('/') }
+			});
+			next.record(id, { kind: 'subagent', path, update: { kind: 'info', state: 'done' } });
+		}
+		next.send(id, 'Continue');
+		next.record(id, {
+			kind: 'subagent',
+			path: ['daemon'],
+			update: { kind: 'message', id: 'report', text: 'Finished.', incoming: false }
+		});
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).transcript).toMatchObject([
+			{ kind: 'user' },
+			{ title: 'daemon', state: 'done', items: [{ output: 'daemon' }, { text: 'Finished.' }] },
+			{
+				title: 'ui',
+				state: 'done',
+				items: [{ output: 'ui' }, { title: 'design', items: [{ output: 'ui/design' }] }]
+			},
+			{ kind: 'user' }
+		]);
+	});
+
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Plan the change');
@@ -849,6 +911,22 @@ describe('event logs from before a workspace had one conversation', () => {
 		check(workspaces);
 		// and it survives a replay
 		check(createWorkspaces(store, repos, dispatch));
+		const restored = createWorkspaces(store, repos, dispatch);
+		restored.record('w', { kind: 'text', text: 'Modern reply' });
+		restored.record('w', { kind: 'turn.completed' });
+		const before = restored.get('w').transcript;
+		restored.archive('w');
+		restored.archive('s2');
+		const restart = createWorkspaces(store, repos, dispatch);
+		const read = vi.spyOn(store, 'readStream');
+		restart.summary('w');
+		restart.reconcile(['w']);
+		expect(read).not.toHaveBeenCalled();
+		expect(restart.get('w').transcript).toEqual(before);
+		expect(read.mock.calls).toEqual([['workspace:w'], ['session:s1']]);
+		expect(restart.agents.workspace('s2').transcript).toEqual([
+			{ kind: 'text', text: 'Reviewed.', at: expect.any(String) }
+		]);
 	});
 
 	it("leaves out a repository's Home workspace and the agents in its checkout, but keeps what it started elsewhere", () => {
@@ -980,6 +1058,12 @@ describe('agents starting agents', () => {
 		agents.send(caller, id, 'More');
 		workspaces.record(id, { kind: 'turn.failed', error: 'boom' });
 		expect(agents.get(caller, id)).toMatchObject({ reply: '', error: 'boom' });
+		agents.send(caller, id, 'Finish');
+		const final = agents.wait(caller, id, 5000);
+		workspaces.record(id, { kind: 'text', text: 'Archived reply' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.archive(id); // the waiting report resumes after eviction
+		expect(await final).toMatchObject({ reply: 'Archived reply', error: null });
 	});
 
 	it('gives up waiting after the timeout', async () => {
