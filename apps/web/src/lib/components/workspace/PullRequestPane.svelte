@@ -53,8 +53,8 @@
 			{/if}
 			{#if pull.base}
 				<span class="flex min-w-0 items-center gap-1.5">
-					<span class="icon-[lucide--arrow-right] size-3.5 shrink-0"></span>
-					<span class="truncate code-dense">{pull.base}</span>
+					<span>into</span>
+					<span class="truncate code-dense" title={pull.base}>{pull.base}</span>
 				</span>
 			{/if}
 		</div>
@@ -79,6 +79,6 @@
 		</svelte:element>
 	{/if}
 	{#if pull.body?.trim()}
-		<Markdown text={pull.body} />
+		<div class="wrap-anywhere"><Markdown text={pull.body} /></div>
 	{/if}
 </section>

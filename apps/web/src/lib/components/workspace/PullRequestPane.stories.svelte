@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { expect } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest } from '@geordi/protocol';
 	import PullRequestPane from './PullRequestPane.svelte';
@@ -79,4 +80,23 @@
 
 <Story name="Merged" asChild>
 	{@render pane(withPull({ state: 'merged', checks: null, review: null }))}
+</Story>
+
+<Story
+	name="Long URL in a narrow pane"
+	asChild
+	play={async ({ canvas }) => {
+		const pane = canvas.getByRole('region', { name: 'Pull request' });
+		await expect(pane.scrollWidth).toBeLessThanOrEqual(pane.clientWidth);
+	}}
+>
+	<div class="w-64 sheet">
+		<PullRequestPane
+			pull={withPull({
+				body: 'Build report: https://example.test/' + 'a'.repeat(180),
+				checks: null,
+				review: null
+			})}
+		/>
+	</div>
 </Story>

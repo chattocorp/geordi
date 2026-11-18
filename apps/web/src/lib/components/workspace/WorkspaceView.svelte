@@ -88,6 +88,8 @@
 			name: workspace.repoId
 		}
 	);
+	const git = $derived(workspace.git);
+	const pull = $derived(git?.upstream?.pull);
 	const running = $derived(workspace.status === 'running');
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
@@ -130,7 +132,7 @@
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
-		if (tab === PR) return !!workspace.git?.upstream?.pull;
+		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
@@ -439,7 +441,6 @@
 	const chatGroup = $derived(groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id);
 
 	// What could happen next (FDR-003), from where the changes and the pull request stand.
-	const git = $derived(workspace.git);
 	/**
 	 * The workspace had a worktree, and it is no longer there: removed outside Geordi. Not
 	 * while the agent is at work, which is when it comes back.
@@ -510,14 +511,12 @@
 	let merging = $state(false);
 	// A successful command can arrive before the live view that offers Archive.
 	let mergedPull = $state<string | null>(null);
-	const mergeConfirmed = $derived(
-		mergedPull !== null && mergedPull === git?.upstream?.pull?.number
-	);
+	const mergeConfirmed = $derived(mergedPull !== null && mergedPull === pull?.number);
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
 	async function merge() {
-		const number = git?.upstream?.pull?.number;
+		const number = pull?.number;
 		if (!number || merging || mergeConfirmed) return;
 		mergeProblem = null;
 		merging = true;
@@ -628,8 +627,8 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
 		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
-	{:else if tab === PR && git?.upstream?.pull}
-		<PullRequestTab pull={git.upstream.pull} />
+	{:else if tab === PR && pull}
+		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}
 		{@const added = (git?.release?.packages ?? [])
 			.flatMap((pkg) => pkg.notes)
@@ -692,8 +691,8 @@
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 			onopen={openDiff}
 		/>
-	{:else if tab === PR && git?.upstream?.pull}
-		<PullRequestPane pull={git.upstream.pull} />
+	{:else if tab === PR && pull}
+		<PullRequestPane {pull} />
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
