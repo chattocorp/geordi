@@ -65,6 +65,14 @@
 	<div class="max-w-2xl"><Markdown text={reply} /></div>
 </Story>
 
+<Story name="Inline code" asChild>
+	<div class="max-w-2xl">
+		<Markdown
+			text="The `start_agent` tool returns the workspace ID. The route lives in `apps/web/src/routes/workspaces/[id]/+page.svelte`. For example, [`/workspaces/example`](/workspaces/example) opens that conversation."
+		/>
+	</div>
+</Story>
+
 <Story name="Earlier messages are dimmed" asChild>
 	<div class="max-w-2xl space-y-6">
 		<Markdown text="I’ll check the **changes pane** and its `git diff` command." dimmed />
