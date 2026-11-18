@@ -1,9 +1,10 @@
 <script lang="ts">
-	import type { ToolInfo } from '@geordi/protocol';
+	import type { ToolDiff, ToolInfo } from '@geordi/protocol';
 	import { changedFiles } from '#lib/changedFiles.ts';
 	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import { filesOf, iconOf, relativeTo, titleOf } from '#lib/tools.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
+	import PatchView from './PatchView.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 
 	type Props = ToolInfo & {
@@ -11,12 +12,16 @@
 		input: string;
 		output: string | null;
 		isError: boolean;
+		/** What it changed in files, if the agent said: shown instead of its input and output. */
+		diff?: ToolDiff;
 		/** The session's worktree, so paths inside it can be shown relative to it. */
 		cwd?: string;
 		/** Whether it is running right now. One without output in a turn that is over never finished. */
 		running?: boolean;
 	};
-	let { output, isError, cwd, running = false, ...tool }: Props = $props();
+	let { output, isError, diff, cwd, running = false, ...tool }: Props = $props();
+
+	let open = $state(false);
 
 	const parts = $derived(titleOf(tool, cwd));
 	const pending = $derived(running && output === null);
@@ -40,7 +45,7 @@
 	}
 </script>
 
-<Disclosure summaryClass="px-3.5 py-2 text-sm hover:bg-sunken/70">
+<Disclosure bind:open summaryClass="px-3.5 py-2 text-sm hover:bg-sunken/70">
 	{#snippet heading()}
 		<span
 			class={[
@@ -67,18 +72,25 @@
 			{/each}
 		</p>
 	{/if}
-	<div class="mx-3.5 mb-3 overflow-hidden rounded-control bg-sunken code-dense">
-		{#if input}
-			<pre class="overflow-x-auto p-3 whitespace-pre-wrap">{input}</pre>
-		{/if}
-		{#if output}
-			<pre
-				class={[
-					'max-h-96 overflow-auto border-t border-line/70 p-3 whitespace-pre-wrap first:border-t-0',
-					isError && 'text-danger'
-				]}>{output}</pre>
-		{:else if !pending}
-			<p class="p-3 text-muted">{output === null ? 'It was interrupted.' : 'No output.'}</p>
-		{/if}
-	</div>
+	{#if diff}
+		<!-- drawn only once opened: the viewer is loaded on first use -->
+		<div class="mx-3.5 mb-3">
+			{#if open}<PatchView {diff} {cwd} />{/if}
+		</div>
+	{:else}
+		<div class="mx-3.5 mb-3 overflow-hidden rounded-control bg-sunken code-dense">
+			{#if input}
+				<pre class="overflow-x-auto p-3 whitespace-pre-wrap">{input}</pre>
+			{/if}
+			{#if output}
+				<pre
+					class={[
+						'max-h-96 overflow-auto border-t border-line/70 p-3 whitespace-pre-wrap first:border-t-0',
+						isError && 'text-danger'
+					]}>{output}</pre>
+			{:else if !pending}
+				<p class="p-3 text-muted">{output === null ? 'It was interrupted.' : 'No output.'}</p>
+			{/if}
+		</div>
+	{/if}
 </Disclosure>

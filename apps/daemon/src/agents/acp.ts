@@ -28,6 +28,7 @@ import { BackgroundTasks } from './background-tasks.ts';
 import { TerminalOutput } from './terminal-output.ts';
 import { nativeSubagents } from './subagents.ts';
 import { ToolInfos } from './tool-info.ts';
+import { ToolDiffs } from './diffs.ts';
 import { API_SERVER, type SessionOptions } from './adapter.ts';
 
 /** The choice Codex adds to a question whose answer may be a note instead. */
@@ -83,6 +84,7 @@ export function connectAgent(
 	const toolInfos = new ToolInfos();
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
 	const terminalOutput = new TerminalOutput();
+	const diffs = new ToolDiffs();
 	const questions = new Map<string, (answers?: string[]) => void>();
 	let cost: ContextUsage['cost'];
 
@@ -163,6 +165,7 @@ export function connectAgent(
 			case SessionUpdate.isToolCallUpdate(u): {
 				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
+				diffs.receive(u);
 				const output = terminalOutput.toolResult(provider, u);
 				const { input = '', ...info } = toolInfos.news(u, output !== undefined);
 				if (!tools.has(u.toolCallId)) {
@@ -180,8 +183,15 @@ export function connectAgent(
 				if (output !== undefined) {
 					tools.set(u.toolCallId, 'closed');
 					toolInfos.delete(u.toolCallId);
+					const diff = diffs.take(u);
 					if (u.status !== 'cancelled')
-						emit({ kind: 'tool.result', id: u.toolCallId, output, isError: u.status === 'failed' });
+						emit({
+							kind: 'tool.result',
+							id: u.toolCallId,
+							output,
+							isError: u.status === 'failed',
+							...(diff && { diff })
+						});
 				}
 				break;
 			}

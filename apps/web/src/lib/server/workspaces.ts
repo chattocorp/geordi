@@ -16,6 +16,7 @@ import {
 	type ForgeMessage,
 	type Harness,
 	type Question,
+	type ToolDiff,
 	type ToolInfo,
 	type TurnUsage,
 	type WorktreeMode,
@@ -208,6 +209,8 @@ export type TranscriptItem =
 			input: string;
 			output: string | null;
 			isError: boolean;
+			/** What it changed in files, once it succeeded; absent in events from before diffs were kept. */
+			diff?: ToolDiff;
 			at: string;
 	  } & ToolInfo)
 	| { kind: 'error'; error: string; at: string }
@@ -609,7 +612,13 @@ export function createWorkspaces(
 			}
 			case 'tool.result': {
 				const tool = toolById(workspace, output.id);
-				if (tool) replace(tool, { ...tool, output: output.output, isError: output.isError });
+				if (tool)
+					replace(tool, {
+						...tool,
+						output: output.output,
+						isError: output.isError,
+						...(output.diff && { diff: output.diff })
+					});
 				break;
 			}
 			case 'answer.received': {
