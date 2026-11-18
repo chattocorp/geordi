@@ -68,11 +68,17 @@ const dir = process.argv[2];
 const file = (name: string) => join(dir, name);
 const { agent, options, apiToken } = JSON.parse(readFileSync(file('meta.json'), 'utf8')) as Meta;
 const cmd = agent === 'codex' ? 'codex-acp' : 'claude-agent-acp';
-const resolve = createRequire(import.meta.url).resolve;
-// The optional argument lets the session tests exercise this same host with a fixture.
+// Staged (a release), the wrapper is bundled next to this file; in the repository, it is the
+// package's. The optional argument lets the session tests exercise this same host with a fixture.
+const bundled = join(import.meta.dirname, `${cmd}.js`);
 const entry =
 	process.argv[3] ??
-	join(dirname(resolve('@agentclientprotocol/' + cmd + '/package.json')), 'dist/index.js');
+	(existsSync(bundled)
+		? bundled
+		: join(
+				dirname(createRequire(import.meta.url).resolve(`@agentclientprotocol/${cmd}/package.json`)),
+				'dist/index.js'
+			));
 
 // A signal meant to end the session reaches the whole process group, the CLI with it. We
 // stay, to note how it ended.

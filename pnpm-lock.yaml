@@ -69,6 +69,15 @@ importers:
         specifier: ^8.60.1
         version: 8.72.2(eslint@10.14.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
 
+  apps/cli:
+    devDependencies:
+      '@geordi/launch':
+        specifier: workspace:*
+        version: link:../../packages/launch
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+
   apps/daemon:
     dependencies:
       '@agentclientprotocol/claude-agent-acp':
@@ -117,6 +126,9 @@ importers:
       '@electron/packager':
         specifier: ^20.3.0
         version: 20.3.0(supports-color@7.2.0)
+      '@geordi/launch':
+        specifier: workspace:*
+        version: link:../../packages/launch
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -273,6 +285,12 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
+  packages/launch:
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   packages/protocol:
     devDependencies:

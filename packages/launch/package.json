@@ -1,0 +1,15 @@
+{
+	"name": "@geordi/launch",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./services.js": "./src/services.js",
+		"./stage.js": "./src/stage.js"
+	},
+	"scripts": {
+		"test": "node --test src/*.test.js"
+	},
+	"devDependencies": {
+		"esbuild": "^0.28.2"
+	}
+}

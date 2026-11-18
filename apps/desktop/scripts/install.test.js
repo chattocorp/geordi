@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { installApp } from './install.js';
+import { installApp, launchEnv } from './install.js';
 
 async function fixture(fn) {
 	const dir = mkdtempSync(join(tmpdir(), 'geordi-install-test-'));
@@ -112,3 +112,10 @@ test('restores the old bundle if the replacement cannot be moved into place', ()
 		);
 		assert.equal(readFileSync(join(installed, 'version'), 'utf8'), 'old');
 	}));
+
+test("opens the app without its caller's environment", () => {
+	assert.deepEqual(
+		launchEnv({ HOME: '/h', PATH: '/bin', ELECTRON_RUN_AS_NODE: '1', GEORDI_PORT: '20016' }),
+		{ HOME: '/h', PATH: '/bin' }
+	);
+});

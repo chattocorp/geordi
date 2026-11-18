@@ -1,0 +1,15 @@
+{
+	"name": "@geordi/cli",
+	"version": "0.4.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "node --test src/*.test.js",
+		"bundle": "node scripts/build.js",
+		"start": "node scripts/build.js && node stage/geordi.js"
+	},
+	"devDependencies": {
+		"@geordi/launch": "workspace:*",
+		"esbuild": "^0.28.2"
+	}
+}

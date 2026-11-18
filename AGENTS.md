@@ -9,6 +9,8 @@ pnpm monorepo:
 - `apps/web`: the forge (SvelteKit). Repositories, forge features, and the event log.
 - `apps/daemon`: the agent daemon. Worktrees and agent processes; connects to the forge.
 - `apps/desktop`: the desktop app (Electron). Starts forge and daemon, and shows the forge.
+- `apps/cli`: the `geordi` npm package (`npx geordi`). Starts forge and daemon in a terminal.
+- `packages/launch`: how both stage and start forge and daemon (`stage.js`, `services.js`).
 - `apps/website`: the website (Astro, static). Drawn with the forge's design system: it
   imports `apps/web/src/routes/layout.css`, so a change to tokens or utilities shows there too.
 - `packages/protocol`: message types shared by forge and daemon.
@@ -33,6 +35,7 @@ Run from the repository root:
 - `pnpm test`: run all tests
 - `pnpm --filter @geordi/web <script>`: run a script in one package
 - `pnpm --filter @geordi/web storybook`: the design system, on http://localhost:6006
+- `pnpm cli`: build the npm package into `apps/cli/stage` and run it
 - `pnpm desktop`: build the desktop app and run it from `apps/desktop/stage`
 - `pnpm desktop:install`: build it, replace `/Applications/Geordi.app` and open it
 
@@ -136,7 +139,10 @@ it, perhaps you.
 - **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and
   the daemon as they are, on ports of its own (7717, 7718, and 7719 for browsers' WebSocket), with data in `~/.geordi`; `pnpm dev`
   keeps its data in `.data/`, so both can run at once. The app must not grow a second way of
-  running anything: configure forge and daemon through their environment. The web app's
+  running anything: configure forge and daemon through their environment. The `geordi`
+  command (`apps/cli`) starts them the same way: both use `@geordi/launch`, which stages
+  the services (the agents' ACP wrappers bundled, so none of the agents' own programs ship)
+  and says what each is started with. The web app's
   packages are all `devDependencies`, so that its build needs nothing but Node. Its window has
   no title bar: every page starts with a `TitleBar`, which in the app (`desktop:` variant) makes
   room for the window's buttons and is what the window is dragged by (`window-drag`, on

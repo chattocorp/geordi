@@ -8,8 +8,26 @@ Geordi has two parts (see [ADR-002](adr/ADR-002-forge-and-daemon-monorepo.md)):
 - The **daemon** (`apps/daemon`) runs on the machine with your code. It manages worktrees,
   agents and terminals, and connects to the forge.
 
-The desktop app starts both. To run them yourself, from a checkout (see
-[Contributing](../CONTRIBUTING.md) for the tools):
+The desktop app starts both. Without it, the `geordi` command does the same (Node.js 24 or
+newer):
+
+```sh
+npx geordi
+```
+
+It uses the desktop app's ports (7717 to 7719) and data (`~/.geordi`), so only one of them
+runs at a time, and prints what forge and daemon say. Ctrl+C stops Geordi and its agents;
+any other signal leaves the agents working for the next start. `PORT`, `GEORDI_DAEMON_PORT`,
+`GEORDI_LIVE_PORT` and `ORIGIN` (default `http://localhost:7717`) change where it runs, and
+the settings below apply to it too. It listens on 127.0.0.1 only. On a server, reach it
+through an SSH tunnel, for the web and the browsers' WebSocket:
+
+```sh
+ssh -L 7717:localhost:7717 -L 7719:localhost:7719 your-server
+```
+
+To run forge and daemon yourself, from a checkout (see [Contributing](../CONTRIBUTING.md)
+for the tools):
 
 ```sh
 pnpm install

@@ -3,7 +3,19 @@ import { mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const command = (file, args) => execFileSync(file, args, { stdio: 'inherit' });
+const command = (file, args, env = process.env) =>
+	execFileSync(file, args, { stdio: 'inherit', env });
+
+/**
+ * What the app is opened with: what the Finder would give it (the app reads the rest from a
+ * login shell). `open` hands the app its caller's environment, and the caller is often an
+ * agent's shell, inside Geordi: with its `ELECTRON_RUN_AS_NODE`, the new app would start as
+ * Node and end at once, and its workspace's variables would reach every agent.
+ */
+export function launchEnv(env) {
+	const kept = ['HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'PATH'];
+	return Object.fromEntries(kept.filter((name) => env[name]).map((name) => [name, env[name]]));
+}
 
 /** Prepare the replacement before quitting. Keep the old bundle until replacement succeeds. */
 export async function installApp(
@@ -49,7 +61,7 @@ export async function installApp(
 			}
 			throw error;
 		}
-		run('open', [installed]);
+		run('open', [installed], launchEnv(process.env));
 		completed = true;
 		console.log(`installed ${installed}`);
 	} finally {
