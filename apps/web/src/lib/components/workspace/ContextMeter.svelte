@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ContextUsage } from '@geordi/protocol';
-	import { describeUsage, fullness, NEARLY_FULL } from '#lib/usage.ts';
+	import { describeUsage, fullness, NEARLY_FULL } from '#lib/tokens.ts';
 	import Ring from '#lib/ui/Ring.svelte';
 
 	/**

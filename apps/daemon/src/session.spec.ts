@@ -419,9 +419,11 @@ describe('a session', () => {
 	it('reports a turn the agent begins by itself, and is not ended while something runs', async () => {
 		const { session, events, ended } = begin('background', { idle: '200' });
 		await ended(1);
-		expect(session.background()).toEqual([{ type: 'tool_call', id: 'task', toolCallId: 'task' }]);
+		expect(session.live().background).toEqual([
+			{ type: 'tool_call', id: 'task', toolCallId: 'task' }
+		]);
 		await ended(2);
-		expect(session.background()).toEqual([]);
+		expect(session.live().background).toEqual([]);
 		expect(events.filter((event) => event.kind !== 'background').slice(4)).toEqual([
 			{ kind: 'turn.started' },
 			{ kind: 'text', text: 'it finished' },
@@ -554,12 +556,12 @@ describe('a daemon restart', () => {
 			{ kind: 'usage', usage: { ...usage, used: 31432 } },
 			{ kind: 'usage', usage }
 		]);
-		expect(first.session.usage()).toEqual(usage);
+		expect(first.session.live().usage).toEqual(usage);
 		first.session.detach(); // the daemon goes away
 
 		const session = resumeSessions(sessions, () => () => true).get('w')!;
 		started.push(session);
-		expect(session.usage()).toEqual(usage);
+		expect(session.live().usage).toEqual(usage);
 	});
 
 	it("knows the agent's commands as last offered, without passing them on again", async () => {
@@ -574,12 +576,12 @@ describe('a daemon restart', () => {
 		expect(first.events.filter((event) => event.kind === 'commands')).toEqual([
 			{ kind: 'commands', commands: offered }
 		]);
-		expect(first.session.commands()).toEqual(offered);
+		expect(first.session.live().commands).toEqual(offered);
 		first.session.detach();
 
 		const session = resumeSessions(sessions, () => () => true).get('w')!;
 		started.push(session);
-		expect(session.commands()).toEqual(offered);
+		expect(session.live().commands).toEqual(offered);
 	});
 
 	it('reports one answer receipt when a restarted daemon retries an answer in flight', async () => {

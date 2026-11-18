@@ -309,8 +309,8 @@ function begin(workspaceId: string, meta: Meta, [first, ...rest]: Said[]) {
  */
 function attend(workspaceId: string, session: Session) {
 	void session.done.then((unheard) => {
-		if (sessions.get(workspaceId) === session && session.background().length)
-			sendLive({ type: 'workspace.background', workspaceId, tasks: [] });
+		if (sessions.get(workspaceId) === session && session.live().background?.length)
+			sendLive({ type: 'workspace.live', workspaceId, live: { background: [] } });
 		if (unheard.length === 0 || retired.has(session)) {
 			if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
 			return;
@@ -430,14 +430,8 @@ function connect(delay = 500) {
 			socket = ws;
 			for (const [workspaceId, session] of sessions) {
 				if (session.over()) continue;
-				const tasks = session.background();
-				if (tasks.length) sendLive({ type: 'workspace.background', workspaceId, tasks });
-				const usage = session.usage();
-				if (usage) sendLive({ type: 'workspace.usage', workspaceId, usage });
-				const commands = session.commands();
-				if (commands) sendLive({ type: 'workspace.commands', workspaceId, commands });
-				const text = session.suggestion();
-				if (text) sendLive({ type: 'workspace.suggestion', workspaceId, text });
+				const live = session.live();
+				if (Object.keys(live).length) sendLive({ type: 'workspace.live', workspaceId, live });
 			}
 			delay = 500;
 			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));
