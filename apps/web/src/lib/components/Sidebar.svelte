@@ -3,7 +3,7 @@
 	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
-	import { openSettings } from '#lib/components/settings.svelte.ts';
+	import { settingsPath } from '#lib/components/settings.svelte.ts';
 	import StandingIcon from '#lib/components/StandingIcon.svelte';
 	import {
 		actFromAfar,
@@ -159,6 +159,7 @@
 			? folded.current.filter((other) => other !== id)
 			: [...folded.current, id]);
 	const settingsHint = `${modifierKey()},`;
+	const inSettings = $derived(path.startsWith('/settings'));
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col sheet-quiet">
@@ -228,15 +229,15 @@
 
 	<div class="p-2">
 		<ConnectionIndicator {lost} class="px-2.5 py-1" />
-		<button
-			type="button"
-			class="item w-full gap-2.5 px-2.5 py-1.5 text-base"
-			onclick={() => openSettings()}
+		<a
+			href={settingsPath()}
+			class={['item gap-2.5 px-2.5 py-1.5 text-base', inSettings && 'item-active font-medium']}
+			aria-current={inSettings ? 'page' : undefined}
 		>
 			<span class="icon-[lucide--settings] size-4 shrink-0"></span>
 			Settings
 			<kbd class="ml-auto font-sans text-xs text-muted">{settingsHint}</kbd>
-		</button>
+		</a>
 	</div>
 </div>
 

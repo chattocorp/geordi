@@ -237,8 +237,8 @@ it, perhaps you.
   `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).
-- **Settings (FDR-005):** one dialog (`#lib/components/Settings.svelte`), opened with
-  `openSettings(section?)` or Cmd/Ctrl+,. Preferences of this browser (the theme,
+- **Settings (FDR-005):** one page, `/settings/[[section]]` (`#lib/components/Settings.svelte`),
+  opened with `openSettings(section?)` or Cmd/Ctrl+,. Preferences of this browser (the theme,
   `#lib/theme.svelte.ts`) live in localStorage; what belongs to the installation
   (repositories) is events.
 - **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed, three

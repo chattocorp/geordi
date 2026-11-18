@@ -6,11 +6,10 @@
 		open: boolean;
 		/** What the dialog is, for those who can't see it. */
 		label: string;
-		wide?: boolean;
 		class?: string;
 		children: Snippet;
 	};
-	let { open = $bindable(), label, wide = false, class: extra, children }: Props = $props();
+	let { open = $bindable(), label, class: extra, children }: Props = $props();
 
 	let dialog: HTMLDialogElement;
 
@@ -38,7 +37,7 @@
 	onclick={(event) => event.target === dialog && (open = false)}
 	class={[
 		'm-auto max-h-5/6 w-full overflow-hidden card-float p-0 text-ink outline-none backdrop:bg-bg/70',
-		wide ? 'max-w-4xl' : 'max-w-2xl',
+		'max-w-2xl',
 		extra
 	]}
 >
