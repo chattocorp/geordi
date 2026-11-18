@@ -36,8 +36,6 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
   mode that asks you to approve individual tool calls. See [Safety](#safety).
 - **Use your own browser.** Project previews and external links open in your browser.
   There is no in-app browser.
-- **Start from upstream.** A new workspace normally branches from the latest upstream
-  default branch. You can leave unfinished edits in your existing checkout.
 
 ## Install
 
