@@ -36,7 +36,7 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	pending: ('fix-checks' | 'merge-upstream')[] = [],
+	pending: ('fix-checks' | 'merge-upstream' | 'merge-pull')[] = [],
 	working = false
 )}
 	{@const pull = state.upstream?.pull}
@@ -66,6 +66,16 @@
 <Story name="Ready to merge" asChild
 	>{@render bar({ changes: pushed, upstream: upstream({}) })}</Story
 >
+
+<Story
+	name="Waiting for merged standing"
+	asChild
+	play={async ({ canvasElement }) => {
+		await expect(within(canvasElement).getByRole('button', { name: /Merge PR/ })).toBeDisabled();
+	}}
+>
+	{@render bar({ changes: pushed, upstream: upstream({}) }, ['merge-pull'])}
+</Story>
 
 <Story name="Blocked three ways" asChild>
 	{@render bar({
