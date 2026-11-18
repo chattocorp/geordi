@@ -97,14 +97,6 @@ Register a repository on the home page, open it, and start a workspace: one conv
 with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See
 [FDR-001](docs/fdr/FDR-001-workspaces.md).
 
-## Publishing the desktop app
-
-When change notes reach `main`, Sweet's bump job opens or updates a release PR with
-the version and changelog. Merge that PR to release Geordi. Sweet tags the version
-commit, then CI builds that commit on Apple silicon macOS and x64 Windows, checks
-the packaged runtimes, and publishes both unsigned ZIPs to the GitHub release.
-Packaging pull requests also produce both ZIPs as downloadable workflow artifacts.
-
 ## Running in production
 
 ```sh
