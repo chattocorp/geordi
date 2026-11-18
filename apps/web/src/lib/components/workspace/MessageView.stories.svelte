@@ -6,6 +6,10 @@
 	import Button from '#lib/ui/Button.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
+	const prompt = 'Can you summarize the changes before I open the pull request?';
+	const reply =
+		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
+	const queued = 'Please include a screenshot of the dark theme.';
 	const history: Block[] = Array.from({ length: 500 }, (_, index) =>
 		index % 2 === 0
 			? { kind: 'user', text: `Message ${index}` }
@@ -130,6 +134,32 @@
 			]}
 			agent="claude"
 			pictures="/no-such-workspace/picture"
+			onremove={() => {}}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Copy messages"
+	asChild
+	play={async ({ canvas }) => {
+		const user = userEvent.setup();
+		const buttons = await canvas.findAllByRole('button', { name: 'Copy message' });
+		for (const [index, text] of [prompt, reply, queued].entries()) {
+			await user.click(buttons[index]);
+			await expect(await navigator.clipboard.readText()).toBe(text);
+			await expect(buttons[index]).toHaveAccessibleName('Copied');
+		}
+	}}
+>
+	<div class="flex h-112 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[
+				{ kind: 'user', text: prompt },
+				{ kind: 'agent', parts: [{ kind: 'text', text: reply }] }
+			]}
+			queue={[queued]}
+			agent="codex"
 			onremove={() => {}}
 		/>
 	</div>

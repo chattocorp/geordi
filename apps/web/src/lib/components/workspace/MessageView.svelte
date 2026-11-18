@@ -5,6 +5,7 @@
 	import type { Block } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import MessageImages from '#lib/components/MessageImages.svelte';
+	import MessageCopy from './MessageCopy.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -83,6 +84,21 @@
 	});
 </script>
 
+{#snippet messageActions(text: string, outgoing = false, remove?: () => void)}
+	<div class={['mt-1 flex items-center gap-1', outgoing && 'justify-end']}>
+		{#if text}<MessageCopy {text} />{/if}
+		{#if remove}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--x]"
+				label="Don't send this"
+				onclick={remove}
+			/>
+		{/if}
+	</div>
+{/snippet}
+
 <div bind:this={scroller} class="scroller">
 	<Virtualizer
 		bind:this={list}
@@ -118,6 +134,7 @@
 								{#if block.text}<p class="whitespace-pre-wrap">{block.text}</p>{/if}
 								<MessageImages images={block.images} />
 							</div>
+							{#if block.text}{@render messageActions(block.text, true)}{/if}
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">
@@ -132,7 +149,10 @@
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
 									{#each block.parts as part, j (j)}
 										{#if part.kind === 'text'}
-											<Markdown text={part.text} dimmed={j !== lastText} {pictures} />
+											<div>
+												<Markdown text={part.text} dimmed={j !== lastText} {pictures} />
+												{#if part.text}{@render messageActions(part.text)}{/if}
+											</div>
 										{:else if part.kind === 'tools'}
 											<!-- live: the agent is at work, and this is the last thing it did -->
 											<ToolGroup
@@ -150,21 +170,12 @@
 					</div>
 				{:else}
 					{@const { text, index, images } = row}
-					<div class="flex items-start justify-end gap-2">
-						<Button
-							variant="ghost"
-							size="sm"
-							icon="icon-[lucide--x]"
-							label="Don't send this"
-							onclick={() => onremove(index, text, images)}
-							class="mt-1.5"
-						/>
-						<div class="message ring-1 ring-line">
-							<p class="label">Queued</p>
-							<p class="whitespace-pre-wrap text-muted">{text}</p>
-							<MessageImages {images} />
-						</div>
+					<div class="ml-auto message ring-1 ring-line">
+						<p class="label">Queued</p>
+						<p class="whitespace-pre-wrap text-muted">{text}</p>
+						<MessageImages {images} />
 					</div>
+					{@render messageActions(text, true, () => onremove(index, text, images))}
 				{/if}
 			</div>
 		{/snippet}
