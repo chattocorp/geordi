@@ -52,3 +52,51 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 - `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
+
+## Connect an external agent
+
+In **Settings → Agent access**, name the external agent and click **Create token**. Copy the
+bearer token before closing Settings. It grants access to workspaces across this installation.
+Use **Revoke** to end its access.
+
+The examples below assume the agent runs on the same Mac as the desktop app. If Settings
+shows a different MCP URL, use that URL. For an agent on another machine, forward a local
+port on the agent's machine to the forge's loopback HTTP port through SSH and use the forwarded URL.
+
+After copying the token, run this in the shell where you will launch the agent:
+
+```sh
+export GEORDI_MCP_TOKEN="$(pbpaste)"
+```
+
+### Codex CLI
+
+Register the server once, then launch Codex with `GEORDI_MCP_TOKEN` in its environment
+for each session. [Codex MCP configuration](https://developers.openai.com/codex/mcp/)
+
+```sh
+codex mcp add geordi --url http://127.0.0.1:7717/mcp --bearer-token-env-var GEORDI_MCP_TOKEN
+```
+
+### Claude Code
+
+Register the server once for your user account. This command saves the bearer header in
+your Claude Code user configuration. [Claude Code MCP configuration](https://code.claude.com/docs/en/mcp)
+
+```sh
+claude mcp add --scope user --transport http geordi http://127.0.0.1:7717/mcp --header "Authorization: Bearer $GEORDI_MCP_TOKEN"
+```
+
+### Verify the connection
+
+Start a new session and ask: “Use Geordi to list my workspaces.” For other clients, select
+Streamable HTTP, enter the MCP URL, and set the `Authorization` header to `Bearer <token>`.
+
+Call `list_workspaces` to find a workspace, then `read_workspace` with its `workspace_id`.
+Use the same ID as `agent_id` for `workspace_status`, `send_message` and `wait_for_agent`. A
+message starts an idle agent; a busy one receives it after its turn.
+
+To start new work, find a repository with `list_repositories` and call `start_agent` with its
+ID as `repository`. The agents a client starts are its own: it can also interrupt them
+(`interrupt: true`), stop and archive them, as it cannot other agents. Questions an agent asks
+are for you to answer in Geordi.

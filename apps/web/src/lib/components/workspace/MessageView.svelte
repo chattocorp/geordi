@@ -278,7 +278,9 @@
 									<span class="icon-[lucide--bot] size-3.5"></span>
 									{block.from && senders?.[block.from]
 										? `From the agent in “${senders[block.from]}”`
-										: 'From another agent'}
+										: block.senderName
+											? `From ${block.senderName}`
+											: 'From another agent'}
 								</p>
 							{/if}
 							<div class="ml-auto message bg-bubble">

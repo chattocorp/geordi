@@ -78,6 +78,7 @@
 
 	/** A day's work: something in every lane, and the ribbons each can show. */
 	const busy: Navigation = {
+		access: [],
 		repos: [repo('geordi', 'geordi'), repo('site', 'website')],
 		workspaces: [
 			// needs you
@@ -198,7 +199,7 @@
 </Story>
 
 <Story name="Nothing going on" asChild>
-	{@render frame({ repos: busy.repos, workspaces: [], harnesses: null })}
+	{@render frame({ ...busy, workspaces: [] })}
 </Story>
 
 <Story name="Waiting for the forge" asChild>
