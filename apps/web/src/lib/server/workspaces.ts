@@ -32,7 +32,7 @@ export type WorkspacesEvent =
 			stream: WorkspaceStream;
 			data: {
 				id: string;
-				/** Absent for a desk, which belongs to no repository (FDR-012). */
+				/** Absent for the Desk, which belongs to no repository (FDR-012). */
 				repoId?: string;
 				title: string;
 				agent: Agent;
@@ -258,7 +258,7 @@ export type Workspace = {
 	outputCursor?: string;
 	pendingSteers?: { deliveryId: string; text: string; images: string[] }[];
 	id: string;
-	/** `null` for a desk: a workspace that belongs to no repository, for orchestrating (FDR-012). */
+	/** `null` for the Desk: a workspace that belongs to no repository, for orchestrating (FDR-012). */
 	repoId: string | null;
 	title: string;
 	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
@@ -377,7 +377,7 @@ export const UNTITLED = 'New workspace';
 const MAX_NAMES = 3;
 
 type NewWorkspace = {
-	/** `null` for a desk (FDR-012). */
+	/** `null` for the Desk (FDR-012). */
 	repoId: string | null;
 	agent: Agent;
 	settings?: AgentSettings;
@@ -744,10 +744,10 @@ export function createWorkspaces(
 		};
 	}
 
-	/** What a daemon needs to find the worktree a workspace works in. A desk has none. */
+	/** What a daemon needs to find the worktree a workspace works in. The Desk has none. */
 	function ref(id: string): WorktreeRef {
 		const { repoId, worktreeId, base } = find(id);
-		if (repoId === null) error(409, 'A desk has no worktree');
+		if (repoId === null) error(409, 'The Desk has no worktree');
 		const owner = find(worktreeId);
 		const branch = owner.worktree?.branch;
 		const parents: NonNullable<WorktreeRef['parents']> = [];
@@ -983,7 +983,10 @@ export function createWorkspaces(
 	): string {
 		imageStore.resolve(images);
 		const { repoId, ...rest } = workspace;
-		if (repoId !== null) repos.get(repoId); // 404s for unknown repos
+		if (repoId !== null)
+			repos.get(repoId); // 404s for unknown repos
+		// there is one Desk: a new one only once the last was started afresh (archived)
+		else if (theDesk()) error(409, 'The Desk is there already');
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
 		// The first line; the UI clamps long titles visually. One started without a word is
@@ -1039,8 +1042,12 @@ export function createWorkspaces(
 	const descendantsOf = (id: string): Workspace[] =>
 		childrenOf(id).flatMap((child) => [child, ...descendantsOf(child.id)]);
 
+	/** The Desk (FDR-012), if it has a conversation going: the one workspace without a repository in use. */
+	const theDesk = (): Workspace | undefined =>
+		[...projection.get().values()].find((w) => w.repoId === null && !w.archivedAt);
+
 	/**
-	 * Whether the caller is a desk's agent (FDR-012): it acts for the person sitting at it, and
+	 * Whether the caller is the Desk's agent (FDR-012): it acts for the person sitting at it, and
 	 * may do whatever they may.
 	 */
 	const isDesk = (callerId: string) =>
@@ -1048,7 +1055,7 @@ export function createWorkspaces(
 
 	/**
 	 * A workspace the caller started (directly or not). Anything else doesn't exist for it,
-	 * unless the caller is a desk, which may supervise any.
+	 * unless the caller is the Desk, which may supervise any.
 	 */
 	function findControlled(callerId: string, id: string): Workspace {
 		if (isDesk(callerId)) return find(id);
@@ -1185,7 +1192,7 @@ export function createWorkspaces(
 				worktreeId?: string;
 				base?: string;
 			};
-			// a desk, like a client outside Geordi, starts agents in whichever repository it names
+			// the Desk, like a client outside Geordi, starts agents in whichever repository it names
 			const desk = caller?.repoId === null;
 			if (!caller || desk) {
 				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
@@ -1193,7 +1200,7 @@ export function createWorkspaces(
 					error(
 						400,
 						desk
-							? 'A desk has no worktree to share'
+							? 'The Desk has no worktree to share'
 							: 'Only an agent in a workspace can share its worktree'
 					);
 				where = { repoId: repos.get(repository).id, ...(desk && { parentId: callerId }) };
@@ -1331,7 +1338,7 @@ export function createWorkspaces(
 		/**
 		 * The IDs of the workspaces in use that belong to this one, and go when it goes: those
 		 * its agent started, the agents working in its worktree (whoever started them), and
-		 * theirs. Parents first. None for a desk: what it started is work in a repository,
+		 * theirs. Parents first. None for the Desk: what it started is work in a repository,
 		 * which carries on without it (FDR-012).
 		 */
 		descendants(id: string): string[] {
@@ -1363,7 +1370,7 @@ export function createWorkspaces(
 		): string {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (workspace.repoId === null) error(409, 'A desk is one conversation');
+			if (workspace.repoId === null) error(409, 'The Desk is one conversation');
 			const owner = find(workspace.worktreeId);
 			return create(
 				{
@@ -1379,6 +1386,8 @@ export function createWorkspaces(
 			);
 		},
 		worktreeOf: (id: string) => projection.get().get(id)?.worktreeId,
+		/** The ID of the Desk's conversation (FDR-012); `null` until something is said there. */
+		desk: () => theDesk()?.id ?? null,
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
 

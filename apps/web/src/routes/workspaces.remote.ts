@@ -55,7 +55,7 @@ export const configureWorkspace = command(
 
 export const createWorkspace = form(
 	v.object({
-		/** Empty for a desk, which belongs to no repository (FDR-012). */
+		/** Empty for the Desk, which belongs to no repository (FDR-012). */
 		repoId: v.string(),
 		images: imageIds,
 		agent: v.picklist(AGENTS),
@@ -77,7 +77,7 @@ export const createWorkspace = form(
 			redirect(303, `/workspaces/${owner}?agent=${id}`);
 		}
 		const id = workspaces().create({ ...data, repoId: repoId || null, settings });
-		// a desk has no worktree to make
+		// the Desk has no worktree to make
 		if (!repoId) redirect(303, `/workspaces/${id}`);
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in

@@ -11,8 +11,8 @@ type Parts = {
 	 * losing. `teardown` runs the repository's teardown script first.
 	 */
 	removeWorktree(ref: WorktreeRef, discard: boolean, teardown: boolean): Promise<unknown>;
-	/** Has a daemon remove a desk's folder (FDR-012). */
-	removeDesk(deskId: string): Promise<unknown>;
+	/** Has a daemon end a workspace's agent CLI, if it runs: the Desk's, whose folder stays (FDR-012). */
+	endSession(workspaceId: string): Promise<unknown>;
 };
 
 /**
@@ -28,10 +28,11 @@ type Parts = {
  * archived before stays archived, and trying again carries on. Shells are only ended once
  * the worktree is gone: a refusal costs nobody their terminals.
  *
- * A desk (FDR-012) goes alone, with its folder: what its agent started is work in a
- * repository, which carries on without it.
+ * The Desk's conversation (FDR-012) goes alone, and its folder stays: archiving it is
+ * starting the Desk afresh. What its agent started is work in a repository, which carries
+ * on without it.
  */
-export function createArchiver({ workspaces, closeTerminals, removeWorktree, removeDesk }: Parts) {
+export function createArchiver({ workspaces, closeTerminals, removeWorktree, endSession }: Parts) {
 	return async function archive(id: string, discard: boolean, actor: string | null = null) {
 		// children before their parents, so a shared worktree goes with its last user
 		const family = [id, ...workspaces.descendants(id)].reverse().map(workspaces.summary);
@@ -45,7 +46,7 @@ export function createArchiver({ workspaces, closeTerminals, removeWorktree, rem
 				if (workspace.archivedAt) continue;
 				if (workspace.repoId === null)
 					try {
-						await removeDesk(workspace.id);
+						await endSession(workspace.id);
 					} catch (problem) {
 						error(422, problem instanceof Error ? problem.message : String(problem));
 					}

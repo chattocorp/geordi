@@ -31,7 +31,7 @@
 		 * with an agent that works in its directory.
 		 */
 		alongside?: string;
-		/** Whether this starts a desk (FDR-012): no repository to choose. */
+		/** Whether this begins the Desk's conversation (FDR-012): no repository to choose. */
 		desk?: boolean;
 	};
 	let { repos, preferred, label, focused = false, alongside, desk = false }: Props = $props();
@@ -147,7 +147,7 @@
 				class="ml-auto"
 				disabled={!chosen}
 			>
-				{desk ? 'Start desk' : 'Start workspace'}
+				{desk ? 'Start' : 'Start workspace'}
 			</Button>
 		{/if}
 	{/snippet}

@@ -156,7 +156,7 @@ export const workspace = (id: string) => {
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				// a desk has no worktree to watch (FDR-012)
+				// the Desk has no worktree to watch (FDR-012)
 				git: workspace.repoId === null ? null : watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read

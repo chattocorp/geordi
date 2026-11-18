@@ -84,8 +84,8 @@ export type WorktreeRef = {
 };
 
 /**
- * Where a desk's agent works (FDR-012): a desk belongs to no repository, and works in an
- * empty folder of its own that the daemon makes for it, derived from its ID.
+ * Where the Desk's agent works (FDR-012): the Desk belongs to no repository, and works in
+ * a folder of its own that the daemon keeps for it, the same one for every conversation.
  */
 export type DeskRef = { worktreeId: string; desk: true };
 
@@ -436,8 +436,8 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
-	/** Removes a desk's folder (FDR-012), with whatever its agent left there. */
-	| ({ kind: 'removeDesk' } & DeskRef)
+	/** Ends the workspace's agent CLI, if it runs: its conversation is over (the Desk's, FDR-012). */
+	| { kind: 'endSession'; workspaceId: string }
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -502,7 +502,7 @@ export type DaemonResults = {
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
-	removeDesk: null;
+	endSession: null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;

@@ -2,7 +2,7 @@
  * Workspaces as the sidebar lists them (FDR-002): by repository, as a plain list in which
  * a workspace started by an agent comes right after the one whose agent started it.
  */
-/** `repoId` is `null` for a desk (FDR-012): desks are listed together, as if theirs were one. */
+/** `repoId` is `null` for the Desk (FDR-012): listed together, as if theirs were one. */
 type Member = { id: string; repoId: string | null; parentId: string | null };
 
 export type Listed<T> = {

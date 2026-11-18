@@ -364,9 +364,7 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 			);
 			workspaces().onBranch(ref.worktreeId, branch);
 		},
-		removeDesk: async (deskId) => {
-			await hub().request({ kind: 'removeDesk', worktreeId: deskId, desk: true });
-		}
+		endSession: (workspaceId) => hub().request({ kind: 'endSession', workspaceId })
 	})(id, discard, actor);
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */

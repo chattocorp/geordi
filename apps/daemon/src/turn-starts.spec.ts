@@ -25,7 +25,7 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 		const emit = vi.fn();
 		const { beginning, startMessage } = turnStarts({
 			worktreesDir: '/trees',
-			desksDir: '/desks',
+			deskDir: '/desk',
 			sessions,
 			setups,
 			apiUrl: '',
@@ -109,14 +109,14 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 	}
 );
 
-it('starts a desk in a folder of its own, without a worktree or its configuration', async () => {
-	const desksDir = mkdtempSync(join(tmpdir(), 'desks-'));
+it('starts the Desk in its folder, without a worktree or its configuration', async () => {
+	const deskDir = join(mkdtempSync(join(tmpdir(), 'desk-')), 'desk');
 	const begin = vi.fn();
 	const configFor = vi.fn();
 	const prepared = vi.fn();
 	const { startMessage } = turnStarts({
 		worktreesDir: '/trees',
-		desksDir,
+		deskDir,
 		sessions: new Map(),
 		setups: new Map(),
 		apiUrl: '',
@@ -138,7 +138,7 @@ it('starts a desk in a folder of its own, without a worktree or its configuratio
 		resumeId: null,
 		prompt: 'orchestrate'
 	});
-	const path = join(desksDir, deskId);
+	const path = deskDir;
 	expect(existsSync(path)).toBe(true);
 	expect(ensureWorktree).not.toHaveBeenCalled();
 	expect(configFor).not.toHaveBeenCalled();

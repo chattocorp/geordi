@@ -63,7 +63,7 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 - `GEORDI_DAEMON_TOKEN_FILE` (default `~/.geordi/daemon-token`), `GEORDI_DAEMON_TOKEN`: The forge's shared secret: the file the forge created, or the secret itself.
 - `GEORDI_WORKTREES_DIR` (default `~/.geordi/worktrees`): Where workspace worktrees are created.
 - `GEORDI_SESSIONS_DIR` (default `~/.geordi/sessions`): Where agent sessions are kept, so that they survive a daemon restart.
-- `GEORDI_DESKS_DIR` (default `~/.geordi/desks`): Where desks, workspaces that belong to no repository, keep their folders.
+- `GEORDI_DESK_DIR` (default `~/.geordi/desk`): The folder the Desk's agent works in.
 - `GEORDI_RUN_APPROVALS_FILE` (default `~/.geordi/run-approvals.json`): The commands you have agreed to run, by repository.
 - `GEORDI_PORTS_FILE` (default `~/.geordi/ports.json`): The ports each workspace has been given.
 - `OPENROUTER_API_KEY`: Lets the daemon name workspaces by asking a small model on [OpenRouter](https://openrouter.ai). Without it, a workspace is named after the first line of its first message.

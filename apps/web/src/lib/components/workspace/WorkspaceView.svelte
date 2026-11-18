@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { archiveAndNavigate } from './afar.svelte.ts';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -83,14 +84,14 @@
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
 
-	/** A desk (FDR-012) is a conversation and nothing else: no repository, no changes, no terminals. */
+	/** The Desk (FDR-012) is a conversation and nothing else: no repository, no changes, no terminals. */
 	const desk = $derived(workspace.repoId === null);
 	// its repository, as everyone knows it; by its ID until that has come
 	const everything = follow<Navigation>('navigation');
 	const repo = $derived(
 		everything.current?.repos.find((repo) => repo.id === workspace.repoId) ?? {
 			id: workspace.repoId ?? '',
-			name: workspace.repoId ?? 'Desk'
+			name: workspace.repoId ?? 'The Desk'
 		}
 	);
 	const git = $derived(workspace.git);
@@ -627,6 +628,14 @@
 		)
 	);
 
+	/**
+	 * Starts the Desk afresh: its conversation is archived (and stays readable), its agent
+	 * ends, and the next thing said there begins a new one. Its folder stays.
+	 */
+	async function startAfresh() {
+		if (await archiveWorkspace(id, workspace.title)) await goto(resolve('/desk'));
+	}
+
 	function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
@@ -856,7 +865,16 @@
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
-		{:else if !desk}
+		{:else if desk}
+			<Button
+				variant="ghost"
+				icon="icon-[lucide--rotate-ccw]"
+				disabled={working || leaving}
+				onclick={startAfresh}
+			>
+				Start afresh
+			</Button>
+		{:else}
 			<Button
 				variant="ghost"
 				icon={frame.current.open

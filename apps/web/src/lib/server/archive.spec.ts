@@ -22,8 +22,8 @@ function setup() {
 	const closed: string[] = [];
 	/** The worktrees whose teardown script was to run. */
 	const tornDown: string[] = [];
-	/** The desks whose folders were to go. */
-	const desksRemoved: string[] = [];
+	/** The workspaces whose agent CLI was to end. */
+	const ended: string[] = [];
 	const archive = createArchiver({
 		workspaces,
 		closeTerminals: (id) => closed.push(id),
@@ -33,7 +33,7 @@ function setup() {
 			removed.push(worktreeId);
 			if (teardown) tornDown.push(worktreeId);
 		},
-		removeDesk: async (id) => void desksRemoved.push(id)
+		endSession: async (id) => void ended.push(id)
 	});
 
 	/** A workspace whose agent has a worktree and is idle. */
@@ -57,7 +57,7 @@ function setup() {
 		dirty,
 		closed,
 		tornDown,
-		desksRemoved,
+		ended,
 		lead,
 		start
 	};
@@ -125,8 +125,8 @@ describe('archiving', () => {
 		expect(workspaces.list(repo.id)).toEqual([]);
 	});
 
-	it('archives a desk alone, with its folder: what it started carries on', async () => {
-		const { workspaces, repo, archive, removed, desksRemoved } = setup();
+	it('archives the Desk alone, ending its agent: what it started carries on', async () => {
+		const { workspaces, repo, archive, removed, ended } = setup();
 		const desk = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Orchestrate' });
 		workspaces.record(desk, { kind: 'turn.started' });
 		const { id: child } = workspaces.agents.start(desk, {
@@ -138,7 +138,7 @@ describe('archiving', () => {
 
 		await archive(desk, false);
 
-		expect(desksRemoved).toEqual([desk]);
+		expect(ended).toEqual([desk]);
 		expect(removed).toEqual([]);
 		expect(workspaces.get(desk).archivedAt).not.toBeNull();
 		expect(workspaces.get(child)).toMatchObject({ archivedAt: null, status: 'running' });
@@ -158,7 +158,7 @@ describe('archiving', () => {
 			workspaces,
 			closeTerminals: () => {},
 			// while the daemon is at it, someone says something
-			removeDesk: async () => {},
+			endSession: async () => {},
 			removeWorktree: async () => {
 				try {
 					workspaces.send(lead, 'One more thing');

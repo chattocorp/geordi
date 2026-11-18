@@ -89,8 +89,8 @@
 		harnesses: null
 	};
 
-	/** Desks (FDR-012) above the repositories; what one started is listed with its repository. */
-	const withDesks: Navigation = {
+	/** The Desk (FDR-012) at work, beside the overview; what it started is with its repository. */
+	const withDesk: Navigation = {
 		...nav,
 		workspaces: [
 			workspace('desk', 'Ship the protocol bump everywhere', {
@@ -100,7 +100,6 @@
 				working: true,
 				outcome: null
 			}),
-			workspace('desk-quiet', 'Triage this week’s issues', { repoId: null, branch: null }),
 			workspace('bump', 'Bump the protocol in the daemon', {
 				parentId: 'desk',
 				status: 'running',
@@ -190,17 +189,19 @@
 </Story>
 
 <Story
-	name="With desks"
+	name="With the Desk at work"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText('Desks')).toBeVisible();
-		await expect(canvas.getByRole('link', { name: 'New desk' })).toBeVisible();
+		await expect(canvas.getByRole('link', { name: /The Desk/ })).toHaveAttribute(
+			'aria-current',
+			'page'
+		);
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',
 			'Started by the agent in "Ship the protocol bump everywhere"'
 		);
 	}}
 >
-	{@render frame(withDesks, '/workspaces/desk')}
+	{@render frame(withDesk, '/workspaces/desk')}
 </Story>

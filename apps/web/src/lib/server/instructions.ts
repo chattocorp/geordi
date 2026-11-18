@@ -6,7 +6,7 @@ import { CONFIG_FILE } from '@geordi/protocol';
  * Goes out with every turn, as an addition to the CLI's system prompt.
  */
 export function instructionsFor(workspace: {
-	/** Whether it is a desk (FDR-012): no repository, there to orchestrate. */
+	/** Whether it is the Desk (FDR-012): no repository, there to orchestrate. */
 	desk?: boolean;
 	/** The workspace whose agent started this one, if one did. */
 	parent: { title: string } | null;
@@ -59,16 +59,16 @@ const DIAGRAMS =
 const LINKS =
 	'When you mention a Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.';
 
-/** What the agent of a desk is told (FDR-012): it orchestrates Geordi for the person. */
+/** What the Desk's agent is told (FDR-012): it orchestrates Geordi for the person. */
 function deskInstructions(): string {
 	return [
-		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi desk: it belongs to no repository. The person sits at it to have you orchestrate their agents: across repositories, or for work that belongs to no branch.',
-		'Your working directory is an empty folder of this desk’s own, not a Git repository: for notes, and for anything you fetch to look at. It is removed when the desk is archived.',
+		'You are working inside Geordi, a tool in which people run coding agents. This conversation is at the Desk: Geordi’s one workspace that belongs to no repository. The person sits at it to have you orchestrate their agents: across repositories, or for work that belongs to no branch.',
+		'Your working directory is the Desk’s own folder, not a Git repository: for notes, and for anything you fetch to look at. It stays when the person starts the Desk afresh with a new conversation, which remembers nothing of this one: keep what is worth knowing next time in notes there (and look for them when you start).',
 		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply, `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. Bring what they report together, and tell the person where things stand.',
 		'You act for the person, who is at this desk with you: you may look at, message, steer and stop any agent in Geordi, whoever started it. Interrupt or stop agents you did not start only when the person asks you to.',
 		ASKING,
 		DIAGRAMS,
 		LINKS,
-		'Once you know what the work is about, give this desk a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name.'
+		'Once you know what the work is about, give this conversation a short name with the `name_workspace` tool of the `geordi` MCP server (a few words).'
 	].join('\n\n');
 }

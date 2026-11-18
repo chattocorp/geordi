@@ -7,7 +7,7 @@ import {
 	verifyLinks,
 	worktreePath
 } from './worktree.ts';
-import { deskPath, ensureDesk } from './desks.ts';
+import { mkdirSync } from 'node:fs';
 import type { Meta } from './host.ts';
 import type { Session, Said } from './session.ts';
 
@@ -17,7 +17,7 @@ type Worktree = Awaited<ReturnType<typeof ensureWorktree>>;
 
 export function turnStarts({
 	worktreesDir,
-	desksDir,
+	deskDir,
 	sessions,
 	setups,
 	apiUrl,
@@ -27,8 +27,8 @@ export function turnStarts({
 	emitFor
 }: {
 	worktreesDir: string;
-	/** Where desks' folders are (FDR-012). */
-	desksDir: string;
+	/** The Desk's folder (FDR-012). */
+	deskDir: string;
 	sessions: ReadonlyMap<string, Session>;
 	setups: Map<string, Promise<string | null>>;
 	apiUrl: string;
@@ -56,9 +56,7 @@ export function turnStarts({
 		const heard = [said];
 		const stopped = Promise.withResolvers<never>();
 		const cwd =
-			'desk' in message
-				? deskPath(desksDir, worktreeId)
-				: worktreePath(worktreesDir, message.repoPath, worktreeId);
+			'desk' in message ? deskDir : worktreePath(worktreesDir, message.repoPath, worktreeId);
 		let canceled = false;
 		function checkStop() {
 			if (canceled) throw new Error('Stopped');
@@ -103,9 +101,11 @@ export function turnStarts({
 					return null;
 				}
 
-				// A desk works in a folder of its own, which is all there is to make for it.
-				if ('desk' in message)
-					return { path: ensureDesk(desksDir, worktreeId), desk: true as const };
+				// The Desk works in a folder of its own, which is all there is to make for it.
+				if ('desk' in message) {
+					mkdirSync(deskDir, { recursive: true });
+					return { path: deskDir, desk: true as const };
+				}
 
 				// A workspace of its own starts from where its upstream stands now. (One started
 				// by an agent starts from that agent's branch, which is here already.)
@@ -148,7 +148,7 @@ export function turnStarts({
 					dir: '', // `begin` knows where
 					resumeId: message.resumeId,
 					settings,
-					// a desk has no repository, and so no ports or jobs of one
+					// the Desk has no repository, and so no ports or jobs of one
 					env:
 						'desk' in worktree || 'desk' in message ? {} : (await configFor(worktree, message)).env,
 					instructions: message.instructions,

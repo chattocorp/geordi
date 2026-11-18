@@ -1283,7 +1283,7 @@ describe('messages with images', () => {
 	});
 });
 
-describe('desks (FDR-012)', () => {
+describe('the Desk (FDR-012)', () => {
 	const setupDesk = () => {
 		const context = setup();
 		const desk = context.workspaces.create({ repoId: null, agent: 'claude', prompt: 'Lead' });
@@ -1301,9 +1301,21 @@ describe('desks (FDR-012)', () => {
 		const message = messageTo(sent, desk)!;
 		expect(message).toMatchObject({ worktreeId: desk, desk: true });
 		expect(message).not.toHaveProperty('repoPath');
-		expect(message.instructions).toContain('Geordi desk');
+		expect(message.instructions).toContain('at the Desk');
 		expect(() => workspaces.ref(desk)).toThrow();
 		expect(() => workspaces.join(desk)).toThrow();
+	});
+
+	it('is one: another only once the last was started afresh', () => {
+		const { workspaces, desk } = setupDesk();
+		expect(workspaces.desk()).toBe(desk);
+		const again = () => workspaces.create({ repoId: null, agent: 'claude', prompt: 'More' });
+		expect(again).toThrow();
+		workspaces.record(desk, { kind: 'turn.completed' });
+		workspaces.archive(desk);
+		expect(workspaces.desk()).toBeNull();
+		const next = again();
+		expect(workspaces.desk()).toBe(next);
 	});
 
 	it('start agents in any repository they name, as their parent', () => {

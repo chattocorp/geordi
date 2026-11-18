@@ -23,7 +23,7 @@ export function desktopRuntime(env) {
 			GEORDI_DATA_DIR: directory,
 			GEORDI_WORKTREES_DIR: join(directory, 'worktrees'),
 			GEORDI_SESSIONS_DIR: join(directory, 'sessions'),
-			GEORDI_DESKS_DIR: join(directory, 'desks'),
+			GEORDI_DESK_DIR: join(directory, 'desk'),
 			GEORDI_DAEMON_TOKEN_FILE: join(directory, 'daemon-token'),
 			GEORDI_DAEMON_TOKEN: '',
 			GEORDI_RUN_APPROVALS_FILE: join(directory, 'run-approvals.json'),
