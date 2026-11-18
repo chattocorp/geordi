@@ -17,6 +17,7 @@
 		stopAgent
 	} from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
+	import ContextMeter from './ContextMeter.svelte';
 
 	/**
 	 * A workspace's conversation with its agent, and the box to reply in. `senders` names
@@ -140,6 +141,10 @@
 						>
 							{#if harnesses?.length}
 								<HarnessPicker {harnesses} {choice} onchange={configure} />
+							{/if}
+							<!-- how full the conversation is: nothing until the agent first says -->
+							{#if workspace.usage}
+								<ContextMeter usage={workspace.usage} />
 							{/if}
 						</div>
 						<!-- At the far end, together, however narrow the box: what does not fit there goes

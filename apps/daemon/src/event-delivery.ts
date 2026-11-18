@@ -8,13 +8,18 @@ type WorkspaceEvent = Extract<DaemonMessage, { type: 'workspace.event' }>;
 export function eventDelivery(
 	send: (message: WorkspaceEvent) => void,
 	sendLive: (
-		message: Extract<DaemonMessage, { type: 'workspace.background' }> | WorkspaceEvent
+		message:
+			Extract<DaemonMessage, { type: 'workspace.background' | 'workspace.usage' }> | WorkspaceEvent
 	) => void
 ) {
 	const deliveries = new Map<string, { cursor: string; sent: number; acknowledged: boolean }>();
 	const emitFor = (workspaceId: string) => (event: HostEvent, cursor?: string) => {
 		if (event.kind === 'background') {
 			sendLive({ type: 'workspace.background', workspaceId, tasks: event.tasks });
+			return true;
+		}
+		if (event.kind === 'usage') {
+			sendLive({ type: 'workspace.usage', workspaceId, usage: event.usage });
 			return true;
 		}
 		if (!cursor) {

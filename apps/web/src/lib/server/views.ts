@@ -162,15 +162,18 @@ export const workspace = (id: string) => {
 			};
 		},
 		also: (changed) => {
-			const stopTasks = hub().followBackground((source) => {
+			const relevant = (source: string) => {
 				if (source === id || transcripts.has(source)) changed();
-			});
+			};
+			const stopTasks = hub().followBackground(relevant);
+			const stopUsage = workspaces().followUsage(relevant);
 			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();
 				transcripts.clear();
 				stopTasks();
+				stopUsage();
 				unwatch();
 				unsubscribe();
 			};

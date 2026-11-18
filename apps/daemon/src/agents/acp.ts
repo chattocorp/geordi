@@ -15,7 +15,14 @@ import {
 	type CreateElicitationResponse,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import type { Agent, MessageImage, PermissionMode, Question, TurnUsage } from '@geordi/protocol';
+import type {
+	Agent,
+	ContextUsage,
+	MessageImage,
+	PermissionMode,
+	Question,
+	TurnUsage
+} from '@geordi/protocol';
 import type { HostEvent } from '../host.ts';
 import { BackgroundTasks } from './background-tasks.ts';
 import { TerminalOutput } from './terminal-output.ts';
@@ -75,6 +82,7 @@ export function connectAgent(
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
 	const terminalOutput = new TerminalOutput();
 	const questions = new Map<string, (answers?: string[]) => void>();
+	let cost: ContextUsage['cost'];
 
 	function flush() {
 		for (const text of messages.values()) if (text) emit({ kind: 'text', text });
@@ -140,6 +148,12 @@ export function connectAgent(
 				}
 				break;
 			}
+			// How full the context is, after every model step. Claude says what the session has
+			// cost so far, but not every time: what it said last stands until it says more.
+			case SessionUpdate.isUsageUpdate(u):
+				if (u.cost) cost = { amount: u.cost.amount, currency: u.cost.currency };
+				emit({ kind: 'usage', usage: { used: u.used, size: u.size, ...(cost && { cost }) } });
+				break;
 			// The pinned wrappers use this extension to withdraw one checklist.
 			case u.sessionUpdate === 'plan_removed' && 'planId' in u && typeof u.planId === 'string':
 				emit({ kind: 'plan', id: u.planId, plan: null });
