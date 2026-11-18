@@ -488,7 +488,10 @@
 				{#if archivable}
 					<button
 						type="button"
-						class="invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink"
+						class={[
+							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken',
+							standing?.tone === 'merged' ? tones.merged : 'text-muted hover:text-ink'
+						]}
 						title="Archive workspace"
 						aria-label="Archive {workspace.title}"
 						onclick={() => archiveFromHere(workspace)}
