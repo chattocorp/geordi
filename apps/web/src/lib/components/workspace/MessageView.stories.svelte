@@ -32,6 +32,19 @@
 	let following = $state(true);
 	let conversation = $state(0);
 	let view = $state<MessageView>();
+
+	const asked = [
+		{
+			question: 'Which database should the tests run against?',
+			header: 'Database',
+			options: [
+				{ label: 'SQLite', description: 'In memory: fast, and nothing to set up' },
+				{ label: 'Postgres', description: 'What production runs on' }
+			],
+			multiSelect: false
+		}
+	];
+	let answers = $state<string[] | null>(null);
 </script>
 
 <Story
@@ -99,6 +112,7 @@
 					{queue}
 					agent="codex"
 					onremove={(index) => (queue = queue.filter((_, i) => i !== index))}
+					onanswer={() => {}}
 				/>
 			{/key}
 		</div>
@@ -107,7 +121,7 @@
 
 <Story name="Empty" asChild>
 	<div class="flex h-80 flex-col overflow-hidden card">
-		<MessageView blocks={[]} agent="claude" onremove={() => {}} />
+		<MessageView blocks={[]} agent="claude" onremove={() => {}} onanswer={() => {}} />
 	</div>
 </Story>
 
@@ -136,6 +150,40 @@
 			agent="claude"
 			pictures="/no-such-workspace/picture"
 			onremove={() => {}}
+			onanswer={() => {}}
+		/>
+	</div>
+</Story>
+
+<!-- The agent asks, and waits: answered with one of what it offers, or in one's own words. -->
+<Story
+	name="Question"
+	asChild
+	play={async ({ canvas }) => {
+		const answer = await canvas.findByRole('button', { name: 'Answer' });
+		await expect(answer).toBeDisabled(); // nothing to say yet
+		await userEvent.click(canvas.getByRole('button', { name: /Postgres/ }));
+		await userEvent.click(answer);
+		await waitFor(() => expect(canvas.queryByRole('button', { name: 'Answer' })).toBeNull());
+		await expect(canvas.getByText('Postgres')).toBeVisible();
+	}}
+>
+	<div class="flex h-96 flex-col overflow-hidden card">
+		<MessageView
+			blocks={[
+				{ kind: 'user', text: 'Make the tests faster' },
+				{
+					kind: 'agent',
+					parts: [
+						{ kind: 'text', text: 'Most of the time goes into the database.' },
+						{ kind: 'question', id: 'q1', questions: asked, answers, open: !answers }
+					]
+				}
+			]}
+			agent="claude"
+			running
+			onremove={() => {}}
+			onanswer={(_, given) => (answers = given)}
 		/>
 	</div>
 </Story>
@@ -162,6 +210,7 @@
 			queue={[queued]}
 			agent="codex"
 			onremove={() => {}}
+			onanswer={() => {}}
 		/>
 	</div>
 </Story>
@@ -215,6 +264,7 @@
 				agent="codex"
 				running={working}
 				onremove={() => {}}
+				onanswer={() => {}}
 			/>
 		</div>
 	</div>

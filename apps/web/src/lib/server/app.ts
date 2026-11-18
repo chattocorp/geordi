@@ -275,7 +275,7 @@ export const hub = lazy(() =>
 		},
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {
-				workspaces().record(message.workspaceId, message.event, message.turn);
+				workspaces().record(message.workspaceId, message.event, message.cursor);
 				// At the end of a turn, how things stand upstream may be different: agents push,
 				// open pull requests, answer reviews. None of that shows in the worktree.
 				if (message.event.kind === 'turn.completed' || message.event.kind === 'turn.failed')

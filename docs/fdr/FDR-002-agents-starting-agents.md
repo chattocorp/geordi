@@ -13,7 +13,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
   - **Its own worktree:** a new worktree and branch, branched from the parent workspace's branch, for work that should not interfere (parallel tasks).
   - **The parent's worktree:** the same directory as the parent, for work that needs to see uncommitted state (reviewing, pairing).
 - The parent can message a child, wait until it has finished its turn, read its latest reply, stop it, and archive it once it is done with it (after merging its branch, say). Archiving on an agent's behalf never discards uncommitted work. Children can start children of their own, up to a limit.
-- A message to a child that is working waits for its turn to end; the parent can have it interrupt instead, which stops what the child is doing and gives it the message at once. In the child's conversation, what an agent said is marked as that agent's, by its workspace's name.
+- A message to a child that is working waits for its turn to end; the parent can have it interrupt instead, which gives the child the message at once, in the middle of what it is doing (ADR-010). In the child's conversation, what an agent said is marked as that agent's, by its workspace's name.
 - The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.
 - An agent can only see and control the agents it started, directly or indirectly.
 - Work from a child with its own worktree comes back by the parent merging the child's branch. Geordi does not merge on its own.
@@ -58,7 +58,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-002, ADR-004
+- **ADRs:** ADR-001, ADR-002, ADR-004, ADR-010
 - **FDRs:** FDR-001, FDR-003
 
 ## Open Questions

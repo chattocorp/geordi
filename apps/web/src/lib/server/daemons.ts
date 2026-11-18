@@ -59,7 +59,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	/** Told when a daemon connects or goes away. */
 	const watching = new Set<() => void>();
 	const changed = () => watching.forEach((tell) => tell());
-	/** Which daemon each workspace's turns were sent to; only it may report on the workspace. */
+	/** Which daemon each workspace's agent was last sent a message through; only it may report on the workspace. */
 	const assigned = new Map<string, string>();
 	/** Requests awaiting a daemon's answer, by request ID. */
 	const pending = new Map<string, (response: { result?: unknown; error?: string }) => void>();
@@ -69,7 +69,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		const entry = [...daemons].find(([socket]) => socket.readyState === socket.OPEN);
 		if (!entry) return false;
 		const [socket, daemonId] = entry;
-		if (message.type === 'turn.start') assigned.set(message.workspaceId, daemonId);
+		if (message.type === 'agent.message') assigned.set(message.workspaceId, daemonId);
 		socket.send(JSON.stringify(message));
 		return true;
 	}
@@ -110,15 +110,28 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				offers.set(socket, message.harnesses);
 				changed();
 				// After a forge restart we don't know assignments; trust what the daemon is running.
-				for (const id of message.running) if (!assigned.has(id)) assigned.set(id, message.daemonId);
+				for (const id of [...message.running, ...(message.sessions ?? [])])
+					if (!assigned.has(id)) assigned.set(id, message.daemonId);
 				console.log(`[daemons] ${message.daemonId} connected`);
 				handlers.onHello(message.daemonId, message.running, message.terminals, message.ended ?? {});
 				return;
 			}
 
 			if (message.type === 'response') pending.get(message.id)?.(message);
-			else if (message.type !== 'workspace.event' || assigned.get(message.workspaceId) === daemonId)
+			else if (
+				message.type !== 'workspace.event' ||
+				assigned.get(message.workspaceId) === daemonId
+			) {
 				handlers.onMessage(message);
+				if (message.type === 'workspace.event' && message.cursor) {
+					const ack: ForgeMessage = {
+						type: 'workspace.ack',
+						workspaceId: message.workspaceId,
+						cursor: message.cursor
+					};
+					socket.send(JSON.stringify(ack));
+				}
+			}
 			// never silently: an agent working where nobody sees it is the worst that can happen
 			else
 				console.warn(

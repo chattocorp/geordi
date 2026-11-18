@@ -174,7 +174,7 @@ const tools = {
 			interrupt: v.pipe(
 				v.optional(v.boolean(), false),
 				v.description(
-					'For an agent that is working: stop what it is doing and give it this message now. Use it to turn an agent around that is going the wrong way. What it was in the middle of (a file half written, a command running) is left as it is, so say what to do about that if it matters. Without it, the message waits for the turn to end.'
+					'For an agent that is working: give it this message now, in the middle of what it is doing. It reads it at its next step and goes on from there, with nothing stopped. Use it to turn an agent around that is going the wrong way, or to tell it something it needs now. Without it, the message waits for the turn to end. (To make it stop altogether, use stop_agent.)'
 				)
 			)
 		}),

@@ -12,7 +12,7 @@ import type { MessageImage } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 30;
+export const PROTOCOL_VERSION = 32;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -463,11 +463,23 @@ export type DaemonResults = {
 
 export type TerminalSize = { cols: number; rows: number };
 
+/** One thing an agent wants to know of the person: answered with one of `options`, or in their own words. */
+export type Question = {
+	question: string;
+	/** A word or two saying what it is about. */
+	header?: string;
+	optional?: boolean;
+	options: { label: string; description?: string }[];
+	/** Whether several of the options may be chosen. */
+	multiSelect: boolean;
+};
+
 /**
  * What happens in a workspace's conversation with its agent, normalised across agent CLIs.
  * The daemon emits these; the forge stores them verbatim in its event log.
  */
 export type AgentEvent =
+	| { kind: 'message.received'; id: string }
 	/** The workspace's worktree is ready. */
 	| { kind: 'worktree'; path: string; branch: string }
 	/** The agent CLI's own session ID, needed to resume the conversation in the next turn. */
@@ -475,33 +487,51 @@ export type AgentEvent =
 	| { kind: 'text'; text: string }
 	| { kind: 'tool'; id: string; name: string; input: string }
 	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
+	/**
+	 * The agent asks the person something, and waits for the answer (`agent.answer`) before
+	 * it goes on. Whatever is unanswered when the turn ends no longer wants an answer.
+	 */
+	| { kind: 'question'; id: string; questions: Question[] }
+	/**
+	 * The agent has begun to work: on what it was told, or of its own accord (something it
+	 * ran in the background has finished). Said once per turn, before anything else of it.
+	 */
+	| { kind: 'turn.started' }
 	/** Every turn ends with exactly one of these two. */
 	| { kind: 'turn.completed' }
 	| { kind: 'turn.failed'; error: string };
 
 /** Forge → daemon. */
 export type ForgeMessage =
+	| { type: 'workspace.ack'; workspaceId: string; cursor: string }
 	/** First message on every connection. */
 	| { type: 'challenge'; nonce: string }
 	/** Reply to a valid `hello`; the daemon trusts the forge only after verifying it. */
 	| { type: 'welcome'; proof: string }
+	/**
+	 * Says something to the workspace's agent (ADR-010). If its CLI is not running, it is
+	 * started with what is given here; if it is, the message reaches it as it runs: between
+	 * turns it starts one, during a turn it steers.
+	 */
 	| ({
-			type: 'turn.start';
+			type: 'agent.message';
 			workspaceId: string;
 			agent: Agent;
-			/** Which of the workspace's turns this is, counting from 1. Events say which turn they are of. */
-			turn: number;
 			settings: AgentSettings;
-			/** Lets the agent call Geordi's agent API (ADR-004) as this workspace, for this turn. */
+			/** Lets the agent call Geordi's agent API (ADR-004) as this workspace. */
 			apiToken: string;
-			/** `null` on the first turn. */
+			/** The CLI's own ID of the conversation so far; `null` if this is its beginning. */
 			resumeId: string | null;
 			/** What the agent is told on top of its CLI's own system prompt: that it works in Geordi, and how. */
 			instructions?: string;
 			prompt: string;
+			deliveryId?: string;
 			images?: MessageImage[];
 	  } & WorktreeRef)
-	| { type: 'turn.stop'; workspaceId: string }
+	/** Stops what the agent is doing. Its CLI goes on running, to be told what to do instead. */
+	| { type: 'agent.stop'; workspaceId: string }
+	/** Answers a `question` the agent asked: one answer per question, in their order. */
+	| { type: 'agent.answer'; workspaceId: string; questionId: string; answers: string[] }
 	| { type: 'request'; id: string; request: DaemonRequest }
 	/**
 	 * The worktrees someone is looking at right now, all of them: the daemon watches their
@@ -537,8 +567,13 @@ export type DaemonMessage =
 			nonce: string;
 			/** Answer to the forge's challenge. */
 			proof: string;
-			/** Workspaces with a turn currently running on this daemon. */
+			/**
+			 * The workspaces whose agent is at work, as far as the forge has been told (or is
+			 * about to be, having been sent a message). An agent that began a turn of its own
+			 * accord while the forge was away is not among them: it says so itself, next.
+			 */
 			running: string[];
+			sessions?: string[];
 			/** Terminals currently running on this daemon. */
 			terminals: string[];
 			/** Those of them whose command has ended (see `terminal.ended`), with its status. */
@@ -546,8 +581,7 @@ export type DaemonMessage =
 			/** The models and effort levels this daemon's agent CLIs offer. */
 			harnesses: Harness[];
 	  }
-	/** `turn` is the turn the event is of; absent for turns from before they were numbered. */
-	| { type: 'workspace.event'; workspaceId: string; turn?: number; event: AgentEvent }
+	| { type: 'workspace.event'; workspaceId: string; event: AgentEvent; cursor?: string }
 	/** Answers a `request`, with either a result (see `DaemonResults`) or an error. */
 	| { type: 'response'; id: string; result?: unknown; error?: string }
 	/** `offset` counts the characters this terminal's shell had put out before `data`. */

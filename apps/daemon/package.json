@@ -4,7 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"acp:probe": "node scripts/acp-probe.mjs",
-		"dev": "GEORDI_DAEMON_TOKEN_FILE=../../.data/daemon-token GEORDI_TURNS_DIR=../../.data/turns GEORDI_FORGE_HTTP_URL=http://localhost:5173 node --watch src/main.ts",
+		"dev": "GEORDI_DAEMON_TOKEN_FILE=../../.data/daemon-token GEORDI_SESSIONS_DIR=../../.data/sessions GEORDI_FORGE_HTTP_URL=http://localhost:5173 node --watch src/main.ts",
 		"start": "node src/main.ts",
 		"check": "tsc",
 		"test": "vitest --run"
@@ -14,12 +14,12 @@
 		"@lydell/node-pty": "1.2.0-beta.18",
 		"forges": "^0.3.2",
 		"smol-toml": "1.9.1",
-		"yaml": "2.9.1"
-	},
-	"devDependencies": {
+		"yaml": "2.9.1",
 		"@agentclientprotocol/claude-agent-acp": "0.107.3",
 		"@agentclientprotocol/codex-acp": "2.7.0",
-		"@agentclientprotocol/sdk": "2.7.0",
+		"@agentclientprotocol/sdk": "2.7.0"
+	},
+	"devDependencies": {
 		"@types/node": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"

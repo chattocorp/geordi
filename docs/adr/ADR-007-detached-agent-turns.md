@@ -8,6 +8,8 @@ The daemon used to start an agent's CLI as a child process and read its output f
 
 ## Decision
 
+> Since ADR-010 it is not one CLI invocation per turn that runs detached, but an agent's session: its CLI with a host process, told things through a file as it is followed through one. What is decided here holds for those.
+
 - An agent's CLI runs as a **process of its own**, in its own process group, that does not need the daemon: it writes its output to files in a directory for that turn (`~/.geordi/turns/<workspace>`, `GEORDI_TURNS_DIR`). A small shell wrapper notes the exit code there when the CLI ends.
 - The daemon **follows those files** rather than a pipe, and notes how far it has passed things on (`offset`). It only does so while it is connected to the forge: the files are the queue, and nothing counts as passed on that could not be sent. A turn is over when its process is; the directory is removed once the end has been reported.
 - A turn's process is known by its ID **and when it started**. After a reboot the ID may belong to something else, which is then neither waited for nor signalled.
