@@ -15,6 +15,7 @@ import {
 	type ForgeMessage,
 	type Harness,
 	type Question,
+	type ToolInfo,
 	type TurnUsage,
 	type WorktreeMode,
 	type WorktreeRef
@@ -194,7 +195,7 @@ export type TranscriptItem =
 	  }
 	| { kind: 'text'; text: string; at: string }
 	| { kind: 'plan'; id: string; plan: AgentPlan; at: string }
-	| {
+	| ({
 			kind: 'tool';
 			id: string;
 			name: string;
@@ -202,7 +203,7 @@ export type TranscriptItem =
 			output: string | null;
 			isError: boolean;
 			at: string;
-	  }
+	  } & ToolInfo)
 	| { kind: 'error'; error: string; at: string }
 	/** What the turn that ends here used, where its agent said. */
 	| { kind: 'usage'; usage: TurnUsage; at: string }
@@ -586,6 +587,11 @@ export function createWorkspaces(
 			case 'tool':
 				append({ ...output, output: null, isError: false, at });
 				break;
+			case 'tool.update': {
+				const tool = toolById(workspace, output.id);
+				if (tool) replace(tool, { ...tool, ...output, kind: 'tool' });
+				break;
+			}
 			case 'tool.result': {
 				const tool = toolById(workspace, output.id);
 				if (tool) replace(tool, { ...tool, output: output.output, isError: output.isError });
@@ -772,8 +778,9 @@ export function createWorkspaces(
 			if (event.id === workspace.resumeId) return;
 		} else if (event.kind === 'turn.started') {
 			if (running) return;
-		} else if (!running && event.kind === 'tool.result') {
-			// A background command can finish after its turn. Complete its existing entry once.
+		} else if (!running && (event.kind === 'tool.result' || event.kind === 'tool.update')) {
+			// A background command can finish after its turn (its input held until then, see
+			// `ToolInfos`). Complete its existing entry once.
 			if (toolById(workspace, event.id)?.output !== null) return;
 		} else if (
 			event.kind !== 'subagent' &&

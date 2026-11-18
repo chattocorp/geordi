@@ -253,6 +253,11 @@
 	@apply font-mono text-xs;
 }
 
+/* A file named in what an agent said or did that opens it (or its diff) in the workspace. */
+@utility file-link {
+	@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
+}
+
 /* A row you can pick: navigation links, tabs. Add `item-active` to the current one. */
 @utility item {
 	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-surface/60 hover:text-ink;
@@ -429,7 +434,7 @@
 	/* A file the workspace has changed, named in code (see markdown.ts): opens its diff. */
 	[data-file],
 	[data-source] {
-		@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
+		@apply file-link;
 	}
 
 	/* A picture the agent shows (see markdown.ts): no taller than leaves the words around it in view. */

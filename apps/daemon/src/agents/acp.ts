@@ -20,7 +20,8 @@ import type { HostEvent } from '../host.ts';
 import { BackgroundTasks } from './background-tasks.ts';
 import { TerminalOutput } from './terminal-output.ts';
 import { nativeSubagents } from './subagents.ts';
-import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
+import { ToolInfos } from './tool-info.ts';
+import { API_SERVER, type SessionOptions } from './adapter.ts';
 
 /** The choice Codex adds to a question whose answer may be a note instead. */
 const CODEX_OTHER = 'None of the above';
@@ -72,6 +73,7 @@ export function connectAgent(
 	const messages = new Map<string, string>();
 	// ACP tool IDs belong to the session. A command can span several foreground turns.
 	const tools = new Map<string, 'open' | 'closed'>();
+	const toolInfos = new ToolInfos();
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
 	const terminalOutput = new TerminalOutput();
 	const questions = new Map<string, (answers?: string[]) => void>();
@@ -147,18 +149,23 @@ export function connectAgent(
 			case SessionUpdate.isToolCallUpdate(u): {
 				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
+				const output = terminalOutput.toolResult(provider, u);
+				const { input = '', ...info } = toolInfos.news(u, output !== undefined);
 				if (!tools.has(u.toolCallId)) {
 					tools.set(u.toolCallId, 'open');
 					emit({
 						kind: 'tool',
 						id: u.toolCallId,
 						name: u.name ?? u.title ?? 'Tool',
-						input: truncate(JSON.stringify(u.rawInput) ?? '')
+						input,
+						...info
 					});
+				} else if (input || Object.keys(info).length) {
+					emit({ kind: 'tool.update', id: u.toolCallId, ...(input && { input }), ...info });
 				}
-				const output = terminalOutput.toolResult(provider, u);
 				if (output !== undefined) {
 					tools.set(u.toolCallId, 'closed');
+					toolInfos.delete(u.toolCallId);
 					if (u.status !== 'cancelled')
 						emit({ kind: 'tool.result', id: u.toolCallId, output, isError: u.status === 'failed' });
 				}

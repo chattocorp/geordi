@@ -317,6 +317,41 @@ describe('workspaces', () => {
 		expect(workspace.transcript[1]).toMatchObject({ output: 'contents', isError: false });
 	});
 
+	it('completes a tool call with what later updates say of it', () => {
+		const { workspaces, create } = setup();
+		const id = create('Read a file');
+		workspaces.record(id, {
+			kind: 'tool',
+			id: 't1',
+			name: 'Read',
+			input: '{}',
+			title: 'Read File'
+		});
+		workspaces.record(id, {
+			kind: 'tool.update',
+			id: 't1',
+			input: '{"file_path":"/wt/a.txt"}',
+			title: 'Read a.txt',
+			toolKind: 'read',
+			locations: [{ path: '/wt/a.txt', line: 1 }]
+		});
+		workspaces.record(id, { kind: 'tool.update', id: 'unknown', title: 'Nothing' });
+		expect(workspaces.get(id).transcript.filter((item) => item.kind === 'tool')).toEqual([
+			{
+				kind: 'tool',
+				id: 't1',
+				name: 'Read',
+				input: '{"file_path":"/wt/a.txt"}',
+				title: 'Read a.txt',
+				toolKind: 'read',
+				locations: [{ path: '/wt/a.txt', line: 1 }],
+				output: null,
+				isError: false,
+				at: expect.any(String)
+			}
+		]);
+	});
+
 	it('records a late result once on its original tool after a forge restart', () => {
 		const { workspaces, create, store, repos, dispatch, sent } = setup();
 		const id = create('Run a command in the background');

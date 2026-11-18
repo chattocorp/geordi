@@ -544,7 +544,36 @@ export type SubagentState = 'running' | 'waiting' | 'done' | 'stopped' | 'failed
 export type SubagentUpdate =
 	| { kind: 'info'; title?: string | null; description?: string | null; state?: SubagentState }
 	| { kind: 'message'; id: string; text: string; incoming: boolean }
-	| { kind: 'tool'; id: string; name?: string; input?: string; output?: string; isError?: boolean };
+	| ({
+			kind: 'tool';
+			id: string;
+			name?: string;
+			input?: string;
+			output?: string;
+			isError?: boolean;
+	  } & ToolInfo);
+
+/** What ACP kinds of tool call there are: how a client may show one. */
+export type ToolKind =
+	| 'read'
+	| 'edit'
+	| 'delete'
+	| 'move'
+	| 'search'
+	| 'execute'
+	| 'think'
+	| 'fetch'
+	| 'switch_mode'
+	| 'other';
+
+/** A file a tool call works on, as the agent names it (absolute, mostly). */
+export type ToolLocation = { path: string; line?: number };
+
+/**
+ * What an agent says about a tool call, for people: its kind, a readable title, the files
+ * it touches. Absent in events from before Geordi knew them, and where an agent says none.
+ */
+export type ToolInfo = { toolKind?: ToolKind; title?: string; locations?: ToolLocation[] };
 
 export type BackgroundTask = {
 	type: 'terminal' | 'tool_call' | 'subagent';
@@ -565,7 +594,9 @@ export type AgentEvent =
 	| { kind: 'text'; text: string }
 	/** A complete snapshot, or null when the wrapper withdraws this plan. */
 	| { kind: 'plan'; id: string; plan: AgentPlan | null }
-	| { kind: 'tool'; id: string; name: string; input: string }
+	| ({ kind: 'tool'; id: string; name: string; input: string } & ToolInfo)
+	/** What an agent said of a tool call after it began: only what changed. */
+	| ({ kind: 'tool.update'; id: string; input?: string } & ToolInfo)
 	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
 	/** What the agent calls its session (ACP `session_info_update`), at any time. */
 	| { kind: 'title'; title: string }

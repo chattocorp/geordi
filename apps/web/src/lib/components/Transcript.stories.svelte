@@ -8,6 +8,7 @@
 	const { Story } = defineMeta({ title: 'Geordi/Transcript' });
 
 	const openDiff = fn();
+	const openSource = fn();
 	const reply = [
 		'## What I changed',
 		'',
@@ -62,10 +63,72 @@
 			at
 		}
 	];
+
+	/** Tool calls as agents describe them over ACP: a kind, a title, the files they touch. */
+	const described = [
+		{
+			kind: 'tool' as const,
+			id: 'a',
+			name: 'Read',
+			input: '{"file_path":"/private/work/src/changes.ts","offset":40,"limit":20}',
+			toolKind: 'read' as const,
+			title: 'Read /private/work/src/changes.ts (40 - 59)',
+			locations: [{ path: '/private/work/src/changes.ts', line: 40 }],
+			output: 'export function changes() {}',
+			isError: false,
+			at
+		},
+		{
+			kind: 'tool' as const,
+			id: 'b',
+			name: 'Grep',
+			input: '{"pattern":"ignore-submodules","path":"/work/src"}',
+			toolKind: 'search' as const,
+			title: 'grep "ignore-submodules" /work/src',
+			locations: [{ path: '/work/src' }],
+			output: 'src/git.ts',
+			isError: false,
+			at
+		},
+		{
+			kind: 'tool' as const,
+			id: 'c',
+			name: 'Edit',
+			input: '{"file_path":"/work/src/git.ts","old_string":"a","new_string":"b"}',
+			toolKind: 'edit' as const,
+			title: 'Edit /work/src/git.ts',
+			locations: [{ path: '/work/src/git.ts', line: 12 }],
+			output: '',
+			isError: false,
+			at
+		},
+		{
+			kind: 'tool' as const,
+			id: 'd',
+			name: 'exec_command',
+			input: '{"command":"pnpm test","cwd":"/work"}',
+			toolKind: 'execute' as const,
+			title: 'pnpm test',
+			output: '1 failed',
+			isError: true,
+			at
+		},
+		{
+			kind: 'tool' as const,
+			id: 'e',
+			name: 'exec_command',
+			input: '{"command":"ls -la","cwd":"/work"}',
+			toolKind: 'read' as const,
+			title: 'List files',
+			output: null,
+			isError: false,
+			at
+		}
+	];
 </script>
 
 <script lang="ts">
-	setChangedFiles({ root: '/work', paths: new Set(), open: openDiff, openSource: fn() });
+	setChangedFiles({ root: '/work', paths: new Set(['src/git.ts']), open: openDiff, openSource });
 </script>
 
 <Story
@@ -105,12 +168,38 @@
 	</div>
 </Story>
 
-<!-- Finished, failed and still-running tool calls. Open one to see its input and output. -->
+<!-- As recorded before Geordi kept what agents say of a tool call: its name and input. -->
 <Story name="Tool calls" asChild>
 	<div class="max-w-2xl space-y-6">
 		<!-- over: what was used; a click shows the calls -->
 		<ToolGroup {tools} cwd="/work" />
 		<!-- under way: the tool that is running -->
 		<ToolGroup {tools} cwd="/work" live />
+	</div>
+</Story>
+
+<!--
+	As agents describe them: an icon for the kind, the title with its paths in mono. Open one
+	to see the files it names (a changed file leads to its changes), its input and output.
+-->
+<Story
+	name="Described tool calls"
+	asChild
+	play={async ({ canvas }) => {
+		openSource.mockClear();
+		openDiff.mockClear();
+		const [group] = canvas.getAllByText('Tools');
+		await userEvent.click(group);
+		await userEvent.click(canvas.getAllByText('(40 - 59)')[0]);
+		await userEvent.click(canvas.getAllByRole('button', { name: 'src/changes.ts:40' })[0]);
+		await expect(openSource).toHaveBeenCalledWith('src/changes.ts', 40);
+		await userEvent.click(canvas.getAllByText('src/git.ts')[0]);
+		await userEvent.click(canvas.getAllByRole('button', { name: 'src/git.ts:12' })[0]);
+		await expect(openDiff).toHaveBeenCalledWith('src/git.ts');
+	}}
+>
+	<div class="max-w-2xl space-y-6">
+		<ToolGroup tools={described} cwd="/work" />
+		<ToolGroup tools={described} cwd="/work" live />
 	</div>
 </Story>
