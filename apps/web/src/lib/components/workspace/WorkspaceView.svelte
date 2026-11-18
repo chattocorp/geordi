@@ -505,13 +505,7 @@
 	const leaving = $derived(beingArchived.has(id));
 
 	async function archive() {
-		// Show known warnings immediately when the workspace owns all the work in view.
-		// (Not with workspaces its agent started: theirs is not known here.)
-		const known =
-			!workspace.hasChildWorktrees && git?.changes && !git.checking
-				? { changes: git.changes, upstream: git.upstream }
-				: undefined;
-		if (await archiveWorkspace(id, workspace.title, known))
+		if (await archiveWorkspace(id, workspace.title))
 			// from a workspace an agent started, back to the one whose agent started it
 			await goto(
 				workspace.parentId ? resolve('/workspaces/[id]', { id: workspace.parentId }) : resolve('/')

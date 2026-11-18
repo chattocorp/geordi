@@ -94,11 +94,15 @@ const lines = (text: string) => (text ? text.replace(/\n$/, '').split('\n') : []
 
 const STATUS: Record<string, FileChange['status']> = { A: 'added', D: 'deleted', R: 'renamed' };
 
-export function changes(worktree: Worktree, origin: Origin): FileChange[] {
+export function changes(
+	worktree: Worktree,
+	origin: Origin,
+	fork = forkPoint(worktree, origin)
+): FileChange[] {
 	// With renames found (`-M`), so that a moved file is one change and not two. Git does
 	// that by comparing contents itself: nothing of the worktree's gets to run.
 	const diff = (format: string) =>
-		gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, forkPoint(worktree, origin)).split('\0');
+		gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, fork).split('\0');
 
 	// `--name-status -z`: a status, then the path; a rename has the old path and the new.
 	const states = new Map<string, Pick<FileChange, 'status' | 'from'>>();
@@ -213,6 +217,7 @@ function incoming(worktree: Worktree, origin: Origin): Changes['incoming'] {
 /** The workspace's changes, and how far they have got: committed? pushed? */
 export function status(worktree: Worktree, origin: Origin): Changes {
 	const head = headOf(worktree);
+	const fork = forkPoint(worktree, origin);
 	const uncommitted = uncommittedFiles(worktree).length;
 
 	// What is on the remote, as far as this machine knows: the remote-tracking branch.
@@ -230,7 +235,8 @@ export function status(worktree: Worktree, origin: Origin): Changes {
 
 	return {
 		branch: branchOf(worktree),
-		files: changes(worktree, origin),
+		files: changes(worktree, origin, fork),
+		unmerged: gitIn(worktree, 'rev-parse', head).trim() !== fork,
 		uncommitted,
 		unpushed,
 		landed: landed(worktree, origin, head),

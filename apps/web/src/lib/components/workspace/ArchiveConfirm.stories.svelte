@@ -11,8 +11,16 @@
 </script>
 
 <Story
-	name="Clean workspace"
-	args={{ asking: { title: 'Review login changes', concerns: [], busy: false, answer } }}
+	name="Running process"
+	args={{
+		asking: {
+			title: 'Review login changes',
+			concerns: ['Archiving will stop running terminal processes.'],
+			blocked: false,
+			busy: false,
+			answer
+		}
+	}}
 	play={async ({ canvas }) => {
 		await waitFor(() =>
 			expect(canvas.getByRole('dialog', { name: 'Archive “Review login changes”?' })).toBeVisible()

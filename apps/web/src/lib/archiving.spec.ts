@@ -39,6 +39,18 @@ describe('archiveConcerns', () => {
 		expect(archiveConcerns({ changes: null, upstream: null })).toEqual([]);
 	});
 
+	it('checks pull requests and commits even with no file changes', () => {
+		const clean = { files: [], uncommitted: 0, unpushed: 0 };
+		for (const state of ['open', 'closed'] as const) {
+			expect(archiveConcerns({ changes: clean, upstream: upstream({ state }) })).toEqual([
+				'Pull request #7 is not merged.'
+			]);
+		}
+		expect(archiveConcerns({ changes: { ...clean, unmerged: true } })).toEqual([
+			'Its branch has unmerged commits.'
+		]);
+	});
+
 	it('says what would be lost: uncommitted changes', () => {
 		const concerns = archiveConcerns({
 			changes: { files: [file, { ...file, path: 'b.txt' }], uncommitted: 2, unpushed: 0 },
@@ -73,7 +85,7 @@ describe('archiveConcerns', () => {
 			expect.stringMatching(/no pull request/)
 		]);
 		// the forge didn't answer in time: nothing is claimed about a pull request
-		expect(archiveConcerns({ changes: pushed })).toEqual([]);
+		expect(archiveConcerns({ changes: pushed })).toEqual(['Its branch has unmerged commits.']);
 		// a merged pull request with something uncommitted on top: only that is lost
 		expect(
 			archiveConcerns({

@@ -14,17 +14,14 @@
 >
 	<div class="space-y-4 p-6">
 		<p class="heading wrap-anywhere">{heading}</p>
-		{#if asking?.concerns === null}<p class="text-sm text-muted">Checking for unfinished work…</p>
-		{:else if asking?.concerns.length}
-			<ul class="space-y-1.5 text-sm">
-				{#each asking?.concerns ?? [] as concern (concern)}
-					<li class="flex gap-2">
-						<span class="mt-1 icon-[lucide--circle-alert] size-4 shrink-0 text-muted"></span>
-						{concern}
-					</li>
-				{/each}
-			</ul>
-		{/if}
+		<ul class="space-y-1.5 text-sm">
+			{#each asking?.concerns ?? [] as concern (concern)}
+				<li class="flex gap-2">
+					<span class="mt-1 icon-[lucide--circle-alert] size-4 shrink-0 text-muted"></span>
+					{concern}
+				</li>
+			{/each}
+		</ul>
 		<p class="text-sm text-muted">
 			Archiving ends its terminals and keeps its branch and conversation.
 		</p>
@@ -34,7 +31,7 @@
 			>
 			<Button
 				variant="primary"
-				disabled={!asking?.concerns}
+				disabled={asking?.blocked}
 				busy={asking?.busy}
 				onclick={() => asking?.answer(true)}
 			>

@@ -1,28 +1,39 @@
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { archive, archiving } from './archive.svelte.ts';
 import { archiveWorkspace, previewArchive } from '../../../routes/workspaces.remote';
 
 vi.mock('../../../routes/workspaces.remote', () => ({
 	archiveWorkspace: vi.fn(),
-	previewArchive: vi.fn(async () => [])
+	previewArchive: vi.fn()
 }));
 
-it('requires a separate confirmation even when the archive preview finds no concerns', async () => {
-	const cancel = archive('w', 'Workspace');
-	await vi.waitFor(() => expect(archiving.asking?.concerns).toEqual([]));
-	expect(archiveWorkspace).not.toHaveBeenCalled();
-	archiving.asking!.answer(false);
-	expect(await cancel).toBe(false);
-	expect(archiveWorkspace).not.toHaveBeenCalled();
+beforeEach(() => vi.clearAllMocks());
 
-	const confirm = archive('w', 'Workspace');
-	await vi.waitFor(() => expect(archiving.asking?.concerns).toEqual([]));
-	archiving.asking!.answer(true);
-	expect(await confirm).toBe(true);
-	expect(previewArchive).toHaveBeenCalledTimes(2);
-	expect(archiveWorkspace).toHaveBeenCalledExactlyOnceWith({
-		workspaceId: 'w',
-		confirmed: true,
-		discard: false
+it('checks once without opening a dialog and archives a clean workspace', async () => {
+	vi.mocked(previewArchive).mockResolvedValueOnce({ concerns: [], discard: false, blocked: false });
+	const result = archive('w', 'Workspace');
+	expect(archiving.asking).toBeNull();
+	expect(await archive('w', 'Workspace')).toBe(false);
+	expect(await result).toBe(true);
+	expect(archiveWorkspace).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'w', discard: false });
+});
+
+it.each([
+	{ confirm: false, discard: true, blocked: false },
+	{ confirm: true, discard: true, blocked: false },
+	{ confirm: true, discard: false, blocked: false },
+	{ confirm: true, discard: false, blocked: true }
+])('handles confirmation with %o', async ({ confirm, discard, blocked }) => {
+	vi.mocked(previewArchive).mockResolvedValueOnce({
+		concerns: ['Unfinished work'],
+		discard,
+		blocked
 	});
+	const result = archive('w', 'Workspace');
+	await vi.waitFor(() => expect(archiving.asking?.concerns).toEqual(['Unfinished work']));
+	archiving.asking!.answer(confirm);
+	expect(await result).toBe(confirm && !blocked);
+	if (confirm && !blocked)
+		expect(archiveWorkspace).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'w', discard });
+	else expect(archiveWorkspace).not.toHaveBeenCalled();
 });

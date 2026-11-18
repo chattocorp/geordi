@@ -1,5 +1,4 @@
 import { SvelteSet } from 'svelte/reactivity';
-import { archiveConcerns, type Standing } from '#lib/archiving.ts';
 import { problemOf } from '#lib/problem.ts';
 import { archiveWorkspace, previewArchive } from '../../../routes/workspaces.remote';
 
@@ -11,45 +10,27 @@ export const beingArchived = new SvelteSet<string>();
 
 export type ArchiveQuestion = {
 	title: string;
-	concerns: string[] | null;
+	concerns: string[];
+	blocked: boolean;
 	busy: boolean;
 	answer(go: boolean): void;
 };
 
 export const archiving = $state<{ asking: ArchiveQuestion | null }>({ asking: null });
 
-export async function archive(
-	workspaceId: string,
-	title: string,
-	known?: Standing
-): Promise<boolean> {
-	if (archiving.asking) return false;
+export async function archive(workspaceId: string, title: string): Promise<boolean> {
+	if (beingArchived.size) return false;
 	delete archiveProblems[workspaceId];
-	const concerns = known ? archiveConcerns(known) : [];
-	const decision = Promise.withResolvers<boolean>();
-	archiving.asking = {
-		title,
-		concerns: concerns.length ? concerns : null,
-		busy: false,
-		answer: decision.resolve
-	};
-	const question = archiving.asking;
+	beingArchived.add(workspaceId);
 	try {
-		if (!question.concerns) {
-			void previewArchive(workspaceId)
-				.then((found) => {
-					question.concerns = found;
-				})
-				.catch((error) => {
-					if (archiving.asking !== question) return;
-					archiveProblems[workspaceId] = problemOf(error, 'Could not check the workspace');
-					question.answer(false);
-				});
+		const { concerns, discard, blocked } = await previewArchive(workspaceId);
+		if (concerns.length) {
+			const decision = Promise.withResolvers<boolean>();
+			archiving.asking = { title, concerns, blocked, busy: false, answer: decision.resolve };
+			if (!(await decision.promise) || blocked) return false;
+			archiving.asking.busy = true;
 		}
-		if (!(await decision.promise) || !question.concerns) return false;
-		question.busy = true;
-		beingArchived.add(workspaceId);
-		await archiveWorkspace({ workspaceId, confirmed: true, discard: question.concerns.length > 0 });
+		await archiveWorkspace({ workspaceId, discard });
 		return true;
 	} catch (error) {
 		archiveProblems[workspaceId] = problemOf(error, 'Could not archive the workspace');
