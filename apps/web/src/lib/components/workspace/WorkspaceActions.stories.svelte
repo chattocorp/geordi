@@ -38,7 +38,7 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'working' | 'compact'> = {}
+	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'asking' | 'compact'> = {}
 )}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
@@ -57,15 +57,12 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText('Working')).toBeVisible();
+		await expect(canvas.queryByText('Working')).not.toBeInTheDocument();
 		await expect(canvas.getByText('Uncommitted changes')).toBeVisible();
 		await expect(canvas.getByRole('button', { name: /Create PR/ })).toBeDisabled();
 	}}
 >
-	{@render bar(
-		{ changes: dirty, upstream: upstream(null) },
-		{ working: true, pending: ['create-pull'] }
-	)}
+	{@render bar({ changes: dirty, upstream: upstream(null) }, { pending: ['create-pull'] })}
 </Story>
 
 <Story
@@ -215,25 +212,25 @@
 	)}
 </Story>
 
-<Story name="Agent at work, nothing else to say" asChild>
-	{@render bar(
-		{ changes: { files: [], uncommitted: 0, unpushed: 0 }, upstream: null },
-		{ working: true }
-	)}
-</Story>
-
-<Story name="Agent at work on failing checks" asChild>
-	{@render bar(
-		{ changes: pushed, upstream: upstream({ checks: failing }) },
-		{ pending: ['fix-checks'], working: true }
-	)}
+<Story
+	name="Waiting for an answer"
+	asChild
+	play={async ({ canvasElement }) => {
+		await expect(within(canvasElement).getByRole('status')).toHaveTextContent(
+			'Waiting for your answer'
+		);
+	}}
+>
+	{@render bar({ changes: null, upstream: null }, { asking: true })}
 </Story>
 
 <Story
 	name="Before the first result"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(canvasElement).not.toHaveTextContent(/Checking/);
+		await expect(
+			within(canvasElement).queryByRole('group', { name: 'Next steps' })
+		).not.toBeInTheDocument();
 	}}
 >
 	<WorkspaceActions standing={null} actions={[]} {onopenpull} {onaction} />
@@ -252,7 +249,7 @@
 			changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
 			upstream: upstream(null)
 		},
-		{ pending: ['merge-upstream'], working: true }
+		{ pending: ['merge-upstream'] }
 	)}
 </Story>
 
@@ -350,7 +347,7 @@
 		// blocked three ways, it offers only the most pressing of them
 		const [blocked] = within(canvasElement).getAllByRole('group', { name: 'Next steps' });
 		await expect(within(blocked).getAllByRole('button')).toHaveLength(1);
-		// at work beside a next step, the spinner alone says so: the pill stays in the card
+		// The compact ribbon fits inside its card, including when it shows a question.
 		const card = canvasElement.querySelector('.w-72')!;
 		for (const group of within(canvasElement).getAllByRole('group', { name: 'Next steps' }))
 			await expect(group.getBoundingClientRect().right).toBeLessThanOrEqual(
@@ -366,11 +363,11 @@
 		{@render bar({ changes: pushed, upstream: upstream({}) }, { compact: true })}
 		{@render bar(
 			{ changes: pushed, upstream: upstream({ checks: failing }) },
-			{ working: true, compact: true }
+			{ asking: true, compact: true }
 		)}
 		{@render bar(
 			{ changes: pushed, upstream: upstream({ conflicts: true }) },
-			{ working: true, compact: true }
+			{ asking: true, compact: true }
 		)}
 		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, { compact: true })}
 	</div>
