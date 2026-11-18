@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, userEvent } from 'storybook/test';
+	import { expect, userEvent, waitFor } from 'storybook/test';
 	import Button from './Button.svelte';
 	import Dialog from './Dialog.svelte';
 
@@ -14,7 +14,8 @@
 	asChild
 	play={async ({ canvas }) => {
 		await userEvent.click(canvas.getByRole('button', { name: 'Open the dialog' }));
-		await expect(canvas.getByRole('dialog', { name: 'An example' })).toBeVisible();
+		const dialog = canvas.getByRole('dialog', { name: 'An example' });
+		await waitFor(() => expect(dialog).toBeVisible());
 	}}
 >
 	<Button onclick={() => (open = true)}>Open the dialog</Button>
