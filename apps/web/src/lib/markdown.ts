@@ -41,6 +41,9 @@ const md = new MarkdownIt({
 	}
 });
 
+md.renderer.rules.softbreak = (_tokens, _index, _options, env) =>
+	(env as Options).preserveLineBreaks ? '<br>\n' : '\n';
+
 const { escapeHtml } = md.utils;
 
 /** Whether a link leads to a file where the agent works, rather than somewhere on the net. */
@@ -148,6 +151,7 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 };
 
 type Options = {
+	preserveLineBreaks?: boolean;
 	root?: string;
 	/**
 	 * The address that serves the pictures of the workspace this was written in
