@@ -3,6 +3,7 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { error } from '@sveltejs/kit';
 import {
 	SETTING,
+	sameAgentSettings,
 	type Agent,
 	type AgentEvent,
 	type AgentPlan,
@@ -690,11 +691,7 @@ export function createWorkspaces(
 			);
 		const keeps = !asked.model || !efforts || efforts.includes(inherited.effort ?? '');
 		const effort = asked.effort ?? (keeps ? inherited.effort : undefined);
-		return {
-			...(model && { model }),
-			...(effort && { effort }),
-			...(inherited.permissionMode && { permissionMode: inherited.permissionMode })
-		};
+		return { model, effort, permissionMode: inherited.permissionMode };
 	}
 
 	/** Only what was chosen, and only what can safely be handed to a CLI. */
@@ -1219,13 +1216,7 @@ export function createWorkspaces(
 				...settings,
 				permissionMode: settings.permissionMode ?? workspace.settings.permissionMode
 			});
-			const { model, effort } = workspace.settings;
-			if (
-				chosen.model === model &&
-				chosen.effort === effort &&
-				chosen.permissionMode === workspace.settings.permissionMode
-			)
-				return;
+			if (sameAgentSettings(chosen, workspace.settings)) return;
 			store.append(
 				{ type: 'workspace.configured', stream: `workspace:${id}`, data: { id, settings: chosen } },
 				{ actor }

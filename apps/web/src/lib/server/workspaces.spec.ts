@@ -175,6 +175,20 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).settings).toEqual({ model: 'opus' });
 	});
 
+	it('keeps Auto Mode when only the model changes and sends a mode-only change on the next turn', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('Start');
+		workspaces.configure(id, { permissionMode: 'auto' });
+		workspaces.configure(id, { model: 'opus' });
+		expect(workspaces.get(id).settings).toEqual({ model: 'opus', permissionMode: 'auto' });
+		workspaces.configure(id, { model: 'opus', permissionMode: 'full-access' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.send(id, 'Continue');
+		expect(sent.at(-1)).toMatchObject({
+			settings: { model: 'opus', permissionMode: 'full-access' }
+		});
+	});
+
 	it('starts a turn on creation and records daemon output', () => {
 		const { workspaces, sent, repo, create } = setup();
 		const id = create('Fix the bug\nplease');

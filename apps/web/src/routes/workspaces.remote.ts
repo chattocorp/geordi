@@ -37,14 +37,17 @@ const imageIds = v.pipe(
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 
-/** Chooses the model and effort a workspace's agent runs with from its next turn on. */
+const agentSettings = {
+	model: v.optional(v.string()),
+	effort: v.optional(v.string()),
+	permissionMode: v.optional(v.picklist(PERMISSION_MODES))
+};
+
+/** Applies the workspace settings from the next turn. */
 export const configureWorkspace = command(
 	v.object({
 		workspaceId: v.string(),
-		/** Absent for "whatever the agent's CLI would use". */
-		permissionMode: v.optional(v.picklist(PERMISSION_MODES)),
-		model: v.optional(v.string()),
-		effort: v.optional(v.string())
+		...agentSettings
 	}),
 	({ workspaceId, ...settings }) => workspaces().configure(workspaceId, settings)
 );
@@ -54,10 +57,7 @@ export const createWorkspace = form(
 		repoId: v.string(),
 		images: imageIds,
 		agent: v.picklist(AGENTS),
-		/** Empty for "whatever the agent's CLI would use". */
-		permissionMode: v.optional(v.picklist(PERMISSION_MODES)),
-		model: v.optional(v.string()),
-		effort: v.optional(v.string()),
+		...agentSettings,
 		/** May be empty: the workspace is then there to be told what to do, and has its worktree. */
 		prompt: v.optional(v.pipe(v.string(), v.trim()), ''),
 		/**

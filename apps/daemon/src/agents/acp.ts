@@ -17,8 +17,13 @@ import {
 	type CreateElicitationResponse,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2';
-import type { Agent, AgentEvent, MessageImage, Question } from '@geordi/protocol';
+import type { Agent, AgentEvent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
 import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
+
+const ACP_MODES = {
+	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
+	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
+} satisfies Record<Agent, Record<PermissionMode, string>>;
 
 // Limit buffered terminal output before decoding arbitrarily large ACP chunks.
 const MAX_TERMINAL_BYTES = 16 * 1024;
@@ -299,10 +304,12 @@ export function connectAgent(
 			throw new Error(
 				'Choose Auto Mode or Full Access in this workspace to replace the daemon permission setting.'
 			);
-		const auto = selected === 'auto';
+		const mode = ACP_MODES[provider][selected ?? 'full-access'];
+		if (!mode) throw new Error('Unknown workspace permission mode: ' + selected);
 		const setup = {
 			cwd: options.cwd,
-			...(provider === 'codex' && auto && { additionalDirectories: options.writableRoots }),
+			...(provider === 'codex' &&
+				selected === 'auto' && { additionalDirectories: options.writableRoots }),
 			mcpServers:
 				provider === 'claude' && options.api && token
 					? [
@@ -327,11 +334,6 @@ export function connectAgent(
 		id = options.resumeId ?? ('sessionId' in session ? String(session.sessionId) : '');
 		if (!id) throw new Error('Missing ACP session ID');
 		let config = session.configOptions ?? [];
-		const mode = (
-			auto
-				? { codex: 'agent', claude: 'auto' }
-				: { codex: 'agent-full-access', claude: 'bypassPermissions' }
-		)[provider];
 		for (const [category, value] of [
 			['model', options.settings.model],
 			['thought_level', options.settings.effort],
