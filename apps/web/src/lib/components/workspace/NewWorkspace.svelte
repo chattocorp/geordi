@@ -81,6 +81,7 @@
 	disabled={createWorkspace.pending > 0}
 	{label}
 	{focused}
+	rows={alongside ? undefined : 5}
 	placeholder="What should the agent do?"
 	field={prompt.as('text')}
 	onkeydown={(event) => {

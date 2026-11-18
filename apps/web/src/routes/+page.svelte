@@ -20,7 +20,9 @@
 	{#if !nav}
 		<!-- still to come -->
 	{:else if nav.repos.length > 0}
-		<NewWorkspace repos={nav.repos} {preferred} focused />
+		<div class="flex flex-1 flex-col justify-center">
+			<NewWorkspace repos={nav.repos} {preferred} focused />
+		</div>
 	{:else}
 		<div class="empty">
 			<p class="pb-4">Agents work in a repository. Add one first.</p>
