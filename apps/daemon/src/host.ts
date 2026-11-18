@@ -17,6 +17,7 @@
  * The CLI is ended when it has had nothing to do for a while (it is started again, where it
  * left off, with the next message), but never while it has something running.
  */
+import { linesFrom } from './journal.ts';
 import { spawn } from 'node:child_process';
 import {
 	appendFileSync,
@@ -24,7 +25,6 @@ import {
 	existsSync,
 	openSync,
 	readFileSync,
-	readSync,
 	renameSync,
 	writeFileSync
 } from 'node:fs';
@@ -178,19 +178,6 @@ function obey(command: Command) {
 	}
 }
 
-/** Splits what arrives in pieces into the lines it is made of. */
-function lines(each: (line: string) => void) {
-	let partial = Buffer.alloc(0);
-	return (chunk: Buffer) => {
-		partial = Buffer.concat([partial, chunk]);
-		for (let at; (at = partial.indexOf(10)) >= 0;) {
-			const line = partial.subarray(0, at);
-			partial = partial.subarray(at + 1);
-			each(line.toString('utf8'));
-		}
-	};
-}
-
 /** Whatever goes wrong with one line costs that line, never the session. */
 function safely(what: string, run: () => void) {
 	try {
@@ -202,20 +189,11 @@ function safely(what: string, run: () => void) {
 
 /** Passes on what the daemon has written since last time. */
 function input() {
-	if (ending || !existsSync(file('in.jsonl'))) return;
-	const from = openSync(file('in.jsonl'), 'r');
-	try {
-		const take = lines((line) => {
-			if (ending) return; // after a `close`: left for the next session
-			consumed += Buffer.byteLength(line) + 1;
-			safely('could not do as told', () => obey(JSON.parse(line)));
-		});
-		const chunk = Buffer.alloc(64 * 1024);
-		let at = consumed;
-		for (let n; !ending && (n = readSync(from, chunk, 0, chunk.length, at)) > 0; at += n)
-			take(Buffer.from(chunk.subarray(0, n)));
-	} finally {
-		closeSync(from);
+	if (ending) return;
+	for (const { line, end } of linesFrom(file('in.jsonl'), consumed)) {
+		consumed = end;
+		safely('could not do as told', () => obey(JSON.parse(line)));
+		if (ending) break; // commands after close belong to the next session
 	}
 	rest();
 }

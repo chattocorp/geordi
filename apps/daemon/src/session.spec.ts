@@ -35,6 +35,13 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
   if(said==='slow'){slow=true;return;}
   if(said==='ask'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Tea or coffee?',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',enum:['Tea','Coffee']}}}}});return;}
   if(said==='pick'){out({id:102,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Which drinks?',requestedSchema:{type:'object',properties:{question_0:{type:'array',items:{anyOf:[{const:'Tea',title:'Tea'},{const:'Coffee',title:'Coffee'}]}},question_0_custom:{type:'string'}}}}});return;}
+  if(said==='terminal'){
+   const tool={sessionUpdate:'tool_call_update',toolCallId:'sh',name:'shell'};
+   update({...tool,status:'in_progress'});
+   const bytes=Buffer.from('Café');
+   for(const part of [bytes.subarray(0,4),bytes.subarray(4)]) update({sessionUpdate:'terminal_output_chunk',terminalId:'sh',data:part.toString('base64')});
+   update({...tool,status:'completed'});return done();
+  }
   if(said==='background'){text('started');state('idle',{stopReason:'end_turn',background:[{type:'tool_call',toolCallId:'task'}]});setTimeout(()=>{state('running');text('it finished');done();},700);return;}
   text('Heard: '+said);return done();
  }
@@ -128,6 +135,17 @@ describe('a session', () => {
 			{ kind: 'text', text: 'Heard: again' },
 			{ kind: 'turn.completed' }
 		]);
+	});
+
+	it('keeps shell output across ACP byte chunks', async () => {
+		const { events, ended } = begin('terminal');
+		await ended(1);
+		expect(events).toContainEqual({
+			kind: 'tool.result',
+			id: 'sh',
+			output: 'Café',
+			isError: false
+		});
 	});
 
 	it('steers a turn under way with what is said meanwhile', async () => {
@@ -307,8 +325,18 @@ describe('a daemon restart', () => {
 		writeFileSync(host, JSON.stringify({ pid: process.pid, started: 'long ago' }));
 
 		const events: AgentEvent[] = [];
-		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
+		let acknowledged = false;
+		const cursors = new Set<string | undefined>();
+		const session = resumeSessions(sessions, () => (event, cursor) => {
+			cursors.add(cursor);
+			if (events.length === 0) events.push(event);
+			return acknowledged;
+		}).get('w')!;
 		session.kill(); // must not reach us
+		await until(() => events.length > 0);
+		expect(session.over()).toBe(false);
+		expect([...cursors]).toEqual([expect.stringMatching(/\/exit$/)]);
+		acknowledged = true;
 		await session.done;
 		expect(events).toEqual([{ kind: 'turn.failed', error: 'Stopped' }]);
 		process.kill(-real.pid, 'SIGKILL'); // the real one, which nobody follows any more

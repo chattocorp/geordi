@@ -1,3 +1,4 @@
+import { linesFrom } from './journal.ts';
 import { randomUUID } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import {
@@ -9,7 +10,6 @@ import {
 	openSync,
 	readdirSync,
 	readFileSync,
-	readSync,
 	renameSync,
 	rmSync,
 	statSync,
@@ -95,27 +95,6 @@ const alive = (pid: number) => {
 	}
 };
 
-/** Every complete line of a file from `offset` on, with where the next one starts. */
-function* linesFrom(path: string, offset: number): Generator<{ line: string; end: number }> {
-	if (!existsSync(path)) return;
-	const from = openSync(path, 'r');
-	try {
-		let partial = Buffer.alloc(0);
-		const chunk = Buffer.alloc(64 * 1024);
-		for (let n; (n = readSync(from, chunk, 0, chunk.length, offset + partial.length)) > 0;) {
-			partial = Buffer.concat([partial, chunk.subarray(0, n)]);
-			for (let at; (at = partial.indexOf(10)) >= 0;) {
-				const line = partial.subarray(0, at).toString('utf8');
-				partial = partial.subarray(at + 1);
-				offset += at + 1;
-				yield { line, end: offset };
-			}
-		}
-	} finally {
-		closeSync(from);
-	}
-}
-
 /**
  * Follows a session: passes on what its host has written since `offset`, and guarantees
  * that a turn which began also ends (`turn.completed` or `turn.failed`), whatever becomes of
@@ -151,12 +130,14 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 	let resumeId = meta.options.resumeId;
 
 	/** Keeps up with what an event means for where the session stands. */
-	function note(event: AgentEvent) {
+	function note(event: AgentEvent, replay = false) {
 		if (event.kind === 'resume') resumeId = event.id;
 		if (event.kind === 'turn.started') {
 			open = true;
-			expecting = false;
-			rmSync(file('expecting'), { force: true });
+			if (!replay) {
+				expecting = false;
+				rmSync(file('expecting'), { force: true });
+			}
 		}
 		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') open = false;
 	}
@@ -164,7 +145,7 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 	// where things stood when we were last here
 	for (const { line, end } of linesFrom(file('out.jsonl'), 0)) {
 		if (end > offset) break;
-		note(parsed(line));
+		note(parsed(line), true);
 	}
 
 	/** Passes on every event written since last time, and remembers how far we got. */
@@ -231,10 +212,12 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 						.trim()
 						.slice(-2000);
 					const reason = `${meta.agent} ended unexpectedly`;
-					emit({
+					const failure: AgentEvent = {
 						kind: 'turn.failed',
 						error: existsSync(file('stopped')) ? 'Stopped' : said ? `${reason}: ${said}` : reason
-					});
+					};
+					// With the host gone, wait for the same durable receipt.
+					if (emit(failure, meta.generation + '/exit') === false) return;
 				}
 				finish(left);
 				rmSync(dir, { recursive: true, force: true });

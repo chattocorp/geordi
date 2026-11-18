@@ -17,6 +17,12 @@ import {
 import type { Agent, AgentEvent, MessageImage, Question } from '@geordi/protocol';
 import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
 
+// Limit buffered terminal output before decoding arbitrarily large ACP chunks.
+const MAX_TERMINAL_BYTES = 16 * 1024;
+function terminalBytes(data: string, limit: number) {
+	return Buffer.from(data.slice(0, 4 * Math.ceil(limit / 3)), 'base64').subarray(0, limit);
+}
+
 /** The host owns this connection across daemon and forge restarts. */
 export function connectAgent(
 	provider: Agent,
@@ -32,6 +38,8 @@ export function connectAgent(
 	let steering = false;
 	const messages = new Map<string, string>();
 	const tools = new Set<string>();
+	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
+	const terminalOutput = new Map<string, Buffer>();
 	const questions = new Map<string, (answers?: string[]) => void>();
 
 	function flush() {
@@ -49,6 +57,7 @@ export function connectAgent(
 					flush();
 					running = false;
 					tools.clear();
+					terminalOutput.clear();
 					for (const cancel of questions.values()) cancel();
 					if (u.stopReason && u.stopReason !== 'end_turn')
 						emit({
@@ -73,6 +82,18 @@ export function connectAgent(
 						u.content.flatMap((c) => (ContentBlock.isText(c) ? [c.text] : [])).join('')
 					);
 				break;
+			case SessionUpdate.isTerminalOutputChunk(u): {
+				const before = terminalOutput.get(u.terminalId) ?? Buffer.alloc(0);
+				if (before.length < MAX_TERMINAL_BYTES) {
+					const bytes = terminalBytes(u.data, MAX_TERMINAL_BYTES - before.length);
+					terminalOutput.set(u.terminalId, Buffer.concat([before, bytes]));
+				}
+				break;
+			}
+			case SessionUpdate.isTerminalUpdate(u):
+				if (u.output)
+					terminalOutput.set(u.terminalId, terminalBytes(u.output.data, MAX_TERMINAL_BYTES));
+				break;
 			case SessionUpdate.isToolCallUpdate(u):
 				flush();
 				if (!tools.has(u.toolCallId)) {
@@ -81,16 +102,19 @@ export function connectAgent(
 						kind: 'tool',
 						id: u.toolCallId,
 						name: u.name ?? u.title ?? 'Tool',
-						input: truncate(JSON.stringify(u.rawInput ?? ''))
+						input: truncate(JSON.stringify(u.rawInput) ?? '')
 					});
 				}
 				if (u.status === 'completed' || u.status === 'failed') {
+					const output =
+						terminalOutput.get(u.toolCallId)?.toString('utf8') ?? u.rawOutput ?? u.content;
 					emit({
 						kind: 'tool.result',
 						id: u.toolCallId,
-						output: truncate(JSON.stringify(u.rawOutput ?? u.content ?? '')),
+						output: truncate(typeof output === 'string' ? output : (JSON.stringify(output) ?? '')),
 						isError: u.status === 'failed'
 					});
+					terminalOutput.delete(u.toolCallId);
 				}
 				break;
 		}
@@ -153,27 +177,23 @@ export function connectAgent(
 					function answer(answers?: string[]) {
 						questions.delete(key);
 						signal.removeEventListener('abort', abort);
-						resolve(
-							answers?.length === fields.length
-								? {
-										action: 'accept',
-										content: Object.fromEntries(
-											fields.flatMap(([name], i): [string, string | string[]][] => {
-												const value = answers[i];
-												if (!value) return [];
-												const item = items[i];
-												const picks = item.multiSelect ? value.split('\n') : [value];
-												if (
-													companion(name) &&
-													picks.some((pick) => !item.options.some((o) => o.label === pick))
-												)
-													return [[name + '_custom', value]];
-												return [[name, item.multiSelect ? picks : value]];
-											})
-										)
-									}
-								: { action: 'cancel' }
-						);
+						if (answers?.length !== fields.length) return resolve({ action: 'cancel' });
+						const content: Record<string, string | string[]> = {};
+						for (const [i, [name]] of fields.entries()) {
+							const value = answers[i];
+							if (!value) continue;
+							const item = items[i];
+							const picks = item.multiSelect ? value.split('\n') : [value];
+							if (
+								companion(name) &&
+								picks.some((pick) => !item.options.some((o) => o.label === pick))
+							) {
+								content[name + '_custom'] = value;
+							} else {
+								content[name] = item.multiSelect ? picks : value;
+							}
+						}
+						resolve({ action: 'accept', content });
 					}
 					questions.set(key, answer);
 					signal.addEventListener('abort', abort, { once: true });
