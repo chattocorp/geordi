@@ -79,6 +79,18 @@ describe('summarise', () => {
 		expect(summarise(pull({ raw: {} }))).not.toHaveProperty('conflicts');
 		expect(summarise(pull({ raw: { mergeable_state: 'dirty' } })).conflicts).toBe(true);
 	});
+
+	it('says what else keeps an open pull request from being merged, where GitHub says', () => {
+		const blocked = (raw: unknown, state: Thread['state'] = 'open') =>
+			summarise(pull({ raw, state })).blocked;
+		expect(blocked({ mergeStateStatus: 'BLOCKED' })).toBe('rules');
+		expect(blocked({ mergeStateStatus: 'BEHIND' })).toBe('behind');
+		expect(blocked({ mergeable_state: 'blocked' })).toBe('rules');
+		expect(blocked({ mergeStateStatus: 'CLEAN' })).toBeUndefined();
+		expect(blocked({ mergeStateStatus: 'UNSTABLE' })).toBeUndefined();
+		expect(blocked({ mergeStateStatus: 'BLOCKED' }, 'merged')).toBeUndefined();
+		expect(summarise(pull({ raw: {} }))).not.toHaveProperty('blocked');
+	});
 });
 
 describe('upstream', () => {
@@ -457,6 +469,7 @@ describe('batched GitHub status', () => {
 				const { query, variables } = JSON.parse(String(init?.body));
 				expect(query).toContain('reviewDecision');
 				expect(query).toContain('mergeable');
+				expect(query).toContain('mergeStateStatus');
 				expect(variables.n0).toBe('one');
 				expect(variables.n1).toBe('two');
 				expect(variables).not.toHaveProperty('n2');

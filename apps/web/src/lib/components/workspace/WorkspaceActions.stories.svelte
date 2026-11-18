@@ -120,6 +120,25 @@
 >
 
 <Story
+	name="Merge blocked by rules"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Merge blocked')).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /Merge PR/ })).toBeNull();
+	}}
+>
+	{@render bar({ changes: pushed, upstream: upstream({ blocked: 'rules' }) })}
+</Story>
+
+<Story name="Behind base branch, which must be up to date" asChild
+	>{@render bar({
+		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
+		upstream: upstream({ blocked: 'behind' })
+	})}</Story
+>
+
+<Story
 	name="Waiting for merged standing"
 	asChild
 	play={async ({ canvasElement }) => {

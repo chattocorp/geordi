@@ -86,7 +86,9 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		pull?.state === 'merged' ||
 		pull?.state === 'closed' ||
 		// resolving them is updating already
-		pull?.conflicts
+		pull?.conflicts ||
+		// offered as the next step already
+		actions.some((action) => action.id === 'merge-upstream')
 	)
 		return actions;
 	// beside the next step, but before the other actions aside (like disabling auto-merge)
@@ -204,10 +206,23 @@ function nextActions(state: State): WorkspaceAction[] {
 			pullNumber: pull.number
 		});
 
+	// The base branch's rules want it up to date: updating it is the next step.
+	if (pull.blocked === 'behind' && actions.length === 0) {
+		const incoming = changes.incoming;
+		actions.push({
+			id: 'merge-upstream',
+			label: 'Sync',
+			...(incoming && incoming.commits > 0 && { incomingCommits: incoming.commits }),
+			icon: 'icon-[lucide--git-merge]',
+			prompt: `${mergeFrom(pull.base && `origin/${pull.base}`)} Then push.`
+		});
+	}
+
 	// Merging is the next step once nothing stands in its way.
 	const checksPass = !pull.checks || pull.checks.state === 'success';
-	// Auto-merge is for what can't be merged yet: checks still running, or a review to wait for.
-	const waiting = !checksPass || pull.review === 'pending';
+	// Auto-merge is for what can't be merged yet: checks still running, a review to wait for,
+	// or anything else the base branch's rules still want.
+	const waiting = !checksPass || pull.review === 'pending' || !!pull.blocked;
 	if (pull.autoMerge?.enabled) {
 		if (pull.autoMerge.canDisable)
 			actions.push({
@@ -224,7 +239,7 @@ function nextActions(state: State): WorkspaceAction[] {
 			icon: 'icon-[lucide--git-merge]',
 			pullNumber: pull.number
 		});
-	} else if (!pull.draft && actions.length === 0 && checksPass)
+	} else if (!pull.draft && actions.length === 0 && checksPass && !pull.blocked)
 		actions.push({
 			id: 'merge-pull',
 			label: 'Merge PR',
@@ -317,7 +332,10 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			checks: pull.checks?.counts
 		};
 	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };
-	if (pull.review === 'pending' && pull.autoMerge?.canEnable)
+	if (pull.review === 'pending' && (pull.autoMerge?.canEnable || pull.blocked === 'rules'))
 		return { label: 'Awaiting review', tone: 'neutral', icon: 'icon-[lucide--clock]' };
+	if (pull.blocked === 'behind') return todo('Behind base branch');
+	if (pull.blocked === 'rules')
+		return { label: 'Merge blocked', tone: 'danger', icon: 'icon-[lucide--shield-alert]' };
 	return { label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' };
 }
