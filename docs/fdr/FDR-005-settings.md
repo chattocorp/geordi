@@ -38,3 +38,14 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 **Decision:** A repository with workspaces in use can't be removed; the dialog says to archive them first.
 **Why:** Its agents work in worktrees of it. Taking those along silently could lose work, which archiving a workspace already guards against, one workspace at a time.
 **Tradeoff:** Removing a busy repository takes several steps.
+
+### 4. Update preferences belong to the installed app
+
+Signed macOS releases check for stable updates at startup and hourly. The Geordi menu has a
+**Receive Beta Updates** checkbox. Its setting persists across releases. Turning it off keeps
+the installed version until a newer stable release is available. Builds installed from source
+stay on the developer's chosen revision.
+
+After downloading an update, Geordi offers to restart. Choosing **Later** leaves the restart
+action in the Geordi menu. People choose the time because restarting ends terminal sessions
+and jobs. Detached agent turns continue.

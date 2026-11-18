@@ -50,6 +50,17 @@ writeFileSync(
 	})
 );
 cpSync(join(root, 'src/main.js'), join(stage, 'main.js'));
+if (process.platform === 'darwin') {
+	await build({
+		entryPoints: [join(root, 'src/release-updater.cjs')],
+		outfile: join(stage, 'release-updater.cjs'),
+		bundle: true,
+		platform: 'node',
+		format: 'cjs',
+		external: ['electron']
+	});
+}
+cpSync(join(root, 'src/updates.js'), join(stage, 'updates.js'));
 cpSync(join(root, 'src/runtime.js'), join(stage, 'runtime.js'));
 cpSync(join(root, 'src/preload.cjs'), join(stage, 'preload.cjs'));
 

@@ -1,6 +1,7 @@
+import { desktopUpdates } from './updates.js';
 import { desktopRuntime } from './runtime.js';
 import { execFileSync } from 'node:child_process';
-import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	app,
@@ -261,6 +262,8 @@ function contextMenu(window, { mediaType, srcURL, selectionText, isEditable, edi
 	if (items.length) Menu.buildFromTemplate(items).popup({ window });
 }
 
+let updates;
+
 function menu() {
 	Menu.setApplicationMenu(
 		Menu.buildFromTemplate([
@@ -268,6 +271,7 @@ function menu() {
 				role: 'appMenu',
 				submenu: [
 					{ role: 'about' },
+					...(updates?.menuItems() ?? []),
 					{ type: 'separator' },
 					{
 						label: 'Settings…',
@@ -373,5 +377,37 @@ else {
 		await forgeReady();
 		startDaemon();
 		open();
+		// Only the signed release workflow adds the update feed before signing.
+		if (
+			process.platform === 'darwin' &&
+			app.isPackaged &&
+			!runtime.directory &&
+			existsSync(join(process.resourcesPath, 'app-update.yml'))
+		) {
+			const { default: updater } = await import('./release-updater.cjs');
+			const file = join(app.getPath('userData'), 'update-channel');
+			updates = desktopUpdates({
+				updater,
+				preferences: {
+					read: () => (existsSync(file) ? readFileSync(file, 'utf8') : 'latest'),
+					write: (channel) => writeFileSync(file, channel)
+				},
+				refresh: menu,
+				async offerRestart(version) {
+					const { response } = await dialog.showMessageBox({
+						message: `Geordi ${version} is ready to install.`,
+						detail:
+							'Restarting closes open terminals and stops running jobs. Agent turns continue.',
+						buttons: ['Later', 'Restart to Update'],
+						defaultId: 0,
+						cancelId: 0
+					});
+					return response === 1;
+				},
+				note
+			});
+			void updates.check();
+			setInterval(updates.check, 60 * 60 * 1000).unref();
+		}
 	});
 }

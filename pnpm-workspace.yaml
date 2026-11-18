@@ -6,6 +6,7 @@ engineStrict: true
 allowBuilds:
   esbuild: true
   electron: true
+  electron-winstaller: false
 
 catalog:
   '@types/node': ^24

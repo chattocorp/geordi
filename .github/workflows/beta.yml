@@ -1,0 +1,14 @@
+name: Publish desktop beta
+on:
+  push:
+    tags: ['v*-beta.*']
+
+jobs:
+  desktop:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop.yml
+    with:
+      tag: ${{ github.ref_name }}
+      commit: ${{ github.sha }}
+    secrets: inherit
