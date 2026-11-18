@@ -14,8 +14,8 @@ import {
 	StateUpdate,
 	type CreateElicitationResponse,
 	SessionUpdate
-} from '@agentclientprotocol/sdk/experimental/v2';
-import type { Agent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
+} from '@agentclientprotocol/sdk/experimental/v2/unstable';
+import type { Agent, MessageImage, PermissionMode, Question, TurnUsage } from '@geordi/protocol';
 import type { HostEvent } from '../host.ts';
 import { BackgroundTasks } from './background-tasks.ts';
 import { TerminalOutput } from './terminal-output.ts';
@@ -29,6 +29,28 @@ const ACP_MODES = {
 	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
 	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
 } satisfies Record<Agent, Record<PermissionMode, string>>;
+
+/**
+ * What a turn used, as the state update that ends it says (`usage`, unstable in ACP).
+ * ACP's standard counts only: the wrappers' own `_meta` (per model, quota) is left out.
+ */
+export function turnUsage(usage: IdleStateUpdate['usage']): { usage?: TurnUsage } {
+	if (!usage?.totalTokens) return {};
+	const { totalTokens, inputTokens, outputTokens, ...rest } = usage;
+	const optional = {
+		thoughtTokens: rest.thoughtTokens,
+		cachedReadTokens: rest.cachedReadTokens,
+		cachedWriteTokens: rest.cachedWriteTokens
+	};
+	return {
+		usage: {
+			totalTokens,
+			inputTokens,
+			outputTokens,
+			...Object.fromEntries(Object.entries(optional).filter(([, count]) => count))
+		}
+	};
+}
 
 /** The host owns this connection across daemon and forge restarts. */
 export function connectAgent(
@@ -66,6 +88,7 @@ export function connectAgent(
 					running = false;
 					terminalOutput.retainOpen(tools);
 					for (const cancel of questions.values()) cancel();
+					const usage = turnUsage(u.usage);
 					if (u.stopReason && u.stopReason !== 'end_turn')
 						emit({
 							kind: 'turn.failed',
@@ -73,9 +96,10 @@ export function connectAgent(
 								u.stopReason === 'cancelled'
 									? 'Stopped'
 									: ((IdleStateUpdate.isError(u) ? u.error?.message : undefined) ??
-										String(u.stopReason))
+										String(u.stopReason)),
+							...usage
 						});
-					else emit({ kind: 'turn.completed' });
+					else emit({ kind: 'turn.completed', ...usage });
 				}
 				break;
 			case SessionUpdate.isAgentMessageChunk(u):

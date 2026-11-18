@@ -161,6 +161,68 @@
 	</div>
 </Story>
 
+<!-- What a reply used, where it ends: beside its last words, or on its own after a tool call. -->
+<Story
+	name="Token usage"
+	asChild
+	play={async ({ canvas }) => {
+		const figure = await canvas.findByText('150K tokens');
+		expect(figure).toHaveAttribute(
+			'title',
+			'8 input · 353 output · 120,465 cache read · 29,504 cache write'
+		);
+		await waitFor(() => expect(canvas.getByText('79K tokens')).toBeVisible());
+	}}
+>
+	<div class="flex h-120 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[
+				{ kind: 'user', text: 'What changed?' },
+				{
+					kind: 'agent',
+					parts: [{ kind: 'text', text: reply }],
+					usage: {
+						totalTokens: 150330,
+						inputTokens: 8,
+						outputTokens: 353,
+						cachedReadTokens: 120465,
+						cachedWriteTokens: 29504
+					}
+				},
+				{ kind: 'user', text: 'Run the tests.' },
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'tools',
+							tools: [
+								{
+									kind: 'tool',
+									id: 'test',
+									name: 'Bash',
+									input: '{"command":"pnpm test"}',
+									output: 'All tests passed.',
+									isError: false,
+									at: '2026-11-18T12:00:00Z'
+								}
+							]
+						}
+					],
+					usage: {
+						totalTokens: 79476,
+						inputTokens: 20224,
+						outputTokens: 116,
+						cachedReadTokens: 59136
+					}
+				}
+			]}
+			agent="claude"
+			onremove={() => {}}
+			onanswer={() => {}}
+		/>
+	</div>
+</Story>
+
 <Story name="Empty" asChild>
 	<div class="flex h-80 flex-col overflow-hidden card">
 		<MessageView blocks={[]} agent="claude" onremove={() => {}} onanswer={() => {}} />

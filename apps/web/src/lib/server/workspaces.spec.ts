@@ -90,6 +90,30 @@ describe('workspaces', () => {
 		]);
 	});
 
+	it('records what a turn used with its end, and keeps it across a restart', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Count');
+		const usage = { totalTokens: 361, inputTokens: 8, outputTokens: 353 };
+		workspaces.record(id, { kind: 'text', text: 'Counted.' });
+		workspaces.record(id, { kind: 'turn.completed', usage });
+		workspaces.send(id, 'Again');
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped', usage });
+		workspaces.send(id, 'Once more');
+		// as recorded before turns said what they used
+		workspaces.record(id, { kind: 'turn.completed' });
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).transcript.map((item) => item.kind)).toEqual([
+			'user',
+			'text',
+			'usage',
+			'user',
+			'error',
+			'usage',
+			'user'
+		]);
+		expect(replay.get(id).transcript[2]).toMatchObject({ kind: 'usage', usage });
+	});
+
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Plan the change');
