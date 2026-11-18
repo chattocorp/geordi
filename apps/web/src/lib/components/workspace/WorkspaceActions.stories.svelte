@@ -351,6 +351,24 @@
 	})}
 </Story>
 
+<Story
+	name="Merge, not auto-merge, once ready"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: /Merge PR/ })).toBeEnabled();
+		await expect(canvas.queryByRole('button', { name: 'Auto-merge' })).toBeNull();
+	}}
+>
+	{@render bar({
+		changes: pushed,
+		upstream: upstream({
+			checks: { state: 'success', total: 3, failed: 0, url: null },
+			autoMerge: { enabled: false, canEnable: true, canDisable: false }
+		})
+	})}
+</Story>
+
 <!-- Small, with only the next step: as on the overview's cards. -->
 <Story
 	name="Compact"

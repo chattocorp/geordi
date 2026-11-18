@@ -206,6 +206,8 @@ function nextActions(state: State): WorkspaceAction[] {
 
 	// Merging is the next step once nothing stands in its way.
 	const checksPass = !pull.checks || pull.checks.state === 'success';
+	// Auto-merge is for what can't be merged yet: checks still running, or a review to wait for.
+	const waiting = !checksPass || pull.review === 'pending';
 	if (pull.autoMerge?.enabled) {
 		if (pull.autoMerge.canDisable)
 			actions.push({
@@ -215,7 +217,7 @@ function nextActions(state: State): WorkspaceAction[] {
 				pullNumber: pull.number,
 				aside: true
 			});
-	} else if (pull.autoMerge?.canEnable && !pull.draft && actions.length === 0) {
+	} else if (pull.autoMerge?.canEnable && waiting && !pull.draft && actions.length === 0) {
 		actions.push({
 			id: 'enable-auto-merge',
 			label: 'Auto-merge',
