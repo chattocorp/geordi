@@ -355,6 +355,15 @@
 		cursor: not-allowed;
 	}
 
+	/* What is used is not text to select: a drag across controls selects nothing. Links in
+	   what is read (`prose`) stay selectable with the text around them. */
+	:where(a[href]:not(.prose *), button, summary, select, label, [role='button'], [role='tab']) {
+		user-select: none;
+	}
+	:where(input, textarea) {
+		user-select: text;
+	}
+
 	/* Summaries bring their own marker, if any (older Safari ignores `list-none`). */
 	summary::-webkit-details-marker {
 		display: none;

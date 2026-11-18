@@ -165,7 +165,7 @@
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col sheet-quiet">
+<div class="flex min-h-0 flex-1 flex-col sheet-quiet select-none">
 	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
 		<div class="space-y-0.5">
 			{@render link(
