@@ -39,7 +39,7 @@ const terminals = new Map<string, Terminal>();
  *
  * With `command`, the terminal runs that instead of a shell for typing into: in the user's
  * shell, as if typed there (so that it finds what their shell would). When the command
- * ends, the terminal says how and waits for Enter, so that what it printed can be read.
+ * ends, the terminal waits for Enter unless closeOnSuccess is set and the command succeeded.
  * `onEnded` hears of that moment, with the command's status (`null`: the terminal was
  * closed first).
  */
@@ -50,10 +50,12 @@ export function openTerminal(
 		cols,
 		rows,
 		command,
+		closeOnSuccess = false,
 		env = {},
 		onEnded
 	}: TerminalSize & {
 		command?: string;
+		closeOnSuccess?: boolean;
 		/** On top of our own environment. */ env?: Record<string, string>;
 		onEnded?: (status: number | null) => void;
 	},
@@ -72,9 +74,17 @@ export function openTerminal(
 	const shell = process.env.SHELL || '/bin/sh';
 	// The command and the shell reach the script as arguments: nothing in them is parsed twice.
 	// `printf` makes the escapes into a new line and dim text.
-	const script =
-		'"$0" -l -i -c "$1"; s=$?; printf "\\033]7717;%s\\007\\n\\033[2m[ended with status %s; press Enter to close]\\033[0m" "$s" "$s"; read -r _';
-	const [file, args] = command ? ['/bin/sh', ['-c', script, shell, command]] : [shell, []];
+	const script = `
+		"$0" -l -i -c "$1"
+		s=$?
+		printf "\\033]7717;%s\\007" "$s"
+		if [ "$2" = close ] && [ "$s" -eq 0 ]; then exit 0; fi
+		printf "\\n\\033[2m[ended with status %s; press Enter to close]\\033[0m" "$s"
+		read -r _
+	`;
+	const [file, args] = command
+		? ['/bin/sh', ['-c', script, shell, command, closeOnSuccess ? 'close' : 'wait']]
+		: [shell, []];
 	const pty = spawn(file, args, {
 		name: 'xterm-256color',
 		cwd,
