@@ -5,7 +5,8 @@ import type { EventStore, GeordiEvent } from './events/index.ts';
 /** A named token a person issued to an MCP client outside Geordi (ADR-004). */
 type Grant = { id: string; name: string; digest: string };
 export type AccessEvent =
-	| { type: 'access.granted'; stream: `access:${string}`; data: Grant }
+	/** `repoId`: a token of an early preview, for one repository. It is no longer valid. */
+	| { type: 'access.granted'; stream: `access:${string}`; data: Grant & { repoId?: string } }
 	| { type: 'access.revoked'; stream: `access:${string}`; data: { id: string } };
 
 /** What every grant's ID, and so every external caller, starts with. */
@@ -22,7 +23,8 @@ export function createAgentAccess(store: EventStore<GeordiEvent>) {
 		() => new Map<string, Grant>(),
 		(all, event) => {
 			if (event.type === 'access.granted') {
-				all.set(event.data.id, event.data);
+				// a token issued for one repository must not gain access to all of them on replay
+				if (event.data.repoId === undefined) all.set(event.data.id, event.data);
 				names.set(event.data.id, event.data.name);
 			}
 			if (event.type === 'access.revoked') all.delete(event.data.id);

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -587,4 +588,22 @@ describe('installation-wide workspace access', () => {
 		expect(await call('archive_agent', { agent_id: started.id })).toEqual({ archived: started.id });
 		expect(archived).toEqual([started.id]);
 	});
+});
+
+it('requires a fresh token for a client that previously had access to one repository', () => {
+	const { store, workspaces, caller } = setup();
+	const id = 'external:old';
+	const token = id + '.test';
+	store.append({
+		type: 'access.granted',
+		stream: `access:${id}`,
+		data: {
+			id,
+			name: 'Old client',
+			repoId: workspaces.get(caller).repoId,
+			digest: createHash('sha256').update(token).digest('hex')
+		}
+	});
+	expect(workspaces.agents.authenticate(token)).toBeNull();
+	expect(workspaces.access.list()).toEqual([]);
 });
