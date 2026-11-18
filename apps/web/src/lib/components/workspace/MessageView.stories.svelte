@@ -134,3 +134,29 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Copy messages"
+	asChild
+	play={async ({ canvas }) => {
+		const user = userEvent.setup();
+		const buttons = await canvas.findAllByRole('button', { name: 'Copy message' });
+		for (const [index, text] of ['First line\nSecond line', '**Done**', 'Queued text'].entries()) {
+			await user.click(buttons[index]);
+			await expect(await navigator.clipboard.readText()).toBe(text);
+			await expect(buttons[index]).toHaveAccessibleName('Copied');
+		}
+	}}
+>
+	<div class="flex h-96 flex-col overflow-hidden card">
+		<MessageView
+			blocks={[
+				{ kind: 'user', text: 'First line\nSecond line' },
+				{ kind: 'agent', parts: [{ kind: 'text', text: '**Done**' }] }
+			]}
+			queue={['Queued text']}
+			agent="codex"
+			onremove={() => {}}
+		/>
+	</div>
+</Story>

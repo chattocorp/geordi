@@ -5,6 +5,7 @@
 	import type { Block } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
 	import MessageImages from '#lib/components/MessageImages.svelte';
+	import MessageCopy from './MessageCopy.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -114,8 +115,11 @@
 										: 'From another agent'}
 								</p>
 							{/if}
-							<div class="ml-auto message bg-bubble">
-								{#if block.text}<p class="whitespace-pre-wrap">{block.text}</p>{/if}
+							<div class="relative ml-auto message bg-bubble">
+								{#if block.text}
+									<p class="whitespace-pre-wrap">{block.text}</p>
+									<MessageCopy text={block.text} />
+								{/if}
 								<MessageImages images={block.images} />
 							</div>
 						{:else if block.kind === 'note'}
@@ -132,7 +136,10 @@
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
 									{#each block.parts as part, j (j)}
 										{#if part.kind === 'text'}
-											<Markdown text={part.text} dimmed={j !== lastText} {pictures} />
+											<div class="relative">
+												<Markdown text={part.text} dimmed={j !== lastText} {pictures} />
+												{#if part.text}<MessageCopy text={part.text} />{/if}
+											</div>
 										{:else if part.kind === 'tools'}
 											<!-- live: the agent is at work, and this is the last thing it did -->
 											<ToolGroup
@@ -159,10 +166,11 @@
 							onclick={() => onremove(index, text, images)}
 							class="mt-1.5"
 						/>
-						<div class="message ring-1 ring-line">
+						<div class="relative message ring-1 ring-line">
 							<p class="label">Queued</p>
 							<p class="whitespace-pre-wrap text-muted">{text}</p>
 							<MessageImages {images} />
+							{#if text}<MessageCopy {text} />{/if}
 						</div>
 					</div>
 				{/if}
