@@ -75,10 +75,11 @@ export function createStandings(options: {
 	}
 
 	async function refresh(worktreeId: string, fresh = false, upstreamOnly = false) {
-		if (loading.has(worktreeId) && !fresh) return;
+		const alreadyRefreshing = loading.has(worktreeId);
+		if (alreadyRefreshing && !fresh) return;
 		const request = Symbol();
 		loading.set(worktreeId, request);
-		options.refreshChanged?.(worktreeId);
+		if (!alreadyRefreshing) options.refreshChanged?.(worktreeId);
 		const before = known.get(worktreeId);
 		const current = () => loading.get(worktreeId) === request && known.get(worktreeId) === before;
 		try {
