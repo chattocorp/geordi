@@ -43,7 +43,6 @@
 		...(compact ? [] : actions.filter((action) => action !== primary)),
 		...(primary ? [primary] : [])
 	]);
-	const height = $derived(compact ? 'h-7' : 'h-9');
 	const text = $derived(compact ? 'text-xs' : 'text-sm');
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
 	// small, beside a next step or "Working", the colour and icon of how it stands say enough
@@ -70,7 +69,7 @@
 -->
 <div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
 	{#if pull}
-		<div class={['inline-flex shrink-0 items-stretch rounded-full bg-sunken text-muted', height]}>
+		<div class={['inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted']}>
 			<button
 				type="button"
 				class={[
@@ -107,8 +106,8 @@
 			role="group"
 			aria-label="Next steps"
 			class={[
-				'inline-flex items-center gap-1 rounded-full',
-				height,
+				// as tall when small: the pill frames its buttons (`h-7`) all round
+				'inline-flex h-9 items-center gap-1 rounded-full',
 				// never narrower than what is in it: on a card it moves to a line of its own
 				'shrink-0',
 				compact ? 'pl-2.5' : 'pl-3',
@@ -156,10 +155,11 @@
 						<!--
 							The next step stands out; what else is possible, and what is beside it, doesn't.
 							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
-							colour. Fix errors and Resolve conflicts take the ribbon colour. Other soft next steps use ink.
+							colour. On a ribbon that says something is wrong, it takes the ribbon's colour too.
+							Other soft next steps use ink.
 						-->
 						{@const next = action === primary}
-						{@const ribbonColor = action.id === 'resolve-conflicts' || action.id === 'fix-checks'}
+						{@const ribbonColor = standing?.tone === 'danger'}
 						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
 						<Button
 							size="sm"

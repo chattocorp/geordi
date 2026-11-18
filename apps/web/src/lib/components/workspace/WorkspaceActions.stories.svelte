@@ -169,6 +169,19 @@
 	{@render bar({ changes: pushed, upstream: upstream({ conflicts: true }) })}
 </Story>
 
+<Story
+	name="Turn failed"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Retry' })).toHaveStyle({
+			color: getComputedStyle(canvas.getByText('Turn failed')).color
+		});
+	}}
+>
+	{@render bar({ changes: dirty, upstream: upstream(null), failed: true })}
+</Story>
+
 <Story name="Asked for, not done yet" asChild>
 	{@render bar(
 		{ changes: pushed, upstream: upstream({ checks: failing }) },
