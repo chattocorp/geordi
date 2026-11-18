@@ -144,4 +144,14 @@
 		{ value: 'full-access', label: 'Full Access' }
 	] satisfies SelectOption<PermissionMode>[]}
 	bind:value={() => permissionMode, (value) => set(harness.agent, { permissionMode: value })}
-/>
+>
+	{#snippet icon(option)}
+		<span
+			aria-hidden="true"
+			class={[
+				'size-4 shrink-0',
+				option.value === 'auto' ? 'icon-[lucide--radar]' : 'icon-[lucide--key-round]'
+			]}
+		></span>
+	{/snippet}
+</Select>
