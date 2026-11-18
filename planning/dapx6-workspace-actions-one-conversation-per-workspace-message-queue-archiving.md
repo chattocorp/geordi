@@ -27,4 +27,4 @@ The Checks running icon now turns once every two seconds. Verified the animation
 
 The incoming-commits action is now labeled Sync.
 
-The Sync button shows the incoming base commit count in muted text.
+The Sync button shows the incoming base commit count in regular-weight muted text at 70% opacity.

@@ -164,7 +164,7 @@
 						>
 							{busy && action.id === 'archive' ? 'Archiving…' : action.label}
 							{#if action.incomingCommits !== undefined}
-								<span class="text-muted tabular-nums">{action.incomingCommits}</span>
+								<span class="font-normal text-muted/70 tabular-nums">{action.incomingCommits}</span>
 								<span class="sr-only"
 									>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
 								>
