@@ -11,3 +11,4 @@
 | [FDR-007](FDR-007-changesets.md)                       | Changesets: what a workspace means for the next releases         | Active    | 2026-11-16    |
 | [FDR-008](FDR-008-notifications.md)                    | Notifications: telling the person when a workspace needs them    | Active    | 2026-11-17    |
 | [FDR-009](FDR-009-repository-workspace.md)             | The repository's own workspace                                   | Withdrawn | 2026-11-17    |
+| [FDR-010](FDR-010-native-subagents.md)                 | Native subagents in a conversation                               | Active    | 2026-11-18    |

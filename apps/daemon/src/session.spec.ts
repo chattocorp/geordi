@@ -61,8 +61,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    items('plan',[]);return done();
   }
   if(said==='start command'){
-   update({sessionUpdate:'tool_call_update',toolCallId:'bg',name:'shell',rawInput:'build',status:'in_progress'});
-   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg',data:Buffer.from('before ').toString('base64')});
+   update({sessionUpdate:'tool_call_update',toolCallId:'bg',name:'shell',rawInput:'build',status:'in_progress',content:[{type:'terminal',terminalId:'bg-pty'}]});
+   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg-pty',data:Buffer.from('before ').toString('base64')});
    return done();
   }
   if(said==='finish with text'){
@@ -70,7 +70,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    return done();
   }
   if(said==='finish command'){
-   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg',data:Buffer.from('after').toString('base64')});
+   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg-pty',data:Buffer.from('after').toString('base64')});
    const finished={sessionUpdate:'tool_call_update',toolCallId:'bg',status:'completed'};
    update(finished);update(finished);return done();
   }
