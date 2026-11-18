@@ -58,6 +58,7 @@
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
+	const sidebarRepos = $derived(nav.current?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
 	const working = (workspace: Item): boolean =>
 		workspace.working ||
@@ -310,9 +311,8 @@
 						)}
 					</div>
 
-					<!-- every repository, also one nothing is going on in: its name folds its workspaces away -->
 					<div class="space-y-4">
-						{#each nav.current?.repos ?? [] as repo (repo.id)}
+						{#each sidebarRepos as repo (repo.id)}
 							{@const rows = listed.get(repo.id) ?? []}
 							{@const isFolded = folded.current.includes(repo.id)}
 							<div>
@@ -330,7 +330,7 @@
 									>
 										<RepoIcon id={repo.id} />
 										<span class="truncate">{repo.name}</span>
-										{#if isFolded && rows.length > 0}
+										{#if isFolded}
 											<span class="shrink-0 font-normal tabular-nums">{rows.length}</span>
 										{/if}
 									</button>

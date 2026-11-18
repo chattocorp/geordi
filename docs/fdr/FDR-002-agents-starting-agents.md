@@ -17,7 +17,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.
 - An agent can only see and control the agents it started, directly or indirectly.
 - Work from a child with its own worktree comes back by the parent merging the child's branch. Geordi does not merge on its own.
-- The sidebar lists every repository, and under each its workspaces, as a plain list. A workspace started by an agent is marked as such, comes right after the one that started it, and sits slightly indented from it; pointing at it lights that one up.
+- The sidebar groups current workspaces by repository. Archiving the last workspace in a repository removes its heading. A workspace started by an agent is marked as such, comes right after the one that started it, and sits slightly indented from it; pointing at it lights that one up.
 - A child workspace with its own worktree shows its changes against the parent’s branch.
 - An agent working in another workspace's directory is shown in that workspace, not beside it: as a conversation of its own next to the workspace's (a tab with its name, which turns while it works), and not in the sidebar or among the workspaces started. The workspace shows as working while any of its agents is. A link to such an agent leads to its conversation there. Closing the tab of one that is not working archives it. Once the workspace it worked in is archived, it stands for itself.
 - People can add an agent to a workspace too: the "+" beside its conversations opens a new one, begun as a workspace is, by writing what to do and choosing who does it and how. The agent is there once that is sent, working in the same directory. It belongs to the workspace like one an agent started there, and goes when the workspace is archived.
@@ -46,11 +46,11 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 **Why:** See ADR-004. The tree in the sidebar must be trustworthy.
 **Tradeoff:** A child can't be re-parented or adopted later.
 
-### 4. The sidebar follows control, not repositories
+### 4. The sidebar groups current workspaces by repository
 
-**Decision:** Workspaces are no longer grouped by repository.
-**Why:** The interesting structure is who is driving what, and work will span several repositories.
-**Tradeoff:** Finding "everything in repository X" takes a filter or the repository's own page instead of a glance at the sidebar.
+**Decision:** Show a repository heading while it has a workspace in the sidebar. Within each group, list child workspaces under their parent.
+**Why:** Each heading helps the person find current work in that repository.
+**Tradeoff:** To start work in an empty repository, the person selects it from New workspace.
 
 ## Gates
 
