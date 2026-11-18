@@ -49,6 +49,8 @@ ports. The setup script installs dependencies when the worktree is made.
   ports. It is a production build without hot reload: start the job again after a change.
 - `pnpm desktop:package` builds the app into `apps/desktop/dist/` without touching the
   installed one.
+- On macOS, `pnpm desktop:dmg` builds a drag-to-install disk image for your Mac in
+  `apps/desktop/dist/`.
 - **Run → Install Electron app** (or `pnpm desktop:install`) builds the app, replaces
   `/Applications/Geordi.app` and reopens it. Agent turns go on, but terminals and jobs
   end. If Geordi refuses to quit, the old app stays. The installer's output is in

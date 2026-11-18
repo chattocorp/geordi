@@ -25,8 +25,9 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
 ## Install
 
 Download the desktop app for macOS (Apple silicon) or Windows from the
-[latest release](https://github.com/chattocorp/geordi/releases/latest), unpack it and open
-it. It runs everything Geordi needs and keeps its data in `~/.geordi`.
+[latest release](https://github.com/chattocorp/geordi/releases/latest). On macOS, open the
+disk image and drag Geordi to Applications. On Windows, extract the ZIP and open Geordi.
+The app runs everything Geordi needs and keeps its data in `~/.geordi`.
 
 Geordi runs the agent CLIs you already use: sign in to
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or
