@@ -38,7 +38,13 @@ export default defineConfig({
 				extends: true,
 				// Prebundle lazy imports so a cold cache cannot reload stories during a test.
 				optimizeDeps: {
-					include: ['@pierre/diffs', '@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-web-links']
+					include: [
+						'@pierre/diffs',
+						'@xterm/xterm',
+						'@xterm/addon-fit',
+						'@xterm/addon-web-links',
+						'pele/lazy'
+					]
 				},
 				plugins: [storybookTest({ configDir: `${import.meta.dirname}/.storybook` })],
 				test: {
