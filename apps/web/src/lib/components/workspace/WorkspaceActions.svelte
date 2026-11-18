@@ -151,7 +151,9 @@
 							busy={pending.includes(action.id)}
 							onclick={() => onaction(action)}
 						>
-							{action.label}
+							{action.id === 'cancel-auto-merge' && standing?.label === 'Auto-merge enabled'
+								? 'Disable'
+								: action.label}
 						</Button>
 					{/each}
 				</ButtonGroup>
