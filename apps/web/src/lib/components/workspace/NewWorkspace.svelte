@@ -12,7 +12,7 @@
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
-	import Select from '#lib/ui/Select.svelte';
+	import RepoPicker from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { createWorkspace } from '../../../routes/workspaces.remote';
@@ -104,17 +104,11 @@
 		<!-- where, who, how hard: three quiet choices -->
 		<div class="flex min-w-0 flex-wrap items-center gap-1">
 			{#if repos.length > 1}
-				<Select
+				<RepoPicker
+					{repos}
 					bind:open={pickingRepo}
-					label="Repository"
-					options={repos.map((repo) => ({ value: repo.id, label: repo.name }))}
 					bind:value={() => repo.id, (id) => (picked = id)}
-				>
-					{#snippet trigger()}
-						<span class="icon-[lucide--folder-git-2] size-4 shrink-0"></span>
-						<span class="truncate text-ink">{repo.name}</span>
-					{/snippet}
-				</Select>
+				/>
 			{/if}
 			{#if harnesses}
 				<HarnessPicker
