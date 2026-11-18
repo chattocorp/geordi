@@ -198,6 +198,10 @@
 	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/60;
 }
 
+@utility dialog-actions {
+	@apply ml-auto grid w-fit auto-cols-fr grid-flow-col gap-2;
+}
+
 /*
  * The bar at the top of a pane: tabs, or a title. As high as leaves its tabs as far from
  * the top of a sheet as from its side, so that their corners follow the sheet's.

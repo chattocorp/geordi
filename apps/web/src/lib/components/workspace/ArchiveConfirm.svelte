@@ -28,7 +28,7 @@
 		<p class="text-sm text-muted">
 			Archiving ends its terminals and keeps its branch and conversation.
 		</p>
-		<div class="flex items-center justify-end gap-2">
+		<div class="dialog-actions">
 			<Button disabled={asking?.busy} onclick={() => asking?.answer(false)}>Cancel</Button>
 			<Button
 				variant="primary"

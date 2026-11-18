@@ -951,7 +951,7 @@
 			the agent can change. They run in your own shell, with everything you are allowed to do. You
 			are asked once per command and repository.
 		</p>
-		<div class="flex justify-end gap-2">
+		<div class="dialog-actions">
 			<Button onclick={() => (asking = null)}>Cancel</Button>
 			<Button variant="primary" icon="icon-[lucide--play]" onclick={agree}>Run</Button>
 		</div>

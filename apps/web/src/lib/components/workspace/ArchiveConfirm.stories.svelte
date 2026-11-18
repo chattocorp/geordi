@@ -18,9 +18,13 @@
 			expect(canvas.getByRole('dialog', { name: 'Archive “Review login changes”?' })).toBeVisible()
 		);
 		await expect(answer).not.toHaveBeenCalled();
-		await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }));
+		const cancel = canvas.getByRole('button', { name: 'Cancel' });
+		const archive = canvas.getByRole('button', { name: 'Archive' });
+		await expect(cancel.offsetWidth).toBe(archive.offsetWidth);
+		await expect(cancel.offsetHeight).toBe(archive.offsetHeight);
+		await userEvent.click(cancel);
 		await expect(answer).toHaveBeenCalledWith(false);
-		await userEvent.click(canvas.getByRole('button', { name: 'Archive' }));
+		await userEvent.click(archive);
 		await expect(answer).toHaveBeenCalledWith(true);
 	}}
 />
