@@ -91,14 +91,9 @@
 			role="group"
 			aria-label="Next steps"
 			class={[
-				'inline-flex h-9 shrink-0 items-center gap-1',
-				// with only buttons to show, they are the pill: no frame around them
-				(standing || working) && [
-					'rounded-full pl-3',
-					// buttons reach the end of the pill; text keeps its distance
-					actions.length > 0 ? 'pr-1' : 'pr-3',
-					tones[standing?.tone ?? 'neutral']
-				]
+				'inline-flex h-9 shrink-0 items-center gap-1 rounded-full pl-3',
+				actions.length > 0 ? 'pr-1' : 'pr-3',
+				tones[standing?.tone ?? 'neutral']
 			]}
 		>
 			{#if working}

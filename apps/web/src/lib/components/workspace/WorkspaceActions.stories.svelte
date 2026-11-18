@@ -52,9 +52,21 @@
 {/snippet}
 
 <!-- Each story is a state a workspace can be in; the bar is what `standingOf` and `actionsFor` make of it. -->
-<Story name="Work to publish" asChild
-	>{@render bar({ changes: dirty, upstream: upstream(null) })}</Story
+<Story
+	name="Creating PR with uncommitted changes"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Working')).toBeVisible();
+		await expect(canvas.getByText('Uncommitted changes')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: /Create PR/ })).toBeDisabled();
+	}}
 >
+	{@render bar(
+		{ changes: dirty, upstream: upstream(null) },
+		{ working: true, pending: ['create-pull'] }
+	)}
+</Story>
 
 <Story
 	name="Pushed branch awaiting a pull request"
@@ -62,7 +74,7 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole('button', { name: 'Create PR' })).toBeVisible();
-		await expect(canvas.queryByText('No pull request')).not.toBeInTheDocument();
+		await expect(canvas.getByText('Branch pushed')).toBeVisible();
 	}}
 >
 	{@render bar({ changes: pushed, upstream: upstream(null) })}
@@ -199,7 +211,15 @@
 	)}
 </Story>
 
-<Story name="Only upstream commits" asChild>
+<Story
+	name="Only upstream commits"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Behind base branch')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+	}}
+>
 	{@render bar({
 		changes: {
 			files: [],
