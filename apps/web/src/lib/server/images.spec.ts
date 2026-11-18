@@ -1,3 +1,6 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from '@geordi/protocol';
 import { EventStore, type GeordiEvent } from './events/index.ts';
@@ -9,14 +12,30 @@ export const png = Buffer.from(
 );
 
 describe('message images', () => {
-	it('stores bytes once with an actor and recovers them from the event log', () => {
-		const store = new EventStore<GeordiEvent>(':memory:');
-		const id = createImages(store).add(png, 'person');
-		expect(store.readAll()).toMatchObject([{ type: 'image.added', actor: 'person' }]);
-		expect(createImages(store).get(id)).toEqual({
-			mediaType: 'image/png',
-			data: png.toString('base64')
-		});
+	it('recovers both an inline image and deduplicated blobs after a restart', () => {
+		const directory = mkdtempSync(join(tmpdir(), 'geordi-images-'));
+		const path = join(directory, 'events.db');
+		const image = { mediaType: 'image/png', data: png.toString('base64') } as const;
+		let store = new EventStore<GeordiEvent>(path);
+		try {
+			store.append({ type: 'image.added', stream: 'image:old', data: { id: 'old', image } });
+			const first = createImages(store).add(png, 'person');
+			const second = createImages(store).add(png);
+			const files = readdirSync(join(directory, 'blobs'));
+			expect(files).toHaveLength(1);
+			expect(readFileSync(join(directory, 'blobs', files[0]))).toEqual(png);
+			expect(store.readStream(`image:${first}`)[0]).toMatchObject({
+				actor: 'person',
+				data: { id: first, mediaType: image.mediaType, blob: files[0] }
+			});
+			expect(store.readStream(`image:${first}`)[0].data).not.toHaveProperty('image');
+			store.close();
+			store = new EventStore<GeordiEvent>(path);
+			expect(createImages(store).resolve(['old', first, second])).toEqual([image, image, image]);
+		} finally {
+			store.close();
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	it('rejects unsupported content, empty images, excessive size and missing IDs', () => {

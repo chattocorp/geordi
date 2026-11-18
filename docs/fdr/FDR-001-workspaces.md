@@ -103,7 +103,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 **Decision:** Keep uploaded images with the conversation history (ADR-001), with small previews in the composer and transcript. Messages refer to each image rather than copying it.
 **Why:** A screenshot is part of what the person asked, and must remain available when the forge or daemon restarts. Image data need not travel with each live conversation update.
-**Tradeoff:** Uploads use disk space in the event log. Removing a preview or taking back a queued message does not delete its uploaded bytes. Drafts that have not been sent are not restored after closing the page.
+**Tradeoff:** Uploads use disk space in the data directory. Removing a preview or taking back a queued message does not delete its uploaded bytes. Drafts that have not been sent are not restored after closing the page.
 
 ## Related
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EventStore } from './store';
 
 type TestEvent = { type: 'counted'; stream: string; data: { by: number } };
@@ -37,6 +37,28 @@ describe('EventStore', () => {
 
 		store.append(counted(4));
 		expect(total.get()).toBe(7);
+	});
+
+	it('filters before parsing replay rows and applies the same filter on append', () => {
+		const store = new EventStore(':memory:');
+		const image = { type: 'image.added', stream: 'image:i', data: { base64: 'old payload' } };
+		const created = { type: 'workspace.created', stream: 'workspace:w', data: {} };
+		store.append([image, created]);
+		const parse = vi.spyOn(JSON, 'parse');
+		try {
+			const projection = store.project(
+				'workspaces',
+				() => 0,
+				(n) => n + 1,
+				['workspace', 'session']
+			);
+			expect(parse.mock.calls.map(([data]) => data)).toEqual(['{}']);
+			store.append([image, { ...created, type: 'session.message' }]);
+			expect(projection.get()).toBe(2);
+		} finally {
+			parse.mockRestore();
+			store.close();
+		}
 	});
 
 	it('updates projections before notifying listeners', () => {

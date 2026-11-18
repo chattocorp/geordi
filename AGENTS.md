@@ -77,7 +77,8 @@ it, perhaps you.
 ## Architecture
 
 - **Event sourcing (ADR-001).** All state is event-sourced. Core: `apps/web/src/lib/server/events/`.
-  - The only write is `store().append(...)`. Never write state elsewhere; no transactions.
+  - Record state with `store().append(...)`. Image bytes are the exception. Publish them under
+    their content hash in `blobs/` before appending the image reference (ADR-001).
   - Each domain (e.g. `apps/web/src/lib/server/repos.ts`) defines its event union (added to
     `GeordiEvent`), an in-memory projection via `store.project(...)`, and command functions
     that check the projection, then append. Keep check-then-append synchronous: no `await`
