@@ -24,3 +24,5 @@ Plain inline code uses a brighter plum in light mode and rose in dark mode, with
 Sent and queued user messages now use the same Markdown renderer as agent replies. The conversation story checks automatic links, explicit Markdown links, and copying the original text.
 
 Bullet lists now have a 2px gap between items, including when the Markdown has blank lines between bullets. Verified the gap in the message view story in Chromium.
+
+Conversation messages preserve single line breaks in sent and queued messages and agent replies. Verified the account choices on separate lines in Chromium.

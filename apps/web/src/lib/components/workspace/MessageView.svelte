@@ -134,7 +134,7 @@
 {#snippet agentPart(part: Part, dimmed: boolean, live: boolean)}
 	{#if part.kind === 'text'}
 		<div>
-			<Markdown text={part.text} {dimmed} {pictures} />
+			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
 			{#if part.text}{@render messageActions(part.text)}{/if}
 		</div>
 	{:else if part.kind === 'tools'}
@@ -190,7 +190,7 @@
 								</p>
 							{/if}
 							<div class="ml-auto message bg-bubble">
-								{#if block.text}<Markdown text={block.text} {pictures} />{/if}
+								{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
 								<MessageImages images={block.images} />
 							</div>
 							{#if block.text}{@render messageActions(block.text, true)}{/if}
@@ -247,7 +247,7 @@
 					{@const { text, index, images } = row}
 					<div class="ml-auto message ring-1 ring-line">
 						<p class="label">Queued</p>
-						{#if text}<Markdown {text} {pictures} dimmed />{/if}
+						{#if text}<Markdown preserveLineBreaks {text} {pictures} dimmed />{/if}
 						<MessageImages {images} />
 					</div>
 					{@render messageActions(text, true, () => onremove(index, text, images))}
