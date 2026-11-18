@@ -176,13 +176,24 @@ export function connectAgent(
 					});
 				}
 				if (!items.length) return { action: 'decline' };
+				if (signal.aborted) return { action: 'cancel' };
+				const codex = params._meta?.codex;
+				const asyncQuestion =
+					provider === 'codex' &&
+					typeof codex === 'object' &&
+					codex !== null &&
+					'delivery' in codex &&
+					codex.delivery === 'async';
 				const key = randomUUID();
 				return new Promise((resolve) => {
 					const abort = () => answer();
 					function answer(answers?: string[]) {
 						questions.delete(key);
 						signal.removeEventListener('abort', abort);
-						if (answers?.length !== fields.length) return resolve({ action: 'cancel' });
+						if (answers?.length !== fields.length) {
+							emit({ kind: 'question.closed', id: key });
+							return resolve({ action: 'cancel' });
+						}
 						const content: Record<string, string | string[]> = {};
 						for (const [i, [name]] of fields.entries()) {
 							const value = answers[i];
@@ -199,10 +210,11 @@ export function connectAgent(
 							}
 						}
 						resolve({ action: 'accept', content });
+						emit({ kind: 'answer.received', id: key });
 					}
 					questions.set(key, answer);
 					signal.addEventListener('abort', abort, { once: true });
-					emit({ kind: 'question', id: key, questions: items });
+					emit({ kind: 'question', id: key, questions: items, blocking: !asyncQuestion });
 				});
 			}
 		)

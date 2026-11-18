@@ -142,6 +142,8 @@
 			questions={part.questions}
 			answers={part.answers}
 			open={part.open}
+			delivery={part.delivery}
+			blocking={part.blocking}
 			onanswer={(answers) => onanswer(part.id, answers)}
 		/>
 	{:else}

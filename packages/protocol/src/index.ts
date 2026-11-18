@@ -487,11 +487,11 @@ export type AgentEvent =
 	| { kind: 'text'; text: string }
 	| { kind: 'tool'; id: string; name: string; input: string }
 	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
-	/**
-	 * The agent asks the person something, and waits for the answer (`agent.answer`) before
-	 * it goes on. Whatever is unanswered when the turn ends no longer wants an answer.
-	 */
-	| { kind: 'question'; id: string; questions: Question[] }
+	/** A form stays open until answered, withdrawn, or its turn ends. Older forms block. */
+	| { kind: 'question'; id: string; questions: Question[]; blocking?: boolean }
+	/** The host accepted the answer for this outstanding ACP request. */
+	| { kind: 'answer.received'; id: string }
+	| { kind: 'question.closed'; id: string }
 	/**
 	 * The agent has begun to work: on what it was told, or of its own accord (something it
 	 * ran in the background has finished). Said once per turn, before anything else of it.

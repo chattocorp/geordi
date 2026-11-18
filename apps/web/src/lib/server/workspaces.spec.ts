@@ -9,11 +9,11 @@ import { EventStore, type GeordiEvent } from './events/index.ts';
 import { createRepos } from './repos.ts';
 import { createWorkspaces } from './workspaces.ts';
 
-function setup({ connected = true } = {}) {
+function setup({ connected = true, database = ':memory:' } = {}) {
 	const repoPath = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
 	execFileSync('git', ['init', '-q', repoPath]);
 
-	const store = new EventStore<GeordiEvent>(':memory:');
+	const store = new EventStore<GeordiEvent>(database);
 	const repos = createRepos(store);
 	const sent: ForgeMessage[] = [];
 	const dispatch = (message: ForgeMessage) => (sent.push(message), connected);
@@ -379,6 +379,103 @@ describe('workspaces', () => {
 			open: false
 		});
 		expect(() => workspaces.answer(id, 'q1', ['Postgres'])).toThrow(); // answered already
+	});
+
+	it('reopens the forge database and retries only answers without a host receipt', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-answers-')), 'events.db');
+		const { create, workspaces, store, repos } = setup({ database });
+		const id = create('One');
+		const questions = [{ question: 'Go on?', options: [], multiSelect: false }];
+		for (const key of ['old', 'pending', 'withdrawn'])
+			workspaces.record(id, { kind: 'question', id: key, questions });
+		store.append({
+			type: 'workspace.answered',
+			stream: `workspace:${id}`,
+			data: { id, question: 'old', answers: ['Yes'] }
+		});
+		const disconnected = createWorkspaces(store, repos, () => {
+			expect(store.readStream(`workspace:${id}`).at(-1)).toMatchObject({
+				type: 'workspace.answered',
+				data: { pending: true }
+			});
+			return false;
+		});
+		expect(() => disconnected.answer(id, 'pending', [])).toThrow();
+		disconnected.answer(id, 'pending', ['Yes']);
+		disconnected.answer(id, 'pending', ['Yes']);
+		disconnected.answer(id, 'withdrawn', ['Wait']);
+		disconnected.record(id, { kind: 'question.closed', id: 'withdrawn' });
+		store.close();
+
+		const reopened = new EventStore<GeordiEvent>(database);
+		const sent: ForgeMessage[] = [];
+		const restart = () =>
+			createWorkspaces(reopened, createRepos(reopened), (command) => (sent.push(command), true));
+		const forge = restart();
+		forge.reconcile([id]);
+		expect(sent).toEqual([
+			{ type: 'agent.answer', workspaceId: id, questionId: 'pending', answers: ['Yes'] }
+		]);
+		forge.record(id, { kind: 'answer.received', id: 'pending' }, 'host/25');
+		forge.record(id, { kind: 'answer.received', id: 'pending' }, 'host/25');
+		forge.record(id, { kind: 'question.closed', id: 'pending' });
+		const replay = restart();
+		replay.reconcile([id]);
+		expect(sent).toHaveLength(1);
+		const cards = replay.get(id).transcript.filter((item) => item.kind === 'question');
+		expect(cards.map((card) => card.delivery)).toEqual([undefined, undefined, 'unconfirmed']);
+		expect(
+			reopened.readStream(`workspace:${id}`).filter((event) => event.type === 'workspace.answered')
+		).toHaveLength(3);
+		reopened.close();
+	});
+
+	it('keeps async questions available while only blocking questions need attention', () => {
+		const { workspaces, create, sent } = setup();
+		const id = create('One');
+		const questions = [{ question: 'Go on?', options: [], multiSelect: false }];
+		const asyncQuestion = {
+			kind: 'question',
+			id: 'async',
+			questions: questions.map((q) => ({ ...q, optional: true })),
+			blocking: false
+		} as const;
+		workspaces.record(id, asyncQuestion);
+		expect(workspaces.summary(id).asking).toBe(false);
+		workspaces.record(id, { kind: 'question', id: 'blocking', questions });
+		workspaces.record(id, asyncQuestion);
+		expect(workspaces.summary(id).asking).toBe(true);
+		workspaces.record(id, { kind: 'question.closed', id: 'blocking' });
+		expect(workspaces.summary(id).asking).toBe(false);
+		expect(() => workspaces.answer(id, 'blocking', ['No'])).toThrow();
+		expect(() => workspaces.answer(id, 'async', [''])).toThrow();
+		workspaces.answer(id, 'async', ['Yes']);
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.record(id, { kind: 'turn.started' });
+		const count = sent.length;
+		workspaces.reconcile([id]);
+		expect(sent).toHaveLength(count);
+		const cards = workspaces.get(id).transcript.filter((item) => item.kind === 'question');
+		expect(cards).toHaveLength(2);
+		expect(cards[0]).toMatchObject({ open: false, delivery: 'unconfirmed' });
+	});
+
+	it('honors a delayed host receipt after the forge stopped the turn offline', () => {
+		const { workspaces, create, store, repos } = setup();
+		const id = create('One');
+		workspaces.record(id, {
+			kind: 'question',
+			id: 'q',
+			questions: [{ question: 'Continue?', multiSelect: false, options: [] }]
+		});
+		const offline = createWorkspaces(store, repos, () => false);
+		offline.answer(id, 'q', ['Yes']);
+		offline.stop(id);
+		const card = () => offline.get(id).transcript.find((item) => item.kind === 'question');
+		expect(card()?.delivery).toBe('unconfirmed');
+		offline.record(id, { kind: 'answer.received', id: 'q' });
+		expect(card()?.delivery).toBeUndefined();
+		expect(offline.summary(id).status).toBe('idle');
 	});
 
 	it('no longer waits for an answer once the turn is over', () => {
