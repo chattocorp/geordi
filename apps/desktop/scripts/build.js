@@ -10,6 +10,7 @@ import {
 	closeSync
 } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { packager } from '@electron/packager';
 import { build } from 'esbuild';
 
@@ -26,7 +27,12 @@ const repo = join(root, '../..');
 const stage = process.argv.includes('--dev')
 	? join(repo, '.data/desktop/stage')
 	: join(root, 'stage');
-const run = (cmd, args, options = {}) => execFileSync(cmd, args, { stdio: 'inherit', ...options });
+const pnpm = (args) =>
+	execFileSync(
+		process.platform === 'win32' ? process.env.npm_execpath || 'pnpm.exe' : 'pnpm',
+		args,
+		{ cwd: repo, stdio: 'inherit' }
+	);
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 // --- Stage: everything the app consists of, in one directory ---------------------------------
@@ -49,7 +55,7 @@ cpSync(join(root, 'src/preload.cjs'), join(stage, 'preload.cjs'));
 
 // The sounds of its notifications: made by the web app's own code, as files for the system
 // to play (see main.js). Louder than in a browser, where they play over whatever else does.
-const { chimeWav } = await import(join(repo, 'apps/web/src/lib/chime.ts'));
+const { chimeWav } = await import(pathToFileURL(join(repo, 'apps/web/src/lib/chime.ts')).href);
 const sounds = ['done', 'failed'].map((name) => {
 	const file = join(stage, `geordi-${name}.wav`);
 	writeFileSync(file, chimeWav(name === 'failed', 0.3));
@@ -57,7 +63,7 @@ const sounds = ['done', 'failed'].map((name) => {
 });
 
 // The forge: its production build, which needs nothing but Node.
-run('pnpm', ['--filter', '@geordi/web', 'build'], { cwd: repo });
+pnpm(['--filter', '@geordi/web', 'build']);
 cpSync(join(repo, 'apps/web/build'), join(stage, 'forge'), { recursive: true });
 
 // The daemon: one file each for it and what it starts. Its TypeScript can't run from inside an app as it does from the
@@ -79,11 +85,15 @@ await build({
 
 // The wrappers resolve the provider binaries and native modules relative to their own
 // packages. Deploy the production dependency tree with the same lockfile as the daemon.
-run(
-	'pnpm',
-	['--filter', '@geordi/daemon', 'deploy', '--legacy', '--prod', join(stage, 'runtime')],
-	{ cwd: repo }
-);
+pnpm([
+	...(process.platform === 'win32' ? ['--config.node-linker=hoisted'] : []),
+	'--filter',
+	'@geordi/daemon',
+	'deploy',
+	'--legacy',
+	'--prod',
+	join(stage, 'runtime')
+]);
 renameSync(join(stage, 'runtime/node_modules'), join(stage, 'node_modules'));
 rmSync(join(stage, 'runtime'), { recursive: true });
 
@@ -97,7 +107,7 @@ if (install || process.argv.includes('--package')) {
 		out: join(root, 'dist'),
 		name: 'Geordi',
 		appBundleId: 'com.github.chattocorp.geordi',
-		icon: join(root, 'icon.icns'),
+		icon: process.platform === 'darwin' ? join(root, 'icon.icns') : undefined,
 		electronVersion: JSON.parse(readFileSync(electron, 'utf8')).version,
 		overwrite: true,
 		// Electron Packager dereferences pnpm links or rewrites them to absolute staging paths.
@@ -123,7 +133,7 @@ if (install || process.argv.includes('--package')) {
 			])
 		)
 	});
-	const packaged = join(built, 'Geordi.app');
+	const packaged = process.platform === 'darwin' ? join(built, 'Geordi.app') : built;
 	console.log(`packaged ${packaged}`);
 
 	if (install) {
