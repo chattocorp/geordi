@@ -10,13 +10,11 @@
 		child,
 		cwd,
 		pictures,
-		standalone = false,
 		onopen
 	}: {
 		child: SubagentItem;
 		cwd?: string;
 		pictures?: string;
-		standalone?: boolean;
 		onopen?: (id: string) => void;
 	} = $props();
 	let open = $state(false);
@@ -62,33 +60,21 @@
 		</p>{/if}
 {/snippet}
 
-{#if standalone}
-	<div class="scroller">
-		<div class="mx-auto max-w-5xl space-y-4 px-5 py-6">
-			<header class="flex items-baseline gap-2">
-				<h2 class="heading">{child.title || 'Subagent'}</h2>
-				{@render status()}
-			</header>
+<Disclosure bind:open summaryClass="min-h-8 text-sm hover:text-ink">
+	{#snippet heading()}
+		<span class="icon-[lucide--git-branch] size-4 shrink-0 text-muted"></span>
+		<span class="min-w-0 truncate font-medium">{child.title || 'Subagent'}</span>
+		{@render status()}
+	{/snippet}
+	{#if open}
+		<div class="ml-6 space-y-2 py-2">
+			{#if onopen}<Button
+					size="sm"
+					variant="ghost"
+					icon="icon-[lucide--panels-top-left]"
+					onclick={() => onopen?.(child.id)}>Open in tab</Button
+				>{/if}
 			{@render activity()}
 		</div>
-	</div>
-{:else}
-	<Disclosure bind:open summaryClass="min-h-8 text-sm hover:text-ink">
-		{#snippet heading()}
-			<span class="icon-[lucide--git-branch] size-4 shrink-0 text-muted"></span>
-			<span class="min-w-0 truncate font-medium">{child.title || 'Subagent'}</span>
-			{@render status()}
-		{/snippet}
-		{#if open}
-			<div class="ml-6 space-y-2 py-2">
-				{#if onopen}<Button
-						size="sm"
-						variant="ghost"
-						icon="icon-[lucide--panels-top-left]"
-						onclick={() => onopen?.(child.id)}>Open in tab</Button
-					>{/if}
-				{@render activity()}
-			</div>
-		{/if}
-	</Disclosure>
-{/if}
+	{/if}
+</Disclosure>

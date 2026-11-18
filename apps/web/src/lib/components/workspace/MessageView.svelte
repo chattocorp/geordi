@@ -39,9 +39,9 @@
 		queue?: string[];
 		queueImages?: string[][];
 		onopensubagent?: (id: string) => void;
-		onremove: (index: number, text: string, images: string[]) => void;
+		onremove?: (index: number, text: string, images: string[]) => void;
 		/** Answers something the agent asked: one answer per question. */
-		onanswer: (question: string, answers: string[]) => unknown;
+		onanswer?: (question: string, answers: string[]) => unknown;
 		following?: boolean;
 	} = $props();
 
@@ -153,10 +153,10 @@
 		<QuestionCard
 			questions={part.questions}
 			answers={part.answers}
-			open={part.open}
+			open={part.open && !!onanswer}
 			delivery={part.delivery}
 			blocking={part.blocking}
-			onanswer={(answers) => onanswer(part.id, answers)}
+			onanswer={(answers) => onanswer?.(part.id, answers)}
 		/>
 	{:else}
 		<Notice>{part.error}</Notice>
@@ -185,11 +185,11 @@
 					{@const block = row.block}
 					<div>
 						{#if block.kind === 'user'}
-							{#if block.from}
+							{#if block.from || block.delegated}
 								<!-- not the person's words: another agent's, and whose -->
 								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
 									<span class="icon-[lucide--bot] size-3.5"></span>
-									{senders?.[block.from]
+									{block.from && senders?.[block.from]
 										? `From the agent in “${senders[block.from]}”`
 										: 'From another agent'}
 								</p>
@@ -256,7 +256,7 @@
 						{#if text}<Markdown preserveLineBreaks {text} {pictures} dimmed />{/if}
 						<MessageImages {images} />
 					</div>
-					{@render messageActions(text, true, () => onremove(index, text, images))}
+					{@render messageActions(text, true, onremove && (() => onremove(index, text, images)))}
 				{/if}
 			</div>
 		{/snippet}

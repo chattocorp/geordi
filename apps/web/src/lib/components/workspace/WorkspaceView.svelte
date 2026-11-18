@@ -11,7 +11,8 @@
 		type WorkspaceStanding
 	} from '#lib/actions.ts';
 	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
-	import SubagentRow from '#lib/components/SubagentRow.svelte';
+	import MessageView from './MessageView.svelte';
+	import { subagentBlocks } from '#lib/transcript.ts';
 	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
 	import ConversationTab from './ConversationTab.svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -699,9 +700,11 @@
 		<span class="icon-[lucide--message-square-plus] size-3.5 shrink-0"></span>
 		<span class="truncate">New conversation</span>
 	{:else if reviewer}
-		<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
-		<span class="truncate">{reviewer.child.title || 'Subagent'}</span>
-		{#if reviewer.child.state === 'running'}<Spinner label="Running" />{/if}
+		<ConversationTab
+			agent={reviewer.owner.agent}
+			title={reviewer.child.title || 'Subagent'}
+			running={reviewer.child.state === 'running'}
+		/>
 	{:else if aideOf(tab)}
 		{@const aide = aideOf(tab)!}
 		<ConversationTab agent={aide.agent} title={aide.title} running={aide.status === 'running'} />
@@ -764,12 +767,13 @@
 			</div>
 		</div>
 	{:else if reviewer}
-		<SubagentRow
-			standalone
-			child={reviewer.child}
+		<MessageView
+			blocks={subagentBlocks(reviewer.child)}
+			agent={reviewer.owner.agent}
+			running={reviewer.child.state === 'running' || reviewer.child.state === 'waiting'}
 			cwd={reviewer.owner.worktree?.path}
 			pictures={resolve('/workspaces/[id]/picture', { id: reviewer.owner.id })}
-			onopen={(child) => showTab(reviewerTab(reviewer.owner.id, child))}
+			onopensubagent={(child) => showTab(reviewerTab(reviewer.owner.id, child))}
 		/>
 	{:else if aideOf(tab)}
 		<!-- what its own agent said there is that one's; and so on up -->

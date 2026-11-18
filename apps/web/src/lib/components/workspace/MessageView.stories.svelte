@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, fn, userEvent, waitFor } from 'storybook/test';
-	import type { Block } from '#lib/transcript.ts';
+	import { subagentBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '#lib/ui/Button.svelte';
 
@@ -469,6 +469,55 @@
 					]
 				}
 			]}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Subagent conversation tab"
+	asChild
+	play={async ({ canvas }) => {
+		await waitFor(() => expect(canvas.getByText('From another agent')).toBeVisible());
+		await expect(
+			canvas.getByText('The daemon restores both reviewers after reconnect.')
+		).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: /Turn activity/ }));
+		await expect(canvas.getByText('Tools')).toBeVisible();
+	}}
+>
+	<div class="flex h-96 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="claude"
+			blocks={subagentBlocks({
+				kind: 'subagent',
+				id: 'daemon',
+				title: 'Review daemon reconnects',
+				state: 'done',
+				at: '',
+				items: [
+					{
+						kind: 'message',
+						id: 'assignment',
+						incoming: true,
+						text: 'Check that reviewers survive a daemon reconnect.'
+					},
+					{
+						kind: 'tool',
+						id: 'read',
+						name: 'Read',
+						input: 'session.ts',
+						output: '',
+						at: '',
+						isError: false
+					},
+					{
+						kind: 'message',
+						id: 'report',
+						incoming: false,
+						text: 'The daemon restores both reviewers after reconnect.'
+					}
+				]
+			})}
 		/>
 	</div>
 </Story>
