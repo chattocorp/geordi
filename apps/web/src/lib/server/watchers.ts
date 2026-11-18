@@ -18,13 +18,36 @@ export type WorktreeState = {
 
 /** A worktree's state, and which look at it this is: it changes whenever the files may have. */
 export type WatchedState = WorktreeState & {
+	/** Zero until local Git answers, then incremented on each local refresh. */
 	version: number;
+	/** Keep a saved changeset tab in place until the first release lookup answers. */
+	releasePending: boolean;
 	/**
-	 * Being looked at again right now, because what it says may be out of date in a way
+	 * Waiting for the first standing, or looking again because it may be out of date in a way
 	 * that matters: an agent has just finished a turn, and may have pushed or opened a
 	 * pull request. (Not for every look: files change all the time while an agent works.)
 	 */
 	checking: boolean;
+};
+
+type LocalState = Pick<WorktreeState, 'changes' | 'unavailable' | 'missing'>;
+export type WorktreeLoad = {
+	local: Promise<LocalState>;
+	upstream: Promise<Upstream | null>;
+	config: Promise<RepoConfig | null>;
+	release: Promise<ReleasePlan | null>;
+};
+
+const initial: WatchedState = {
+	changes: null,
+	unavailable: null,
+	missing: false,
+	upstream: null,
+	release: null,
+	config: null,
+	version: 0,
+	releasePending: true,
+	checking: true
 };
 
 /** How often what happens on upstream forges (checks, reviews) is asked for again. */
@@ -43,9 +66,16 @@ export function createWatchers(
 	 * Asks a daemon for a worktree's state. Never rejects. `fresh`: also for how things stand
 	 * upstream as of now, not as of the last time someone asked.
 	 */
-	load: (worktreeId: string, fresh: boolean) => Promise<WorktreeState>
+	load: (worktreeId: string, fresh: boolean) => WorktreeLoad,
+	noteStanding: (id: string, state: WorktreeState) => void
 ) {
-	type Watched = { viewers: Set<() => void>; state: WatchedState | null; loads: number };
+	type Watched = {
+		viewers: Set<() => void>;
+		state: WatchedState | null;
+		loading: boolean;
+		pending: boolean | null;
+		announced: boolean;
+	};
 	const watched = new Map<string, Watched>();
 
 	/**
@@ -63,19 +93,47 @@ export function createWatchers(
 		dispatch({ type: 'watch', worktrees });
 	}
 
-	/** Loads a worktree's state afresh and tells its viewers. The latest load wins. */
+	/** Publish each answer when it arrives. A burst during a load needs one more pass. */
 	function refresh(worktreeId: string, fresh = false, announce = false) {
 		const entry = watched.get(worktreeId);
 		if (!entry) return;
-		if (announce && entry.state && !entry.state.checking) {
-			entry.state = { ...entry.state, checking: true };
+		const publish = (patch: Partial<WatchedState>) => {
+			if (watched.get(worktreeId) !== entry) return;
+			entry.state = { ...(entry.state ?? initial), ...patch };
 			for (const viewer of entry.viewers) viewer();
+		};
+		if (announce && entry.state && !entry.state.checking) publish({ checking: true });
+		if (entry.loading) {
+			entry.pending = fresh || (entry.pending ?? false);
+			entry.announced ||= announce;
+			return;
 		}
-		const load_ = ++entry.loads;
-		load(worktreeId, fresh).then((state) => {
-			if (watched.get(worktreeId) !== entry || entry.loads !== load_) return;
-			entry.state = { ...state, version: load_, checking: false };
-			for (const viewer of entry.viewers) viewer();
+		entry.loading = true;
+		const answers = load(worktreeId, fresh);
+		const local = answers.local.then((result) => {
+			const changedBranch = result.changes?.branch !== entry.state?.changes?.branch;
+			publish({
+				...result,
+				version: (entry.state?.version ?? 0) + 1,
+				...(changedBranch && { checking: true, upstream: null })
+			});
+		});
+		const standing = Promise.all([local, answers.upstream]).then(([, upstream]) => {
+			publish({ upstream, checking: entry.announced });
+			if (watched.get(worktreeId) === entry && entry.state?.changes && !entry.announced)
+				noteStanding(worktreeId, entry.state);
+		});
+		void Promise.all([
+			standing,
+			answers.config.then((config) => publish({ config })),
+			answers.release.then((release) => publish({ release, releasePending: false }))
+		]).then(() => {
+			if (watched.get(worktreeId) !== entry) return;
+			entry.loading = false;
+			const pending = entry.pending;
+			entry.pending = null;
+			entry.announced = false;
+			if (pending !== null) refresh(worktreeId, pending);
 		});
 	}
 
@@ -99,7 +157,16 @@ export function createWatchers(
 			ref(worktreeId); // throws for unknown worktrees, before anything is registered
 			let entry = watched.get(worktreeId);
 			if (!entry) {
-				watched.set(worktreeId, (entry = { viewers: new Set(), state: null, loads: 0 }));
+				watched.set(
+					worktreeId,
+					(entry = {
+						viewers: new Set(),
+						state: null,
+						loading: false,
+						pending: null,
+						announced: false
+					})
+				);
 				sync();
 				refresh(worktreeId);
 				keepUpstreamFresh();

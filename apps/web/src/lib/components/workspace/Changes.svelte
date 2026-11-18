@@ -72,7 +72,7 @@
 					<span class="code-dense">{gone}</span>. Changes that weren't committed are gone.
 				</p>
 			</div>
-		{:else if !git}
+		{:else if !git || (!git.changes && !git.unavailable)}
 			<p class="flex items-center gap-2 px-3.5 py-2 text-sm text-muted">
 				<Spinner label="Loading the changes" /> Loading…
 			</p>

@@ -139,7 +139,9 @@
 		const arranged = (area: Area) => {
 			const layout = prune(
 				arrangement.current[area] ?? singleGroup([], { id: area }),
-				(tab) => exists(tab) && !placed.includes(tab)
+				(tab) =>
+					!placed.includes(tab) &&
+					(exists(tab) || (tab === CHANGESET && (!workspace.git || workspace.git.releasePending)))
 			);
 			placed.push(...tabsOf(layout));
 			return layout;
@@ -324,7 +326,8 @@
 	// there is a directory to open one in.
 	let begun = false;
 	$effect(() => {
-		if (begun || !git || workspace.archivedAt || !workspace.worktree || worktreeGone) return;
+		if (begun || !git?.changes || workspace.archivedAt || !workspace.worktree || worktreeGone)
+			return;
 		begun = true;
 		untrack(() => {
 			if (workspace.terminals.length === 0 && starting.size === 0)
@@ -438,7 +441,7 @@
 		!!workspace.worktree && !!git?.missing && !running && !workspace.archivedAt
 	);
 	const standingState = $derived(
-		workspace.archivedAt || !git?.changes
+		workspace.archivedAt || !git?.changes || git.checking
 			? null
 			: {
 					changes: git.changes,
@@ -486,7 +489,7 @@
 		// How it stands is on screen already: the question, if there is one, needs no waiting.
 		// (Not with workspaces its agent started: theirs is not known here.)
 		const known =
-			!workspace.hasChildWorktrees && git?.changes
+			!workspace.hasChildWorktrees && git?.changes && !git.checking
 				? { changes: git.changes, upstream: git.upstream }
 				: undefined;
 		if (await archiveWorkspace(id, known))
@@ -678,6 +681,10 @@
 						(error) => (mergeProblem = problemOf(error, 'Could not note that'))
 					)}
 			/>
+		{:else}
+			<p class="flex items-center gap-2 p-5 text-sm text-muted">
+				<Spinner label="Loading changeset" /> Loading changeset…
+			</p>
 		{/if}
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
