@@ -400,7 +400,7 @@
 				aria-valuenow={clampWidth(sidebar.current.width)}
 				onpointerdown={resize}
 				onkeydown={nudge}
-				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none transition-colors select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-accent focus-visible:after:bg-accent"
+				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:transition-colors hover:after:bg-muted/40 focus-visible:after:bg-accent"
 			></div>
 		</aside>
 	{/if}
@@ -429,12 +429,7 @@
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
 	<!-- Routine publishing steps only need to appear inside the workspace. -->
-	{@const standing =
-		leaving ||
-		workspace.standing?.tone === 'accent' ||
-		workspace.standing?.label === 'No pull request'
-			? null
-			: workspace.standing}
+	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
 	{@const archivable = !busy && !leaving}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<li style:margin-inline-start="calc(var(--spacing) * {3 * depth})">

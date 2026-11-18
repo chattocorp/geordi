@@ -154,6 +154,7 @@ export const standings = lazy(() => {
 		],
 		load: loadStanding,
 		loadUpstream: (id) => upstreamOf(workspaces().ref(id)),
+		refreshChanged: (id) => watchers().notify(id),
 		publishUpstream: (id, upstream, branch) => watchers().noteUpstream(id, upstream, branch)
 	});
 	setInterval(() => void standings.tick(), UPSTREAM_TICK_MS).unref();
@@ -390,7 +391,7 @@ export const liveServer = lazy(() =>
 		allowed: GEORDI_ALLOWED_HOSTS,
 		token: liveToken(),
 		views,
-		values: (view, signal) => store().live(view.read, view.also, signal),
+		values: (view, signal) => store().live(view.read, view.also, signal, view.affects),
 		terminal: (at, listener) => terminals().attach(at, listener)
 	})
 );

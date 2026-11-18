@@ -20,10 +20,10 @@ Alternatives considered:
 
 ## Decision
 
-- An append-only event log is the single source of truth. All other state is derived from it.
+- The append-only event log records all state changes. An image reference and its immutable blob together preserve an uploaded image.
 - The log is one SQLite table, using Node's built-in `node:sqlite`. We build our own small core rather than adopting a library, borrowing Emmett's decide/evolve ideas.
-- Appending a batch of events is one statement and therefore atomic. Nothing else is ever written as source of truth.
-- Projections are in-memory and rebuilt by replaying the log on startup. They are always disposable; persisting them with a checkpoint is a later optimisation.
+- Appending a batch of events is one statement and therefore atomic. An image upload publishes its immutable bytes first, in the data directory under `blobs/<sha256>`. Its event records the ID, media type and hash. Older events carry their own bytes and are read on demand.
+- Projections are in-memory and rebuilt by replaying their event types in sequence order. Projections are disposable. Persisting them with a checkpoint is a later optimisation. The workspace projection releases a transcript when its workspace is archived. An archived transcript can be read again from its workspace stream and any earlier session stream.
 - Commands check current projections, then append. Because SQLite access is synchronous and the process is single, check-and-append is race-free as long as nothing is awaited in between.
 - Every event records an `actor`, so authentication can be added without migrating data.
 
@@ -33,3 +33,4 @@ Alternatives considered:
 - We maintain projection code and must evolve event formats carefully, since old events are replayed forever.
 - Startup time grows with the log until we persist projections.
 - Writers are limited to one process per log, which matches the single-forge model (see ADR-002).
+- Back up and restore `blobs/` with the SQLite log. A consistent backup can snapshot the log first, then copy the blobs, which are immutable. An interrupted upload can leave an unreferenced file.

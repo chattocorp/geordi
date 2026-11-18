@@ -119,11 +119,11 @@ export function createLive({ port, host, allowed, token, views, values, terminal
 			let last: string | undefined;
 			try {
 				for await (const value of values(view, signal)) {
-					// the same again is no news: most events are about something else. (Put into
-					// words once: a workspace's conversation is long.)
+					if (signal.aborted) break;
+					// Equal edit frames can describe distinct changes. Only deduplicate snapshots.
 					const next = JSON.stringify(value) ?? 'null';
-					if (next !== last) sendText(`{"id":${id},"value":${next}}`);
-					last = next;
+					if (view.incremental || next !== last) sendText(`{"id":${id},"value":${next}}`);
+					if (!view.incremental) last = next;
 				}
 			} catch (error) {
 				if (!signal.aborted) send({ id, ...problemOf(error) });

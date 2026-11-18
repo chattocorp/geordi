@@ -188,6 +188,11 @@ export type TranscriptItem =
 	/** Something that happened to the workspace, said in passing: neither side's words. */
 	| { kind: 'note'; text: string; at: string };
 
+export type TranscriptEdit = [index: number, remove: number, ...items: TranscriptItem[]];
+export type TranscriptUpdate = TranscriptItem[] | { edits: TranscriptEdit[] };
+
+export type TranscriptFollower = { read(): TranscriptUpdate; close(): void };
+
 type Asked = Extract<TranscriptItem, { kind: 'question' }>;
 
 function toolById(workspace: Workspace, id: string) {
@@ -201,11 +206,6 @@ function questionById(workspace: Workspace, id: string) {
 	return workspace.transcript.findLast(
 		(item): item is Asked => item.kind === 'question' && item.id === id
 	);
-}
-
-function closeQuestion(question: Asked) {
-	question.open = false;
-	if (question.delivery === 'pending') question.delivery = 'unconfirmed';
 }
 
 function updateAsking(workspace: Workspace) {
@@ -262,6 +262,34 @@ export type Workspace = {
 	updatedAt: string;
 	transcript: TranscriptItem[];
 };
+
+function initialWorkspace(
+	created: Extract<CurrentEvent, { type: 'workspace.created' }>['data'],
+	at: string
+): Workspace {
+	const { parentId = null, worktreeId = created.id, base = null, settings = {}, ...data } = created;
+	return {
+		...data,
+		named: false,
+		settings,
+		status: 'idle',
+		asking: false,
+		lastTurn: null,
+		parentId,
+		worktreeId,
+		base,
+		worktree: null,
+		resumeId: null,
+		queue: [],
+		attachments: { queue: [] },
+		sentBy: { queue: [] },
+		briefing: null,
+		archivedAt: null,
+		createdAt: at,
+		updatedAt: at,
+		transcript: []
+	};
+}
 
 export type WorkspaceSummary = Omit<Workspace, 'transcript'>;
 
@@ -332,48 +360,46 @@ export function createWorkspaces(
 	 * the message that came of it: only ever set while old events are replayed.
 	 */
 	const steerers = new Map<string, string | null>();
+	const listeners = new Map<string, Set<(edit: TranscriptEdit) => void>>();
+	// The first session of an old workspace could have a different ID.
+	const sessionStreams = new Map<string, string>();
+	// Sender attribution on a later replay must reflect who existed at the time.
+	const born = new Map<string, number>();
+
 	function apply(
 		workspaces: Map<string, Workspace>,
 		event: CurrentEvent,
 		at: string,
-		actor: string | null
+		actor: string | null,
+		seq: number,
+		steering = steerers,
+		restoring = false
 	) {
 		if (event.type === 'workspace.created') {
-			const {
-				parentId = null,
-				worktreeId = event.data.id,
-				base = null,
-				settings = {},
-				...data
-			} = event.data;
-			workspaces.set(data.id, {
-				...data,
-				named: false,
-				settings,
-				status: 'idle',
-				asking: false,
-				lastTurn: null,
-				parentId,
-				worktreeId,
-				base,
-				worktree: null,
-				resumeId: null,
-				queue: [],
-				attachments: { queue: [] },
-				sentBy: { queue: [] },
-				briefing: null,
-				archivedAt: null,
-				createdAt: at,
-				updatedAt: at,
-				transcript: []
-			});
+			workspaces.set(event.data.id, initialWorkspace(event.data, at));
 			return;
 		}
 
 		const workspace = workspaces.get(event.data.id);
 		if (!workspace) return;
 		workspace.updatedAt = at;
-		const { transcript } = workspace;
+		const { id, transcript } = workspace;
+		function edit(index: number, remove: number, ...items: TranscriptItem[]) {
+			transcript.splice(index, remove, ...items);
+			if (!restoring)
+				for (const listener of listeners.get(id) ?? []) listener([index, remove, ...items]);
+		}
+		const append = (item: TranscriptItem) => edit(transcript.length, 0, item);
+		const replace = (item: TranscriptItem, next: TranscriptItem) =>
+			edit(transcript.indexOf(item), 1, next);
+		function closeQuestion(question: Asked) {
+			if (question.open || question.delivery === 'pending')
+				replace(question, {
+					...question,
+					open: false,
+					...(question.delivery === 'pending' && { delivery: 'unconfirmed' })
+				});
+		}
 
 		if (event.type === 'workspace.titled') {
 			workspace.title = event.data.title;
@@ -395,7 +421,7 @@ export function createWorkspaces(
 			}
 			const owner = workspaces.get(workspace.worktreeId);
 			if (owner?.worktree) owner.worktree = { ...owner.worktree, branch };
-			transcript.push({ kind: 'note', text: `Continued on a new branch, ${branch}`, at });
+			append({ kind: 'note', text: `Continued on a new branch, ${branch}`, at });
 			return;
 		}
 		if (event.type === 'workspace.switched') {
@@ -405,6 +431,7 @@ export function createWorkspaces(
 		}
 		if (event.type === 'workspace.archived') {
 			workspace.archivedAt = at;
+			if (!restoring) workspace.transcript = [];
 			workspace.queue = [];
 			workspace.attachments.queue = [];
 			return;
@@ -422,15 +449,18 @@ export function createWorkspaces(
 			return;
 		}
 		if (event.type === 'workspace.steered') {
-			steerers.set(workspace.id, actor);
+			steering.set(workspace.id, actor);
 			return;
 		}
 		if (event.type === 'workspace.answered') {
 			const question = questionById(workspace, event.data.question);
 			if (question && (question.open || !event.data.pending)) {
-				question.answers = event.data.answers;
-				question.open = false;
-				if (event.data.pending) question.delivery = 'pending';
+				replace(question, {
+					...question,
+					answers: event.data.answers,
+					open: false,
+					...(event.data.pending && { delivery: 'pending' })
+				});
 				updateAsking(workspace);
 			}
 			return;
@@ -450,15 +480,15 @@ export function createWorkspaces(
 				sender = workspace.sentBy.queue.shift() ?? null;
 			}
 			if (event.data.steered) {
-				sender = steerers.get(workspace.id) ?? null;
-				steerers.delete(workspace.id);
+				sender = steering.get(workspace.id) ?? null;
+				steering.delete(workspace.id);
 			}
 			workspace.status = 'running';
 			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
-			const from = sender && workspaces.has(sender) ? sender : undefined;
-			transcript.push({
+			const from = sender && (born.get(sender) ?? Infinity) <= seq ? sender : undefined;
+			append({
 				kind: 'user',
 				text: event.data.text,
 				...(event.data.images?.length && { images: event.data.images }),
@@ -489,7 +519,7 @@ export function createWorkspaces(
 				workspace.resumeId = output.id;
 				break;
 			case 'text':
-				transcript.push({ kind: 'text', text: output.text, at });
+				append({ kind: 'text', text: output.text, at });
 				break;
 			case 'plan': {
 				const index = transcript.findIndex((item) => item.kind === 'plan' && item.id === output.id);
@@ -500,24 +530,28 @@ export function createWorkspaces(
 					(item) => item.kind === 'user' || item.kind === 'note'
 				);
 				if (output.plan && previous?.kind === 'plan' && index > exchange) {
-					previous.plan = output.plan;
+					edit(index, 1, { ...previous, plan: output.plan });
 				} else {
-					if (index >= 0) transcript.splice(index, 1);
-					if (output.plan) transcript.push({ ...output, plan: output.plan, at });
+					if (index >= 0) edit(index, 1);
+					if (output.plan) append({ ...output, plan: output.plan, at });
 				}
 				break;
 			}
 			case 'tool':
-				transcript.push({ ...output, output: null, isError: false, at });
+				append({ ...output, output: null, isError: false, at });
 				break;
 			case 'tool.result': {
 				const tool = toolById(workspace, output.id);
-				if (tool) Object.assign(tool, { output: output.output, isError: output.isError });
+				if (tool) replace(tool, { ...tool, output: output.output, isError: output.isError });
 				break;
 			}
 			case 'answer.received': {
 				const question = questionById(workspace, output.id);
-				if (question?.answers) delete question.delivery;
+				if (question?.answers && question.delivery) {
+					const next = { ...question };
+					delete next.delivery;
+					replace(question, next);
+				}
 				break;
 			}
 			case 'question.closed': {
@@ -528,7 +562,7 @@ export function createWorkspaces(
 			}
 			case 'question':
 				if (questionById(workspace, output.id)) break;
-				transcript.push({ ...output, answers: null, open: true, at });
+				append({ ...output, answers: null, open: true, at });
 				if (output.blocking !== false) workspace.asking = true;
 				break;
 			case 'turn.started':
@@ -548,8 +582,8 @@ export function createWorkspaces(
 				}
 				workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
 				// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
-				if (!(output.error === 'Stopped' && steerers.has(workspace.id)))
-					transcript.push({ kind: 'error', error: output.error, at });
+				if (!(output.error === 'Stopped' && steering.has(workspace.id)))
+					append({ kind: 'error', error: output.error, at });
 				break;
 		}
 	}
@@ -561,9 +595,16 @@ export function createWorkspaces(
 		'workspaces',
 		() => new Map<string, Workspace>(),
 		(workspaces, event) => {
-			for (const current of upcast(event)) apply(workspaces, current, event.at, event.actor);
+			for (const current of upcast(event)) {
+				if (current.type === 'workspace.created') {
+					born.set(current.data.id, event.seq);
+					if (event.type === 'session.created') sessionStreams.set(current.data.id, event.stream);
+				}
+				apply(workspaces, current, event.at, event.actor, event.seq);
+			}
 			return workspaces;
-		}
+		},
+		['workspace', 'session']
 	);
 
 	function find(id: string): Workspace {
@@ -572,16 +613,61 @@ export function createWorkspaces(
 		return workspace;
 	}
 
-	/** A workspace as readers see it: a copy, with the worktree it works in filled in. */
-	const view = (workspace: Workspace): Workspace => ({
-		...structuredClone(workspace),
-		worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
-	});
-	const summarise = (workspace: Workspace): WorkspaceSummary => {
-		const { transcript, ...summary } = view({ ...workspace, transcript: [] });
+	// Reuse the normal reducer for a private reconstruction. Session mappings were learned
+	// during replay. Never feed creation events back into that stateful upcaster.
+	function transcriptOf(workspace: Workspace): TranscriptItem[] {
+		if (!workspace.archivedAt) return workspace.transcript;
+		const { id, repoId, agent, title } = workspace;
+		const restored = initialWorkspace({ id, repoId, agent, title }, workspace.createdAt);
+		const copy = new Map([[id, restored]]);
+		const steering = new Map<string, string | null>();
+		const createdAtSeq = born.get(id)!;
+		const events = store.readStream(`workspace:${id}`);
+		const session = sessionStreams.get(id);
+		if (session) {
+			for (const event of store.readStream(session)) events.push(event);
+			events.sort((a, b) => a.seq - b.seq);
+		}
+		for (const event of events) {
+			if (event.seq <= createdAtSeq) continue;
+			if (event.type === 'workspace.created' || event.type === 'session.created') continue;
+			for (const current of upcast(event))
+				apply(copy, current, event.at, event.actor, event.seq, steering, true);
+		}
+		return restored.transcript;
+	}
+
+	const summarise = ({ transcript, ...workspace }: Workspace): WorkspaceSummary => {
 		void transcript;
-		return summary;
+		return structuredClone({
+			...workspace,
+			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
+		});
 	};
+	const view = (workspace: Workspace): Workspace => ({
+		...summarise(workspace),
+		transcript: structuredClone(transcriptOf(workspace))
+	});
+
+	// Each follower owns only the edits since its last read. Replaced items are immutable.
+	function followTranscript(id: string): TranscriptFollower {
+		let edits: TranscriptEdit[] | undefined;
+		const receive = (edit: TranscriptEdit) => edits?.push(edit);
+		const followers = listeners.get(id) ?? new Set<(edit: TranscriptEdit) => void>();
+		listeners.set(id, followers);
+		followers.add(receive);
+		return {
+			read(): TranscriptUpdate {
+				const previous = edits;
+				edits = [];
+				return previous ? { edits: previous } : transcriptOf(find(id)).slice();
+			},
+			close() {
+				followers.delete(receive);
+				if (!followers.size) listeners.delete(id);
+			}
+		};
+	}
 
 	/** What a daemon needs to find the worktree a workspace works in. */
 	function ref(id: string): WorktreeRef {
@@ -869,7 +955,7 @@ export function createWorkspaces(
 	}
 
 	function report(workspace: Workspace): AgentReport {
-		const { transcript } = workspace;
+		const transcript = transcriptOf(workspace);
 		const turn = transcript.slice(transcript.findLastIndex((item) => item.kind === 'user') + 1);
 		const texts = turn.flatMap((item) => (item.kind === 'text' ? [item.text] : []));
 		return {
@@ -968,8 +1054,10 @@ export function createWorkspaces(
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
 		/** The caller's own workspace, or (`id`) one it started. */
-		workspace: (callerId: string, id?: string): Workspace =>
-			id === undefined ? find(callerId) : findControlled(callerId, id),
+		workspace(callerId: string, id?: string): Workspace {
+			const workspace = id === undefined ? find(callerId) : findControlled(callerId, id);
+			return workspace.archivedAt ? view(workspace) : workspace;
+		},
 
 		/**
 		 * Says something to an agent the caller started: at once if it is idle; otherwise once
@@ -1014,6 +1102,7 @@ export function createWorkspaces(
 
 	return {
 		agents,
+		followTranscript,
 
 		/** All workspaces in use (not archived), newest first, without their transcripts. */
 		all: (): WorkspaceSummary[] =>
@@ -1093,6 +1182,7 @@ export function createWorkspaces(
 				actor
 			);
 		},
+		worktreeOf: (id: string) => projection.get().get(id)?.worktreeId,
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
 
