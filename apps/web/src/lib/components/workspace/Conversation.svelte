@@ -22,7 +22,15 @@
 	 * A workspace's conversation with its agent, and the box to reply in. `senders` names
 	 * the workspaces whose agents may have written here, by ID.
 	 */
-	let { workspace, senders }: { workspace: Workspace; senders?: Record<string, string> } = $props();
+	let {
+		workspace,
+		senders,
+		onopensubagent
+	}: {
+		workspace: Workspace;
+		onopensubagent: (id: string) => void;
+		senders?: Record<string, string>;
+	} = $props();
 
 	const cwd = $derived(workspace.worktree?.path);
 
@@ -86,6 +94,7 @@
 			{cwd}
 			pictures={resolve('/workspaces/[id]/picture', { id: workspace.id })}
 			{senders}
+			{onopensubagent}
 			queue={workspace.queue}
 			queueImages={workspace.attachments.queue}
 			onremove={(index, text, images) =>

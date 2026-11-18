@@ -11,6 +11,8 @@
 		type WorkspaceStanding
 	} from '#lib/actions.ts';
 	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
+	import SubagentRow from '#lib/components/SubagentRow.svelte';
+	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
 	import ConversationTab from './ConversationTab.svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import {
@@ -118,6 +120,21 @@
 	const aideOf = (tab: string) =>
 		tab.startsWith('agent:') ? workspace.aides.find((aide) => aide.id === tab.slice(6)) : undefined;
 
+	const reviewerTab = (owner: string, child: string) =>
+		'subagent:' + JSON.stringify([owner, child]);
+	const reviewers = $derived.by(() => {
+		const found = new SvelteMap<string, { owner: Workspace; child: SubagentItem }>();
+		function collect(owner: Workspace, items: Workspace['transcript'] | SubagentItem['items']) {
+			for (const child of items) {
+				if (child.kind !== 'subagent') continue;
+				found.set(reviewerTab(owner.id, child.id), { owner, child });
+				collect(owner, child.items);
+			}
+		}
+		for (const owner of [workspace, ...workspace.aides]) collect(owner, owner.transcript);
+		return found;
+	});
+
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
 	const arrangement = persisted<Partial<Record<Area, Layout | null>>>(
@@ -142,6 +159,7 @@
 		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
+		if (tab.startsWith('subagent:')) return reviewers.has(tab);
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
 		return tab === CHAT || tab === CHANGES || !!pathOf(tab) || !!sourceOf(tab);
 	};
@@ -628,6 +646,7 @@
 {/snippet}
 
 {#snippet tab(tab: string)}
+	{@const reviewer = reviewers.get(tab)}
 	{@const path = pathOf(tab) ?? sourceOf(tab)}
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
@@ -679,6 +698,10 @@
 	{:else if tab === DRAFT}
 		<span class="icon-[lucide--message-square-plus] size-3.5 shrink-0"></span>
 		<span class="truncate">New conversation</span>
+	{:else if reviewer}
+		<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
+		<span class="truncate">{reviewer.child.title || 'Subagent'}</span>
+		{#if reviewer.child.state === 'running'}<Spinner label="Running" />{/if}
 	{:else if aideOf(tab)}
 		{@const aide = aideOf(tab)!}
 		<ConversationTab agent={aide.agent} title={aide.title} running={aide.status === 'running'} />
@@ -688,6 +711,7 @@
 {/snippet}
 
 {#snippet window(tab: string)}
+	{@const reviewer = reviewers.get(tab)}
 	{@const path = pathOf(tab)}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
@@ -739,14 +763,27 @@
 				<NewWorkspace repos={[repo]} alongside={id} focused />
 			</div>
 		</div>
+	{:else if reviewer}
+		<SubagentRow
+			standalone
+			child={reviewer.child}
+			cwd={reviewer.owner.worktree?.path}
+			pictures={resolve('/workspaces/[id]/picture', { id: reviewer.owner.id })}
+			onopen={(child) => showTab(reviewerTab(reviewer.owner.id, child))}
+		/>
 	{:else if aideOf(tab)}
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
 			workspace={aideOf(tab)!}
+			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
 			senders={{ ...workspace.senders, [workspace.id]: workspace.title }}
 		/>
 	{:else}
-		<Conversation {workspace} senders={workspace.senders} />
+		<Conversation
+			{workspace}
+			onopensubagent={(child) => showTab(reviewerTab(id, child))}
+			senders={workspace.senders}
+		/>
 	{/if}
 {/snippet}
 

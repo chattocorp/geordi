@@ -1,11 +1,12 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, userEvent, waitFor } from 'storybook/test';
+	import { expect, fn, userEvent, waitFor } from 'storybook/test';
 	import type { Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '#lib/ui/Button.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
+	const openReviewer = fn();
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const reply =
 		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
@@ -402,16 +403,20 @@
 	name="Native reviewers"
 	asChild
 	play={async ({ canvas }) => {
+		openReviewer.mockClear();
 		await userEvent.click(await canvas.findByText('Review UI and design'));
 		await expect(
 			await canvas.findByText('The focus indicator is visible on every tab.')
 		).toBeVisible();
 		await expect(canvas.getByText('Running')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Open in tab' }));
+		await expect(openReviewer).toHaveBeenCalledWith('ui');
 	}}
 >
 	<div class="flex h-112 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
 			agent="claude"
+			onopensubagent={openReviewer}
 			onremove={() => {}}
 			onanswer={() => {}}
 			blocks={[

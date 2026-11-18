@@ -24,6 +24,7 @@
 		senders,
 		queue = [],
 		queueImages = [],
+		onopensubagent,
 		onremove,
 		onanswer,
 		following = $bindable(true)
@@ -37,6 +38,7 @@
 		senders?: Record<string, string>;
 		queue?: string[];
 		queueImages?: string[][];
+		onopensubagent?: (id: string) => void;
 		onremove: (index: number, text: string, images: string[]) => void;
 		/** Answers something the agent asked: one answer per question. */
 		onanswer: (question: string, answers: string[]) => unknown;
@@ -139,7 +141,7 @@
 			{#if part.text}{@render messageActions(part.text)}{/if}
 		</div>
 	{:else if part.kind === 'subagent'}
-		<SubagentRow child={part} {cwd} {pictures} />
+		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
 	{:else if part.kind === 'tools'}
 		<!-- live: the agent is at work, and this is the last thing it did -->
 		<ToolGroup tools={part.tools} {cwd} {live} />
