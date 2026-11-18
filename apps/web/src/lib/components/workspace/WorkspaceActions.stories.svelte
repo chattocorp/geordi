@@ -188,7 +188,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		await expect(
-			within(canvasElement).getByRole('button', { name: 'Cancel auto-merge' })
+			within(canvasElement).getByRole('button', { name: 'Disable Auto-merge' })
 		).toBeEnabled();
 	}}
 >
@@ -199,12 +199,10 @@
 </Story>
 
 <Story
-	name="Enable auto-merge while checks run"
+	name="Auto-merge while checks run"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).getByRole('button', { name: 'Enable auto-merge' })
-		).toBeEnabled();
+		await expect(within(canvasElement).getByRole('button', { name: 'Auto-merge' })).toBeEnabled();
 	}}
 >
 	{@render bar({

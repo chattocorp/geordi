@@ -208,7 +208,7 @@ function nextActions(state: State): WorkspaceAction[] {
 		if (pull.autoMerge.canDisable)
 			actions.push({
 				id: 'cancel-auto-merge',
-				label: 'Cancel auto-merge',
+				label: 'Disable Auto-merge',
 				icon: 'icon-[lucide--circle-x]',
 				pullNumber: pull.number,
 				aside: true
@@ -216,7 +216,7 @@ function nextActions(state: State): WorkspaceAction[] {
 	} else if (pull.autoMerge?.canEnable && !pull.draft && actions.length === 0) {
 		actions.push({
 			id: 'enable-auto-merge',
-			label: 'Enable auto-merge',
+			label: 'Auto-merge',
 			icon: 'icon-[lucide--git-merge]',
 			pullNumber: pull.number
 		});
