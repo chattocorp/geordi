@@ -448,7 +448,7 @@
 						<Spinner label="Archiving" />
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
-						<Spinner live />
+						<Spinner />
 					{:else if workspace.parentId}
 						<!-- started by an agent: the one above it, where that is still around -->
 						<span class="icon-[lucide--corner-down-right] size-4"></span>
