@@ -12,6 +12,7 @@
 		"desktop": "pnpm --filter @geordi/desktop start",
 		"desktop:dev": "pnpm --filter @geordi/desktop dev:app",
 		"desktop:package": "pnpm --filter @geordi/desktop package",
+		"desktop:dmg": "pnpm --filter @geordi/desktop dmg",
 		"desktop:install": "pnpm --filter @geordi/desktop app:install"
 	},
 	"devDependencies": {

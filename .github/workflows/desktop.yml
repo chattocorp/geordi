@@ -39,7 +39,7 @@ jobs:
         with:
           ref: ${{ inputs.commit }}
       - uses: ./.github/actions/package-desktop
-      - name: Sign, notarize, and verify the macOS ZIP
+      - name: Sign, notarize, and verify the macOS ZIP and DMG
         if: runner.os == 'macOS'
         working-directory: apps/desktop
         env:
@@ -59,7 +59,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ inputs.tag || github.sha }}-${{ matrix.target }}
-          path: apps/desktop/dist/*.zip
+          path: |
+            apps/desktop/dist/*.zip
+            apps/desktop/dist/*.dmg
           if-no-files-found: error
           compression-level: 0
 
@@ -80,7 +82,7 @@ jobs:
         with:
           pattern: desktop-${{ inputs.tag }}-*
           merge-multiple: true
-      - name: Publish both downloads
+      - name: Publish desktop downloads
         env:
           RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
@@ -95,5 +97,5 @@ jobs:
           fi
           test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
           gh release upload "$tag" --clobber \
-            "Geordi-${tag}-macOS-arm64.zip" "Geordi-${tag}-Windows-x64.zip"
+            "Geordi-${tag}-macOS-arm64.dmg" "Geordi-${tag}-macOS-arm64.zip" "Geordi-${tag}-Windows-x64.zip"
           gh release edit "$tag" --notes-file "$notes" --draft=false

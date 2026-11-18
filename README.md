@@ -99,7 +99,8 @@ ports, including separate blocks added when a workspace grows; never infer spare
 by adding to `GEORDI_PORT`.
 
 Use `pnpm desktop:package` to build the Electron app without stopping the installed app.
-The bundle is written under `apps/desktop/dist/`.
+The bundle is written under `apps/desktop/dist/`. On macOS, use `pnpm desktop:dmg` to build
+a disk image for your Mac in the same directory. Open the image and drag Geordi to Applications.
 
 **Run → Install Electron app (restarts Geordi)** builds, installs, and reopens the desktop
 app, as does `pnpm desktop:install`. This briefly closes Geordi and ends its terminals and
