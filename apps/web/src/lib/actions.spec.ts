@@ -56,6 +56,7 @@ describe('actionsFor', () => {
 		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
 		const changes = { ...clean, incoming };
 		expect(ids({ changes, upstream: null })).toEqual(['merge-upstream']);
+		expect(standingOf({ changes, upstream: null })?.label).toBe('Behind base branch');
 		const actions = actionsFor({ changes, upstream: upstream({}) });
 		expect(actions.map((action) => action.id)).toEqual(['merge-pull', 'merge-upstream']);
 		expect(actions[1]).toMatchObject({
@@ -106,7 +107,7 @@ describe('actionsFor', () => {
 		// pushed, nothing new, but no pull request yet: that is the step left
 		const pushed = { changes: { ...clean, files: [file] }, upstream: upstream() };
 		expect(ids(pushed)).toEqual(['create-pull']);
-		expect(standingOf(pushed)).toBeNull();
+		expect(standingOf(pushed)?.label).toBe('Branch pushed');
 		// pushed with nothing on it: nothing to ask for
 		expect(ids({ changes: clean, upstream: upstream() })).toEqual([]);
 	});

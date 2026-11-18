@@ -74,7 +74,7 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole('button', { name: 'Create PR' })).toBeVisible();
-		await expect(canvas.queryByText('No pull request')).not.toBeInTheDocument();
+		await expect(canvas.getByText('Branch pushed')).toBeVisible();
 	}}
 >
 	{@render bar({ changes: pushed, upstream: upstream(null) })}
@@ -221,7 +221,15 @@
 	)}
 </Story>
 
-<Story name="Only upstream commits" asChild>
+<Story
+	name="Only upstream commits"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Behind base branch')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Sync' })).toBeVisible();
+	}}
+>
 	{@render bar({
 		changes: {
 			files: [],

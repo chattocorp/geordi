@@ -276,7 +276,10 @@ export function standingOf(state: State): WorkspaceStanding | null {
 
 	if (!pull || pull.state === 'unknown') {
 		if (uncommitted) return todo('Uncommitted changes');
-		return upstream && unpushed ? todo('Changes to publish') : null;
+		if (upstream && unpushed) return todo('Changes to publish');
+		if (awaitsPull(state)) return todo('Branch pushed');
+		if (changes.incoming && changes.incoming.commits > 0) return todo('Behind base branch');
+		return null;
 	}
 
 	if (pull.state === 'merged')
