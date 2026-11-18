@@ -7,7 +7,7 @@ index 7607151ec9a8e10adf9f6610a6bf88aabaa910f1..98253507205e87b152e3e6b0f67e40b8
        milestone { number title state description dueOn url }
        viewerSubscription
 -      headRefName headRefOid baseRefName baseRefOid
-+      headRefName headRefOid baseRefName baseRefOid reviewDecision mergeable autoMergeRequest { enabledAt } viewerCanEnableAutoMerge viewerCanDisableAutoMerge repository { squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed }
++      headRefName headRefOid baseRefName baseRefOid reviewDecision mergeable mergeStateStatus autoMergeRequest { enabledAt } viewerCanEnableAutoMerge viewerCanDisableAutoMerge repository { squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed }
        headRepository { databaseId name owner { login } }
        mergeCommit { oid }
        additions deletions changedFiles

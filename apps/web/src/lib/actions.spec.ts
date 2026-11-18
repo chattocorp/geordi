@@ -52,6 +52,39 @@ describe('actionsFor', () => {
 		).toEqual(['resolve-conflicts']);
 	});
 
+	it("does not offer to merge what the base branch's rules block", () => {
+		const autoMerge = { enabled: false, canEnable: true, canDisable: false };
+		// required checks that never reported, say
+		const blocked = { changes: clean, upstream: upstream({ blocked: 'rules' }) };
+		expect(ids(blocked)).toEqual([]);
+		expect(standingOf(blocked)).toMatchObject({ label: 'Merge blocked', tone: 'danger' });
+		expect(ids({ changes: clean, upstream: upstream({ blocked: 'rules', autoMerge }) })).toEqual([
+			'enable-auto-merge'
+		]);
+		// a required review is what is missing
+		expect(
+			standingOf({ changes: clean, upstream: upstream({ blocked: 'rules', review: 'pending' }) })
+		).toMatchObject({ label: 'Awaiting review' });
+	});
+
+	it('offers to sync, as the next step, a pull request that must be up to date to merge', () => {
+		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
+		const state = {
+			changes: { ...clean, incoming },
+			upstream: upstream({ blocked: 'behind' })
+		};
+		const actions = actionsFor(state);
+		expect(actions.map((a) => a.id)).toEqual(['merge-upstream']);
+		expect(actions[0]).toMatchObject({ incomingCommits: 2 });
+		expect(actions[0].aside).toBeUndefined();
+		expect(actions[0].prompt).toContain('"origin/main"');
+		expect(standingOf(state)).toMatchObject({ label: 'Behind base branch' });
+		// not fetched yet: still the way to go
+		expect(ids({ changes: clean, upstream: upstream({ blocked: 'behind' }) })).toEqual([
+			'merge-upstream'
+		]);
+	});
+
 	it('offers auto-merge only while the pull request cannot be merged yet', () => {
 		const autoMerge = { enabled: false, canEnable: true, canDisable: false };
 		const pending = { state: 'pending' as const, total: 3, failed: 0, url: null };
