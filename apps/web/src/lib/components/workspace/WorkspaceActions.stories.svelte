@@ -193,6 +193,19 @@
 	})}
 </Story>
 
+<Story name="Checking" asChild>
+	<WorkspaceActions
+		standing={{
+			label: 'Checking…',
+			tone: 'neutral',
+			icon: 'icon-[lucide--circle-dashed] animate-checks-spin'
+		}}
+		actions={[]}
+		{onopenpull}
+		{onaction}
+	/>
+</Story>
+
 <Story name="Merged" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
 </Story>

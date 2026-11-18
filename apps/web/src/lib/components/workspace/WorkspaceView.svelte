@@ -514,10 +514,19 @@
 				? actionsFor(standingState)
 				: []
 	);
+	// Until the daemon has said how the worktree stands, say that it is being asked.
 	const standing = $derived<WorkspaceStanding | null>(
 		worktreeGone
 			? { label: 'Worktree removed', tone: 'neutral', icon: 'icon-[lucide--folder-x]' }
-			: standingState && standingOf(standingState)
+			: standingState
+				? standingOf(standingState)
+				: workspace.worktree && !workspace.archivedAt
+					? {
+							label: 'Checking…',
+							tone: 'neutral',
+							icon: 'icon-[lucide--circle-dashed] animate-checks-spin'
+						}
+					: null
 	);
 	// An action is under way while its message waits, or is what the agent is working on.
 	const pending = $derived.by(() => {
