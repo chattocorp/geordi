@@ -48,6 +48,8 @@
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
 	// small, beside a next step or "Working", the colour and icon of how it stands say enough
 	const worded = $derived(!compact || (ordered.length === 0 && !working));
+	// likewise the spinner says "Working" beside a next step
+	const saysWorking = $derived(!compact || ordered.length === 0);
 	const linked = $derived(!compact && !!pull?.url);
 
 	const tones = {
@@ -66,7 +68,7 @@
 	unit: the standing colours the whole thing, and the first action is the next step. An
 	agent at work says so at its head; an idle one says nothing.
 -->
-<div class={['flex items-center gap-2', compact ? 'min-w-0' : 'shrink-0']}>
+<div class={['flex items-center gap-2', compact ? 'min-w-0 flex-wrap' : 'shrink-0']}>
 	{#if pull}
 		<div class={['inline-flex shrink-0 items-stretch rounded-full bg-sunken text-muted', height]}>
 			<button
@@ -107,7 +109,9 @@
 			class={[
 				'inline-flex items-center gap-1 rounded-full',
 				height,
-				compact ? 'min-w-0 pl-2.5' : 'shrink-0 pl-3',
+				// never narrower than what is in it: on a card it moves to a line of its own
+				'shrink-0',
+				compact ? 'pl-2.5' : 'pl-3',
 				// buttons reach the end of the pill; text keeps its distance
 				ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
 				tones[standing?.tone ?? 'neutral']
@@ -121,7 +125,7 @@
 						Waiting for your answer
 					{:else}
 						<Spinner />
-						Working
+						{#if saysWorking}Working{/if}
 					{/if}
 				</span>
 				{#if standing || ordered.length > 0}
@@ -137,13 +141,7 @@
 					aria-label={worded ? undefined : standing.label}
 				></span>
 				{#if worded}
-					<span
-						class={[
-							'pr-1.5 pl-1 font-medium whitespace-nowrap',
-							text,
-							compact && 'min-w-0 truncate'
-						]}>{standing.label}</span
-					>
+					<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span>
 				{/if}
 			{/if}
 			{#if ordered.length > 0}
