@@ -38,7 +38,8 @@
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
 	pending: ('fix-checks' | 'merge-upstream' | 'merge-pull' | 'ready-for-review')[] = [],
-	working = false
+	working = false,
+	refreshing = false
 )}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
@@ -47,6 +48,7 @@
 		actions={actionsFor(state)}
 		{pending}
 		{working}
+		{refreshing}
 		{onopenpull}
 		{onaction}
 	/>
@@ -139,6 +141,18 @@
 		changes: pushed,
 		upstream: upstream({ checks: { state: 'pending', total: 3, failed: 0, url: null } })
 	})}
+</Story>
+
+<Story name="Refreshing workspace" asChild>
+	{@render bar(
+		{
+			changes: pushed,
+			upstream: upstream({ autoMerge: { enabled: true, canEnable: false, canDisable: true } })
+		},
+		[],
+		false,
+		true
+	)}
 </Story>
 
 <Story name="Merged" asChild>

@@ -51,6 +51,7 @@ export function createStandings(options: {
 	 */
 	load: (worktreeId: string, fresh: boolean, keepKnown: boolean) => Promise<Standing>;
 	loadUpstream: (worktreeId: string) => Promise<Upstream | null>;
+	refreshChanged?: (worktreeId: string) => void;
 	publishUpstream?: (id: string, upstream: Upstream | null, branch?: string | null) => void;
 	now?: () => number;
 }) {
@@ -77,6 +78,7 @@ export function createStandings(options: {
 		if (loading.has(worktreeId) && !fresh) return;
 		const request = Symbol();
 		loading.set(worktreeId, request);
+		options.refreshChanged?.(worktreeId);
 		const before = known.get(worktreeId);
 		const current = () => loading.get(worktreeId) === request && known.get(worktreeId) === before;
 		try {
@@ -100,11 +102,15 @@ export function createStandings(options: {
 				if (!upstreamOnly) before.localAt = now();
 			}
 		} finally {
-			if (loading.get(worktreeId) === request) loading.delete(worktreeId);
+			if (loading.get(worktreeId) === request) {
+				loading.delete(worktreeId);
+				options.refreshChanged?.(worktreeId);
+			}
 		}
 	}
 
 	return {
+		isRefreshing: (worktreeId: string) => loading.has(worktreeId),
 		get: (worktreeId: string): Standing | null => known.get(worktreeId)?.standing ?? null,
 		note,
 		refresh,
