@@ -13,6 +13,7 @@ import {
 import { toJsonSchema } from '@valibot/to-json-schema';
 import * as v from 'valibot';
 import { actionsFor, standingOf } from '#lib/actions.ts';
+import { isExternal } from './agent-access.ts';
 import type { createWorkspaces } from './workspaces.ts';
 
 /**
@@ -70,7 +71,7 @@ export const configurationReference = () =>
 		`After changing the file, call \`check_configuration\`: it reads the file the way Geordi does, and says what it found or what is wrong with it.`
 	].join('\n\n');
 
-const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them.`;
+const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them. You can also look at any workspace in this Geordi installation, in any repository, with list_workspaces, read_workspace and workspace_status.`;
 
 /** The longest one `wait_for_agent` call waits: safely under what agent CLIs allow a tool call. */
 const MAX_WAIT_SECONDS = 45;
@@ -92,6 +93,12 @@ const tools = {
 				v.minLength(1),
 				v.description(
 					'The task, with all the context the agent needs. It knows nothing about your conversation.'
+				)
+			),
+			repository: v.pipe(
+				v.optional(v.string()),
+				v.description(
+					'Clients outside Geordi only: the ID of the repository to start in (see list_repositories). An agent in a workspace starts agents in its own.'
 				)
 			),
 			worktree: v.pipe(
@@ -128,6 +135,7 @@ const tools = {
 			caller: string,
 			input: {
 				prompt: string;
+				repository?: string;
 				worktree: 'own' | 'shared';
 				agent?: (typeof AGENTS)[number];
 				model?: string;
@@ -145,24 +153,29 @@ const tools = {
 	},
 	wait_for_agent: {
 		description:
-			'Wait for an agent you started to finish its current turn, and return its status and reply. One call waits 45 seconds at most: if the agent is still "running" then, call this again, for as long as it takes.',
+			'Wait for an agent (any workspace in this Geordi installation) to finish its current turn, and return its status and reply. One call waits 45 seconds at most: if the agent is still "running" then, call this again, for as long as it takes.',
 		input: v.object({
-			agent_id: agentId,
+			agent_id: v.pipe(v.string(), v.description('A workspace ID')),
 			timeout_seconds: v.pipe(
 				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), 45),
 				v.description('How long to wait at most. Defaults to 45, which is also the most.')
 			)
 		}),
-		run: (agents: Agents, caller: string, input: { agent_id: string; timeout_seconds: number }) =>
+		run: (agents: Agents, _caller: string, input: { agent_id: string; timeout_seconds: number }) =>
 			// Never longer than agent CLIs give a tool call (a minute): a wait that outlasts that
 			// comes back as a failure, and tells the caller nothing.
-			agents.wait(caller, input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
+			agents.wait(input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
 	},
 	list_agents: {
 		description:
 			'List every agent you started (and the agents they started), with status and latest reply.',
 		input: v.object({}),
 		run: (agents: Agents, caller: string) => agents.list(caller)
+	},
+	list_repositories: {
+		description: 'List the repositories in this Geordi installation, with their IDs.',
+		input: v.object({}),
+		run: (agents: Agents) => agents.listRepositories()
 	},
 	list_workspaces: {
 		description:
@@ -183,11 +196,11 @@ const tools = {
 	},
 	send_message: {
 		description:
-			'Send a message to a workspace in this Geordi installation. It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt`. Returns immediately. Read the conversation with read_workspace.',
+			'Send a message to an agent you started (a client outside Geordi: to any workspace). It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt` (only for agents you started). Returns immediately; use wait_for_agent to get its reply.',
 		input: v.object({
 			agent_id: v.pipe(
 				v.string(),
-				v.description('The workspace ID from list_workspaces or start_agent')
+				v.description('A workspace ID, from start_agent or list_workspaces')
 			),
 			message: v.pipe(v.string(), v.minLength(1)),
 			interrupt: v.pipe(
@@ -355,14 +368,16 @@ const failure = (id: Request['id'], code: number, message: string) => ({
 /** A tool's outcome, as text for the model. Failures are results the agent can act on. */
 const content = (text: string, isError = false) => ({ content: [{ type: 'text', text }], isError });
 
-const externalTools = new Set([
-	'list_workspaces',
-	'read_workspace',
-	'send_message',
-	'workspace_status'
+/** What only an agent in a workspace can use: it is about that workspace. */
+const workspaceTools = new Set([
+	'name_workspace',
+	'configuration_reference',
+	'check_configuration'
 ]);
 const available = (caller: string, name: string) =>
-	!caller.startsWith('external:') || externalTools.has(name);
+	!isExternal(caller) || !workspaceTools.has(name);
+
+const EXTERNAL_INSTRUCTIONS = `You are connected to Geordi, an agent orchestrator: each workspace is one conversation with a coding agent, in a worktree on its own branch. list_workspaces and read_workspace show you any of them; send_message follows up with an agent, and wait_for_agent waits for its reply. To start work, find a repository with list_repositories and give start_agent a task in it: you may then supervise that agent (interrupt, stop, archive), as you may not others. Questions an agent asks are for the person to answer.`;
 
 async function callTool(agents: Agents, caller: string, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };
@@ -403,9 +418,7 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				protocolVersion: requested ?? '2025-06-18',
 				capabilities: { tools: {} },
 				serverInfo: { name: 'geordi', version: '1' },
-				instructions: caller.startsWith('external:')
-					? 'Use list_workspaces to find conversations in this Geordi installation, read_workspace to inspect one, and send_message to follow up.'
-					: INSTRUCTIONS
+				instructions: isExternal(caller) ? EXTERNAL_INSTRUCTIONS : INSTRUCTIONS
 			});
 		}
 		case 'ping':

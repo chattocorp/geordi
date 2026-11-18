@@ -2,7 +2,7 @@
 	import { onDestroy } from 'svelte';
 	import Button from '#lib/ui/Button.svelte';
 
-	let { text }: { text: string } = $props();
+	let { text, label = 'Copy message' }: { text: string; label?: string } = $props();
 	let status = $state<'idle' | 'copied' | 'failed'>('idle');
 	let reset: ReturnType<typeof setTimeout>;
 	onDestroy(() => clearTimeout(reset));
@@ -27,10 +27,6 @@
 		: status === 'failed'
 			? 'icon-[lucide--triangle-alert]'
 			: 'icon-[lucide--copy]'}
-	label={status === 'copied'
-		? 'Copied'
-		: status === 'failed'
-			? 'Copy failed. Try again'
-			: 'Copy message'}
+	label={status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy failed. Try again' : label}
 	onclick={copy}
 />

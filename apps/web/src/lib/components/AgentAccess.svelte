@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
+	import MessageCopy from './workspace/MessageCopy.svelte';
 	import { problemOf } from '#lib/problem.ts';
 	let {
 		grants,
@@ -42,7 +43,8 @@
 
 <h2 class="heading">Agent access</h2>
 <p class="mt-1 mb-5 text-sm text-muted">
-	Give an external MCP client access to read and message any workspace in this Geordi installation.
+	Let an MCP client outside Geordi read and message any workspace in this installation, and start
+	agents of its own.
 </p>
 
 <form class="space-y-3" onsubmit={create}>
@@ -69,7 +71,10 @@
 			readonly
 			value={new URL('/mcp', window.location.origin).href}
 		/>
-		<input class="w-full input code" aria-label="Bearer token" readonly value={token} />
+		<div class="flex items-center gap-2">
+			<input class="min-w-0 flex-1 input code" aria-label="Bearer token" readonly value={token} />
+			<MessageCopy text={token} label="Copy token" />
+		</div>
 	</div>
 {/if}
 {#if problem}<Notice>{problem}</Notice>{/if}

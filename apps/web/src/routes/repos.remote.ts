@@ -12,9 +12,3 @@ export const removeRepo = command(v.string(), (id) => {
 	if (workspaces().list(id).length > 0) error(409, 'Archive its workspaces first');
 	repos().remove(id);
 });
-
-export const issueAccess = command(
-	v.pipe(v.string(), v.trim(), v.nonEmpty(), v.maxLength(80)),
-	(name) => workspaces().access.issue(name)
-);
-export const revokeAccess = command(v.string(), (id) => workspaces().access.revoke(id));

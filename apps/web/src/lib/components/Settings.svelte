@@ -11,7 +11,8 @@
 	import Segmented from '#lib/ui/Segmented.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { registerRepo, removeRepo, issueAccess, revokeAccess } from '../../routes/repos.remote';
+	import { registerRepo, removeRepo } from '../../routes/repos.remote';
+	import { issueAccess, revokeAccess } from '../../routes/access.remote';
 	import { settings, type Section } from './settings.svelte.ts';
 
 	const nav = follow<Navigation>('navigation');
