@@ -573,6 +573,26 @@ describe('status', () => {
 		});
 	});
 
+	it('does not take a branch only brought up to date with its base for one that landed', async () => {
+		const { repoPath, worktree, git, origin } = await workspace();
+		execFileSync('git', [
+			'-C',
+			repoPath,
+			'-c',
+			'user.name=t',
+			'-c',
+			'user.email=t@t',
+			'commit',
+			'-q',
+			'--allow-empty',
+			'-m',
+			'more on main'
+		]);
+		const main = execFileSync('git', ['-C', repoPath, 'rev-parse', 'HEAD']).toString().trim();
+		git('merge', '-q', '--ff-only', main);
+		expect(await status(worktree, origin)).toMatchObject({ landed: false, files: [] });
+	});
+
 	it('tells uncommitted from committed from pushed', async () => {
 		const { repoPath, worktree, git, origin } = await workspace();
 		expect(await status(worktree, origin)).toMatchObject({

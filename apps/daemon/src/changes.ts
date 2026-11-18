@@ -196,8 +196,12 @@ async function modifiedFiles(worktree: Worktree) {
 /**
  * Whether the branch has had commits of its own, all of which are in the branch it started
  * from by now. The branch's own history (its reflog, in the repository) says where it was
- * made: a branch still there has had no work to land.
+ * made and how it moved: a branch that was only made, fast-forwarded (as syncing with its
+ * base does) or reset has had no work to land.
  */
+/** Whether a reflog entry put commits of the branch's own on it, rather than moving it to others. */
+const ownWork = (move: string) => !/: Fast-forward$|^reset:|^branch:/.test(move);
+
 async function landed(
 	worktree: Worktree,
 	{ repoPath, base }: Origin,
@@ -206,11 +210,11 @@ async function landed(
 	if (!head.startsWith('refs/heads/')) return false;
 	try {
 		const tip = (await gitIn(worktree, 'rev-parse', head)).trim();
-		const made = (await gitIn(worktree, 'reflog', 'show', '--format=%H', head))
+		const moves = (await gitIn(worktree, 'reflog', 'show', '--format=%gs', head))
 			.trim()
 			.split('\n')
-			.at(-1);
-		if (!made || made === tip) return false;
+			.slice(0, -1); // the last is where it was made
+		if (!moves.some(ownWork)) return false;
 		const start = (
 			await git(repoPath, ['rev-parse', base ? branchRef(base) : await startOf(repoPath)])
 		).trim();
