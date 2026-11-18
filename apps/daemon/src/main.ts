@@ -29,6 +29,7 @@ import {
 	openTerminal,
 	resizeTerminal,
 	endedTerminals,
+	hasTerminalActivity,
 	runningTerminals,
 	scrollbackOf,
 	writeTerminal
@@ -421,6 +422,7 @@ function connect(delay = 500) {
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 async function answer(request: DaemonRequest) {
+	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);

@@ -471,6 +471,7 @@ export type DaemonRequest =
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
+	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
 
 export type DaemonResults = {
@@ -500,6 +501,7 @@ export type DaemonResults = {
 	 * `end` is the terminal's output position after `data`: output with a lower `offset` is
 	 * already part of it. `null` if the terminal isn't running.
 	 */
+	terminalActivity: boolean;
 	scrollback: { data: string; end: number } | null;
 };
 

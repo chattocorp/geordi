@@ -317,9 +317,10 @@ export async function concernsAboutArchiving(id: string) {
 			const blocked = workspaces().summary(workspace.id).status === 'running';
 			if (blocked) concerns.push('Stop the running agent before archiving.');
 			if (
-				terminals()
-					.running(workspace.id)
-					.some((terminal) => terminals().isRunning({ workspaceId: workspace.id, terminal }))
+				terminals().running(workspace.id).length &&
+				(await hub()
+					.request({ kind: 'terminalActivity', workspaceId: workspace.id })
+					.catch(() => true))
 			)
 				concerns.push('Archiving will stop running terminal processes.');
 			return {
