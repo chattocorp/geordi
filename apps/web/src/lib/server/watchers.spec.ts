@@ -1,6 +1,6 @@
 import type { ForgeMessage } from '@geordi/protocol';
-import { describe, expect, it } from 'vitest';
-import { createWatchers, type WorktreeState } from './watchers.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { createWatchers, type WorktreeLoad, type WorktreeState } from './watchers.ts';
 
 /** Lets pending loads settle. */
 const settled = () => new Promise((resolve) => setTimeout(resolve));
@@ -14,28 +14,40 @@ const stateWith = (uncommitted: number): WorktreeState => ({
 	upstream: null
 });
 
-function setup() {
+function answers(uncommitted: number): WorktreeLoad {
+	const { changes, unavailable, missing } = stateWith(uncommitted);
+	return {
+		local: Promise.resolve({ changes, unavailable, missing }),
+		upstream: Promise.resolve(null),
+		config: Promise.resolve(null),
+		release: Promise.resolve(null)
+	};
+}
+
+function setup(load = answers) {
 	const sent: ForgeMessage[] = [];
 	/** What the daemon would say about each worktree, and how often it was asked. */
 	const daemon = { uncommitted: 0, asked: [] as string[], fresh: [] as boolean[] };
+	const note = vi.fn();
 	const watchers = createWatchers(
 		(message) => (sent.push(message), true),
 		(worktreeId) => {
 			if (worktreeId === 'missing') throw new Error('Workspace missing not found');
 			return { worktreeId, repoPath: '/repo' };
 		},
-		async (worktreeId, fresh) => {
+		(worktreeId, fresh) => {
 			daemon.asked.push(worktreeId);
 			daemon.fresh.push(fresh);
-			return stateWith(daemon.uncommitted);
-		}
+			return load(daemon.uncommitted);
+		},
+		note
 	);
 	/** The worktrees the daemon was last told to watch. */
 	const watching = () => {
 		const last = sent.at(-1);
 		return last?.type === 'watch' ? last.worktrees.map((ref) => ref.worktreeId) : null;
 	};
-	return { watchers, sent, watching, daemon };
+	return { watchers, sent, watching, daemon, note };
 }
 
 describe('watchers', () => {
@@ -67,7 +79,8 @@ describe('watchers', () => {
 		await settled();
 		expect(daemon.asked).toEqual(['a', 'b']);
 		expect(watchers.state('a')).toMatchObject(stateWith(0));
-		expect(seen).toEqual(['a1', 'a2', 'b']);
+		expect(new Set(seen)).toEqual(new Set(['a1', 'a2', 'b']));
+		seen.length = 0;
 
 		daemon.uncommitted = 2;
 		watchers.changed('a');
@@ -78,7 +91,57 @@ describe('watchers', () => {
 		expect(watchers.state('b')).toMatchObject(stateWith(0));
 		// each look at a worktree is told apart from the one before, as the cue to load diffs again
 		expect(watchers.state('a')!.version).toBeGreaterThan(watchers.state('b')!.version);
-		expect(seen).toEqual(['a1', 'a2', 'b', 'a1', 'a2']);
+		expect(new Set(seen)).toEqual(new Set(['a1', 'a2']));
+	});
+
+	it('shows local changes during a slow upstream lookup and coalesces intervening edits', async () => {
+		const upstream = Promise.withResolvers<null>();
+		const release = Promise.withResolvers<null>();
+		const { watchers, daemon, note } = setup((n) => ({
+			...answers(n),
+			upstream: upstream.promise,
+			release: release.promise
+		}));
+		watchers.watch('a', () => {});
+		await settled();
+		expect(watchers.state('a')).toMatchObject({
+			changes: { uncommitted: 0 },
+			version: 1,
+			checking: true
+		});
+		expect(note).not.toHaveBeenCalled();
+
+		daemon.uncommitted = 3;
+		watchers.changed('a');
+		watchers.changed('a', true);
+		watchers.changed('a');
+		upstream.resolve(null);
+		await settled();
+		expect(watchers.state('a')).toMatchObject({ version: 1, checking: true });
+		expect(daemon.asked).toEqual(['a']);
+		release.resolve(null);
+		await settled();
+		expect(daemon.fresh).toEqual([false, true]);
+		expect(watchers.state('a')).toMatchObject({
+			changes: { uncommitted: 3 },
+			version: 2,
+			checking: false
+		});
+		expect(note).toHaveBeenCalledTimes(1);
+	});
+
+	it('enables standing before release data and drops late answers after the last viewer leaves', async () => {
+		const release = Promise.withResolvers<null>();
+		const { watchers, daemon } = setup((n) => ({ ...answers(n), release: release.promise }));
+		const stop = watchers.watch('a', () => {});
+		await settled();
+		expect(watchers.state('a')).toMatchObject({ version: 1, checking: false });
+		watchers.changed('a');
+		stop();
+		release.resolve(null);
+		await settled();
+		expect(watchers.state('a')).toBeNull();
+		expect(daemon.asked).toEqual(['a']);
 	});
 
 	it('asks how things stand upstream as of now when something may have happened there', async () => {

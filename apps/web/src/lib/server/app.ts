@@ -23,7 +23,7 @@ import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
 import { webUrl } from '../url.ts';
-import { createWatchers, type WorktreeState } from './watchers.ts';
+import { createWatchers, type WorktreeLoad } from './watchers.ts';
 import { createWorkspaces } from './workspaces.ts';
 
 /** The forge's services, wired together. Everything is created on first use. */
@@ -67,54 +67,37 @@ const changesOf = (ref: WorktreeRef) =>
 			return changes;
 		});
 
-/** Asks a daemon how a worktree's files and branch stand. Never rejects. */
-async function loadWorktreeState(worktreeId: string, fresh = false): Promise<WorktreeState> {
-	const state: WorktreeState = {
-		changes: null,
-		unavailable: null,
-		missing: false,
-		upstream: null,
-		config: null,
-		release: null
-	};
-	let ref;
-	try {
-		ref = workspaces().ref(worktreeId);
-	} catch (error) {
-		return { ...state, unavailable: reason(error) };
-	}
-
-	const [changes, upstream, config, release] = await Promise.allSettled([
-		changesOf(ref),
-		hub().request({ kind: 'upstream', fresh, ...ref }),
-		hub().request({ kind: 'config', ...ref }),
-		hub().request({ kind: 'release', ...ref })
-	]);
-	if (config.status === 'fulfilled') state.config = config.value;
-	if (release.status === 'fulfilled') state.release = release.value;
-	if (changes.status === 'fulfilled') state.changes = changes.value;
-	else {
-		state.unavailable = reason(changes.reason);
-		state.missing = state.unavailable === NO_WORKTREE;
-	}
-
-	if (upstream.status === 'fulfilled' && upstream.value) {
-		// These end up in links. They come from a daemon and, before that, another forge.
-		const { pull } = upstream.value;
-		state.upstream = {
-			...upstream.value,
-			repoUrl: webUrl(upstream.value.repoUrl),
-			createUrl: webUrl(upstream.value.createUrl),
-			pull: pull && {
-				...pull,
-				url: webUrl(pull.url),
-				checks: pull.checks && { ...pull.checks, url: webUrl(pull.checks.url) }
+/** Independent answers let local files and terminals appear while the upstream forge responds. */
+function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
+	const ref = Promise.resolve().then(() => workspaces().ref(worktreeId));
+	return {
+		local: ref.then(changesOf).then(
+			(changes) => ({ changes, unavailable: null, missing: false }),
+			(error) => {
+				const unavailable = reason(error);
+				return { changes: null, unavailable, missing: unavailable === NO_WORKTREE };
 			}
-		};
-	}
-	// what a viewer learns, everyone knows: the sidebar shows how each workspace stands
-	if (state.changes) standings().note(worktreeId, state);
-	return state;
+		),
+		upstream: ref
+			.then((ref) => hub().request({ kind: 'upstream', fresh, ...ref }))
+			.then((upstream) => {
+				if (!upstream) return null;
+				const { pull } = upstream;
+				return {
+					...upstream,
+					repoUrl: webUrl(upstream.repoUrl),
+					createUrl: webUrl(upstream.createUrl),
+					pull: pull && {
+						...pull,
+						url: webUrl(pull.url),
+						checks: pull.checks && { ...pull.checks, url: webUrl(pull.checks.url) }
+					}
+				};
+			})
+			.catch(() => null),
+		config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
+		release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
+	};
 }
 
 /**
@@ -260,7 +243,8 @@ export const watchers = lazy(() =>
 	createWatchers(
 		(message) => hub().send(message),
 		(id) => workspaces().ref(id),
-		loadWorktreeState
+		loadWorktreeState,
+		(id, state) => standings().note(id, state)
 	)
 );
 
@@ -303,7 +287,7 @@ const UPSTREAM_PATIENCE_MS = 400;
  */
 async function standingFor(worktreeId: string): Promise<Standing> {
 	const watched = watchers().state(worktreeId);
-	if (watched?.changes) return watched;
+	if (watched?.changes && !watched.checking) return watched;
 	let ref;
 	try {
 		ref = workspaces().ref(worktreeId);
