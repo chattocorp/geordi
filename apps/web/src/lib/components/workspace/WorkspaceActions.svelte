@@ -48,7 +48,7 @@
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
 	// small, beside a next step or "Working", the colour and icon of how it stands say enough
 	const worded = $derived(!compact || (ordered.length === 0 && !working));
-	// likewise the spinner says "Working" beside a next step
+	// likewise the spinner (or the question) says that the agent is at work beside a next step
 	const saysWorking = $derived(!compact || ordered.length === 0);
 	const linked = $derived(!compact && !!pull?.url);
 
@@ -68,7 +68,7 @@
 	unit: the standing colours the whole thing, and the first action is the next step. An
 	agent at work says so at its head; an idle one says nothing.
 -->
-<div class={['flex items-center gap-2', compact ? 'min-w-0 flex-wrap' : 'shrink-0']}>
+<div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
 	{#if pull}
 		<div class={['inline-flex shrink-0 items-stretch rounded-full bg-sunken text-muted', height]}>
 			<button
@@ -121,8 +121,13 @@
 				<span class={['flex items-center gap-2 font-medium whitespace-nowrap', text]} role="status">
 					{#if asking}
 						<!-- at work, but not going on until it has heard from the person -->
-						<span class={['icon-[lucide--message-circle-question]', icon]}></span>
-						Waiting for your answer
+						<span
+							class={['icon-[lucide--message-circle-question]', icon]}
+							title={saysWorking ? undefined : 'Waiting for your answer'}
+							role={saysWorking ? undefined : 'img'}
+							aria-label={saysWorking ? undefined : 'Waiting for your answer'}
+						></span>
+						{#if saysWorking}Waiting for your answer{/if}
 					{:else}
 						<Spinner />
 						{#if saysWorking}Working{/if}
