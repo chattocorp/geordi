@@ -136,6 +136,10 @@ export function connectAgent(
 				}
 				break;
 			}
+			// What the agent calls its session; the forge decides whether it names the workspace.
+			case SessionUpdate.isSessionInfoUpdate(u) && !!u.title?.trim():
+				emit({ kind: 'title', title: u.title! });
+				break;
 		}
 	}
 	const children = nativeSubagents(provider, emit);

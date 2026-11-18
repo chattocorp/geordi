@@ -65,8 +65,6 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 - `GEORDI_SESSIONS_DIR` (default `~/.geordi/sessions`): Where agent sessions are kept, so that they survive a daemon restart.
 - `GEORDI_RUN_APPROVALS_FILE` (default `~/.geordi/run-approvals.json`): The commands you have agreed to run, by repository.
 - `GEORDI_PORTS_FILE` (default `~/.geordi/ports.json`): The ports each workspace has been given.
-- `OPENROUTER_API_KEY`: Lets the daemon name workspaces by asking a small model on [OpenRouter](https://openrouter.ai). Without it, a workspace is named after the first line of its first message.
-- `GEORDI_TITLE_MODEL` (default `anthropic/claude-haiku-5.5`): The OpenRouter model that names workspaces.
 - `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
