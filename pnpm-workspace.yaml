@@ -12,3 +12,5 @@ catalog:
   typescript: ^6.0.3
   vitest: ^4.1.8
   '@vitest/browser-playwright': ^4.1.8
+patchedDependencies:
+  forges@0.3.2: patches/forges@0.3.2.patch
