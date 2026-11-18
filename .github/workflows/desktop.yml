@@ -53,6 +53,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit }}
+      - uses: chattocorp/sweet-release/.github/actions/bootstrap@11dc11d022585610ad9d751c3f0262f6ef754179
+        with:
+          sweet-version: sweet@0.4.0
       - uses: actions/download-artifact@v8
         with:
           pattern: desktop-${{ inputs.tag }}-*
@@ -64,10 +70,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           tag=$RELEASE_TAG
+          notes="$RUNNER_TEMP/notes.md"
+          sweet changelog --version "${tag#v}" -- . > "$notes"
+          test -s "$notes"
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --verify-tag --generate-notes --draft
+            gh release create "$tag" --verify-tag --notes-file "$notes" --draft
           fi
           test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
           gh release upload "$tag" --clobber \
             "Geordi-${tag}-macOS-arm64.zip" "Geordi-${tag}-Windows-x64.zip"
-          gh release edit "$tag" --draft=false
+          gh release edit "$tag" --notes-file "$notes" --draft=false
