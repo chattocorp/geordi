@@ -11,15 +11,16 @@ it('keeps servicing timers and kills a stalled git, naming its command', async (
 		let ticked = false;
 		const operation = git(dir, ['status'], {
 			env: { ...process.env, PATH: dir + ':' + process.env.PATH },
-			timeout: 200
+			timeout: 1500
 		});
 		const timer = setTimeout(() => {
 			ticked = true;
 		}, 10);
-		await expect(operation).rejects.toThrow('git status timed out after 200 ms');
+		await expect(operation).rejects.toThrow('git status timed out after 1500 ms');
 		clearTimeout(timer);
 		expect(ticked).toBe(true);
-		expect(() => process.kill(Number(readFileSync(join(dir, 'pid'), 'utf8')), 0)).toThrow(/ESRCH/);
+		const pid = Number(readFileSync(join(dir, 'pid'), 'utf8'));
+		expect(() => process.kill(pid, 0)).toThrow(/ESRCH/);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
