@@ -18,6 +18,7 @@ import {
 	prepareWorktree,
 	terminals,
 	updateWorkspace as update,
+	upstreamMayHaveChanged,
 	watchers,
 	workspaces
 } from '#lib/server/app.ts';
@@ -149,6 +150,23 @@ export const mergePull = command(v.string(), async (workspaceId) => {
 		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
 	}
 });
+
+export const markReady = command(
+	v.object({ workspaceId: v.string(), pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)) }),
+	async ({ workspaceId, pullNumber }) => {
+		const ref = workspaces().ref(workspaceId);
+		try {
+			await hub().request({ kind: 'markReady', ...ref, pullNumber }, 60_000);
+		} catch (cause) {
+			error(
+				502,
+				`Could not mark the pull request ready for review: ${cause instanceof Error ? cause.message : String(cause)}`
+			);
+		} finally {
+			upstreamMayHaveChanged(workspaceId);
+		}
+	}
+);
 
 /**
  * Brings the latest of the branch the workspace's work is based on into it. Geordi does it

@@ -46,7 +46,7 @@ import {
 } from './session.ts';
 import type { Meta } from './host.ts';
 import { update } from './update.ts';
-import { mergePull, upstream } from './upstream.ts';
+import { markReady, mergePull, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
 	branchOf,
@@ -503,6 +503,8 @@ async function answer(request: DaemonRequest) {
 			return readPicture(worktree.path, request.path);
 		case 'upstream':
 			return upstream(worktree, request);
+		case 'markReady':
+			return markReady(worktree, request);
 		case 'mergePull': {
 			const status = await mergePull(worktree, request);
 			// The merge is a new commit upstream: fetching it lets every workspace of the
