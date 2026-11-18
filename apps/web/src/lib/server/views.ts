@@ -145,6 +145,7 @@ export const workspace = (id: string) => {
 			return {
 				...workspace,
 				background: hub().background(id),
+				suggestion: hub().suggestion(id),
 				transcript: readTranscript(id),
 				// who but the person may have written in its conversation: the agents above it
 				senders: Object.fromEntries(parents.map(({ id, title }) => [id, title])),
@@ -152,6 +153,7 @@ export const workspace = (id: string) => {
 				aides: aides.map((aide) => ({
 					...aide,
 					background: hub().background(aide.id),
+					suggestion: hub().suggestion(aide.id),
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
@@ -198,4 +200,4 @@ export const views = { navigation, workspace, commands };
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
 export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
-	Workspace & { aides: (Workspace & Pick<WorkspaceUpdate, 'background'>)[] };
+	Workspace & { aides: (Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>)[] };

@@ -68,6 +68,8 @@ export type Session = Meta & {
 	usage(): ContextUsage | undefined;
 	/** The agent's commands, as last heard; `null` before it has said. */
 	commands(): AgentCommand[] | null;
+	/** What the agent last suggested saying next, if it still stands. */
+	suggestion(): string | null;
 	/** Whether the session is over: there is nobody to say anything to any more. */
 	over(): boolean;
 	/** The CLI's own ID of the conversation, as last heard. */
@@ -142,6 +144,7 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 	let background: BackgroundTask[] = [];
 	let usage: ContextUsage | undefined;
 	let commands: AgentCommand[] | null = null;
+	let suggestion: string | null = null;
 	let expecting = existsSync(file('expecting'));
 	let resumeId = meta.options.resumeId;
 
@@ -150,9 +153,11 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 		if (event.kind === 'background') background = event.tasks;
 		if (event.kind === 'usage') usage = event.usage;
 		if (event.kind === 'commands') commands = event.commands;
+		if (event.kind === 'suggestion') suggestion = event.text;
 		if (event.kind === 'resume') resumeId = event.id;
 		if (event.kind === 'turn.started') {
 			open = true;
+			suggestion = null;
 			if (!replay) {
 				expecting = false;
 				rmSync(file('expecting'), { force: true });
@@ -268,6 +273,7 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 		background: () => background,
 		usage: () => usage,
 		commands: () => commands,
+		suggestion: () => suggestion,
 		working: () => open || expecting,
 		over: () => finished,
 		resumeId: () => resumeId,

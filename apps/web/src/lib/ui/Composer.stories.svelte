@@ -217,3 +217,68 @@
 		</Composer>
 	</div>
 </Story>
+
+<!-- What the agent suggests saying next, in the empty box: Tab or a click puts it in. -->
+<Story name="With a suggestion" asChild>
+	<div class="max-w-2xl">
+		<Composer
+			{form}
+			focused
+			rows={2}
+			placeholder="Reply to the agent"
+			suggestion="Run the tests again and fix whatever still fails."
+		>
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<!--
+	Tab puts the suggestion into the box, where it is the person's to edit and send. A `/`
+	puts it away for the commands: the two are never offered together.
+-->
+<Story
+	name="Taking a suggestion"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const text = canvas.getByRole('combobox');
+		const offer = () => canvas.queryByRole('button', { name: 'Run the tests again.' });
+		await userEvent.click(text);
+		await userEvent.keyboard('{Tab}');
+		await expect(text).toHaveValue('Run the tests again.');
+		await expect(offer()).toBeNull();
+		await userEvent.clear(text);
+		await expect(offer()).not.toBeNull();
+		await userEvent.type(text, '/rev');
+		await expect(offer()).toBeNull();
+		await expect(canvas.getAllByRole('option')).toHaveLength(2);
+	}}
+>
+	<div class="max-w-2xl pt-80">
+		<Composer
+			{form}
+			rows={2}
+			completions={commands}
+			placeholder="Reply to the agent"
+			suggestion="Run the tests again."
+		>
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>

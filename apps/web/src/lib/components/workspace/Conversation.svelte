@@ -29,7 +29,7 @@
 		senders,
 		onopensubagent
 	}: {
-		workspace: Workspace & Pick<WorkspaceUpdate, 'background'>;
+		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
 	} = $props();
@@ -136,6 +136,7 @@
 					onkeydown={keys}
 					{completions}
 					completionsLabel="Commands"
+					suggestion={workspace.status === 'idle' ? workspace.suggestion : null}
 					field={form.fields.text.as('text')}
 					problems={[
 						...(form.fields.text.issues() ?? []),

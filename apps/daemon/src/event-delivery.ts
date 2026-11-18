@@ -11,7 +11,13 @@ export function eventDelivery(
 		message:
 			| Extract<
 					DaemonMessage,
-					{ type: 'workspace.background' | 'workspace.usage' | 'workspace.commands' }
+					{
+						type:
+							| 'workspace.background'
+							| 'workspace.usage'
+							| 'workspace.commands'
+							| 'workspace.suggestion';
+					}
 			  >
 			| WorkspaceEvent
 	) => void
@@ -28,6 +34,10 @@ export function eventDelivery(
 		}
 		if (event.kind === 'commands') {
 			sendLive({ type: 'workspace.commands', workspaceId, commands: event.commands });
+			return true;
+		}
+		if (event.kind === 'suggestion') {
+			sendLive({ type: 'workspace.suggestion', workspaceId, text: event.text });
 			return true;
 		}
 		if (!cursor) {
