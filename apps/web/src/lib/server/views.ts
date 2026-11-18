@@ -145,9 +145,6 @@ export const workspace = (id: string) => {
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				refreshing:
-					watchers().isRefreshing(workspace.worktreeId) ||
-					standings().isRefreshing(workspace.worktreeId),
 				git: watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read

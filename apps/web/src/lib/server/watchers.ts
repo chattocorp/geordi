@@ -101,7 +101,7 @@ export function createWatchers(
 		const publish = (patch: Partial<WatchedState>) => {
 			if (watched.get(worktreeId) !== entry) return;
 			entry.state = { ...(entry.state ?? initial), ...patch };
-			notify(worktreeId);
+			for (const viewer of entry.viewers) viewer();
 		};
 		if (announce && entry.state && !entry.state.checking) publish({ checking: true });
 		if (entry.loading) {
@@ -110,7 +110,6 @@ export function createWatchers(
 			return;
 		}
 		entry.loading = true;
-		notify(worktreeId);
 		const upstreamAtStart = entry.state?.upstream;
 		const answers = load(worktreeId, fresh);
 		const upstreamAnswer = cached
@@ -162,13 +161,7 @@ export function createWatchers(
 			entry.pending = null;
 			entry.announced = false;
 			if (pending !== null) refresh(worktreeId, pending);
-			else notify(worktreeId);
 		});
-	}
-
-	function notify(worktreeId: string) {
-		const entry = watched.get(worktreeId);
-		if (entry) for (const viewer of entry.viewers) viewer();
 	}
 
 	// Quiet, archived, or unavailable workspaces may get no background answers.
@@ -242,11 +235,8 @@ export function createWatchers(
 			)
 				scheduleFallback(worktreeId, entry);
 			entry.state = { ...entry.state, upstream };
-			notify(worktreeId);
+			for (const viewer of entry.viewers) viewer();
 		},
-
-		notify,
-		isRefreshing: (worktreeId: string) => watched.get(worktreeId)?.loading ?? false,
 
 		isWatched: (worktreeId: string) => watched.has(worktreeId),
 
