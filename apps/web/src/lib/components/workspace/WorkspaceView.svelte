@@ -824,7 +824,6 @@
 			actions={offered}
 			disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 			{pending}
-			{working}
 			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
 			onopenpull={() => showTab(PR)}
 			onaction={act}
