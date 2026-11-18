@@ -111,14 +111,17 @@
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{/if}
 	</div>
-	<div class="space-y-1.5 px-2 pb-1">
-		<div aria-hidden="true" class="flex h-1 gap-0.5 overflow-hidden rounded-full">
+	<div class="px-2 pb-1" title={statusText}>
+		<div
+			role="img"
+			aria-label={statusText || 'No checks'}
+			class="flex h-1 gap-0.5 overflow-hidden rounded-full"
+		>
 			{#each summary.parts as part (part.tone)}<span
 					class={bar[part.tone]}
 					style:flex-grow={part.size}
 				></span>{/each}
 		</div>
-		<p class="text-xs text-muted">{statusText}</p>
 	</div>
 	{#if show && sorted.length}
 		{#if active.length}

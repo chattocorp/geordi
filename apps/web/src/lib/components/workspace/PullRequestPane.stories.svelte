@@ -38,6 +38,20 @@
 
 <Story name="Ready to merge" asChild>{@render pane(withPull())}</Story>
 
+<Story name="One passed check" asChild>
+	{@render pane(
+		withPull({
+			checks: {
+				state: 'success',
+				total: 1,
+				failed: 0,
+				items: [{ id: 'test', name: 'Tests', state: 'success', status: 'success' }],
+				url: null
+			}
+		})
+	)}
+</Story>
+
 <Story name="Checks failing, changes requested" asChild>
 	{@render pane(
 		withPull({
