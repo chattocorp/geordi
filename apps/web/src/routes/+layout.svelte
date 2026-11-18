@@ -421,7 +421,7 @@
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
 			class={[
-				'group item pr-1 text-base',
+				'group item pr-1 text-base motion-safe:transition-opacity',
 				// on its way out: it shows, and there is nothing more to do with it
 				leaving && 'pointer-events-none opacity-60',
 				!leaving && workspace.working && workspace.outcome !== 'asking' && 'opacity-60',

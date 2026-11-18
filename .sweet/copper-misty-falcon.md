@@ -2,4 +2,4 @@
 type: fix
 ---
 
-Busy workspaces appear slightly dimmer in the sidebar.
+Sidebar workspace rows fade to 60% opacity when work starts and return to full opacity when it finishes.
