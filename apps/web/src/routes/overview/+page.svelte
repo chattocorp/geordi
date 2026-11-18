@@ -13,6 +13,7 @@
 	import type { Navigation } from '#lib/server/views.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
+	import { persisted } from '#lib/persisted.svelte.ts';
 
 	type Item = Navigation['workspaces'][number];
 
@@ -33,6 +34,13 @@
 			.map((lane) => `${byLane[lane].length} ${headings[lane].toLowerCase()}`)
 			.join(' · ')
 	);
+
+	/** The lanes folded away under their heading, as in the sidebar. */
+	const folded = persisted<Lane[]>('geordi:overview-folded', []);
+	const toggleFolded = (lane: Lane) =>
+		(folded.current = folded.current.includes(lane)
+			? folded.current.filter((other) => other !== lane)
+			: [...folded.current, lane]);
 
 	const open = (workspace: Item) => goto(resolve('/workspaces/[id]', { id: workspace.id }));
 
@@ -58,13 +66,35 @@
 		<div class="space-y-10">
 			{#each LANES as lane (lane)}
 				{#if byLane[lane].length > 0}
+					{@const isFolded = folded.current.includes(lane)}
 					<section class="space-y-3">
-						<h2 class="label">{headings[lane]}</h2>
-						<ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-							{#each byLane[lane] as workspace (workspace.id)}
-								{@render card(workspace)}
-							{/each}
-						</ul>
+						<h2 class="label">
+							<button
+								type="button"
+								class="flex items-center gap-1.5 hover:text-ink"
+								aria-expanded={!isFolded}
+								onclick={() => toggleFolded(lane)}
+							>
+								{headings[lane]}
+								{#if isFolded}
+									<span class="font-normal text-muted/60 tabular-nums">{byLane[lane].length}</span>
+								{/if}
+								<span
+									aria-hidden="true"
+									class={[
+										'icon-[lucide--chevron-right] size-3.5 transition-transform motion-reduce:transition-none',
+										!isFolded && 'rotate-90'
+									]}
+								></span>
+							</button>
+						</h2>
+						{#if !isFolded}
+							<ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+								{#each byLane[lane] as workspace (workspace.id)}
+									{@render card(workspace)}
+								{/each}
+							</ul>
+						{/if}
 					</section>
 				{/if}
 			{/each}
