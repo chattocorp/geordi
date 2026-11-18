@@ -101,7 +101,8 @@ const meta = (env: Record<string, string> = {}): Meta => ({
 		resumeId: null,
 		api: null,
 		settings: {},
-		env
+		// The fixture stands in for the wrapper and the agent's own program: neither need be installed.
+		env: { CLAUDE_CODE_EXECUTABLE: 'claude', CODEX_PATH: 'codex', ...env }
 	}
 });
 
@@ -177,6 +178,18 @@ describe('a session', () => {
 		const { events, ended } = begin('which mode', { launch });
 		await ended(1);
 		expect(events).toContainEqual({ kind: 'text', text: mode });
+	});
+
+	it('fails the turn, saying so, when the agent is not installed', async () => {
+		const { events, ended } = begin('hello', {
+			launch: meta({ PATH: '', CLAUDE_CODE_EXECUTABLE: '' })
+		});
+		await ended(1);
+		expect(events).toContainEqual({
+			kind: 'turn.failed',
+			error: expect.stringContaining('could not find `claude`')
+		});
+		expect(events.some((event) => event.kind === 'text')).toBe(false);
 	});
 
 	it('fails before prompting when the provider keeps a different mode', async () => {
