@@ -113,6 +113,11 @@ describe('actionsFor', () => {
 			'create-pull',
 			'merge-upstream'
 		]);
+		const autoMerge = { enabled: true, canEnable: false, canDisable: true };
+		expect(ids({ changes, upstream: upstream({ autoMerge }) })).toEqual([
+			'merge-upstream',
+			'cancel-auto-merge'
+		]);
 		for (const commits of [0, -1])
 			expect(
 				ids({ changes: { ...clean, incoming: { ...incoming, commits } }, upstream: null })
