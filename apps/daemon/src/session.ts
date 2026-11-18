@@ -17,8 +17,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentEvent, MessageImage } from '@geordi/protocol';
-import type { Command, Exit, Meta } from './host.ts';
+import type { AgentEvent, BackgroundTask, MessageImage } from '@geordi/protocol';
+import type { Command, Exit, HostEvent, Meta } from './host.ts';
 
 /**
  * An agent's session (ADR-010): its CLI, running for as long as it has something to do, with
@@ -36,7 +36,7 @@ import type { Command, Exit, Meta } from './host.ts';
 /** Something said to an agent. */
 export type Said = { deliveryId?: string; prompt: string; images?: MessageImage[] };
 
-type Deliver = (event: AgentEvent, cursor?: string) => unknown;
+type Deliver = (event: HostEvent, cursor?: string) => unknown;
 
 export type Session = Meta & {
 	/** Says something to the agent: it starts a turn, or steers the one under way. */
@@ -57,6 +57,7 @@ export type Session = Meta & {
 	 * its end, or a message was sent that the report of a turn is still to come for.
 	 */
 	working(): boolean;
+	background(): BackgroundTask[];
 	/** Whether the session is over: there is nobody to say anything to any more. */
 	over(): boolean;
 	/** The CLI's own ID of the conversation, as last heard. */
@@ -128,11 +129,13 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 	let finished = false;
 	let offset = existsSync(file('offset')) ? Number(readFileSync(file('offset'), 'utf8')) : 0;
 	let open = false;
+	let background: BackgroundTask[] = [];
 	let expecting = existsSync(file('expecting'));
 	let resumeId = meta.options.resumeId;
 
 	/** Keeps up with what an event means for where the session stands. */
-	function note(event: AgentEvent, replay = false) {
+	function note(event: HostEvent, replay = false) {
+		if (event.kind === 'background') background = event.tasks;
 		if (event.kind === 'resume') resumeId = event.id;
 		if (event.kind === 'turn.started') {
 			open = true;
@@ -143,7 +146,7 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 		}
 		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') open = false;
 	}
-	const parsed = (line: string) => JSON.parse(line) as AgentEvent;
+	const parsed = (line: string) => JSON.parse(line) as HostEvent;
 	// where things stood when we were last here
 	for (const { line, end } of linesFrom(file('out.jsonl'), 0)) {
 		if (end > offset) break;
@@ -248,6 +251,7 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 			setTimeout(() => !finished && signal('SIGKILL'), KILL_AFTER_MS).unref();
 		},
 		detach: () => finish(),
+		background: () => background,
 		working: () => open || expecting,
 		over: () => finished,
 		resumeId: () => resumeId,

@@ -31,9 +31,11 @@ import {
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
-import type { Agent, AgentEvent, MessageImage } from '@geordi/protocol';
+import type { Agent, AgentEvent, BackgroundTask, MessageImage } from '@geordi/protocol';
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
+
+export type HostEvent = AgentEvent | { kind: 'background'; tasks: BackgroundTask[] };
 
 export type Meta = {
 	agent: Agent;
@@ -119,7 +121,7 @@ let unstoppable: NodeJS.Timeout | undefined;
 
 const stopped = () => stopping || existsSync(file('stopped'));
 
-function emit(event: AgentEvent) {
+function emit(event: HostEvent) {
 	if (event.kind === 'turn.started') {
 		if (open) return;
 		open = true;

@@ -528,3 +528,65 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Background tasks"
+	asChild
+	play={async ({ canvas }) => {
+		await userEvent.click(await canvas.findByText('2 background tasks'));
+		await userEvent.click(canvas.getByRole('button', { name: 'pnpm test' }));
+		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
+			'aria-expanded',
+			'true'
+		);
+		await waitFor(() =>
+			expect(
+				canvas
+					.getByRole('button', { name: 'pnpm test' })
+					.ownerDocument.activeElement?.closest('details')
+			).toHaveAttribute('open')
+		);
+	}}
+>
+	<div class="mx-auto flex h-96 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="codex"
+			onopensubagent={openReviewer}
+			background={[
+				{ type: 'tool_call', id: 'tests', toolCallId: 'tests' },
+				{ type: 'subagent', id: 'review' }
+			]}
+			blocks={[
+				{ kind: 'user', text: 'Run the tests and review the changes.' },
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'tools',
+							tools: [
+								{
+									kind: 'tool',
+									id: 'tests',
+									name: 'Shell',
+									input: 'pnpm test',
+									output: null,
+									isError: false,
+									at: ''
+								}
+							]
+						},
+						{
+							kind: 'subagent',
+							id: 'review',
+							title: 'Review changes',
+							at: '',
+							items: [],
+							state: 'running'
+						},
+						{ kind: 'text', text: 'The tests and review are running in the background.' }
+					]
+				}
+			]}
+		/>
+	</div>
+</Story>

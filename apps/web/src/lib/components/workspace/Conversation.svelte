@@ -8,7 +8,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import { follow } from '#lib/live.svelte.ts';
-	import type { Navigation } from '#lib/server/views.ts';
+	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
 		configureWorkspace,
 		answerQuestion,
@@ -27,7 +27,7 @@
 		senders,
 		onopensubagent
 	}: {
-		workspace: Workspace;
+		workspace: Workspace & Pick<WorkspaceUpdate, 'background'>;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
 	} = $props();
@@ -89,6 +89,7 @@
 			bind:this={messages}
 			bind:following
 			{blocks}
+			background={workspace.background?.filter((task) => !task.session)}
 			agent={workspace.agent}
 			{running}
 			{cwd}

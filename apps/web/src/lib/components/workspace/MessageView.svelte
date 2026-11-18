@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
-	import type { Agent } from '@geordi/protocol';
+	import Disclosure from '#lib/ui/Disclosure.svelte';
+	import { toolSummary } from '#lib/tools.ts';
+	import type { Agent, BackgroundTask } from '@geordi/protocol';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Block, Part } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
@@ -17,6 +19,7 @@
 
 	let {
 		blocks,
+		background = [],
 		agent,
 		running = false,
 		cwd,
@@ -31,6 +34,7 @@
 		following = $bindable(true)
 	}: {
 		blocks: Block[];
+		background?: BackgroundTask[];
 		agent: Agent;
 		running?: boolean;
 		cwd?: string;
@@ -64,6 +68,47 @@
 			.filter(Boolean)
 			.join(' · ');
 	}
+
+	let reveal = $state<{ id: string; done: () => void }>();
+	const backgroundIds = $derived(
+		background.flatMap((task) => (task.toolCallId ? [task.toolCallId] : []))
+	);
+	const backgroundRows = $derived(
+		background.map((task) => {
+			const fallback =
+				task.label ||
+				(task.type === 'terminal'
+					? 'Terminal'
+					: task.type === 'subagent'
+						? 'Subagent'
+						: 'Tool call');
+			for (const [index, block] of blocks.entries()) {
+				if (block.kind !== 'agent') continue;
+				for (const part of block.parts) {
+					if (task.type === 'subagent' && part.kind === 'subagent' && part.id === task.id)
+						return {
+							task,
+							label: part.title || fallback,
+							open: onopensubagent && (() => onopensubagent?.(task.id))
+						};
+					if (part.kind !== 'tools' || !task.toolCallId) continue;
+					const tool = part.tools.find((tool) => tool.id === task.toolCallId);
+					if (tool)
+						return {
+							task,
+							label: task.label || toolSummary(tool.input, cwd) || tool.name,
+							open: () => {
+								following = false;
+								expanded.add(index);
+								list?.scrollToIndex(index);
+								reveal = { id: tool.id, done: () => (reveal = undefined) };
+							}
+						};
+				}
+			}
+			return { task, label: fallback, open: undefined };
+		})
+	);
 
 	function toggleActivity(index: number) {
 		if (expanded.has(index)) expanded.delete(index);
@@ -151,7 +196,7 @@
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
 	{:else if part.kind === 'tools'}
 		<!-- live: the agent is at work, and this is the last thing it did -->
-		<ToolGroup tools={part.tools} {cwd} {live} />
+		<ToolGroup tools={part.tools} {cwd} {live} {reveal} {backgroundIds} />
 	{:else if part.kind === 'plan'}
 		{#key part.id}
 			<PlanCard plan={part.plan} {pictures} />
@@ -282,3 +327,37 @@
 		{/snippet}
 	</Virtualizer>
 </div>
+{#if backgroundRows.length}
+	<div class="mx-auto w-full max-w-5xl shrink-0 px-5 pb-2">
+		<Disclosure summaryClass="w-fit gap-1.5 px-1 py-1 text-xs text-muted hover:text-ink">
+			{#snippet heading()}
+				<span class="icon-[lucide--activity] size-3.5"></span>
+				{backgroundRows.length} background {backgroundRows.length === 1 ? 'task' : 'tasks'}
+			{/snippet}
+			<ul class="max-h-32 overflow-auto px-1">
+				{#each backgroundRows as row (row.task.type + row.task.id)}
+					<li class="flex items-center gap-2 py-1 text-sm text-muted">
+						<span
+							class={[
+								'size-3.5 shrink-0',
+								row.task.type === 'subagent'
+									? 'icon-[lucide--git-branch]'
+									: 'icon-[lucide--terminal]'
+							]}
+						></span>
+						{#if row.open}
+							<button
+								type="button"
+								class="truncate hover:text-ink hover:underline"
+								title={row.label}
+								onclick={row.open}>{row.label}</button
+							>
+						{:else}
+							<span class="truncate" title={row.label}>{row.label}</span>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</Disclosure>
+	</div>
+{/if}

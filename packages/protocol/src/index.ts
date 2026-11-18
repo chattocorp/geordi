@@ -540,6 +540,15 @@ export type SubagentUpdate =
 	| { kind: 'message'; id: string; text: string; incoming: boolean }
 	| { kind: 'tool'; id: string; name?: string; input?: string; output?: string; isError?: boolean };
 
+export type BackgroundTask = {
+	type: 'terminal' | 'tool_call' | 'subagent';
+	id: string;
+	/** Absent for work owned by the root ACP session. */
+	session?: string;
+	label?: string;
+	toolCallId?: string;
+};
+
 export type AgentEvent =
 	| { kind: 'subagent'; path: string[]; update: SubagentUpdate }
 	| { kind: 'message.received'; id: string }
@@ -625,6 +634,7 @@ export type ForgeMessage =
 
 /** Daemon → forge. */
 export type DaemonMessage =
+	| { type: 'workspace.background'; workspaceId: string; tasks: BackgroundTask[] }
 	| {
 			type: 'hello';
 			protocol: number;
