@@ -33,10 +33,12 @@ export type WatchedState = WorktreeState & {
 type LocalState = Pick<WorktreeState, 'changes' | 'unavailable' | 'missing'>;
 export type WorktreeLoad = {
 	local: Promise<LocalState>;
-	upstream: Promise<Upstream | null>;
+	upstream: () => Promise<Upstream | null>;
 	config: Promise<RepoConfig | null>;
 	release: Promise<ReleasePlan | null>;
 };
+
+const FALLBACK_MS = 60_000;
 
 const initial: WatchedState = {
 	changes: null,
@@ -64,7 +66,8 @@ export function createWatchers(
 	 * upstream as of now, not as of the last time someone asked.
 	 */
 	load: (worktreeId: string, fresh: boolean) => WorktreeLoad,
-	noteStanding: (id: string, state: WorktreeState) => void
+	noteStanding: (id: string, state: WorktreeState) => void,
+	knownUpstream: (id: string) => Upstream | null | undefined
 ) {
 	type Watched = {
 		viewers: Set<() => void>;
@@ -92,7 +95,7 @@ export function createWatchers(
 	}
 
 	/** Publish each answer when it arrives. A burst during a load needs one more pass. */
-	function refresh(worktreeId: string, fresh = false, announce = false) {
+	function refresh(worktreeId: string, fresh = false, announce = false, cached?: Upstream) {
 		const entry = watched.get(worktreeId);
 		if (!entry) return;
 		const publish = (patch: Partial<WatchedState>) => {
@@ -109,16 +112,23 @@ export function createWatchers(
 		entry.loading = true;
 		const upstreamAtStart = entry.state?.upstream;
 		const answers = load(worktreeId, fresh);
+		const upstreamAnswer = cached
+			? answers.local.then(({ changes }) =>
+					changes?.branch === cached.localBranch ? cached : answers.upstream()
+				)
+			: answers.upstream();
 		const local = answers.local.then((result) => {
-			const changedBranch = result.changes?.branch !== entry.state?.changes?.branch;
+			const changedBranch =
+				result.changes?.branch !== (entry.state?.changes?.branch ?? cached?.localBranch);
 			publish({
 				...result,
 				version: (entry.state?.version ?? 0) + 1,
 				...(changedBranch && { checking: true, upstream: null })
 			});
 		});
-		const standing = Promise.all([local, answers.upstream]).then(([, upstream]) => {
+		const standing = Promise.all([local, upstreamAnswer]).then(([, upstream]) => {
 			const latest = entry.state?.upstream;
+			if (cached && upstream === cached && latest === null) upstream = null;
 			if (upstream?.localBranch && upstream.localBranch !== entry.state?.changes?.branch)
 				upstream = null;
 			if (
@@ -155,12 +165,12 @@ export function createWatchers(
 	}
 
 	// Quiet, archived, or unavailable workspaces may get no background answers.
-	function scheduleFallback(id: string, entry: Watched) {
+	function scheduleFallback(id: string, entry: Watched, delay = FALLBACK_MS) {
 		clearTimeout(entry.fallback);
 		entry.fallback = setTimeout(() => {
 			scheduleFallback(id, entry);
 			refresh(id, true);
-		}, 60_000).unref();
+		}, delay).unref();
 	}
 
 	return {
@@ -172,19 +182,27 @@ export function createWatchers(
 			ref(worktreeId); // throws for unknown worktrees, before anything is registered
 			let entry = watched.get(worktreeId);
 			if (!entry) {
+				const known = knownUpstream(worktreeId);
+				const age = Date.now() - (known?.checkedAt ?? -Infinity);
+				const cached =
+					known?.localBranch &&
+					age >= 0 &&
+					age < Math.min(known.refreshAfterMs ?? FALLBACK_MS, FALLBACK_MS)
+						? known
+						: undefined;
 				watched.set(
 					worktreeId,
 					(entry = {
 						viewers: new Set(),
-						state: null,
+						state: cached ? { ...initial, checking: false, upstream: cached } : null,
 						loading: false,
 						pending: null,
 						announced: false
 					})
 				);
 				sync();
-				refresh(worktreeId);
-				scheduleFallback(worktreeId, entry);
+				refresh(worktreeId, false, false, cached);
+				scheduleFallback(worktreeId, entry, cached ? FALLBACK_MS - age : FALLBACK_MS);
 			}
 			entry.viewers.add(changed);
 
@@ -202,9 +220,11 @@ export function createWatchers(
 		noteUpstream(worktreeId: string, upstream: Upstream | null, branch?: string | null) {
 			const entry = watched.get(worktreeId);
 			if (
-				!entry?.state?.changes ||
+				!entry?.state ||
+				(!entry.state.changes && !entry.state.upstream?.localBranch) ||
 				entry.state.checking ||
-				(upstream?.localBranch ?? branch) !== entry.state.changes.branch ||
+				(upstream?.localBranch ?? branch) !==
+					(entry.state.changes?.branch ?? entry.state.upstream?.localBranch) ||
 				(upstream?.checkedAt !== undefined &&
 					(entry.state.upstream?.checkedAt ?? 0) > upstream.checkedAt)
 			)

@@ -20,13 +20,13 @@ function answers(uncommitted: number): WorktreeLoad {
 	const { changes, unavailable, missing } = stateWith(uncommitted);
 	return {
 		local: Promise.resolve({ changes, unavailable, missing }),
-		upstream: Promise.resolve(null),
+		upstream: () => Promise.resolve(null),
 		config: Promise.resolve(null),
 		release: Promise.resolve(null)
 	};
 }
 
-function setup(load = answers) {
+function setup(load = answers, knownUpstream: () => Upstream | undefined = () => undefined) {
 	const sent: ForgeMessage[] = [];
 	/** What the daemon would say about each worktree, and how often it was asked. */
 	const daemon = { uncommitted: 0, asked: [] as string[], fresh: [] as boolean[] };
@@ -42,7 +42,8 @@ function setup(load = answers) {
 			daemon.fresh.push(fresh);
 			return load(daemon.uncommitted);
 		},
-		note
+		note,
+		knownUpstream
 	);
 	/** The worktrees the daemon was last told to watch. */
 	const watching = () => {
@@ -68,6 +69,49 @@ describe('watchers', () => {
 		expect(watching()).toEqual(['b']);
 		other();
 		expect(watching()).toEqual([]);
+	});
+
+	it('reuses recent status on entry until it expires or local Git reports another branch', async () => {
+		const cached: Upstream = {
+			forge: 'github',
+			repo: 'a/b',
+			repoUrl: null,
+			branch: 'remote-name',
+			localBranch: 'geordi/w',
+			checkedAt: Date.now(),
+			refreshAfterMs: 10_000,
+			pushed: true,
+			createUrl: null,
+			pull: null
+		};
+		const upstream = vi.fn(async () => null);
+		const { watchers } = setup(
+			(n) => ({ ...answers(n), upstream }),
+			() => cached
+		);
+		const open = () => watchers.watch('a', () => {});
+		const close = open();
+		expect(watchers.state('a')).toMatchObject({ checking: false, upstream: cached });
+		const newer = { ...cached, checkedAt: cached.checkedAt! + 1 };
+		watchers.noteUpstream('a', newer);
+		await settled();
+		expect(watchers.state('a')).toMatchObject({ version: 1, upstream: newer });
+		expect(upstream).not.toHaveBeenCalled();
+		watchers.changed('a', true);
+		await settled();
+		expect(upstream).toHaveBeenCalledTimes(1);
+		close();
+		cached.localBranch = 'old';
+		const closeAgain = open();
+		await settled();
+		expect(upstream).toHaveBeenCalledTimes(2);
+		expect(watchers.state('a')?.upstream).toBeNull();
+		closeAgain();
+		cached.localBranch = 'geordi/w';
+		cached.checkedAt = Date.now() - 10_000;
+		open();
+		await settled();
+		expect(upstream).toHaveBeenCalledTimes(3);
 	});
 
 	it('loads the state once for everyone looking, and again when the daemon says it changed', async () => {
@@ -101,7 +145,7 @@ describe('watchers', () => {
 		const release = Promise.withResolvers<null>();
 		const { watchers, daemon, note } = setup((n) => ({
 			...answers(n),
-			upstream: upstream.promise,
+			upstream: () => upstream.promise,
 			release: release.promise
 		}));
 		watchers.watch('a', () => {});
@@ -182,7 +226,7 @@ describe('watchers', () => {
 		};
 		const { watchers, daemon } = setup(() => ({
 			...answers(0),
-			upstream: Promise.resolve(upstream)
+			upstream: () => Promise.resolve(upstream)
 		}));
 		const stop = watchers.watch('a', () => {});
 		await settled();
