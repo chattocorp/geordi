@@ -154,6 +154,22 @@ export const standings = lazy(() => {
 		],
 		load: loadStanding,
 		loadUpstream: (id) => upstreamOf(workspaces().ref(id)),
+		busy: (id) =>
+			workspaces()
+				.sharing(id)
+				.some((workspace) => workspace.status === 'running'),
+		watch: (ids) =>
+			hub().send({
+				type: 'watch',
+				scope: 'background',
+				worktrees: ids.flatMap((id) => {
+					try {
+						return [workspaces().ref(id)];
+					} catch {
+						return [];
+					}
+				})
+			}),
 		publishUpstream: (id, upstream, branch) => watchers().noteUpstream(id, upstream, branch)
 	});
 	setInterval(() => void standings.tick(), UPSTREAM_TICK_MS).unref();
@@ -295,7 +311,10 @@ export const hub = lazy(() =>
 				terminals().ended(message.terminalId, message.status);
 			else if (message.type === 'terminal.opened')
 				terminals().opened(message.terminalId, message.run);
-			else if (message.type === 'worktree.changed') watchers().changed(message.worktreeId);
+			else if (message.type === 'worktree.changed') {
+				if (watchers().isWatched(message.worktreeId)) watchers().changed(message.worktreeId);
+				else standings().changed(message.worktreeId);
+			}
 		}
 	})
 );

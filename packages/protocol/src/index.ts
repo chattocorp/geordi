@@ -96,6 +96,9 @@ export type FileChange = {
 	removed: number | null;
 };
 
+/** Which of the forge's lists of worktrees to watch a `watch` message replaces. */
+export type WatchScope = 'open' | 'background';
+
 /** What a workspace has changed, and how far that has got. */
 export type Changes = {
 	/**
@@ -186,7 +189,7 @@ export type Upstream = {
 	/** Local branch and time of the daemon read. Cached answers keep their original time. */
 	localBranch?: string;
 	checkedAt?: number;
-	/** Provider-specific polling delay while waiting for CI, or when access is anonymous. */
+	/** How soon to look again: soon while checks run, rarely once the pull request is merged or closed. */
 	refreshAfterMs?: number;
 	/** Whether the branch has been pushed. */
 	pushed: boolean;
@@ -596,10 +599,11 @@ export type ForgeMessage =
 	| { type: 'agent.answer'; workspaceId: string; questionId: string; answers: string[] }
 	| { type: 'request'; id: string; request: DaemonRequest }
 	/**
-	 * The worktrees someone is looking at right now, all of them: the daemon watches their
-	 * files and reports changes, and stops watching any that are no longer listed.
+	 * The worktrees someone is looking at right now (`open`), or all others in use
+	 * (`background`), all of them: the daemon watches their files and reports changes, and
+	 * stops watching any that are listed in neither.
 	 */
-	| { type: 'watch'; worktrees: WorktreeRef[] }
+	| { type: 'watch'; worktrees: WorktreeRef[]; scope?: WatchScope }
 	/**
 	 * Starts a shell in the workspace's directory. A workspace can have several terminals.
 	 * With `run`, it runs one of the repository's jobs instead (or, as job `setup`, its setup
