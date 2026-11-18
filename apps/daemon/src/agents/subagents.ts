@@ -6,6 +6,7 @@ import {
 import type { Agent, AgentEvent, SubagentState, SubagentUpdate } from '@geordi/protocol';
 import { TerminalOutput } from './terminal-output.ts';
 import { ToolInfos } from './tool-info.ts';
+import { ToolDiffs } from './diffs.ts';
 
 function stateOf(state: StateUpdate | null): SubagentState {
 	if (state?.state === 'running') return 'running';
@@ -27,6 +28,7 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 		dirty: Set<string>;
 		terminal: TerminalOutput;
 		tools: ToolInfos;
+		diffs: ToolDiffs;
 		state?: SubagentState;
 	};
 	const children = new Map<string, Child>();
@@ -51,7 +53,8 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 					messages: new Map(),
 					dirty: new Set(),
 					terminal: new TerminalOutput(),
-					tools: new ToolInfos()
+					tools: new ToolInfos(),
+					diffs: new ToolDiffs()
 				};
 				children.set(u.sessionId, target);
 			}
@@ -102,10 +105,12 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 			if (!chunk) flush(child);
 		} else if (SessionUpdate.isToolCallUpdate(u)) {
 			flush(child);
+			child.diffs.receive(u);
 			const output = child.terminal.toolResult(provider, u);
 			const fresh = !child.tools.has(u.toolCallId);
 			const news = child.tools.news(u, output !== undefined);
 			if (output !== undefined) child.tools.delete(u.toolCallId);
+			const diff = output !== undefined ? child.diffs.take(u) : undefined;
 			const name = fresh && (u.name ?? u.title);
 			if (!fresh && !Object.keys(news).length && output === undefined) return true;
 			send(child, {
@@ -116,7 +121,8 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 				...(output !== undefined && {
 					output,
 					isError: u.status !== 'completed'
-				})
+				}),
+				...(diff && { diff })
 			});
 		} else if (SessionUpdate.isStateUpdate(u)) {
 			flush(child);

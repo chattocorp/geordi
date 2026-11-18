@@ -1,16 +1,22 @@
 <script lang="ts">
+	import type { FileDiffMetadata } from '@pierre/diffs';
 	import type { Attachment } from 'svelte/attachments';
 
 	type Props = {
 		/** The file's path; its extension picks the syntax highlighting. */
 		path: string;
 		/** The file before and after, `null` where it doesn't exist. */
-		old: string | null;
-		new: string | null;
+		old?: string | null;
+		new?: string | null;
+		/**
+		 * Instead of both versions, a file's part of a patch (`#lib/patch.ts`): its changes
+		 * with a few lines around them, which is all there is to see.
+		 */
+		patch?: FileDiffMetadata;
 		/** Whether the diff is on screen yet: the viewer is loaded on first use, which takes a moment. */
 		ready?: boolean;
 	};
-	let { path, old, new: current, ready = $bindable(false) }: Props = $props();
+	let { path, old = null, new: current = null, patch, ready = $bindable(false) }: Props = $props();
 
 	// The diff is rendered afresh (losing any expanded context) when these change, so they
 	// must only change when the text really does, not whenever the data is fetched again.
@@ -27,8 +33,8 @@
 	const diff: Attachment<HTMLElement> = (node) => {
 		// Read here so that a change to the file renders the diff afresh.
 		const name = path;
-		const [was, is] = [before, after];
-		if (was === null && is === null) return;
+		const [was, is, parsed] = [before, after, patch];
+		if (was === null && is === null && !parsed) return;
 
 		ready = false;
 		let dispose = () => {};
@@ -49,10 +55,12 @@
 				// our tokens instead of the themes' own backgrounds
 				unsafeCSS: `:host { --diffs-bg: var(--bg) !important; }`
 			});
-			const fileDiff = parseDiffFromFile(
-				was === null ? null : { name, contents: was },
-				is === null ? null : { name, contents: is }
-			);
+			const fileDiff =
+				parsed ??
+				parseDiffFromFile(
+					was === null ? null : { name, contents: was },
+					is === null ? null : { name, contents: is }
+				);
 			view.render({ fileDiff, containerWrapper: node });
 			ready = true;
 

@@ -551,6 +551,7 @@ export type SubagentUpdate =
 			input?: string;
 			output?: string;
 			isError?: boolean;
+			diff?: ToolDiff;
 	  } & ToolInfo);
 
 /** What ACP kinds of tool call there are: how a client may show one. */
@@ -576,6 +577,19 @@ export type ToolLocation = { path: string; line?: number };
  * it touches. Absent in events from before Geordi knew them, and where an agent says none.
  */
 export type ToolInfo = { toolKind?: ToolKind; title?: string; locations?: ToolLocation[] };
+
+/**
+ * What a tool call changed in files, as the agent reports it (ACP `diff` content), kept
+ * with its result once it succeeded. Untrusted text: whoever shows it must parse it safely.
+ */
+export type ToolDiff = {
+	/** Each file changed, by absolute path; `operation` is ACP's (`add`, `delete`, `modify`, `move`, `copy`, or newer). */
+	files: { operation: string; path: string; oldPath?: string; fileType?: string }[];
+	/** The changes as a git patch, with absolute paths; absent if the agent sent none, or `tooLarge`. */
+	patch?: string;
+	/** The patch was left out: it was larger than the event log keeps. */
+	tooLarge?: boolean;
+};
 
 /**
  * How full the agent's context is, as its root session last said (ACP `usage_update`):
@@ -622,7 +636,7 @@ export type AgentEvent =
 	| ({ kind: 'tool'; id: string; name: string; input: string } & ToolInfo)
 	/** What an agent said of a tool call after it began: only what changed. */
 	| ({ kind: 'tool.update'; id: string; input?: string } & ToolInfo)
-	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
+	| { kind: 'tool.result'; id: string; output: string; isError: boolean; diff?: ToolDiff }
 	/** What the agent calls its session (ACP `session_info_update`), at any time. */
 	| { kind: 'title'; title: string }
 	/** A form stays open until answered, withdrawn, or its turn ends. Older forms block. */
