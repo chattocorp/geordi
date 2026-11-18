@@ -298,19 +298,19 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		};
 	if (uncommitted) return todo('Uncommitted changes');
 	if (unpushed) return todo('Unpublished changes');
-	if (pull.autoMerge?.enabled)
-		return {
-			label: 'Auto-merge enabled',
-			tone: 'neutral',
-			icon: 'icon-[lucide--git-merge]',
-			checks: pull.checks?.counts
-		};
 	if (pull.checks?.state === 'pending')
 		return {
 			label: 'Checks running',
 			tone: 'neutral',
 			icon: 'icon-[lucide--circle-dashed] animate-checks-spin',
 			checks: pull.checks.counts
+		};
+	if (pull.autoMerge?.enabled)
+		return {
+			label: 'Auto-merge enabled',
+			tone: 'neutral',
+			icon: 'icon-[lucide--git-merge]',
+			checks: pull.checks?.counts
 		};
 	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };
 	if (pull.review === 'pending' && pull.autoMerge?.canEnable)
