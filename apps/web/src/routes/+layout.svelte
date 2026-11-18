@@ -408,8 +408,13 @@
 	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
-	<!-- not work that is merely unpublished: that is most workspaces, and no news -->
-	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
+	<!-- Routine publishing steps only need to appear inside the workspace. -->
+	{@const standing =
+		leaving ||
+		workspace.standing?.tone === 'accent' ||
+		workspace.standing?.label === 'No pull request'
+			? null
+			: workspace.standing}
 	{@const archivable = !busy && !leaving}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<li style:margin-inline-start="calc(var(--spacing) * {3 * depth})">
@@ -446,7 +451,7 @@
 						<span class="icon-[lucide--message-circle-question] size-4 text-accent-ink"></span>
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
-						<Spinner live />
+						<Spinner />
 					{:else if workspace.parentId}
 						<!-- started by an agent: the one above it, where that is still around -->
 						<span class="icon-[lucide--corner-down-right] size-4"></span>
@@ -491,7 +496,10 @@
 				{#if archivable}
 					<button
 						type="button"
-						class="invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink"
+						class={[
+							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken',
+							standing?.tone === 'merged' ? tones.merged : 'text-muted hover:text-ink'
+						]}
 						title="Archive workspace"
 						aria-label="Archive {workspace.title}"
 						onclick={() => archiveFromHere(workspace)}

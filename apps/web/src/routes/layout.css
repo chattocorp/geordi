@@ -39,6 +39,7 @@
 	--surface: #ffffff;
 	--sunken: #dcdce5;
 	--ink: #1b1c24;
+	--inline-code: #982664;
 	--muted: #6a6c7b;
 	--line: #e2e2ea;
 	--accent: #f5b021;
@@ -67,6 +68,7 @@
 	--surface: #2c2f3b;
 	--sunken: #262833;
 	--ink: #eceef4;
+	--inline-code: #f0bbd2;
 	--muted: #a0a3b4;
 	--line: #3a3d4b;
 	--accent: #f7b733;
@@ -380,14 +382,12 @@
 	--tw-prose-th-borders: var(--line);
 	--tw-prose-td-borders: var(--line);
 
-	/*
-	 * Code in a sentence: set apart by its typeface and a quieter colour, and by nothing
-	 * else. A reply with twenty of them still reads as text, not as a row of boxes.
-	 */
 	:where(code):not(:where(pre *)) {
-		@apply font-normal text-ink/75;
-		/* An experiment: half a pixel under the code size (14.5px). Off the type scale on purpose. */
-		font-size: 0.90625rem;
+		@apply font-normal text-ink;
+		overflow-wrap: anywhere;
+	}
+	:where(code):not(:where(pre *, a *, button *)) {
+		color: var(--inline-code);
 	}
 	:where(code):not(:where(pre *))::before,
 	:where(code):not(:where(pre *))::after {
