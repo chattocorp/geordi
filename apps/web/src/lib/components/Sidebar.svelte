@@ -248,22 +248,7 @@
 						<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					</div>
 					{#if !isFolded}
-						<ul
-							class="space-y-px"
-							ondragleave={(event) => {
-								if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-									dropBefore = undefined;
-							}}
-						>
-							{#each rows as { workspace, parent, depth }, index (workspace.id)}
-								{@render row(workspace, parent, depth, rows, index)}
-							{/each}
-							{#if isRevealed}
-								{#each hiddenRows as { workspace, parent, depth }, index (workspace.id)}
-									{@render row(workspace, parent, depth, hiddenRows, index)}
-								{/each}
-							{/if}
-						</ul>
+						{@render list(rows)}
 						{#if hiddenRows.length > 0}
 							<button
 								type="button"
@@ -282,6 +267,10 @@
 								</span>
 								{isRevealed ? 'Show fewer' : `Show ${hiddenRows.length} hidden`}
 							</button>
+							<!-- the hidden ones, below what reveals them -->
+							{#if isRevealed}
+								{@render list(hiddenRows)}
+							{/if}
 						{/if}
 					{/if}
 				</div>
@@ -302,6 +291,19 @@
 		</button>
 	</div>
 </div>
+
+{#snippet list(rows: Row[])}
+	<ul
+		class="space-y-px"
+		ondragleave={(event) => {
+			if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dropBefore = undefined;
+		}}
+	>
+		{#each rows as { workspace, parent, depth }, index (workspace.id)}
+			{@render row(workspace, parent, depth, rows, index)}
+		{/each}
+	</ul>
+{/snippet}
 
 {#snippet row(workspace: Item, parent: Item | null, depth: number, rows: Row[], index: number)}
 	{@const current = path === `/workspaces/${workspace.id}`}

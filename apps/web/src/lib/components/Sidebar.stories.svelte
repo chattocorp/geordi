@@ -151,7 +151,13 @@
 		await expect(canvas.getByText('Pick a licence')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Show 2 hidden' }));
 		await expect(canvas.getByText('Sketch the onboarding flow')).toBeVisible();
-		await expect(canvas.getByRole('button', { name: 'Show fewer' })).toBeVisible();
+		const toggle = canvas.getByRole('button', { name: 'Show fewer' });
+		await expect(toggle).toBeVisible();
+		// below what reveals them
+		await expect(
+			toggle.compareDocumentPosition(canvas.getByText('Sketch the onboarding flow')) &
+				Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
 	}}
 >
 	{@render frame(withHidden, '/workspaces/old')}
