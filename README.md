@@ -101,29 +101,9 @@ with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See
 
 Push the Sweet Release tag (for example, `v1.2.3`) after its version commit reaches
 `main`. The tag must match the version in `apps/desktop/package.json`. CI publishes
-two ZIP files to the GitHub release after both signing jobs succeed. On Apple silicon,
-extract the ZIP and move the notarized Geordi.app to Applications. On x64 Windows,
-extract the entire ZIP before opening the signed Geordi.exe.
-
-### Signing access
-
-Configure these GitHub environments in the Geordi repository. Restrict deployments to
-release tags matching `v*`, and restrict who can create or update those tags.
-
-- **desktop-signing** uses the secrets `CHATTO_MACOS_CERTIFICATE_BASE64` (the Developer
-  ID Application certificate and private key in PKCS#12 format),
-  `CHATTO_MACOS_CERTIFICATE_PASSWORD`, `CHATTO_MACOS_NOTARY_API_KEY_BASE64` (the
-  App Store Connect private key), `CHATTO_MACOS_NOTARY_API_KEY_ID` and
-  `CHATTO_MACOS_NOTARY_API_ISSUER_ID`.
-- **desktop-windows-signing** uses the secrets `CHATTO_WINDOWS_AZURE_CLIENT_ID`,
-  `CHATTO_WINDOWS_AZURE_TENANT_ID` and `CHATTO_WINDOWS_AZURE_SUBSCRIPTION_ID`. Set
-  the environment variables `CHATTO_WINDOWS_SIGNING_ENDPOINT`,
-  `CHATTO_WINDOWS_SIGNING_ACCOUNT_NAME`, `CHATTO_WINDOWS_CERTIFICATE_PROFILE_NAME`
-  and `CHATTO_WINDOWS_EXPECTED_PUBLISHER` (the full certificate subject).
-  Give the Azure application the Artifact Signing Certificate Profile Signer role on
-  the profile. Add a federated credential with issuer
-  `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`
-  and subject `repo:chattocorp@261891647/geordi@1458178913:environment:desktop-windows-signing`.
+unsigned ZIP archives for Apple silicon macOS and x64 Windows after both native
+builds pass their packaged runtime checks. Pull requests that change desktop packaging
+also produce both ZIPs as downloadable workflow artifacts.
 
 ## Running in production
 

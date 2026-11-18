@@ -13,16 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  package:
-    if: github.event_name == 'pull_request'
-    strategy:
-      matrix:
-        os: [macos-15, windows-2025]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/package-desktop
-
   release-tag:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -35,100 +25,40 @@ jobs:
           git merge-base --is-ancestor HEAD origin/main
           test "$GITHUB_REF_NAME" = "v$(jq -r .version apps/desktop/package.json)"
 
-  macos:
-    needs: release-tag
-    runs-on: macos-15
-    environment: desktop-signing
+  package:
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            target: macOS-arm64
+          - os: windows-2025
+            target: Windows-x64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/package-desktop
-      - name: Sign, notarize and archive Geordi
+      - name: Archive the desktop app
+        working-directory: apps/desktop/dist
         shell: bash
         env:
-          CERTIFICATE: ${{ secrets.CHATTO_MACOS_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.CHATTO_MACOS_CERTIFICATE_PASSWORD }}
-          NOTARY_KEY: ${{ secrets.CHATTO_MACOS_NOTARY_API_KEY_BASE64 }}
-          KEY_ID: ${{ secrets.CHATTO_MACOS_NOTARY_API_KEY_ID }}
-          ISSUER: ${{ secrets.CHATTO_MACOS_NOTARY_API_ISSUER_ID }}
+          TARGET: ${{ matrix.target }}
         run: |
-          set -euo pipefail
-          umask 077
-          temp=$(mktemp -d)
-          keychain="$temp/signing.keychain-db"
-          trap 'security delete-keychain "$keychain" || true; rm -rf "$temp"' EXIT
-          password=$(openssl rand -hex 24)
-          security create-keychain -p "$password" "$keychain"
-          security unlock-keychain -p "$password" "$keychain"
-          security set-keychain-settings -lut 3600 "$keychain"
-          printf %s "$CERTIFICATE" | base64 -D > "$temp/cert.p12"
-          security import "$temp/cert.p12" -k "$keychain" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
-          identity=$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application:/ {print $2; exit}')
-          test -n "$identity"
-          cd apps/desktop
-          app=dist/Geordi-darwin-arm64/Geordi.app
-          node --input-type=module - "$app" "$identity" "$keychain" <<'JS'
-          import { sign } from '@electron/osx-sign';
-          const [app, identity, keychain] = process.argv.slice(2);
-          await sign({ app, identity, keychain });
-          JS
-          codesign --verify --deep --strict "$app"
-          printf %s "$NOTARY_KEY" | base64 -D > "$temp/AuthKey_$KEY_ID.p8"
-          ditto -c -k --keepParent "$app" "$temp/submit.zip"
-          xcrun notarytool submit "$temp/submit.zip" --key "$temp/AuthKey_$KEY_ID.p8" --key-id "$KEY_ID" --issuer "$ISSUER" --wait
-          xcrun stapler staple "$app"
-          xcrun stapler validate "$app"
-          spctl --assess --type execute "$app"
-          ditto -c -k --keepParent "$app" "dist/Geordi-$GITHUB_REF_NAME-macOS-arm64.zip"
+          version=$(node -p "require('../package.json').version")
+          archive="Geordi-v${version}-$TARGET.zip"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            ditto -c -k --keepParent Geordi-darwin-arm64/Geordi.app "$archive"
+          else
+            7z a -tzip "$archive" Geordi-win32-x64
+          fi
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-macos
+          name: desktop-${{ matrix.target }}
           path: apps/desktop/dist/*.zip
           if-no-files-found: error
-
-  windows:
-    needs: release-tag
-    runs-on: windows-2025
-    environment: desktop-windows-signing
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/package-desktop
-      - uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.CHATTO_WINDOWS_AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.CHATTO_WINDOWS_AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.CHATTO_WINDOWS_AZURE_SUBSCRIPTION_ID }}
-      - uses: azure/artifact-signing-action@v2
-        with:
-          endpoint: ${{ vars.CHATTO_WINDOWS_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.CHATTO_WINDOWS_SIGNING_ACCOUNT_NAME }}
-          certificate-profile-name: ${{ vars.CHATTO_WINDOWS_CERTIFICATE_PROFILE_NAME }}
-          files: ${{ github.workspace }}\apps\desktop\dist\Geordi-win32-x64\Geordi.exe
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-      - name: Verify publisher and archive Geordi
-        env:
-          PUBLISHER: ${{ vars.CHATTO_WINDOWS_EXPECTED_PUBLISHER }}
-        working-directory: apps/desktop/dist
-        run: |
-          $signature = Get-AuthenticodeSignature Geordi-win32-x64/Geordi.exe
-          if ($signature.Status -ne 'Valid' -or !$signature.TimeStamperCertificate -or
-              !$env:PUBLISHER -or $signature.SignerCertificate.Subject -ne $env:PUBLISHER) {
-            throw "Invalid signature, timestamp or publisher for Geordi.exe"
-          }
-          7z a -tzip "Geordi-$env:GITHUB_REF_NAME-Windows-x64.zip" Geordi-win32-x64
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-windows
-          path: apps/desktop/dist/*.zip
-          if-no-files-found: error
+          compression-level: 0
 
   publish:
-    needs: [macos, windows]
+    needs: [release-tag, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
