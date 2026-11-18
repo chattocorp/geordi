@@ -1,0 +1,13 @@
+diff --git a/dist/graphql-CI3WZ5ux.mjs b/dist/graphql-CI3WZ5ux.mjs
+index 7607151ec9a8e10adf9f6610a6bf88aabaa910f1..98253507205e87b152e3e6b0f67e40b853f056d3 100644
+--- a/dist/graphql-CI3WZ5ux.mjs
++++ b/dist/graphql-CI3WZ5ux.mjs
+@@ -118,7 +118,7 @@ const PULL_FIELDS = `id number title body state isDraft createdAt updatedAt clos
+       participants(first: 20) { nodes { ${USER_FIELDS} } }
+       milestone { number title state description dueOn url }
+       viewerSubscription
+-      headRefName headRefOid baseRefName baseRefOid
++      headRefName headRefOid baseRefName baseRefOid reviewDecision mergeable
+       headRepository { databaseId name owner { login } }
+       mergeCommit { oid }
+       additions deletions changedFiles

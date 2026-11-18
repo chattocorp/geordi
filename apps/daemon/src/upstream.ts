@@ -1,5 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import type { CheckCounts, PullRequest, Upstream } from '@geordi/protocol';
+import {
+	upstreamFreshFor,
+	type CheckCounts,
+	type PullRequest,
+	type Upstream
+} from '@geordi/protocol';
 import {
 	createForges,
 	github,
@@ -11,6 +16,7 @@ import {
 	type Thread
 } from 'forges';
 import { providersFromEnv } from 'forges/env';
+import { readPull, rollupCounts } from './pull-batch.ts';
 import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /**
@@ -117,12 +123,18 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 	if (typeof raw.mergeable_state === 'string')
 		return raw.mergeable_state === 'unknown' ? undefined : raw.mergeable_state === 'dirty';
 	if (typeof raw.has_conflicts === 'boolean') return raw.has_conflicts;
+	if (raw.mergeable === 'CONFLICTING') return true;
+	if (raw.mergeable === 'MERGEABLE') return false;
 	if (typeof raw.mergeable === 'boolean') return !raw.mergeable;
 }
 
 /** Boils a pull request down to what the workspace shows. */
 export function summarise(thread: Thread, counts?: CheckCounts): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
+	const decision = (thread.raw as { reviewDecision?: string } | null)?.reviewDecision;
+	if (decision === 'APPROVED') reviews.push('approved');
+	if (decision === 'CHANGES_REQUESTED') reviews.push('changes_requested');
+	if (decision === 'REVIEW_REQUIRED') reviews.push('pending');
 	const { checks } = thread;
 	const conflicts = conflictsOf(thread);
 	return {
@@ -232,8 +244,7 @@ const cache = new Map<string, Cached>();
 
 /**
  * How the workspace's branch stands upstream. `null` if the repository has no `origin`
- * remote on a forge we know. Asks the forge at most once a minute per workspace, and not at
- * all while the branch hasn't been pushed.
+ * remote on a forge we know. Reuses recent answers, with a shorter lifetime while checks run.
  */
 export async function upstream(
 	worktree: Worktree,
@@ -260,36 +271,50 @@ export async function upstream(
 	// it here; the pull request is still there, and still this branch's. What is left of
 	// the push is that Git was told where the branch goes, or that we saw its pull request.
 	const local = found.head.slice('refs/heads/'.length);
-	const once =
-		git(repoPath, 'config', '--get', `branch.${local}.remote`) !== null ||
-		!!cache.get(worktreeId)?.value.pull;
-	if (!pushed && !once) return base;
-
-	// Pushing, or switching branches, changes the answer at once; otherwise reuse it for a while.
 	const key = `${remote} ${branch}`;
 	const cached = cache.get(worktreeId);
+	const previous = cached?.key === key ? cached.value : null;
+	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`))
+		return base;
+
 	// Asked to look now (something may just have happened there that nothing here shows: a
 	// pull request opened, a review), we do, unless we only just did. Not without
 	// credentials: those few requests are for looking now and then.
-	const fresh =
-		provider === anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : FRESH_MS;
-	if (cached?.key === key && now - cached.at < fresh) return cached.value;
+	const normal = upstreamFreshFor(previous, FRESH_MS);
+	const fresh = provider === anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
+	if (cached && previous?.pushed === pushed && now - cached.at < fresh) return previous;
 
-	const pull = await findPull(provider, repo, branch);
-	const defaultBranch = git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
+	const known = previous?.pull;
+	let pull: Thread | null = null;
+	if (known?.state === 'open' && provider.can('threads.getMany')) {
+		const ref = {
+			forge: repo.forge,
+			instance: repo.instance,
+			repo,
+			kind: 'pull_request' as const,
+			number: known.number
+		};
+		pull = await readPull(provider, ref);
+		// A closed or retargeted PR may have a successor on the same branch.
+		if (pull && (pull.state !== 'open' || !isFor(pull, repo, branch))) pull = null;
+	}
+	pull ??= await findPull(provider, repo, branch);
+	const defaultBranch =
+		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
 	const value: Upstream = {
 		...base,
-		pull: pull && summarise(pull, await countChecks(provider, repo, pull)),
+		pull: pull && summarise(pull, rollupCounts(pull) ?? (await countChecks(provider, repo, pull))),
 		createUrl:
-			(!pull &&
-				pushed &&
-				defaultBranch &&
+			(defaultBranch &&
 				provider.urlFor({
 					compare: { repo, base: defaultBranch.replace(/^origin\//, ''), head: branch }
 				})) ||
 			null
 	};
-	cache.set(worktreeId, { key, at: now, value });
+	// An overlapping refresh (or a merge) may have superseded this read.
+	const latest = cache.get(worktreeId);
+	if (latest === cached || (latest && latest.at < now))
+		cache.set(worktreeId, { key, at: now, value });
 	return value;
 }
 
