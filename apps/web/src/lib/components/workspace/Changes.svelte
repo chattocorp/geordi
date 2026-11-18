@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import type { WorktreeState } from '#lib/server/watchers.ts';
-	import UpstreamStatus from './UpstreamStatus.svelte';
 
 	type Props = {
 		/**
@@ -57,11 +56,6 @@
 {/snippet}
 
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
-	<!-- how many files there are is on the tab; with no pull request there is nothing to say here -->
-	{#if git?.upstream?.pull}
-		<UpstreamStatus upstream={git.upstream} />
-	{/if}
-
 	<div class="scroller py-1.5">
 		{#if gone}
 			<!-- what happened, calmly; the way out is in the workspace's title bar -->

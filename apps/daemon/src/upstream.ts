@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import type { PullRequest, Upstream } from '@geordi/protocol';
+import type { CheckCounts, PullRequest, Upstream } from '@geordi/protocol';
 import {
 	createForges,
 	github,
@@ -79,10 +79,8 @@ function forges() {
 	return (registry = { forges: createForges(providers), anonymous, at: Date.now() });
 }
 
-type Counts = NonNullable<NonNullable<PullRequest['checks']>['counts']>;
-
 /** How many checks stand how. */
-export function count(states: Check['state'][]): Counts {
+export function count(states: Check['state'][]): CheckCounts {
 	const counts = { passed: 0, failed: 0, pending: 0, skipped: 0 };
 	const kinds = { success: 'passed', failure: 'failed', pending: 'pending' } as const;
 	for (const state of states) counts[kinds[state as keyof typeof kinds] ?? 'skipped']++;
@@ -123,13 +121,14 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 }
 
 /** Boils a pull request down to what the workspace shows. */
-export function summarise(thread: Thread, counts?: Counts): PullRequest {
+export function summarise(thread: Thread, counts?: CheckCounts): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
 	const { checks } = thread;
 	const conflicts = conflictsOf(thread);
 	return {
 		number: thread.ref.number,
 		title: thread.title,
+		body: thread.body,
 		url: thread.url ?? null,
 		state: thread.state,
 		draft: thread.isDraft,

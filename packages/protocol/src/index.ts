@@ -124,8 +124,11 @@ export type Changes = {
  */
 export type FileVersions = { old: string | null; new: string | null } | { unavailable: string };
 
+export type CheckCounts = { passed: number; failed: number; pending: number; skipped: number };
+
 /** A pull request (or merge request, or whatever the forge calls it) for a workspace's branch. */
 export type PullRequest = {
+	body?: string;
 	number: string;
 	title: string;
 	url: string | null;
@@ -142,7 +145,7 @@ export type PullRequest = {
 		 * How many of them stand how; `skipped` are those that neither passed nor failed.
 		 * Absent where the forge only says how they stand overall.
 		 */
-		counts?: { passed: number; failed: number; pending: number; skipped: number };
+		counts?: CheckCounts;
 		url: string | null;
 	} | null;
 	/** Where its reviews stand, the most decisive first; `null` if nobody was asked. */
