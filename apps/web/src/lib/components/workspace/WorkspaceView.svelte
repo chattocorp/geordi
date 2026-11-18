@@ -65,6 +65,7 @@
 	import PullRequestTab from './PullRequestTab.svelte';
 	import PullRequestPane from './PullRequestPane.svelte';
 	import Changes from './Changes.svelte';
+	import DiffStat from '#lib/components/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import SourceWindow from './SourceWindow.svelte';
@@ -672,7 +673,13 @@
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
-		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
+		{#if git?.changes?.files.length}
+			{@const files = git.changes.files}
+			<DiffStat
+				added={files.reduce((sum, file) => sum + (file.added ?? 0), 0)}
+				removed={files.reduce((sum, file) => sum + (file.removed ?? 0), 0)}
+			/>
+		{/if}
 	{:else if tab === PR && pull}
 		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}

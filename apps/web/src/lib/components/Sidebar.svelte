@@ -156,7 +156,11 @@
 
 	/** Over a row: above it, if that stands at the top and the pointer is on its upper half; else above the next that does. */
 	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
-		if (!dragged || !draggedIn(rows)) return;
+		// within its own list only: its repository's, visible or hidden
+		if (!dragged || !draggedIn(rows)) {
+			dropBefore = undefined;
+			return;
+		}
 		event.preventDefault();
 		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 		const rect = event.currentTarget.getBoundingClientRect();
@@ -173,9 +177,9 @@
 		dropBefore = stays ? undefined : before;
 	}
 
-	function drop(event: DragEvent) {
+	function drop(event: DragEvent, repoId: string) {
 		event.preventDefault();
-		if (dragged && dropBefore !== undefined)
+		if (dragged?.repoId === repoId && dropBefore !== undefined)
 			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
 		endDrag();
 	}
@@ -322,7 +326,7 @@
 		}}
 		ondragend={endDrag}
 		ondragover={(event) => overRow(event, rows, index)}
-		ondrop={drop}
+		ondrop={(event) => drop(event, workspace.repoId)}
 	>
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div

@@ -1,5 +1,35 @@
 # Geordi Changelog
 
+## 0.4.0
+
+### Fixes
+
+- Agents now know they can draw Mermaid diagrams and SVG in their replies, and show SVG files they made. ([#154](https://github.com/chattocorp/geordi/pull/154))
+- Sidebar and pane dividers keep their appearance when you hover over them. ([#158](https://github.com/chattocorp/geordi/pull/158))
+- The selected tab in dark mode is quieter. ([#152](https://github.com/chattocorp/geordi/pull/152))
+- The desktop app is a third of its former size (the DMG a quarter): it now uses the Claude Code and Codex you have installed instead of shipping its own copies. ([#159](https://github.com/chattocorp/geordi/pull/159))
+- The Archive button now shows “Archiving…” while the workspace is being archived. ([#155](https://github.com/chattocorp/geordi/pull/155))
+- The Archive button keeps its label while the busy indicator runs. ([#160](https://github.com/chattocorp/geordi/pull/160))
+- Retry, and every other next step on a red ribbon, now takes the ribbon’s red. ([#149](https://github.com/chattocorp/geordi/pull/149))
+- A workspace whose branch was only brought up to date with its base no longer shows as merged. ([#164](https://github.com/chattocorp/geordi/pull/164))
+- Removed the redundant Working label and spinner from workspace and overview ribbons. ([#157](https://github.com/chattocorp/geordi/pull/157))
+- Overview cards keep their status ribbon inside the card when an agent is at work and has a next step. ([#149](https://github.com/chattocorp/geordi/pull/149))
+- A workspace now says "Checking…" while it waits to learn how its work stands, instead of showing an empty bar. ([#162](https://github.com/chattocorp/geordi/pull/162))
+
+### Features
+
+- Drag workspaces in the sidebar to put them in the order you like. New workspaces still appear at the top. ([#163](https://github.com/chattocorp/geordi/pull/163))
+- Sections on the Overview page can be folded away by their heading, and stay folded. ([#149](https://github.com/chattocorp/geordi/pull/149))
+- Mermaid diagrams and SVG in an agent’s replies are now shown as pictures instead of code, and agents can show SVG files they made, like screenshots. ([#150](https://github.com/chattocorp/geordi/pull/150))
+- The Sync button shows how many commits from the base branch are ready to merge into the workspace. ([#161](https://github.com/chattocorp/geordi/pull/161))
+- The reply box now shows running background commands and subagents in a collapsible tray. Select a task to open its tool call or conversation. ([#156](https://github.com/chattocorp/geordi/pull/156))
+
+### Performance
+
+- Agent output and terminals stay responsive while Geordi waits for Git on large or slow repositories.
+
+  Continue keeps your current branch and files if switching branches would overwrite a new, untracked file that Git does not ignore. ([#151](https://github.com/chattocorp/geordi/pull/151))
+
 ## 0.3.0
 
 ### Fixes

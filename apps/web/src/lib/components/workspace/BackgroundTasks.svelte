@@ -6,7 +6,7 @@
 
 	type Row = { task: BackgroundTask; label: string; kind: string; open?: () => void };
 	let { rows, withComposer }: { rows: Row[]; withComposer: boolean } = $props();
-	let open = $state(true);
+	let open = $state(false);
 </script>
 
 {#snippet contents(row: Row)}

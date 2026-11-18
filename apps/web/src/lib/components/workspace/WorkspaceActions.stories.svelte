@@ -120,6 +120,25 @@
 >
 
 <Story
+	name="Merge blocked by rules"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Merge blocked')).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /Merge PR/ })).toBeNull();
+	}}
+>
+	{@render bar({ changes: pushed, upstream: upstream({ blocked: 'rules' }) })}
+</Story>
+
+<Story name="Behind base branch, which must be up to date" asChild
+	>{@render bar({
+		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
+		upstream: upstream({ blocked: 'behind' })
+	})}</Story
+>
+
+<Story
 	name="Waiting for merged standing"
 	asChild
 	play={async ({ canvasElement }) => {
@@ -256,6 +275,16 @@
 	})}
 </Story>
 
+<Story name="Upstream commits with auto-merge enabled" asChild>
+	{@render bar({
+		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 2 } },
+		upstream: upstream({
+			checks: { state: 'pending', total: 3, failed: 0, url: null },
+			autoMerge: { enabled: true, canEnable: false, canDisable: true }
+		})
+	})}
+</Story>
+
 <Story name="Merging upstream" asChild>
 	{@render bar(
 		{
@@ -273,7 +302,7 @@
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Behind base branch')).toBeVisible();
 		const sync = canvas.getByRole('button', { name: 'Sync 1 incoming commit' });
-		await expect(within(sync).getByText('1')).toHaveClass('text-muted/70');
+		await expect(within(sync).getByText('1')).toHaveClass('opacity-60');
 	}}
 >
 	{@render bar({
@@ -346,6 +375,24 @@
 		changes: pushed,
 		upstream: upstream({
 			checks: { state: 'pending', total: 3, failed: 0, url: null },
+			autoMerge: { enabled: false, canEnable: true, canDisable: false }
+		})
+	})}
+</Story>
+
+<Story
+	name="Merge, not auto-merge, once ready"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: /Merge PR/ })).toBeEnabled();
+		await expect(canvas.queryByRole('button', { name: 'Auto-merge' })).toBeNull();
+	}}
+>
+	{@render bar({
+		changes: pushed,
+		upstream: upstream({
+			checks: { state: 'success', total: 3, failed: 0, url: null },
 			autoMerge: { enabled: false, canEnable: true, canDisable: false }
 		})
 	})}
