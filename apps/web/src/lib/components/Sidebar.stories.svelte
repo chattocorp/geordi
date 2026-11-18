@@ -143,7 +143,8 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// what its agent started goes with it; one that asks something stays in sight
+		// even the one open goes with the hidden, and what its agent started with it; one
+		// that asks something stays in sight
 		await expect(canvas.queryByText('Sketch the onboarding flow')).toBeNull();
 		await expect(canvas.queryByText('Draft onboarding copy')).toBeNull();
 		await expect(canvas.getByText('Pick a licence')).toBeVisible();
@@ -152,5 +153,5 @@
 		await expect(canvas.getByRole('button', { name: 'Show fewer' })).toBeVisible();
 	}}
 >
-	{@render frame(withHidden, '/workspaces/ready')}
+	{@render frame(withHidden, '/workspaces/old')}
 </Story>

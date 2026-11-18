@@ -45,9 +45,8 @@
 		}
 		return false;
 	};
-	/** A hidden workspace still shows while it is open, or while its agent asks something. */
-	const stowed = (workspace: Item) =>
-		hidden(workspace) && workspace.outcome !== 'asking' && path !== `/workspaces/${workspace.id}`;
+	/** A hidden workspace still shows while its agent asks something. */
+	const stowed = (workspace: Item) => hidden(workspace) && workspace.outcome !== 'asking';
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(all.filter((workspace) => !stowed(workspace))));
 	/** The hidden ones, listed the same way, under the others when asked for. */
