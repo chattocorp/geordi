@@ -7,6 +7,7 @@ describe('instructionsFor', () => {
 	it('tells an agent where it is, and how to hand work on', () => {
 		const text = instructionsFor(own);
 		expect(text).toContain('inside Geordi');
+		expect(text).toContain('[Workspace title](/workspaces/<id>)');
 		expect(text).toContain('a branch of its own');
 		expect(text).toContain('`start_agent`');
 		expect(text).toContain('`configuration_reference`');
