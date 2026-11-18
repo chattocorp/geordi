@@ -11,6 +11,10 @@
 		type WorkspaceStanding
 	} from '#lib/actions.ts';
 	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
+	import MessageView from './MessageView.svelte';
+	import { subagentBlocks } from '#lib/transcript.ts';
+	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
+	import { agentName } from '#lib/format.ts';
 	import ConversationTab from './ConversationTab.svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import {
@@ -118,6 +122,36 @@
 	const aideOf = (tab: string) =>
 		tab.startsWith('agent:') ? workspace.aides.find((aide) => aide.id === tab.slice(6)) : undefined;
 
+	const reviewerTab = (owner: string, child: string) =>
+		'subagent:' + JSON.stringify([owner, child]);
+	const reviewers = $derived.by(() => {
+		const found = new SvelteMap<
+			string,
+			{ owner: Workspace; child: SubagentItem; parentTab: string; parentName: string }
+		>();
+		function collect(
+			owner: Workspace,
+			items: Workspace['transcript'] | SubagentItem['items'],
+			parentTab: string,
+			parentName: string
+		) {
+			for (const child of items) {
+				if (child.kind !== 'subagent') continue;
+				const tab = reviewerTab(owner.id, child.id);
+				found.set(tab, { owner, child, parentTab, parentName });
+				collect(owner, child.items, tab, child.title || 'Subagent');
+			}
+		}
+		for (const owner of [workspace, ...workspace.aides])
+			collect(
+				owner,
+				owner.transcript,
+				owner.id === id ? CHAT : `agent:${owner.id}`,
+				agentName[owner.agent]
+			);
+		return found;
+	});
+
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
 	const arrangement = persisted<Partial<Record<Area, Layout | null>>>(
@@ -142,6 +176,7 @@
 		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
+		if (tab.startsWith('subagent:')) return reviewers.has(tab);
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
 		return tab === CHAT || tab === CHANGES || !!pathOf(tab) || !!sourceOf(tab);
 	};
@@ -628,6 +663,7 @@
 {/snippet}
 
 {#snippet tab(tab: string)}
+	{@const reviewer = reviewers.get(tab)}
 	{@const path = pathOf(tab) ?? sourceOf(tab)}
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
@@ -679,6 +715,13 @@
 	{:else if tab === DRAFT}
 		<span class="icon-[lucide--message-square-plus] size-3.5 shrink-0"></span>
 		<span class="truncate">New conversation</span>
+	{:else if reviewer}
+		<ConversationTab
+			subagent
+			agent={reviewer.owner.agent}
+			title={reviewer.child.title || 'Subagent'}
+			running={reviewer.child.state === 'running'}
+		/>
 	{:else if aideOf(tab)}
 		{@const aide = aideOf(tab)!}
 		<ConversationTab agent={aide.agent} title={aide.title} running={aide.status === 'running'} />
@@ -688,6 +731,7 @@
 {/snippet}
 
 {#snippet window(tab: string)}
+	{@const reviewer = reviewers.get(tab)}
 	{@const path = pathOf(tab)}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
@@ -739,14 +783,29 @@
 				<NewWorkspace repos={[repo]} alongside={id} focused />
 			</div>
 		</div>
+	{:else if reviewer}
+		<MessageView
+			blocks={subagentBlocks(reviewer.child)}
+			parentAgent={{ name: reviewer.parentName, open: () => showTab(reviewer.parentTab) }}
+			agent={reviewer.owner.agent}
+			running={reviewer.child.state === 'running' || reviewer.child.state === 'waiting'}
+			cwd={reviewer.owner.worktree?.path}
+			pictures={resolve('/workspaces/[id]/picture', { id: reviewer.owner.id })}
+			onopensubagent={(child) => showTab(reviewerTab(reviewer.owner.id, child))}
+		/>
 	{:else if aideOf(tab)}
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
 			workspace={aideOf(tab)!}
+			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
 			senders={{ ...workspace.senders, [workspace.id]: workspace.title }}
 		/>
 	{:else}
-		<Conversation {workspace} senders={workspace.senders} />
+		<Conversation
+			{workspace}
+			onopensubagent={(child) => showTab(reviewerTab(id, child))}
+			senders={workspace.senders}
+		/>
 	{/if}
 {/snippet}
 
@@ -776,7 +835,6 @@
 			</div>
 		</div>
 		<WorkspaceActions
-			refreshing={workspace.refreshing}
 			{standing}
 			pull={standingState?.upstream?.pull}
 			actions={offered}

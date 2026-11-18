@@ -74,6 +74,12 @@ export function createWatches(
 	}
 
 	return {
+		/** A discovered or retargeted pull changes this comparison and its descendants. */
+		targetChanged(id: string) {
+			for (const ref of wanted)
+				if (ref.worktreeId === id || ref.parents?.some((parent) => parent.worktreeId === id))
+					onChange(ref.worktreeId);
+		},
 		/** Replaces the set of watched workspaces. */
 		set(worktrees: WorktreeRef[]) {
 			wanted = worktrees;

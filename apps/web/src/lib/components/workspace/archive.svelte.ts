@@ -16,19 +16,26 @@ export type ArchiveQuestion = {
 	answer(go: boolean): void;
 };
 
-export const archiving = $state<{ asking: ArchiveQuestion | null }>({ asking: null });
+const questions = $state<ArchiveQuestion[]>([]);
+export const archiving = {
+	get asking() {
+		return questions[0] ?? null;
+	}
+};
 
 export async function archive(workspaceId: string, title: string): Promise<boolean> {
-	if (beingArchived.size) return false;
+	if (beingArchived.has(workspaceId)) return false;
 	delete archiveProblems[workspaceId];
 	beingArchived.add(workspaceId);
+	let hasQuestion = false;
 	try {
 		const { concerns, discard, blocked } = await previewArchive(workspaceId);
 		if (concerns.length) {
 			const decision = Promise.withResolvers<boolean>();
-			archiving.asking = { title, concerns, blocked, busy: false, answer: decision.resolve };
+			questions.push({ title, concerns, blocked, busy: false, answer: decision.resolve });
+			hasQuestion = true;
 			if (!(await decision.promise) || blocked) return false;
-			archiving.asking.busy = true;
+			questions[0].busy = true;
 		}
 		await archiveWorkspace({ workspaceId, discard });
 		return true;
@@ -37,6 +44,6 @@ export async function archive(workspaceId: string, title: string): Promise<boole
 		return false;
 	} finally {
 		beingArchived.delete(workspaceId);
-		archiving.asking = null;
+		if (hasQuestion) questions.shift();
 	}
 }

@@ -1,8 +1,9 @@
-import type { TranscriptItem } from '#lib/server/workspaces.ts';
+import type { SubagentItem, TranscriptItem } from '#lib/server/workspaces.ts';
 
 type Tool = Extract<TranscriptItem, { kind: 'tool' }>;
 
 export type Part =
+	| Extract<TranscriptItem, { kind: 'subagent' }>
 	| { kind: 'text'; text: string }
 	| { kind: 'tools'; tools: Tool[] }
 	| Omit<Extract<TranscriptItem, { kind: 'question' }>, 'at'>
@@ -11,15 +12,24 @@ export type Part =
 
 /** A user message, everything the agent did in reply to one, or something said in passing. */
 export type Block =
-	| Pick<Extract<TranscriptItem, { kind: 'user' }>, 'kind' | 'text' | 'from' | 'images'>
+	| (Pick<Extract<TranscriptItem, { kind: 'user' }>, 'kind' | 'text' | 'from' | 'images'> & {
+			delegated?: boolean;
+	  })
 	| { kind: 'agent'; parts: Part[] }
 	| { kind: 'note'; text: string };
 
 /** Groups a flat transcript into turns, merging consecutive tool calls into one part. */
-export function toBlocks(transcript: TranscriptItem[]): Block[] {
+export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): Block[] {
 	const blocks: Block[] = [];
 
 	for (const item of transcript) {
+		if (item.kind === 'message') {
+			if (!item.text) continue;
+			if (item.incoming) {
+				blocks.push({ kind: 'user', text: item.text, delegated: true });
+				continue;
+			}
+		}
 		if (item.kind === 'note') {
 			blocks.push({ kind: 'note', text: item.text });
 			continue;
@@ -41,8 +51,10 @@ export function toBlocks(transcript: TranscriptItem[]): Block[] {
 		if (item.kind === 'tool') {
 			if (last?.kind === 'tools') last.tools.push(item);
 			else agent.parts.push({ kind: 'tools', tools: [item] });
-		} else if (item.kind === 'text') {
+		} else if (item.kind === 'text' || item.kind === 'message') {
 			agent.parts.push({ kind: 'text', text: item.text });
+		} else if (item.kind === 'subagent') {
+			agent.parts.push(item);
 		} else if (item.kind === 'plan') {
 			agent.parts.push({ kind: 'plan', id: item.id, plan: item.plan });
 		} else if (item.kind === 'question') {
@@ -54,5 +66,19 @@ export function toBlocks(transcript: TranscriptItem[]): Block[] {
 		}
 	}
 
+	return blocks;
+}
+
+export function subagentBlocks(child: SubagentItem): Block[] {
+	const blocks = toBlocks(child.items);
+	const notices = {
+		failed: 'Subagent failed',
+		stopped: 'Subagent stopped',
+		waiting: 'Waiting for input'
+	};
+	if (child.state === 'failed' || child.state === 'stopped' || child.state === 'waiting')
+		blocks.push({ kind: 'note', text: notices[child.state] });
+	else if (!blocks.length)
+		blocks.push({ kind: 'note', text: child.description || 'No activity reported yet.' });
 	return blocks;
 }

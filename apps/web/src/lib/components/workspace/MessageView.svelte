@@ -10,6 +10,7 @@
 	import Markdown from '#lib/components/Markdown.svelte';
 	import PlanCard from '#lib/components/PlanCard.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
+	import SubagentRow from '#lib/components/SubagentRow.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
@@ -21,8 +22,10 @@
 		cwd,
 		pictures,
 		senders,
+		parentAgent,
 		queue = [],
 		queueImages = [],
+		onopensubagent,
 		onremove,
 		onanswer,
 		following = $bindable(true)
@@ -34,11 +37,13 @@
 		/** Where the pictures the agent refers to are served. */
 		pictures?: string;
 		senders?: Record<string, string>;
+		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
-		onremove: (index: number, text: string, images: string[]) => void;
+		onopensubagent?: (id: string) => void;
+		onremove?: (index: number, text: string, images: string[]) => void;
 		/** Answers something the agent asked: one answer per question. */
-		onanswer: (question: string, answers: string[]) => unknown;
+		onanswer?: (question: string, answers: string[]) => unknown;
 		following?: boolean;
 	} = $props();
 
@@ -67,6 +72,11 @@
 			expanded.add(index);
 		}
 	}
+
+	// Some providers announce the reviewer without forwarding its assignment.
+	const assignmentIndex = $derived(
+		parentAgent ? blocks.findIndex((block) => block.kind === 'user' && block.delegated) : -1
+	);
 
 	const rows = $derived([
 		...blocks.map((block) => ({ kind: 'block' as const, block })),
@@ -137,6 +147,8 @@
 			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
 			{#if part.text}{@render messageActions(part.text)}{/if}
 		</div>
+	{:else if part.kind === 'subagent'}
+		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
 	{:else if part.kind === 'tools'}
 		<!-- live: the agent is at work, and this is the last thing it did -->
 		<ToolGroup tools={part.tools} {cwd} {live} />
@@ -148,10 +160,10 @@
 		<QuestionCard
 			questions={part.questions}
 			answers={part.answers}
-			open={part.open}
+			open={part.open && !!onanswer}
 			delivery={part.delivery}
 			blocking={part.blocking}
-			onanswer={(answers) => onanswer(part.id, answers)}
+			onanswer={(answers) => onanswer?.(part.id, answers)}
 		/>
 	{:else}
 		<Notice>{part.error}</Notice>
@@ -179,12 +191,25 @@
 				{#if row.kind === 'block'}
 					{@const block = row.block}
 					<div>
+						{#if parentAgent && i === Math.max(0, assignmentIndex)}
+							<div class={['flex pb-1', block.kind === 'user' && 'justify-end']}>
+								<button
+									type="button"
+									onclick={parentAgent.open}
+									title="Open parent conversation"
+									class="inline-flex items-center gap-1.5 rounded-control text-xs text-muted hover:text-ink hover:underline"
+								>
+									<span class="icon-[lucide--git-branch] size-3.5"></span>
+									Assigned by {parentAgent.name}
+								</button>
+							</div>
+						{/if}
 						{#if block.kind === 'user'}
-							{#if block.from}
+							{#if block.from || (block.delegated && i !== assignmentIndex)}
 								<!-- not the person's words: another agent's, and whose -->
 								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
 									<span class="icon-[lucide--bot] size-3.5"></span>
-									{senders?.[block.from]
+									{block.from && senders?.[block.from]
 										? `From the agent in “${senders[block.from]}”`
 										: 'From another agent'}
 								</p>
@@ -208,10 +233,13 @@
 							{@const hiddenCount = live
 								? 0
 								: block.parts.length - (last && last.kind !== 'tools' ? 1 : 0)}
+							{@const hidden = block.parts
+								.slice(0, hiddenCount)
+								.filter((part) => part.kind !== 'subagent')}
 							<div class="flex gap-3.5">
 								<AgentAvatar {agent} />
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
-									{#if hiddenCount}
+									{#if hidden.length}
 										<button
 											type="button"
 											class="flex h-7 items-center gap-1.5 rounded-control text-xs text-muted hover:text-ink"
@@ -219,9 +247,7 @@
 											onclick={() => toggleActivity(i)}
 										>
 											Turn activity
-											<span class="text-muted"
-												>{activitySummary(block.parts.slice(0, hiddenCount))}</span
-											>
+											<span class="text-muted">{activitySummary(hidden)}</span>
 											<span
 												class={[
 													'icon-[lucide--chevron-right] size-3.5',
@@ -231,7 +257,7 @@
 										</button>
 									{/if}
 									{#each block.parts as part, j (j)}
-										{#if j >= hiddenCount || expanded.has(i)}
+										{#if part.kind === 'subagent' || j >= hiddenCount || expanded.has(i)}
 											{@render agentPart(
 												part,
 												j !== lastText,
@@ -250,7 +276,7 @@
 						{#if text}<Markdown preserveLineBreaks {text} {pictures} dimmed />{/if}
 						<MessageImages {images} />
 					</div>
-					{@render messageActions(text, true, () => onremove(index, text, images))}
+					{@render messageActions(text, true, onremove && (() => onremove(index, text, images)))}
 				{/if}
 			</div>
 		{/snippet}
