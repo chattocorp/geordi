@@ -199,7 +199,9 @@ describe('configuring the repository', () => {
 
 	it('says which file applies, what it sets, and what is wrong with it', async () => {
 		const { call, config } = setup();
+		config.current.default = 'urls.app';
 		expect(await call('check_configuration')).toEqual({
+			default: 'urls.app',
 			applies: 'the .geordi.yml in your working directory',
 			problem: null,
 			ports: { first: 20000, count: 10 },

@@ -1,9 +1,11 @@
 <script lang="ts">
-	import type { Job, Link } from '@geordi/protocol';
+	import type { Job, Link, RepoConfig } from '@geordi/protocol';
+	import ButtonGroup from '#lib/ui/ButtonGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import { openMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 
 	let {
+		defaultTarget,
 		jobs,
 		links,
 		isUp,
@@ -13,6 +15,7 @@
 		visit,
 		problem = null
 	}: {
+		defaultTarget?: RepoConfig['default'];
 		jobs: Job[];
 		links: Link[];
 		isUp: (name: string) => boolean;
@@ -22,6 +25,13 @@
 		visit: (link: Link) => void;
 		problem?: string | null;
 	} = $props();
+
+	const link = $derived(
+		defaultTarget ? links.find((link) => `urls.${link.name}` === defaultTarget) : links[0]
+	);
+	const job = $derived(
+		defaultTarget ? jobs.find((job) => `jobs.${job.name}` === defaultTarget) : jobs[0]
+	);
 
 	/** What the Run button offers where there is more than one thing: links first, then jobs. */
 	const menu = (): MenuItem[] => {
@@ -64,44 +74,57 @@
 	};
 </script>
 
-{#if jobs.length === 1 && links.length === 0}
-	<!-- one thing to run: a button says it all -->
-	{@const [job] = jobs}
-	{#if isUp(job.name) || launching.has(job.name)}
-		<Button
-			variant="ghost"
-			size="sm"
-			icon="icon-[lucide--square]"
-			working={launching.has(job.name)}
-			label="Stop {job.label ?? job.name}"
-			onclick={() => stop(job.name)}
-		>
-			Stop{job.label ? ` ${job.label}` : ''}
-		</Button>
-	{:else}
+{#snippet primary()}
+	{#if link}
 		<Button
 			variant="ghost"
 			size="sm"
 			icon="icon-[lucide--play]"
-			label="Run {job.label ?? job.name}: {job.command}"
-			onclick={() => start([job.name])}
+			label="Open {link.label ?? link.name}"
+			working={link.needs.some((name) => launching.has(name))}
+			onclick={() => visit(link)}>Run</Button
 		>
-			Run{job.label ? ` ${job.label}` : ''}
-		</Button>
+	{:else if job}
+		{#if isUp(job.name) || launching.has(job.name)}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--square]"
+				working={launching.has(job.name)}
+				label="Stop {job.label ?? job.name}"
+				onclick={() => stop(job.name)}
+			>
+				Stop{jobs.length + links.length === 1 && job.label ? ` ${job.label}` : ''}
+			</Button>
+		{:else}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--play]"
+				label="Run {job.label ?? job.name}: {job.command}"
+				onclick={() => start([job.name])}
+			>
+				Run{jobs.length + links.length === 1 && job.label ? ` ${job.label}` : ''}
+			</Button>
+		{/if}
 	{/if}
-{:else if jobs.length > 0 || links.length > 0}
-	<Button
-		variant="ghost"
-		size="sm"
-		icon="icon-[lucide--play]"
-		working={jobs.some((job) => launching.has(job.name))}
-		label="Open what the project serves, and start and stop what it runs"
-		aria-haspopup="menu"
-		onclick={(event) => openMenu(event.currentTarget, menu())}
-	>
-		Run
-		<span class="icon-[lucide--chevron-down] size-3.5"></span>
-	</Button>
+{/snippet}
+
+{#if jobs.length + links.length > 1}
+	<ButtonGroup label="Run controls">
+		{@render primary()}
+		<Button
+			variant="ghost"
+			size="sm"
+			icon="icon-[lucide--chevron-down]"
+			class="self-center"
+			label="Run menu"
+			aria-haspopup="menu"
+			onclick={(event) => openMenu(event.currentTarget, menu())}
+		/>
+	</ButtonGroup>
+{:else if link || job}
+	{@render primary()}
 {:else if problem}
 	<!-- a configuration nobody can read is worth knowing about, quietly -->
 	<span
