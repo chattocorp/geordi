@@ -273,7 +273,7 @@
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Behind base branch')).toBeVisible();
 		const sync = canvas.getByRole('button', { name: 'Sync 1 incoming commit' });
-		await expect(within(sync).getByText('1')).toHaveClass('text-muted/70');
+		await expect(within(sync).getByText('1')).toHaveClass('opacity-60');
 	}}
 >
 	{@render bar({
