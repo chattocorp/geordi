@@ -2,4 +2,4 @@
 type: feature
 ---
 
-Workspaces with a pull request now show its description, review status and checks beside Changes in a tab labeled with the pull request number. The tab shows check progress while checks run.
+Workspaces with a pull request now show a numbered tab beside Changes. It shows check progress while checks run. Open the tab to read the title and description and see the state, review, target branch and checks.

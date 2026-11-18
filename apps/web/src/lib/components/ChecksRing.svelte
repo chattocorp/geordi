@@ -1,22 +1,14 @@
 <script lang="ts">
-	import type { PullRequest } from '@geordi/protocol';
+	import type { CheckCounts } from '@geordi/protocol';
+	import { describeCounts } from '#lib/checks.ts';
 	import Ring from '#lib/ui/Ring.svelte';
 
-	let { counts }: { counts?: NonNullable<PullRequest['checks']>['counts'] } = $props();
+	let { counts }: { counts?: CheckCounts } = $props();
+	const summary = $derived(counts && describeCounts(counts));
 </script>
 
-{#if counts}
-	<Ring
-		label="Checks: {counts.pending} running, {counts.passed} passed{counts.failed
-			? `, ${counts.failed} failed`
-			: ''}"
-		parts={[
-			{ size: counts.failed, tone: 'danger' },
-			{ size: counts.passed, tone: 'ok' },
-			{ size: counts.skipped, tone: 'neutral' },
-			{ size: counts.pending, tone: 'accent' }
-		]}
-	/>
+{#if summary}
+	<Ring label="Checks: {summary.text}" parts={summary.parts} />
 {:else}
 	<Ring label="Checks running" parts={[{ size: 1, tone: 'accent' }]} />
 {/if}

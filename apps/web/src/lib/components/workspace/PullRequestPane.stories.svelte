@@ -27,7 +27,12 @@
 </script>
 
 {#snippet pane(pull: PullRequest)}
-	<div class="w-96 sheet"><PullRequestPane {pull} /></div>
+	<div class="w-96 sheet">
+		<div class="pane-bar px-2">
+			<span class="flex items-center gap-2 tab-active px-2 py-1"><PullRequestTab {pull} /></span>
+		</div>
+		<PullRequestPane {pull} />
+	</div>
 {/snippet}
 
 <Story name="Ready to merge" asChild>{@render pane(withPull())}</Story>
@@ -74,12 +79,4 @@
 
 <Story name="Merged" asChild>
 	{@render pane(withPull({ state: 'merged', checks: null, review: null }))}
-</Story>
-
-<Story name="Tab while checks run" asChild>
-	<div class="flex items-center gap-2">
-		<PullRequestTab
-			pull={withPull({ checks: { state: 'pending', total: null, failed: null, url: null } })}
-		/>
-	</div>
 </Story>

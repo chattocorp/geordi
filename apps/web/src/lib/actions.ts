@@ -1,4 +1,4 @@
-import type { Changes, Upstream } from '@geordi/protocol';
+import type { Changes, CheckCounts, Upstream } from '@geordi/protocol';
 
 /**
  * What could or should happen next in a workspace (FDR-003), worked out from where its
@@ -227,7 +227,7 @@ export type WorkspaceStanding = {
 	/** An Iconify class. */
 	icon: string;
 	/** While checks run: how many of them stand how, where the forge says. */
-	checks?: { passed: number; failed: number; pending: number; skipped: number };
+	checks?: CheckCounts;
 };
 
 /**
