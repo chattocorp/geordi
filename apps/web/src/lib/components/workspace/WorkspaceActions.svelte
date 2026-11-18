@@ -22,6 +22,7 @@
 		 * be so, and is not shown, nor offered to act on, until it is.
 		 */
 		checking?: boolean;
+		onopenpull(): void;
 		onaction(action: WorkspaceAction): void;
 	};
 	let {
@@ -32,6 +33,7 @@
 		working = false,
 		asking = false,
 		checking = false,
+		onopenpull,
 		onaction
 	}: Props = $props();
 
@@ -60,23 +62,32 @@
 -->
 <div class="flex shrink-0 items-center gap-2">
 	{#if pull}
-		<svelte:element
-			this={pull.url ? 'a' : 'span'}
-			href={pull.url}
-			target="_blank"
-			rel="noreferrer"
-			class={[
-				'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 code-dense',
-				// always quiet: it is a way to somewhere, and how things stand is said next to it
-				tones.neutral,
-				pull.url && 'hover:text-ink'
-			]}
-			title="Open the pull request"
-		>
-			<span class="icon-[lucide--git-pull-request] size-4"></span>
-			#{pull.number}
-			{#if pull.url}<span class="icon-[lucide--external-link] size-3.5 opacity-70"></span>{/if}
-		</svelte:element>
+		<div class="inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted">
+			<button
+				type="button"
+				class={[
+					'inline-flex items-center gap-1.5 rounded-full pl-3 text-sm leading-none font-medium tabular-nums hover:text-ink',
+					pull.url ? 'pr-0.5' : 'pr-3'
+				]}
+				title={`Show pull request #${pull.number} in this workspace`}
+				onclick={onopenpull}
+			>
+				<span class="icon-[lucide--git-pull-request] size-4"></span>
+				<span>#{pull.number}</span>
+			</button>
+			{#if pull.url}
+				<a
+					href={pull.url}
+					target="_blank"
+					rel="external noreferrer"
+					class="inline-flex items-center rounded-full pr-3 pl-1 hover:text-ink"
+					aria-label={`Open pull request #${pull.number} in browser`}
+					title="Open in browser"
+				>
+					<span class="icon-[lucide--external-link] size-4"></span>
+				</a>
+			{/if}
+		</div>
 	{/if}
 	{#if checking && !working}
 		<div

@@ -390,13 +390,13 @@
 		// not from under an agent at work
 		aideOf(tab)?.status !== 'running';
 
-	/** Focus the file where it is open, or open it next to the conversation. */
-	const openFileTab = (tab: string) => {
+	/** Focus the tab where it is, or open it next to the conversation. */
+	const showTab = (tab: string) => {
 		const area = areaOf(tab) ?? 'main';
 		if (area !== 'main' && !frame.current.open) toggleSide();
 		arrange({ [area]: open(layouts[area], tab, chatGroup) });
 	};
-	const openDiff = (path: string) => openFileTab(`diff:${path}`);
+	const openDiff = (path: string) => showTab(`diff:${path}`);
 
 	// Its conversations link the files it has changed to their diffs. The list is compared as
 	// text: the changes are new with every update, and each new set renders every reply again.
@@ -414,7 +414,7 @@
 		},
 		openSource(path, line) {
 			citations.set(path, { line });
-			openFileTab(`source:${path}`);
+			showTab(`source:${path}`);
 		},
 		open: openDiff
 	});
@@ -783,6 +783,7 @@
 			{working}
 			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
 			checking={!workspace.archivedAt && !!workspace.worktree && (!git || git.checking)}
+			onopenpull={() => showTab(PR)}
 			onaction={act}
 		/>
 		{#if workspace.archivedAt}
