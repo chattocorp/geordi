@@ -154,6 +154,7 @@ export const standings = lazy(() => {
 		],
 		load: loadStanding,
 		loadUpstream: (id) => upstreamOf(workspaces().ref(id)),
+		refreshChanged: (id) => watchers().notify(id),
 		publishUpstream: (id, upstream, branch) => watchers().noteUpstream(id, upstream, branch)
 	});
 	setInterval(() => void standings.tick(), UPSTREAM_TICK_MS).unref();

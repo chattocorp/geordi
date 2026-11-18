@@ -5,6 +5,7 @@
 	import Spinner from '#lib/ui/Spinner.svelte';
 
 	type Props = {
+		refreshing?: boolean;
 		/** Where the workspace stands, in a few words. */
 		standing: WorkspaceStanding | null;
 		/** Its pull request, if it has one, to link to. */
@@ -23,6 +24,7 @@
 		onaction(action: WorkspaceAction): void;
 	};
 	let {
+		refreshing = false,
 		standing,
 		pull = null,
 		actions,
@@ -58,6 +60,14 @@
 	agent at work says so at its head; an idle one says nothing.
 -->
 <div class="flex shrink-0 items-center gap-2">
+	{#if refreshing}
+		<span
+			role="img"
+			aria-label="Refreshing workspace"
+			title="Refreshing workspace"
+			class="icon-[lucide--loader-circle] size-4 shrink-0 text-muted motion-safe:animate-spin"
+		></span>
+	{/if}
 	{#if pull}
 		<div class="inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted">
 			<button
