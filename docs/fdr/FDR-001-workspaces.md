@@ -105,9 +105,17 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 **Why:** A screenshot is part of what the person asked, and must remain available when the forge or daemon restarts. Image data need not travel with each live conversation update.
 **Tradeoff:** Uploads use disk space in the data directory. Removing a preview or taking back a queued message does not delete its uploaded bytes. Drafts that have not been sent are not restored after closing the page.
 
+### 12. Show the forge connection beside navigation
+
+After two seconds without a connection, the window shows “Reconnecting” above Settings, or in the title bar when the sidebar is hidden. All pages share one connection (ADR-009), so the note belongs with the window controls. While connected, the note takes no space. The delay keeps brief interruptions quiet. A page waiting for its first value explains the wait. Work already on screen stays readable.
+
+### 13. Background tasks stay within reach after a reply
+
+While an agent reports background work, a tray above the composer shows its commands and subagents. The tray opens expanded. Collapse it to keep the count and first task name in view. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
+
 ## Related
 
-- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-010
+- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010
 - **FDRs:** FDR-002, FDR-003
 
 ## Open Questions

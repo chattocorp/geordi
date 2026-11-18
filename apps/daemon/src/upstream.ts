@@ -1,4 +1,6 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { quietGit } from './git.ts';
 import {
 	CI_REFRESH_MS,
 	type CheckCounts,
@@ -43,35 +45,18 @@ const SETTLED_MS = 60_000;
  * an update of the pull request.
  */
 const OPEN_READ_MS = 60_000;
-/**
- * How fresh an answer has to be for someone who asked to look now: all but this moment's.
- * (Longer, and what an agent did just before its turn ended is missed: it pushes, which has
- * us look, opens the pull request a few seconds later, and is done.)
- */
-const FRESH_WHEN_ASKED_MS = 1_000;
 const FRESH_ANONYMOUS_MS = 5 * 60_000;
 /** How many of a repository's most recently updated pull requests are gone through for the branch. */
 const SEARCH_LIMIT = 100;
 
-const git = (cwd: string, ...args: string[]): string | null => {
-	try {
-		return execFileSync('git', ['-C', cwd, ...args], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore']
-		}).trim();
-	} catch {
-		return null;
-	}
-};
-
 /** The token the GitHub CLI is signed in with, if it is installed and signed in. */
-function ghToken(): string | null {
+async function ghToken(): Promise<string | null> {
 	try {
-		const token = execFileSync('gh', ['auth', 'token'], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore'],
-			timeout: 5000
-		}).trim();
+		const { stdout } = await promisify(execFile)('gh', ['auth', 'token'], {
+			timeout: 5000,
+			killSignal: 'SIGKILL'
+		});
+		const token = stdout.trim();
 		return token || null;
 	} catch {
 		return null;
@@ -82,7 +67,7 @@ function ghToken(): string | null {
 const limits = createRateLimits();
 const recentPulls = createRecentPulls();
 
-let registry: { forges: Forges; at: number } | undefined;
+let registry: { value: Promise<Forges>; at: number } | undefined;
 /** How long credentials are trusted: signing in to the GitHub CLI should not take a restart to notice. */
 const CREDENTIALS_MS = 10 * 60_000;
 
@@ -92,20 +77,29 @@ const CREDENTIALS_MS = 10 * 60_000;
  * the GitHub CLI is, or anonymously (public repositories only).
  */
 function forges() {
-	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry;
+	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry.value;
+	const value = loadForges();
+	registry = { value, at: Date.now() };
+	void value.catch(() => {
+		if (registry?.value === value) registry = undefined;
+	});
+	return value;
+}
+
+async function loadForges() {
 	const providers = providersFromEnv(process.env, { fetch: limits.fetch }).flatMap(
 		(set) => set.provider ?? []
 	);
 
 	if (!providers.some((p) => p.forge === 'github' && p.instance === 'github.com')) {
-		const token = ghToken();
+		const token = await ghToken();
 		const provider = github({
 			fetch: limits.fetch,
 			...(token && { auth: { type: 'token', token } as const })
 		});
 		providers.push(provider);
 	}
-	return (registry = { forges: createForges(providers), at: Date.now() });
+	return createForges(providers);
 }
 
 /** How many checks stand how. */
@@ -311,11 +305,11 @@ async function findPull(
  * Where a worktree's branch lives upstream. `null` if the repository has no `origin` remote
  * on a forge we know, or the worktree is on no branch.
  */
-function locate(worktree: Worktree, repoPath: string) {
-	const remote = git(repoPath, 'remote', 'get-url', 'origin');
+async function locate(worktree: Worktree, repoPath: string) {
+	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
 	if (!remote) return null;
 
-	const { forges: all } = forges();
+	const all = await forges();
 	const parsed = all.parseUrl(remote);
 	if (!parsed) return null;
 
@@ -323,7 +317,7 @@ function locate(worktree: Worktree, repoPath: string) {
 	// a detached HEAD has no branch to have a pull request
 	if (!head.startsWith('refs/heads/')) return null;
 	// what the branch is called upstream, which is where its pull request is
-	const branch = upstreamBranchOf(repoPath, head.slice('refs/heads/'.length));
+	const branch = await upstreamBranchOf(repoPath, head.slice('refs/heads/'.length));
 	return { remote, ...parsed, branch, head };
 }
 
@@ -367,14 +361,14 @@ export async function upstream(
 	}: { repoPath: string; worktreeId: string; fresh?: boolean; includeChecks?: boolean },
 	now = Date.now()
 ): Promise<Upstream | null> {
-	const found = locate(worktree, repoPath);
+	const found = await locate(worktree, repoPath);
 	if (!found) {
 		cache.delete(worktreeId);
 		return null;
 	}
 	const { remote, provider, repo, branch } = found;
 	const anonymous = provider.authKind === 'anonymous';
-	const pushedSha = git(
+	const pushedSha = await quietGit(
 		repoPath,
 		'rev-parse',
 		'--verify',
@@ -400,10 +394,11 @@ export async function upstream(
 	// it here; the pull request is still there, and still this branch's. What is left of
 	// the push is that Git was told where the branch goes, or that we saw its pull request.
 	const key = JSON.stringify([remote, branch, local]);
+	const tracks = !pushed && (await quietGit(repoPath, 'config', '--get', `branch.${local}.remote`));
 	const cached = cache.get(worktreeId);
 	const baseline = cached?.key === key ? cached : undefined;
 	const previous = baseline?.value;
-	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`)) {
+	if (!pushed && !previous?.pull && !tracks) {
 		// Remember the unpushed branch so its first push is an observed change.
 		cache.set(worktreeId, {
 			key,
@@ -417,13 +412,13 @@ export async function upstream(
 	}
 
 	// Asked to look now (something may just have happened there that nothing here shows: a
-	// pull request opened, a review), we do, unless we only just did. Not without
+	// pull request opened, a review), we do. Not without
 	// credentials: those few requests are for looking now and then.
 	// A cold read establishes the baseline. Only an observed push opens a discovery window.
 	const sameHead = baseline?.pushedSha === pushedSha;
 	const fastUntil = sameHead ? baseline.fastUntil : baseline && pushed ? now + 60_000 : 0;
 	const normal = previous?.refreshAfterMs ?? NO_PULL_MS;
-	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
+	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? 0 : normal;
 	if (
 		cached &&
 		!cached.invalidated &&
@@ -455,7 +450,7 @@ export async function upstream(
 		const known = previous?.pull ?? null;
 		// The repository's recently updated pull requests say whether this one changed.
 		const listing = provider.can('threads.list')
-			? await recentPulls(provider, repo, asked ? FRESH_WHEN_ASKED_MS : CI_REFRESH_MS, now)
+			? await recentPulls(provider, repo, asked && !anonymous ? 0 : CI_REFRESH_MS, now)
 			: null;
 		const listed = listing && pickFor(listing.threads, repo, branch);
 		// What we know must be read again anyway: checks change without the pull request
@@ -473,6 +468,9 @@ export async function upstream(
 			const same =
 				known?.number === listed.ref.number && baseline?.updatedAt === listed.updatedAt?.getTime();
 			pull = same && !due ? undefined : await readThread(provider, listed.ref);
+		} else if (asked && !anonymous && pushed && !known && provider.can('search.threads')) {
+			// A PR opened during this turn may not be in the repository listing yet.
+			pull = await findPull(provider, repo, branch);
 		} else if (listing && (listing.complete || baseline)) {
 			// Not among the recently updated: there is none, or it has not changed since we read it.
 			pull = !known ? null : due ? await readKnown(known.number) : undefined;
@@ -483,7 +481,7 @@ export async function upstream(
 			reread &&
 			!pull &&
 			pushed &&
-			git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
+			(await quietGit(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'));
 		const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
 		const summary = !reread ? known : pull ? summarise(pull, checks?.counts, checks?.items) : null;
 		const waiting =
@@ -538,7 +536,7 @@ export async function upstream(
 		const pull = await readThread(provider, ref);
 		return pull?.state === 'open' && isFor(pull, repo, branch)
 			? pull
-			: findPull(provider, repo, branch);
+			: await findPull(provider, repo, branch);
 	}
 }
 
@@ -552,7 +550,7 @@ export async function setAutoMerge(
 		enabled
 	}: { repoPath: string; worktreeId: string; pullNumber: string; enabled: boolean }
 ) {
-	const found = locate(worktree, repoPath);
+	const found = await locate(worktree, repoPath);
 	if (!found) throw new Error('This workspace has no upstream branch');
 	const { provider, repo, branch, head } = found;
 	if (
@@ -575,7 +573,7 @@ export async function setAutoMerge(
 	const raw = pull.raw as GitHubPull;
 	if (!!raw.autoMergeRequest !== enabled) {
 		if (enabled) {
-			const sha = gitIn(worktree, 'rev-parse', '--verify', head).trim();
+			const sha = (await gitIn(worktree, 'rev-parse', '--verify', head)).trim();
 			if (pull.branches?.head.sha !== sha)
 				throw new Error('Push the workspace commit before enabling auto-merge');
 			if (pull.isDraft || !raw.viewerCanEnableAutoMerge)
@@ -613,7 +611,7 @@ export async function markReady(
 	worktree: Worktree,
 	{ repoPath, worktreeId, pullNumber }: { repoPath: string; worktreeId: string; pullNumber: string }
 ) {
-	const found = locate(worktree, repoPath);
+	const found = await locate(worktree, repoPath);
 	if (!found) throw new Error('This workspace has no branch on a forge Geordi knows');
 	const { provider, repo, branch } = found;
 	const pull = await provider.threads.get({
@@ -686,7 +684,7 @@ export async function mergePull(
 	worktree: Worktree,
 	{ repoPath, worktreeId }: { repoPath: string; worktreeId: string }
 ): Promise<'merged' | 'queued'> {
-	const found = locate(worktree, repoPath);
+	const found = await locate(worktree, repoPath);
 	if (!found) throw new Error('This workspace has no branch on a forge Geordi knows');
 	const { provider, repo, branch, head } = found;
 	if (!provider.can('threads.merge'))
@@ -694,7 +692,7 @@ export async function mergePull(
 
 	const pull = await findPull(provider, repo, branch);
 	if (pull?.state !== 'open') throw new Error(`There is no open pull request for ${branch}`);
-	const commit = gitIn(worktree, 'rev-parse', '--verify', head).trim();
+	const commit = (await gitIn(worktree, 'rev-parse', '--verify', head)).trim();
 	if (pull.branches?.head.sha !== commit)
 		throw new Error('The pull request is not at the commit this workspace is at; push first');
 

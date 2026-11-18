@@ -30,28 +30,28 @@ describe('repoIcon', () => {
 		return { path, add: () => execFileSync('git', ['-C', path, 'add', '-A']) };
 	}
 
-	it('reads the picture a repository has of itself', () => {
+	it('reads the picture a repository has of itself', async () => {
 		const { path, add } = repo({ 'web/static/favicon.svg': '<svg/>', 'README.md': 'hi' });
-		expect(repoIcon(path)).toBeNull(); // not tracked: not the repository's
+		expect(await repoIcon(path)).toBeNull(); // not tracked: not the repository's
 		add();
-		expect(repoIcon(path)).toEqual({
+		expect(await repoIcon(path)).toEqual({
 			type: 'image/svg+xml',
 			data: Buffer.from('<svg/>').toString('base64')
 		});
 	});
 
-	it('does not follow a link, or take a file too big to be an icon', () => {
+	it('does not follow a link, or take a file too big to be an icon', async () => {
 		const linked = repo({ secret: 'not for showing' });
 		symlinkSync(join(linked.path, 'secret'), join(linked.path, 'favicon.svg'));
 		linked.add();
-		expect(repoIcon(linked.path)).toBeNull();
+		expect(await repoIcon(linked.path)).toBeNull();
 
 		const big = repo({ 'logo.png': 'x'.repeat(300 * 1024) });
 		big.add();
-		expect(repoIcon(big.path)).toBeNull();
+		expect(await repoIcon(big.path)).toBeNull();
 	});
 
-	it('is nothing where there is no repository', () => {
-		expect(repoIcon(join(tmpdir(), 'geordi-no-such-repo'))).toBeNull();
+	it('is nothing where there is no repository', async () => {
+		expect(await repoIcon(join(tmpdir(), 'geordi-no-such-repo'))).toBeNull();
 	});
 });

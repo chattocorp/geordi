@@ -134,10 +134,16 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 	}
 });
 
+/** Code blocks in these languages are drawn (`diagrams.ts`); until then, or if they cannot be, they stay code. */
+const DIAGRAMS = ['mermaid', 'svg'];
+
 // Code blocks get a copy button; `Markdown.svelte` handles its clicks.
 const fence = md.renderer.rules.fence!;
-md.renderer.rules.fence = (...args) =>
-	`<div class="code-block"><button type="button" data-copy aria-label="Copy code"></button>${fence(...args)}</div>`;
+md.renderer.rules.fence = (tokens, index, options, env, self) => {
+	const lang = tokens[index].info.trim().split(/\s+/, 1)[0];
+	const diagram = DIAGRAMS.includes(lang) ? ` data-diagram="${lang}"` : '';
+	return `<div class="code-block"${diagram}><button type="button" data-copy aria-label="Copy code"></button>${fence(tokens, index, options, env, self)}</div>`;
+};
 
 // Code that names a file the workspace has changed (`file` says which, if any) opens its
 // diff when clicked; `Markdown.svelte` handles the clicks.

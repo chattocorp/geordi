@@ -1,19 +1,21 @@
+import { inWorktree } from './worktree-queue.ts';
+import { turnStarts } from './turn-starts.ts';
+import { eventDelivery } from './event-delivery.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import {
 	DEFAULT_PORTS,
+	NO_WORKTREE,
 	AGENTS,
-	sameAgentSettings,
 	JOB_TERMINAL,
 	TEARDOWN_TIMEOUT_MS,
 	PROTOCOL_VERSION,
 	type DaemonMessage,
 	type DaemonRequest,
 	type ForgeMessage,
-	type AgentEvent,
 	type Harness,
 	type WorktreeRef
 } from '@geordi/protocol';
@@ -113,7 +115,7 @@ const ports = createPorts(
  * gives a workspace its ports, and a job its own among them, the first time around.
  */
 async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeRef) {
-	const found = settingsOf(worktree, repoPath);
+	const found = await settingsOf(worktree, repoPath);
 	const assigned = await ports.ensure(
 		worktreeId,
 		found.settings?.ports ?? DEFAULT_PORTS,
@@ -156,6 +158,7 @@ function runScript(
 	const { output, exit } = relay(terminalId);
 	return new Promise((resolve) => {
 		if (runningTerminals().includes(terminalId)) return resolve({ status: null, output: '' });
+		verifyLinks(worktree);
 		const timer = timeoutMs ? setTimeout(() => closeTerminal(terminalId), timeoutMs) : undefined;
 		openTerminal(
 			terminalId,
@@ -203,24 +206,27 @@ const setups = new Map<string, Promise<string | null>>();
  */
 function setUp(worktree: Worktree & { created: boolean }, ref: WorktreeRef) {
 	const terminalId = `${ref.worktreeId}:${JOB_TERMINAL}setup`;
-	const done = (async () => {
+	const done: Promise<string | null> = inWorktree(worktree.path, async () => {
+		if (setups.get(ref.worktreeId) !== done) return { note: null };
 		const { config, env } = await configFor(worktree, ref);
 		const { setup } = config;
-		if (!setup) return null;
+		if (!setup) return { note: null };
 		// one that may not run by itself doesn't; its terminal says why, and where to run it
 		const reason = !setup.approved ? 'unagreed' : !worktree.created || ref.base ? 'agents' : null;
 		if (reason) {
 			void runScript(worktree, terminalId, SETUP_NOT_RUN[reason], env, { setup: setup.command });
-			return setupNote(setup, reason);
+			return { note: setupNote(setup, reason) };
 		}
-		const ran = await runScript(worktree, terminalId, setup.command, env, {
+		const ran = runScript(worktree, terminalId, setup.command, env, {
 			setup: setup.command
 		});
-		return setupNote(setup, ran);
-	})().catch((error) => {
-		console.warn(`setup in ${worktree.path}: ${errorMessage(error)}`);
-		return null;
-	});
+		return { note: ran.then((result) => setupNote(setup, result)) };
+	})
+		.then(({ note }) => note)
+		.catch((error) => {
+			console.warn(`setup in ${worktree.path}: ${errorMessage(error)}`);
+			return null;
+		});
 	setups.set(ref.worktreeId, done);
 }
 
@@ -244,9 +250,6 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 		console.warn(`teardown in ${worktree.path}: ${errorMessage(error)}`);
 	}
 }
-
-/** Agents waiting for their worktree's setup, by workspace: what stops one. */
-const waiting = new Map<string, () => void>();
 
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
@@ -277,26 +280,7 @@ function send(message: DaemonMessage) {
 	else outbox.push(message);
 }
 
-/** Reports what a workspace's agent does. Queued while there is no forge to tell. */
-// Keep the host line until the forge acknowledges its durable append. One in flight per workspace.
-const deliveries = new Map<string, { cursor: string; sent: number; acknowledged: boolean }>();
-const emitFor = (workspaceId: string) => (event: AgentEvent, cursor?: string) => {
-	if (!cursor) {
-		send({ type: 'workspace.event', workspaceId, event });
-		return true;
-	}
-	const pending = deliveries.get(workspaceId);
-	if (pending?.cursor === cursor) {
-		if (pending.acknowledged) {
-			deliveries.delete(workspaceId);
-			return true;
-		}
-		if (Date.now() - pending.sent < 1000) return false;
-	}
-	deliveries.set(workspaceId, { cursor, sent: Date.now(), acknowledged: false });
-	sendLive({ type: 'workspace.event', workspaceId, event, cursor });
-	return false;
-};
+const { emitFor, acknowledge } = eventDelivery(send, sendLive);
 
 /**
  * Whether the forge is there to be told things. Sessions are only followed while it is: what
@@ -306,6 +290,7 @@ const connected = () => socket?.readyState === WebSocket.OPEN;
 
 endLegacyTurns(join(sessionsDir, '..', 'turns'));
 /** The agents' sessions (ADR-010), by workspace: ones we started, and ones we found running. */
+const retired = new WeakSet<Session>();
 const sessions = resumeSessions(sessionsDir, emitFor, connected);
 for (const [workspaceId, session] of sessions) attend(workspaceId, session);
 
@@ -325,18 +310,35 @@ function begin(workspaceId: string, meta: Meta, [first, ...rest]: Said[]) {
  */
 function attend(workspaceId: string, session: Session) {
 	void session.done.then((unheard) => {
-		if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
-		if (unheard.length === 0) return;
+		if (sessions.get(workspaceId) === session && session.background().length)
+			sendLive({ type: 'workspace.background', workspaceId, tasks: [] });
+		if (unheard.length === 0 || retired.has(session)) {
+			if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
+			return;
+		}
 		const { agent, options, apiToken } = session;
-		try {
+		void inWorktree(options.cwd, async () => {
+			if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
+			if (retired.has(session)) return;
+			const starting = beginning.get(workspaceId);
+			if (starting) {
+				starting.heard.unshift(...unheard);
+				return;
+			}
+			const successor = sessions.get(workspaceId);
+			if (successor && !successor.over()) {
+				unheard.forEach(successor.say);
+				return;
+			}
+			if (!existsSync(options.cwd)) throw new Error(NO_WORKTREE);
 			begin(
 				workspaceId,
 				{ agent, apiToken, options: { ...options, resumeId: session.resumeId() } },
 				unheard
 			);
-		} catch (error) {
+		}).catch((error) => {
 			emitFor(workspaceId)({ kind: 'turn.failed', error: errorMessage(error) });
-		}
+		});
 	});
 }
 
@@ -344,7 +346,20 @@ function attend(workspaceId: string, session: Session) {
  * Workspaces whose session is about to start (its worktree is being made, or set up), with
  * what was said to them since: all of it is the new session's to hear.
  */
-const beginning = new Map<string, { cwd: string; heard: Said[] }>();
+const { beginning, startMessage } = turnStarts({
+	worktreesDir,
+	sessions,
+	setups,
+	apiUrl,
+	configFor,
+	begin,
+	emitFor,
+	prepared(worktree, message) {
+		watches.restart(message.worktreeId);
+		sendLive({ type: 'worktree.changed', worktreeId: message.worktreeId });
+		setUp(worktree, message);
+	}
+});
 const { sessionsIn, workingIn } = worktreeSessions(sessions, beginning);
 
 /**
@@ -414,6 +429,11 @@ function connect(delay = 500) {
 		} else if (message.type === 'welcome' && verify(token, 'forge', nonce, message.proof)) {
 			console.log(`connected to ${forgeUrl}`);
 			socket = ws;
+			for (const [workspaceId, session] of sessions) {
+				if (session.over()) continue;
+				const tasks = session.background();
+				if (tasks.length) sendLive({ type: 'workspace.background', workspaceId, tasks });
+			}
 			delay = 500;
 			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));
 		} else {
@@ -435,14 +455,29 @@ function connect(delay = 500) {
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-async function answer(request: DaemonRequest) {
+function answer(request: DaemonRequest) {
+	switch (request.kind) {
+		case 'prepareWorktree':
+		case 'continueWorktree':
+		case 'updateWorktree':
+		case 'removeWorktree':
+		case 'config':
+			return inWorktree(worktreePath(worktreesDir, request.repoPath, request.worktreeId), () =>
+				readRequest(request)
+			);
+		default:
+			return readRequest(request);
+	}
+}
+
+async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;
-		const worktree = removable(worktreesDir, repoPath, worktreeId, force);
+		const worktree = await removable(worktreesDir, repoPath, worktreeId, force);
 		if (worktree && request.teardown) await tearDown(worktree, request);
 		// what it comes back from if the workspace is brought back, which the agent may have renamed
 		let branch: string | null = null;
@@ -452,8 +487,14 @@ async function answer(request: DaemonRequest) {
 			// an unreadable HEAD (forced removal of a tampered worktree): the forge keeps what it knows
 		}
 		// an agent whose CLI is still running there (with nothing to do) goes with its directory
-		if (worktree) for (const session of sessionsIn(worktree.path)) session.kill();
-		removeWorktree(worktreesDir, repoPath, worktreeId, force);
+		await removeWorktree(worktreesDir, repoPath, worktreeId, force, () => {
+			const path = worktreePath(worktreesDir, repoPath, worktreeId);
+			for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
+			for (const session of sessionsIn(path)) {
+				retired.add(session);
+				session.kill();
+			}
+		});
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return { branch };
@@ -467,18 +508,19 @@ async function answer(request: DaemonRequest) {
 		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
 	if (request.kind === 'continueWorktree') {
 		const { repoPath, worktreeId } = request;
-		const worktree = locateWorktree(worktreesDir, repoPath, worktreeId);
+		const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
 		const requireIdle = () => {
 			if (workingIn(worktree.path)) throw new Error('Its agent is still at work');
 		};
 		requireIdle();
-		if (uncommittedFiles(worktree).length > 0)
-			throw new Error('It has uncommitted changes: commit or discard them first');
+
 		// from where the upstream stands now, as a new workspace would
 		const problem = await fetchUpstream(repoPath);
 		if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
+		if ((await uncommittedFiles(worktree)).length > 0)
+			throw new Error('It has uncommitted changes: commit or discard them first');
 		requireIdle();
-		const branch = continueOn(worktree, repoPath);
+		const branch = await continueOn(worktree, repoPath, requireIdle);
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { branch };
 	}
@@ -489,14 +531,14 @@ async function answer(request: DaemonRequest) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
-		const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
+		const worktree = await ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
 		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { path: worktree.path, branch: worktree.branch };
 	}
 
-	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
+	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
 			return status(worktree, comparisonOrigin(worktree, request));
@@ -504,9 +546,9 @@ async function answer(request: DaemonRequest) {
 			// which notes are this workspace's: the files it has added
 			return releasePlan(
 				worktree,
-				() =>
+				async () =>
 					new Set(
-						changes(worktree, comparisonOrigin(worktree, request))
+						(await changes(worktree, comparisonOrigin(worktree, request)))
 							.filter((file) => file.status === 'added')
 							.map((file) => file.path)
 					),
@@ -550,108 +592,11 @@ async function answer(request: DaemonRequest) {
 async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'workspace.ack': {
-			const pending = deliveries.get(message.workspaceId);
-			if (pending?.cursor === message.cursor) pending.acknowledged = true;
+			acknowledge(message.workspaceId, message.cursor, sessions.get(message.workspaceId)?.read);
 			return;
 		}
-		case 'agent.message': {
-			const { workspaceId, worktreeId, agent, repoPath, base, settings } = message;
-			const emit = emitFor(workspaceId);
-			const said: Said = {
-				prompt: message.prompt,
-				deliveryId: message.deliveryId,
-				...(message.images && { images: message.images })
-			};
-
-			// one that is about to start hears it when it does
-			const sooner = beginning.get(workspaceId);
-			if (sooner) {
-				sooner.heard.push(said);
-				break;
-			}
-			const heard = [said];
-			beginning.set(workspaceId, { cwd: worktreePath(worktreesDir, repoPath, worktreeId), heard });
-			try {
-				let session = sessions.get(workspaceId);
-				// A CLI runs as it was started. Told to run otherwise (with another model, say), it
-				// is started anew, unless it is in the middle of something: then that waits.
-				if (
-					session &&
-					!session.over() &&
-					!session.working() &&
-					!sameAgentSettings(session.options.settings, settings)
-				) {
-					session.close();
-					await Promise.race([session.done, new Promise((resolve) => setTimeout(resolve, 15_000))]);
-					session = sessions.get(workspaceId);
-					if (session && !session.over())
-						throw new Error(
-							'Previous session is still closing. Retry the message to apply the new settings.'
-						);
-				}
-				// An agent whose CLI is running is simply told: between turns that starts one,
-				// during a turn it steers.
-				if (session && !session.over()) {
-					heard.forEach(session.say);
-					break;
-				}
-
-				// A workspace of its own starts from where its upstream stands now. (One started
-				// by an agent starts from that agent's branch, which is here already.)
-				if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
-					const problem = await fetchUpstream(repoPath);
-					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
-				}
-				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, message.branch);
-				if (worktree.created)
-					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
-				if (worktree.created || worktree.restored) {
-					// there is a directory to watch now (again), and to look at
-					watches.restart(worktreeId);
-					sendLive({ type: 'worktree.changed', worktreeId });
-					setUp(worktree, message);
-				}
-
-				// The agent starts once the directory is set up, and hears how that went. Stopped
-				// meanwhile, the turn ends; the setup goes on, for the next one to wait for.
-				const setup = setups.get(worktreeId);
-				if (setup) {
-					const stopped = new Promise<'stopped'>((resolve) =>
-						waiting.set(workspaceId, () => resolve('stopped'))
-					);
-					let note;
-					try {
-						note = await Promise.race([setup, stopped]);
-					} finally {
-						waiting.delete(workspaceId);
-					}
-					if (note === 'stopped') {
-						emit({ kind: 'turn.failed', error: 'Stopped' });
-						break;
-					}
-					if (setups.get(worktreeId) === setup) setups.delete(worktreeId);
-					if (note) heard[0] = { ...said, prompt: `${note}\n\n${said.prompt}` };
-				}
-
-				const options = {
-					sessionId: workspaceId,
-					dir: '', // `begin` knows where
-					resumeId: message.resumeId,
-					settings,
-					env: (await configFor(worktree, message)).env,
-					instructions: message.instructions,
-					cwd: worktree.path,
-					writableRoots: worktree.writableRoots,
-					api: { url: apiUrl }
-				};
-				begin(workspaceId, { agent, options, apiToken: message.apiToken }, heard);
-			} catch (error) {
-				emit({ kind: 'turn.failed', error: errorMessage(error) });
-			} finally {
-				beginning.delete(workspaceId);
-			}
-			break;
-		}
+		case 'agent.message':
+			return startMessage(message);
 
 		case 'request':
 			try {
@@ -668,43 +613,52 @@ async function handle(message: ForgeMessage) {
 		case 'terminal.open': {
 			const { terminalId } = message;
 			const { output, exit } = relay(terminalId);
-			try {
-				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
-				const guard = () => verifyLinks(worktree);
-				const { config, env } = await configFor(worktree, message);
-				// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
-				// the file is the agent's to change, also in the moment between their looking at
-				// the command and their asking for it. Otherwise the terminal says so, in words
-				// of ours, and nothing of the file's runs.
-				const asked = message.run;
-				// the setup script can be run again by hand: as a job without a port
-				const job =
-					asked?.job === 'setup'
-						? config.setup && { ...config.setup, port: null }
-						: config.jobs.find((job) => job.name === asked?.job);
-				const agreed = job && job.command === asked?.command && job.approved;
-				openTerminal(
-					terminalId,
-					worktree.path,
-					{
-						...message,
-						closeOnSuccess: asked?.job === 'setup',
-						command: asked && (agreed ? job.command : RUN_CHANGED),
-						// every terminal knows the workspace's ports; a job also which one is its own
-						env: { ...env, ...(agreed && job.port !== null && { PORT: String(job.port) }) },
-						// a job that has ended is no longer running, though its terminal is still there
-						onEnded: (status) =>
-							status !== null && sendLive({ type: 'terminal.ended', terminalId, status })
-					},
-					guard,
-					output,
-					exit
-				);
-			} catch (error) {
-				output(`${errorMessage(error)}\r\n`);
-				exit();
-			}
-			break;
+			return inWorktree(
+				worktreePath(worktreesDir, message.repoPath, message.worktreeId),
+				async () => {
+					try {
+						const worktree = await locateWorktree(
+							worktreesDir,
+							message.repoPath,
+							message.worktreeId
+						);
+						const guard = () => verifyLinks(worktree);
+						const { config, env } = await configFor(worktree, message);
+						// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
+						// the file is the agent's to change, also in the moment between their looking at
+						// the command and their asking for it. Otherwise the terminal says so, in words
+						// of ours, and nothing of the file's runs.
+						const asked = message.run;
+						// the setup script can be run again by hand: as a job without a port
+						const job =
+							asked?.job === 'setup'
+								? config.setup && { ...config.setup, port: null }
+								: config.jobs.find((job) => job.name === asked?.job);
+						const agreed = job && job.command === asked?.command && job.approved;
+						guard();
+						openTerminal(
+							terminalId,
+							worktree.path,
+							{
+								...message,
+								closeOnSuccess: asked?.job === 'setup',
+								command: asked && (agreed ? job.command : RUN_CHANGED),
+								// every terminal knows the workspace's ports; a job also which one is its own
+								env: { ...env, ...(agreed && job.port !== null && { PORT: String(job.port) }) },
+								// a job that has ended is no longer running, though its terminal is still there
+								onEnded: (status) =>
+									status !== null && sendLive({ type: 'terminal.ended', terminalId, status })
+							},
+							guard,
+							output,
+							exit
+						);
+					} catch (error) {
+						output(`${errorMessage(error)}\r\n`);
+						exit();
+					}
+				}
+			);
 		}
 
 		case 'terminal.input':
@@ -720,8 +674,7 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'agent.stop':
-			sessions.get(message.workspaceId)?.stop();
-			waiting.get(message.workspaceId)?.();
+			(beginning.get(message.workspaceId) ?? sessions.get(message.workspaceId))?.stop();
 			break;
 
 		case 'agent.answer':

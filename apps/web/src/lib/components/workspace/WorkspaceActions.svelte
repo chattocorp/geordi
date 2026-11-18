@@ -2,7 +2,6 @@
 	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import ButtonGroup from '#lib/ui/ButtonGroup.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
 
 	type Props = {
 		/** Where the workspace stands, in a few words. */
@@ -15,8 +14,6 @@
 		disabled?: boolean;
 		/** The actions already under way: asked of the agent and not done yet. */
 		pending?: WorkspaceAction['id'][];
-		/** Whether the agent is at work right now. */
-		working?: boolean;
 		/** Whether an agent has asked the person something, and waits for the answer. */
 		asking?: boolean;
 		/** Small, with only the next step: for showing many at once (the overview). */
@@ -30,7 +27,6 @@
 		actions,
 		disabled = false,
 		pending = [],
-		working = false,
 		asking = false,
 		compact = false,
 		onopenpull,
@@ -43,11 +39,12 @@
 		...(compact ? [] : actions.filter((action) => action !== primary)),
 		...(primary ? [primary] : [])
 	]);
-	const height = $derived(compact ? 'h-7' : 'h-9');
 	const text = $derived(compact ? 'text-xs' : 'text-sm');
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
-	// small, beside a next step or "Working", the colour and icon of how it stands say enough
-	const worded = $derived(!compact || (ordered.length === 0 && !working));
+	// small, beside a next step or a question, the colour and icon of how it stands say enough
+	const worded = $derived(!compact || (ordered.length === 0 && !asking));
+	// In compact ribbons the question icon fits beside the next step.
+	const showQuestionLabel = $derived(!compact || ordered.length === 0);
 	const linked = $derived(!compact && !!pull?.url);
 
 	const tones = {
@@ -63,12 +60,12 @@
 
 <!--
 	Its pull request, as a quiet pill of its own before the rest: the way to it. Then where the workspace stands and what to do about it, as one
-	unit: the standing colours the whole thing, and the first action is the next step. An
-	agent at work says so at its head; an idle one says nothing.
+	unit: the standing colours the whole thing, and the first action is the next step. A
+	question appears at its head while an agent waits for an answer.
 -->
-<div class={['flex items-center gap-2', compact ? 'min-w-0' : 'shrink-0']}>
+<div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
 	{#if pull}
-		<div class={['inline-flex shrink-0 items-stretch rounded-full bg-sunken text-muted', height]}>
+		<div class={['inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted']}>
 			<button
 				type="button"
 				class={[
@@ -100,29 +97,30 @@
 			{/if}
 		</div>
 	{/if}
-	{#if standing || actions.length > 0 || working}
+	{#if standing || ordered.length > 0 || asking}
 		<div
 			role="group"
 			aria-label="Next steps"
 			class={[
-				'inline-flex items-center gap-1 rounded-full',
-				height,
-				compact ? 'min-w-0 pl-2.5' : 'shrink-0 pl-3',
+				// as tall when small: the pill frames its buttons (`h-7`) all round
+				'inline-flex h-9 items-center gap-1 rounded-full',
+				// never narrower than what is in it: on a card it moves to a line of its own
+				'shrink-0',
+				compact ? 'pl-2.5' : 'pl-3',
 				// buttons reach the end of the pill; text keeps its distance
 				ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
 				tones[standing?.tone ?? 'neutral']
 			]}
 		>
-			{#if working}
+			{#if asking}
 				<span class={['flex items-center gap-2 font-medium whitespace-nowrap', text]} role="status">
-					{#if asking}
-						<!-- at work, but not going on until it has heard from the person -->
-						<span class={['icon-[lucide--message-circle-question]', icon]}></span>
-						Waiting for your answer
-					{:else}
-						<Spinner />
-						Working
-					{/if}
+					<span
+						class={['icon-[lucide--message-circle-question]', icon]}
+						title={showQuestionLabel ? undefined : 'Waiting for your answer'}
+						role={showQuestionLabel ? undefined : 'img'}
+						aria-label={showQuestionLabel ? undefined : 'Waiting for your answer'}
+					></span>
+					{#if showQuestionLabel}Waiting for your answer{/if}
 				</span>
 				{#if standing || ordered.length > 0}
 					<span class={['w-px shrink-0 bg-current opacity-25', compact ? 'mx-1 h-3' : 'mx-2 h-4']}
@@ -137,13 +135,7 @@
 					aria-label={worded ? undefined : standing.label}
 				></span>
 				{#if worded}
-					<span
-						class={[
-							'pr-1.5 pl-1 font-medium whitespace-nowrap',
-							text,
-							compact && 'min-w-0 truncate'
-						]}>{standing.label}</span
-					>
+					<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span>
 				{/if}
 			{/if}
 			{#if ordered.length > 0}
@@ -153,21 +145,30 @@
 						<!--
 							The next step stands out; what else is possible, and what is beside it, doesn't.
 							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
-							colour. Resolve conflicts takes the ribbon colour; other next steps use ink. Never in gold: that is the one way to send a message.
+							colour. On a ribbon that says something is wrong, it takes the ribbon's colour too.
+							Other soft next steps use ink.
 						-->
+						{@const busy = pending.includes(action.id)}
 						{@const next = action === primary}
+						{@const ribbonColor = standing?.tone === 'danger'}
 						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
 						<Button
 							size="sm"
 							variant={next && filled ? 'primary' : 'soft'}
 							tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
-							class={next && !filled && action.id !== 'resolve-conflicts' ? 'text-ink' : undefined}
+							class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
 							icon={action.icon}
 							{disabled}
-							busy={pending.includes(action.id)}
+							{busy}
 							onclick={() => onaction(action)}
 						>
 							{action.label}
+							{#if action.incomingCommits !== undefined}
+								<span class="font-normal text-muted/70 tabular-nums">{action.incomingCommits}</span>
+								<span class="sr-only"
+									>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
+								>
+							{/if}
 						</Button>
 					{/each}
 				</ButtonGroup>

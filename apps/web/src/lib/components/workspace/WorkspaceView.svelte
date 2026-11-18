@@ -76,10 +76,8 @@
 	type Props = {
 		/** The workspace as it is now: it comes live, over the page's one connection. */
 		workspace: WorkspaceLive;
-		/** Whether that is up to date: not while the connection is down. */
-		connected: boolean;
 	};
-	let { workspace, connected }: Props = $props();
+	let { workspace }: Props = $props();
 	// (never another's: the page makes a new view for each workspace)
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
@@ -127,10 +125,15 @@
 	const reviewers = $derived.by(() => {
 		const found = new SvelteMap<
 			string,
-			{ owner: Workspace; child: SubagentItem; parentTab: string; parentName: string }
+			{
+				owner: WorkspaceLive['aides'][number];
+				child: SubagentItem;
+				parentTab: string;
+				parentName: string;
+			}
 		>();
 		function collect(
-			owner: Workspace,
+			owner: WorkspaceLive['aides'][number],
 			items: Workspace['transcript'] | SubagentItem['items'],
 			parentTab: string,
 			parentName: string
@@ -511,10 +514,19 @@
 				? actionsFor(standingState)
 				: []
 	);
+	// Until the daemon has said how the worktree stands, say that it is being asked.
 	const standing = $derived<WorkspaceStanding | null>(
 		worktreeGone
 			? { label: 'Worktree removed', tone: 'neutral', icon: 'icon-[lucide--folder-x]' }
-			: standingState && standingOf(standingState)
+			: standingState
+				? standingOf(standingState)
+				: workspace.worktree && !workspace.archivedAt
+					? {
+							label: 'Checking…',
+							tone: 'neutral',
+							icon: 'icon-[lucide--circle-dashed] animate-checks-spin'
+						}
+					: null
 	);
 	// An action is under way while its message waits, or is what the agent is working on.
 	const pending = $derived.by(() => {
@@ -778,6 +790,7 @@
 	{:else if reviewer}
 		<MessageView
 			blocks={subagentBlocks(reviewer.child)}
+			background={reviewer.owner.background?.filter((task) => task.session === reviewer.child.id)}
 			parentAgent={{ name: reviewer.parentName, open: () => showTab(reviewer.parentTab) }}
 			agent={reviewer.owner.agent}
 			running={reviewer.child.state === 'running' || reviewer.child.state === 'waiting'}
@@ -818,12 +831,6 @@
 						<span class="truncate code-dense">{workspace.worktree.branch}</span>
 					</span>
 				{/if}
-				{#if !connected}
-					<span class="flex items-center gap-1 text-danger">
-						<span class="icon-[lucide--unplug] size-3.5"></span>
-						Reconnecting
-					</span>
-				{/if}
 			</div>
 		</div>
 		<WorkspaceActions
@@ -832,7 +839,6 @@
 			actions={offered}
 			disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 			{pending}
-			{working}
 			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
 			onopenpull={() => showTab(PR)}
 			onaction={act}
@@ -850,9 +856,6 @@
 					: 'Alt+'}B)"
 				onclick={toggleSide}
 			/>
-			{#if leaving}
-				<Badge><Spinner label="Archiving" /> Archiving…</Badge>
-			{/if}
 		{/if}
 	</TitleBar>
 
