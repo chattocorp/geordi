@@ -48,6 +48,9 @@ export function verifyLinks({ path, adminDir, commonDir }: Worktree) {
 	throw new Error(`The Git metadata of worktree ${path} was modified; refusing to use it`);
 }
 
+export const worktreePath = (baseDir: string, repoPath: string, worktreeId: string) =>
+	join(baseDir, basename(repoPath), worktreeId.slice(0, 8));
+
 /**
  * Where a workspace's worktree lives. Everything is derived from the repository and the
  * workspace ID, never by asking git inside the worktree (its metadata is agent-writable).
@@ -56,7 +59,7 @@ export function describe(baseDir: string, repoPath: string, workspaceId: string)
 	const short = workspaceId.slice(0, 8);
 	const commonDir = resolve(repoPath, git(repoPath, 'rev-parse', '--git-common-dir'));
 	return {
-		path: join(baseDir, basename(repoPath), short),
+		path: worktreePath(baseDir, repoPath, workspaceId),
 		branch: `geordi/${short}`,
 		// git names the admin directory after the worktree's directory
 		adminDir: join(commonDir, 'worktrees', short),

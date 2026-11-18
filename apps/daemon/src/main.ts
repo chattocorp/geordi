@@ -45,6 +45,7 @@ import {
 	type Session
 } from './session.ts';
 import type { Meta } from './host.ts';
+import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
 import { markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
@@ -56,6 +57,7 @@ import {
 	hasWorktree,
 	locateWorktree,
 	verifyLinks,
+	worktreePath,
 	type Worktree
 } from './worktree.ts';
 
@@ -330,7 +332,8 @@ function attend(workspaceId: string, session: Session) {
  * Workspaces whose session is about to start (its worktree is being made, or set up), with
  * what was said to them since: all of it is the new session's to hear.
  */
-const beginning = new Map<string, Said[]>();
+const beginning = new Map<string, { cwd: string; heard: Said[] }>();
+const { sessionsIn, workingIn } = worktreeSessions(sessions, beginning);
 
 /**
  * The workspaces whose agent the forge takes to be at work, and must not give up: those at
@@ -436,8 +439,7 @@ async function answer(request: DaemonRequest) {
 			// an unreadable HEAD (forced removal of a tampered worktree): the forge keeps what it knows
 		}
 		// an agent whose CLI is still running there (with nothing to do) goes with its directory
-		for (const session of sessions.values())
-			if (worktree && session.options.cwd === worktree.path) session.kill();
+		if (worktree) for (const session of sessionsIn(worktree.path)) session.kill();
 		removeWorktree(worktreesDir, repoPath, worktreeId, force);
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
@@ -453,12 +455,16 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'continueWorktree') {
 		const { repoPath, worktreeId } = request;
 		const worktree = locateWorktree(worktreesDir, repoPath, worktreeId);
-		if (sessions.get(worktreeId)?.working()) throw new Error('Its agent is still at work');
+		const requireIdle = () => {
+			if (workingIn(worktree.path)) throw new Error('Its agent is still at work');
+		};
+		requireIdle();
 		if (uncommittedFiles(worktree).length > 0)
 			throw new Error('It has uncommitted changes: commit or discard them first');
 		// from where the upstream stands now, as a new workspace would
 		const problem = await fetchUpstream(repoPath);
 		if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
+		requireIdle();
 		const branch = continueOn(worktree, repoPath);
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { branch };
@@ -518,7 +524,7 @@ async function answer(request: DaemonRequest) {
 			return status;
 		}
 		case 'updateWorktree':
-			return !sessions.get(request.worktreeId)?.working() && update(worktree, request);
+			return update(worktree, request, { working: () => workingIn(worktree.path) });
 	}
 }
 
@@ -541,11 +547,11 @@ async function handle(message: ForgeMessage) {
 			// one that is about to start hears it when it does
 			const sooner = beginning.get(workspaceId);
 			if (sooner) {
-				sooner.push(said);
+				sooner.heard.push(said);
 				break;
 			}
 			const heard = [said];
-			beginning.set(workspaceId, heard);
+			beginning.set(workspaceId, { cwd: worktreePath(worktreesDir, repoPath, worktreeId), heard });
 			try {
 				let session = sessions.get(workspaceId);
 				// A CLI runs as it was started. Told to run otherwise (with another model, say), it
