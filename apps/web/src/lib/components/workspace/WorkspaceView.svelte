@@ -474,7 +474,7 @@
 			.filter((action) =>
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
-					: (action.id === 'merge-pull' && merging) ||
+					: (action.id === 'merge-pull' && (merging || mergeConfirmed)) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
 			)
@@ -503,14 +503,21 @@
 
 	/** The pull request is being merged right now. */
 	let merging = $state(false);
+	// A successful command can arrive before the live view that offers Archive.
+	let mergedPull = $state<string | null>(null);
+	const mergeConfirmed = $derived(
+		mergedPull !== null && mergedPull === git?.upstream?.pull?.number
+	);
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
 	async function merge() {
+		const number = git?.upstream?.pull?.number;
+		if (!number || merging || mergeConfirmed) return;
 		mergeProblem = null;
 		merging = true;
 		try {
-			await mergePull(id);
+			if ((await mergePull(id)) === 'merged') mergedPull = number;
 		} catch (error) {
 			mergeProblem = problemOf(error, 'Could not merge the pull request');
 		} finally {

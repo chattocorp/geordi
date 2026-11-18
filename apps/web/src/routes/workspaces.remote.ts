@@ -133,11 +133,12 @@ export const archiveWorkspace = command(
 export const mergePull = command(v.string(), async (workspaceId) => {
 	const ref = workspaces().ref(workspaceId);
 	try {
-		await hub().request({ kind: 'mergePull', ...ref }, 60_000);
+		const status = await hub().request({ kind: 'mergePull', ...ref }, 60_000);
+		watchers().changed(ref.worktreeId);
+		return status;
 	} catch (cause) {
 		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
 	}
-	watchers().changed(ref.worktreeId);
 });
 
 /**
