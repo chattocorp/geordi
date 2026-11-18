@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Question } from '@geordi/protocol';
+	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 
 	/**
@@ -30,6 +31,9 @@
 	let own = $state<string[]>([]);
 	let sending = $state(false);
 
+	/** Agents mark the option they would take by saying so in its label. */
+	const RECOMMENDED = /\s*\(recommended\)\s*$/i;
+
 	const given = $derived(questions.map((_, i) => own[i]?.trim() || (chosen[i] ?? []).join('\n')));
 
 	function choose(i: number, label: string, several: boolean) {
@@ -53,47 +57,71 @@
 	}
 </script>
 
-<form class="space-y-5 card p-4" onsubmit={answer}>
+<form class="space-y-6 card p-4" onsubmit={answer}>
 	{#each questions as question, i (i)}
 		<!-- Once closed, an optional question nobody answered (a note, say) has nothing to show. -->
 		{#if open || answers?.[i] || !question.optional}
-			<fieldset class="space-y-2">
-				<legend class="pb-1">
+			<fieldset class="space-y-3">
+				<legend class="space-y-0.5">
 					{#if question.header}<span class="block label">{question.header}</span>{/if}
-					<span class="font-medium">{question.question}</span>
+					<span class="block font-medium text-ink">{question.question}</span>
 				</legend>
 				{#if open}
-					{#each question.options as option (option.label)}
-						{@const picked = (chosen[i] ?? []).includes(option.label)}
-						<button
-							type="button"
-							class={['item w-full px-3 py-2 text-left', picked && 'item-active']}
-							aria-pressed={picked}
-							onclick={() => choose(i, option.label, question.multiSelect)}
-						>
-							<span
-								class={[
-									'size-4 shrink-0',
-									picked ? 'icon-[lucide--circle-check] text-accent' : 'icon-[lucide--circle]'
-								]}
-							></span>
-							<span class="min-w-0">
-								<span class="block text-ink">{option.label}</span>
-								{#if option.description && option.description !== option.label}
-									<span class="block text-xs text-muted">{option.description}</span>
-								{/if}
-							</span>
-						</button>
-					{/each}
+					{#if question.options.length}
+						<div class="-mx-2 space-y-0.5">
+							{#each question.options as option (option.label)}
+								{@const picked = (chosen[i] ?? []).includes(option.label)}
+								{@const label = option.label.replace(RECOMMENDED, '')}
+								<button
+									type="button"
+									class={[
+										'item w-full items-start gap-3 px-2 py-1.5 text-left',
+										picked && 'bg-sunken text-ink hover:bg-sunken'
+									]}
+									aria-pressed={picked}
+									onclick={() => choose(i, option.label, question.multiSelect)}
+								>
+									<span
+										class={[
+											'mt-1 size-4 shrink-0',
+											question.multiSelect
+												? picked
+													? 'icon-[lucide--square-check] text-accent'
+													: 'icon-[lucide--square]'
+												: picked
+													? 'icon-[lucide--circle-check] text-accent'
+													: 'icon-[lucide--circle]'
+										]}
+									></span>
+									<span class="min-w-0 flex-1">
+										<span class="flex flex-wrap items-center gap-2 text-ink">
+											{label}
+											{#if label !== option.label}<Badge>Recommended</Badge>{/if}
+										</span>
+										{#if option.description && option.description !== option.label}
+											<span class="block text-xs text-muted">{option.description}</span>
+										{/if}
+									</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
 					<input
 						class="w-full input text-sm"
-						placeholder="Or say it in your own words"
+						placeholder={question.options.length ? 'Or say it in your own words' : 'Your answer'}
 						aria-label="Your own answer to: {question.question}"
 						bind:value={own[i]}
 						oninput={() => (chosen[i] = [])}
 					/>
 				{:else}
-					<p class="text-sm text-muted">{answers?.[i] || 'Not answered'}</p>
+					<p class="flex items-start gap-2 text-sm text-muted">
+						{#if answers?.[i]}
+							<span class="mt-1 icon-[lucide--corner-down-right] size-4 shrink-0"></span>
+							<span class="whitespace-pre-line text-ink">{answers[i]}</span>
+						{:else}
+							Not answered
+						{/if}
+					</p>
 				{/if}
 			</fieldset>
 		{/if}
