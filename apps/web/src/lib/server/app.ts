@@ -4,7 +4,13 @@ import { views } from './views.ts';
 import { createStandings } from './standings.ts';
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
-import { NO_WORKTREE, REMOVE_TIMEOUT_MS, type RepoIcon, type WorktreeRef } from '@geordi/protocol';
+import {
+	NO_WORKTREE,
+	REMOVE_TIMEOUT_MS,
+	UPSTREAM_TICK_MS,
+	type RepoIcon,
+	type WorktreeRef
+} from '@geordi/protocol';
 import {
 	GEORDI_AGENT_MAX_CHILDREN,
 	GEORDI_AGENT_MAX_DEPTH,
@@ -67,6 +73,25 @@ const changesOf = (ref: WorktreeRef) =>
 			return changes;
 		});
 
+function upstreamOf(ref: WorktreeRef, fresh = false) {
+	return hub()
+		.request({ kind: 'upstream', fresh, ...ref })
+		.then((upstream) => {
+			if (!upstream) return null;
+			const { pull } = upstream;
+			return {
+				...upstream,
+				repoUrl: webUrl(upstream.repoUrl),
+				createUrl: webUrl(upstream.createUrl),
+				pull: pull && {
+					...pull,
+					url: webUrl(pull.url),
+					checks: pull.checks && { ...pull.checks, url: webUrl(pull.checks.url) }
+				}
+			};
+		});
+}
+
 /** Independent answers let local files and terminals appear while the upstream forge responds. */
 function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
 	const ref = Promise.resolve().then(() => workspaces().ref(worktreeId));
@@ -78,23 +103,7 @@ function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
 				return { changes: null, unavailable, missing: unavailable === NO_WORKTREE };
 			}
 		),
-		upstream: ref
-			.then((ref) => hub().request({ kind: 'upstream', fresh, ...ref }))
-			.then((upstream) => {
-				if (!upstream) return null;
-				const { pull } = upstream;
-				return {
-					...upstream,
-					repoUrl: webUrl(upstream.repoUrl),
-					createUrl: webUrl(upstream.createUrl),
-					pull: pull && {
-						...pull,
-						url: webUrl(pull.url),
-						checks: pull.checks && { ...pull.checks, url: webUrl(pull.checks.url) }
-					}
-				};
-			})
-			.catch(() => null),
+		upstream: ref.then((ref) => upstreamOf(ref, fresh)).catch(() => null),
 		config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
 		release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
 	};
@@ -109,12 +118,10 @@ export async function loadStanding(worktreeId: string, fresh = false, keepKnown 
 	const ref = workspaces().ref(worktreeId);
 	const [changes, upstream] = await Promise.all([
 		changesOf(ref),
-		hub()
-			.request({ kind: 'upstream', fresh, ...ref })
-			.catch((error) => {
-				if (keepKnown) throw error;
-				return null;
-			})
+		upstreamOf(ref, fresh).catch((error) => {
+			if (keepKnown) throw error;
+			return null;
+		})
 	]);
 	return { changes, upstream };
 }
@@ -134,13 +141,13 @@ export const standings = lazy(() => {
 			)
 		],
 		load: loadStanding,
-		loadUpstream: (id) => hub().request({ kind: 'upstream', ...workspaces().ref(id) })
+		loadUpstream: (id) => upstreamOf(workspaces().ref(id)),
+		publishUpstream: (id, upstream, branch) => watchers().noteUpstream(id, upstream, branch)
 	});
-	setInterval(() => void standings.tick(), STANDINGS_TICK_MS).unref();
+	setInterval(() => void standings.tick(), UPSTREAM_TICK_MS).unref();
 	void standings.tick();
 	return standings;
 });
-const STANDINGS_TICK_MS = 20_000;
 
 /**
  * Has a daemon make sure a workspace's worktree is there, and notes where it is: for a
@@ -259,7 +266,7 @@ export const hub = lazy(() =>
 			terminals().reconcile(runningTerminals, ended);
 			watchers().resync();
 			// a daemon is there to ask: how the workspaces stand is wanted right away
-			void standings().tick();
+			void standings().tick(true);
 		},
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {

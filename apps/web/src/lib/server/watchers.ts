@@ -50,9 +50,6 @@ const initial: WatchedState = {
 	checking: true
 };
 
-/** How often what happens on upstream forges (checks, reviews) is asked for again. */
-const UPSTREAM_INTERVAL_MS = 60_000;
-
 /**
  * Keeps the state of the worktrees someone is looking at, and tells the viewers when it
  * changes. A daemon watches those worktrees' files and says when something changed; the
@@ -75,6 +72,7 @@ export function createWatchers(
 		loading: boolean;
 		pending: boolean | null;
 		announced: boolean;
+		fallback?: NodeJS.Timeout;
 	};
 	const watched = new Map<string, Watched>();
 
@@ -109,6 +107,7 @@ export function createWatchers(
 			return;
 		}
 		entry.loading = true;
+		const upstreamAtStart = entry.state?.upstream;
 		const answers = load(worktreeId, fresh);
 		const local = answers.local.then((result) => {
 			const changedBranch = result.changes?.branch !== entry.state?.changes?.branch;
@@ -119,6 +118,24 @@ export function createWatchers(
 			});
 		});
 		const standing = Promise.all([local, answers.upstream]).then(([, upstream]) => {
+			const latest = entry.state?.upstream;
+			if (upstream?.localBranch && upstream.localBranch !== entry.state?.changes?.branch)
+				upstream = null;
+			if (
+				latest &&
+				latest.localBranch === entry.state?.changes?.branch &&
+				((!upstream && latest !== upstreamAtStart) ||
+					(latest.checkedAt !== undefined &&
+						upstream?.checkedAt !== undefined &&
+						latest.checkedAt > upstream.checkedAt))
+			)
+				upstream = latest;
+			if (
+				watched.get(worktreeId) === entry &&
+				upstream?.checkedAt !== undefined &&
+				upstream.checkedAt !== latest?.checkedAt
+			)
+				scheduleFallback(worktreeId, entry);
 			publish({ upstream, checking: entry.announced });
 			if (watched.get(worktreeId) === entry && entry.state?.changes && !entry.announced)
 				noteStanding(worktreeId, entry.state);
@@ -137,15 +154,13 @@ export function createWatchers(
 		});
 	}
 
-	// Nothing tells us when a check finishes or a review comes in: ask now and then.
-	let timer: NodeJS.Timeout | undefined;
-	function keepUpstreamFresh() {
-		if (watched.size > 0 && !timer)
-			timer = setInterval(
-				() => [...watched.keys()].forEach((id) => refresh(id, true)),
-				UPSTREAM_INTERVAL_MS
-			).unref();
-		if (watched.size === 0 && timer) timer = void clearInterval(timer);
+	// Quiet, archived, or unavailable workspaces may get no background answers.
+	function scheduleFallback(id: string, entry: Watched) {
+		clearTimeout(entry.fallback);
+		entry.fallback = setTimeout(() => {
+			scheduleFallback(id, entry);
+			refresh(id, true);
+		}, 60_000).unref();
 	}
 
 	return {
@@ -169,7 +184,7 @@ export function createWatchers(
 				);
 				sync();
 				refresh(worktreeId);
-				keepUpstreamFresh();
+				scheduleFallback(worktreeId, entry);
 			}
 			entry.viewers.add(changed);
 
@@ -178,9 +193,29 @@ export function createWatchers(
 				if (entry.viewers.size === 0 && watched.get(worktreeId) === entry) {
 					watched.delete(worktreeId);
 					sync();
-					keepUpstreamFresh();
+					clearTimeout(entry.fallback);
 				}
 			};
+		},
+
+		/** Publish a background answer without reloading files, diffs or release data. */
+		noteUpstream(worktreeId: string, upstream: Upstream | null, branch?: string | null) {
+			const entry = watched.get(worktreeId);
+			if (
+				!entry?.state?.changes ||
+				entry.state.checking ||
+				(upstream?.localBranch ?? branch) !== entry.state.changes.branch ||
+				(upstream?.checkedAt !== undefined &&
+					(entry.state.upstream?.checkedAt ?? 0) > upstream.checkedAt)
+			)
+				return;
+			if (
+				upstream?.checkedAt === undefined ||
+				upstream.checkedAt !== entry.state.upstream?.checkedAt
+			)
+				scheduleFallback(worktreeId, entry);
+			entry.state = { ...entry.state, upstream };
+			for (const viewer of entry.viewers) viewer();
 		},
 
 		/** The worktree's state as last loaded; `null` if nobody is looking, or not loaded yet. */
