@@ -12,16 +12,16 @@ The top bar of a workspace shows what could or should happen next: publish the w
 - The top bar says where the workspace stands in a few words ("Changes to publish", "Checks failing", "Ready to merge", "Merged"), coloured by how that should feel, with a link to the pull request if there is one, and the actions right beside it as one unit.
 - The actions follow from where the workspace's changes and its pull request stand. The most pressing one is shown as the main action at the far right; other actions sit to its left.
 
-  | When                                                                                                     | Action                |
-  | -------------------------------------------------------------------------------------------------------- | --------------------- |
-  | The repository is on no forge Geordi knows, and there is uncommitted work                                | Commit                |
-  | There is work the forge doesn't have, and no pull request                                                | Create PR             |
-  | The pull request's checks are failing                                                                    | Fix errors            |
-  | Changes were requested in review                                                                         | Address review        |
-  | There is a pull request, and local work it doesn't have                                                  | Update PR             |
-  | The pull request is an open draft                                                                        | Mark ready for review |
-  | The pull request is open, its checks pass (or it has none), it is not a draft, and nothing above applies | Merge PR              |
-  | The pull request is merged or closed                                                                     | Archive               |
+  | When                                                                                                     | Action           |
+  | -------------------------------------------------------------------------------------------------------- | ---------------- |
+  | The repository is on no forge Geordi knows, and there is uncommitted work                                | Commit           |
+  | There is work the forge doesn't have, and no pull request                                                | Create PR        |
+  | The pull request's checks are failing                                                                    | Fix errors       |
+  | Changes were requested in review                                                                         | Address review   |
+  | There is a pull request, and local work it doesn't have                                                  | Update PR        |
+  | The pull request is an open draft                                                                        | Ready for review |
+  | The pull request is open, its checks pass (or it has none), it is not a draft, and nothing above applies | Merge PR         |
+  | The pull request is merged or closed                                                                     | Archive          |
 
 - When the base branch has known commits that the workspace does not contain, the ribbon offers **Update** beside its next step. Detection uses the base branch as last fetched (or the parent branch for a child workspace). The action is not offered for completed work or a failed turn.
 - Update is done by Geordi itself where git can do it alone: no agent is at work in the workspace, nothing is uncommitted, and the two don't conflict. It fetches, then fast-forwards the branch, or makes a merge commit where the branch has commits of its own; it never rebases. In every other case it asks the agent to fetch, merge the base branch, preserve uncommitted work, resolve conflicts, and run checks; that message can be queued while the agent works.

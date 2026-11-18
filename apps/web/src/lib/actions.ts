@@ -193,7 +193,7 @@ function nextActions(state: State): WorkspaceAction[] {
 	if (pull.draft)
 		actions.push({
 			id: 'ready-for-review',
-			label: 'Mark ready for review',
+			label: 'Ready for review',
 			icon: 'icon-[lucide--git-pull-request]',
 			prompt: `Mark ${number} as ready for review on the upstream forge.`
 		});
