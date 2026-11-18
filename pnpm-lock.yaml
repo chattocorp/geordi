@@ -20,7 +20,7 @@ catalogs:
       version: 4.1.12
 
 patchedDependencies:
-  forges@0.3.2: cff75c93693528531a0d03645a1a825ab72094a327f37a2f9ba8f52cad5e9ccd
+  forges@0.3.2: 7e8333916e967f1736f1ad82f2bc8e43adc7e328265274fe364949451e5ea1d4
 
 importers:
 
@@ -85,7 +85,7 @@ importers:
         version: 1.2.0-beta.18
       forges:
         specifier: ^0.3.2
-        version: 0.3.2(patch_hash=cff75c93693528531a0d03645a1a825ab72094a327f37a2f9ba8f52cad5e9ccd)
+        version: 0.3.2(patch_hash=7e8333916e967f1736f1ad82f2bc8e43adc7e328265274fe364949451e5ea1d4)
       smol-toml:
         specifier: 1.9.1
         version: 1.9.1
@@ -6514,7 +6514,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  forges@0.3.2(patch_hash=cff75c93693528531a0d03645a1a825ab72094a327f37a2f9ba8f52cad5e9ccd): {}
+  forges@0.3.2(patch_hash=7e8333916e967f1736f1ad82f2bc8e43adc7e328265274fe364949451e5ea1d4): {}
 
   form-data@4.0.6:
     dependencies:

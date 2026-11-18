@@ -176,6 +176,12 @@ export type PullRequest = {
 	review: 'changes_requested' | 'approved' | 'pending' | null;
 	/** Whether it conflicts with its base, so cannot be merged as it is. Absent where the forge does not say. */
 	conflicts?: boolean;
+	/**
+	 * What else keeps it from being merged now, where the forge says: `behind` its base, which
+	 * the base branch's rules want it up to date with, or those `rules` otherwise (required
+	 * checks or reviews still missing). Absent where nothing does, or the forge does not say.
+	 */
+	blocked?: 'behind' | 'rules';
 };
 
 /**
