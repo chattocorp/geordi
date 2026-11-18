@@ -1,0 +1,8 @@
+// Deployed by CI (.github/workflows/website.yml) as a Worker with static assets only.
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "geordi-website",
+	"compatibility_date": "2026-11-18",
+	"assets": { "directory": "./dist" },
+	"routes": [{ "pattern": "geordi.run", "custom_domain": true }]
+}
