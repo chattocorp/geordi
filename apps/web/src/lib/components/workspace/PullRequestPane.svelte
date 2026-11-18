@@ -1,20 +1,12 @@
 <script lang="ts">
 	import type { PullRequest } from '@geordi/protocol';
-	import { describeChecks } from '#lib/checks.ts';
+	import PullChecks from './PullChecks.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 
 	let { pull }: { pull: PullRequest } = $props();
 
 	const states = { open: 'Open', closed: 'Closed', merged: 'Merged', unknown: 'Unknown' };
-
-	const checks = $derived(pull.checks && describeChecks(pull.checks));
-	const bar = {
-		danger: 'bg-danger',
-		ok: 'bg-ok',
-		neutral: 'bg-line',
-		accent: 'bg-accent bar-running'
-	};
 
 	const review = $derived(
 		pull.review &&
@@ -59,24 +51,8 @@
 			{/if}
 		</div>
 	</header>
-	{#if checks}
-		<svelte:element
-			this={pull.checks?.url ? 'a' : 'div'}
-			href={pull.checks?.url}
-			target={pull.checks?.url ? '_blank' : undefined}
-			rel={pull.checks?.url ? 'noreferrer' : undefined}
-			class={['block space-y-1.5', pull.checks?.url && 'group']}
-		>
-			<span class="flex items-baseline gap-2 text-xs">
-				<span class="font-medium group-hover:underline">Checks</span>
-				<span class="text-muted">{checks.text}</span>
-			</span>
-			<span class="flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
-				{#each checks.parts as part (part.tone)}
-					<span class={bar[part.tone]} style:flex-grow={part.size}></span>
-				{/each}
-			</span>
-		</svelte:element>
+	{#if pull.checks}
+		{#key pull.number}<PullChecks checks={pull.checks} />{/key}
 	{/if}
 	{#if pull.body?.trim()}
 		<div class="wrap-anywhere"><Markdown text={pull.body} /></div>

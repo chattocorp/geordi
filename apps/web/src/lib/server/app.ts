@@ -75,7 +75,12 @@ const changesOf = (ref: WorktreeRef) =>
 
 function upstreamOf(ref: WorktreeRef, fresh = false) {
 	return hub()
-		.request({ kind: 'upstream', fresh, ...ref })
+		.request({
+			kind: 'upstream',
+			includeChecks: watchers().isWatched(ref.worktreeId),
+			fresh,
+			...ref
+		})
 		.then((upstream) => {
 			if (!upstream) return null;
 			const { pull } = upstream;
@@ -86,7 +91,14 @@ function upstreamOf(ref: WorktreeRef, fresh = false) {
 				pull: pull && {
 					...pull,
 					url: webUrl(pull.url),
-					checks: pull.checks && { ...pull.checks, url: webUrl(pull.checks.url) }
+					checks: pull.checks && {
+						...pull.checks,
+						url: webUrl(pull.checks.url),
+						items: pull.checks.items?.map((item) => ({
+							...item,
+							url: webUrl(item.url) ?? undefined
+						}))
+					}
 				}
 			};
 		});

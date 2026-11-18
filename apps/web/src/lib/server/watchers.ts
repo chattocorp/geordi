@@ -218,6 +218,8 @@ export function createWatchers(
 			for (const viewer of entry.viewers) viewer();
 		},
 
+		isWatched: (worktreeId: string) => watched.has(worktreeId),
+
 		/** The worktree's state as last loaded; `null` if nobody is looking, or not loaded yet. */
 		state: (worktreeId: string): WatchedState | null => watched.get(worktreeId)?.state ?? null,
 

@@ -1,5 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { CI_REFRESH_MS, type CheckCounts, type PullRequest, type Upstream } from '@geordi/protocol';
+import {
+	CI_REFRESH_MS,
+	type CheckCounts,
+	type PullCheck,
+	type PullRequest,
+	type Upstream
+} from '@geordi/protocol';
 import {
 	createForges,
 	github,
@@ -86,21 +92,46 @@ export function count(states: Check['state'][]): CheckCounts {
 	return counts;
 }
 
-/**
- * The checks on an open pull request, one by one: one more request, for a picture of how
- * far they are. `undefined` where there is no telling (and the combined state has to do).
- */
-async function countChecks(provider: ForgeProvider, repo: Repo, pull: Thread) {
+/** Background standings need only counts. An open workspace also requests individual checks. */
+async function checksFor(
+	provider: ForgeProvider,
+	repo: Repo,
+	pull: Thread,
+	includeChecks: boolean
+) {
+	const counts = rollupCounts(pull);
 	const sha = pull.branches?.head.sha;
-	if (pull.state !== 'open' || !pull.checks || !sha || !provider.can('checks.list')) return;
+	if (
+		(!includeChecks && (counts || pull.state !== 'open')) ||
+		!pull.checks ||
+		!sha ||
+		!provider.can('checks.list')
+	)
+		return { counts };
 	try {
 		const page = await provider.checks.list(repo, sha);
-		// more of them than came back: counting these would be wrong
-		if (page.cursor || page.items.length === 0) return;
-		return count(page.items.map((check) => check.state));
+		if (
+			!page.cursor &&
+			!page.warnings?.some((warning) => warning.code === 'checks_unreadable') &&
+			page.items.length
+		) {
+			return {
+				counts: count(page.items.map((check) => check.state)),
+				items: includeChecks
+					? page.items.map(({ ref, name, state, stateRaw, conclusionRaw, url }) => ({
+							id: ref.type + '/' + ref.id,
+							name,
+							state,
+							status: (conclusionRaw || stateRaw).toLowerCase(),
+							url
+						}))
+					: undefined
+			};
+		}
 	} catch {
-		return; // nice to have, never worth failing over
+		// The pull request summary is still available.
 	}
+	return { counts };
 }
 
 /**
@@ -122,7 +153,7 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 }
 
 /** Boils a pull request down to what the workspace shows. */
-export function summarise(thread: Thread, counts?: CheckCounts): PullRequest {
+export function summarise(thread: Thread, counts?: CheckCounts, items?: PullCheck[]): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
 	const decision = (thread.raw as { reviewDecision?: string } | null)?.reviewDecision;
 	if (decision === 'APPROVED') reviews.push('approved');
@@ -146,6 +177,7 @@ export function summarise(thread: Thread, counts?: CheckCounts): PullRequest {
 						total: checks.total ?? null,
 						failed: checks.failed ?? null,
 						...(counts && { counts }),
+						...(items?.length && { items }),
 						url: checks.url ?? null
 					}
 				: null,
@@ -233,6 +265,7 @@ function locate(worktree: Worktree, repoPath: string) {
 }
 
 type Cached = {
+	includeChecks: boolean;
 	key: string;
 	at: number;
 	pushedSha: string | null;
@@ -247,7 +280,12 @@ const cache = new Map<string, Cached>();
  */
 export async function upstream(
 	worktree: Worktree,
-	{ repoPath, worktreeId, fresh: asked }: { repoPath: string; worktreeId: string; fresh?: boolean },
+	{
+		repoPath,
+		worktreeId,
+		fresh: asked,
+		includeChecks = false
+	}: { repoPath: string; worktreeId: string; fresh?: boolean; includeChecks?: boolean },
 	now = Date.now()
 ): Promise<Upstream | null> {
 	const found = locate(worktree, repoPath);
@@ -285,7 +323,14 @@ export async function upstream(
 	const previous = baseline?.value;
 	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`)) {
 		// Remember the unpushed branch so its first push is an observed change.
-		cache.set(worktreeId, { key, at: now, pushedSha, fastUntil: 0, value: null });
+		cache.set(worktreeId, {
+			key,
+			at: now,
+			includeChecks: false,
+			pushedSha,
+			fastUntil: 0,
+			value: null
+		});
 		return base;
 	}
 
@@ -299,6 +344,7 @@ export async function upstream(
 	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
 	if (
 		cached &&
+		(!includeChecks || cached.includeChecks) &&
 		previous &&
 		(sameHead || anonymous) &&
 		previous.pushed === pushed &&
@@ -323,8 +369,8 @@ export async function upstream(
 	pull ??= await findPull(provider, repo, branch);
 	const defaultBranch =
 		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
-	const summary =
-		pull && summarise(pull, rollupCounts(pull) ?? (await countChecks(provider, repo, pull)));
+	const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
+	const summary = pull && summarise(pull, checks?.counts, checks?.items);
 	const waiting =
 		summary?.state === 'open' &&
 		(summary.checks?.state === 'pending' || !!summary.checks?.counts?.pending);
@@ -347,7 +393,7 @@ export async function upstream(
 	// An overlapping refresh (or a merge) may have superseded this read.
 	const latest = cache.get(worktreeId);
 	if (latest === cached || (latest && latest.at < now))
-		cache.set(worktreeId, { key, at: now, value, pushedSha, fastUntil });
+		cache.set(worktreeId, { key, at: now, includeChecks, value, pushedSha, fastUntil });
 	return value;
 }
 

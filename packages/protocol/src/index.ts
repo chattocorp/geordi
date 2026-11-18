@@ -126,6 +126,15 @@ export type FileVersions = { old: string | null; new: string | null } | { unavai
 
 export type CheckCounts = { passed: number; failed: number; pending: number; skipped: number };
 
+export type PullCheck = {
+	id: string;
+	name: string;
+	state: 'pending' | 'success' | 'failure' | 'neutral' | 'unknown';
+	/** More precise upstream status, such as queued or timed_out. */
+	status: string;
+	url?: string;
+};
+
 /** A pull request (or merge request, or whatever the forge calls it) for a workspace's branch. */
 export type PullRequest = {
 	body?: string;
@@ -146,6 +155,8 @@ export type PullRequest = {
 		 * Absent where the forge only says how they stand overall.
 		 */
 		counts?: CheckCounts;
+		/** Individual checks on the head commit, when requested and available. */
+		items?: PullCheck[];
 		url: string | null;
 	} | null;
 	/** Where its reviews stand, the most decisive first; `null` if nobody was asked. */
@@ -436,6 +447,7 @@ export type DaemonRequest =
 	/** The workspace's branch on the repository's upstream forge. */
 	| ({
 			kind: 'upstream';
+			includeChecks?: boolean;
 			/** Ask the forge now, rather than answer from what was learnt a moment ago. */
 			fresh?: boolean;
 	  } & WorktreeRef)

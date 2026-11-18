@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import { toolIcon, toolSummary } from '#lib/tools.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
 
@@ -18,10 +19,8 @@
 	const pending = $derived(running && output === null);
 </script>
 
-<details class="group">
-	<summary
-		class="flex list-none items-center gap-3 px-3.5 py-2 text-sm select-none hover:bg-sunken/70"
-	>
+<Disclosure summaryClass="px-3.5 py-2 text-sm hover:bg-sunken/70">
+	{#snippet heading()}
 		<span
 			class={[
 				'grid size-6 shrink-0 place-items-center rounded-control',
@@ -37,10 +36,7 @@
 		{:else if isError}
 			<span class="sr-only">Failed</span>
 		{/if}
-		<span
-			class="icon-[lucide--chevron-right] size-4 shrink-0 text-muted transition-transform group-open:rotate-90"
-		></span>
-	</summary>
+	{/snippet}
 
 	<div class="mx-3.5 mb-3 overflow-hidden rounded-control bg-sunken code-dense">
 		{#if input && input !== summary}
@@ -56,4 +52,4 @@
 			<p class="p-3 text-muted">{output === null ? 'It was interrupted.' : 'No output.'}</p>
 		{/if}
 	</div>
-</details>
+</Disclosure>

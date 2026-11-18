@@ -53,14 +53,50 @@
 	)}
 </Story>
 
-<Story name="Checks under way" asChild>
+<Story
+	name="Checks under way"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const summary = canvas.getByRole('button', { name: 'Checks 6' });
+		const browser = canvas.getByRole('link', { name: 'Browser tests Running' });
+		await expect(browser).toBeVisible();
+		await expect(canvas.getAllByRole('listitem')[0]).toHaveTextContent('Unit tests');
+		await expect(canvas.getByText('Lint')).not.toBeVisible();
+		await userEvent.click(canvas.getByText('Other checks (3)'));
+		await expect(canvas.getByText('Lint')).toBeVisible();
+		await userEvent.click(summary);
+		await expect(browser).not.toBeVisible();
+		await userEvent.click(summary);
+		await expect(canvas.getByText('Queued')).toBeVisible();
+	}}
+>
 	{@render pane(
 		withPull({
 			checks: {
-				state: 'pending',
-				total: 17,
-				failed: 0,
-				counts: { passed: 5, failed: 0, pending: 8, skipped: 4 },
+				state: 'failure',
+				total: 6,
+				failed: 1,
+				counts: { passed: 2, failed: 1, pending: 2, skipped: 1 },
+				items: [
+					{ id: 'lint', name: 'Lint', state: 'success', status: 'success' },
+					{
+						id: 'browser',
+						name: 'Browser tests',
+						state: 'pending',
+						status: 'in_progress',
+						url: 'https://github.com/acme/widgets/actions/runs/123'
+					},
+					{
+						id: 'test',
+						name: 'Unit tests',
+						state: 'failure',
+						status: 'failure',
+						url: 'https://github.com/acme/widgets/actions/runs/124'
+					},
+					{ id: 'preview', name: 'Deploy preview', state: 'pending', status: 'queued' },
+					{ id: 'types', name: 'Type check', state: 'success', status: 'success' },
+					{ id: 'docs', name: 'Build docs', state: 'neutral', status: 'skipped' }
+				],
 				url: 'https://github.com/acme/widgets/pull/42/checks'
 			},
 			review: null
