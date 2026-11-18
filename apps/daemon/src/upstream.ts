@@ -237,7 +237,7 @@ type Cached = {
 	at: number;
 	pushedSha: string | null;
 	fastUntil: number;
-	value: Upstream;
+	value: Upstream | null;
 };
 const cache = new Map<string, Cached>();
 
@@ -263,7 +263,10 @@ export async function upstream(
 	);
 	const pushed = pushedSha !== null;
 
+	const local = found.head.slice('refs/heads/'.length);
 	const base: Upstream = {
+		localBranch: local,
+		checkedAt: now,
 		forge: provider.forge,
 		repo: `${repo.owner}/${repo.name}`,
 		repoUrl: provider.urlFor({ repo }) ?? null,
@@ -276,18 +279,22 @@ export async function upstream(
 	// Forges delete a branch when its pull request is merged, and the next fetch forgets
 	// it here; the pull request is still there, and still this branch's. What is left of
 	// the push is that Git was told where the branch goes, or that we saw its pull request.
-	const local = found.head.slice('refs/heads/'.length);
 	const key = JSON.stringify([remote, branch, local]);
 	const cached = cache.get(worktreeId);
-	const previous = cached?.key === key ? cached.value : null;
-	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`))
+	const baseline = cached?.key === key ? cached : undefined;
+	const previous = baseline?.value;
+	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`)) {
+		// Remember the unpushed branch so its first push is an observed change.
+		cache.set(worktreeId, { key, at: now, pushedSha, fastUntil: 0, value: null });
 		return base;
+	}
 
 	// Asked to look now (something may just have happened there that nothing here shows: a
 	// pull request opened, a review), we do, unless we only just did. Not without
 	// credentials: those few requests are for looking now and then.
-	const sameHead = !!previous && cached?.pushedSha === pushedSha;
-	const fastUntil = sameHead ? cached.fastUntil : pushed ? now + 60_000 : 0;
+	// A cold read establishes the baseline. Only an observed push opens a discovery window.
+	const sameHead = baseline?.pushedSha === pushedSha;
+	const fastUntil = sameHead ? baseline.fastUntil : baseline && pushed ? now + 60_000 : 0;
 	const normal = previous?.refreshAfterMs ?? FRESH_MS;
 	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
 	if (
@@ -328,8 +335,6 @@ export async function upstream(
 			: undefined;
 	const value: Upstream = {
 		...base,
-		localBranch: local,
-		checkedAt: now,
 		refreshAfterMs,
 		pull: summary,
 		createUrl:

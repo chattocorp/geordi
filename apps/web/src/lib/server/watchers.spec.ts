@@ -228,6 +228,25 @@ describe('watchers', () => {
 		stop();
 	});
 
+	it('refreshes a minute after the last background update and cancels the fallback on close', async () => {
+		vi.useFakeTimers();
+		try {
+			const { watchers, daemon } = setup();
+			const stop = watchers.watch('a', () => {});
+			await vi.advanceTimersByTimeAsync(1_000);
+			watchers.noteUpstream('a', null, 'geordi/w');
+			await vi.advanceTimersByTimeAsync(59_999);
+			expect(daemon.fresh).toEqual([false]);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(daemon.fresh).toEqual([false, true]);
+			stop();
+			await vi.advanceTimersByTimeAsync(60_000);
+			expect(daemon.fresh).toEqual([false, true]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('forgets a worktree nobody is looking at any more', async () => {
 		const { watchers } = setup();
 		const stop = watchers.watch('a', () => {});

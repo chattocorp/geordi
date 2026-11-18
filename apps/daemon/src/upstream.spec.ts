@@ -109,12 +109,12 @@ describe('upstream', () => {
 			try {
 				git('update-ref', remoteBranch, 'HEAD');
 				const initial = await read(worktree, ref, 1000);
-				expect(initial?.refreshAfterMs).toBe(authenticated ? 10_000 : 300_000);
+				expect(initial?.refreshAfterMs).toBe(authenticated ? undefined : 300_000);
 				expect(await read(worktree, ref, 9000)).toBe(initial);
 				await read(worktree, ref, 11_000);
 				const settled = await read(worktree, ref, 61_000);
 				expect(settled?.refreshAfterMs).toBe(authenticated ? undefined : 300_000);
-				expect(search).toHaveBeenCalledTimes(authenticated ? 3 : 1);
+				expect(search).toHaveBeenCalledTimes(authenticated ? 2 : 1);
 				git(
 					'-c',
 					'user.name=t',
@@ -129,7 +129,19 @@ describe('upstream', () => {
 				git('update-ref', remoteBranch, 'HEAD');
 				const pushed = await read(worktree, ref, 62_000);
 				expect(pushed?.refreshAfterMs).toBe(authenticated ? 10_000 : 300_000);
+				expect(search).toHaveBeenCalledTimes(authenticated ? 3 : 1);
+				await read(worktree, ref, 72_000);
 				expect(search).toHaveBeenCalledTimes(authenticated ? 4 : 1);
+				expect((await read(worktree, ref, 122_000))?.refreshAfterMs).toBe(
+					authenticated ? undefined : 300_000
+				);
+				if (authenticated) {
+					const newWorkspace = { ...ref, worktreeId: 'first-push' };
+					git('update-ref', '-d', remoteBranch);
+					expect((await read(worktree, newWorkspace, 123_000))?.pushed).toBe(false);
+					git('update-ref', remoteBranch, 'HEAD');
+					expect((await read(worktree, newWorkspace, 124_000))?.refreshAfterMs).toBe(10_000);
+				}
 			} finally {
 				vi.unstubAllGlobals();
 				vi.unstubAllEnvs();
@@ -146,7 +158,9 @@ describe('upstream', () => {
 
 	it('knows the repository, and asks the forge nothing while the branch is not pushed', async () => {
 		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
-		expect(await upstream(worktree, ref)).toEqual({
+		expect(await upstream(worktree, ref, 123)).toEqual({
+			localBranch: 'geordi/abcdefgh',
+			checkedAt: 123,
 			forge: 'github',
 			repo: 'acme/widgets',
 			repoUrl: 'https://github.com/acme/widgets',

@@ -28,12 +28,18 @@ function setup(ids: string[]) {
 }
 
 describe('standings', () => {
-	it('asks about every worktree it knows nothing of at once, and tells who listens', async () => {
+	it('paces initial discovery and tells listeners after each result', async () => {
 		const { standings, state } = setup(['a', 'b', 'c', 'd']);
 		let told = 0;
 		standings.subscribe(() => told++);
 		expect(standings.get('a')).toBeNull();
 
+		await standings.tick();
+		expect(state.asked).toEqual(['a', 'b', 'c']);
+		state.now = 9_999;
+		await standings.tick();
+		expect(state.asked).toHaveLength(3);
+		state.now++;
 		await standings.tick();
 		expect(state.asked).toEqual(['a', 'b', 'c', 'd']);
 		expect(standings.get('a')).toEqual(standing());
@@ -88,6 +94,49 @@ describe('standings', () => {
 		state.now += 20_000;
 		await standings.tick();
 		expect(state.asked[0]).toBe('20 upstream');
+	});
+
+	it('picks up a running PR even when pushed branches use the search budget', async () => {
+		const ids = ['a', 'b', 'c', 'd', 'running'];
+		const { standings, state } = setup(ids);
+		const pushed = { ...standing(true).upstream!, pull: null, refreshAfterMs: 10_000 };
+		for (const id of ids) standings.note(id, { ...standing(), upstream: pushed });
+		standings.note('running', standing(true));
+		state.now = 10_000;
+		await standings.tick();
+		expect(state.asked).toEqual(['running upstream', 'a upstream', 'b upstream', 'c upstream']);
+		state.now += 2_000;
+		await standings.tick();
+		expect(state.asked).toHaveLength(4);
+		state.now += 8_000;
+		await standings.tick();
+		expect(state.asked.at(-1)).toBe('d upstream');
+	});
+
+	it('keeps a slow CI batch within its budget across overlapping ticks', async () => {
+		const ids = Array.from({ length: 21 }, (_, index) => String(index));
+		let now = 0;
+		const reads: string[] = [];
+		const slow = Promise.withResolvers<null>();
+		const standings = createStandings({
+			worktrees: () => ids,
+			now: () => now,
+			load: async () => standing(),
+			loadUpstream: (id) => {
+				reads.push(id);
+				return slow.promise;
+			}
+		});
+		for (const id of ids) standings.note(id, standing(true));
+		now = 10_000;
+		const first = standings.tick();
+		now += 12_000;
+		await standings.tick();
+		expect(reads).toEqual(ids.slice(0, 20));
+		slow.resolve(null);
+		await first;
+		await standings.tick();
+		expect(reads).toEqual(ids);
 	});
 
 	it('takes what a viewer learnt, and keeps what it knew when nobody can say', async () => {

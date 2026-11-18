@@ -72,7 +72,7 @@ export function createWatchers(
 		loading: boolean;
 		pending: boolean | null;
 		announced: boolean;
-		lastBackgroundAt: number;
+		fallback?: NodeJS.Timeout;
 	};
 	const watched = new Map<string, Watched>();
 
@@ -107,6 +107,7 @@ export function createWatchers(
 			return;
 		}
 		entry.loading = true;
+		const upstreamAtStart = entry.state?.upstream;
 		const answers = load(worktreeId, fresh);
 		const local = answers.local.then((result) => {
 			const changedBranch = result.changes?.branch !== entry.state?.changes?.branch;
@@ -121,12 +122,20 @@ export function createWatchers(
 			if (upstream?.localBranch && upstream.localBranch !== entry.state?.changes?.branch)
 				upstream = null;
 			if (
-				latest?.checkedAt !== undefined &&
-				upstream?.checkedAt !== undefined &&
-				latest.localBranch === upstream.localBranch &&
-				latest.checkedAt > upstream.checkedAt
+				latest &&
+				latest.localBranch === entry.state?.changes?.branch &&
+				((!upstream && latest !== upstreamAtStart) ||
+					(latest.checkedAt !== undefined &&
+						upstream?.checkedAt !== undefined &&
+						latest.checkedAt > upstream.checkedAt))
 			)
 				upstream = latest;
+			if (
+				watched.get(worktreeId) === entry &&
+				upstream?.checkedAt !== undefined &&
+				upstream.checkedAt !== latest?.checkedAt
+			)
+				scheduleFallback(worktreeId, entry);
 			publish({ upstream, checking: entry.announced });
 			if (watched.get(worktreeId) === entry && entry.state?.changes && !entry.announced)
 				noteStanding(worktreeId, entry.state);
@@ -146,15 +155,12 @@ export function createWatchers(
 	}
 
 	// Quiet, archived, or unavailable workspaces may get no background answers.
-	const interval = 60_000;
-	let timer: NodeJS.Timeout | undefined;
-	function keepUpstreamFresh() {
-		if (watched.size && !timer)
-			timer = setInterval(() => {
-				for (const [id, entry] of watched)
-					if (Date.now() - entry.lastBackgroundAt >= interval) refresh(id, true);
-			}, interval).unref();
-		if (!watched.size && timer) timer = void clearInterval(timer);
+	function scheduleFallback(id: string, entry: Watched) {
+		clearTimeout(entry.fallback);
+		entry.fallback = setTimeout(() => {
+			scheduleFallback(id, entry);
+			refresh(id, true);
+		}, 60_000).unref();
 	}
 
 	return {
@@ -173,13 +179,12 @@ export function createWatchers(
 						state: null,
 						loading: false,
 						pending: null,
-						announced: false,
-						lastBackgroundAt: 0
+						announced: false
 					})
 				);
 				sync();
 				refresh(worktreeId);
-				keepUpstreamFresh();
+				scheduleFallback(worktreeId, entry);
 			}
 			entry.viewers.add(changed);
 
@@ -188,7 +193,7 @@ export function createWatchers(
 				if (entry.viewers.size === 0 && watched.get(worktreeId) === entry) {
 					watched.delete(worktreeId);
 					sync();
-					keepUpstreamFresh();
+					clearTimeout(entry.fallback);
 				}
 			};
 		},
@@ -204,7 +209,11 @@ export function createWatchers(
 					(entry.state.upstream?.checkedAt ?? 0) > upstream.checkedAt)
 			)
 				return;
-			entry.lastBackgroundAt = Date.now();
+			if (
+				upstream?.checkedAt === undefined ||
+				upstream.checkedAt !== entry.state.upstream?.checkedAt
+			)
+				scheduleFallback(worktreeId, entry);
 			entry.state = { ...entry.state, upstream };
 			for (const viewer of entry.viewers) viewer();
 		},
