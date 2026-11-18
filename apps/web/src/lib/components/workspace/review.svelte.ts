@@ -1,22 +1,24 @@
 import { SvelteSet } from 'svelte/reactivity';
 import { problemOf } from '#lib/problem.ts';
-import { markReady } from '../../../routes/workspaces.remote';
+import type { WorkspaceAction } from '#lib/actions.ts';
+import { markReady, setAutoMerge } from '../../../routes/workspaces.remote';
 
-export const markingReady = new SvelteSet<string>();
+export const pendingPullAction = new SvelteSet<string>();
 export const reviewProblems = $state<Record<string, string | undefined>>({});
 
-export async function readyForReview(workspaceId: string, pullNumber: string) {
-	if (markingReady.has(workspaceId)) return;
-	markingReady.add(workspaceId);
+export async function runPullAction(workspaceId: string, action: WorkspaceAction) {
+	const { pullNumber } = action;
+	if (!pullNumber) return;
+	if (pendingPullAction.has(workspaceId)) return;
+	pendingPullAction.add(workspaceId);
 	delete reviewProblems[workspaceId];
 	try {
-		await markReady({ workspaceId, pullNumber });
+		if (action.id === 'ready-for-review') await markReady({ workspaceId, pullNumber });
+		else if (action.id === 'enable-auto-merge' || action.id === 'cancel-auto-merge')
+			await setAutoMerge({ workspaceId, pullNumber, enabled: action.id === 'enable-auto-merge' });
 	} catch (error) {
-		reviewProblems[workspaceId] = problemOf(
-			error,
-			'Could not mark the pull request ready for review'
-		);
+		reviewProblems[workspaceId] = problemOf(error, `Could not complete “${action.label}”`);
 	} finally {
-		markingReady.delete(workspaceId);
+		pendingPullAction.delete(workspaceId);
 	}
 }

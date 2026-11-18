@@ -28,6 +28,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 - Most actions say something to the workspace's agent: the message appears in the conversation like any other, and the agent does the work. If the agent is busy, the message waits its turn (FDR-001).
 - An action that has been asked for and is not done yet is shown as under way and can't be asked for twice.
 - Ready for review marks the open GitHub pull request ready through the upstream forge. A forge error appears in the workspace.
+- **Enable auto-merge** asks GitHub to merge the workspace pull request when its requirements pass. The action appears when GitHub allows it, the branch is published, and no fixes are pending. GitHub keeps the request through Geordi restarts. The ribbon shows **Auto-merge enabled** and offers **Cancel auto-merge** to people with permission.
 - Merge PR is done by Geordi itself, through the upstream forge's API: at once, without an agent turn. It merges only a pull request that is at the very commit the workspace has, the one way the repository allows, or squashed where it allows several. If the forge refuses, the top bar says why.
 - Archive opens a confirmation dialog. Geordi archives the workspace when the person confirms. It is also always available as a quiet button, not only when it is the obvious next step.
 - Nothing is offered while Geordi doesn't know the workspace's changes (no daemon connected).

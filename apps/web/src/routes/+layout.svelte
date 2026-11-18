@@ -1,7 +1,7 @@
 <script lang="ts">
 	import {
-		markingReady,
-		readyForReview,
+		pendingPullAction,
+		runPullAction,
 		reviewProblems
 	} from '#lib/components/workspace/review.svelte.ts';
 	import './layout.css';
@@ -131,8 +131,8 @@
 
 	/** Does what a workspace's action says, from the sidebar. */
 	async function act(workspace: Item, action: WorkspaceAction) {
-		if (action.id === 'ready-for-review' && action.pullNumber) {
-			await readyForReview(workspace.id, action.pullNumber);
+		if (action.pullNumber) {
+			await runPullAction(workspace.id, action);
 			if (reviewProblems[workspace.id])
 				await goto(resolve('/workspaces/[id]', { id: workspace.id }));
 			return;
@@ -162,7 +162,7 @@
 				label: action.label,
 				icon: action.icon,
 				tone: actionTone(workspace.standing),
-				disabled: action.id === 'ready-for-review' && markingReady.has(workspace.id),
+				disabled: !!action.pullNumber && pendingPullAction.has(workspace.id),
 				onselect: () => act(workspace, action)
 			})),
 			...(next.length > 0 ? ['separator' as const] : []),
