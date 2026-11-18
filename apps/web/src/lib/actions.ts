@@ -89,17 +89,17 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		pull?.conflicts
 	)
 		return actions;
-	return [
-		...actions,
-		{
-			id: 'merge-upstream',
-			label: 'Sync',
-			incomingCommits: incoming.commits,
-			icon: 'icon-[lucide--git-merge]',
-			aside: actions.length > 0,
-			prompt: mergeFrom(incoming.branch)
-		}
-	];
+	// beside the next step, but before the other actions aside (like disabling auto-merge)
+	const at = actions.findIndex((action) => action.aside);
+	const sync: WorkspaceAction = {
+		id: 'merge-upstream',
+		label: 'Sync',
+		incomingCommits: incoming.commits,
+		icon: 'icon-[lucide--git-merge]',
+		aside: actions.length > 0,
+		prompt: mergeFrom(incoming.branch)
+	};
+	return at < 0 ? [...actions, sync] : actions.toSpliced(at, 0, sync);
 }
 
 function nextActions(state: State): WorkspaceAction[] {
