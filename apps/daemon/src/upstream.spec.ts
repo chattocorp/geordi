@@ -259,7 +259,7 @@ describe('upstream', () => {
 			// a pull request opened: the listing changes, and it is read
 			github.pulls.push({ number: 42, state: 'open', updatedAt: '2026-11-18T10:00:00Z' });
 			github.version++;
-			const opened = await read(worktree, ref, 32_000);
+			const opened = await read(worktree, { ...ref, fresh: true }, 22_001);
 			expect(opened?.pull?.number).toBe('42');
 			expect(github.asked.slice(2)).toContain('read');
 			// unchanged since, it is not read again; a minute on, it is

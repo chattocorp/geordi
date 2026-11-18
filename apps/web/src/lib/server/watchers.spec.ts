@@ -159,20 +159,39 @@ describe('watchers', () => {
 
 		daemon.uncommitted = 3;
 		watchers.changed('a');
-		watchers.changed('a', true);
 		watchers.changed('a');
 		upstream.resolve(null);
 		await settled();
-		expect(watchers.state('a')).toMatchObject({ version: 1, checking: true });
+		expect(watchers.state('a')).toMatchObject({ version: 1, checking: false });
 		expect(daemon.asked).toEqual(['a']);
 		release.resolve(null);
 		await settled();
-		expect(daemon.fresh).toEqual([false, true]);
+		expect(daemon.fresh).toEqual([false, false]);
 		expect(watchers.state('a')).toMatchObject({
 			changes: { uncommitted: 3 },
 			version: 2,
 			checking: false
 		});
+		expect(note).toHaveBeenCalledTimes(2);
+	});
+
+	it('starts a fresh read at turn end and ignores the older response', async () => {
+		const previous = Promise.withResolvers<null>();
+		const { watchers, daemon, note } = setup((n) => ({
+			...answers(n),
+			...(n === 0 && { upstream: () => previous.promise, release: previous.promise })
+		}));
+		watchers.watch('a', () => {});
+		await settled();
+		daemon.uncommitted = 1;
+		watchers.changed('a', true);
+		expect(daemon.fresh).toEqual([false, true]);
+		await settled();
+		expect(watchers.state('a')).toMatchObject({ changes: { uncommitted: 1 }, checking: false });
+		const current = watchers.state('a');
+		previous.resolve(null);
+		await settled();
+		expect(watchers.state('a')).toBe(current);
 		expect(note).toHaveBeenCalledTimes(1);
 	});
 

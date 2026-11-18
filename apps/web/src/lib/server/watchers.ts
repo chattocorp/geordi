@@ -72,9 +72,8 @@ export function createWatchers(
 	type Watched = {
 		viewers: Set<() => void>;
 		state: WatchedState | null;
-		loading: boolean;
+		loading: symbol | null;
 		pending: boolean | null;
-		announced: boolean;
 		fallback?: NodeJS.Timeout;
 	};
 	const watched = new Map<string, Watched>();
@@ -98,18 +97,21 @@ export function createWatchers(
 	function refresh(worktreeId: string, fresh = false, announce = false, cached?: Upstream) {
 		const entry = watched.get(worktreeId);
 		if (!entry) return;
+		if (entry.loading && !announce) {
+			entry.pending = fresh || (entry.pending ?? false);
+			return;
+		}
+		// A turn can finish while an earlier lookup is still waiting for release or Git data.
+		const request = Symbol();
+		entry.loading = request;
+		entry.pending = null;
+		const current = () => watched.get(worktreeId) === entry && entry.loading === request;
 		const publish = (patch: Partial<WatchedState>) => {
-			if (watched.get(worktreeId) !== entry) return;
+			if (!current()) return;
 			entry.state = { ...(entry.state ?? initial), ...patch };
 			for (const viewer of entry.viewers) viewer();
 		};
 		if (announce && entry.state && !entry.state.checking) publish({ checking: true });
-		if (entry.loading) {
-			entry.pending = fresh || (entry.pending ?? false);
-			entry.announced ||= announce;
-			return;
-		}
-		entry.loading = true;
 		const upstreamAtStart = entry.state?.upstream;
 		const answers = load(worktreeId, fresh);
 		const upstreamAnswer = cached
@@ -127,6 +129,7 @@ export function createWatchers(
 			});
 		});
 		const standing = Promise.all([local, upstreamAnswer]).then(([, upstream]) => {
+			if (!current()) return;
 			const latest = entry.state?.upstream;
 			if (cached && upstream === cached && latest === null) upstream = null;
 			if (upstream?.localBranch && upstream.localBranch !== entry.state?.changes?.branch)
@@ -140,28 +143,23 @@ export function createWatchers(
 						latest.checkedAt > upstream.checkedAt))
 			)
 				upstream = latest;
-			if (
-				watched.get(worktreeId) === entry &&
-				upstream?.checkedAt !== undefined &&
-				upstream.checkedAt !== latest?.checkedAt
-			)
+			if (upstream?.checkedAt !== undefined && upstream.checkedAt !== latest?.checkedAt)
 				scheduleFallback(worktreeId, entry);
-			publish({ upstream, checking: entry.announced });
-			if (watched.get(worktreeId) === entry && entry.state?.changes && !entry.announced)
-				noteStanding(worktreeId, entry.state);
+			publish({ upstream, checking: false });
+			if (current() && entry.state?.changes) noteStanding(worktreeId, entry.state);
 		});
 		void Promise.all([
 			standing,
 			answers.config.then((config) => publish({ config })),
 			answers.release.then((release) => publish({ release, releasePending: false }))
 		]).then(() => {
-			if (watched.get(worktreeId) !== entry) return;
-			entry.loading = false;
+			if (!current()) return;
+			entry.loading = null;
 			const pending = entry.pending;
 			entry.pending = null;
-			entry.announced = false;
 			if (pending !== null) refresh(worktreeId, pending);
 		});
+		return standing;
 	}
 
 	// Quiet, archived, or unavailable workspaces may get no background answers.
@@ -195,9 +193,8 @@ export function createWatchers(
 					(entry = {
 						viewers: new Set(),
 						state: cached ? { ...initial, checking: false, upstream: cached } : null,
-						loading: false,
-						pending: null,
-						announced: false
+						loading: null,
+						pending: null
 					})
 				);
 				sync();

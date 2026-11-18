@@ -245,7 +245,7 @@ export async function updateWorkspace(id: string, prompt: string) {
 }
 
 /**
- * How long after a turn's end its workspace is looked at once more. A forge does not always
+ * How long after the first upstream answer to look once more. A forge does not always
  * have what was just done there (a pull request opened a second ago) when it is first asked.
  */
 const UPSTREAM_SETTLES_MS = 10_000;
@@ -258,15 +258,13 @@ export function upstreamMayHaveChanged(workspaceId: string) {
 	const look = () => {
 		try {
 			const { worktreeId } = workspaces().ref(workspaceId);
-			watchers().changed(worktreeId, true);
-			// nobody looking at it: the sidebar still shows how it stands
-			if (!watchers().state(worktreeId)) void standings().refresh(worktreeId, true);
+			if (watchers().isWatched(worktreeId)) return watchers().changed(worktreeId, true);
+			return standings().refresh(worktreeId, true);
 		} catch {
 			// no such workspace (any more): nobody to tell
 		}
 	};
-	look();
-	setTimeout(look, UPSTREAM_SETTLES_MS).unref();
+	void look()?.then(() => setTimeout(look, UPSTREAM_SETTLES_MS).unref());
 }
 
 /** The jobs repositories have run for their workspaces (FDR-006). */
