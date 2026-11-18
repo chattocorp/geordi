@@ -53,6 +53,20 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    update({sessionUpdate:'plan_removed',planId:'review'});
    items('plan',[]);return done();
   }
+  if(said==='start command'){
+   update({sessionUpdate:'tool_call_update',toolCallId:'bg',name:'shell',rawInput:'build',status:'in_progress'});
+   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg',data:Buffer.from('before ').toString('base64')});
+   return done();
+  }
+  if(said==='finish with text'){
+   update({sessionUpdate:'tool_call_update',toolCallId:'bg',status:'completed',rawOutput:{exit_code:0},content:[{type:'content',content:{type:'text',text:'before after'}}]});
+   return done();
+  }
+  if(said==='finish command'){
+   update({sessionUpdate:'terminal_output_chunk',terminalId:'bg',data:Buffer.from('after').toString('base64')});
+   const finished={sessionUpdate:'tool_call_update',toolCallId:'bg',status:'completed'};
+   update(finished);update(finished);return done();
+  }
   if(said==='terminal'){
    const tool={sessionUpdate:'tool_call_update',toolCallId:'sh',name:'shell'};
    update({...tool,status:'in_progress'});
@@ -250,6 +264,26 @@ describe('a session', () => {
 			isError: false
 		});
 	});
+
+	it.each(['finish command', 'finish with text'])(
+		'finishes the original background tool once during the next turn (%s)',
+		async (prompt) => {
+			const { session, events, ended } = begin('start command', {
+				launch: { ...meta(), agent: 'codex' }
+			});
+			await ended(1);
+			session.say({ prompt });
+			await ended(2);
+			expect(events.filter((e) => e.kind !== 'resume')).toEqual([
+				{ kind: 'turn.started' },
+				{ kind: 'tool', id: 'bg', name: 'shell', input: '"build"' },
+				{ kind: 'turn.completed' },
+				{ kind: 'turn.started' },
+				{ kind: 'tool.result', id: 'bg', output: 'before after', isError: false },
+				{ kind: 'turn.completed' }
+			]);
+		}
+	);
 
 	it('steers a turn under way with what is said meanwhile', async () => {
 		const { session, events, kinds, ended } = begin('slow');

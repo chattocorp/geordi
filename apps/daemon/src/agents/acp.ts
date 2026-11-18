@@ -12,6 +12,8 @@ import {
 	MultiSelectItems,
 	PlanUpdateContent,
 	StateUpdate,
+	ToolCallContent,
+	type ToolCallUpdate,
 	type CreateElicitationResponse,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2';
@@ -22,6 +24,18 @@ import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
 const MAX_TERMINAL_BYTES = 16 * 1024;
 function terminalBytes(data: string, limit: number) {
 	return Buffer.from(data.slice(0, 4 * Math.ceil(limit / 3)), 'base64').subarray(0, limit);
+}
+
+// Codex can finish a background command with its full output in a text block
+// and only its exit code in rawOutput, even if earlier bytes streamed to a terminal.
+function codexCommandText(update: ToolCallUpdate) {
+	const raw = update.rawOutput;
+	if (!raw || typeof raw !== 'object' || !('exit_code' in raw) || Object.keys(raw).length !== 1)
+		return;
+	if (update.content?.length !== 1) return;
+	const [block] = update.content;
+	if (ToolCallContent.isContent(block) && ContentBlock.isText(block.content))
+		return block.content.text;
 }
 
 /** The host owns this connection across daemon and forge restarts. */
@@ -38,7 +52,8 @@ export function connectAgent(
 	let background = false;
 	let steering = false;
 	const messages = new Map<string, string>();
-	const tools = new Set<string>();
+	// ACP tool IDs belong to the session. A command can span several foreground turns.
+	const tools = new Map<string, 'open' | 'closed'>();
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
 	const terminalOutput = new Map<string, Buffer>();
 	const questions = new Map<string, (answers?: string[]) => void>();
@@ -57,8 +72,9 @@ export function connectAgent(
 				} else if (StateUpdate.isIdle(u) && running) {
 					flush();
 					running = false;
-					tools.clear();
-					terminalOutput.clear();
+					for (const id of terminalOutput.keys()) {
+						if (tools.get(id) !== 'open') terminalOutput.delete(id);
+					}
 					for (const cancel of questions.values()) cancel();
 					if (u.stopReason && u.stopReason !== 'end_turn')
 						emit({
@@ -124,8 +140,9 @@ export function connectAgent(
 				break;
 			case SessionUpdate.isToolCallUpdate(u):
 				flush();
+				if (tools.get(u.toolCallId) === 'closed') break;
 				if (!tools.has(u.toolCallId)) {
-					tools.add(u.toolCallId);
+					tools.set(u.toolCallId, 'open');
 					emit({
 						kind: 'tool',
 						id: u.toolCallId,
@@ -135,13 +152,19 @@ export function connectAgent(
 				}
 				if (u.status === 'completed' || u.status === 'failed') {
 					const output =
-						terminalOutput.get(u.toolCallId)?.toString('utf8') ?? u.rawOutput ?? u.content;
+						(provider === 'codex' ? codexCommandText(u) : undefined) ??
+						terminalOutput.get(u.toolCallId)?.toString('utf8') ??
+						u.rawOutput ??
+						u.content;
 					emit({
 						kind: 'tool.result',
 						id: u.toolCallId,
 						output: truncate(typeof output === 'string' ? output : (JSON.stringify(output) ?? '')),
 						isError: u.status === 'failed'
 					});
+				}
+				if (u.status === 'completed' || u.status === 'failed' || u.status === 'cancelled') {
+					tools.set(u.toolCallId, 'closed');
 					terminalOutput.delete(u.toolCallId);
 				}
 				break;
