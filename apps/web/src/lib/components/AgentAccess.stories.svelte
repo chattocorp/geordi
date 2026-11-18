@@ -5,10 +5,9 @@
 </script>
 
 <Story
-	name="Repository access"
+	name="Installation access"
 	args={{
-		repos: [{ id: 'geordi', name: 'Geordi' }],
-		grants: [{ id: 'example', name: 'Release assistant', repoId: 'geordi' }],
+		grants: [{ id: 'example', name: 'Release assistant' }],
 		issue: async () => 'example-token',
 		revoke: async () => {}
 	}}

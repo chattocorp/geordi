@@ -3,29 +3,25 @@
 	import Notice from '#lib/ui/Notice.svelte';
 	import { problemOf } from '#lib/problem.ts';
 	let {
-		repos,
 		grants,
 		issue,
 		revoke
 	}: {
-		repos: { id: string; name: string }[];
-		grants: { id: string; name: string; repoId: string }[];
-		issue: (input: { repoId: string; name: string }) => Promise<string>;
+		grants: { id: string; name: string }[];
+		issue: (name: string) => Promise<string>;
 		revoke: (id: string) => Promise<unknown>;
 	} = $props();
-	let repoId = $state('');
 	let name = $state('');
 	let token = $state('');
 	let problem = $state('');
 	let busy = $state(false);
-	const selected = $derived(repos.find((repo) => repo.id === repoId)?.id ?? repos[0]?.id);
 	async function create(event: SubmitEvent) {
 		event.preventDefault();
-		if (!selected || busy) return;
+		if (busy) return;
 		busy = true;
 		problem = token = '';
 		try {
-			token = await issue({ repoId: selected, name });
+			token = await issue(name);
 			name = '';
 		} catch (error) {
 			problem = problemOf(error, 'Could not create token');
@@ -46,32 +42,22 @@
 
 <h2 class="heading">Agent access</h2>
 <p class="mt-1 mb-5 text-sm text-muted">
-	Give an external MCP client access to read and message workspaces in one repository.
+	Give an external MCP client access to read and message any workspace in this Geordi installation.
 </p>
-{#if repos.length}
-	<form class="space-y-3" onsubmit={create}>
-		<label class="block text-sm"
-			>Repository
-			<select
-				class="mt-1 w-full input"
-				value={selected}
-				onchange={(e) => (repoId = e.currentTarget.value)}
-			>
-				{#each repos as repo (repo.id)}<option value={repo.id}>{repo.name}</option>{/each}
-			</select></label
-		>
-		<label class="block text-sm"
-			>Agent name
-			<input
-				class="mt-1 w-full input"
-				bind:value={name}
-				maxlength="80"
-				placeholder="Release assistant"
-			/></label
-		>
-		<Button type="submit" variant="primary" disabled={busy || !name.trim()}>Create token</Button>
-	</form>
-{:else}<p class="empty">Add a repository to create a token.</p>{/if}
+
+<form class="space-y-3" onsubmit={create}>
+	<label class="block text-sm"
+		>Agent name
+		<input
+			class="mt-1 w-full input"
+			bind:value={name}
+			maxlength="80"
+			placeholder="Release assistant"
+		/></label
+	>
+	<Button type="submit" variant="primary" disabled={busy || !name.trim()}>Create token</Button>
+</form>
+
 {#if token}
 	<div class="mt-4 space-y-2 card p-3">
 		<p class="text-sm">
@@ -92,10 +78,7 @@
 	<ul class="space-y-2">
 		{#each grants as grant (grant.id)}
 			<li class="flex items-center gap-3">
-				<div class="min-w-0 flex-1">
-					<p class="truncate text-sm font-medium">{grant.name}</p>
-					<p class="text-xs text-muted">{repos.find((repo) => repo.id === grant.repoId)?.name}</p>
-				</div>
+				<p class="min-w-0 flex-1 truncate text-sm font-medium">{grant.name}</p>
 				<Button variant="ghost" onclick={() => remove(grant.id)}>Revoke</Button>
 			</li>
 		{/each}

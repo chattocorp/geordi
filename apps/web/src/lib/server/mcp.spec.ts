@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,9 +17,14 @@ import { handleMcp } from './mcp.ts';
 import { createRepos } from './repos.ts';
 import { createWorkspaces } from './workspaces.ts';
 
-function setup() {
+function gitRepository() {
 	const repoPath = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
 	execFileSync('git', ['init', '-q', repoPath]);
+	return repoPath;
+}
+
+function setup() {
+	const repoPath = gitRepository();
 	const store = new EventStore<GeordiEvent>(':memory:');
 	const repos = createRepos(store);
 	const workspaces = createWorkspaces(store, repos, () => true);
@@ -444,10 +450,10 @@ describe('workspace status', () => {
 	});
 });
 
-describe('repository access', () => {
+describe('installation-wide workspace access', () => {
 	it('lets peers read and send while reserving lifecycle control for descendants', async () => {
-		const { workspaces, caller, call } = setup();
-		const repoId = workspaces.get(caller).repoId;
+		const { repos, workspaces, caller, call } = setup();
+		const repoId = repos.register(gitRepository()).id;
 		const peer = workspaces.create({ repoId, agent: 'codex', prompt: 'Review the change' });
 		expect(await call('list_workspaces')).toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: peer, repoId })])
@@ -485,17 +491,14 @@ describe('repository access', () => {
 		);
 	});
 
-	it('retains a repository grant on replay, scopes tools and targets, and honors revocation', async () => {
+	it('uses one external token across repositories, retains it on replay, and honors revocation', async () => {
 		const { store, repos, workspaces, agents, caller } = setup();
-		const repoId = workspaces.get(caller).repoId;
-		const path = mkdtempSync(join(tmpdir(), 'geordi-other-'));
-		execFileSync('git', ['init', '-q', path]);
+		const token = workspaces.access.issue('Release assistant');
 		const other = workspaces.create({
-			repoId: repos.register(path).id,
+			repoId: repos.register(gitRepository()).id,
 			agent: 'codex',
-			prompt: 'Private'
+			prompt: 'Test the migration'
 		});
-		const token = workspaces.access.issue(repoId, 'Release assistant');
 		const actor = agents.authenticate(token)!;
 		expect(actor).toBeTruthy();
 		const rpc = (method: string, params?: unknown) =>
@@ -510,14 +513,16 @@ describe('repository access', () => {
 				]
 			}
 		});
-		expect(JSON.stringify(await rpc('tools/call', { name: 'list_workspaces' }))).not.toContain(
-			other
-		);
+		const listed = JSON.stringify(await rpc('tools/call', { name: 'list_workspaces' }));
+		for (const id of [caller, other]) {
+			expect(listed).toContain(id);
+			expect(
+				await rpc('tools/call', { name: 'read_workspace', arguments: { workspace_id: id } })
+			).toMatchObject({ result: { isError: false } });
+		}
 		for (const [name, args] of [
-			['stop_agent', { agent_id: caller }],
-			['start_agent', { prompt: 'Hello' }],
-			['read_workspace', { workspace_id: other }],
-			['send_message', { agent_id: other, message: 'Hello' }]
+			['stop_agent', { agent_id: other }],
+			['start_agent', { prompt: 'Hello' }]
 		]) {
 			expect(await rpc('tools/call', { name, arguments: args })).toMatchObject({
 				result: { isError: true }
@@ -525,11 +530,11 @@ describe('repository access', () => {
 		}
 		await rpc('tools/call', {
 			name: 'send_message',
-			arguments: { agent_id: caller, message: 'Check the build', interrupt: true }
+			arguments: { agent_id: other, message: 'Check the build', interrupt: true }
 		});
 		const replay = createWorkspaces(store, repos, () => true);
 		expect(replay.agents.authenticate(token)).toBe(actor);
-		expect(replay.get(caller).transcript.at(-1)).toMatchObject({
+		expect(replay.get(other).transcript.at(-1)).toMatchObject({
 			from: actor,
 			senderName: 'Release assistant'
 		});
@@ -537,4 +542,22 @@ describe('repository access', () => {
 		replay.access.revoke(actor);
 		expect(replay.agents.authenticate(token)).toBeNull();
 	});
+});
+
+it('requires a fresh token for a client that previously had access to one repository', () => {
+	const { store, workspaces, caller } = setup();
+	const id = 'external:old';
+	const token = id + '.test';
+	store.append({
+		type: 'access.granted',
+		stream: `access:${id}`,
+		data: {
+			id,
+			name: 'Old client',
+			repoId: workspaces.get(caller).repoId,
+			digest: createHash('sha256').update(token).digest('hex')
+		}
+	});
+	expect(workspaces.agents.authenticate(token)).toBeNull();
+	expect(workspaces.access.list()).toEqual([]);
 });

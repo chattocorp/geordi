@@ -17,7 +17,7 @@ import type { createWorkspaces } from './workspaces.ts';
 
 /**
  * Geordi's agent API (ADR-004, FDR-002) as a Model Context Protocol server: the tools that
- * let agents work with repository workspaces. Stateless JSON-RPC over HTTP.
+ * let agents work with Geordi workspaces. Stateless JSON-RPC over HTTP.
  */
 
 /** What the tools work with: the agents API, and archiving (which needs a daemon). */
@@ -166,10 +166,10 @@ const tools = {
 	},
 	list_workspaces: {
 		description:
-			'List workspaces in your repository with their IDs, links, branches and status. Set include_archived to include history.',
+			'List workspaces in this Geordi installation with their IDs, links, branches and status. Set include_archived to include history.',
 		input: v.object({ include_archived: v.optional(v.boolean(), false) }),
-		run: (agents: Agents, caller: string, input: { include_archived: boolean }) =>
-			agents.listWorkspaces(caller, input.include_archived)
+		run: (agents: Agents, _caller: string, input: { include_archived: boolean }) =>
+			agents.listWorkspaces(input.include_archived)
 	},
 	read_workspace: {
 		description:
@@ -178,12 +178,12 @@ const tools = {
 			workspace_id: v.string(),
 			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
 		}),
-		run: (agents: Agents, caller: string, input: { workspace_id: string; before?: number }) =>
-			agents.readWorkspace(caller, input.workspace_id, input.before)
+		run: (agents: Agents, _caller: string, input: { workspace_id: string; before?: number }) =>
+			agents.readWorkspace(input.workspace_id, input.before)
 	},
 	send_message: {
 		description:
-			'Send a message to a workspace in your repository. It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt`. Returns immediately. Read the conversation with read_workspace.',
+			'Send a message to a workspace in this Geordi installation. It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt`. Returns immediately. Read the conversation with read_workspace.',
 		input: v.object({
 			agent_id: v.pipe(
 				v.string(),
@@ -203,7 +203,7 @@ const tools = {
 			input: { agent_id: string; message: string; interrupt: boolean }
 		) => {
 			agents.send(caller, input.agent_id, input.message, input.interrupt);
-			return agents.reportWorkspace(caller, input.agent_id);
+			return agents.reportWorkspace(input.agent_id);
 		}
 	},
 	archive_agent: {
@@ -275,7 +275,7 @@ const tools = {
 	},
 	workspace_status: {
 		description:
-			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Any workspace in your repository (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
+			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Any workspace in this Geordi installation (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
 		input: v.object({
 			agent_id: v.pipe(
 				v.optional(v.string()),
@@ -404,7 +404,7 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				capabilities: { tools: {} },
 				serverInfo: { name: 'geordi', version: '1' },
 				instructions: caller.startsWith('external:')
-					? 'Use list_workspaces to find conversations in your repository, read_workspace to inspect one, and send_message to follow up.'
+					? 'Use list_workspaces to find conversations in this Geordi installation, read_workspace to inspect one, and send_message to follow up.'
 					: INSTRUCTIONS
 			});
 		}

@@ -55,7 +55,7 @@ Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`
 
 ## Connect an external agent
 
-In **Settings → Agent access**, select a repository, enter the agent's name, and create a token.
+In **Settings → Agent access**, enter the agent's name, and create a token for all workspaces on this installation.
 Configure an HTTP MCP server in your client with the URL shown in Settings and the header
 `Authorization: Bearer <token>`. The desktop URL is `http://127.0.0.1:7717/mcp`.
 Copy the token before closing Settings. Use **Revoke** to end its access.

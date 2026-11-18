@@ -16,8 +16,8 @@ We considered:
 
 - The forge serves Geordi's agent API as an **MCP server over HTTP**. Both supported CLIs accept MCP servers per invocation (`claude --mcp-config`, `codex -c mcp_servers.…`), so nothing is installed or changed on the user's system.
 - With every turn, the forge issues a **token scoped to that session**, and the daemon passes server URL and token to the CLI. The forge resolves the token to the calling session; that session is the `actor` of every event the call causes, and the parent of anything it starts.
-- Tokens are valid only while their turn runs. They are derived (signed with a key in the forge's data directory) rather than stored, so a running agent keeps its access when the forge restarts (ADR-003). Parentage authorizes supervision, including stopping and archiving descendants. Repository membership authorizes discovery, reading and messaging across workspace trees.
-- External clients authenticate with a named, repository-scoped bearer credential issued in Settings. The forge stores a digest and records grants and revocations in its event log. Removing a repository invalidates its grants.
+- Tokens are valid only while their turn runs. They are derived (signed with a key in the forge's data directory) rather than stored, so a running agent keeps its access when the forge restarts (ADR-003). Parentage authorizes supervision, including stopping and archiving descendants. Authenticated agents can discover, read and message workspaces across all repositories on the installation.
+- External clients authenticate with a named, installation-wide bearer credential issued in Settings. The forge stores a digest and records grants and revocations in its event log.
 - Supervision tools let a workspace agent start a child, send it a message, wait until it is idle, read its latest reply, stop it. Waiting is a first-class tool so supervision needs no polling loops.
 - Limits on nesting depth and on concurrently running children are enforced by the forge.
 
@@ -27,4 +27,4 @@ We considered:
 - Parentage and attribution fall out of authentication instead of being claimed by the caller.
 - The agent's machine must be able to reach the forge's HTTP port. That is given while forge and daemon share a machine; remote daemons will need the forge reachable over TLS, like the WebSocket (ADR-002).
 - Agents without MCP support can't use the API. A thin CLI over the same endpoints can be added later if needed.
-- The forge gains an authenticated HTTP surface before it has user authentication; it must accept nothing but valid session tokens there.
+- The forge gains an authenticated HTTP surface before it has user authentication; it must accept nothing but valid agent credentials there.

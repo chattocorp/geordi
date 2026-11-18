@@ -207,7 +207,6 @@
 			{:else if settings.section === 'access'}
 				{#if settings.open}
 					<AgentAccess
-						{repos}
 						grants={nav.current?.access ?? []}
 						issue={issueAccess}
 						revoke={revokeAccess}

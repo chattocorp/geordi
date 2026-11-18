@@ -14,13 +14,7 @@ export const removeRepo = command(v.string(), (id) => {
 });
 
 export const issueAccess = command(
-	v.object({
-		repoId: v.string(),
-		name: v.pipe(v.string(), v.trim(), v.nonEmpty(), v.maxLength(80))
-	}),
-	({ repoId, name }) => {
-		repos().get(repoId);
-		return workspaces().access.issue(repoId, name);
-	}
+	v.pipe(v.string(), v.trim(), v.nonEmpty(), v.maxLength(80)),
+	(name) => workspaces().access.issue(name)
 );
 export const revokeAccess = command(v.string(), (id) => workspaces().access.revoke(id));

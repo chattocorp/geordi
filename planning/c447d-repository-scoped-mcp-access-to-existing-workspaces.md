@@ -6,6 +6,6 @@ data:
     - agents
   type: feature
 id: c447d
-title: Repository-scoped MCP access to existing workspaces
+title: Installation-wide MCP access to existing workspaces
 ---
-Let workspace agents and named external clients discover, read, and message existing workspaces in their repository. Keep lifecycle control with the parent.
+Let workspace agents and named external clients discover, read, and message existing workspaces across all repositories. Keep lifecycle control with the parent.

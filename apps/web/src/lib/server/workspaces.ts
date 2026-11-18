@@ -1013,21 +1013,6 @@ export function createWorkspaces(
 		};
 	}
 
-	function repositoryOf(caller: string) {
-		return access.get(caller)?.repoId ?? find(caller).repoId;
-	}
-
-	function inRepository(workspace: Workspace, repoId: string) {
-		return workspace.repoId === repoId && repos.ownsWorkspace(repoId, born.get(workspace.id)!);
-	}
-
-	function accessible(caller: string, id: string) {
-		const workspace = projection.get().get(id);
-		if (!workspace || !inRepository(workspace, repositoryOf(caller)))
-			error(404, 'Workspace not found');
-		return workspace;
-	}
-
 	function entry(workspace: Workspace) {
 		const { id, title, repoId, status, archivedAt, asking } = workspace;
 		return {
@@ -1048,16 +1033,15 @@ export function createWorkspaces(
 	 */
 	const agents = {
 		authenticate,
-		reportWorkspace: (caller: string, id: string) => report(accessible(caller, id)),
-		listWorkspaces(caller: string, archived: boolean) {
-			const repo = repositoryOf(caller);
+		reportWorkspace: (id: string) => report(find(id)),
+		listWorkspaces(archived: boolean) {
 			return [...projection.get().values()]
 				.reverse()
-				.filter((w) => inRepository(w, repo) && (archived || !w.archivedAt))
+				.filter((w) => archived || !w.archivedAt)
 				.map(entry);
 		},
-		readWorkspace(caller: string, id: string, before?: number) {
-			const workspace = accessible(caller, id);
+		readWorkspace(id: string, before?: number) {
+			const workspace = find(id);
 			const transcript = transcriptOf(workspace);
 			const messages = transcript.filter(
 				(item) =>
@@ -1151,18 +1135,18 @@ export function createWorkspaces(
 
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
-		/** The requested repository workspace, defaulting to the calling workspace. */
+		/** The requested workspace, defaulting to the calling workspace. */
 		workspace(callerId: string, id?: string): Workspace {
-			const workspace = accessible(callerId, id ?? callerId);
+			const workspace = find(id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
 		/**
-		 * Says something to an agent in the repository: at once if it is idle; otherwise once
+		 * Says something to a workspace agent: at once if it is idle; otherwise once
 		 * it has finished what it is doing, or (`interrupt`) now, steering what it is doing.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
-			const workspace = accessible(callerId, id);
+			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'Workspace is archived');
 			const stream = `workspace:${workspace.id}` as const;
 			const data = { id: workspace.id, text };
