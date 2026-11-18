@@ -840,6 +840,7 @@
 		dir="row"
 		bare
 		min={[320, 260]}
+		minRatio={0.5}
 		collapsed={!frame.current.open}
 		bind:ratio={
 			() => 1 - frame.current.side,

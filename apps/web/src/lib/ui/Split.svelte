@@ -5,6 +5,8 @@
 		dir: 'row' | 'column';
 		/** The share of the space `a` gets, between 0 and 1. */
 		ratio: number;
+		/** Minimum share reserved for the first pane. */
+		minRatio?: number;
 		a: Snippet;
 		b: Snippet;
 		/** Hides `b` (and the divider), giving `a` all the room. `b` stays alive meanwhile. */
@@ -24,16 +26,17 @@
 		b,
 		collapsed = false,
 		min = [0, 0],
+		minRatio = 0.12,
 		bare = false
 	}: Props = $props();
 
-	const MIN = 0.12;
+	const share = $derived(Math.max(minRatio, ratio));
 	/** Keeps a share within what leaves both sides their least room, of `size` pixels in all. */
 	function clamp(value: number, size = root.getBoundingClientRect()[extent]) {
-		const least = Math.max(MIN, min[0] / size);
-		const most = Math.min(1 - MIN, 1 - min[1] / size);
+		const least = Math.max(minRatio, min[0] / size);
+		const most = Math.min(0.88, 1 - min[1] / size);
 		// too little room for both: no dragging will help
-		return least > most ? value : Math.min(most, Math.max(least, value));
+		return least > most ? share : Math.min(most, Math.max(least, value));
 	}
 	const extent = $derived(dir === 'row' ? 'width' : 'height');
 
@@ -61,7 +64,7 @@
 		const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[event.key];
 		if (!step) return;
 		event.preventDefault();
-		ratio = clamp(ratio + step * 0.02);
+		ratio = clamp(share + step * 0.02);
 	}
 </script>
 
@@ -69,7 +72,7 @@
 	<!-- a share below 1 would leave room unused once `b` is hidden -->
 	<div
 		class="flex min-h-0 min-w-0 flex-col"
-		style:flex="{collapsed ? 1 : ratio} 1 0"
+		style:flex="{collapsed ? 1 : share} 1 0"
 		style:min-width={dir === 'row' ? `${min[0]}px` : undefined}
 		style:min-height={dir === 'column' ? `${min[0]}px` : undefined}
 	>
@@ -81,7 +84,7 @@
 		role="separator"
 		tabindex="0"
 		aria-orientation={dir === 'row' ? 'vertical' : 'horizontal'}
-		aria-valuenow={Math.round(ratio * 100)}
+		aria-valuenow={Math.round(share * 100)}
 		onpointerdown={drag}
 		onkeydown={nudge}
 		class={[
@@ -95,7 +98,7 @@
 	></div>
 	<div
 		class={['min-h-0 min-w-0 flex-col', collapsed ? 'hidden' : 'flex']}
-		style:flex="{1 - ratio} 1 0"
+		style:flex="{1 - share} 1 0"
 		style:min-width={dir === 'row' ? `${min[1]}px` : undefined}
 		style:min-height={dir === 'column' ? `${min[1]}px` : undefined}
 	>
