@@ -145,7 +145,7 @@
 							<RepoIcon id={repo.id} />
 							<span class="truncate">{repo.name}</span>
 							{#if isFolded}
-								<span class="shrink-0 font-normal tabular-nums">{rows.length}</span>
+								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{rows.length}</span>
 							{/if}
 						</button>
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
