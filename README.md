@@ -99,11 +99,11 @@ with an agent, in its own Git worktree on a new branch (`geordi/<id>`). See
 
 ## Publishing the desktop app
 
-Push the Sweet Release tag (for example, `v1.2.3`) after its version commit reaches
-`main`. The tag must match the version in `apps/desktop/package.json`. CI publishes
-unsigned ZIP archives for Apple silicon macOS and x64 Windows after both native
-builds pass their packaged runtime checks. Pull requests that change desktop packaging
-also produce both ZIPs as downloadable workflow artifacts.
+When change notes reach `main`, Sweet's bump job opens or updates a release PR with
+the version and changelog. Merge that PR to release Geordi. Sweet tags the version
+commit, then CI builds that commit on Apple silicon macOS and x64 Windows, checks
+the packaged runtimes, and publishes both unsigned ZIPs to the GitHub release.
+Packaging pull requests also produce both ZIPs as downloadable workflow artifacts.
 
 ## Running in production
 

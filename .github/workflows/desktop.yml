@@ -1,11 +1,18 @@
 name: Desktop releases
 on:
-  push:
-    tags: ['v*']
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      commit:
+        type: string
+        required: true
   pull_request:
     paths:
       - '.github/actions/package-desktop/**'
       - '.github/workflows/desktop.yml'
+      - '.github/workflows/releases.yml'
       - 'apps/desktop/**'
       - 'pnpm-lock.yaml'
 
@@ -13,18 +20,6 @@ permissions:
   contents: read
 
 jobs:
-  release-tag:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - name: Check the release commit and desktop version
-        run: |
-          git merge-base --is-ancestor HEAD origin/main
-          test "$GITHUB_REF_NAME" = "v$(jq -r .version apps/desktop/package.json)"
-
   package:
     strategy:
       matrix:
@@ -36,6 +31,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit || github.sha }}
       - uses: ./.github/actions/package-desktop
       - name: Archive the desktop app
         working-directory: apps/desktop/dist
@@ -52,31 +49,33 @@ jobs:
           fi
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ matrix.target }}
+          name: desktop-${{ inputs.tag || github.sha }}-${{ matrix.target }}
           path: apps/desktop/dist/*.zip
           if-no-files-found: error
           compression-level: 0
 
   publish:
-    needs: [release-tag, package]
+    needs: package
+    if: inputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v8
         with:
-          pattern: desktop-*
+          pattern: desktop-${{ inputs.tag }}-*
           merge-multiple: true
       - name: Publish both downloads
         env:
+          RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          tag=$GITHUB_REF_NAME
+          tag=$RELEASE_TAG
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --verify-tag --generate-notes --draft
           fi
           test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
           gh release upload "$tag" --clobber \
-            "Geordi-$GITHUB_REF_NAME-macOS-arm64.zip" "Geordi-$GITHUB_REF_NAME-Windows-x64.zip"
+            "Geordi-${tag}-macOS-arm64.zip" "Geordi-${tag}-Windows-x64.zip"
           gh release edit "$tag" --draft=false
