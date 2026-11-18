@@ -33,9 +33,7 @@
 :root {
 	color-scheme: light;
 	--pane: var(--frame);
-	--frame: #c8cfda;
-	--frame-muted: #4c5563;
-	--frame-danger: #8b2435;
+	--frame: #e3e3eb;
 	--bg: #f6f6f9;
 	--sidebar: #eeeef4;
 	--surface: #ffffff;
@@ -64,11 +62,9 @@
 
 .dark {
 	color-scheme: dark;
-	--bg: #2a2d37;
-	--frame: #151820;
-	--frame-muted: #a0a3b4;
-	--frame-danger: #ff7b72;
-	--sidebar: #222630;
+	--bg: #23252f;
+	--frame: #17191f;
+	--sidebar: #1a1c24;
 	--surface: #2c2f3b;
 	--sunken: #262833;
 	--ink: #eceef4;
@@ -181,13 +177,6 @@
 	@apply relative after:absolute after:inset-y-1 after:-right-1 after:w-0.5 after:rounded-full after:bg-accent;
 }
 
-/* Secondary text and status icons on the coloured window frame. */
-@utility frame-bar {
-	--muted: var(--frame-muted);
-	--danger: var(--frame-danger);
-	@apply bg-frame;
-}
-
 /*
  * Everything on screen is a sheet: a rounded surface laid into the frame (`bg-frame`: the
  * window, and its title bar), a little apart from the next, so that shapes part things
@@ -201,7 +190,7 @@
 }
 /*
  * A sheet for what is beside the one that is read (the sidebar, a workspace's changes and
- * terminals). Its neutral surface has no shadow.
+ * terminals): in a tone between the frame's and that of what is read, and without a shadow.
  */
 @utility sheet-quiet {
 	--pane: var(--sidebar);

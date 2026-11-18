@@ -65,21 +65,6 @@
 	</div>
 </Story>
 
-<Story name="Window frame" asChild>
-	<div class="grid max-w-4xl grid-cols-3 gap-2 bg-frame p-2">
-		<div class="col-span-3 flex items-center justify-between frame-bar px-2 py-1">
-			<p class="heading">Geordi</p>
-			<span class="text-sm text-muted">Workspace</span>
-		</div>
-		<div class="sheet-quiet p-4">
-			<p class="heading">Workspaces</p>
-		</div>
-		<div class="col-span-2 min-h-32 sheet p-4">
-			<p class="heading">Conversation</p>
-		</div>
-	</div>
-</Story>
-
 <Story name="Shape and surface" asChild>
 	<div class="grid max-w-4xl gap-6 sm:grid-cols-3">
 		<div class="card p-5">
