@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import type { PullRequest, Upstream } from '@geordi/protocol';
+import { upstreamFreshFor, type PullRequest, type Upstream } from '@geordi/protocol';
 import {
 	createForges,
 	github,
@@ -22,7 +22,6 @@ import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** How long an answer is reused. The forge's API is rate-limited, far more so without a token. */
 const FRESH_MS = 60_000;
-const FRESH_WHILE_PENDING_MS = 15_000;
 /**
  * How fresh an answer has to be for someone who asked to look now: all but this moment's.
  * (Longer, and what an agent did just before its turn ended is missed: it pushes, which has
@@ -268,24 +267,20 @@ export async function upstream(
 	// it here; the pull request is still there, and still this branch's. What is left of
 	// the push is that Git was told where the branch goes, or that we saw its pull request.
 	const local = found.head.slice('refs/heads/'.length);
-	const once =
-		git(repoPath, 'config', '--get', `branch.${local}.remote`) !== null ||
-		!!cache.get(worktreeId)?.value.pull;
-	if (!pushed && !once) return base;
-
-	// Pushing, or switching branches, changes the answer at once; otherwise reuse it for a while.
 	const key = `${remote} ${branch}`;
 	const cached = cache.get(worktreeId);
+	const previous = cached?.key === key ? cached.value : null;
+	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`))
+		return base;
+
 	// Asked to look now (something may just have happened there that nothing here shows: a
 	// pull request opened, a review), we do, unless we only just did. Not without
 	// credentials: those few requests are for looking now and then.
-	const normal =
-		cached?.value.pull?.checks?.state === 'pending' ? FRESH_WHILE_PENDING_MS : FRESH_MS;
+	const normal = upstreamFreshFor(previous, FRESH_MS);
 	const fresh = provider === anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
-	if (cached?.key === key && cached.value.pushed === pushed && now - cached.at < fresh)
-		return cached.value;
+	if (cached && previous?.pushed === pushed && now - cached.at < fresh) return previous;
 
-	const known = cached?.key === key ? cached.value.pull : null;
+	const known = previous?.pull;
 	let pull: Thread | null = null;
 	if (known?.state === 'open' && provider.can('threads.getMany')) {
 		const ref = {
@@ -300,14 +295,13 @@ export async function upstream(
 		if (pull && (pull.state !== 'open' || !isFor(pull, repo, branch))) pull = null;
 	}
 	pull ??= await findPull(provider, repo, branch);
-	const defaultBranch = git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
+	const defaultBranch =
+		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
 	const value: Upstream = {
 		...base,
 		pull: pull && summarise(pull, rollupCounts(pull) ?? (await countChecks(provider, repo, pull))),
 		createUrl:
-			(!pull &&
-				pushed &&
-				defaultBranch &&
+			(defaultBranch &&
 				provider.urlFor({
 					compare: { repo, base: defaultBranch.replace(/^origin\//, ''), head: branch }
 				})) ||

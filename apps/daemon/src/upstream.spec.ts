@@ -160,6 +160,7 @@ describe('batched GitHub status', () => {
 				expect(query).toContain('mergeable');
 				expect(variables.n0).toBe('one');
 				expect(variables.n1).toBe('two');
+				expect(variables).not.toHaveProperty('n2');
 				const thread = {
 					__typename: 'PullRequest',
 					state: 'OPEN',
@@ -193,13 +194,14 @@ describe('batched GitHub status', () => {
 			}
 		});
 		const reads = await Promise.all(
-			['one', 'two'].map((name) => {
+			['one', 'two', 'one'].map((name) => {
 				const repo = { forge: 'github', instance: 'github.com', owner: 'acme', name };
 				return readPull(provider, { ...repo, repo, kind: 'pull_request', number: '1' });
 			})
 		);
 		expect(requests).toBe(1);
-		const [thread, missing] = reads;
+		const [thread, missing, repeated] = reads;
+		expect(repeated).toBe(thread);
 		expect(missing).toBeNull();
 		expect(thread).toBeTruthy();
 		expect(summarise(thread!, rollupCounts(thread!))).toMatchObject({

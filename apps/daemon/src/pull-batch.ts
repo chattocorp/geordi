@@ -1,38 +1,39 @@
-import type { ForgeProvider, Thread, ThreadRef } from 'forges';
+import { setTimeout as delay } from 'node:timers/promises';
+import {
+	threadKey,
+	type ForgeProvider,
+	type GetManyResult,
+	type ResolvedThreadRef,
+	type Thread
+} from 'forges';
 import type { PullRequest } from '@geordi/protocol';
 
-/** Collect requests from the forge's refresh tick as they arrive over the daemon socket. */
-type Read = {
-	ref: ThreadRef;
-	resolve: (thread: Thread | null) => void;
-	reject: (error: unknown) => void;
-};
-const queues = new WeakMap<ForgeProvider, Read[]>();
+/** Requests that arrive together over the daemon socket share one provider call. */
+type Batch = { refs: Map<string, ResolvedThreadRef>; results: Promise<Map<string, GetManyResult>> };
+const queues = new WeakMap<ForgeProvider, Batch>();
 
-export function readPull(provider: ForgeProvider, ref: ThreadRef): Promise<Thread | null> {
-	return new Promise((resolve, reject) => {
-		const read = { ref, resolve, reject };
-		const pending = queues.get(provider);
-		if (pending) {
-			pending.push(read);
-			return;
-		}
-		const batch = [read];
-		queues.set(provider, batch);
-		setTimeout(async () => {
+export async function readPull(
+	provider: ForgeProvider,
+	ref: ResolvedThreadRef
+): Promise<Thread | null> {
+	let batch = queues.get(provider);
+	if (!batch) {
+		const refs = new Map<string, ResolvedThreadRef>();
+		const results = delay(20).then(async () => {
 			queues.delete(provider);
-			try {
-				const results = await provider.threads.getMany(batch.map(({ ref }) => ref));
-				for (const [i, result] of results.entries()) {
-					if (result.ok) batch[i].resolve(result.thread);
-					else if (result.warning.code === 'thread_unreadable') batch[i].resolve(null);
-					else batch[i].reject(new Error(result.warning.message));
-				}
-			} catch (error) {
-				for (const read of batch) read.reject(error);
-			}
-		}, 20);
-	});
+			const results = await provider.threads.getMany([...refs.values()]);
+			return new Map([...refs.keys()].map((key, i) => [key, results[i]]));
+		});
+		batch = { refs, results };
+		queues.set(provider, batch);
+	}
+
+	const key = threadKey(ref);
+	batch.refs.set(key, ref);
+	const result = (await batch.results).get(key)!;
+	if (result.ok) return result.thread;
+	if (result.warning.code === 'thread_unreadable') return null;
+	throw new Error(result.warning.message);
 }
 
 type Count = { state: string; count: number };

@@ -1,4 +1,4 @@
-import type { Changes, Upstream } from '@geordi/protocol';
+import { upstreamFreshFor, type Changes, type Upstream } from '@geordi/protocol';
 
 /** How a worktree's work stands: what changed in it, and its pull request, if it has one. */
 export type Standing = {
@@ -8,8 +8,6 @@ export type Standing = {
 
 /** How long what is known of a worktree is good for, when nothing says it changed. */
 const FRESH_MS = 2 * 60_000;
-/** Refresh running checks on the next background tick. */
-const FRESH_WHILE_PENDING_MS = 15_000;
 /** How many worktrees are asked about at a time: the daemon and the forge have other work. */
 const AT_ONCE = 3;
 
@@ -65,9 +63,6 @@ export function createStandings(options: {
 		}
 	}
 
-	const goodFor = (standing: Standing) =>
-		standing.upstream?.pull?.checks?.state === 'pending' ? FRESH_WHILE_PENDING_MS : FRESH_MS;
-
 	return {
 		get: (worktreeId: string): Standing | null => known.get(worktreeId)?.standing ?? null,
 		note,
@@ -84,7 +79,9 @@ export function createStandings(options: {
 			const unknown = inUse.filter((id) => !known.has(id));
 			const available = inUse.flatMap((id) => {
 				const entry = known.get(id);
-				return entry && !loading.has(id) ? [{ id, ...entry }] : [];
+				if (!entry || loading.has(id)) return [];
+				const due = entry.at + upstreamFreshFor(entry.standing.upstream, FRESH_MS);
+				return [{ id, due, localAt: entry.localAt, pull: entry.standing.upstream?.pull }];
 			});
 			// A full local Git status is expensive. Keep its original budget even when CI is busy.
 			const local = available
@@ -94,12 +91,9 @@ export function createStandings(options: {
 				.map(({ id }) => id);
 			const pulls = available
 				.filter(
-					({ id, standing, at }) =>
-						!local.includes(id) &&
-						standing.upstream?.pull?.state === 'open' &&
-						now() - at >= goodFor(standing)
+					({ id, pull, due }) => !local.includes(id) && pull?.state === 'open' && due <= now()
 				)
-				.sort((a, b) => a.at + goodFor(a.standing) - (b.at + goodFor(b.standing)))
+				.sort((a, b) => a.due - b.due)
 				.slice(0, 20);
 			await Promise.all([
 				...[...unknown, ...local].map((id) => refresh(id)),

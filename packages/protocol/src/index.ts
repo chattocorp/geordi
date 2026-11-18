@@ -163,6 +163,11 @@ export type Upstream = {
 	pull: PullRequest | null;
 };
 
+/** Pending checks expire before the next 20-second sidebar tick, including the daemon's cache. */
+export function upstreamFreshFor(upstream: Upstream | null | undefined, normalMs: number): number {
+	return upstream?.pull?.checks?.state === 'pending' ? 15_000 : normalMs;
+}
+
 /** A repository says how Geordi should treat it in this file, at its top level. */
 export const CONFIG_FILE = '.geordi.yml';
 /**
