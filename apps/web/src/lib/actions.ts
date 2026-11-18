@@ -90,7 +90,7 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		...actions,
 		{
 			id: 'merge-upstream',
-			label: 'Update',
+			label: 'Sync',
 			icon: 'icon-[lucide--git-merge]',
 			aside: actions.length > 0,
 			prompt: mergeFrom(incoming.branch)
