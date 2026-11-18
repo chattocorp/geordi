@@ -197,11 +197,27 @@ describe('configuring the repository', () => {
 		expect(reference).toContain('check_configuration');
 	});
 
+	it('reports the first URL, then the first job, when Run has no configured default', async () => {
+		const { call, config } = setup();
+		expect(await call('check_configuration')).toMatchObject({
+			default: 'urls.app',
+			defaultSource: 'first URL'
+		});
+		config.current.urls = [];
+		expect(await call('check_configuration')).toMatchObject({
+			default: 'jobs.run',
+			defaultSource: 'first job'
+		});
+		config.current.jobs = [];
+		expect(await call('check_configuration')).not.toHaveProperty('default');
+	});
+
 	it('says which file applies, what it sets, and what is wrong with it', async () => {
 		const { call, config } = setup();
 		config.current.default = 'urls.app';
 		expect(await call('check_configuration')).toEqual({
 			default: 'urls.app',
+			defaultSource: 'configured',
 			applies: 'the .geordi.yml in your working directory',
 			problem: null,
 			ports: { first: 20000, count: 10 },
