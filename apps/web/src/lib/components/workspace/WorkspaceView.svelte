@@ -11,7 +11,7 @@
 		type WorkspaceStanding
 	} from '#lib/actions.ts';
 	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
-	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import ConversationTab from './ConversationTab.svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import {
 		add,
@@ -662,14 +662,9 @@
 		<span class="truncate">New conversation</span>
 	{:else if aideOf(tab)}
 		{@const aide = aideOf(tab)!}
-		<AgentAvatar agent={aide.agent} bare />
-		<span class="max-w-48 truncate" title={aide.title}>{aide.title}</span>
-		{#if aide.status === 'running'}<Spinner />{/if}
+		<ConversationTab agent={aide.agent} title={aide.title} running={aide.status === 'running'} />
 	{:else}
-		<!-- a tab like the others: a small mark and a name -->
-		<AgentAvatar agent={workspace.agent} bare />
-		<!-- that its agent works is said by the ribbon, and round the reply box -->
-		<span class="truncate">Conversation</span>
+		<ConversationTab agent={workspace.agent} {running} />
 	{/if}
 {/snippet}
 
