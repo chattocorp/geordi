@@ -27,6 +27,18 @@ function setup() {
 }
 
 describe('watching workspaces', () => {
+	it('refreshes a watched child when its parent’s pull target changes', () => {
+		const { ref, watches, seen } = setup();
+		const parent = { worktreeId: 'parent00', branch: 'parent' };
+		watches.set([
+			{ ...ref, parents: [parent] },
+			{ ...ref, worktreeId: 'other' }
+		]);
+		watches.targetChanged(parent.worktreeId);
+		expect(seen).toEqual([ref.worktreeId]);
+		watches.stop();
+	});
+
 	it('reports a burst of file changes once, and commits too', async () => {
 		const { base, ref, git, seen, watches } = setup();
 		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);

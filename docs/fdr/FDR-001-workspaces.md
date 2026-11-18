@@ -28,7 +28,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - Windows are tabs. Within the main area and within the dock, a tab can be dragged onto another group of tabs to move it there, or towards an edge of a group to split it and place the window beside, above or below.
 - Diffs and terminals can also be dragged between the two: a terminal out of the dock to sit beside the conversation, a diff into the dock. The conversation cannot leave the main area, and the changes are not a window at all.
 - The top bar shows what could happen next (FDR-003).
-- **Changes** lists every file that differs from where the workspace branched off, with lines added and removed: committed, uncommitted and untracked work alike. Selecting a file opens its diff as a window next to the conversation. The list updates as files change.
+- **Changes** names the comparison branch and lists the files the workspace would contribute to it, including committed, uncommitted and untracked work. Selecting a file opens its diff as a window next to the conversation. The list updates as files change.
   - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
 - When the workspace branch has a pull request, a tab labeled with its number (for example, **#1234**) appears in the upper right pane. While checks run, the sidebar’s checks ring takes the place of the pull request icon on the tab. The pane shows the title, description, state, target branch, review status and checks. The checks section opens when checks are active or failed. It shows failures first, then active jobs with their status. Other checks expand on demand. Each check opens its run when the forge supplies a link. The title opens the pull request on the upstream forge.
 - **Terminals** are shells in the workspace's directory. "+" in the dock opens one. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
@@ -57,11 +57,11 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 **Why:** People see an agent go wrong and want to correct it now, or think of the next thing and want it done after. The workspace's actions (FDR-003) queue, so they can be used at any time.
 **Tradeoff:** A steering message is read at the agent's next step, not at once: a long command runs to its end first (Stop is for that). A queued message is written without knowing how the current turn ends, which is why the queue stops after a failed turn rather than pressing on.
 
-### 4. Changes are measured against the fork point
+### 4. Changes follow the merge target
 
-**Decision:** The changes pane compares the working directory with the commit where the workspace's branch left the branch it started from.
+**Decision:** Use the pull request target when known. Otherwise, a child compares with its parent branch if the parent has commits outside its own target. If the parent has no such commits, the child inherits that target. A top-level workspace compares with the repository’s upstream default branch.
 **Why:** People want the workspace's total effect, regardless of whether an agent has committed yet.
-**Tradeoff:** There is no notion of a target branch other than the pull request's and the upstream's main one. In a repository without an upstream, the comparison is against whatever its main checkout is on.
+**Tradeoff:** The comparison uses locally available Git history. In a repository without an upstream, the main checkout supplies the default target.
 
 ### 5. A fixed frame, with freedom only inside it
 
