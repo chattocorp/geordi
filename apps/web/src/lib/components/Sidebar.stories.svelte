@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, within } from 'storybook/test';
+	import { expect, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -32,6 +32,7 @@
 		parentId: null,
 		status: 'idle',
 		working: false,
+		hidden: false,
 		outcome: 'completed',
 		standing: null,
 		actions: [],
@@ -87,6 +88,17 @@
 		],
 		harnesses: null
 	};
+
+	/** Some put out of sight: one with what its agent started, one whose agent asks. */
+	const withHidden: Navigation = {
+		...nav,
+		workspaces: [
+			...nav.workspaces,
+			workspace('old', 'Sketch the onboarding flow', { hidden: true }),
+			workspace('old-aide', 'Draft onboarding copy', { parentId: 'old' }),
+			workspace('waits', 'Pick a licence', { hidden: true, outcome: 'asking' })
+		]
+	};
 </script>
 
 {#snippet frame(nav: Navigation | undefined, path: string)}
@@ -124,4 +136,21 @@
 	}}
 >
 	{@render frame(undefined, '/')}
+</Story>
+
+<Story
+	name="Hidden workspaces"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// what its agent started goes with it; one that asks something stays in sight
+		await expect(canvas.queryByText('Sketch the onboarding flow')).toBeNull();
+		await expect(canvas.queryByText('Draft onboarding copy')).toBeNull();
+		await expect(canvas.getByText('Pick a licence')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Show 2 hidden' }));
+		await expect(canvas.getByText('Sketch the onboarding flow')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Show fewer' })).toBeVisible();
+	}}
+>
+	{@render frame(withHidden, '/workspaces/ready')}
 </Story>

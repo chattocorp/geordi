@@ -20,7 +20,8 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
-	import { stopAgent } from '../../routes/workspaces.remote';
+	import { SvelteSet } from 'svelte/reactivity';
+	import { hideWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
 	 * The sidebar's sheet: where to go (the overview, a new workspace), the workspaces by
@@ -31,8 +32,30 @@
 
 	type Item = Navigation['workspaces'][number];
 
+	const all = $derived(nav?.workspaces ?? []);
+	const byId = $derived(new Map(all.map((workspace) => [workspace.id, workspace])));
+	/** Hidden by the person, or started by an agent in a workspace that is. */
+	const hidden = (workspace: Item): boolean => {
+		const seen: string[] = []; // a cycle ends the climb
+		let at: Item | undefined = workspace;
+		while (at && !seen.includes(at.id)) {
+			if (at.hidden) return true;
+			seen.push(at.id);
+			at = byId.get(at.parentId ?? '');
+		}
+		return false;
+	};
+	/** A hidden workspace still shows while it is open, or while its agent asks something. */
+	const stowed = (workspace: Item) =>
+		hidden(workspace) && workspace.outcome !== 'asking' && path !== `/workspaces/${workspace.id}`;
 	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(nav?.workspaces ?? []));
+	const listed = $derived(byRepository(all.filter((workspace) => !stowed(workspace))));
+	/** The hidden ones, listed the same way, under the others when asked for. */
+	const stowedAway = $derived(byRepository(all.filter(stowed)));
+	/** The repositories whose hidden workspaces are on show, until the page is reloaded. */
+	const revealed = new SvelteSet<string>();
+	const toggleRevealed = (id: string) =>
+		revealed.has(id) ? revealed.delete(id) : revealed.add(id);
 	const sidebarRepos = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	/** How many workspaces wait for the person: counted beside the overview. */
 	const needYou = $derived(lanes(nav?.workspaces ?? [], unread).attention.length);
@@ -93,6 +116,17 @@
 				disabled: !running,
 				onselect: () => stopAgent(workspace.id)
 			},
+			workspace.hidden
+				? {
+						label: 'Show in sidebar',
+						icon: 'icon-[lucide--eye]',
+						onselect: () => hideWorkspace({ workspaceId: workspace.id, hidden: false })
+					}
+				: {
+						label: 'Hide',
+						icon: 'icon-[lucide--eye-off]',
+						onselect: () => hideWorkspace({ workspaceId: workspace.id, hidden: true })
+					},
 			{
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
@@ -128,6 +162,8 @@
 		<div class="space-y-4">
 			{#each sidebarRepos as repo (repo.id)}
 				{@const rows = listed.get(repo.id) ?? []}
+				{@const hiddenRows = stowedAway.get(repo.id) ?? []}
+				{@const isRevealed = revealed.has(repo.id)}
 				{@const isFolded = folded.current.includes(repo.id)}
 				<div>
 					<!--
@@ -164,7 +200,31 @@
 							{#each rows as { workspace, parent, depth } (workspace.id)}
 								{@render row(workspace, parent, depth)}
 							{/each}
+							{#if isRevealed}
+								{#each hiddenRows as { workspace, parent, depth } (workspace.id)}
+									{@render row(workspace, parent, depth)}
+								{/each}
+							{/if}
 						</ul>
+						{#if hiddenRows.length > 0}
+							<button
+								type="button"
+								class="flex h-7 w-full items-center gap-2 rounded-control pr-1.5 pl-1.5 text-left text-xs text-muted hover:text-ink"
+								aria-expanded={isRevealed}
+								onclick={() => toggleRevealed(repo.id)}
+							>
+								<!-- under the rows' icons, as wide as they are -->
+								<span class="grid size-5 shrink-0 place-items-center">
+									<span
+										class={[
+											'size-3.5',
+											isRevealed ? 'icon-[lucide--chevron-up]' : 'icon-[lucide--chevron-down]'
+										]}
+									></span>
+								</span>
+								{isRevealed ? 'Show fewer' : `Show ${hiddenRows.length} hidden`}
+							</button>
+						{/if}
 					{/if}
 				</div>
 			{/each}
@@ -227,6 +287,9 @@
 					{:else if workspace.working}
 						<!-- its agent, or one working alongside it -->
 						<Spinner />
+					{:else if workspace.hidden}
+						<!-- out of sight, unless asked for -->
+						<span class="icon-[lucide--eye-off] size-4"></span>
 					{:else if workspace.parentId}
 						<!-- started by an agent: the one above it, where that is still around -->
 						<span class="icon-[lucide--corner-down-right] size-4"></span>
@@ -240,6 +303,20 @@
 				At its end: how its work stands, at a glance. Pointed at, that makes way for what
 				can be done with it; the two share one place, so that nothing moves.
 			-->
+			{#if archivable && (workspace.hidden || !hidden(workspace))}
+				<!-- put out of sight, or brought back: only where it was hidden itself -->
+				<button
+					type="button"
+					class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-hover:grid group-has-focus-visible:grid hover:bg-sunken hover:text-ink"
+					title={workspace.hidden ? 'Show in sidebar' : 'Hide workspace'}
+					aria-label="{workspace.hidden ? 'Show' : 'Hide'} {workspace.title}"
+					onclick={() => hideWorkspace({ workspaceId: workspace.id, hidden: !workspace.hidden })}
+				>
+					<span
+						class={['size-3.5', workspace.hidden ? 'icon-[lucide--eye]' : 'icon-[lucide--eye-off]']}
+					></span>
+				</button>
+			{/if}
 			<span class="grid size-6 shrink-0 place-items-center">
 				{#if standing}
 					<span

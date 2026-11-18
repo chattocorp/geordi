@@ -30,7 +30,7 @@ export const navigation = () =>
 			const all = workspaces().all();
 			const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
 			const listed = withAides(all).map(({ workspace, aides }) => {
-				const { id, title, repoId, parentId, status, worktree } = workspace;
+				const { id, title, repoId, parentId, status, worktree, hidden } = workspace;
 				const working = status === 'running' || aides.some((aide) => aide.status === 'running');
 				// how its work stands, as far as is known: asked about in the background
 				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
@@ -47,6 +47,7 @@ export const navigation = () =>
 					parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
 					status,
 					working,
+					hidden,
 					outcome: outcome([workspace, ...aides]),
 					standing: standingOf(state),
 					// what could happen next (FDR-003): offered in its context menu

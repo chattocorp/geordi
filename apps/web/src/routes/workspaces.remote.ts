@@ -115,6 +115,12 @@ export const say = command(v.object({ workspaceId: v.string(), text }), ({ works
 	workspaces().send(workspaceId, text)
 );
 
+/** Puts a workspace out of sight in the sidebar, or brings it back. */
+export const hideWorkspace = command(
+	v.object({ workspaceId: v.string(), hidden: v.boolean() }),
+	({ workspaceId, hidden }) => workspaces().hide(workspaceId, hidden)
+);
+
 /** Check for unfinished work without changing the workspace. */
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 

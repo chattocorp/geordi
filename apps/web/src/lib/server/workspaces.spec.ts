@@ -760,6 +760,27 @@ describe('titles', () => {
 	});
 });
 
+describe('hiding', () => {
+	it('puts a workspace out of sight and back, without it counting as activity', () => {
+		const { store, repos, workspaces, create, dispatch } = setup();
+		const id = create('One');
+		const { updatedAt } = workspaces.get(id);
+		const events = () =>
+			store.readStream(`workspace:${id}`).filter((event) => event.type === 'workspace.hidden');
+
+		workspaces.hide(id, true);
+		workspaces.hide(id, true); // already hidden: nothing to record
+		expect(workspaces.get(id)).toMatchObject({ hidden: true, updatedAt });
+		expect(events()).toHaveLength(1);
+
+		workspaces.hide(id, false);
+		expect(workspaces.get(id).hidden).toBe(false);
+		workspaces.hide(id, true);
+		expect(events()).toHaveLength(3);
+		expect(createWorkspaces(store, repos, dispatch).get(id).hidden).toBe(true);
+	});
+});
+
 describe('archiving', () => {
 	it('takes a workspace out of the lists and keeps its conversation', () => {
 		const { store, repos, workspaces, repo, create, dispatch } = setup();

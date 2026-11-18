@@ -96,6 +96,8 @@ export type WorkspacesEvent =
 	| { type: 'workspace.switched'; stream: WorkspaceStream; data: { id: string; branch: string } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
+	/** The person put the workspace out of sight in the sidebar, or brought it back. */
+	| { type: 'workspace.hidden'; stream: WorkspaceStream; data: { id: string; hidden: boolean } }
 	/** What a person answered to a question the agent asked: one answer per question, in their order. */
 	| {
 			type: 'workspace.answered';
@@ -269,6 +271,8 @@ export type Workspace = {
 	briefing: string | null;
 	/** Who sent the messages that wait, in step with `queue`: workspace IDs, `null` for people. */
 	sentBy: { queue: (string | null)[] };
+	/** Put out of sight in the sidebar, under its repository's hidden ones. */
+	hidden: boolean;
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	createdAt: string;
@@ -297,6 +301,7 @@ function initialWorkspace(
 		attachments: { queue: [] },
 		sentBy: { queue: [] },
 		briefing: null,
+		hidden: false,
 		archivedAt: null,
 		createdAt: at,
 		updatedAt: at,
@@ -395,6 +400,11 @@ export function createWorkspaces(
 
 		const workspace = workspaces.get(event.data.id);
 		if (!workspace) return;
+		// putting it out of sight is nothing that happened in it
+		if (event.type === 'workspace.hidden') {
+			workspace.hidden = event.data.hidden;
+			return;
+		}
 		workspace.updatedAt = at;
 		const { id, transcript } = workspace;
 		function edit(index: number, remove: number, ...items: TranscriptItem[]) {
@@ -1392,6 +1402,16 @@ export function createWorkspaces(
 		 */
 		suggestTitle(id: string, title: string) {
 			if (!find(id).named) retitle(id, title);
+		},
+
+		/** Puts the workspace out of sight in the sidebar, or brings it back. */
+		hide(id: string, hidden: boolean, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt || workspace.hidden === hidden) return;
+			store.append(
+				{ type: 'workspace.hidden', stream: `workspace:${id}`, data: { id, hidden } },
+				{ actor }
+			);
 		},
 
 		/** Marks the workspace as done with. Its conversation stays readable. */
