@@ -115,7 +115,7 @@ function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
 				return { changes: null, unavailable, missing: unavailable === NO_WORKTREE };
 			}
 		),
-		upstream: ref.then((ref) => upstreamOf(ref, fresh)).catch(() => null),
+		upstream: () => ref.then((ref) => upstreamOf(ref, fresh)).catch(() => null),
 		config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
 		release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
 	};
@@ -267,7 +267,8 @@ export const watchers = lazy(() =>
 		(message) => hub().send(message),
 		(id) => workspaces().ref(id),
 		loadWorktreeState,
-		(id, state) => standings().note(id, state)
+		(id, state) => standings().note(id, state),
+		(id) => standings().get(id)?.upstream
 	)
 );
 
