@@ -482,8 +482,6 @@ export type DaemonRequest =
 	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
 	 */
 	| ({ kind: 'updateWorktree' } & WorktreeRef)
-	/** A short title for a piece of work, from the request that starts it. */
-	| { kind: 'title'; text: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
@@ -500,7 +498,6 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
-	title: string;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
@@ -570,6 +567,8 @@ export type AgentEvent =
 	| { kind: 'plan'; id: string; plan: AgentPlan | null }
 	| { kind: 'tool'; id: string; name: string; input: string }
 	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
+	/** What the agent calls its session (ACP `session_info_update`), at any time. */
+	| { kind: 'title'; title: string }
 	/** A form stays open until answered, withdrawn, or its turn ends. Older forms block. */
 	| { kind: 'question'; id: string; questions: Question[]; blocking?: boolean }
 	/** The host accepted the answer for this outstanding ACP request. */

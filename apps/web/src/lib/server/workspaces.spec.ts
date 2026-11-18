@@ -732,31 +732,37 @@ describe('titles', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).title).toHaveLength(80);
 	});
 
-	it('prefers the name someone chose to one a model made of the first message', () => {
-		const { workspaces, create } = setup();
-		const id = create('Fix the bug in the login flow, it fails on Safari');
-		workspaces.suggestTitle(id, 'Fix Safari login');
-		expect(workspaces.get(id)).toMatchObject({ title: 'Fix Safari login', named: false });
+	it('takes the title its agent gives its session, until someone names it', () => {
+		const { store, repos, dispatch, workspaces, create } = setup();
+		const id = create('Fix the bug in the login flow,\nit fails on Safari');
+		// Codex says the prompt back first, whitespace collapsed and maybe cut short
+		workspaces.record(id, {
+			kind: 'title',
+			title: 'Fix the bug in the login flow, it fails on Safari'
+		});
+		workspaces.record(id, { kind: 'title', title: 'Fix the bug in the login…' });
+		expect(workspaces.get(id).title).toBe('Fix the bug in the login flow,');
 
-		// its agent names it: that holds, whatever a model comes up with later
+		workspaces.record(id, { kind: 'title', title: 'Fix Safari login' });
+		expect(workspaces.get(id)).toMatchObject({ title: 'Fix Safari login', named: false });
+		// a later one replaces it, even between turns
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.record(id, { kind: 'title', title: 'Safari login cookies' });
+		expect(workspaces.get(id).title).toBe('Safari login cookies');
+
+		// its agent names it: that holds, whatever its session is called later
 		workspaces.agents.name(id, 'Safari login cookie fix');
-		workspaces.suggestTitle(id, 'Login bug');
+		workspaces.record(id, { kind: 'title', title: 'Login bug' });
 		expect(workspaces.get(id)).toMatchObject({ title: 'Safari login cookie fix', named: true });
+		expect(createWorkspaces(store, repos, dispatch).get(id).title).toBe('Safari login cookie fix');
 	});
 
-	it('announces new workspaces, including ones agents start, with what started them', () => {
-		const { store, repos, repo, dispatch } = setup();
-		const created: [string, string][] = [];
-		const workspaces = createWorkspaces(store, repos, dispatch, {
-			onCreated: (id, prompt) => created.push([id, prompt])
-		});
-		const lead = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
-		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
-		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Build the thing' });
-		expect(created).toEqual([
-			[lead, 'Lead'],
-			[child.id, 'Build the thing']
-		]);
+	it('keeps a name someone gave it over its agent’s title', () => {
+		const { workspaces, create } = setup();
+		const id = create('Do the thing');
+		workspaces.retitle(id, 'My name for it', 'person');
+		workspaces.record(id, { kind: 'title', title: 'Thing doing' });
+		expect(workspaces.get(id).title).toBe('My name for it');
 	});
 });
 

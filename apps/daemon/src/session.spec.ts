@@ -59,6 +59,12 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    update({sessionUpdate:'plan_removed',planId:'review'});
    items('plan',[]);return done();
   }
+  if(said==='titles'){
+   update({sessionUpdate:'session_info_update',_meta:{codex:{threadStatus:{type:'active'}}}});
+   out({method:'session/update',params:{sessionId:'child',update:{sessionUpdate:'session_info_update',title:'A subagent'}}});
+   update({sessionUpdate:'session_info_update',title:'Fix the login',updatedAt:'2026-11-18T21:18:40.805Z'});
+   return done();
+  }
   if(said==='start command'){
    update({sessionUpdate:'tool_call_update',toolCallId:'bg',name:'shell',rawInput:'build',status:'in_progress',content:[{type:'terminal',terminalId:'bg-pty'}]});
    update({sessionUpdate:'terminal_output_chunk',terminalId:'bg-pty',data:Buffer.from('before ').toString('base64')});
@@ -247,6 +253,15 @@ describe('a session', () => {
 			},
 			{ kind: 'plan', id: 'review', plan: null },
 			{ kind: 'plan', id: 'plan', plan: null },
+			{ kind: 'turn.completed' }
+		]);
+	});
+
+	it("passes on the title of the agent's own session, not its subagents'", async () => {
+		const { events, ended } = begin('titles');
+		await ended(1);
+		expect(events.slice(2)).toEqual([
+			{ kind: 'title', title: 'Fix the login' },
 			{ kind: 'turn.completed' }
 		]);
 	});

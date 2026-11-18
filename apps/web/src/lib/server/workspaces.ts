@@ -380,14 +380,11 @@ export function createWorkspaces(
 	dispatch: Dispatch,
 	{
 		limits = { depth: 3, children: 5 },
-		secret = randomBytes(32).toString('base64url'),
-		onCreated
+		secret = randomBytes(32).toString('base64url')
 	}: {
 		limits?: Limits;
 		/** Signs agent API tokens. Must be the same after a restart, or running agents lose access. */
 		secret?: string;
-		/** Called with every new workspace and the message that started it, e.g. to name it. */
-		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
 	const access = createAgentAccess(store);
@@ -445,7 +442,7 @@ export function createWorkspaces(
 
 		if (event.type === 'workspace.titled') {
 			workspace.title = event.data.title;
-			// a title someone chose, as opposed to one a model made of the first message unasked
+			// a title someone chose, as opposed to one its agent's session goes by
 			if (actor) workspace.named = true;
 			return;
 		}
@@ -765,6 +762,8 @@ export function createWorkspaces(
 		const workspace = projection.get().get(id);
 		if (!workspace || workspace.archivedAt) return;
 		if (cursor && workspace.outputCursor === cursor) return;
+		// what the agent calls its session may come at any time, even after its turn
+		if (event.kind === 'title') return titleFromAgent(workspace, event.title);
 		const running = workspace.status === 'running';
 		// how to resume it is news at any time, and so is where its worktree is
 		if (event.kind === 'resume') {
@@ -941,12 +940,28 @@ export function createWorkspaces(
 
 	/**
 	 * Names a workspace that was started without a word after the first thing it is told, as
-	 * one started with a prompt is: the first line, and whatever `onCreated` makes of it.
+	 * one started with a prompt is: its first line.
 	 */
 	function nameAfter(workspace: Workspace, text: string) {
 		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
 		retitle(workspace.id, text.split('\n')[0].slice(0, 300));
-		onCreated?.(workspace.id, text);
+	}
+
+	/**
+	 * The title the agent gives its session (FDR-001). It names the workspace until someone
+	 * names it on purpose, a person or the agent itself (`name_workspace`). A later one
+	 * replaces it: agents title a session once, and again only when it is renamed. A
+	 * title that merely repeats the start of something the agent was told is none: Codex
+	 * says the prompt back until it has made one, and Claude does where it could not.
+	 */
+	function titleFromAgent(workspace: Workspace, title: string) {
+		if (workspace.named) return;
+		const flat = (text: string) => text.replace(/\s+/g, ' ').trim();
+		const said = flat(title).replace(/…$/, '').trimEnd();
+		const echo = workspace.transcript.some(
+			(item) => item.kind === 'user' && flat(item.text).startsWith(said)
+		);
+		if (!echo) retitle(workspace.id, title);
 	}
 
 	/**
@@ -983,12 +998,11 @@ export function createWorkspaces(
 			},
 			{ actor }
 		);
-		// whoever starts it may name it; otherwise that is left to others (`onCreated`, its agent)
+		// whoever starts it may name it; otherwise its agent does (`titleFromAgent`, `name_workspace`)
 		if (given && actor) retitle(id, given, actor);
 		// started with nothing to do, it waits to be told: its first turn is its first message
 		if (!prompt && !images.length) return id;
 		say(find(id), prompt, actor, undefined, images);
-		if (!find(id).named) onCreated?.(id, prompt);
 		return id;
 	}
 
@@ -1517,14 +1531,6 @@ export function createWorkspaces(
 		},
 
 		retitle,
-
-		/**
-		 * A title a model made of the workspace's first message. Only until someone has named
-		 * it on purpose: its agent knows better what the work is about.
-		 */
-		suggestTitle(id: string, title: string) {
-			if (!find(id).named) retitle(id, title);
-		},
 
 		/**
 		 * Moves a workspace in the list: right above `before`, another of its repository's,

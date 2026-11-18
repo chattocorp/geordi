@@ -108,9 +108,10 @@ it, perhaps you.
     the middle of its turn) or queues (`workspace.queued`: sent when the turn ends).
   - An agent can ask the person something (`question`, answered with `workspace.answered`
     and `agent.answer`); the workspace is `asking` while a blocking form needs input. The forge retries saved answers until the host acknowledges the question ID or the request closes.
-  - Workspaces get their titles from the daemon (`titles.ts`), which asks a small model on
-    OpenRouter with a plain HTTP request (`OPENROUTER_API_KEY`). No SDK: prefer a few lines
-    of our own over a heavy dependency.
+  - A workspace is named after the first line of its first message, then after the title
+    its agent gives its root session (ACP `session_info_update`, the `title` event;
+    `titleFromAgent` drops Codex's echo of the prompt), until someone names it on purpose
+    (an `actor` on `workspace.titled`: a caller's `title`, or the agent's `name_workspace`).
   - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
     tested); most just `say` something to the agent.
   - Agents run without permission prompts by default (they must commit, push and use `gh`).
