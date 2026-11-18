@@ -34,8 +34,7 @@ type LocalState = Pick<WorktreeState, 'changes' | 'unavailable' | 'missing'>;
 export type WorktreeLoad = {
 	local: Promise<LocalState>;
 	upstream: () => Promise<Upstream | null>;
-	config: Promise<RepoConfig | null>;
-	release: Promise<ReleasePlan | null>;
+	details: () => { config: Promise<RepoConfig | null>; release: Promise<ReleasePlan | null> };
 };
 
 const FALLBACK_MS = 60_000;
@@ -62,8 +61,8 @@ export function createWatchers(
 	dispatch: Dispatch,
 	ref: (worktreeId: string) => WorktreeRef,
 	/**
-	 * Asks a daemon for a worktree's state. Never rejects. `fresh`: also for how things stand
-	 * upstream as of now, not as of the last time someone asked.
+	 * Loads a worktree. A fresh read checks the upstream forge again. The upstream
+	 * lookup may reject if the forge is unavailable.
 	 */
 	load: (worktreeId: string, fresh: boolean) => WorktreeLoad,
 	noteStanding: (id: string, state: WorktreeState) => void,
@@ -74,6 +73,7 @@ export function createWatchers(
 		state: WatchedState | null;
 		loading: symbol | null;
 		pending: boolean | null;
+		details?: ReturnType<WorktreeLoad['details']>;
 		fallback?: NodeJS.Timeout;
 	};
 	const watched = new Map<string, Watched>();
@@ -94,7 +94,15 @@ export function createWatchers(
 	}
 
 	/** Publish each answer when it arrives. A burst during a load needs one more pass. */
-	function refresh(worktreeId: string, fresh = false, announce = false, cached?: Upstream) {
+	function refresh(
+		worktreeId: string,
+		{
+			fresh = false,
+			announce = false,
+			cached,
+			upstreamOnly = false
+		}: { fresh?: boolean; announce?: boolean; cached?: Upstream; upstreamOnly?: boolean } = {}
+	) {
 		const entry = watched.get(worktreeId);
 		if (!entry) return;
 		if (entry.loading && !announce) {
@@ -104,7 +112,7 @@ export function createWatchers(
 		// A turn can finish while an earlier lookup is still waiting for release or Git data.
 		const request = Symbol();
 		entry.loading = request;
-		entry.pending = null;
+		if (!upstreamOnly) entry.pending = null;
 		const current = () => watched.get(worktreeId) === entry && entry.loading === request;
 		const publish = (patch: Partial<WatchedState>) => {
 			if (!current()) return;
@@ -128,36 +136,43 @@ export function createWatchers(
 				...(changedBranch && { checking: true, upstream: null })
 			});
 		});
-		const standing = Promise.all([local, upstreamAnswer]).then(([, upstream]) => {
-			if (!current()) return;
-			const latest = entry.state?.upstream;
-			if (cached && upstream === cached && latest === null) upstream = null;
-			if (upstream?.localBranch && upstream.localBranch !== entry.state?.changes?.branch)
-				upstream = null;
-			if (
-				latest &&
-				latest.localBranch === entry.state?.changes?.branch &&
-				((!upstream && latest !== upstreamAtStart) ||
-					(latest.checkedAt !== undefined &&
-						upstream?.checkedAt !== undefined &&
-						latest.checkedAt > upstream.checkedAt))
-			)
-				upstream = latest;
-			if (upstream?.checkedAt !== undefined && upstream.checkedAt !== latest?.checkedAt)
-				scheduleFallback(worktreeId, entry);
-			publish({ upstream, checking: false });
-			if (current() && entry.state?.changes) noteStanding(worktreeId, entry.state);
-		});
+		const standing = Promise.all([local, upstreamAnswer.catch(() => undefined)]).then(
+			([, answer]) => {
+				if (!current()) return;
+				const latest = entry.state?.upstream;
+				let upstream = answer === undefined ? (latest ?? null) : answer;
+				if (cached && upstream === cached && latest === null) upstream = null;
+				if (upstream?.localBranch && upstream.localBranch !== entry.state?.changes?.branch)
+					upstream = null;
+				if (
+					latest &&
+					latest.localBranch === entry.state?.changes?.branch &&
+					((!upstream && latest !== upstreamAtStart) ||
+						(latest.checkedAt !== undefined &&
+							upstream?.checkedAt !== undefined &&
+							latest.checkedAt > upstream.checkedAt))
+				)
+					upstream = latest;
+				if (upstream?.checkedAt !== undefined && upstream.checkedAt !== latest?.checkedAt)
+					scheduleFallback(worktreeId, entry);
+				publish({ upstream, checking: false });
+				if (current() && entry.state?.changes) noteStanding(worktreeId, entry.state);
+			}
+		);
+		// PR events need only the branch and upstream status. Carry over any details already
+		// in flight so viewers still receive them when the previous load is superseded.
+		if (!upstreamOnly) entry.details = answers.details();
 		void Promise.all([
 			standing,
-			answers.config.then((config) => publish({ config })),
-			answers.release.then((release) => publish({ release, releasePending: false }))
+			entry.details?.config.then((config) => publish({ config })),
+			entry.details?.release.then((release) => publish({ release, releasePending: false }))
 		]).then(() => {
 			if (!current()) return;
 			entry.loading = null;
+			entry.details = undefined;
 			const pending = entry.pending;
 			entry.pending = null;
-			if (pending !== null) refresh(worktreeId, pending);
+			if (pending !== null) refresh(worktreeId, { fresh: pending });
 		});
 		return standing;
 	}
@@ -167,7 +182,7 @@ export function createWatchers(
 		clearTimeout(entry.fallback);
 		entry.fallback = setTimeout(() => {
 			scheduleFallback(id, entry);
-			refresh(id, true);
+			refresh(id, { fresh: true });
 		}, delay).unref();
 	}
 
@@ -198,7 +213,7 @@ export function createWatchers(
 					})
 				);
 				sync();
-				refresh(worktreeId, false, false, cached);
+				refresh(worktreeId, { cached });
 				scheduleFallback(worktreeId, entry, cached ? FALLBACK_MS - age : FALLBACK_MS);
 			}
 			entry.viewers.add(changed);
@@ -235,17 +250,19 @@ export function createWatchers(
 			for (const viewer of entry.viewers) viewer();
 		},
 
+		refreshUpstream: (worktreeId: string) =>
+			refresh(worktreeId, { fresh: true, announce: true, upstreamOnly: true }),
+
 		isWatched: (worktreeId: string) => watched.has(worktreeId),
 
 		/** The worktree's state as last loaded; `null` if nobody is looking, or not loaded yet. */
 		state: (worktreeId: string): WatchedState | null => watched.get(worktreeId)?.state ?? null,
 
 		/**
-		 * Something about a worktree changed: its files or Git state, as a daemon reports.
-		 * `fresh` where it may have been something upstream, which nothing here shows: an
-		 * agent has just finished a turn, in which it may have opened a pull request.
+		 * Reload the files and Git state. Continuing a workspace on another branch also
+		 * needs fresh upstream status.
 		 */
-		changed: (worktreeId: string, fresh = false) => refresh(worktreeId, fresh, fresh),
+		changed: (worktreeId: string, fresh = false) => refresh(worktreeId, { fresh, announce: fresh }),
 
 		/** A daemon (re)connected: it watches nothing until told, and what we know may be stale. */
 		resync() {

@@ -467,6 +467,9 @@ export async function upstream(
 			const same =
 				known?.number === listed.ref.number && baseline?.updatedAt === listed.updatedAt?.getTime();
 			pull = same && !due ? undefined : await readThread(provider, listed.ref);
+		} else if (asked && !anonymous && pushed && !known && provider.can('search.threads')) {
+			// A PR opened during this turn may not be in the repository listing yet.
+			pull = await findPull(provider, repo, branch);
 		} else if (listing && (listing.complete || baseline)) {
 			// Not among the recently updated: there is none, or it has not changed since we read it.
 			pull = !known ? null : due ? await readKnown(known.number) : undefined;

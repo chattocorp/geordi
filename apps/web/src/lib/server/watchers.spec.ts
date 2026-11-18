@@ -21,8 +21,7 @@ function answers(uncommitted: number): WorktreeLoad {
 	return {
 		local: Promise.resolve({ changes, unavailable, missing }),
 		upstream: () => Promise.resolve(null),
-		config: Promise.resolve(null),
-		release: Promise.resolve(null)
+		details: () => ({ config: Promise.resolve(null), release: Promise.resolve(null) })
 	};
 }
 
@@ -97,7 +96,7 @@ describe('watchers', () => {
 		await settled();
 		expect(watchers.state('a')).toMatchObject({ version: 1, upstream: newer });
 		expect(upstream).not.toHaveBeenCalled();
-		watchers.changed('a', true);
+		watchers.refreshUpstream('a');
 		await settled();
 		expect(upstream).toHaveBeenCalledTimes(1);
 		close();
@@ -146,7 +145,7 @@ describe('watchers', () => {
 		const { watchers, daemon, note } = setup((n) => ({
 			...answers(n),
 			upstream: () => upstream.promise,
-			release: release.promise
+			details: () => ({ config: Promise.resolve(null), release: release.promise })
 		}));
 		watchers.watch('a', () => {});
 		await settled();
@@ -179,12 +178,12 @@ describe('watchers', () => {
 		const previous = Promise.withResolvers<null>();
 		const { watchers, daemon, note } = setup((n) => ({
 			...answers(n),
-			...(n === 0 && { upstream: () => previous.promise, release: previous.promise })
+			...(n === 0 && { upstream: () => previous.promise })
 		}));
 		watchers.watch('a', () => {});
 		await settled();
 		daemon.uncommitted = 1;
-		watchers.changed('a', true);
+		watchers.refreshUpstream('a');
 		expect(daemon.fresh).toEqual([false, true]);
 		await settled();
 		expect(watchers.state('a')).toMatchObject({ changes: { uncommitted: 1 }, checking: false });
@@ -195,9 +194,80 @@ describe('watchers', () => {
 		expect(note).toHaveBeenCalledTimes(1);
 	});
 
+	it('refreshes the PR while release data is pending and still processes queued file changes', async () => {
+		const release = Promise.withResolvers<null>();
+		const details = vi.fn(() => ({ config: Promise.resolve(null), release: release.promise }));
+		const { watchers, daemon } = setup((n) => ({ ...answers(n), details }));
+		const close = watchers.watch('a', () => {});
+		watchers.changed('a');
+		await watchers.refreshUpstream('a');
+		expect(details).toHaveBeenCalledTimes(1);
+		expect(watchers.state('a')).toMatchObject({ checking: false, releasePending: true });
+		release.resolve(null);
+		await settled();
+		expect(watchers.state('a')?.releasePending).toBe(false);
+		expect(daemon.fresh).toEqual([false, true, false]);
+		expect(details).toHaveBeenCalledTimes(2);
+		await watchers.refreshUpstream('a');
+		expect(details).toHaveBeenCalledTimes(2);
+		close();
+	});
+
+	it('retains PR status on a failed lookup only while the branch matches', async () => {
+		const status: Upstream = {
+			forge: 'github',
+			repo: 'a/b',
+			repoUrl: null,
+			branch: 'geordi/w',
+			localBranch: 'geordi/w',
+			pushed: true,
+			createUrl: null,
+			pull: {
+				number: '1',
+				title: 'Feature',
+				body: '',
+				url: null,
+				state: 'open',
+				draft: false,
+				base: 'main',
+				checks: null,
+				review: null
+			}
+		};
+		const upstream = vi.fn<() => Promise<Upstream | null>>().mockResolvedValue(status);
+		let branch = 'geordi/w';
+		const { watchers, note } = setup((n) => {
+			const load = answers(n);
+			return {
+				...load,
+				upstream,
+				local: load.local.then((result) => ({ ...result, changes: { ...result.changes!, branch } }))
+			};
+		});
+		const close = watchers.watch('a', () => {});
+		await settled();
+		upstream.mockRejectedValueOnce(Error('Timeout'));
+		await watchers.refreshUpstream('a');
+		expect(watchers.state('a')).toMatchObject({ upstream: status, checking: false });
+		expect(note.mock.lastCall?.[1].upstream).toBe(status);
+		upstream.mockResolvedValueOnce(null);
+		await watchers.refreshUpstream('a');
+		expect(watchers.state('a')?.upstream).toBeNull();
+		await watchers.refreshUpstream('a');
+		expect(watchers.state('a')?.upstream).toBe(status);
+		branch = 'another';
+		upstream.mockRejectedValueOnce(Error('Timeout'));
+		await watchers.refreshUpstream('a');
+		expect(watchers.state('a')?.upstream).toBeNull();
+		close();
+	});
+
 	it('enables standing before release data and drops late answers after the last viewer leaves', async () => {
 		const release = Promise.withResolvers<null>();
-		const { watchers, daemon } = setup((n) => ({ ...answers(n), release: release.promise }));
+		const { watchers, daemon } = setup((n) => ({
+			...answers(n),
+			details: () => ({ config: Promise.resolve(null), release: release.promise })
+		}));
 		const stop = watchers.watch('a', () => {});
 		await settled();
 		expect(watchers.state('a')).toMatchObject({ version: 1, checking: false });
@@ -214,7 +284,7 @@ describe('watchers', () => {
 		watchers.watch('a', () => {});
 		await settled();
 		watchers.changed('a'); // files changed: what was learnt a moment ago will do
-		watchers.changed('a', true); // an agent finished a turn: it may have opened a pull request
+		watchers.refreshUpstream('a'); // an agent finished a turn: it may have opened a pull request
 		await settled();
 		expect(daemon.fresh).toEqual([false, false, true]);
 	});

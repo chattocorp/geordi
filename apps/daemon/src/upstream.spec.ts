@@ -181,6 +181,14 @@ describe('upstream', () => {
 				github.asked.push('read');
 				return Response.json(rest(pull));
 			}
+			if (url.pathname === '/search/issues') {
+				expect(url.searchParams.get('q')).toContain('head:' + branch);
+				github.asked.push('search');
+				return Response.json({
+					total_count: github.pulls.length,
+					items: github.pulls.map((pr) => ({ ...rest(pr), pull_request: {} }))
+				});
+			}
 			if (url.pathname.endsWith('/pulls')) {
 				const etag = `"v${github.version}"`;
 				if (new Headers(init?.headers).get('if-none-match') === etag) {
@@ -256,12 +264,11 @@ describe('upstream', () => {
 			expect((await read(worktree, ref, 22_000))?.refreshAfterMs).toBe(10_000);
 			expect(github.asked).toHaveLength(2);
 
-			// a pull request opened: the listing changes, and it is read
+			// The PR is searchable before the repository listing's validator changes.
 			github.pulls.push({ number: 42, state: 'open', updatedAt: '2026-11-18T10:00:00Z' });
-			github.version++;
 			const opened = await read(worktree, { ...ref, fresh: true }, 22_001);
 			expect(opened?.pull?.number).toBe('42');
-			expect(github.asked.slice(2)).toContain('read');
+			expect(github.asked.slice(2)).toEqual(['unchanged', 'search', 'read']);
 			// unchanged since, it is not read again; a minute on, it is
 			const before = github.asked.length;
 			expect((await read(worktree, ref, 42_000))?.pull?.number).toBe('42');
