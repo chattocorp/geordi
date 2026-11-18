@@ -13,3 +13,4 @@
 | [FDR-009](FDR-009-repository-workspace.md)             | The repository's own workspace                                   | Withdrawn | 2026-11-17    |
 | [FDR-010](FDR-010-native-subagents.md)                 | Native subagents in a conversation                               | Active    | 2026-11-18    |
 | [FDR-011](FDR-011-diagrams-and-svg.md)                 | Diagrams and SVG in agent output                                 | Active    | 2026-11-18    |
+| [FDR-012](FDR-012-desks.md)                            | Desks: workspaces for orchestrating, not tied to a repository    | Planned   | 2026-11-18    |
