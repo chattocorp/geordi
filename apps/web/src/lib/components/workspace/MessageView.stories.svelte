@@ -1,11 +1,13 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, userEvent, waitFor } from 'storybook/test';
-	import type { Block } from '#lib/transcript.ts';
+	import { expect, fn, userEvent, waitFor } from 'storybook/test';
+	import { subagentBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '#lib/ui/Button.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
+	const openReviewer = fn();
+	const openParent = fn();
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const reply =
 		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
@@ -201,8 +203,10 @@
 	play={async ({ canvas }) => {
 		const answer = await canvas.findByRole('button', { name: 'Answer' });
 		await expect(answer).toBeDisabled(); // nothing to say yet
-		await userEvent.click(canvas.getByRole('button', { name: /Postgres/ }));
-		await userEvent.click(answer);
+		// The virtual list pauses pointer input while it scrolls to the question or its answer.
+		const postgres = canvas.getByRole('button', { name: /Postgres/ });
+		await waitFor(() => userEvent.click(postgres));
+		await waitFor(() => userEvent.click(answer));
 		await waitFor(() => expect(canvas.queryByRole('button', { name: 'Answer' })).toBeNull());
 		await expect(canvas.getByText('Postgres')).toBeVisible();
 	}}
@@ -395,5 +399,132 @@
 				]}
 			/>
 		</div>
+	</div>
+</Story>
+
+<Story
+	name="Native reviewers"
+	asChild
+	play={async ({ canvas }) => {
+		openReviewer.mockClear();
+		await userEvent.click(await canvas.findByText('Review UI and design'));
+		await expect(
+			await canvas.findByText('The focus indicator is visible on every tab.')
+		).toBeVisible();
+		await expect(canvas.getByText('Running')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Open in tab' }));
+		await expect(openReviewer).toHaveBeenCalledWith('ui');
+	}}
+>
+	<div class="flex h-112 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="claude"
+			onopensubagent={openReviewer}
+			onremove={() => {}}
+			onanswer={() => {}}
+			blocks={[
+				{ kind: 'user', text: 'Review the daemon and the conversation UI.' },
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'subagent',
+							id: 'daemon',
+							at: '',
+							title: 'Review daemon and backend',
+							state: 'running',
+							items: []
+						},
+						{
+							kind: 'subagent',
+							id: 'ui',
+							at: '',
+							title: 'Review UI and design',
+							state: 'done',
+							items: [
+								{
+									kind: 'message',
+									id: 'assignment',
+									incoming: true,
+									text: 'Check keyboard navigation in the conversation tabs.'
+								},
+								{
+									kind: 'tool',
+									id: 'read',
+									name: 'Read',
+									input: '{"file_path":"Panes.svelte"}',
+									output: '',
+									isError: false,
+									at: ''
+								},
+								{
+									kind: 'message',
+									id: 'report',
+									incoming: false,
+									text: 'The focus indicator is visible on every tab.'
+								}
+							]
+						},
+						{
+							kind: 'text',
+							text: 'The UI review is in. The daemon reviewer is still checking reconnects.'
+						}
+					]
+				}
+			]}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Subagent conversation tab"
+	asChild
+	play={async ({ canvas }) => {
+		openParent.mockClear();
+		const parent = await canvas.findByRole('button', { name: 'Assigned by Backend reviewer' });
+		await userEvent.click(parent);
+		await expect(openParent).toHaveBeenCalledOnce();
+		await expect(
+			canvas.getByText('The daemon restores both reviewers after reconnect.')
+		).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: /Turn activity/ }));
+		await expect(canvas.getByText('Tools')).toBeVisible();
+	}}
+>
+	<div class="flex h-96 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="claude"
+			parentAgent={{ name: 'Backend reviewer', open: openParent }}
+			blocks={subagentBlocks({
+				kind: 'subagent',
+				id: 'daemon',
+				title: 'Review daemon reconnects',
+				state: 'done',
+				at: '',
+				items: [
+					{
+						kind: 'message',
+						id: 'assignment',
+						incoming: true,
+						text: 'Check that reviewers survive a daemon reconnect.'
+					},
+					{
+						kind: 'tool',
+						id: 'read',
+						name: 'Read',
+						input: 'session.ts',
+						output: '',
+						at: '',
+						isError: false
+					},
+					{
+						kind: 'message',
+						id: 'report',
+						incoming: false,
+						text: 'The daemon restores both reviewers after reconnect.'
+					}
+				]
+			})}
+		/>
 	</div>
 </Story>

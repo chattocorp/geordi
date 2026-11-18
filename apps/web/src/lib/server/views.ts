@@ -33,8 +33,10 @@ export const navigation = () =>
 				const { id, title, repoId, parentId, status, worktree } = workspace;
 				const working = status === 'running' || aides.some((aide) => aide.status === 'running');
 				// how its work stands, as far as is known: asked about in the background
+				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
+				const pull = known.upstream?.pull;
 				const state = {
-					...(standings().get(workspace.worktreeId) ?? { changes: null, upstream: null }),
+					...known,
 					failed: workspace.lastTurn === 'failed',
 					child: !!parentId
 				};
@@ -51,7 +53,12 @@ export const navigation = () =>
 					actions: actionsFor(state).filter(
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
-					branch: worktree?.branch ?? null
+					branch: worktree?.branch ?? null,
+					pull: pull && pull.state !== 'unknown' ? { number: pull.number, url: pull.url } : null,
+					// when anything last happened in it, also in the agents working alongside
+					updatedAt: [workspace, ...aides]
+						.map((member) => member.updatedAt)
+						.reduce((a, b) => (a > b ? a : b))
 				};
 			});
 			return {
@@ -145,9 +152,6 @@ export const workspace = (id: string) => {
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				refreshing:
-					watchers().isRefreshing(workspace.worktreeId) ||
-					standings().isRefreshing(workspace.worktreeId),
 				git: watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read

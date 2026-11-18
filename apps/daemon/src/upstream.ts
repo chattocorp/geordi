@@ -290,6 +290,7 @@ function locate(worktree: Worktree, repoPath: string) {
 }
 
 type Cached = {
+	invalidated?: boolean;
 	includeChecks: boolean;
 	key: string;
 	at: number;
@@ -298,6 +299,18 @@ type Cached = {
 	value: Upstream | null;
 };
 const cache = new Map<string, Cached>();
+
+/** The last known comparison target, including while a fresh lookup is in flight. */
+export function cachedPullBase(id: string, branch: string | null) {
+	const known = cache.get(id)?.value;
+	return known?.localBranch === branch ? (known?.pull?.base ?? undefined) : undefined;
+}
+
+/** Keep the comparison available until the next read replaces it. */
+function invalidate(id: string) {
+	const cached = cache.get(id);
+	if (cached) cache.set(id, { ...cached, invalidated: true });
+}
 
 /**
  * How the workspace's branch stands upstream. `null` if the repository has no `origin`
@@ -314,7 +327,10 @@ export async function upstream(
 	now = Date.now()
 ): Promise<Upstream | null> {
 	const found = locate(worktree, repoPath);
-	if (!found) return null;
+	if (!found) {
+		cache.delete(worktreeId);
+		return null;
+	}
 	const { remote, provider, repo, branch } = found;
 	const anonymous = provider.authKind === 'anonymous';
 	const pushedSha = git(
@@ -369,6 +385,7 @@ export async function upstream(
 	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
 	if (
 		cached &&
+		!cached.invalidated &&
 		(!includeChecks || cached.includeChecks) &&
 		previous &&
 		(sameHead || anonymous) &&
@@ -417,7 +434,7 @@ export async function upstream(
 	};
 	// An overlapping refresh (or a merge) may have superseded this read.
 	const latest = cache.get(worktreeId);
-	if (latest === cached || (latest && latest.at < now))
+	if (latest === cached || (latest && !latest.invalidated && latest.at < now))
 		cache.set(worktreeId, { key, at: now, includeChecks, value, pushedSha, fastUntil });
 	return value;
 }
@@ -484,7 +501,7 @@ export async function setAutoMerge(
 			);
 		}
 	}
-	cache.delete(worktreeId);
+	invalidate(worktreeId);
 	return null;
 }
 
@@ -504,7 +521,7 @@ export async function markReady(
 		number: pullNumber
 	});
 	await markDraftReady(provider, repo, branch, pull);
-	cache.delete(worktreeId);
+	invalidate(worktreeId);
 	return null;
 }
 
@@ -579,6 +596,6 @@ export async function mergePull(
 		throw new Error('The pull request is not at the commit this workspace is at; push first');
 
 	const { status } = await merge(provider.threads, pull.ref, commit);
-	cache.delete(worktreeId); // what we knew about it is no longer true
+	invalidate(worktreeId);
 	return status;
 }

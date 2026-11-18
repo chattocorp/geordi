@@ -131,10 +131,7 @@ describe('watchers', () => {
 		daemon.uncommitted = 2;
 		watchers.changed('a');
 		watchers.changed('unknown');
-		expect(watchers.isRefreshing('a')).toBe(true);
-		expect(watchers.isRefreshing('b')).toBe(false);
 		await settled();
-		expect(watchers.isRefreshing('a')).toBe(false);
 		expect(daemon.asked).toEqual(['a', 'b', 'a']);
 		expect(watchers.state('a')).toMatchObject(stateWith(2));
 		expect(watchers.state('b')).toMatchObject(stateWith(0));

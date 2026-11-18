@@ -29,19 +29,36 @@ const MAX_FILE = 1_000_000;
 const SAFE = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
 
 /** Where a workspace's changes are measured from: its repository, and the branch it started from. */
-export type Origin = { repoPath: string; base?: string };
+export type Origin = {
+	repoPath: string;
+	base?: string;
+	pullBase?: string;
+	parents?: { branch: string; pullBase?: string }[];
+};
 
-/**
- * The commit the workspace's changes are measured against: where its branch forked off the
- * branch it started from (by default, the upstream's main branch; see `startOf`). Committed
- * and uncommitted work both count as changes.
- */
-function forkPoint(worktree: Worktree, { repoPath, base }: Origin): string {
-	const start = base ? branchRef(base) : startOf(repoPath);
-	const from = execFileSync('git', ['-C', repoPath, 'rev-parse', start], {
-		encoding: 'utf8'
-	}).trim();
-	return gitIn(worktree, 'merge-base', headOf(worktree), from).trim();
+/** Work from the outermost target inward. A parent already in its target contributes no files. */
+function comparison(worktree: Worktree, origin: Origin) {
+	const remote = (branch: string) =>
+		branchRef(branch).replace('refs/heads/', 'refs/remotes/origin/');
+	const parents =
+		origin.parents ?? (origin.base ? [{ branch: origin.base, pullBase: undefined }] : []);
+	const nearestPull = parents.findIndex((parent) => parent.pullBase);
+	const pull = origin.pullBase ?? parents[nearestPull]?.pullBase;
+	let target = pull
+		? remote(pull)
+		: (baseOf({ repoPath: origin.repoPath }) ??
+			execFileSync('git', ['-C', origin.repoPath, 'rev-parse', 'HEAD'], {
+				encoding: 'utf8'
+			}).trim());
+	if (!origin.pullBase) {
+		const stack = nearestPull < 0 ? parents : parents.slice(0, nearestPull + 1);
+		for (const parent of stack.toReversed()) {
+			const ref = branchRef(parent.branch);
+			if (gitIn(worktree, 'rev-list', '--max-count=1', `${target}..${ref}`).trim()) target = ref;
+		}
+	}
+	const fork = gitIn(worktree, 'merge-base', headOf(worktree), target).trim();
+	return { fork, name: target.replace(/^refs\/(?:heads\/|remotes\/origin\/)/, '') };
 }
 
 const untracked = (worktree: Worktree) =>
@@ -97,7 +114,7 @@ const STATUS: Record<string, FileChange['status']> = { A: 'added', D: 'deleted',
 export function changes(
 	worktree: Worktree,
 	origin: Origin,
-	fork = forkPoint(worktree, origin)
+	fork = comparison(worktree, origin).fork
 ): FileChange[] {
 	// With renames found (`-M`), so that a moved file is one change and not two. Git does
 	// that by comparing contents itself: nothing of the worktree's gets to run.
@@ -217,7 +234,7 @@ function incoming(worktree: Worktree, origin: Origin): Changes['incoming'] {
 /** The workspace's changes, and how far they have got: committed? pushed? */
 export function status(worktree: Worktree, origin: Origin): Changes {
 	const head = headOf(worktree);
-	const fork = forkPoint(worktree, origin);
+	const { fork, name } = comparison(worktree, origin);
 	const uncommitted = uncommittedFiles(worktree).length;
 
 	// What is on the remote, as far as this machine knows: the remote-tracking branch.
@@ -235,6 +252,7 @@ export function status(worktree: Worktree, origin: Origin): Changes {
 
 	return {
 		branch: branchOf(worktree),
+		comparisonTarget: name,
 		files: changes(worktree, origin, fork),
 		unmerged: gitIn(worktree, 'rev-parse', head).trim() !== fork,
 		uncommitted,
@@ -249,13 +267,14 @@ export function status(worktree: Worktree, origin: Origin): Changes {
  * keeps `path` inside the worktree, and away from whatever a symlink in it points to.
  */
 export function versions(worktree: Worktree, origin: Origin, path: string): FileVersions {
-	const change = changes(worktree, origin).find((file) => file.path === path);
+	const { fork } = comparison(worktree, origin);
+	const change = changes(worktree, origin, fork).find((file) => file.path === path);
 	if (!change) return { unavailable: 'This file has no changes any more.' };
 
 	let old: string | null;
 	try {
 		// a renamed file's old version is under its old name
-		const before = `${forkPoint(worktree, origin)}:${change.from ?? path}`;
+		const before = `${fork}:${change.from ?? path}`;
 		old = gitIn(worktree, 'cat-file', 'blob', before);
 	} catch {
 		old = null; // not there at the fork point: the file is new

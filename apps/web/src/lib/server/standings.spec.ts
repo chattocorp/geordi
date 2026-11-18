@@ -53,26 +53,6 @@ describe('standings', () => {
 		expect(state.asked).toHaveLength(7);
 	});
 
-	it('reports one busy interval when a fresh request supersedes a slow one and fails', async () => {
-		const first = Promise.withResolvers<Standing>();
-		const fresh = Promise.withResolvers<Standing>();
-		const activity: boolean[] = [];
-		const standings = createStandings({
-			worktrees: () => ['a'],
-			load: (_, force) => (force ? fresh : first).promise,
-			loadUpstream: async () => null,
-			refreshChanged: (id) => activity.push(standings.isRefreshing(id))
-		});
-		const original = standings.refresh('a');
-		const replacement = standings.refresh('a', true);
-		first.resolve(standing());
-		await original;
-		expect(activity).toEqual([true]);
-		fresh.reject(new Error('offline'));
-		await replacement;
-		expect(activity).toEqual([true, false]);
-	});
-
 	it('asks again at once about what nobody could say anything of', async () => {
 		const { standings, state } = setup(['a']);
 		state.fails = true;

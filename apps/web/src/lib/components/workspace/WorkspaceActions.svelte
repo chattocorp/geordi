@@ -5,7 +5,6 @@
 	import Spinner from '#lib/ui/Spinner.svelte';
 
 	type Props = {
-		refreshing?: boolean;
 		/** Where the workspace stands, in a few words. */
 		standing: WorkspaceStanding | null;
 		/** Its pull request, if it has one, to link to. */
@@ -20,11 +19,12 @@
 		working?: boolean;
 		/** Whether an agent has asked the person something, and waits for the answer. */
 		asking?: boolean;
+		/** Small, with only the next step: for showing many at once (the overview). */
+		compact?: boolean;
 		onopenpull(): void;
 		onaction(action: WorkspaceAction): void;
 	};
 	let {
-		refreshing = false,
 		standing,
 		pull = null,
 		actions,
@@ -32,6 +32,7 @@
 		pending = [],
 		working = false,
 		asking = false,
+		compact = false,
 		onopenpull,
 		onaction
 	}: Props = $props();
@@ -39,9 +40,15 @@
 	const primary = $derived(actions.find((action) => !action.aside));
 	// Keep priority in the action rules; put the main action at the right edge of the ribbon.
 	const ordered = $derived([
-		...actions.filter((action) => action !== primary),
+		...(compact ? [] : actions.filter((action) => action !== primary)),
 		...(primary ? [primary] : [])
 	]);
+	const height = $derived(compact ? 'h-7' : 'h-9');
+	const text = $derived(compact ? 'text-xs' : 'text-sm');
+	const icon = $derived(compact ? 'size-3.5' : 'size-4');
+	// small, beside a next step or "Working", the colour and icon of how it stands say enough
+	const worded = $derived(!compact || (ordered.length === 0 && !working));
+	const linked = $derived(!compact && !!pull?.url);
 
 	const tones = {
 		ok: 'bg-ok/12 text-ok',
@@ -59,39 +66,36 @@
 	unit: the standing colours the whole thing, and the first action is the next step. An
 	agent at work says so at its head; an idle one says nothing.
 -->
-<div class="flex shrink-0 items-center gap-2">
-	{#if refreshing}
-		<span
-			role="img"
-			aria-label="Refreshing workspace"
-			title="Refreshing workspace"
-			class="icon-[lucide--loader-circle] size-4 shrink-0 text-muted motion-safe:animate-spin"
-		></span>
-	{/if}
+<div class={['flex items-center gap-2', compact ? 'min-w-0' : 'shrink-0']}>
 	{#if pull}
-		<div class="inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted">
+		<div class={['inline-flex shrink-0 items-stretch rounded-full bg-sunken text-muted', height]}>
 			<button
 				type="button"
 				class={[
-					'inline-flex items-center gap-1.5 rounded-full pl-3 text-sm leading-none font-medium tabular-nums hover:text-ink',
-					pull.url ? 'pr-0.5' : 'pr-3'
+					'inline-flex items-center gap-1.5 rounded-full leading-none font-medium tabular-nums hover:text-ink',
+					text,
+					compact ? 'pl-2.5' : 'pl-3',
+					linked ? 'pr-0.5' : compact ? 'pr-2.5' : 'pr-3'
 				]}
 				title={`Show pull request #${pull.number} in this workspace`}
 				onclick={onopenpull}
 			>
-				<span class="icon-[lucide--git-pull-request] size-4"></span>
+				<span class={['icon-[lucide--git-pull-request]', icon]}></span>
 				<span>#{pull.number}</span>
 			</button>
-			{#if pull.url}
+			{#if linked && pull.url}
 				<a
 					href={pull.url}
 					target="_blank"
 					rel="external noreferrer"
-					class="inline-flex items-center rounded-full pr-3 pl-1 hover:text-ink"
+					class={[
+						'inline-flex items-center rounded-full pl-1 hover:text-ink',
+						compact ? 'pr-2.5' : 'pr-3'
+					]}
 					aria-label={`Open pull request #${pull.number} in browser`}
 					title="Open in browser"
 				>
-					<span class="icon-[lucide--external-link] size-4"></span>
+					<span class={['icon-[lucide--external-link]', icon]}></span>
 				</a>
 			{/if}
 		</div>
@@ -101,34 +105,46 @@
 			role="group"
 			aria-label="Next steps"
 			class={[
-				'inline-flex h-9 shrink-0 items-center gap-1',
-				// with only buttons to show, they are the pill: no frame around them
-				(standing || working) && [
-					'rounded-full pl-3',
-					// buttons reach the end of the pill; text keeps its distance
-					actions.length > 0 ? 'pr-1' : 'pr-3',
-					tones[standing?.tone ?? 'neutral']
-				]
+				'inline-flex items-center gap-1 rounded-full',
+				height,
+				compact ? 'min-w-0 pl-2.5' : 'shrink-0 pl-3',
+				// buttons reach the end of the pill; text keeps its distance
+				ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
+				tones[standing?.tone ?? 'neutral']
 			]}
 		>
 			{#if working}
-				<span class="flex items-center gap-2 text-sm font-medium whitespace-nowrap" role="status">
+				<span class={['flex items-center gap-2 font-medium whitespace-nowrap', text]} role="status">
 					{#if asking}
 						<!-- at work, but not going on until it has heard from the person -->
-						<span class="icon-[lucide--message-circle-question] size-4"></span>
+						<span class={['icon-[lucide--message-circle-question]', icon]}></span>
 						Waiting for your answer
 					{:else}
 						<Spinner />
 						Working
 					{/if}
 				</span>
-				{#if standing || actions.length > 0}
-					<span class="mx-2 h-4 w-px shrink-0 bg-current opacity-25"></span>
+				{#if standing || ordered.length > 0}
+					<span class={['w-px shrink-0 bg-current opacity-25', compact ? 'mx-1 h-3' : 'mx-2 h-4']}
+					></span>
 				{/if}
 			{/if}
 			{#if standing}
-				<span class={['size-4 shrink-0', standing.icon]}></span>
-				<span class="pr-1.5 pl-1 text-sm font-medium whitespace-nowrap">{standing.label}</span>
+				<span
+					class={['shrink-0', icon, standing.icon, !worded && 'mr-1.5']}
+					title={worded ? undefined : standing.label}
+					role={worded ? undefined : 'img'}
+					aria-label={worded ? undefined : standing.label}
+				></span>
+				{#if worded}
+					<span
+						class={[
+							'pr-1.5 pl-1 font-medium whitespace-nowrap',
+							text,
+							compact && 'min-w-0 truncate'
+						]}>{standing.label}</span
+					>
+				{/if}
 			{/if}
 			{#if ordered.length > 0}
 				<!-- several ways to go are one pill, not several -->

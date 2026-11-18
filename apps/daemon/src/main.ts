@@ -29,6 +29,7 @@ import {
 	openTerminal,
 	resizeTerminal,
 	endedTerminals,
+	hasTerminalActivity,
 	runningTerminals,
 	scrollbackOf,
 	writeTerminal
@@ -47,7 +48,7 @@ import {
 import type { Meta } from './host.ts';
 import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
-import { markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
+import { cachedPullBase, markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
 	branchOf,
@@ -253,6 +254,17 @@ const watches = createWatches(
 	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
 );
 
+function comparisonOrigin(worktree: Worktree, ref: WorktreeRef) {
+	return {
+		...ref,
+		pullBase: cachedPullBase(ref.worktreeId, branchOf(worktree)),
+		parents: ref.parents?.map(({ worktreeId, branch }) => ({
+			branch,
+			pullBase: cachedPullBase(worktreeId, branch)
+		}))
+	};
+}
+
 // --- Connection to the forge --------------------------------------------------------------
 
 /** The current connection, set only once the forge has proven it knows the token. */
@@ -424,6 +436,7 @@ function connect(delay = 500) {
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 async function answer(request: DaemonRequest) {
+	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
@@ -486,14 +499,14 @@ async function answer(request: DaemonRequest) {
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
-			return status(worktree, request);
+			return status(worktree, comparisonOrigin(worktree, request));
 		case 'release':
 			// which notes are this workspace's: the files it has added
 			return releasePlan(
 				worktree,
 				() =>
 					new Set(
-						changes(worktree, request)
+						changes(worktree, comparisonOrigin(worktree, request))
 							.filter((file) => file.status === 'added')
 							.map((file) => file.path)
 					),
@@ -502,13 +515,19 @@ async function answer(request: DaemonRequest) {
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':
-			return versions(worktree, request, request.path);
+			return versions(worktree, comparisonOrigin(worktree, request), request.path);
 		case 'source':
 			return readText(worktree, request.path);
 		case 'picture':
 			return readPicture(worktree.path, request.path);
-		case 'upstream':
-			return upstream(worktree, request);
+		case 'upstream': {
+			const branch = branchOf(worktree);
+			const before = cachedPullBase(request.worktreeId, branch);
+			const result = await upstream(worktree, request);
+			if (cachedPullBase(request.worktreeId, branch) !== before)
+				watches.targetChanged(request.worktreeId);
+			return result;
+		}
 		case 'setAutoMerge':
 			return setAutoMerge(worktree, request);
 		case 'markReady':

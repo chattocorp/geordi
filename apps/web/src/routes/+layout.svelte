@@ -1,9 +1,5 @@
 <script lang="ts">
-	import {
-		pendingPullAction,
-		runPullAction,
-		reviewProblems
-	} from '#lib/components/workspace/review.svelte.ts';
+	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { untrack } from 'svelte';
@@ -17,6 +13,7 @@
 	import Settings from '#lib/components/Settings.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
+	import { lanes } from '#lib/overview.ts';
 	import {
 		modifierKey,
 		newWorkspaceShortcut,
@@ -27,31 +24,24 @@
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Badge from '#lib/ui/Badge.svelte';
-	import {
-		archive,
-		archiving,
-		archiveProblems,
-		beingArchived
-	} from '#lib/components/workspace/archive.svelte.ts';
+	import { archiving, beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
-	import ChecksRing from '#lib/components/ChecksRing.svelte';
+	import StandingIcon from '#lib/components/StandingIcon.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { connect, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { problemOf } from '#lib/problem.ts';
-	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import {
-		continueWorkspace,
-		mergePull,
-		say,
-		stopAgent,
-		updateWorkspace
-	} from './workspaces.remote';
+		actFromAfar,
+		archiveFromAfar,
+		continueFromAfar
+	} from '#lib/components/workspace/afar.svelte.ts';
+	import { stopAgent } from './workspaces.remote';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -66,6 +56,8 @@
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
 	const sidebarRepos = $derived(nav.current?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	/** How many workspaces wait for the person: counted beside the overview. */
+	const needYou = $derived(lanes(nav.current?.workspaces ?? [], unread).attention.length);
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
 	const working = (workspace: Item): boolean =>
 		workspace.working ||
@@ -86,69 +78,12 @@
 	});
 	$effect(badge);
 
-	/** The colour of how a workspace stands: what is fine, wrong, to do, done. */
-	const tones = {
-		ok: 'text-ok',
-		danger: 'text-danger',
-		accent: '',
-		merged: 'text-merged',
-		neutral: 'text-muted'
-	};
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
-
-	/** Archives a workspace from the sidebar, wherever we are. */
-	async function archiveFromHere(workspace: Item) {
-		const href = resolve('/workspaces/[id]', { id: workspace.id });
-		const here = page.url.pathname === href;
-		if (await archive(workspace.id, workspace.title)) {
-			// from a workspace an agent started, back to the one whose agent started it
-			if (here)
-				await goto(
-					workspace.parentId
-						? resolve('/workspaces/[id]', { id: workspace.parentId })
-						: resolve('/')
-				);
-		}
-		// it didn't work (rather than: they said no): the workspace's page says why
-		else if (archiveProblems[workspace.id]) await goto(href);
-	}
-
-	/** Has a workspace carry on with new work, on a new branch off the latest upstream. */
-	async function carryOn(workspace: Item) {
-		delete archiveProblems[workspace.id];
-		try {
-			await continueWorkspace(workspace.id);
-		} catch (error) {
-			// its page is where it says why not
-			archiveProblems[workspace.id] = problemOf(error, 'Could not continue the workspace');
-			await goto(resolve('/workspaces/[id]', { id: workspace.id }));
-		}
-	}
 
 	/** The colour of what to do next, from how the workspace stands: as in its ribbon. */
 	const actionTone = (standing: WorkspaceStanding | null): MenuTone =>
 		standing?.tone === 'ok' || standing?.tone === 'merged' ? standing.tone : 'accent';
-
-	/** Does what a workspace's action says, from the sidebar. */
-	async function act(workspace: Item, action: WorkspaceAction) {
-		if (action.pullNumber) {
-			await runPullAction(workspace.id, action);
-			if (reviewProblems[workspace.id])
-				await goto(resolve('/workspaces/[id]', { id: workspace.id }));
-			return;
-		}
-		if (action.id === 'merge-upstream' && action.prompt)
-			return updateWorkspace({ workspaceId: workspace.id, prompt: action.prompt });
-		if (action.prompt) return say({ workspaceId: workspace.id, text: action.prompt });
-		if (action.id !== 'merge-pull') return;
-		try {
-			await mergePull(workspace.id);
-		} catch {
-			// its page offers it again, and says why it didn't work
-			await goto(resolve('/workspaces/[id]', { id: workspace.id }));
-		}
-	}
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
@@ -164,7 +99,7 @@
 				icon: action.icon,
 				tone: actionTone(workspace.standing),
 				disabled: !!action.pullNumber && pendingPullAction.has(workspace.id),
-				onselect: () => act(workspace, action)
+				onselect: () => actFromAfar(workspace, action)
 			})),
 			...(next.length > 0 ? ['separator' as const] : []),
 			{
@@ -188,7 +123,7 @@
 				label: 'Continue on a new branch',
 				icon: 'icon-[lucide--git-branch-plus]',
 				disabled: busy,
-				onselect: () => carryOn(workspace)
+				onselect: () => continueFromAfar(workspace)
 			},
 			{
 				label: 'Stop agent',
@@ -201,7 +136,7 @@
 				icon: 'icon-[lucide--archive]',
 				tone: 'merged',
 				disabled: beingArchived.has(workspace.id),
-				onselect: () => archiveFromHere(workspace)
+				onselect: () => archiveFromAfar(workspace)
 			}
 		];
 	}
@@ -321,6 +256,13 @@
 			<div class="mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet-quiet">
 				<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
 					<div class="space-y-0.5">
+						{@render link(
+							resolve('/overview'),
+							'icon-[lucide--layout-list]',
+							'Overview',
+							page.url.pathname === '/overview',
+							needYou
+						)}
 						{@render link(
 							resolve('/'),
 							'icon-[lucide--plus]',
@@ -484,17 +426,11 @@
 				{#if standing}
 					<span
 						class={[
-							'col-start-1 row-start-1 grid place-items-center',
-							archivable && 'group-hover:invisible group-has-focus-visible:invisible',
-							tones[standing.tone]
+							'col-start-1 row-start-1',
+							archivable && 'group-hover:invisible group-has-focus-visible:invisible'
 						]}
-						title={standing.label}
 					>
-						{#if standing.checks}
-							<ChecksRing counts={standing.checks} />
-						{:else}
-							<span class={['size-4', standing.icon]} role="img" aria-label={standing.label}></span>
-						{/if}
+						<StandingIcon {standing} />
 					</span>
 				{/if}
 				{#if archivable}
@@ -502,11 +438,11 @@
 						type="button"
 						class={[
 							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken',
-							standing?.tone === 'merged' ? tones.merged : 'text-muted hover:text-ink'
+							standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
 						]}
 						title="Archive workspace"
 						aria-label="Archive {workspace.title}"
-						onclick={() => archiveFromHere(workspace)}
+						onclick={() => archiveFromAfar(workspace)}
 					>
 						<span class="icon-[lucide--archive] size-3.5"></span>
 					</button>
@@ -516,7 +452,7 @@
 	</li>
 {/snippet}
 
-{#snippet link(href: string, icon: string, label: string, current: boolean, working = 0)}
+{#snippet link(href: string, icon: string, label: string, current: boolean, needYou = 0)}
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- callers pass resolve()d hrefs -->
 	<a
 		{href}
@@ -525,8 +461,8 @@
 	>
 		<span class={['size-4 shrink-0', icon]}></span>
 		<span class="truncate">{label}</span>
-		{#if working > 0}
-			<span class="ml-auto" title="{working} working"><Badge tone="accent">{working}</Badge></span>
+		{#if needYou > 0}
+			<span class="ml-auto" title="{needYou} need you"><Badge tone="accent">{needYou}</Badge></span>
 		{/if}
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->

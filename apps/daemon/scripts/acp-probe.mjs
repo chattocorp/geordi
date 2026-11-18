@@ -9,6 +9,8 @@ import { resumeSessions, startSession } from '../src/session.ts';
 
 const [, , agent, scenario = 'inspect', permissionMode = 'full-access'] = process.argv;
 const prompts = {
+	subagents:
+		'Use two native subagents in parallel. Ask the first to run pwd and reply DAEMON_READY and the second to run pwd and reply UI_READY. Wait for both, then summarize.',
 	inspect: 'Reply with exactly READY.',
 	ask: 'Use your native blocking question tool to ask exactly one question: which token should you return? Offer Alpha and Beta. Wait for the answer, then reply with only the chosen token, exactly once.',
 	steer:
@@ -20,7 +22,7 @@ assert(
 	['codex', 'claude'].includes(agent) &&
 		Object.hasOwn(prompts, scenario) &&
 		['auto', 'full-access'].includes(permissionMode),
-	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask] [auto|full-access]'
+	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask|subagents] [auto|full-access]'
 );
 
 const root = mkdtempSync(join(tmpdir(), 'geordi-acp-'));
@@ -107,6 +109,10 @@ try {
 		receive,
 		dir
 	);
+	if (scenario === 'subagents') {
+		await beforeTurnEnds('first subagent', () => ofKind('subagent').length);
+		reconnect();
+	}
 	if (scenario === 'ask') {
 		await beforeTurnEnds('the question', () => ofKind('question').length);
 		const [question] = ofKind('question');
@@ -142,16 +148,44 @@ try {
 		reconnect();
 		await until('background completion', () => ofKind('turn.completed').length >= 2);
 	}
+	if (scenario === 'subagents') {
+		// A provider may end its foreground turn before the reviewers report back.
+		await until('both reviewer reports', () => {
+			const done = ofKind('subagent').filter((e) => e.update.state === 'done');
+			return new Set(done.map((e) => e.path[0])).size === 2;
+		});
+	}
 	session.close();
 	await until('host shutdown', () => session.over());
 	const turns = events.filter((event) => event.kind.startsWith('turn.')).map((event) => event.kind);
 	const pair = ['turn.started', 'turn.completed'];
-	assert.deepEqual(turns, scenario === 'background' ? [...pair, ...pair] : pair);
+	if (scenario !== 'subagents')
+		assert.deepEqual(turns, scenario === 'background' ? [...pair, ...pair] : pair);
 	assert.equal(new Set(cursors).size, events.length, 'Host event delivered twice');
 	assert.equal(ofKind('resume').length, 1);
 	const completion = events.indexOf(ofKind('turn.completed')[0]);
 	const foreground = events.slice(0, completion);
 	switch (scenario) {
+		case 'subagents': {
+			const children = Map.groupBy(ofKind('subagent'), (event) => event.path[0]);
+			assert.equal(children.size, 2);
+			const reports = [];
+			for (const updates of children.values()) {
+				assert(updates.some((e) => e.update.state === 'done'));
+				// Claude sends an incoming assignment on the child session.
+				if (agent === 'claude') assert(updates.some((e) => e.update.incoming && e.update.text));
+				assert(updates.some((e) => e.update.kind === 'tool'));
+				reports.push(
+					updates
+						.filter((e) => e.update.kind === 'message' && !e.update.incoming)
+						.map((e) => e.update.text)
+						.join(' ')
+				);
+			}
+			assert(reports.some((text) => text.includes('DAEMON_READY')));
+			assert(reports.some((text) => text.includes('UI_READY')));
+			break;
+		}
 		case 'inspect': {
 			const wrapper = agent === 'codex' ? 'codex-acp' : 'claude-agent-acp';
 			const { version } = createRequire(import.meta.url)(

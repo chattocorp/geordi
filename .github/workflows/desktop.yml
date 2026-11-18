@@ -1,5 +1,6 @@
 name: Desktop releases
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       tag:
@@ -7,6 +8,17 @@ on:
         required: true
       commit:
         type: string
+        required: true
+    secrets:
+      MACOS_SIGNING_CERTIFICATE_P12_BASE64:
+        required: true
+      MACOS_SIGNING_CERTIFICATE_PASSWORD:
+        required: true
+      MACOS_NOTARY_API_KEY_BASE64:
+        required: true
+      MACOS_NOTARY_API_KEY_ID:
+        required: true
+      MACOS_NOTARY_API_ISSUER_ID:
         required: true
 
 permissions:
@@ -27,27 +39,32 @@ jobs:
         with:
           ref: ${{ inputs.commit }}
       - uses: ./.github/actions/package-desktop
-      - name: Archive the desktop app
+      - name: Sign, notarize, and verify the macOS ZIP
+        if: runner.os == 'macOS'
+        working-directory: apps/desktop
+        env:
+          MACOS_SIGNING_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_P12_BASE64 }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          MACOS_NOTARY_API_KEY_BASE64: ${{ secrets.MACOS_NOTARY_API_KEY_BASE64 }}
+          MACOS_NOTARY_API_KEY_ID: ${{ secrets.MACOS_NOTARY_API_KEY_ID }}
+          MACOS_NOTARY_API_ISSUER_ID: ${{ secrets.MACOS_NOTARY_API_ISSUER_ID }}
+        run: bash scripts/archive-macos.sh
+      - name: Archive the Windows app
+        if: runner.os == 'Windows'
         working-directory: apps/desktop/dist
         shell: bash
-        env:
-          TARGET: ${{ matrix.target }}
         run: |
           version=$(node -p "require('../package.json').version")
-          archive="Geordi-v${version}-$TARGET.zip"
-          if [[ "$RUNNER_OS" == macOS ]]; then
-            ditto -c -k --keepParent Geordi-darwin-arm64/Geordi.app "$archive"
-          else
-            7z a -tzip "$archive" Geordi-win32-x64
-          fi
+          7z a -tzip "Geordi-v${version}-Windows-x64.zip" Geordi-win32-x64
       - uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ inputs.tag }}-${{ matrix.target }}
+          name: desktop-${{ inputs.tag || github.sha }}-${{ matrix.target }}
           path: apps/desktop/dist/*.zip
           if-no-files-found: error
           compression-level: 0
 
   publish:
+    if: inputs.tag != ''
     needs: package
     runs-on: ubuntu-latest
     permissions:
