@@ -7,6 +7,7 @@
 
 <script lang="ts">
 	let across = $state(0.6);
+	let saved = $state(0.15);
 	let down = $state(0.5);
 </script>
 
@@ -47,6 +48,15 @@
 		<Split dir="row" ratio={0.6} collapsed>
 			{#snippet a()}{@render pane('A has all the room')}{/snippet}
 			{#snippet b()}{@render pane('B')}{/snippet}
+		</Split>
+	</div>
+</Story>
+
+<Story name="Conversation beside tools" asChild>
+	<div class="flex h-48 card">
+		<Split dir="row" bind:ratio={saved} minRatio={0.5} bare>
+			{#snippet a()}{@render pane('Conversation')}{/snippet}
+			{#snippet b()}{@render pane('Changes')}{/snippet}
 		</Split>
 	</div>
 </Story>

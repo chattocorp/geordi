@@ -7,6 +7,7 @@
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { untrack } from 'svelte';
+	import { innerWidth } from 'svelte/reactivity/window';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -216,8 +217,9 @@
 	const toggleSidebar = () =>
 		(sidebar.current = { ...sidebar.current, open: !sidebar.current.open });
 	setTitleBarLead(() => (sidebar.current.open ? undefined : lead));
-	// wide enough for a workspace's title to say something, and no wider than is of use
-	const clampWidth = (width: number) => Math.round(Math.min(480, Math.max(240, width)));
+	// Leave room for the conversation and its tools in smaller windows.
+	const maxWidth = $derived(Math.max(240, Math.min(720, (innerWidth.current ?? 1320) - 600)));
+	const clampWidth = (width: number) => Math.round(Math.min(maxWidth, Math.max(240, width)));
 	const toggleHint = `Toggle the sidebar (${modifierKey()}B)`;
 	const settingsHint = `${modifierKey()},`;
 
@@ -237,7 +239,10 @@
 		const step = { ArrowLeft: -16, ArrowRight: 16 }[event.key];
 		if (!step) return;
 		event.preventDefault();
-		sidebar.current = { ...sidebar.current, width: clampWidth(sidebar.current.width + step) };
+		sidebar.current = {
+			...sidebar.current,
+			width: clampWidth(clampWidth(sidebar.current.width) + step)
+		};
 	}
 </script>
 
@@ -390,7 +395,9 @@
 				tabindex="0"
 				aria-orientation="vertical"
 				aria-label="Resize the sidebar"
-				aria-valuenow={sidebar.current.width}
+				aria-valuemin={240}
+				aria-valuemax={maxWidth}
+				aria-valuenow={clampWidth(sidebar.current.width)}
 				onpointerdown={resize}
 				onkeydown={nudge}
 				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none transition-colors select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-accent focus-visible:after:bg-accent"
