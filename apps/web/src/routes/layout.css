@@ -257,7 +257,7 @@
 	color: color-mix(in srgb, var(--muted) 80%, var(--ink));
 }
 @utility tab-active {
-	@apply bg-sunken text-ink hover:bg-sunken dark:bg-line dark:hover:bg-line;
+	@apply bg-sunken text-ink hover:bg-sunken dark:bg-surface dark:hover:bg-surface;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
