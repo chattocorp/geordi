@@ -41,6 +41,8 @@ type Deliver = (event: AgentEvent, cursor?: string) => unknown;
 export type Session = Meta & {
 	/** Says something to the agent: it starts a turn, or steers the one under way. */
 	say(said: Said): void;
+	/** Follow newly acknowledged output immediately. */
+	read(): void;
 	/** Stops the turn under way. The session goes on. */
 	stop(): void;
 	answer(id: string, answers: string[]): void;
@@ -187,49 +189,49 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 			.flatMap(({ type, ...said }) => (type === 'message' ? [said as Said] : []));
 	}
 
-	let timer: NodeJS.Timeout;
-	let finish: (left?: Said[]) => void = () => {};
-	const done = new Promise<Said[]>((resolve) => {
-		finish = (left = []) => {
-			if (finished) return;
-			finished = true;
-			clearInterval(timer);
-			resolve(left);
-		};
-		timer = setInterval(() => {
-			if (!ready()) return;
-			try {
-				if (!read()) return;
-				if (!existsSync(file('exit')) && running()) return;
-				if (!read()) return; // whatever it wrote last
-				const left = unheard();
-				// A host ends every turn it began. One that went without a word did not.
-				if (open || (expecting && left.length === 0)) {
-					const said = ['err.log', 'host.log']
-						.filter((name) => existsSync(file(name)))
-						.map((name) => readFileSync(file(name), 'utf8').trim())
-						.join(' ')
-						.trim()
-						.slice(-2000);
-					const reason = `${meta.agent} ended unexpectedly`;
-					const failure: AgentEvent = {
-						kind: 'turn.failed',
-						error: existsSync(file('stopped')) ? 'Stopped' : said ? `${reason}: ${said}` : reason
-					};
-					// With the host gone, wait for the same durable receipt.
-					if (emit(failure, meta.generation + '/exit') === false) return;
-				}
-				finish(left);
-				rmSync(dir, { recursive: true, force: true });
-			} catch (error) {
-				// a full disk, say: try again rather than take the daemon down
-				console.error(`[session] could not follow ${dir}:`, error);
+	const { promise: done, resolve } = Promise.withResolvers<Said[]>();
+	const timer = setInterval(poll, POLL_MS);
+	function finish(left: Said[] = []) {
+		if (finished) return;
+		finished = true;
+		clearInterval(timer);
+		resolve(left);
+	}
+
+	function poll() {
+		if (finished || !ready()) return;
+		try {
+			if (!read()) return;
+			if (!existsSync(file('exit')) && running()) return;
+			if (!read()) return; // whatever it wrote last
+			const left = unheard();
+			// A host ends every turn it began. One that went without a word did not.
+			if (open || (expecting && left.length === 0)) {
+				const said = ['err.log', 'host.log']
+					.filter((name) => existsSync(file(name)))
+					.map((name) => readFileSync(file(name), 'utf8').trim())
+					.join(' ')
+					.trim()
+					.slice(-2000);
+				const reason = `${meta.agent} ended unexpectedly`;
+				const failure: AgentEvent = {
+					kind: 'turn.failed',
+					error: existsSync(file('stopped')) ? 'Stopped' : said ? `${reason}: ${said}` : reason
+				};
+				// With the host gone, wait for the same durable receipt.
+				if (emit(failure, meta.generation + '/exit') === false) return;
 			}
-		}, POLL_MS);
-	});
+			finish(left);
+			rmSync(dir, { recursive: true, force: true });
+		} catch (error) {
+			// a full disk, say: try again rather than take the daemon down
+			console.error(`[session] could not follow ${dir}:`, error);
+		}
+	}
 
 	return {
 		...meta,
+		read: poll,
 		say(said) {
 			if (!tell({ type: 'message', ...said }) || open || expecting) return;
 			expecting = true;
