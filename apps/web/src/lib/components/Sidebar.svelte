@@ -258,10 +258,12 @@
 							>
 								<!-- under the rows' icons, as wide as they are -->
 								<span class="grid size-5 shrink-0 place-items-center">
+									<!-- as every disclosure has it: pointing at what opens below, once open -->
 									<span
+										aria-hidden="true"
 										class={[
-											'size-3.5',
-											isRevealed ? 'icon-[lucide--chevron-up]' : 'icon-[lucide--chevron-down]'
+											'icon-[lucide--chevron-right] size-3.5 transition-transform motion-reduce:transition-none',
+											isRevealed && 'rotate-90'
 										]}
 									></span>
 								</span>
