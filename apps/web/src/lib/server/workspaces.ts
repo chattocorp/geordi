@@ -94,6 +94,15 @@ export type WorkspacesEvent =
 	 * renamed it, or switched to another. It is what the worktree comes back from.
 	 */
 	| { type: 'workspace.switched'; stream: WorkspaceStream; data: { id: string; branch: string } }
+	/**
+	 * A person moved the workspace in the sidebar: right above `before`, or to the end of
+	 * the list where that is `null`. Workspaces are otherwise listed newest first.
+	 */
+	| {
+			type: 'workspace.moved';
+			stream: WorkspaceStream;
+			data: { id: string; before: string | null };
+	  }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** What a person answered to a question the agent asked: one answer per question, in their order. */
@@ -393,6 +402,11 @@ export function createWorkspaces(
 			return;
 		}
 
+		if (event.type === 'workspace.moved') {
+			move(workspaces, event.data.id, event.data.before);
+			return;
+		}
+
 		const workspace = workspaces.get(event.data.id);
 		if (!workspace) return;
 		workspace.updatedAt = at;
@@ -599,6 +613,21 @@ export function createWorkspaces(
 					append({ kind: 'error', error: output.error, at });
 				break;
 		}
+	}
+
+	/**
+	 * Puts a workspace right above another in the list, or last. The map is in the order
+	 * lists show reversed (oldest first), so above means after.
+	 */
+	function move(workspaces: Map<string, Workspace>, id: string, before: string | null) {
+		const moving = workspaces.get(id);
+		if (!moving || id === before) return;
+		const entries = [...workspaces].filter(([other]) => other !== id);
+		const at = before === null ? 0 : entries.findIndex(([other]) => other === before) + 1;
+		if (at === 0 && before !== null) return; // gone: it stays where it is
+		entries.splice(at, 0, [id, moving]);
+		workspaces.clear();
+		for (const [other, workspace] of entries) workspaces.set(other, workspace);
 	}
 
 	// Mutates in place (O(1) per event during replay); readers get copies. Events from
@@ -1126,7 +1155,10 @@ export function createWorkspaces(
 		agents,
 		followTranscript,
 
-		/** All workspaces in use (not archived), newest first, without their transcripts. */
+		/**
+		 * All workspaces in use (not archived), newest first or as people moved them, without
+		 * their transcripts.
+		 */
 		all: (): WorkspaceSummary[] =>
 			[...projection.get().values()]
 				.filter((workspace) => !workspace.archivedAt)
@@ -1392,6 +1424,25 @@ export function createWorkspaces(
 		 */
 		suggestTitle(id: string, title: string) {
 			if (!find(id).named) retitle(id, title);
+		},
+
+		/**
+		 * Moves a workspace in the list: right above `before`, another of its repository's,
+		 * or to the end where that is `null`.
+		 */
+		move(id: string, before: string | null, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (before !== null) {
+				const other = find(before);
+				if (other.archivedAt || other.repoId !== workspace.repoId)
+					error(400, 'Workspaces move among their repository’s');
+			}
+			if (before === id) return;
+			store.append(
+				{ type: 'workspace.moved', stream: `workspace:${id}`, data: { id, before } },
+				{ actor }
+			);
 		},
 
 		/** Marks the workspace as done with. Its conversation stays readable. */

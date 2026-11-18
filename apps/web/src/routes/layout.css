@@ -177,6 +177,13 @@
 @utility tab-drop-after {
 	@apply relative after:absolute after:inset-y-1 after:-right-1 after:w-0.5 after:rounded-full after:bg-accent;
 }
+/* the same, between rows of a list */
+@utility row-drop-before {
+	@apply relative before:absolute before:inset-x-1 before:-top-px before:h-0.5 before:rounded-full before:bg-accent;
+}
+@utility row-drop-after {
+	@apply relative after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded-full after:bg-accent;
+}
 
 /*
  * Everything on screen is a sheet: a rounded surface laid into the frame (`bg-frame`: the

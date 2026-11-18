@@ -150,6 +150,7 @@ export function createUpcaster() {
 			case 'workspace.steered':
 			case 'workspace.answered':
 			case 'workspace.archived':
+			case 'workspace.moved':
 				return [event as CurrentEvent];
 
 			default:
