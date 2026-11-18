@@ -16,6 +16,7 @@
 	const html = $derived(
 		renderMarkdown(text, {
 			pictures,
+			root: files?.root,
 			file: files && ((code) => changedFileIn(code, files.paths, files.root))
 		})
 	);
@@ -34,6 +35,9 @@
 				viewing = { src: target.src, alt: target.alt };
 				return;
 			}
+			const source = target.closest<HTMLElement>('[data-source]')?.dataset;
+			if (source?.source)
+				return files?.openSource(source.source, source.line ? Number(source.line) : undefined);
 			const file = target.closest<HTMLElement>('[data-file]')?.dataset.file;
 			if (file) return files?.open(file);
 			const button = target.closest<HTMLElement>('[data-copy]');

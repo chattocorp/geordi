@@ -250,6 +250,19 @@ export const getDiff = query(
 	}
 );
 
+export const getSource = query(
+	v.object({ workspaceId: v.string(), path: v.string() }),
+	async ({ workspaceId, path }) => {
+		try {
+			const text = await hub().request({ kind: 'source', path, ...workspaces().ref(workspaceId) });
+			if (text !== null) return { text };
+			return { unavailable: 'This file is missing or cannot be displayed as text.' };
+		} catch (error) {
+			return { unavailable: `Could not load the file: ${message(error)}` };
+		}
+	}
+);
+
 const dimension = v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(500));
 const size = { cols: dimension, rows: dimension };
 /** One of a workspace's terminals; the browser that opens a terminal names it. */

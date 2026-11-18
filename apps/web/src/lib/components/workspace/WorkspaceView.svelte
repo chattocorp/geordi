@@ -12,7 +12,7 @@
 	} from '#lib/actions.ts';
 	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import {
 		add,
 		close,
@@ -61,6 +61,7 @@
 	import Changes from './Changes.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
+	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import Family from './Family.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
@@ -100,6 +101,7 @@
 	const DRAFT = 'draft';
 	type Area = 'main' | 'side' | 'dock';
 	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
+	const sourceOf = (tab: string) => (tab.startsWith('source:') ? tab.slice(7) : undefined);
 	const terminalOf = (tab: string) => (tab.startsWith('terminal:') ? tab.slice(9) : undefined);
 	/** An agent working alongside this workspace's own (`agent:<its workspace's ID>`). */
 	const aideOf = (tab: string) =>
@@ -129,7 +131,7 @@
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
-		return tab === CHAT || tab === CHANGES || !!pathOf(tab);
+		return tab === CHAT || tab === CHANGES || !!pathOf(tab) || !!sourceOf(tab);
 	};
 	/** The three areas' windows: as they were arranged, and what is new where it belongs. */
 	const layouts = $derived.by((): Record<Area, Layout> => {
@@ -338,6 +340,8 @@
 		if (!remaining.includes(DRAFT)) drafting = false;
 		for (const tab of everywhere()) {
 			const terminal = terminalOf(tab);
+			const source = sourceOf(tab);
+			if (source && !remaining.includes(tab)) citations.delete(source);
 			const aide = aideOf(tab);
 			// an agent whose conversation is closed is done here: archived, its conversation kept
 			if (aide && !remaining.includes(tab))
@@ -383,12 +387,20 @@
 		workspace.git?.changes?.files.map((file) => file.path).join('\n') ?? ''
 	);
 	const changedPaths = $derived(new Set(changedList.split('\n').filter(Boolean)));
+	const citations = new SvelteMap<string, { line?: number }>();
 	setChangedFiles({
 		get paths() {
 			return changedPaths;
 		},
 		get root() {
 			return workspace.worktree?.path;
+		},
+		openSource(path, line) {
+			const tab = `source:${path}`;
+			const area = areaOf(tab) ?? 'main';
+			if (area !== 'main' && !frame.current.open) toggleSide();
+			citations.set(path, { line });
+			arrange({ [area]: open(layouts[area], tab, chatGroup) });
 		},
 		open: openDiff
 	});
@@ -585,7 +597,7 @@
 {/snippet}
 
 {#snippet tab(tab: string)}
-	{@const path = pathOf(tab)}
+	{@const path = pathOf(tab) ?? sourceOf(tab)}
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -598,7 +610,12 @@
 		<span class="truncate">Changeset</span>
 		{#if added > 0}{@render count(added)}{/if}
 	{:else if path}
-		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
+		<span
+			class={[
+				'size-3.5 shrink-0',
+				sourceOf(tab) ? 'icon-[lucide--file-text]' : 'icon-[lucide--file-diff]'
+			]}
+		></span>
 		<span class="truncate code-dense" title={path}>{path.split('/').at(-1)}</span>
 	{:else if terminalOf(tab)}
 		{@const job = jobOf(terminalOf(tab))}
@@ -645,6 +662,7 @@
 {#snippet window(tab: string)}
 	{@const path = pathOf(tab)}
 	{@const terminal = terminalOf(tab)}
+	{@const source = sourceOf(tab)}
 	{#if tab === CHANGES}
 		<Changes
 			{git}
@@ -665,6 +683,13 @@
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
 		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+	{:else if source}
+		<SourceWindow
+			workspaceId={id}
+			path={source}
+			citation={citations.get(source)}
+			version={git?.version ?? 0}
+		/>
 	{:else if terminal}
 		<Terminal
 			workspaceId={id}
