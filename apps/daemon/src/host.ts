@@ -33,6 +33,7 @@ import { delimiter, dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import type {
 	Agent,
+	AgentCommand,
 	AgentEvent,
 	BackgroundTask,
 	ContextUsage,
@@ -44,7 +45,9 @@ import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter
 export type HostEvent =
 	| AgentEvent
 	| { kind: 'background'; tasks: BackgroundTask[] }
-	| { kind: 'usage'; usage: ContextUsage };
+	| { kind: 'usage'; usage: ContextUsage }
+	/** The agent's commands, all of them, whenever they change: live data, not history. */
+	| { kind: 'commands'; commands: AgentCommand[] };
 
 export type Meta = {
 	agent: Agent;

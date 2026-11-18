@@ -91,6 +91,16 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    out({method:'session/update',params:{sessionId:'child',update:{...usage,used:5}}});
    update(usage);const {cost,...later}=usage;update({...later,used:31500});return done();
   }
+  if(said==='commands'){
+   const commands=update=>update({sessionUpdate:'available_commands_update',availableCommands:[
+    {type:'command',name:'review',description:'Review the changes',input:{type:'text',hint:'what to look at'}},
+    {type:'command',name:'compact',description:'Summarize',input:null},
+    {type:'command',name:'model',description:'Set the model'},
+    {type:'command',name:'__hidden',description:'Internal'},
+    {type:'command',name:'plan',description:'Plan mode',_meta:{jetbrains:{air:{commandAction:{kind:'setConfigOption'}}}}}
+   ]});
+   commands(update);commands(update);text('listed');return done();
+  }
   if(said==='background'){text('started');state('idle',{stopReason:'end_turn',background:[{type:'tool_call',toolCallId:'task'}]});setTimeout(()=>{state('running');text('it finished');done();},700);return;}
   text('Heard: '+said);return done();
  }
@@ -550,6 +560,26 @@ describe('a daemon restart', () => {
 		const session = resumeSessions(sessions, () => () => true).get('w')!;
 		started.push(session);
 		expect(session.usage()).toEqual(usage);
+	});
+
+	it("knows the agent's commands as last offered, without passing them on again", async () => {
+		const sessions = root();
+		const first = begin('commands', { dir: join(sessions, 'w') });
+		await first.ended(1);
+		const offered = [
+			{ name: 'review', description: 'Review the changes', hint: 'what to look at' },
+			{ name: 'compact', description: 'Summarize' }
+		];
+		// the same list, offered twice, is said once; what Geordi can't use is left out
+		expect(first.events.filter((event) => event.kind === 'commands')).toEqual([
+			{ kind: 'commands', commands: offered }
+		]);
+		expect(first.session.commands()).toEqual(offered);
+		first.session.detach();
+
+		const session = resumeSessions(sessions, () => () => true).get('w')!;
+		started.push(session);
+		expect(session.commands()).toEqual(offered);
 	});
 
 	it('reports one answer receipt when a restarted daemon retries an answer in flight', async () => {

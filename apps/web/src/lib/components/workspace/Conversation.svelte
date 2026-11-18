@@ -8,6 +8,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import { follow } from '#lib/live.svelte.ts';
+	import type { AgentCommand } from '@geordi/protocol';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
 		configureWorkspace,
@@ -66,6 +67,16 @@
 		return configureWorkspace({ workspaceId: workspace.id, model, effort, permissionMode });
 	};
 
+	// The agent's own commands and skills, offered as one types `/`: once it has said which.
+	const commands = follow<AgentCommand[] | null>('commands', () => workspace.id);
+	const completions = $derived(
+		(commands.current ?? []).map(({ name, description, hint }) => ({
+			text: '/' + name,
+			description,
+			hint
+		}))
+	);
+
 	let messages = $state<MessageView>();
 	const toLatest = () => messages?.toLatest();
 	const modifier = modifierKey();
@@ -123,6 +134,8 @@
 							? 'What should the agent do?'
 							: 'Reply to the agent'}
 					onkeydown={keys}
+					{completions}
+					completionsLabel="Commands"
 					field={form.fields.text.as('text')}
 					problems={[
 						...(form.fields.text.issues() ?? []),
