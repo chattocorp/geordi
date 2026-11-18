@@ -107,7 +107,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ### 12. Show the forge connection beside navigation
 
-After two seconds without a connection, the window shows “Reconnecting” above Settings, or in the title bar when the sidebar is hidden. All pages share one connection (ADR-009), so the note belongs with the window controls. The delay keeps brief interruptions quiet. A page waiting for its first value explains the wait. Work already on screen stays readable.
+After two seconds without a connection, the window shows “Reconnecting” above Settings, or in the title bar when the sidebar is hidden. All pages share one connection (ADR-009), so the note belongs with the window controls. While connected, the note takes no space. The delay keeps brief interruptions quiet. A page waiting for its first value explains the wait. Work already on screen stays readable.
 
 ## Related
 

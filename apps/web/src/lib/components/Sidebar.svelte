@@ -177,7 +177,7 @@
 	</nav>
 
 	<div class="p-2">
-		<div class="flex h-6 items-center px-2.5"><ConnectionIndicator {lost} /></div>
+		<ConnectionIndicator {lost} class="px-2.5 py-1" />
 		<button
 			type="button"
 			class="item w-full gap-2.5 px-2.5 py-1.5 text-base"

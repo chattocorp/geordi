@@ -107,6 +107,7 @@
 		);
 		// a repository without workspaces has no place here
 		await expect(canvas.queryByText('no-workspaces')).toBeNull();
+		await expect(canvas.queryByText('Reconnecting')).toBeNull();
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
