@@ -34,7 +34,10 @@ export class EventStore<E extends EventInput = EventInput> {
 	readonly #projections = new Map<string, (event: StoredEvent<E>) => void>();
 	readonly #listeners = new Set<(events: StoredEvent<E>[]) => void>();
 
+	readonly path: string;
+
 	constructor(path: string) {
+		this.path = path;
 		this.#db = new DatabaseSync(path);
 		this.#db.exec(`
 			PRAGMA journal_mode = WAL;
@@ -86,13 +89,26 @@ export class EventStore<E extends EventInput = EventInput> {
 	}
 
 	/**
-	 * Registers an in-memory projection, replays the full log into it, and keeps it
+	 * Registers an in-memory projection, replays the matching event types into it, and keeps it
 	 * updated on every append. Registering under an existing name replaces it (HMR-safe).
 	 */
-	project<S>(name: string, initial: () => S, evolve: (state: S, event: StoredEvent<E>) => S) {
+	project<S>(
+		name: string,
+		initial: () => S,
+		evolve: (state: S, event: StoredEvent<E>) => S,
+		domains: string[] = []
+	) {
 		let state = initial();
-		for (const event of this.readAll()) state = evolve(state, event);
-		this.#projections.set(name, (event) => (state = evolve(state, event)));
+		const domainsOfInterest = new Set(domains);
+		const where = domains.length ? 'WHERE ' + domains.map(() => 'type GLOB ?').join(' OR ') : '';
+		const rows = this.#db
+			.prepare(`SELECT * FROM events ${where} ORDER BY seq`)
+			.iterate(...domains.map((domain) => domain + '.*'));
+		for (const row of rows) state = evolve(state, this.#parse(row as Row));
+		this.#projections.set(name, (event) => {
+			if (!domains.length || domainsOfInterest.has(event.type.split('.', 1)[0]))
+				state = evolve(state, event);
+		});
 		return { get: () => state };
 	}
 
@@ -102,7 +118,7 @@ export class EventStore<E extends EventInput = EventInput> {
 	}
 
 	/**
-	 * Yields `read()` now and again after every append. Use as a `query.live` body.
+	 * Yields `read()` now and again after an append that affects this view.
 	 *
 	 * `also` adds another reason to read again, for state that isn't in the log: it is given
 	 * a function to call whenever that state changes, and returns one that stops it calling.
@@ -114,13 +130,15 @@ export class EventStore<E extends EventInput = EventInput> {
 	async *live<T>(
 		read: () => T,
 		also?: (changed: () => void) => () => void,
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		affects?: (event: StoredEvent<E>) => boolean
 	): AsyncGenerator<T> {
 		let notify = () => {};
-		const gone = new Promise<void>((resolve) =>
-			signal?.addEventListener('abort', () => resolve(), { once: true })
-		);
-		const unsubscribe = this.subscribe(() => notify());
+		const abort = () => notify();
+		signal?.addEventListener('abort', abort, { once: true });
+		const unsubscribe = this.subscribe((events) => {
+			if (!affects || events.some(affects)) notify();
+		});
 		let unsubscribeAlso: (() => void) | undefined;
 
 		try {
@@ -130,11 +148,12 @@ export class EventStore<E extends EventInput = EventInput> {
 				// Created before reading, so appends during or after the read are never missed.
 				const changed = new Promise<void>((resolve) => (notify = resolve));
 				yield read();
-				await Promise.race([changed, gone]);
+				if (!signal?.aborted) await changed;
 			}
 		} finally {
 			unsubscribe();
 			unsubscribeAlso?.();
+			signal?.removeEventListener('abort', abort);
 		}
 	}
 

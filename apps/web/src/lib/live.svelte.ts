@@ -1,3 +1,6 @@
+import { applyWorkspaceUpdate } from './workspace-update.ts';
+import type { WorkspaceLive } from './server/views.ts';
+
 /**
  * What is live on the page: the sidebar's data, a workspace, its terminals. All of it comes
  * over one WebSocket per window (see `#lib/server/live.ts` for why, and for what is said
@@ -75,7 +78,10 @@ function open() {
 		}
 		if ('error' in message) what.error = { message: message.error, status: message.status };
 		else {
-			what.current = message.value;
+			what.current =
+				what.view === 'workspace'
+					? applyWorkspaceUpdate(what.current as WorkspaceLive | undefined, message.value)
+					: message.value;
 			what.error = undefined;
 		}
 		what.fresh = true;

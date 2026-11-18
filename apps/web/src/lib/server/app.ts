@@ -391,7 +391,7 @@ export const liveServer = lazy(() =>
 		allowed: GEORDI_ALLOWED_HOSTS,
 		token: liveToken(),
 		views,
-		values: (view, signal) => store().live(view.read, view.also, signal),
+		values: (view, signal) => store().live(view.read, view.also, signal, view.affects),
 		terminal: (at, listener) => terminals().attach(at, listener)
 	})
 );
