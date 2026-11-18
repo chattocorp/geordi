@@ -6,10 +6,10 @@
 	import Button from '#lib/ui/Button.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
-	const prompt = 'Can you summarize the changes before I open the pull request?';
+	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const reply =
 		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
-	const queued = 'Please include a screenshot of the dark theme.';
+	const queued = 'Please add a screenshot to [the review](https://example.com/review).';
 	const history: Block[] = Array.from({ length: 500 }, (_, index) =>
 		index % 2 === 0
 			? { kind: 'user', text: `Message ${index}` }
@@ -144,6 +144,13 @@
 	name="Copy messages"
 	asChild
 	play={async ({ canvas }) => {
+		await expect(
+			await canvas.findByRole('link', { name: 'https://example.com/review' })
+		).toHaveAttribute('href', 'https://example.com/review');
+		await expect(canvas.getByRole('link', { name: 'the review' })).toHaveAttribute(
+			'href',
+			'https://example.com/review'
+		);
 		const user = userEvent.setup();
 		const buttons = await canvas.findAllByRole('button', { name: 'Copy message' });
 		for (const [index, text] of [prompt, reply, queued].entries()) {
