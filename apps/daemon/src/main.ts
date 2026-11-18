@@ -48,7 +48,14 @@ import {
 import type { Meta } from './host.ts';
 import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
-import { cachedPullBase, markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
+import {
+	cachedPullBase,
+	markReady,
+	mergePull,
+	pullHistory,
+	setAutoMerge,
+	upstream
+} from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
 	branchOf,
@@ -496,6 +503,7 @@ async function answer(request: DaemonRequest) {
 		return { path: worktree.path, branch: worktree.branch };
 	}
 
+	if (request.kind === 'pullHistory') return pullHistory(request.repoPath, request.evidence);
 	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':

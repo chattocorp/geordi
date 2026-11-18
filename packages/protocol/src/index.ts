@@ -12,7 +12,7 @@ import type { MessageImage } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 33;
+export const PROTOCOL_VERSION = 34;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -142,6 +142,13 @@ export type PullCheck = {
 	/** More precise upstream status, such as queued or timed_out. */
 	status: string;
 	url?: string;
+};
+
+/** Durable links and evidence from the worktree's recorded activity. */
+export type PullEvidence = {
+	linked: { url: string; number: string }[];
+	candidates: string[];
+	branches: string[];
 };
 
 /** A pull request (or merge request, or whatever the forge calls it) for a workspace's branch. */
@@ -461,6 +468,7 @@ export type DaemonRequest =
 			/** Ask the forge now, rather than answer from what was learnt a moment ago. */
 			fresh?: boolean;
 	  } & WorktreeRef)
+	| ({ kind: 'pullHistory'; evidence: PullEvidence } & WorktreeRef)
 	/**
 	 * Merges the pull request for the workspace's branch on the upstream forge. Refused
 	 * unless it is open and at the very commit the workspace has checked out.
@@ -499,6 +507,7 @@ export type DaemonResults = {
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
+	pullHistory: PullRequest[];
 	mergePull: 'merged' | 'queued';
 	markReady: null;
 	setAutoMerge: null;

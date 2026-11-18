@@ -1,4 +1,11 @@
-import type { Changes, ReleasePlan, RepoConfig, Upstream, WorktreeRef } from '@geordi/protocol';
+import type {
+	Changes,
+	PullRequest,
+	ReleasePlan,
+	RepoConfig,
+	Upstream,
+	WorktreeRef
+} from '@geordi/protocol';
 import type { Dispatch } from './workspaces.ts';
 
 /** What a worktree's files and branch look like right now, as far as a daemon could tell. */
@@ -18,6 +25,7 @@ export type WorktreeState = {
 
 /** A worktree's state, and which look at it this is: it changes whenever the files may have. */
 export type WatchedState = WorktreeState & {
+	history?: PullRequest[];
 	/** Zero until local Git answers, then incremented on each local refresh. */
 	version: number;
 	/** Keep a saved changeset tab in place until the first release lookup answers. */
@@ -67,7 +75,11 @@ export function createWatchers(
 	 */
 	load: (worktreeId: string, fresh: boolean) => WorktreeLoad,
 	noteStanding: (id: string, state: WorktreeState) => void,
-	knownUpstream: (id: string) => Upstream | null | undefined
+	knownUpstream: (id: string) => Upstream | null | undefined,
+	historical?: (
+		id: string,
+		currentUrl?: string | null
+	) => { key: string; load: () => Promise<PullRequest[]> } | null
 ) {
 	type Watched = {
 		viewers: Set<() => void>;
@@ -76,6 +88,7 @@ export function createWatchers(
 		pending: boolean | null;
 		announced: boolean;
 		fallback?: NodeJS.Timeout;
+		historyRead?: { key: string; at: number };
 	};
 	const watched = new Map<string, Watched>();
 
@@ -92,6 +105,23 @@ export function createWatchers(
 			}
 		});
 		dispatch({ type: 'watch', worktrees });
+	}
+
+	function refreshHistory(id: string, entry: Watched) {
+		const request = historical?.(id, entry.state?.upstream?.pull?.url);
+		if (!request) return;
+		const previous = entry.historyRead;
+		if (previous?.key === request.key && Date.now() - previous.at < FALLBACK_MS) return;
+		const read = { key: request.key, at: Date.now() };
+		entry.historyRead = read;
+		void request
+			.load()
+			.then((history) => {
+				if (watched.get(id) !== entry || entry.historyRead !== read) return;
+				entry.state = { ...(entry.state ?? initial), history };
+				for (const viewer of entry.viewers) viewer();
+			})
+			.catch(() => {});
 	}
 
 	/** Publish each answer when it arrives. A burst during a load needs one more pass. */
@@ -147,6 +177,7 @@ export function createWatchers(
 			)
 				scheduleFallback(worktreeId, entry);
 			publish({ upstream, checking: entry.announced });
+			if (watched.get(worktreeId) === entry) refreshHistory(worktreeId, entry);
 			if (watched.get(worktreeId) === entry && entry.state?.changes && !entry.announced)
 				noteStanding(worktreeId, entry.state);
 		});
@@ -235,6 +266,7 @@ export function createWatchers(
 			)
 				scheduleFallback(worktreeId, entry);
 			entry.state = { ...entry.state, upstream };
+			refreshHistory(worktreeId, entry);
 			for (const viewer of entry.viewers) viewer();
 		},
 
@@ -253,7 +285,10 @@ export function createWatchers(
 		/** A daemon (re)connected: it watches nothing until told, and what we know may be stale. */
 		resync() {
 			sync();
-			[...watched.keys()].forEach((id) => refresh(id));
+			for (const [id, entry] of watched) {
+				delete entry.historyRead;
+				refresh(id);
+			}
 		}
 	};
 }

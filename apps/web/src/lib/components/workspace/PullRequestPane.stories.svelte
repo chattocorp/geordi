@@ -3,6 +3,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest } from '@geordi/protocol';
 	import PullRequestPane from './PullRequestPane.svelte';
+	import PullHistory from './PullHistory.svelte';
 	import PullRequestTab from './PullRequestTab.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Pull request', component: PullRequestPane });
@@ -30,7 +31,9 @@
 {#snippet pane(pull: PullRequest)}
 	<div class="w-96 sheet">
 		<div class="pane-bar px-2">
-			<span class="flex items-center gap-2 tab-active px-2 py-1"><PullRequestTab {pull} /></span>
+			<span class="flex items-center gap-2 tab-active px-2 py-1"
+				><PullRequestTab pulls={[pull]} /></span
+			>
 		</div>
 		<PullRequestPane {pull} />
 	</div>
@@ -148,5 +151,34 @@
 				review: null
 			})}
 		/>
+	</div>
+</Story>
+
+<Story
+	name="Earlier workspace branches"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await expect(canvas.getByText('Pull requests · 2 open')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: /Settings headers/ }));
+		await expect(canvas.getByRole('heading', { name: 'Settings headers' })).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Pull requests' }));
+		await expect(canvas.getByText('Current branch')).toBeVisible();
+	}}
+>
+	{@const pulls = [
+		pull,
+		withPull({ number: '41', title: 'Settings headers', url: 'https://example.com/pull/41' }),
+		withPull({
+			number: '40',
+			title: 'Auth screens',
+			url: 'https://example.com/pull/40',
+			state: 'merged'
+		})
+	]}
+	<div class="w-96 sheet">
+		<div class="pane-bar px-2">
+			<span class="flex items-center gap-2 tab-active px-2 py-1"><PullRequestTab {pulls} /></span>
+		</div>
+		<PullHistory {pulls} current={pull.url} />
 	</div>
 </Story>
