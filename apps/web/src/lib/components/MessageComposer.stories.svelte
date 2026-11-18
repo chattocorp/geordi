@@ -48,22 +48,21 @@
 			expect(new FormData(element).get('images')).toBe('["image-2"]');
 			await userEvent.click(canvas.getByRole('button', { name: 'Remove image 1' }));
 
-			const picker = canvas.getByLabelText('Choose images');
-			await userEvent.upload(picker, file);
+			drag('drop');
 			await canvas.findByRole('img', { name: 'Attached image 1' });
 			element.reset(); // successful remote forms reset the native form
 			await waitFor(() => expect(new FormData(element).get('images')).toBe('[]'));
 
 			fail = true;
-			await userEvent.upload(picker, file);
+			drag('drop');
 			await canvas.findByRole('alert');
 			expect(new FormData(element).get('images')).toBe('[]');
 			fail = false;
-			await userEvent.upload(
-				picker,
-				Array.from({ length: 5 }, () => file)
+			for (let i = 1; i < 5; i++) dragged.items.add(file);
+			drag('drop');
+			await waitFor(() =>
+				expect(canvas.getByRole('alert')).toHaveTextContent('Add up to 4 images')
 			);
-			expect(canvas.getByRole('alert')).toHaveTextContent('Add up to 4 images');
 			expect(uploads).toBe(4);
 			element.reset();
 		} finally {
@@ -72,7 +71,7 @@
 	}
 </script>
 
-<Story name="Paste, drop, choose, remove and retry" play={exercise} asChild>
+<Story name="Paste, drop, remove and retry" play={exercise} asChild>
 	<div class="max-w-2xl">
 		<MessageComposer imageField={{ name: 'images' }} {form} placeholder="Reply to the agent">
 			{#snippet footer()}

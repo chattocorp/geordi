@@ -13,7 +13,7 @@
 	const preferred = $derived(page.url.searchParams.get('repo') ?? nav?.workspaces[0]?.repoId);
 </script>
 
-<Page title="New workspace">
+<Page title="New workspace" wide>
 	{#snippet description()}Tell an agent what to do. It gets its own branch to do it on.{/snippet}
 
 	<!-- nothing until it is known which: not the wrong one of the two for a moment -->
