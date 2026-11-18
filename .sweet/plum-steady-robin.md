@@ -2,4 +2,4 @@
 type: feature
 ---
 
-See native subagents in the conversation. Expand a reviewer to follow its work and read its report.
+Follow native subagents in the conversation. Expand a reviewer to see its tools and report, or open its activity in a tab. Select **Assigned by** to return to the agent that delegated the work.

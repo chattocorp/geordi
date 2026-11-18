@@ -4,6 +4,7 @@ import {
 	SessionUpdate,
 	type ToolCallUpdate
 } from '@agentclientprotocol/sdk/experimental/v2';
+import { truncate } from './adapter.ts';
 import type { Agent } from '@geordi/protocol';
 
 // Limit buffered terminal output before decoding arbitrarily large ACP chunks.
@@ -25,26 +26,43 @@ function codexCommandText(update: ToolCallUpdate) {
 }
 
 // ACP terminal IDs are scoped to one session.
-export class TerminalOutput extends Map<string, Buffer> {
+export class TerminalOutput {
+	private buffers = new Map<string, Buffer>();
+	private terminalByTool = new Map<string, string>();
+
 	receive(u: SessionUpdate) {
 		if (SessionUpdate.isTerminalOutputChunk(u)) {
-			const before = this.get(u.terminalId) ?? Buffer.alloc(0);
+			const before = this.buffers.get(u.terminalId) ?? Buffer.alloc(0);
 			if (before.length < MAX_TERMINAL_BYTES) {
 				const bytes = terminalBytes(u.data, MAX_TERMINAL_BYTES - before.length);
-				this.set(u.terminalId, Buffer.concat([before, bytes]));
+				this.buffers.set(u.terminalId, Buffer.concat([before, bytes]));
 			}
 		} else if (SessionUpdate.isTerminalUpdate(u)) {
-			if (u.output) this.set(u.terminalId, terminalBytes(u.output.data, MAX_TERMINAL_BYTES));
+			if (u.output)
+				this.buffers.set(u.terminalId, terminalBytes(u.output.data, MAX_TERMINAL_BYTES));
 		} else return false;
 		return true;
 	}
-	result(provider: Agent, u: ToolCallUpdate) {
-		const terminal = u.content?.find(ToolCallContent.isTerminal);
-		return (
+	/** A status-only completion can arrive in a later turn. Keep the terminal
+	 * reference from the earlier tool update until we consume its output. */
+	toolResult(provider: Agent, u: ToolCallUpdate): string | undefined {
+		const ref = u.content?.find(ToolCallContent.isTerminal);
+		if (ref) this.terminalByTool.set(u.toolCallId, ref.terminalId);
+		if (u.status !== 'completed' && u.status !== 'failed' && u.status !== 'cancelled') return;
+		const id = this.terminalByTool.get(u.toolCallId) ?? u.toolCallId;
+		const output =
 			(provider === 'codex' ? codexCommandText(u) : undefined) ??
-			this.get(terminal?.terminalId ?? u.toolCallId)?.toString('utf8') ??
+			this.buffers.get(id)?.toString('utf8') ??
 			u.rawOutput ??
-			u.content
-		);
+			u.content;
+		this.buffers.delete(id);
+		this.terminalByTool.delete(u.toolCallId);
+		return truncate(typeof output === 'string' ? output : (JSON.stringify(output) ?? ''));
+	}
+
+	retainOpen(tools: ReadonlyMap<string, 'open' | 'closed'>) {
+		const linked = new Set(this.terminalByTool.values());
+		for (const id of this.buffers.keys())
+			if (!linked.has(id) && tools.get(id) !== 'open') this.buffers.delete(id);
 	}
 }

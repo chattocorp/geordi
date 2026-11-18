@@ -69,10 +69,12 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 		}
 		if (!child) return false;
 		if (child.terminal.receive(u)) return true;
-		if (
+		const chunk =
 			SessionUpdate.isUserMessageChunk(u) ||
 			SessionUpdate.isAgentMessageChunk(u) ||
-			SessionUpdate.isSessionMessageChunk(u) ||
+			SessionUpdate.isSessionMessageChunk(u);
+		if (
+			chunk ||
 			SessionUpdate.isUserMessage(u) ||
 			SessionUpdate.isAgentMessage(u) ||
 			SessionUpdate.isSessionMessage(u)
@@ -82,11 +84,7 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 				entry.incoming = true;
 			if (SessionUpdate.isSessionMessage(u) && u.recipientSessionId !== undefined)
 				entry.incoming = u.recipientSessionId === session;
-			if (
-				SessionUpdate.isUserMessageChunk(u) ||
-				SessionUpdate.isAgentMessageChunk(u) ||
-				SessionUpdate.isSessionMessageChunk(u)
-			) {
+			if (chunk) {
 				if (ContentBlock.isText(u.content)) entry.text += u.content.text;
 			} else if (u.content !== undefined) {
 				entry.text = (u.content ?? [])
@@ -95,27 +93,20 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 			}
 			child.messages.set(u.messageId, entry);
 			child.dirty.add(u.messageId);
-			if (
-				!SessionUpdate.isUserMessageChunk(u) &&
-				!SessionUpdate.isAgentMessageChunk(u) &&
-				!SessionUpdate.isSessionMessageChunk(u)
-			)
-				flush(child);
+			if (!chunk) flush(child);
 		} else if (SessionUpdate.isToolCallUpdate(u)) {
 			flush(child);
-			const output = child.terminal.result(provider, u);
-			const ended = u.status === 'completed' || u.status === 'failed' || u.status === 'cancelled';
+			const output = child.terminal.toolResult(provider, u);
 			send(child, {
 				kind: 'tool',
 				id: u.toolCallId,
 				...(u.name || u.title ? { name: u.name ?? u.title ?? 'Tool' } : {}),
 				...(u.rawInput !== undefined && { input: truncate(JSON.stringify(u.rawInput)) }),
-				...(ended && {
-					output: truncate(typeof output === 'string' ? output : (JSON.stringify(output) ?? '')),
+				...(output !== undefined && {
+					output,
 					isError: u.status !== 'completed'
 				})
 			});
-			if (ended) child.terminal.delete(u.toolCallId);
 		} else if (SessionUpdate.isStateUpdate(u)) {
 			flush(child);
 			const state = stateOf(u);

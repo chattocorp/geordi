@@ -60,9 +60,7 @@ export function connectAgent(
 				} else if (StateUpdate.isIdle(u) && running) {
 					flush();
 					running = false;
-					for (const id of terminalOutput.keys()) {
-						if (tools.get(id) !== 'open') terminalOutput.delete(id);
-					}
+					terminalOutput.retainOpen(tools);
 					for (const cancel of questions.values()) cancel();
 					if (u.stopReason && u.stopReason !== 'end_turn')
 						emit({
@@ -114,7 +112,7 @@ export function connectAgent(
 			case u.sessionUpdate === 'plan_removed' && 'planId' in u && typeof u.planId === 'string':
 				emit({ kind: 'plan', id: u.planId, plan: null });
 				break;
-			case SessionUpdate.isToolCallUpdate(u):
+			case SessionUpdate.isToolCallUpdate(u): {
 				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
 				if (!tools.has(u.toolCallId)) {
@@ -126,20 +124,14 @@ export function connectAgent(
 						input: truncate(JSON.stringify(u.rawInput) ?? '')
 					});
 				}
-				if (u.status === 'completed' || u.status === 'failed') {
-					const output = terminalOutput.result(provider, u);
-					emit({
-						kind: 'tool.result',
-						id: u.toolCallId,
-						output: truncate(typeof output === 'string' ? output : (JSON.stringify(output) ?? '')),
-						isError: u.status === 'failed'
-					});
-				}
-				if (u.status === 'completed' || u.status === 'failed' || u.status === 'cancelled') {
+				const output = terminalOutput.toolResult(provider, u);
+				if (output !== undefined) {
 					tools.set(u.toolCallId, 'closed');
-					terminalOutput.delete(u.toolCallId);
+					if (u.status !== 'cancelled')
+						emit({ kind: 'tool.result', id: u.toolCallId, output, isError: u.status === 'failed' });
 				}
 				break;
+			}
 		}
 	}
 	const children = nativeSubagents(provider, emit);
