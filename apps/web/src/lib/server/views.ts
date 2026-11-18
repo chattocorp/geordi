@@ -2,7 +2,7 @@ import { actionsFor, PUBLISHING, standingOf } from '#lib/actions.ts';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';
-import { UNTITLED, type WorkspaceSummary } from './workspaces.ts';
+import { UNTITLED } from './workspaces.ts';
 
 /**
  * What pages show that is live, each as something to read now and again whenever it may
@@ -73,12 +73,8 @@ export const navigation = () =>
 		}
 	}) satisfies View<unknown>;
 
-/** What a workspace shows of the one that started it, and of those it started. */
-const relative = ({ id, title, status }: WorkspaceSummary) => ({ id, title, status });
-
 /**
- * One workspace with its conversation. `parent` is the workspace whose agent started this
- * one, if any.
+ * One workspace with its conversation.
  *
  * While someone has this open, a daemon watches the workspace's files, and `git` is how
  * its changes and its pull request stand: loaded here once for everyone looking, and again
@@ -89,7 +85,6 @@ export const workspace = (id: string) =>
 	({
 		read: () => {
 			const workspace = workspaces().get(id);
-			const parent = workspace.parentId ? workspaces().summary(workspace.parentId) : null;
 			// the agents working in this workspace's directory are part of it: shown in it, as
 			// conversations beside its own, and not among what it started
 			const aides = workspaces()
@@ -97,7 +92,6 @@ export const workspace = (id: string) =>
 				.filter((other) => other.id !== id && workspace.worktreeId === id);
 			return {
 				...workspace,
-				parent: parent && relative(parent),
 				// who but the person may have written in its conversation: the agents above it
 				senders: Object.fromEntries(
 					workspaces()
@@ -112,10 +106,9 @@ export const workspace = (id: string) =>
 					...workspaces().get(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				children: workspaces()
+				hasChildWorktrees: workspaces()
 					.children(id)
-					.filter((child) => !aides.some((aide) => aide.id === child.id))
-					.map(relative),
+					.some((child) => child.worktreeId !== id),
 				git: watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read

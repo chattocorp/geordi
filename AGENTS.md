@@ -216,6 +216,7 @@ it, perhaps you.
   - Every `lib/ui` component has a `*.stories.svelte` next to it (Svelte CSF; use
     `<Story name="…" asChild>` to render your own markup). `pnpm test` renders every story
     in a browser. Add or update stories with every UI change.
+  - For visual changes, include a screenshot of the affected UI in your final reply.
 - **Sheets, not lines.** Everything on screen is a rounded sheet laid into the frame
   (`bg-frame`: the window and its title bar), 8px from the window's edge and from the next
   sheet: the sidebar, a page's content, and in a workspace the conversation, the changes
