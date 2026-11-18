@@ -21,7 +21,8 @@ const BUSY_LOCAL_MS = 15_000;
 const BUSY_FACTOR = 3;
 /** How many worktrees are asked about at a time: the daemon and the forge have other work. */
 const AT_ONCE = 3;
-// Known PRs share batched reads. Branch discovery can cost one provider request per branch.
+// Looking again is cheap: a daemon lists a repository's pull requests once for all its
+// branches, and reads only what changed. The first look at a branch may need a search.
 const PULL_BATCH = 20;
 const DISCOVERY_BATCH = 3;
 
@@ -184,25 +185,15 @@ export function createStandings(options: {
 					(upstream?.refreshAfterMs ??
 						(upstream?.pull?.checks?.state === 'pending' ? CI_REFRESH_MS : FRESH_MS)) *
 					(busy(id) ? BUSY_FACTOR : 1);
-				return [
-					{
-						id,
-						due: entry.at + interval,
-						open: upstream?.pull?.state === 'open'
-					}
-				];
+				return [{ id, due: entry.at + interval }];
 			});
-			const due = available.filter((entry) => entry.due <= time).sort((a, b) => a.due - b.due);
-			const pulls = due.filter((entry) => entry.open).map((entry) => entry.id);
-			const others = due.filter((entry) => !entry.open).map((entry) => entry.id);
-			// Known PRs can share a provider read. Finding a PR for a branch needs a search.
+			const due = available
+				.filter((entry) => entry.due <= time)
+				.sort((a, b) => a.due - b.due)
+				.map((entry) => entry.id);
 			await Promise.all([
-				...poll(pulls, (id) => refresh(id, false, true)),
-				...discover(
-					[...others, ...unknown],
-					(id) => refresh(id, false, known.has(id)),
-					reconnected
-				),
+				...poll(due, (id) => refresh(id, false, true)),
+				...discover(unknown, (id) => refresh(id), reconnected),
 				// a full local Git status is expensive: never more than a few at a time
 				...refreshLocal()
 			]);

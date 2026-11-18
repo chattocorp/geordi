@@ -55,10 +55,12 @@ describe('standings', () => {
 		await standings.tick();
 		expect(state.asked).toHaveLength(4); // all known, and fresh
 
-		// grown old together, they are asked about a few at a time: upstream, and local Git
+		// grown old together: upstream for all of them, local Git a few at a time
 		state.now = 10 * 60_000;
 		await standings.tick();
-		expect(state.asked.slice(4)).toEqual(['a upstream', 'b upstream', 'c upstream', 'd']);
+		expect(state.asked.slice(4)).toEqual(['a upstream', 'b upstream', 'c upstream', 'd upstream']);
+		await standings.tick();
+		expect(state.asked.slice(8)).toEqual(['a', 'b', 'c']);
 	});
 
 	it('asks again at once about what nobody could say anything of', async () => {
@@ -102,23 +104,6 @@ describe('standings', () => {
 		state.now += 20_000;
 		await standings.tick();
 		expect(state.asked[0]).toBe('20 upstream');
-	});
-
-	it('picks up a running PR even when pushed branches use the search budget', async () => {
-		const ids = ['a', 'b', 'c', 'd', 'running'];
-		const { standings, state } = setup(ids);
-		const pushed = { ...standing(true).upstream!, pull: null, refreshAfterMs: 10_000 };
-		for (const id of ids) standings.note(id, { ...standing(), upstream: pushed });
-		standings.note('running', standing(true));
-		state.now = 10_000;
-		await standings.tick();
-		expect(state.asked).toEqual(['running upstream', 'a upstream', 'b upstream', 'c upstream']);
-		state.now += 2_000;
-		await standings.tick();
-		expect(state.asked).toHaveLength(4);
-		state.now += 8_000;
-		await standings.tick();
-		expect(state.asked.at(-1)).toBe('d upstream');
 	});
 
 	it('keeps a slow CI batch within its budget across overlapping ticks', async () => {
