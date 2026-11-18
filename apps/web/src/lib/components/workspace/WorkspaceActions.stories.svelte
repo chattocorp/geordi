@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, within } from 'storybook/test';
+	import { expect, fn, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest, Upstream } from '@geordi/protocol';
 	import { actionsFor, standingOf } from '#lib/actions.ts';
@@ -31,6 +31,7 @@
 	const dirty = { files: [file], uncommitted: 1, unpushed: 0 };
 	const failing = { state: 'failure', total: 3, failed: 1, url: null } as const;
 
+	const onopenpull = fn();
 	const onaction = () => {};
 </script>
 
@@ -46,6 +47,7 @@
 		actions={actionsFor(state)}
 		{pending}
 		{working}
+		{onopenpull}
 		{onaction}
 	/>
 {/snippet}
@@ -59,7 +61,19 @@
 	>{@render bar({ changes: pushed, upstream: upstream(null) })}</Story
 >
 
-<Story name="Draft pull request" asChild>
+<Story
+	name="Draft pull request"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		onopenpull.mockClear();
+		await userEvent.click(canvas.getByRole('button', { name: '#42' }));
+		await expect(onopenpull).toHaveBeenCalledOnce();
+		const external = canvas.getByRole('link', { name: 'Open pull request #42 in browser' });
+		await expect(external).toHaveAttribute('href', 'https://example.com/pull/42');
+		await expect(external).toHaveAttribute('target', '_blank');
+	}}
+>
 	{@render bar({ changes: pushed, upstream: upstream({ draft: true }) })}
 </Story>
 
@@ -133,7 +147,7 @@
 </Story>
 
 <Story name="Finding out how it stands" asChild>
-	<WorkspaceActions standing={null} actions={[]} checking {onaction} />
+	<WorkspaceActions standing={null} actions={[]} checking {onopenpull} {onaction} />
 </Story>
 
 <Story name="Upstream commits available" asChild>
