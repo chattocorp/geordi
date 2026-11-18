@@ -9,7 +9,7 @@ import type { EventStore, GeordiEvent } from './events/index.ts';
 type Grant = { id: string; name: string; digest: string; repoIds: string[] };
 export type AccessEvent =
 	/**
-	 * Without `repoIds`: a token of an early preview, for one repository (`repoId`) or for
+	 * Without `repoIds`: an older token: of a preview, for one repository (`repoId`), or of 0.5.0, for
 	 * all of them. It is no longer valid.
 	 */
 	| {
@@ -37,7 +37,7 @@ export function createAgentAccess(
 		() => new Map<string, Grant>(),
 		(all, event) => {
 			if (event.type === 'access.granted') {
-				// a token of the preview must not gain access to every repository on replay
+				// an older token must not gain access to every repository on replay
 				const { repoIds } = event.data;
 				if (repoIds) all.set(event.data.id, { ...event.data, repoIds });
 				names.set(event.data.id, event.data.name);

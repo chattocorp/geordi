@@ -610,7 +610,7 @@ describe('installation-wide workspace access', () => {
 	});
 });
 
-it('requires a fresh token for a client of the preview, for one repository or all of them', () => {
+it('requires a fresh token for an older client, for one repository or all of them', () => {
 	const { store, workspaces, caller } = setup();
 	for (const repoId of [workspaces.get(caller).repoId, undefined]) {
 		const id = `external:old-${repoId}`;
