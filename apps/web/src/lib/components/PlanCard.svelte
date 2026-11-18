@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import type { AgentPlan } from '@geordi/protocol';
 	import Markdown from './Markdown.svelte';
 
@@ -16,8 +17,8 @@
 	};
 </script>
 
-<details bind:open class="rounded-card bg-sunken px-3 py-2 text-sm">
-	<summary class="flex items-center gap-2">
+<Disclosure bind:open class="rounded-card bg-sunken px-3 py-2 text-sm">
+	{#snippet heading()}
 		<span class="icon-[lucide--list-checks] size-4 shrink-0 text-muted"></span>
 		<span class="font-medium">{done ? 'Plan complete' : 'Plan'}</span>
 		{#if entries.length}
@@ -26,13 +27,7 @@
 		{#if !open && current}
 			<span class="min-w-0 truncate text-muted">{current.content}</span>
 		{/if}
-		<span
-			class={[
-				'ml-auto icon-[lucide--chevron-right] size-4 shrink-0 text-muted',
-				open && 'rotate-90'
-			]}
-		></span>
-	</summary>
+	{/snippet}
 	{#if plan.type === 'markdown'}
 		<div class="pt-2"><Markdown text={plan.content} {pictures} /></div>
 	{:else}
@@ -59,4 +54,4 @@
 			{/each}
 		</ol>
 	{/if}
-</details>
+</Disclosure>

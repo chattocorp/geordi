@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import { toolIcon, toolSummary } from '#lib/tools.ts';
 	import type { Part } from '#lib/transcript.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
@@ -38,10 +39,8 @@
 -->
 <!-- with room on both sides: it stands between what was said before and after -->
 <!-- first in a reply, its row is centred on the avatar beside it -->
-<details class="group/tools py-1 first:pt-0">
-	<summary
-		class="flex h-7 list-none items-center gap-2.5 rounded-control text-sm text-muted select-none hover:text-ink"
-	>
+<Disclosure class="py-1 first:pt-0" summaryClass="h-7 text-sm text-muted hover:text-ink">
+	{#snippet heading()}
 		{#if active}
 			<span class={['size-3.5 shrink-0', toolIcon(active.name)]}></span>
 			<span class="shrink-0 font-medium">{active.name}</span>
@@ -58,14 +57,11 @@
 				</span>
 			{/each}
 		{/if}
-		<span
-			class="icon-[lucide--chevron-right] size-3.5 shrink-0 opacity-60 transition-transform group-open/tools:rotate-90 group-hover/tools:opacity-100"
-		></span>
-	</summary>
+	{/snippet}
 
 	<div class="mt-1.5 divide-y divide-line/70 overflow-hidden card">
 		{#each tools as tool (tool.id)}
 			<ToolCall {...tool} {cwd} running={live && tool === active} />
 		{/each}
 	</div>
-</details>
+</Disclosure>

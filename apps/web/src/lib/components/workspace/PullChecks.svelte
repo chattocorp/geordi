@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import type { PullCheck, PullRequest } from '@geordi/protocol';
 	import { describeChecks } from '#lib/checks.ts';
 
@@ -123,15 +124,10 @@
 		{#if active.length}
 			{@render rows(active)}
 			{#if remaining.length}
-				<details class="group/other">
-					<summary
-						class="group flex items-center gap-2 rounded-control px-2 py-1.5 text-xs text-muted hover:bg-sunken"
-					>
-						<span class="icon-[lucide--chevron-right] size-4 group-open/other:rotate-90"
-						></span>Other checks ({remaining.length})
-					</summary>
+				<Disclosure summaryClass="px-2 py-1.5 text-xs text-muted hover:bg-sunken">
+					{#snippet heading()}Other checks ({remaining.length}){/snippet}
 					{@render rows(remaining)}
-				</details>
+				</Disclosure>
 			{/if}
 		{:else}
 			{@render rows(sorted)}
