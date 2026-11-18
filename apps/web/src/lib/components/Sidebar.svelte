@@ -303,45 +303,51 @@
 				At its end: how its work stands, at a glance. Pointed at, that makes way for what
 				can be done with it; the two share one place, so that nothing moves.
 			-->
-			{#if archivable && (workspace.hidden || !hidden(workspace))}
-				<!-- put out of sight, or brought back: only where it was hidden itself -->
-				<button
-					type="button"
-					class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-hover:grid group-has-focus-visible:grid hover:bg-sunken hover:text-ink"
-					title={workspace.hidden ? 'Show in sidebar' : 'Hide workspace'}
-					aria-label="{workspace.hidden ? 'Show' : 'Hide'} {workspace.title}"
-					onclick={() => hideWorkspace({ workspaceId: workspace.id, hidden: !workspace.hidden })}
-				>
-					<span
-						class={['size-3.5', workspace.hidden ? 'icon-[lucide--eye]' : 'icon-[lucide--eye-off]']}
-					></span>
-				</button>
-			{/if}
-			<span class="grid size-6 shrink-0 place-items-center">
-				{#if standing}
-					<span
-						class={[
-							'col-start-1 row-start-1',
-							archivable && 'group-hover:invisible group-has-focus-visible:invisible'
-						]}
-					>
-						<StandingIcon {standing} />
-					</span>
-				{/if}
-				{#if archivable}
+			<!-- side by side, without the row's gap between them -->
+			<span class="flex shrink-0 items-center">
+				{#if archivable && (workspace.hidden || !hidden(workspace))}
+					<!-- put out of sight, or brought back: only where it was hidden itself -->
 					<button
 						type="button"
-						class={[
-							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken',
-							standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
-						]}
-						title="Archive workspace"
-						aria-label="Archive {workspace.title}"
-						onclick={() => archiveAndNavigate(workspace)}
+						class="hidden size-6 shrink-0 place-items-center rounded-control text-muted group-hover:grid group-has-focus-visible:grid hover:bg-sunken hover:text-ink"
+						title={workspace.hidden ? 'Show in sidebar' : 'Hide workspace'}
+						aria-label="{workspace.hidden ? 'Show' : 'Hide'} {workspace.title}"
+						onclick={() => hideWorkspace({ workspaceId: workspace.id, hidden: !workspace.hidden })}
 					>
-						<span class="icon-[lucide--archive] size-3.5"></span>
+						<span
+							class={[
+								'size-3.5',
+								workspace.hidden ? 'icon-[lucide--eye]' : 'icon-[lucide--eye-off]'
+							]}
+						></span>
 					</button>
 				{/if}
+				<span class="grid size-6 shrink-0 place-items-center">
+					{#if standing}
+						<span
+							class={[
+								'col-start-1 row-start-1',
+								archivable && 'group-hover:invisible group-has-focus-visible:invisible'
+							]}
+						>
+							<StandingIcon {standing} />
+						</span>
+					{/if}
+					{#if archivable}
+						<button
+							type="button"
+							class={[
+								'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken',
+								standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
+							]}
+							title="Archive workspace"
+							aria-label="Archive {workspace.title}"
+							onclick={() => archiveAndNavigate(workspace)}
+						>
+							<span class="icon-[lucide--archive] size-3.5"></span>
+						</button>
+					{/if}
+				</span>
 			</span>
 		</div>
 	</li>
