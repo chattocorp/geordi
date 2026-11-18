@@ -80,27 +80,50 @@ function sourceLink(href: string, root?: string) {
 	if (file && !file.split('/').includes('..')) return { file, line: suffix?.[1] };
 }
 
+/** A relative Markdown destination is resolved from the root of the worktree. */
+function diffLink(href: string) {
+	if (!local(href) || href.startsWith('/') || href.includes('?')) return;
+	const destination = href.split('#', 1)[0];
+	let path: string;
+	try {
+		path = decodeURIComponent(destination).replace(/:\d+(?::\d+)?$/, '');
+	} catch {
+		return;
+	}
+	if (!path || path.startsWith('/') || path.includes('\\') || path.includes('\0')) return;
+	if (/(^|\/)(\.{1,2})?$/.test(path)) return;
+	const parts: string[] = [];
+	for (const part of path.split('/')) {
+		if (part === '..') {
+			if (!parts.pop()) return;
+		} else if (part && part !== '.') parts.push(part);
+	}
+	return parts.join('/');
+}
+
 // Preserve the inline markup in link labels, including code that names a changed file.
 md.core.ruler.after('inline', 'workspace_links', (state) => {
 	const root = (state.env as Options).root;
 	for (const block of state.tokens) {
 		let inLink = false;
-		let source = false;
+		let button = false;
 		for (const token of block.children ?? []) {
 			if (token.type === 'link_open') {
 				inLink = true;
-				const citation = sourceLink(String(token.attrGet('href') ?? ''), root);
-				if (!citation) continue;
-				source = true;
+				const href = String(token.attrGet('href') ?? '');
+				const citation = sourceLink(href, root);
+				const path = citation?.file ?? (root && diffLink(href));
+				if (!path) continue;
+				button = true;
 				token.tag = 'button';
 				token.attrs = [
 					['type', 'button'],
-					['data-source', citation.file]
+					[citation ? 'data-source' : 'data-file', path]
 				];
-				if (citation.line) token.attrSet('data-line', citation.line);
+				if (citation?.line) token.attrSet('data-line', citation.line);
 			} else if (token.type === 'link_close') {
-				if (source) token.tag = 'button';
-				source = inLink = false;
+				if (button) token.tag = 'button';
+				button = inLink = false;
 			} else if (inLink && token.type === 'code_inline') token.meta = { inLink: true };
 		}
 	}

@@ -43,11 +43,24 @@ describe('renderMarkdown', () => {
 		expect(html).not.toContain('data-file');
 	});
 
+	it('opens relative worktree links in diff panes', () => {
+		const html = renderMarkdown('[`test`](./src/../tests/a%20b.ts:42) [read](README#usage)', {
+			root: '/work/tree',
+			file: () => 'another.ts'
+		});
+		expect(html).toContain('data-file="tests/a b.ts"><code>test</code></button>');
+		expect(html).toContain('data-file="README">read</button>');
+		expect(renderMarkdown('[read](README)')).toContain('<a href="README"');
+	});
+
 	it('preserves other Markdown links and ignores images when recognizing citations', () => {
 		const options = { root: '/work/tree', pictures: '/picture' };
 		for (const href of [
 			'#here',
-			'other/page',
+			'../outside',
+			'src/%2e%2e/%2e%2e/private',
+			'?query',
+			'dir/',
 			'/repos',
 			'//example.com/x',
 			'https://example.com/x',
