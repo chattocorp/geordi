@@ -350,6 +350,17 @@ describe('changes', () => {
 		symlinkSync(base, join(worktree.path, 'elsewhere'));
 		symlinkSync(secret, join(worktree.path, 'link.txt'));
 
+		expect(readText(worktree, 'sub/secret.txt')).toBe('ours');
+		for (const path of [
+			'../../secret.txt',
+			secret,
+			'.git',
+			'link.txt',
+			'elsewhere/secret.txt',
+			'missing.txt'
+		])
+			expect(readText(worktree, path)).toBeNull();
+
 		const none = { unavailable: expect.stringMatching(/no changes/) };
 		const origin = { repoPath };
 		expect(versions(worktree, origin, '../secret.txt')).toEqual(none);

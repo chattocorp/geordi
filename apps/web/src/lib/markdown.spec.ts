@@ -32,6 +32,36 @@ describe('renderMarkdown', () => {
 		expect(renderMarkdown('![x](a.png)')).toBe('<p><a href="a.png">x</a></p>\n');
 	});
 
+	it('opens absolute worktree citations with an optional line and a formatted label', () => {
+		const options = { root: '/work/tree', file: (name: string) => name };
+		const html = renderMarkdown(
+			'[`line`](</work/tree/a b.ts:139>) [whole](/work/tree/a%20b.ts)',
+			options
+		);
+		expect(html).toContain('data-source="a b.ts" data-line="139"><code>line</code></button>');
+		expect(html).toContain('data-source="a b.ts">whole</button>');
+		expect(html).not.toContain('data-file');
+	});
+
+	it('preserves other Markdown links and ignores images when recognizing citations', () => {
+		const options = { root: '/work/tree', pictures: '/picture' };
+		for (const href of [
+			'#here',
+			'other/page',
+			'/repos',
+			'//example.com/x',
+			'https://example.com/x',
+			'/work/tree-other/a',
+			'/work/tree/%2e%2e/private',
+			'/work/tree/app?q=1'
+		]) {
+			expect(renderMarkdown(`[label](${href})`, options)).toContain(`<a href="${href}"`);
+		}
+		expect(renderMarkdown('![shot](/work/tree/shot.png)', options)).toContain(
+			'data-picture="/work/tree/shot.png"'
+		);
+	});
+
 	it('highlights known languages for both themes', () => {
 		const html = renderMarkdown('```ts\nconst a = 1;\n```');
 		expect(html).toContain('--shiki-light');

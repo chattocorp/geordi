@@ -8,7 +8,7 @@ import {
 	readFileSync,
 	realpathSync
 } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, sep } from 'node:path';
 import type { Changes, FileChange, FileVersions } from '@geordi/protocol';
 import {
 	branchOf,
@@ -58,6 +58,11 @@ const untracked = (worktree: Worktree) =>
  * the whole daemon otherwise).
  */
 export function readText(worktree: Worktree, path: string): string | null {
+	if (
+		isAbsolute(path) ||
+		path.split(sep).some((part) => part === '..' || part.toLowerCase() === '.git')
+	)
+		return null;
 	let fd: number;
 	let file: string;
 	try {
