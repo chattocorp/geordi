@@ -120,6 +120,28 @@
 	</div>
 </Story>
 
+<Story
+	name="Message line breaks"
+	asChild
+	play={async ({ canvasElement }) => {
+		await waitFor(() => expect(canvasElement.querySelectorAll('p br')).toHaveLength(2));
+	}}
+>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[
+				{
+					kind: 'user',
+					text: "No, that's worse...\n\n[ Create account ]\n[ Sign in to existing account ]\nCancel"
+				}
+			]}
+			agent="codex"
+			onremove={() => {}}
+			onanswer={() => {}}
+		/>
+	</div>
+</Story>
+
 <Story name="Bullet list" asChild>
 	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView

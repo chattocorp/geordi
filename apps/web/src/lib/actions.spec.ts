@@ -143,7 +143,11 @@ describe('actionsFor', () => {
 
 		const pending = { state: 'pending', total: 3, failed: 0, url: null } as const;
 		expect(ids({ changes, upstream: upstream({ checks: pending }) })).toEqual([]);
-		expect(ids({ changes, upstream: upstream({ draft: true }) })).toEqual(['ready-for-review']);
+		const draft = upstream({ draft: true });
+		const [ready] = actionsFor({ changes, upstream: draft });
+		expect(ready).toMatchObject({ id: 'ready-for-review', pullNumber: '42' });
+		expect(ready.prompt).toBeUndefined();
+		expect(ids({ changes, upstream: { ...draft, forge: 'gitlab' } })).toEqual([]);
 		expect(
 			ids({
 				changes: { ...changes, unpushed: 1 },

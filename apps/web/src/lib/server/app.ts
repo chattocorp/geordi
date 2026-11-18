@@ -219,7 +219,7 @@ const UPSTREAM_SETTLES_MS = 10_000;
  * Has a workspace's worktree looked at afresh, including how it stands upstream as of now:
  * at once, and again a little later.
  */
-function upstreamMayHaveChanged(workspaceId: string) {
+export function upstreamMayHaveChanged(workspaceId: string) {
 	const look = () => {
 		try {
 			const { worktreeId } = workspaces().ref(workspaceId);

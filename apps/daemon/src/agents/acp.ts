@@ -17,8 +17,13 @@ import {
 	type CreateElicitationResponse,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2';
-import type { Agent, AgentEvent, MessageImage, Question } from '@geordi/protocol';
+import type { Agent, AgentEvent, MessageImage, PermissionMode, Question } from '@geordi/protocol';
 import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
+
+const ACP_MODES = {
+	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
+	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
+} satisfies Record<Agent, Record<PermissionMode, string>>;
 
 // Limit buffered terminal output before decoding arbitrarily large ACP chunks.
 const MAX_TERMINAL_BYTES = 16 * 1024;
@@ -174,9 +179,12 @@ export function connectAgent(
 		.onNotification(methods.client.session.update, ({ params }) => {
 			if (id && params.sessionId === id) update(params.update);
 		})
-		.onRequest(methods.client.session.requestPermission, () => ({
-			outcome: { outcome: 'cancelled' }
-		}))
+		.onRequest(methods.client.session.requestPermission, ({ params, signal }) => {
+			const deny = params.options.find((option) => option.kind === 'reject_once');
+			if (params.sessionId === id && !signal.aborted && deny)
+				return { outcome: { outcome: 'selected', optionId: deny.optionId } };
+			return { outcome: { outcome: 'cancelled' } };
+		})
 		.onRequest(
 			methods.client.elicitation.create,
 			({ params, signal }): Promise<CreateElicitationResponse> | CreateElicitationResponse => {
@@ -284,11 +292,26 @@ export function connectAgent(
 		});
 		if (info.protocolVersion !== PROTOCOL_VERSION) throw new Error('This wrapper requires ACP v2');
 		steering = (info._meta?.steering as { supported?: boolean } | undefined)?.supported === true;
-		const sandboxed =
-			provider === 'codex' && process.env.GEORDI_CODEX_SANDBOX === 'workspace-write';
+		const selected = options.settings.permissionMode;
+		// An old installation may have restricted this session at the daemon level.
+		// Require an explicit workspace choice before replacing that policy.
+		if (selected === undefined) {
+			const claudeMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE;
+			const restricted =
+				provider === 'codex'
+					? process.env.GEORDI_CODEX_SANDBOX === 'workspace-write'
+					: claudeMode && claudeMode !== ACP_MODES.claude['full-access'];
+			if (restricted)
+				throw new Error(
+					'Choose Auto Mode or Full Access in this workspace to replace the daemon permission setting.'
+				);
+		}
+		const mode = ACP_MODES[provider][selected ?? 'full-access'];
+		if (typeof mode !== 'string') throw new Error('Unknown workspace permission mode: ' + selected);
 		const setup = {
 			cwd: options.cwd,
-			...(sandboxed && { additionalDirectories: options.writableRoots }),
+			...(provider === 'codex' &&
+				selected === 'auto' && { additionalDirectories: options.writableRoots }),
 			mcpServers:
 				provider === 'claude' && options.api && token
 					? [
@@ -313,16 +336,11 @@ export function connectAgent(
 		id = options.resumeId ?? ('sessionId' in session ? String(session.sessionId) : '');
 		if (!id) throw new Error('Missing ACP session ID');
 		let config = session.configOptions ?? [];
-		const mode =
-			provider === 'codex'
-				? sandboxed
-					? 'workspace-write'
-					: 'agent-full-access'
-				: process.env.GEORDI_CLAUDE_PERMISSION_MODE || 'bypassPermissions';
 		for (const [category, value] of [
-			['mode', mode],
 			['model', options.settings.model],
-			['thought_level', options.settings.effort]
+			['thought_level', options.settings.effort],
+			// Claude determines Auto availability from the selected model.
+			['mode', mode]
 		]) {
 			if (!value) continue;
 			const opt = config.find((o) => o.category === category);
@@ -336,6 +354,9 @@ export function connectAgent(
 			});
 			config = result.configOptions;
 		}
+		const applied = config.find((option) => option.category === 'mode');
+		if (applied?.type !== 'select' || applied.currentValue !== mode)
+			throw new Error('The agent could not apply permission mode ' + mode);
 		emit({ kind: 'resume', id });
 	}
 	return {

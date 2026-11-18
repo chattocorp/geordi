@@ -16,7 +16,7 @@
 		sendMessage,
 		stopAgent
 	} from '../../../routes/workspaces.remote';
-	import HarnessPicker, { type HarnessChoice } from './HarnessPicker.svelte';
+	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
 
 	/**
 	 * A workspace's conversation with its agent, and the box to reply in. `senders` names
@@ -50,9 +50,11 @@
 			settings: { [workspace.agent]: { ...workspace.settings, named: !!model && !listed } }
 		};
 	});
-	const configure = ({ settings }: HarnessChoice) => {
-		const { model, effort } = settings[workspace.agent] ?? {};
-		return configureWorkspace({ workspaceId: workspace.id, model, effort });
+	const configure = (next: HarnessChoice) => {
+		if (!harnesses?.length) return;
+		const { model, permissionMode } = next.settings[workspace.agent] ?? {};
+		const { effort } = resolveChoice(harnesses, next);
+		return configureWorkspace({ workspaceId: workspace.id, model, effort, permissionMode });
 	};
 
 	let messages = $state<MessageView>();

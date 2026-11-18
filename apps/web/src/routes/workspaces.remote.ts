@@ -1,7 +1,14 @@
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
-import { AGENTS, CONFIG_NAME, JOB_TERMINAL, MAX_IMAGES, type FileVersions } from '@geordi/protocol';
+import {
+	AGENTS,
+	PERMISSION_MODES,
+	CONFIG_NAME,
+	JOB_TERMINAL,
+	MAX_IMAGES,
+	type FileVersions
+} from '@geordi/protocol';
 import {
 	archiveWorkspace as archive,
 	concernsAboutArchiving,
@@ -11,6 +18,7 @@ import {
 	prepareWorktree,
 	terminals,
 	updateWorkspace as update,
+	upstreamMayHaveChanged,
 	watchers,
 	workspaces
 } from '#lib/server/app.ts';
@@ -30,13 +38,17 @@ const imageIds = v.pipe(
 
 const text = v.pipe(v.string(), v.trim(), v.nonEmpty('Write something first'));
 
-/** Chooses the model and effort a workspace's agent runs with from its next turn on. */
+const agentSettings = {
+	model: v.optional(v.string()),
+	effort: v.optional(v.string()),
+	permissionMode: v.optional(v.picklist(PERMISSION_MODES))
+};
+
+/** Applies the workspace settings from the next turn. */
 export const configureWorkspace = command(
 	v.object({
 		workspaceId: v.string(),
-		/** Absent for "whatever the agent's CLI would use". */
-		model: v.optional(v.string()),
-		effort: v.optional(v.string())
+		...agentSettings
 	}),
 	({ workspaceId, ...settings }) => workspaces().configure(workspaceId, settings)
 );
@@ -46,9 +58,7 @@ export const createWorkspace = form(
 		repoId: v.string(),
 		images: imageIds,
 		agent: v.picklist(AGENTS),
-		/** Empty for "whatever the agent's CLI would use". */
-		model: v.optional(v.string()),
-		effort: v.optional(v.string()),
+		...agentSettings,
 		/** May be empty: the workspace is then there to be told what to do, and has its worktree. */
 		prompt: v.optional(v.pipe(v.string(), v.trim()), ''),
 		/**
@@ -57,8 +67,8 @@ export const createWorkspace = form(
 		 */
 		alongside: v.optional(v.string())
 	}),
-	({ model, effort, alongside, ...data }) => {
-		const settings = { model, effort };
+	({ model, effort, permissionMode, alongside, ...data }) => {
+		const settings = { model, effort, permissionMode };
 		if (alongside) {
 			const id = workspaces().join(alongside, { ...data, settings });
 			// to the workspace it is in, and its conversation there
@@ -140,6 +150,23 @@ export const mergePull = command(v.string(), async (workspaceId) => {
 		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
 	}
 });
+
+export const markReady = command(
+	v.object({ workspaceId: v.string(), pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)) }),
+	async ({ workspaceId, pullNumber }) => {
+		const ref = workspaces().ref(workspaceId);
+		try {
+			await hub().request({ kind: 'markReady', ...ref, pullNumber }, 60_000);
+		} catch (cause) {
+			error(
+				502,
+				`Could not mark the pull request ready for review: ${cause instanceof Error ? cause.message : String(cause)}`
+			);
+		} finally {
+			upstreamMayHaveChanged(workspaceId);
+		}
+	}
+);
 
 /**
  * Brings the latest of the branch the workspace's work is based on into it. Geordi does it

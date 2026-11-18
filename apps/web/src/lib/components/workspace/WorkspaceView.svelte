@@ -57,7 +57,10 @@
 		stopJob,
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
+	import { markingReady, readyForReview, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
+	import PullRequestTab from './PullRequestTab.svelte';
+	import PullRequestPane from './PullRequestPane.svelte';
 	import Changes from './Changes.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
@@ -86,6 +89,8 @@
 			name: workspace.repoId
 		}
 	);
+	const git = $derived(workspace.git);
+	const pull = $derived(git?.upstream?.pull);
 	const running = $derived(workspace.status === 'running');
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
@@ -94,6 +99,7 @@
 	// `terminal:<name>`. The conversation lives in the main area; everything else can be
 	// dragged from any area to any other.
 	const CHAT = 'chat';
+	const PR = 'pr';
 	const CHANGES = 'changes';
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
@@ -127,6 +133,7 @@
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
+		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
@@ -160,7 +167,7 @@
 		const beside = groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id;
 		for (const aide of workspace.aides)
 			if (!placed.includes(`agent:${aide.id}`)) main = add(main, `agent:${aide.id}`, beside);
-		for (const tab of [CHANGES, CHANGESET])
+		for (const tab of [CHANGES, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
 		for (const name of workspace.terminals)
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
@@ -376,6 +383,7 @@
 	const closable = (tab: string) =>
 		tab !== CHAT &&
 		tab !== CHANGES &&
+		tab !== PR &&
 		tab !== CHANGESET &&
 		// not from under an agent at work
 		aideOf(tab)?.status !== 'running';
@@ -434,7 +442,6 @@
 	const chatGroup = $derived(groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id);
 
 	// What could happen next (FDR-003), from where the changes and the pull request stand.
-	const git = $derived(workspace.git);
 	/**
 	 * The workspace had a worktree, and it is no longer there: removed outside Geordi. Not
 	 * while the agent is at work, which is when it comes back.
@@ -475,6 +482,7 @@
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
 					: (action.id === 'merge-pull' && (merging || mergeConfirmed)) ||
+						(action.id === 'ready-for-review' && markingReady.has(id)) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
 			)
@@ -505,14 +513,12 @@
 	let merging = $state(false);
 	// A successful command can arrive before the live view that offers Archive.
 	let mergedPull = $state<string | null>(null);
-	const mergeConfirmed = $derived(
-		mergedPull !== null && mergedPull === git?.upstream?.pull?.number
-	);
+	const mergeConfirmed = $derived(mergedPull !== null && mergedPull === pull?.number);
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
 	async function merge() {
-		const number = git?.upstream?.pull?.number;
+		const number = pull?.number;
 		if (!number || merging || mergeConfirmed) return;
 		mergeProblem = null;
 		merging = true;
@@ -580,6 +586,8 @@
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
 		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		else if (action.id === 'ready-for-review' && action.pullNumber)
+			readyForReview(id, action.pullNumber);
 		else if (action.id === 'merge-pull') merge();
 		else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
@@ -623,6 +631,8 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
 		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
+	{:else if tab === PR && pull}
+		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}
 		{@const added = (git?.release?.packages ?? [])
 			.flatMap((pkg) => pkg.notes)
@@ -685,6 +695,8 @@
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 			onopen={openDiff}
 		/>
+	{:else if tab === PR && pull}
+		<PullRequestPane {pull} />
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
@@ -808,10 +820,16 @@
 		</div>
 	{/if}
 
-	{#if mergeProblem}
+	{#if mergeProblem || reviewProblems[id]}
 		<div class="flex items-center gap-3 px-5 py-2.5">
-			<div class="min-w-0 flex-1"><Notice>{mergeProblem}</Notice></div>
-			<Button variant="ghost" onclick={() => (mergeProblem = null)}>Dismiss</Button>
+			<div class="min-w-0 flex-1"><Notice>{mergeProblem ?? reviewProblems[id]}</Notice></div>
+			<Button
+				variant="ghost"
+				onclick={() => {
+					mergeProblem = null;
+					delete reviewProblems[id];
+				}}>Dismiss</Button
+			>
 		</div>
 	{/if}
 

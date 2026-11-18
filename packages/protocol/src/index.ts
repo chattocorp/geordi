@@ -12,21 +12,27 @@ import type { MessageImage } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 32;
+export const PROTOCOL_VERSION = 33;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
 
-/**
- * How an agent is run, beyond which one it is. Whatever is absent is left to the agent's
- * CLI: its own default, or what the user has configured for it.
- */
+export const PERMISSION_MODES = ['auto', 'full-access'] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
+/** The settings a workspace sends with each turn. */
 export type AgentSettings = {
+	/** Existing workspaces can have no recorded permission choice. */
+	permissionMode?: PermissionMode;
 	/** A model, by the name its CLI knows it by. */
 	model?: string;
 	/** How hard the model should think; one of the model's `efforts`. */
 	effort?: string;
 };
+
+export function sameAgentSettings(a: AgentSettings, b: AgentSettings): boolean {
+	return a.model === b.model && a.effort === b.effort && a.permissionMode === b.permissionMode;
+}
 
 /** What model names and effort levels look like. They end up as CLI arguments. */
 export const SETTING = /^[A-Za-z0-9][\w.:[\]-]{0,79}$/;
@@ -118,8 +124,11 @@ export type Changes = {
  */
 export type FileVersions = { old: string | null; new: string | null } | { unavailable: string };
 
+export type CheckCounts = { passed: number; failed: number; pending: number; skipped: number };
+
 /** A pull request (or merge request, or whatever the forge calls it) for a workspace's branch. */
 export type PullRequest = {
+	body?: string;
 	number: string;
 	title: string;
 	url: string | null;
@@ -136,7 +145,7 @@ export type PullRequest = {
 		 * How many of them stand how; `skipped` are those that neither passed nor failed.
 		 * Absent where the forge only says how they stand overall.
 		 */
-		counts?: { passed: number; failed: number; pending: number; skipped: number };
+		counts?: CheckCounts;
 		url: string | null;
 	} | null;
 	/** Where its reviews stand, the most decisive first; `null` if nobody was asked. */
@@ -431,6 +440,7 @@ export type DaemonRequest =
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
 	| ({ kind: 'mergePull' } & WorktreeRef)
+	| ({ kind: 'markReady'; pullNumber: string } & WorktreeRef)
 	/**
 	 * Brings the latest of the branch the workspace's work is based on into its branch, where
 	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
@@ -462,6 +472,7 @@ export type DaemonResults = {
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
 	mergePull: 'merged' | 'queued';
+	markReady: null;
 	/** `false` if it was left alone: bringing it up to date takes an agent's judgement. */
 	updateWorktree: boolean;
 	/**

@@ -25,11 +25,13 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
  const result=result=>out({id:req.id,result});
  switch(req.method){
  case 'initialize': return result({protocolVersion:2,info:{name:'fixture',version:'1'},capabilities:{},authMethods:[]});
+ case 'session/resume':
  case 'session/new': return result({sessionId:id,configOptions});
- case 'session/set_config_option': return result({configOptions});
+ case 'session/set_config_option': if(!process.env.REFUSE_MODE)configOptions[0].currentValue=req.params.value;return result({configOptions});
  case 'session/cancel': slow=false;return state('idle',{stopReason:'cancelled'});
  case 'session/prompt': {
   const said=req.params.prompt[0].text;
+  if(said==='which mode'){state('running');result({messageId:String(req.id)});text(configOptions[0].currentValue);return done();}
   if(said==='config'){state('running');result({messageId:String(req.id)});text(process.env.CODEX_CONFIG);return done();}
   if(said==='crash')process.exit(3);
   state('running');result({messageId:String(req.id)});
@@ -40,6 +42,10 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    return;
   }
   if(said==='withdraw now'){out({method:'$/cancel_request',params:{requestId:103}});return;}
+  if(said==='permission'){
+   out({id:104,method:'session/request_permission',params:{sessionId:id,title:'Run tool?',subject:{type:'tool_call',toolCall:{toolCallId:'tool'}},options:[{optionId:'allow',kind:'allow_once',name:'Allow'},{optionId:'deny',kind:'reject_once',name:'Decline'}]}});
+   return;
+  }
   if(said==='ask'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Tea or coffee?',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',enum:['Tea','Coffee']}}}}});return;}
   if(said==='codex question'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Codex needs your input to continue.',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',description:'Drink',enum:['Tea','Coffee'],_meta:{codex:{isOther:false,isSecret:false}}}}}}});return;}
   if(said==='pick'){out({id:102,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Which drinks?',requestedSchema:{type:'object',properties:{question_0:{type:'array',items:{anyOf:[{const:'Tea',title:'Tea'},{const:'Coffee',title:'Coffee'}]}},question_0_custom:{type:'string'}}}}});return;}
@@ -77,7 +83,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
   if(said==='background'){text('started');state('idle',{stopReason:'end_turn',background:[{type:'tool_call',toolCallId:'task'}]});setTimeout(()=>{state('running');text('it finished');done();},700);return;}
   text('Heard: '+said);return done();
  }
- default: if(req.id===102){text(JSON.stringify(req.result.content));done();return;} if(req.id===101){text('You said '+req.result.content.drink);done();}
+ default: if(req.id===104){text(req.result.outcome.optionId);return done();} if(req.id===102){text(JSON.stringify(req.result.content));done();return;} if(req.id===101){text('You said '+req.result.content.drink);done();}
  }
 }).on('close',()=>setTimeout(()=>process.exit(0),Number(process.env.LINGER??0)));
 `
@@ -150,6 +156,40 @@ function begin(
 }
 
 describe('a session', () => {
+	it('declines a tool permission request without asking the person', async () => {
+		const { events, ended } = begin('permission');
+		await ended(1);
+		expect(events).toContainEqual({ kind: 'text', text: 'deny' });
+		expect(events.some((event) => event.kind === 'question')).toBe(false);
+	});
+
+	it.each([
+		['claude', 'auto', 'auto'],
+		['claude', 'full-access', 'bypassPermissions'],
+		['codex', 'auto', 'agent'],
+		['codex', 'full-access', 'agent-full-access']
+	] as const)('sets %s to %s on resume', async (agent, permissionMode, mode) => {
+		const launch = meta();
+		launch.agent = agent;
+		launch.options.resumeId = 'cli-1';
+		launch.options.settings = { permissionMode };
+		const { events, ended } = begin('which mode', { launch });
+		await ended(1);
+		expect(events).toContainEqual({ kind: 'text', text: mode });
+	});
+
+	it('fails before prompting when the provider keeps a different mode', async () => {
+		const launch = meta({ REFUSE_MODE: '1' });
+		launch.options.settings.permissionMode = 'auto';
+		const { events, ended } = begin('which mode', { launch });
+		await ended(1);
+		expect(events).toContainEqual({
+			kind: 'turn.failed',
+			error: expect.stringContaining('permission mode auto')
+		});
+		expect(events.some((event) => event.kind === 'text')).toBe(false);
+	});
+
 	it('runs a turn for what it is told, and another in the same CLI for the next thing', async () => {
 		const { session, events, ended } = begin('hello');
 		await ended(1);

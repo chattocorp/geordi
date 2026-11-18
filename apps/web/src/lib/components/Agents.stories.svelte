@@ -26,7 +26,7 @@
 <script lang="ts">
 	let choice = $state<HarnessChoice>({
 		agent: 'claude',
-		settings: { claude: { model: 'opus', effort: 'high' } }
+		settings: { claude: { model: 'opus', effort: 'high', permissionMode: 'auto' } }
 	});
 </script>
 

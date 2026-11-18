@@ -1,5 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { upstreamFreshFor, type PullRequest, type Upstream } from '@geordi/protocol';
+import {
+	upstreamFreshFor,
+	type CheckCounts,
+	type PullRequest,
+	type Upstream
+} from '@geordi/protocol';
 import {
 	createForges,
 	github,
@@ -80,10 +85,8 @@ function forges() {
 	return (registry = { forges: createForges(providers), anonymous, at: Date.now() });
 }
 
-type Counts = NonNullable<NonNullable<PullRequest['checks']>['counts']>;
-
 /** How many checks stand how. */
-export function count(states: Check['state'][]): Counts {
+export function count(states: Check['state'][]): CheckCounts {
 	const counts = { passed: 0, failed: 0, pending: 0, skipped: 0 };
 	const kinds = { success: 'passed', failure: 'failed', pending: 'pending' } as const;
 	for (const state of states) counts[kinds[state as keyof typeof kinds] ?? 'skipped']++;
@@ -126,7 +129,7 @@ export function conflictsOf(thread: Thread): boolean | undefined {
 }
 
 /** Boils a pull request down to what the workspace shows. */
-export function summarise(thread: Thread, counts?: Counts): PullRequest {
+export function summarise(thread: Thread, counts?: CheckCounts): PullRequest {
 	const reviews = thread.reviewers.map((reviewer) => reviewer.state);
 	const decision = (thread.raw as { reviewDecision?: string } | null)?.reviewDecision;
 	if (decision === 'APPROVED') reviews.push('approved');
@@ -137,6 +140,7 @@ export function summarise(thread: Thread, counts?: Counts): PullRequest {
 	return {
 		number: thread.ref.number,
 		title: thread.title,
+		body: thread.body,
 		url: thread.url ?? null,
 		state: thread.state,
 		draft: thread.isDraft,
@@ -312,6 +316,53 @@ export async function upstream(
 	if (latest === cached || (latest && latest.at < now))
 		cache.set(worktreeId, { key, at: now, value });
 	return value;
+}
+
+/** Mark the open pull request the person saw ready, if it still belongs to this branch. */
+export async function markReady(
+	worktree: Worktree,
+	{ repoPath, worktreeId, pullNumber }: { repoPath: string; worktreeId: string; pullNumber: string }
+) {
+	const found = locate(worktree, repoPath);
+	if (!found) throw new Error('This workspace has no branch on a forge Geordi knows');
+	const { provider, repo, branch } = found;
+	const pull = await provider.threads.get({
+		forge: provider.forge,
+		instance: provider.instance,
+		repo,
+		kind: 'pull_request',
+		number: pullNumber
+	});
+	await markDraftReady(provider, repo, branch, pull);
+	cache.delete(worktreeId);
+	return null;
+}
+
+export async function markDraftReady(
+	provider: ForgeProvider,
+	repo: Repo,
+	branch: string,
+	pull: Thread
+) {
+	// forges has no common draft update. Its GitHub provider exposes authenticated GraphQL.
+	if (
+		provider.forge !== 'github' ||
+		!('graphql' in provider) ||
+		typeof provider.graphql !== 'function'
+	)
+		throw new Error(`Geordi cannot mark pull requests ready for review on ${provider.forge}`);
+	if (pull.state !== 'open' || !isFor(pull, repo, branch))
+		throw new Error(`Pull request #${pull.ref.number} is no longer open for ${branch}`);
+	if (pull.isDraft) {
+		const id = pull.ref.externalId;
+		if (!id) throw new Error('The forge did not return a pull request ID');
+		await provider.graphql(
+			`mutation MarkReady($id: ID!) {
+				markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { id } }
+			}`,
+			{ id }
+		);
+	}
 }
 
 /** How Geordi merges where a repository allows several ways: one commit per piece of work. */

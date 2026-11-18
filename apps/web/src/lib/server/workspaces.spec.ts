@@ -175,6 +175,20 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).settings).toEqual({ model: 'opus' });
 	});
 
+	it('keeps Auto Mode when only the model changes and sends a mode-only change on the next turn', () => {
+		const { workspaces, sent, create } = setup();
+		const id = create('Start');
+		workspaces.configure(id, { permissionMode: 'auto' });
+		workspaces.configure(id, { model: 'opus' });
+		expect(workspaces.get(id).settings).toEqual({ model: 'opus', permissionMode: 'auto' });
+		workspaces.configure(id, { model: 'opus', permissionMode: 'full-access' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.send(id, 'Continue');
+		expect(sent.at(-1)).toMatchObject({
+			settings: { model: 'opus', permissionMode: 'full-access' }
+		});
+	});
+
 	it('starts a turn on creation and records daemon output', () => {
 		const { workspaces, sent, repo, create } = setup();
 		const id = create('Fix the bug\nplease');
@@ -251,7 +265,7 @@ describe('workspaces', () => {
 
 	it('runs every turn with the model and effort chosen, and hands them on to agents it starts', () => {
 		const { workspaces, sent, repo } = setup();
-		const settings = { model: 'opus', effort: 'high' };
+		const settings = { model: 'opus', effort: 'high', permissionMode: 'auto' } as const;
 		const id = workspaces.create({ repoId: repo.id, agent: 'claude', settings, prompt: 'Go' });
 		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
 		workspaces.record(id, { kind: 'turn.completed' });
@@ -260,10 +274,15 @@ describe('workspaces', () => {
 		const other = workspaces.agents.start(id, { worktree: 'own', agent: 'codex', prompt: 'Help' });
 
 		const turns = sent.filter((message) => message.type === 'agent.message');
-		expect(turns.map((turn) => turn.settings)).toEqual([settings, settings, settings, {}]);
+		expect(turns.map((turn) => turn.settings)).toEqual([
+			settings,
+			settings,
+			settings,
+			{ permissionMode: 'auto' }
+		]);
 		expect(workspaces.get(same.id).settings).toEqual(settings);
 		// another kind of agent knows other models
-		expect(workspaces.get(other.id).settings).toEqual({});
+		expect(workspaces.get(other.id).settings).toEqual({ permissionMode: 'auto' });
 	});
 
 	it('refuses a model or effort that could be mistaken for a flag', () => {

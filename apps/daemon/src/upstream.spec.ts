@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Thread } from 'forges';
 import { describe, expect, it } from 'vitest';
 import { github, MergeMethodRequiredError, type MergeOptions } from 'forges';
-import { conflictsOf, count, merge, summarise, upstream } from './upstream.ts';
+import { conflictsOf, count, markDraftReady, merge, summarise, upstream } from './upstream.ts';
 import { readPull, rollupCounts } from './pull-batch.ts';
 import { ensureWorktree } from './worktree.ts';
 
@@ -27,8 +27,9 @@ const reviewer = (state: string) => ({ state }) as Thread['reviewers'][number];
 describe('summarise', () => {
 	it('reports state, target branch and checks', () => {
 		const checks = { state: 'failure', total: 18, failed: 2, url: 'https://checks' } as const;
-		expect(summarise(pull({ checks, isDraft: true }))).toEqual({
+		expect(summarise(pull({ checks, body: 'PR description', isDraft: true }))).toEqual({
 			number: '42',
+			body: 'PR description',
 			title: 'Add the thing',
 			url: 'https://github.com/acme/widgets/pull/42',
 			state: 'open',
@@ -145,6 +146,48 @@ describe('merge', () => {
 		const threads = forge(['rebase', 'merge']);
 		await merge(threads, ref, 'abc');
 		expect(threads.asked.at(-1)).toEqual({ sha: 'abc', method: 'merge' });
+	});
+});
+
+describe('markDraftReady', () => {
+	const repo = { forge: 'github', instance: 'github.com', owner: 'acme', name: 'widgets' } as const;
+	const draft = pull({ isDraft: true, ref: { ...pull().ref, externalId: 'PR_42' } });
+
+	it('sends the draft node ID through the configured GitHub provider', async () => {
+		const calls: unknown[] = [];
+		const provider = github({
+			auth: { type: 'token', token: 'test-token' },
+			fetch: async (url, init) => {
+				expect(new URL(url).pathname).toBe('/graphql');
+				calls.push(JSON.parse(String(init?.body)));
+				return Response.json({
+					data: { markPullRequestReadyForReview: { pullRequest: { id: 'PR_42' } } }
+				});
+			}
+		});
+		await markDraftReady(provider, repo, 'geordi/abc', draft);
+		await markDraftReady(provider, repo, 'geordi/abc', pull());
+		expect(calls).toEqual([
+			{
+				operationName: 'MarkReady',
+				query: expect.stringContaining('markPullRequestReadyForReview'),
+				variables: { id: 'PR_42' }
+			}
+		]);
+	});
+
+	it('rejects a closed pull request or a pull request from another branch before writing', async () => {
+		const provider = github({
+			fetch: () => {
+				throw new Error('Unexpected request');
+			}
+		});
+		await expect(markDraftReady(provider, repo, 'other', draft)).rejects.toThrow(
+			'no longer open for other'
+		);
+		await expect(
+			markDraftReady(provider, repo, 'geordi/abc', { ...draft, state: 'closed' })
+		).rejects.toThrow('no longer open for geordi/abc');
 	});
 });
 

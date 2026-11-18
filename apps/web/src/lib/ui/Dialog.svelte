@@ -43,3 +43,18 @@
 	<!-- the dialog's own box is all padding-free, so a click on it is a click beside this -->
 	{#if open}{@render children()}{/if}
 </dialog>
+
+<style>
+	@media (prefers-reduced-motion: no-preference) {
+		dialog[open] {
+			animation: dialog-enter 160ms ease-out;
+		}
+
+		@keyframes dialog-enter {
+			from {
+				scale: 0.94;
+				opacity: 0;
+			}
+		}
+	}
+</style>

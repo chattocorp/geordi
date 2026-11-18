@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { resumeSessions, startSession } from '../src/session.ts';
 
-const [, , agent, scenario = 'inspect'] = process.argv;
+const [, , agent, scenario = 'inspect', permissionMode = 'full-access'] = process.argv;
 const prompts = {
 	inspect: 'Reply with exactly READY.',
 	ask: 'Use your native blocking question tool to ask exactly one question: which token should you return? Offer Alpha and Beta. Wait for the answer, then reply with only the chosen token, exactly once.',
@@ -17,8 +17,10 @@ const prompts = {
 		'Run ./probe-task as a background task. Reply WAITING immediately and end this turn. Do not poll. When the task wakes you, reply with its output without further input.'
 };
 assert(
-	['codex', 'claude'].includes(agent) && Object.hasOwn(prompts, scenario),
-	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask]'
+	['codex', 'claude'].includes(agent) &&
+		Object.hasOwn(prompts, scenario) &&
+		['auto', 'full-access'].includes(permissionMode),
+	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask] [auto|full-access]'
 );
 
 const root = mkdtempSync(join(tmpdir(), 'geordi-acp-'));
@@ -96,7 +98,7 @@ try {
 				dir,
 				sessionId: workspaceId,
 				resumeId: null,
-				settings: {},
+				settings: { permissionMode },
 				writableRoots: [],
 				api: null
 			}
