@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { version } from '../../../package.json';
 	import { onMount } from 'svelte';
+	import AgentAccess from './AgentAccess.svelte';
 	import DesktopUpdates, { type UpdateBridge, type UpdateState } from './DesktopUpdates.svelte';
 	import Logo from './Logo.svelte';
 	import { notifications, test } from '#lib/notifications.svelte.ts';
@@ -13,6 +14,7 @@
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { registerRepo, removeRepo } from '../../routes/repos.remote';
+	import { issueAccess, revokeAccess } from '../../routes/access.remote';
 	import { settings, type Section } from './settings.svelte.ts';
 
 	let updates = $state<UpdateBridge>();
@@ -29,6 +31,7 @@
 		{ id: 'general', label: 'General', icon: 'icon-[lucide--sliders-horizontal]' },
 		{ id: 'notifications', label: 'Notifications', icon: 'icon-[lucide--bell]' },
 		{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' },
+		{ id: 'access', label: 'Agent access', icon: 'icon-[lucide--key-round]' },
 		{ id: 'about', label: 'About', icon: 'icon-[lucide--info]' }
 	];
 
@@ -211,6 +214,14 @@
 						Removing a repository only makes Geordi forget it. Nothing on disk changes.
 					</p>
 				</div>
+			{:else if settings.section === 'access'}
+				{#if settings.open}
+					<AgentAccess
+						grants={nav.current?.access ?? []}
+						issue={issueAccess}
+						revoke={revokeAccess}
+					/>
+				{/if}
 			{:else}
 				<h2 class="heading">About</h2>
 				<div class="mt-6 space-y-2">

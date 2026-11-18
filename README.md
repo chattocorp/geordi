@@ -92,6 +92,7 @@ See [Configuration](docs/configuration.md) for everything it can say.
 ## Learn more
 
 - [Configuration](docs/configuration.md): the `.geordi.yml` reference
+- [Connect an external agent](docs/self-hosting.md#connect-an-external-agent) with Codex CLI, Claude Code, or another HTTP MCP client.
 - [Self-hosting](docs/self-hosting.md): running forge and daemon yourself, and their
   settings
 - [Contributing](CONTRIBUTING.md): developing Geordi

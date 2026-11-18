@@ -11,6 +11,8 @@ pnpm monorepo:
 - `apps/desktop`: the desktop app (Electron). Starts forge and daemon, and shows the forge.
 - `apps/cli`: the `geordi` npm package (`npx geordi`). Starts forge and daemon in a terminal.
 - `packages/launch`: how both stage and start forge and daemon (`stage.js`, `services.js`).
+- `apps/website`: the website (Astro, static). Drawn with the forge's design system: it
+  imports `apps/web/src/routes/layout.css`, so a change to tokens or utilities shows there too.
 - `packages/protocol`: message types shared by forge and daemon.
 - `planning/`: the backlog (means collection).
 - `docs/adr/`, `docs/fdr/`: architecture and feature decision records.
@@ -131,7 +133,7 @@ it, perhaps you.
   stored.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per workspace; the
-  daemon hands URL and token to the CLI. The calling workspace is the parent of what it starts
+  daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`), start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
   and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and

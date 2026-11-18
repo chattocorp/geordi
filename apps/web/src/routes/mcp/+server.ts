@@ -4,8 +4,8 @@ import { handleMcp } from '#lib/server/mcp.ts';
 import type { RequestHandler } from './$types';
 
 /**
- * Geordi's agent API (ADR-004): an MCP server over HTTP. Only agents get in, with the token
- * of their running turn; everything they do is done as their session.
+ * Geordi's agent API (ADR-004): an MCP server over HTTP. Each request is attributed to the workspace
+ * or external agent grant that authenticated it.
  */
 export const POST: RequestHandler = async ({ request }) => {
 	const token = /^Bearer (.+)$/.exec(request.headers.get('authorization') ?? '')?.[1];

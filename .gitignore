@@ -37,3 +37,7 @@ storybook-static
 
 # npm package
 /apps/cli/stage/
+
+# Website
+/apps/website/dist/
+.astro

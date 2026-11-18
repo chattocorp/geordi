@@ -13,12 +13,12 @@ import {
 import { toJsonSchema } from '@valibot/to-json-schema';
 import * as v from 'valibot';
 import { actionsFor, standingOf } from '#lib/actions.ts';
+import { isExternal } from './agent-access.ts';
 import type { createWorkspaces } from './workspaces.ts';
 
 /**
  * Geordi's agent API (ADR-004, FDR-002) as a Model Context Protocol server: the tools that
- * let an agent start and supervise other agents. Stateless JSON-RPC over HTTP; the caller
- * is the workspace its token belongs to.
+ * let agents work with Geordi workspaces. Stateless JSON-RPC over HTTP.
  */
 
 /** What the tools work with: the agents API, and archiving (which needs a daemon). */
@@ -71,7 +71,7 @@ export const configurationReference = () =>
 		`After changing the file, call \`check_configuration\`: it reads the file the way Geordi does, and says what it found or what is wrong with it.`
 	].join('\n\n');
 
-const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them.`;
+const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them. You can also look at any workspace in this Geordi installation, in any repository, with list_workspaces, read_workspace and workspace_status.`;
 
 /** The longest one `wait_for_agent` call waits: safely under what agent CLIs allow a tool call. */
 const MAX_WAIT_SECONDS = 45;
@@ -93,6 +93,12 @@ const tools = {
 				v.minLength(1),
 				v.description(
 					'The task, with all the context the agent needs. It knows nothing about your conversation.'
+				)
+			),
+			repository: v.pipe(
+				v.optional(v.string()),
+				v.description(
+					'Clients outside Geordi only: the ID of the repository to start in (see list_repositories). An agent in a workspace starts agents in its own.'
 				)
 			),
 			worktree: v.pipe(
@@ -129,6 +135,7 @@ const tools = {
 			caller: string,
 			input: {
 				prompt: string;
+				repository?: string;
 				worktree: 'own' | 'shared';
 				agent?: (typeof AGENTS)[number];
 				model?: string;
@@ -146,18 +153,18 @@ const tools = {
 	},
 	wait_for_agent: {
 		description:
-			'Wait for an agent you started to finish its current turn, and return its status and reply. One call waits 45 seconds at most: if the agent is still "running" then, call this again, for as long as it takes.',
+			'Wait for an agent (any workspace in this Geordi installation) to finish its current turn, and return its status and reply. One call waits 45 seconds at most: if the agent is still "running" then, call this again, for as long as it takes.',
 		input: v.object({
-			agent_id: agentId,
+			agent_id: v.pipe(v.string(), v.description('A workspace ID')),
 			timeout_seconds: v.pipe(
 				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), 45),
 				v.description('How long to wait at most. Defaults to 45, which is also the most.')
 			)
 		}),
-		run: (agents: Agents, caller: string, input: { agent_id: string; timeout_seconds: number }) =>
+		run: (agents: Agents, _caller: string, input: { agent_id: string; timeout_seconds: number }) =>
 			// Never longer than agent CLIs give a tool call (a minute): a wait that outlasts that
 			// comes back as a failure, and tells the caller nothing.
-			agents.wait(caller, input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
+			agents.wait(input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
 	},
 	list_agents: {
 		description:
@@ -165,11 +172,36 @@ const tools = {
 		input: v.object({}),
 		run: (agents: Agents, caller: string) => agents.list(caller)
 	},
+	list_repositories: {
+		description: 'List the repositories in this Geordi installation, with their IDs.',
+		input: v.object({}),
+		run: (agents: Agents) => agents.listRepositories()
+	},
+	list_workspaces: {
+		description:
+			'List workspaces in this Geordi installation with their IDs, links, branches and status. Set include_archived to include history.',
+		input: v.object({ include_archived: v.optional(v.boolean(), false) }),
+		run: (agents: Agents, _caller: string, input: { include_archived: boolean }) =>
+			agents.listWorkspaces(input.include_archived)
+	},
+	read_workspace: {
+		description:
+			'Read the latest 50 conversation messages and pending questions. A user message with from came from that agent. Pass the returned before cursor to read earlier messages.',
+		input: v.object({
+			workspace_id: v.string(),
+			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
+		}),
+		run: (agents: Agents, _caller: string, input: { workspace_id: string; before?: number }) =>
+			agents.readWorkspace(input.workspace_id, input.before)
+	},
 	send_message: {
 		description:
-			'Send a message to an agent you started. It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt`. Returns immediately; use wait_for_agent to get its reply.',
+			'Send a message to an agent you started (a client outside Geordi: to any workspace). It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt` (only for agents you started). Returns immediately; use wait_for_agent to get its reply.',
 		input: v.object({
-			agent_id: agentId,
+			agent_id: v.pipe(
+				v.string(),
+				v.description('A workspace ID, from start_agent or list_workspaces')
+			),
 			message: v.pipe(v.string(), v.minLength(1)),
 			interrupt: v.pipe(
 				v.optional(v.boolean(), false),
@@ -184,7 +216,7 @@ const tools = {
 			input: { agent_id: string; message: string; interrupt: boolean }
 		) => {
 			agents.send(caller, input.agent_id, input.message, input.interrupt);
-			return agents.get(caller, input.agent_id);
+			return agents.reportWorkspace(input.agent_id);
 		}
 	},
 	archive_agent: {
@@ -256,11 +288,13 @@ const tools = {
 	},
 	workspace_status: {
 		description:
-			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Your own workspace, or that of an agent you started (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
+			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Any workspace in this Geordi installation (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
 		input: v.object({
 			agent_id: v.pipe(
 				v.optional(v.string()),
-				v.description('The id of an agent you started. Defaults to your own workspace.')
+				v.description(
+					'A workspace ID. Workspace agents default to their own ID. External callers must supply one.'
+				)
 			)
 		}),
 		run: async (agents: Agents, caller: string, input: { agent_id?: string }) => {
@@ -334,10 +368,21 @@ const failure = (id: Request['id'], code: number, message: string) => ({
 /** A tool's outcome, as text for the model. Failures are results the agent can act on. */
 const content = (text: string, isError = false) => ({ content: [{ type: 'text', text }], isError });
 
+/** What only an agent in a workspace can use: it is about that workspace. */
+const workspaceTools = new Set([
+	'name_workspace',
+	'configuration_reference',
+	'check_configuration'
+]);
+const available = (caller: string, name: string) =>
+	!isExternal(caller) || !workspaceTools.has(name);
+
+const EXTERNAL_INSTRUCTIONS = `You are connected to Geordi, an agent orchestrator: each workspace is one conversation with a coding agent, in a worktree on its own branch. list_workspaces and read_workspace show you any of them; send_message follows up with an agent, and wait_for_agent waits for its reply. To start work, find a repository with list_repositories and give start_agent a task in it: you may then supervise that agent (interrupt, stop, archive), as you may not others. Questions an agent asks are for the person to answer.`;
+
 async function callTool(agents: Agents, caller: string, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };
 	const tool = name && Object.hasOwn(tools, name) ? tools[name as keyof typeof tools] : null;
-	if (!tool) return content(`Unknown tool: ${name}`, true);
+	if (!name || !tool || !available(caller, name)) return content(`Unknown tool: ${name}`, true);
 
 	const input = v.safeParse(tool.input, args);
 	if (!input.success)
@@ -373,21 +418,23 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				protocolVersion: requested ?? '2025-06-18',
 				capabilities: { tools: {} },
 				serverInfo: { name: 'geordi', version: '1' },
-				instructions: INSTRUCTIONS
+				instructions: isExternal(caller) ? EXTERNAL_INSTRUCTIONS : INSTRUCTIONS
 			});
 		}
 		case 'ping':
 			return result(id, {});
 		case 'tools/list':
 			return result(id, {
-				tools: Object.entries(tools).map(([name, tool]) => ({
-					name,
-					description:
-						typeof tool.description === 'function'
-							? tool.description(agents.harnesses())
-							: tool.description,
-					inputSchema: toJsonSchema(tool.input)
-				}))
+				tools: Object.entries(tools)
+					.filter(([name]) => available(caller, name))
+					.map(([name, tool]) => ({
+						name,
+						description:
+							typeof tool.description === 'function'
+								? tool.description(agents.harnesses())
+								: tool.description,
+						inputSchema: toJsonSchema(tool.input)
+					}))
 			});
 		case 'tools/call':
 			return result(id, await callTool(agents, caller, params));

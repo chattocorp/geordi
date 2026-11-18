@@ -1,5 +1,5 @@
 /** The settings dialog (FDR-005): whether it shows, and which of its sections. */
-export type Section = 'general' | 'notifications' | 'repositories' | 'about';
+export type Section = 'general' | 'notifications' | 'repositories' | 'access' | 'about';
 
 export const settings = $state<{ open: boolean; section: Section }>({
 	open: false,

@@ -80,13 +80,13 @@
 							<span class={['w-2 shrink-0 text-center font-semibold', tone]} aria-label={means}>
 								{letter}
 							</span>
-							<!-- the name is what is looked for: where room runs out, the directory gives way -->
+							<!-- the name is what is looked for: where room runs out, the directory gives
+							     way first, and only then the name itself -->
 							<span class={['flex min-w-0 flex-1', file.status === 'deleted' && 'line-through']}>
 								{#if slash > 0}
-									<span class="min-w-0 truncate text-muted">{file.path.slice(0, slash - 1)}</span>
-									<span class="shrink-0 text-muted">/</span>
+									<span class="min-w-0 truncate text-muted">{file.path.slice(0, slash)}</span>
 								{/if}
-								<span class="shrink-0">{file.path.slice(slash)}</span>
+								<span class="max-w-full shrink-0 truncate">{file.path.slice(slash)}</span>
 							</span>
 							<DiffStat added={file.added} removed={file.removed} />
 						</button>

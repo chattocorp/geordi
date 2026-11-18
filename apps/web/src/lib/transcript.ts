@@ -12,7 +12,10 @@ export type Part =
 
 /** A user message, everything the agent did in reply to one, or something said in passing. */
 export type Block =
-	| (Pick<Extract<TranscriptItem, { kind: 'user' }>, 'kind' | 'text' | 'from' | 'images'> & {
+	| (Pick<
+			Extract<TranscriptItem, { kind: 'user' }>,
+			'kind' | 'text' | 'from' | 'images' | 'senderName'
+	  > & {
 			delegated?: boolean;
 	  })
 	| { kind: 'agent'; parts: Part[] }
@@ -39,7 +42,8 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 				kind: 'user',
 				text: item.text,
 				...(item.images?.length && { images: item.images }),
-				...(item.from && { from: item.from })
+				...(item.from && { from: item.from }),
+				...(item.senderName && { senderName: item.senderName })
 			});
 			continue;
 		}

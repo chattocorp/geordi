@@ -1,7 +1,9 @@
+import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { error } from '@sveltejs/kit';
 import {
+	AGENTS,
 	SETTING,
 	sameAgentSettings,
 	type Agent,
@@ -56,6 +58,7 @@ export type WorkspacesEvent =
 				id: string;
 				text: string;
 				images?: string[];
+				senderName?: string;
 				queued?: boolean;
 				deliveryId?: string;
 				steered?: boolean;
@@ -180,7 +183,14 @@ function subagentEdit(
 export type TranscriptItem =
 	| SubagentItem
 	/** `from`: the workspace whose agent said it, where it was not a person. */
-	| { kind: 'user'; text: string; images?: string[]; at: string; from?: string }
+	| {
+			kind: 'user';
+			text: string;
+			images?: string[];
+			at: string;
+			from?: string;
+			senderName?: string;
+	  }
 	| { kind: 'text'; text: string; at: string }
 	| { kind: 'plan'; id: string; plan: AgentPlan; at: string }
 	| {
@@ -261,6 +271,8 @@ export type Workspace = {
 	lastTurn: TurnEnd | null;
 	/** The workspace whose agent started this one; `null` if a person did. */
 	parentId: string | null;
+	/** The external client (its grant) that started it, if one did: it may supervise it. */
+	startedBy: string | null;
 	/** The workspace whose worktree this one works in: its own ID, unless it shares another's. */
 	worktreeId: string;
 	/** The branch the worktree started from, if not the repository's checked-out one. */
@@ -287,7 +299,8 @@ export type Workspace = {
 
 function initialWorkspace(
 	created: Extract<CurrentEvent, { type: 'workspace.created' }>['data'],
-	at: string
+	at: string,
+	actor: string | null = null
 ): Workspace {
 	const { parentId = null, worktreeId = created.id, base = null, settings = {}, ...data } = created;
 	return {
@@ -298,6 +311,7 @@ function initialWorkspace(
 		asking: false,
 		lastTurn: null,
 		parentId,
+		startedBy: actor && isExternal(actor) ? actor : null,
 		worktreeId,
 		base,
 		worktree: null,
@@ -376,6 +390,7 @@ export function createWorkspaces(
 		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
+	const access = createAgentAccess(store);
 	const imageStore = createImages(store);
 	/**
 	 * Who steered a workspace's agent in the way of before ADR-010 (`workspace.steered`), until
@@ -398,7 +413,7 @@ export function createWorkspaces(
 		restoring = false
 	) {
 		if (event.type === 'workspace.created') {
-			workspaces.set(event.data.id, initialWorkspace(event.data, at));
+			workspaces.set(event.data.id, initialWorkspace(event.data, at, actor));
 			return;
 		}
 
@@ -514,13 +529,17 @@ export function createWorkspaces(
 			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
-			const from = sender && (born.get(sender) ?? Infinity) <= seq ? sender : undefined;
+			const from =
+				sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq)
+					? sender
+					: undefined;
 			append({
 				kind: 'user',
 				text: event.data.text,
 				...(event.data.images?.length && { images: event.data.images }),
 				at,
-				...(from && { from })
+				...(from && { from }),
+				...(event.data.senderName && { senderName: event.data.senderName })
 			});
 			return;
 		}
@@ -784,6 +803,7 @@ export function createWorkspaces(
 
 	/** The workspace a valid agent API token belongs to, or `null`. */
 	function authenticate(token: string): string | null {
+		if (isExternal(token)) return access.authenticate(token);
 		const workspace = projection.get().get(token.split('.')[0]);
 		if (workspace?.status !== 'running') return null;
 		const expected = Buffer.from(tokenFor(workspace));
@@ -830,6 +850,10 @@ export function createWorkspaces(
 		images: string[] = []
 	) {
 		const { id } = workspace;
+		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
+		const senderName = sender
+			? (access.name(sender) ?? projection.get().get(sender)?.title)
+			: undefined;
 		const steers = workspace.status === 'running';
 		if (from === 'queued') images = workspace.attachments.queue[0];
 		const deliveryId = steers ? randomUUID() : undefined;
@@ -845,7 +869,8 @@ export function createWorkspaces(
 					text,
 					...(deliveryId && { deliveryId }),
 					...(images.length && { images }),
-					...(from && { [from]: true })
+					...(from && { [from]: true }),
+					...(senderName && { senderName })
 				}
 			},
 			{ actor }
@@ -861,12 +886,12 @@ export function createWorkspaces(
 	 */
 	function settingsFor(
 		agent: Agent,
-		parent: Workspace,
+		parent: Workspace | null,
 		asked: AgentSettings,
 		harness: Harness | undefined
 	): AgentSettings {
 		// Model names and effort levels belong to a provider. Permission modes span providers.
-		const inherited = agent === parent.agent ? parent.settings : {};
+		const inherited = parent && agent === parent.agent ? parent.settings : {};
 		const model = asked.model ?? inherited.model;
 		const efforts = harness
 			? (harness.models.find((offer) => offer.id === model)?.efforts ?? harness.efforts)
@@ -880,7 +905,7 @@ export function createWorkspaces(
 			);
 		const keeps = !asked.model || !efforts || efforts.includes(inherited.effort ?? '');
 		const effort = asked.effort ?? (keeps ? inherited.effort : undefined);
-		return { model, effort, permissionMode: parent.settings.permissionMode };
+		return { model, effort, permissionMode: parent?.settings.permissionMode };
 	}
 
 	/** Only what was chosen, and only what can safely be handed to a CLI. */
@@ -981,13 +1006,16 @@ export function createWorkspaces(
 		return parent ? depthOf(parent) + 1 : 0;
 	}
 
-	/** The workspaces a workspace's agent started that are still in use. */
+	/** Who may supervise a workspace: the workspace or external client that started it. */
+	const starterOf = (workspace: Workspace) => workspace.parentId ?? workspace.startedBy;
+
+	/** The workspaces a workspace's agent (or an external client) started that are still in use. */
 	const childrenOf = (id: string) =>
 		[...projection.get().values()].filter(
-			(workspace) => workspace.parentId === id && !workspace.archivedAt
+			(workspace) => starterOf(workspace) === id && !workspace.archivedAt
 		);
 
-	/** Every workspace the given one's agent started, directly or through the agents it started. */
+	/** Every workspace the caller started, directly or through the agents it started. */
 	const descendantsOf = (id: string): Workspace[] =>
 		childrenOf(id).flatMap((child) => [child, ...descendantsOf(child.id)]);
 
@@ -1022,12 +1050,55 @@ export function createWorkspaces(
 		};
 	}
 
+	function entry(workspace: Workspace) {
+		const { id, title, repoId, status, archivedAt, asking } = workspace;
+		return {
+			id,
+			title,
+			repoId,
+			status,
+			archivedAt,
+			asking,
+			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
+			url: `/workspaces/${id}`
+		};
+	}
+
 	/**
-	 * What agents can do through the agent API (ADR-004). Every function takes the calling
-	 * workspace, which is also recorded as the actor of what it causes.
+	 * What agents can do through the agent API (ADR-004, FDR-002). Every function takes the
+	 * caller: a workspace, or an external client's grant. It is recorded as the actor of what
+	 * it causes. Any caller can read any workspace; supervising (messaging, interrupting,
+	 * stopping, archiving) is for whoever started it, directly or not.
 	 */
 	const agents = {
 		authenticate,
+		reportWorkspace: (id: string) => report(find(id)),
+		listRepositories: () => repos.list().map(({ id, name, path }) => ({ id, name, path })),
+		listWorkspaces(archived: boolean) {
+			return [...projection.get().values()]
+				.reverse()
+				.filter((w) => archived || !w.archivedAt)
+				.map(entry);
+		},
+		readWorkspace(id: string, before?: number) {
+			const workspace = find(id);
+			const transcript = transcriptOf(workspace);
+			const messages = transcript.filter(
+				(item) =>
+					item.kind === 'user' ||
+					item.kind === 'text' ||
+					item.kind === 'question' ||
+					item.kind === 'error'
+			);
+			const end = Math.min(before ?? messages.length, messages.length);
+			const start = Math.max(0, end - 50);
+			return {
+				...entry(workspace),
+				messages: messages.slice(start, end),
+				before: start || null,
+				pendingQuestions: transcript.filter((item) => item.kind === 'question' && item.open)
+			};
+		},
 
 		/**
 		 * Names the caller's own workspace, so that people can tell it from the others. A few
@@ -1044,14 +1115,16 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Starts an agent on the caller's behalf, as a workspace of its own: in a new worktree
-		 * branched from the caller's (`own`), or working in the caller's worktree (`shared`).
-		 * An agent of the caller's kind runs as the caller does, but for the `model` and
-		 * `effort` asked for. An effort is checked against what is `offered`, when that is known.
+		 * Starts an agent on the caller's behalf, as a workspace of its own. A workspace's agent
+		 * starts it in a new worktree branched from its own (`own`), or in its own worktree
+		 * (`shared`); an external client starts it in a `repository`, as a person would. An
+		 * agent of the caller's kind runs as the caller does, but for the `model` and `effort`
+		 * asked for. An effort is checked against what is `offered`, when that is known.
 		 */
 		start(
 			callerId: string,
 			{
+				repository,
 				worktree,
 				agent,
 				model,
@@ -1059,6 +1132,7 @@ export function createWorkspaces(
 				prompt,
 				title
 			}: {
+				repository?: string;
 				worktree: WorktreeMode;
 				agent?: Agent;
 				model?: string;
@@ -1068,35 +1142,44 @@ export function createWorkspaces(
 			},
 			offered: Harness[] | null = null
 		): AgentReport {
-			const caller = find(callerId);
-			if (depthOf(caller) + 1 > limits.depth)
+			const external = isExternal(callerId);
+			const caller = external ? null : find(callerId);
+			if (caller && depthOf(caller) + 1 > limits.depth)
 				error(403, `Agents can only be nested ${limits.depth} deep`);
 			ensureCapacity(callerId);
 
-			const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
-			if (!branch) error(409, 'Your workspace has no worktree yet');
+			let where: Pick<Workspace, 'repoId'> & {
+				parentId?: string;
+				worktreeId?: string;
+				base?: string;
+			};
+			if (!caller) {
+				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
+				if (worktree === 'shared')
+					error(400, 'Only an agent in a workspace can share its worktree');
+				where = { repoId: repos.get(repository).id };
+			} else {
+				if (repository && repository !== caller.repoId)
+					error(403, 'Agents start agents in their own repository');
+				const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
+				if (!branch) error(409, 'Your workspace has no worktree yet');
+				where = {
+					repoId: caller.repoId,
+					parentId: callerId,
+					...(worktree === 'shared'
+						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
+						: { base: branch })
+				};
+			}
 
-			const kind = agent ?? caller.agent;
+			const kind = agent ?? caller?.agent ?? AGENTS[0];
 			const settings = settingsFor(
 				kind,
 				caller,
 				{ model, effort },
 				offered?.find((harness) => harness.agent === kind)
 			);
-			const id = create(
-				{
-					repoId: caller.repoId,
-					agent: kind,
-					settings,
-					prompt,
-					title,
-					parentId: callerId,
-					...(worktree === 'shared'
-						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
-						: { base: branch })
-				},
-				callerId
-			);
+			const id = create({ ...where, agent: kind, settings, prompt, title }, callerId);
 			return report(find(id));
 		},
 
@@ -1104,22 +1187,38 @@ export function createWorkspaces(
 
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
-		/** The caller's own workspace, or (`id`) one it started. */
+		/** Any workspace (`id`), or the caller's own. */
 		workspace(callerId: string, id?: string): Workspace {
-			const workspace = id === undefined ? find(callerId) : findControlled(callerId, id);
+			if (id === undefined && isExternal(callerId)) error(400, 'Say which workspace (agent_id)');
+			const workspace = find(id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
 		/**
-		 * Says something to an agent the caller started: at once if it is idle; otherwise once
-		 * it has finished what it is doing, or (`interrupt`) now, steering what it is doing.
+		 * Says something to an agent: at once if it is idle; otherwise once it has finished what
+		 * it is doing, or (`interrupt`) now, steering what it is doing. A workspace's agent
+		 * messages the agents it started; an external client, any agent, but it interrupts only
+		 * those it started: a person's agent is not turned around in the middle of its work.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
-			const workspace = findControlled(callerId, id);
+			const external = isExternal(callerId);
+			const workspace = external ? find(id) : findControlled(callerId, id);
+			if (workspace.archivedAt) error(409, 'Workspace is archived');
+			if (
+				external &&
+				interrupt &&
+				workspace.status === 'running' &&
+				!descendantsOf(callerId).some((other) => other.id === workspace.id)
+			)
+				error(
+					403,
+					'You can only interrupt agents you started; without interrupt, it gets the message when its turn ends'
+				);
 			const stream = `workspace:${workspace.id}` as const;
 			const data = { id: workspace.id, text };
 			if (workspace.status === 'idle') {
-				if (workspace.parentId) ensureCapacity(workspace.parentId);
+				const starter = starterOf(workspace);
+				if (starter) ensureCapacity(starter);
 				if (workspace.queue.length === 0) return say(workspace, text, callerId);
 				// messages are waiting (its last turn failed): this one joins them, and sets them off
 				store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
@@ -1134,9 +1233,9 @@ export function createWorkspaces(
 			stop(findControlled(callerId, id).id);
 		},
 
-		/** Resolves once the agent is idle, or after `timeoutMs` at the latest. */
-		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
-			const workspace = findControlled(callerId, id);
+		/** Resolves once any workspace's agent is idle, or after `timeoutMs` at the latest. */
+		async wait(id: string, timeoutMs: number): Promise<AgentReport> {
+			const workspace = find(id);
 			if (workspace.status === 'running')
 				await new Promise<void>((resolve) => {
 					const done = () => {
@@ -1152,6 +1251,7 @@ export function createWorkspaces(
 	};
 
 	return {
+		access,
 		agents,
 		followTranscript,
 
