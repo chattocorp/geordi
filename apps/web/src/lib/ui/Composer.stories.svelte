@@ -11,7 +11,7 @@
 
 <Story name="Prompt" asChild>
 	<div class="max-w-2xl">
-		<Composer {form} focused label="New workspace" placeholder="What should the agent do?">
+		<Composer {form} focused rows={5} placeholder="What should the agent do?">
 			{#snippet footer()}
 				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
 					Start workspace
