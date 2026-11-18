@@ -167,7 +167,7 @@
 	</div>
 </Story>
 
-<!-- A picture the agent refers to is asked of the workspace; one that cannot be had leaves its path. -->
+<!-- A plain-text data URL makes the browser reject the image without waiting for the test server. -->
 <Story
 	name="Picture that cannot be had"
 	asChild
@@ -195,7 +195,7 @@
 				}
 			]}
 			agent="claude"
-			pictures="/no-such-workspace/picture"
+			pictures="data:text/plain,Picture unavailable"
 			onremove={() => {}}
 			onanswer={() => {}}
 		/>
