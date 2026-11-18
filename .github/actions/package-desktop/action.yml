@@ -13,3 +13,16 @@ runs:
       shell: bash
     - run: pnpm desktop:package
       shell: bash
+    - name: Load the packaged runtime
+      shell: bash
+      env:
+        ELECTRON_RUN_AS_NODE: '1'
+      run: |
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          cd apps/desktop/dist/Geordi-darwin-arm64/Geordi.app/Contents/Resources/app
+          electron=../../MacOS/Geordi
+        else
+          cd apps/desktop/dist/Geordi-win32-x64/resources/app
+          electron=../../Geordi.exe
+        fi
+        "$electron" -e "require('@lydell/node-pty'); for (const name of ['claude-agent-acp', 'codex-acp']) require.resolve('@agentclientprotocol/' + name + '/package.json')"

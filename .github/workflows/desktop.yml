@@ -67,7 +67,11 @@ jobs:
           test -n "$identity"
           cd apps/desktop
           app=dist/Geordi-darwin-arm64/Geordi.app
-          pnpm exec electron-osx-sign "$app" --identity="$identity" --keychain="$keychain"
+          node --input-type=module - "$app" "$identity" "$keychain" <<'JS'
+          import { sign } from '@electron/osx-sign';
+          const [app, identity, keychain] = process.argv.slice(2);
+          await sign({ app, identity, keychain });
+          JS
           codesign --verify --deep --strict "$app"
           printf %s "$NOTARY_KEY" | base64 -D > "$temp/AuthKey_$KEY_ID.p8"
           ditto -c -k --keepParent "$app" "$temp/submit.zip"
@@ -138,5 +142,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+          tag=$GITHUB_REF_NAME
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --verify-tag --generate-notes --draft
+          fi
+          test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
+          gh release upload "$tag" --clobber \
             "Geordi-$GITHUB_REF_NAME-macOS-arm64.zip" "Geordi-$GITHUB_REF_NAME-Windows-x64.zip"
+          gh release edit "$tag" --draft=false
