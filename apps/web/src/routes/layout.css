@@ -450,7 +450,7 @@
 
 	&::before {
 		content: '';
-		@apply pointer-events-none absolute -inset-px;
+		@apply pointer-events-none absolute -inset-px opacity-0 motion-safe:transition-opacity;
 		border-radius: inherit;
 		padding: 2px;
 		background: conic-gradient(
@@ -463,12 +463,17 @@
 		mask:
 			linear-gradient(black, black) content-box exclude,
 			linear-gradient(black, black);
-		animation: edge-turn 5s linear infinite;
+		animation: edge-turn 5s linear infinite paused;
 
 		@media (prefers-reduced-motion: reduce) {
 			background: color-mix(in srgb, var(--accent) 35%, transparent);
 			animation: none;
 		}
+	}
+
+	&[data-live]::before {
+		opacity: 1;
+		animation-play-state: running;
 	}
 }
 @keyframes edge-turn {
