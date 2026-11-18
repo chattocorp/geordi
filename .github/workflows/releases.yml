@@ -17,10 +17,8 @@ jobs:
       contents: write
       pull-requests: write
     uses: chattocorp/sweet-release/.github/workflows/bump.yml@11dc11d022585610ad9d751c3f0262f6ef754179
-    with:
-      pr-author: 'github-actions[bot]'
     secrets:
-      release-token: ${{ secrets.GITHUB_TOKEN }}
+      release-token: ${{ secrets.RELEASE_PR_TOKEN }}
 
   tag:
     if: github.event_name == 'push'
@@ -28,7 +26,7 @@ jobs:
       contents: write
     uses: chattocorp/sweet-release/.github/workflows/tag.yml@11dc11d022585610ad9d751c3f0262f6ef754179
     secrets:
-      release-token: ${{ secrets.GITHUB_TOKEN }}
+      release-token: ${{ secrets.RELEASE_PR_TOKEN }}
 
   desktop:
     needs: tag
