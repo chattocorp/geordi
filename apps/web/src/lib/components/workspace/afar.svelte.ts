@@ -1,6 +1,6 @@
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
-import { page } from '$app/state';
+import { navigating, page } from '$app/state';
 import type { WorkspaceAction } from '#lib/actions.ts';
 import { problemOf } from '#lib/problem.ts';
 import { archive, archiveProblems } from './archive.svelte.ts';
@@ -22,18 +22,21 @@ type Target = { id: string; title: string; parentId: string | null };
 const open = (id: string) => goto(resolve('/workspaces/[id]', { id }));
 
 /** Archives a workspace, wherever we are. */
-export async function archiveFromAfar(workspace: Target) {
+export async function archiveAndNavigate(workspace: Target) {
 	const href = resolve('/workspaces/[id]', { id: workspace.id });
-	const here = page.url.pathname === href;
-	if (await archive(workspace.id, workspace.title)) {
+	const startedAt = page.url.pathname;
+	const archived = await archive(workspace.id, workspace.title);
+	if (navigating.to) return;
+	if (archived) {
 		// from a workspace an agent started, back to the one whose agent started it
-		if (here)
+		if (page.url.pathname === href)
 			await goto(
 				workspace.parentId ? resolve('/workspaces/[id]', { id: workspace.parentId }) : resolve('/')
 			);
 	}
 	// it didn't work (rather than: they said no): the workspace's page says why
-	else if (archiveProblems[workspace.id]) await goto(href);
+	else if (archiveProblems[workspace.id] && page.url.pathname === startedAt && startedAt !== href)
+		await goto(href);
 }
 
 /** Has a workspace carry on with new work, on a new branch off the latest upstream. */
@@ -49,7 +52,7 @@ export async function continueFromAfar(workspace: Target) {
 
 /** Does what one of a workspace's actions says. */
 export async function actFromAfar(workspace: Target, action: WorkspaceAction) {
-	if (action.id === 'archive') return archiveFromAfar(workspace);
+	if (action.id === 'archive') return archiveAndNavigate(workspace);
 	if (action.id === 'continue') return continueFromAfar(workspace);
 	if (action.pullNumber) {
 		await runPullAction(workspace.id, action);

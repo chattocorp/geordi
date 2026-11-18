@@ -38,7 +38,7 @@
 	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import {
 		actFromAfar,
-		archiveFromAfar,
+		archiveAndNavigate,
 		continueFromAfar
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { stopAgent } from './workspaces.remote';
@@ -136,7 +136,7 @@
 				icon: 'icon-[lucide--archive]',
 				tone: 'merged',
 				disabled: beingArchived.has(workspace.id),
-				onselect: () => archiveFromAfar(workspace)
+				onselect: () => archiveAndNavigate(workspace)
 			}
 		];
 	}
@@ -442,7 +442,7 @@
 						]}
 						title="Archive workspace"
 						aria-label="Archive {workspace.title}"
-						onclick={() => archiveFromAfar(workspace)}
+						onclick={() => archiveAndNavigate(workspace)}
 					>
 						<span class="icon-[lucide--archive] size-3.5"></span>
 					</button>
