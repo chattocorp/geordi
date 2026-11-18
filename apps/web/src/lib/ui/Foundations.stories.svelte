@@ -90,7 +90,7 @@
 <Story name="Items and dots" asChild>
 	<div class="w-64 space-y-px rounded-card bg-sidebar p-2">
 		<p class="px-2.5 pb-1 label">label</p>
-		<a href="#top" class="item item-active px-2.5 py-1 opacity-60 motion-safe:transition-opacity">
+		<a href="#top" class="item item-active px-2.5 py-1">
 			<span class="dot dot-live"></span> item item-active, working
 		</a>
 		<a href="#top" class="item px-2.5 py-1"><span class="dot"></span> item, idle</a>
