@@ -39,7 +39,7 @@
 	--surface: #ffffff;
 	--sunken: #dcdce5;
 	--ink: #1b1c24;
-	--inline-code: #713452;
+	--inline-code: #982664;
 	--muted: #6a6c7b;
 	--line: #e2e2ea;
 	--accent: #f5b021;
@@ -387,9 +387,7 @@
 		overflow-wrap: anywhere;
 	}
 	:where(code):not(:where(pre *, a *, button *)) {
-		@apply underline decoration-1 underline-offset-2;
 		color: var(--inline-code);
-		text-decoration-color: hotpink;
 	}
 	:where(code):not(:where(pre *))::before,
 	:where(code):not(:where(pre *))::after {
