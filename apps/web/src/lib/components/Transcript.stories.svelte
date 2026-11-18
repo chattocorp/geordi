@@ -70,10 +70,10 @@
 			kind: 'tool' as const,
 			id: 'a',
 			name: 'Read',
-			input: '{"file_path":"/private/work/src/changes.ts","offset":40,"limit":20}',
+			input: '{"file_path":"/work/src/changes.ts","offset":40,"limit":20}',
 			toolKind: 'read' as const,
-			title: 'Read /private/work/src/changes.ts (40 - 59)',
-			locations: [{ path: '/private/work/src/changes.ts', line: 40 }],
+			title: 'Read /work/src/changes.ts (40 - 59)',
+			locations: [{ path: '/work/src/changes.ts', line: 40 }],
 			output: 'export function changes() {}',
 			isError: false,
 			at

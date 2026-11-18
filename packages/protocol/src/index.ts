@@ -554,17 +554,19 @@ export type SubagentUpdate =
 	  } & ToolInfo);
 
 /** What ACP kinds of tool call there are: how a client may show one. */
-export type ToolKind =
-	| 'read'
-	| 'edit'
-	| 'delete'
-	| 'move'
-	| 'search'
-	| 'execute'
-	| 'think'
-	| 'fetch'
-	| 'switch_mode'
-	| 'other';
+export const TOOL_KINDS = [
+	'read',
+	'edit',
+	'delete',
+	'move',
+	'search',
+	'execute',
+	'think',
+	'fetch',
+	'switch_mode',
+	'other'
+] as const;
+export type ToolKind = (typeof TOOL_KINDS)[number];
 
 /** A file a tool call works on, as the agent names it (absolute, mostly). */
 export type ToolLocation = { path: string; line?: number };

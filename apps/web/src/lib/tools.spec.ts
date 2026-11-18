@@ -40,8 +40,8 @@ describe('titleOf', () => {
 		const tool = {
 			name: 'Read',
 			input: '{}',
-			title: 'Read /private/w/notes.txt (1 - 5)',
-			locations: [{ path: '/private/w/notes.txt', line: 1 }]
+			title: 'Read /w/notes.txt (1 - 5)',
+			locations: [{ path: '/w/notes.txt', line: 1 }]
 		};
 		expect(titleOf(tool, '/w')).toEqual([words('Read '), code('notes.txt'), words(' (1 - 5)')]);
 	});
@@ -71,10 +71,9 @@ describe('titleOf', () => {
 });
 
 describe('paths', () => {
-	it('shows paths in the worktree relative to it, either way macOS spells it', () => {
-		expect(displayPath('/var/w/a.ts', '/private/var/w')).toBe('a.ts');
-		expect(displayPath('/private/var/w/a.ts', '/var/w')).toBe('a.ts');
-		expect(displayPath('/elsewhere/a.ts', '/var/w')).toBe('/elsewhere/a.ts');
+	it('shows paths in the worktree relative to it', () => {
+		expect(displayPath('/w/a.ts', '/w')).toBe('a.ts');
+		expect(displayPath('/elsewhere/a.ts', '/w')).toBe('/elsewhere/a.ts');
 	});
 
 	it('names only files in the worktree', () => {

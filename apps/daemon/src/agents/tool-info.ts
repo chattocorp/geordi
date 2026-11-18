@@ -1,19 +1,8 @@
 import type { ToolCallUpdate } from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import type { ToolInfo, ToolKind } from '@geordi/protocol';
+import { TOOL_KINDS, type ToolInfo, type ToolKind } from '@geordi/protocol';
 import { truncate } from './adapter.ts';
 
-const KINDS = new Set<string>([
-	'read',
-	'edit',
-	'delete',
-	'move',
-	'search',
-	'execute',
-	'think',
-	'fetch',
-	'switch_mode',
-	'other'
-]);
+const isKind = (kind: string): kind is ToolKind => (TOOL_KINDS as readonly string[]).includes(kind);
 
 type Said = ToolInfo & { input?: string };
 
@@ -37,16 +26,16 @@ export class ToolInfos {
 		const fresh = !this.#said.has(u.toolCallId);
 		const said = this.#said.get(u.toolCallId) ?? {};
 		this.#said.set(u.toolCallId, said);
-		const heard: Said = {};
-		if (u.rawInput !== undefined) heard.input = truncate(JSON.stringify(u.rawInput) ?? '');
-		if (u.title) heard.title = u.title;
-		if (u.kind) heard.toolKind = (KINDS.has(u.kind) ? u.kind : 'other') as ToolKind;
-		if (u.locations)
-			heard.locations = u.locations.map(({ path, line }) => ({ path, ...(line && { line }) }));
-		if (heard.input !== undefined) said.pending = heard.input;
-		delete heard.input;
+		if (u.rawInput !== undefined) said.pending = truncate(JSON.stringify(u.rawInput) ?? '');
+		const heard: ToolInfo = {
+			...(u.title && { title: u.title }),
+			...(u.kind && { toolKind: isKind(u.kind) ? u.kind : 'other' }),
+			...(u.locations && {
+				locations: u.locations.map(({ path, line }) => ({ path, ...(line && { line }) }))
+			})
+		};
 		const news: Said = {};
-		for (const [key, value] of Object.entries(heard) as [keyof Said, Said[keyof Said]][]) {
+		for (const [key, value] of Object.entries(heard)) {
 			const text = JSON.stringify(value);
 			// No files named is not news, until some were.
 			if (said[key] === text || (said[key] === undefined && text === '[]')) continue;

@@ -54,11 +54,7 @@ function pick(input: string): string {
 
 /** Shows paths inside the session's worktree relative to it. */
 export function relativeTo(cwd: string | undefined, text: string): string {
-	if (!cwd) return text;
-	// the longer root first: `/private/x/` holds `/x/`
-	for (const root of roots(cwd).sort((a, b) => b.length - a.length))
-		text = text.replaceAll(`${root}/`, '');
-	return text;
+	return cwd ? text.replaceAll(`${cwd}/`, '') : text;
 }
 
 /** Codex wraps commands in `/bin/zsh -lc '…'`; show just the command. */
@@ -164,17 +160,11 @@ export function titleOf(
 	return parts;
 }
 
-/**
- * A path as shown: relative to the worktree `cwd`, if it is in it. macOS has temporary
- * directories both as `/var/…` and as `/private/var/…`; agents use either.
- */
+/** A path as shown: relative to the worktree `cwd`, if it is in it. */
 export function displayPath(path: string, cwd?: string): string {
 	if (!cwd) return path;
-	for (const root of roots(cwd)) {
-		if (path === root) return '.';
-		if (path.startsWith(`${root}/`)) return path.slice(root.length + 1);
-	}
-	return path;
+	if (path === cwd) return '.';
+	return path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : path;
 }
 
 /** The files a tool call names that are in the worktree, as paths in it. */
@@ -184,8 +174,4 @@ export function filesOf(locations: ToolLocation[] | undefined, cwd?: string) {
 		const file = displayPath(path, cwd);
 		return file === path || file === '.' ? [] : [{ path: file, line }];
 	});
-}
-
-function roots(cwd: string): string[] {
-	return cwd.startsWith('/private/') ? [cwd, cwd.slice(8)] : [cwd, `/private${cwd}`];
 }
