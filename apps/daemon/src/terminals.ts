@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process';
+import { basename } from 'node:path';
+import { promisify } from 'node:util';
 import { spawn, type IPty } from '@lydell/node-pty';
 import type { DaemonResults, TerminalSize } from '@geordi/protocol';
 
@@ -14,6 +17,8 @@ const ENDED = /\x1b\]7717;(\d+)\x07/;
 
 type Terminal = {
 	pty: IPty;
+	/** Interactive shell executable, or null for a configured command. */
+	shell: string | null;
 	write(data: string): void;
 	scrollback: string;
 	/** How many characters the shell has put out so far. */
@@ -123,6 +128,7 @@ export function openTerminal(
 
 	const terminal: Terminal = {
 		pty,
+		shell: command ? null : basename(shell),
 		scrollback: '',
 		end: 0,
 		write(data) {
@@ -161,6 +167,31 @@ export const endedTerminals = (): Record<string, number> =>
 	Object.fromEntries(
 		[...terminals].flatMap(([id, { ended }]) => (ended === undefined ? [] : [[id, ended]]))
 	);
+
+const exec = promisify(execFile);
+
+/** A terminal at its shell prompt can close quietly. Inspect processes only on archive. */
+export async function hasTerminalActivity(workspaceId: string): Promise<boolean> {
+	const shells = new Map<number, string>();
+	for (const [id, terminal] of terminals) {
+		if (!id.startsWith(workspaceId + ':') || terminal.ended !== undefined) continue;
+		if (terminal.shell === null) return true;
+		shells.set(terminal.pty.pid, terminal.shell);
+	}
+	if (!shells.size) return false;
+
+	// A foreground or background job has a parent in the shell. An exec'd program
+	// replaces the shell itself and keeps its PID.
+	const { stdout } = await exec('/bin/ps', ['-A', '-o', 'pid=,ppid=,comm=']);
+	for (const line of stdout.split('\n')) {
+		const row = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
+		if (!row) continue;
+		if (shells.has(Number(row[2]))) return true;
+		const shell = shells.get(Number(row[1]));
+		if (shell && basename(row[3]) !== shell) return true;
+	}
+	return false;
+}
 
 export function scrollbackOf(id: string): DaemonResults['scrollback'] {
 	const terminal = terminals.get(id);
