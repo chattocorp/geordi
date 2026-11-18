@@ -17,6 +17,7 @@
 	import Settings from '#lib/components/Settings.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { byRepository } from '#lib/family.ts';
+	import { lanes } from '#lib/overview.ts';
 	import {
 		modifierKey,
 		newWorkspaceShortcut,
@@ -38,7 +39,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
-	import ChecksRing from '#lib/components/ChecksRing.svelte';
+	import StandingIcon from '#lib/components/StandingIcon.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { connect, follow } from '#lib/live.svelte.ts';
@@ -66,6 +67,8 @@
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav.current?.workspaces ?? []));
 	const sidebarRepos = $derived(nav.current?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	/** How many workspaces wait for the person: counted beside the overview. */
+	const needYou = $derived(lanes(nav.current?.workspaces ?? [], unread).attention.length);
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
 	const working = (workspace: Item): boolean =>
 		workspace.working ||
@@ -86,14 +89,6 @@
 	});
 	$effect(badge);
 
-	/** The colour of how a workspace stands: what is fine, wrong, to do, done. */
-	const tones = {
-		ok: 'text-ok',
-		danger: 'text-danger',
-		accent: '',
-		merged: 'text-merged',
-		neutral: 'text-muted'
-	};
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
@@ -322,6 +317,13 @@
 				<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
 					<div class="space-y-0.5">
 						{@render link(
+							resolve('/overview'),
+							'icon-[lucide--layout-list]',
+							'Overview',
+							page.url.pathname === '/overview',
+							needYou
+						)}
+						{@render link(
 							resolve('/'),
 							'icon-[lucide--plus]',
 							'New workspace',
@@ -489,17 +491,11 @@
 				{#if standing}
 					<span
 						class={[
-							'col-start-1 row-start-1 grid place-items-center',
-							archivable && 'group-hover:invisible group-has-focus-visible:invisible',
-							tones[standing.tone]
+							'col-start-1 row-start-1',
+							archivable && 'group-hover:invisible group-has-focus-visible:invisible'
 						]}
-						title={standing.label}
 					>
-						{#if standing.checks}
-							<ChecksRing counts={standing.checks} />
-						{:else}
-							<span class={['size-4', standing.icon]} role="img" aria-label={standing.label}></span>
-						{/if}
+						<StandingIcon {standing} />
 					</span>
 				{/if}
 				{#if archivable}
@@ -507,7 +503,7 @@
 						type="button"
 						class={[
 							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken',
-							standing?.tone === 'merged' ? tones.merged : 'text-muted hover:text-ink'
+							standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
 						]}
 						title="Archive workspace"
 						aria-label="Archive {workspace.title}"
@@ -521,7 +517,7 @@
 	</li>
 {/snippet}
 
-{#snippet link(href: string, icon: string, label: string, current: boolean, working = 0)}
+{#snippet link(href: string, icon: string, label: string, current: boolean, needYou = 0)}
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- callers pass resolve()d hrefs -->
 	<a
 		{href}
@@ -530,8 +526,8 @@
 	>
 		<span class={['size-4 shrink-0', icon]}></span>
 		<span class="truncate">{label}</span>
-		{#if working > 0}
-			<span class="ml-auto" title="{working} working"><Badge tone="accent">{working}</Badge></span>
+		{#if needYou > 0}
+			<span class="ml-auto" title="{needYou} need you"><Badge tone="accent">{needYou}</Badge></span>
 		{/if}
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->

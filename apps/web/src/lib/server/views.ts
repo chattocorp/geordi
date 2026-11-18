@@ -45,7 +45,11 @@ export const navigation = () =>
 					actions: actionsFor(state).filter(
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
-					branch: worktree?.branch ?? null
+					branch: worktree?.branch ?? null,
+					// when anything last happened in it, also in the agents working alongside
+					updatedAt: [workspace, ...aides]
+						.map((member) => member.updatedAt)
+						.reduce((a, b) => (a > b ? a : b))
 				};
 			});
 			return {
