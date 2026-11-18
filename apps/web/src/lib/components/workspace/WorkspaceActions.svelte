@@ -158,6 +158,7 @@
 							colour. On a ribbon that says something is wrong, it takes the ribbon's colour too.
 							Other soft next steps use ink.
 						-->
+						{@const busy = pending.includes(action.id)}
 						{@const next = action === primary}
 						{@const ribbonColor = standing?.tone === 'danger'}
 						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
@@ -168,10 +169,10 @@
 							class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
 							icon={action.icon}
 							{disabled}
-							busy={pending.includes(action.id)}
+							{busy}
 							onclick={() => onaction(action)}
 						>
-							{action.label}
+							{busy && action.id === 'archive' ? 'Archiving…' : action.label}
 						</Button>
 					{/each}
 				</ButtonGroup>
