@@ -19,6 +19,9 @@ catalogs:
       specifier: ^4.1.8
       version: 4.1.12
 
+patchedDependencies:
+  forges@0.3.2: 355d6300a85fb936d05876c2bd3281eda222d3f0350bf58ddf4eb781ba313683
+
 importers:
 
   .:
@@ -82,7 +85,7 @@ importers:
         version: 1.2.0-beta.18
       forges:
         specifier: ^0.3.2
-        version: 0.3.2
+        version: 0.3.2(patch_hash=355d6300a85fb936d05876c2bd3281eda222d3f0350bf58ddf4eb781ba313683)
       smol-toml:
         specifier: 1.9.1
         version: 1.9.1
@@ -5433,7 +5436,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  forges@0.3.2: {}
+  forges@0.3.2(patch_hash=355d6300a85fb936d05876c2bd3281eda222d3f0350bf58ddf4eb781ba313683): {}
 
   forwarded@0.2.0: {}
 

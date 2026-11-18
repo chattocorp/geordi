@@ -89,6 +89,7 @@
 }
 
 @theme inline {
+	--animate-checks-spin: spin 2s linear infinite;
 	/*
 	 * Type. One family for text and one for code, and four sizes. Hierarchy comes from
 	 * weight and colour, not from more sizes:

@@ -113,7 +113,7 @@
 	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'])}
 </Story>
 
-<Story name="Checks running with rotating icon" asChild>
+<Story name="Checks running with slowly rotating icon" asChild>
 	{@render bar({
 		changes: pushed,
 		upstream: upstream({ checks: { state: 'pending', total: 3, failed: 0, url: null } })

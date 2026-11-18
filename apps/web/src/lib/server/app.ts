@@ -105,13 +105,16 @@ function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
  * on the forge (`null` where there is none, or no telling). Rejects if no daemon can say.
  * `fresh`: as of now, not from what was learnt a moment ago.
  */
-export async function loadStanding(worktreeId: string, fresh = false) {
+export async function loadStanding(worktreeId: string, fresh = false, keepKnown = false) {
 	const ref = workspaces().ref(worktreeId);
 	const [changes, upstream] = await Promise.all([
 		changesOf(ref),
 		hub()
 			.request({ kind: 'upstream', fresh, ...ref })
-			.catch(() => null)
+			.catch((error) => {
+				if (keepKnown) throw error;
+				return null;
+			})
 	]);
 	return { changes, upstream };
 }
@@ -130,7 +133,8 @@ export const standings = lazy(() => {
 					.map((workspace) => workspace.worktreeId)
 			)
 		],
-		load: loadStanding
+		load: loadStanding,
+		loadUpstream: (id) => hub().request({ kind: 'upstream', ...workspaces().ref(id) })
 	});
 	setInterval(() => void standings.tick(), STANDINGS_TICK_MS).unref();
 	void standings.tick();

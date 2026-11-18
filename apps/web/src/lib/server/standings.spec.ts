@@ -4,7 +4,7 @@ import { createStandings, type Standing } from './standings.ts';
 const standing = (pending = false): Standing => ({
 	changes: { files: [], uncommitted: 0, unpushed: 0 },
 	upstream: pending
-		? ({ pull: { checks: { state: 'pending' } } } as unknown as Standing['upstream'])
+		? ({ pull: { state: 'open', checks: { state: 'pending' } } } as unknown as Standing['upstream'])
 		: null
 });
 
@@ -16,6 +16,11 @@ function setup(ids: string[]) {
 			state.asked.push(fresh ? `${id}!` : id);
 			if (state.fails) throw new Error('no daemon');
 			return standing(state.pending);
+		},
+		loadUpstream: async (id) => {
+			state.asked.push(id + ' upstream');
+			if (state.fails) throw new Error('offline');
+			return standing(state.pending).upstream;
 		},
 		now: () => state.now
 	});
@@ -61,9 +66,26 @@ describe('standings', () => {
 		state.pending = true;
 		await standings.tick();
 		expect(state.asked).toHaveLength(2);
-		state.now += 60_000;
+		state.now += 20_000;
 		await standings.tick();
-		expect(state.asked).toHaveLength(3);
+		expect(state.asked).toEqual(['a', 'a', 'a upstream']);
+	});
+
+	it('refreshes a batch of running checks without running local Git for each one', async () => {
+		const ids = Array.from({ length: 21 }, (_, index) => String(index));
+		const { standings, state } = setup(ids);
+		for (const id of ids) standings.note(id, standing(true));
+
+		state.now = 20_000;
+		state.pending = true;
+		await standings.tick();
+		expect(state.asked).toEqual(ids.slice(0, 20).map((id) => id + ' upstream'));
+
+		// The next tick serves the outstanding workspace first, even as the others come due.
+		state.asked.length = 0;
+		state.now += 20_000;
+		await standings.tick();
+		expect(state.asked[0]).toBe('20 upstream');
 	});
 
 	it('takes what a viewer learnt, and keeps what it knew when nobody can say', async () => {
