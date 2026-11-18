@@ -203,7 +203,7 @@ const tools = {
 		run: () => configurationReference()
 	},
 	check_configuration: {
-		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets, and what is wrong with it if anything. Call this after changing the file.`,
+		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what Run will select and why, and any configuration problem. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
 			const {
@@ -220,6 +220,14 @@ const tools = {
 			// the file by the name it has; one in the old language is still read, and said to be
 			const name = `${file ?? CONFIG_FILE}${file && file !== CONFIG_FILE ? ` (still read, but ${CONFIG_FILE} is what to write: move its settings there)` : ''}`;
 			const commands = [...jobs, ...(setup ? [setup] : []), ...(teardown ? [teardown] : [])];
+			let runDefault: { default: string; defaultSource: string } | undefined;
+			if (target) {
+				runDefault = { default: target, defaultSource: 'configured' };
+			} else if (urls.length) {
+				runDefault = { default: `urls.${urls[0].name}`, defaultSource: 'first URL' };
+			} else if (jobs.length) {
+				runDefault = { default: `jobs.${jobs[0].name}`, defaultSource: 'first job' };
+			}
 			return {
 				applies:
 					source === 'workspace'
@@ -227,7 +235,7 @@ const tools = {
 						: source === 'base'
 							? `the ${name} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
-				default: target,
+				...runDefault,
 				problem,
 				ports,
 				jobs: jobs.map(({ name, label, command, needs, port }) => ({
