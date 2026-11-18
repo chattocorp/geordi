@@ -217,6 +217,38 @@ describe('workspaces', () => {
 		expect(workspace.transcript[1]).toMatchObject({ output: 'contents', isError: false });
 	});
 
+	it('records a late result once on its original tool after a forge restart', () => {
+		const { workspaces, create, store, repos, dispatch, sent } = setup();
+		const id = create('Run a command in the background');
+		const tool = { kind: 'tool', id: 'cmd', name: 'exec_command', input: './probe-task' } as const;
+		workspaces.record(id, tool);
+		workspaces.record(id, { kind: 'text', text: 'WAITING' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		const restarted = createWorkspaces(store, repos, dispatch);
+		const before = store.readAll().length;
+		const commands = sent.length;
+		const result = { kind: 'tool.result', id: 'cmd', output: '', isError: true } as const;
+
+		// The detached host can repeat the tool announcement before its late result.
+		restarted.record(id, { ...tool, input: '' });
+		restarted.record(id, { ...result, id: 'unknown' });
+		restarted.record(id, result, 'host/50');
+		restarted.record(id, result, 'host/50');
+		restarted.record(id, { ...result, output: 'duplicate' }, 'host/60');
+
+		expect(store.readAll()).toHaveLength(before + 1);
+		expect(sent).toHaveLength(commands);
+		expect(createWorkspaces(store, repos, dispatch).get(id)).toMatchObject({
+			status: 'idle',
+			lastTurn: 'completed',
+			transcript: [
+				{ kind: 'user' },
+				{ ...tool, output: '', isError: true },
+				{ kind: 'text', text: 'WAITING' }
+			]
+		});
+	});
+
 	it('runs every turn with the model and effort chosen, and hands them on to agents it starts', () => {
 		const { workspaces, sent, repo } = setup();
 		const settings = { model: 'opus', effort: 'high' };
