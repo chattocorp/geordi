@@ -35,7 +35,7 @@
 				busy={asking?.busy}
 				onclick={() => asking?.answer(true)}
 			>
-				{asking?.busy ? 'Archiving…' : 'Archive'}
+				Archive
 			</Button>
 		</div>
 	</div>

@@ -162,7 +162,7 @@
 							{busy}
 							onclick={() => onaction(action)}
 						>
-							{busy && action.id === 'archive' ? 'Archiving…' : action.label}
+							{action.label}
 						</Button>
 					{/each}
 				</ButtonGroup>

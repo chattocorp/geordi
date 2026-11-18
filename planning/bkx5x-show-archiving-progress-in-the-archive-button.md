@@ -6,4 +6,4 @@ data:
 id: bkx5x
 title: Show archiving progress in the Archive button
 ---
-The busy Archive button shows Archiving… with its existing spinner. Removed the duplicate title bar badge and verified the button in Storybook.
+The workspace ribbon and confirmation dialog keep the Archive label while the button shows its busy spinner. Removed the duplicate title bar badge and verified the busy ribbon button in Storybook.
