@@ -1,5 +1,23 @@
 # Geordi Changelog
 
+## 0.2.0
+
+### Fixes
+
+- Pull request checks show the status summary on hover, leaving more room for check details. ([#109](https://github.com/chattocorp/geordi/pull/109))
+- The new workspace composer is wider, and the permission label matches the other selected values. Paste or drop images into the composer to attach them. ([#103](https://github.com/chattocorp/geordi/pull/103))
+- Widen the navigation sidebar to read longer workspace titles. The right sidebar now leaves at least half the workspace for the conversation. ([#107](https://github.com/chattocorp/geordi/pull/107))
+- GitHub releases now show the features and fixes from the changelog for that version. ([#106](https://github.com/chattocorp/geordi/pull/106))
+
+### Features
+
+- Inspect pull request checks in the PR tab. See failures and active jobs first, expand the other results, and open individual runs. ([#102](https://github.com/chattocorp/geordi/pull/102))
+- Enable or disable GitHub auto-merge from the workspace ribbon or sidebar while a pull request waits for required checks or reviews. ([#105](https://github.com/chattocorp/geordi/pull/105))
+
+### Performance
+
+- Opening a workspace reuses its recent GitHub status while local changes load. ([#108](https://github.com/chattocorp/geordi/pull/108))
+
 ## 0.1.0
 
 ### Fixes
