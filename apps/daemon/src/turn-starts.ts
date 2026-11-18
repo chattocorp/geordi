@@ -4,7 +4,7 @@ import type { Meta } from './host.ts';
 import type { Session, Said } from './session.ts';
 
 type Message = Extract<ForgeMessage, { type: 'agent.message' }>;
-type Worktree = ReturnType<typeof ensureWorktree>;
+type Worktree = Awaited<ReturnType<typeof ensureWorktree>>;
 
 export function turnStarts({
 	worktreesDir,
@@ -83,7 +83,13 @@ export function turnStarts({
 				const problem = await Promise.race([stopped.promise, fetchUpstream(repoPath)]);
 				if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 			}
-			const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, message.branch);
+			const worktree = await ensureWorktree(
+				worktreesDir,
+				repoPath,
+				worktreeId,
+				base,
+				message.branch
+			);
 			if (worktree.created)
 				emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
 			if (worktree.created || worktree.restored) prepared(worktree, message);

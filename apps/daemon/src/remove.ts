@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { git } from './git.ts';
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -27,18 +27,18 @@ export const emptyTrash = (baseDir: string) =>
  * The workspace's worktree, if it is there and may be removed: it has no uncommitted or
  * untracked files, or `force` says to discard them. Throws if it may not.
  */
-export function removable(
+export async function removable(
 	baseDir: string,
 	repoPath: string,
 	worktreeId: string,
 	force: boolean
-): Worktree | null {
-	const worktree = describe(baseDir, repoPath, worktreeId);
+): Promise<Worktree | null> {
+	const worktree = await describe(baseDir, repoPath, worktreeId);
 	if (!existsSync(worktree.path)) return null;
 	if (!force) {
 		// if its Git metadata was tampered with, we can't tell what is in it: that takes `force`
 		verifyLinks(worktree);
-		if (uncommittedFiles(worktree).length > 0)
+		if ((await uncommittedFiles(worktree)).length > 0)
 			throw new Error('The worktree has uncommitted or untracked files.');
 	}
 	return worktree;
@@ -53,13 +53,13 @@ export function removable(
  * metadata, which an agent can write. We look for uncommitted work the careful way, delete
  * the directory ourselves, and have git forget it from the repository's side.
  */
-export function removeWorktree(
+export async function removeWorktree(
 	baseDir: string,
 	repoPath: string,
 	worktreeId: string,
 	force: boolean
 ) {
-	const worktree = removable(baseDir, repoPath, worktreeId, force);
+	const worktree = await removable(baseDir, repoPath, worktreeId, force);
 	if (worktree) discard(baseDir, worktree.path);
-	execFileSync('git', ['-C', repoPath, 'worktree', 'prune'], { stdio: 'ignore' });
+	await git(repoPath, ['worktree', 'prune']);
 }

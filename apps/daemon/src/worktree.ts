@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from 'node:child_process';
+import { CHECKOUT_TIMEOUT, git, quietGit } from './git.ts';
 import { NO_WORKTREE } from '@geordi/protocol';
 import { randomUUID } from 'node:crypto';
 import {
@@ -13,9 +13,6 @@ import {
 	writeSync
 } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-
-const git = (cwd: string, ...args: string[]) =>
-	execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
 
 const read = (file: string) => readFileSync(file, 'utf8').trim();
 const same = (a: string, b: string) => realpathSync(a) === realpathSync(b);
@@ -55,9 +52,16 @@ export const worktreePath = (baseDir: string, repoPath: string, worktreeId: stri
  * Where a workspace's worktree lives. Everything is derived from the repository and the
  * workspace ID, never by asking git inside the worktree (its metadata is agent-writable).
  */
-export function describe(baseDir: string, repoPath: string, workspaceId: string): Worktree {
+export async function describe(
+	baseDir: string,
+	repoPath: string,
+	workspaceId: string
+): Promise<Worktree> {
 	const short = workspaceId.slice(0, 8);
-	const commonDir = resolve(repoPath, git(repoPath, 'rev-parse', '--git-common-dir'));
+	const commonDir = resolve(
+		repoPath,
+		(await git(repoPath, ['rev-parse', '--git-common-dir'])).trim()
+	);
 	return {
 		path: worktreePath(baseDir, repoPath, workspaceId),
 		branch: `geordi/${short}`,
@@ -84,25 +88,18 @@ export function branchRef(branch: string): string {
 /** The workspace's existing worktree. Throws if there is none yet, or it was tampered with. */
 /** Whether the workspace's worktree is there already. */
 export const hasWorktree = (baseDir: string, repoPath: string, workspaceId: string) =>
-	existsSync(describe(baseDir, repoPath, workspaceId).path);
+	existsSync(worktreePath(baseDir, repoPath, workspaceId));
 
-export function locateWorktree(baseDir: string, repoPath: string, workspaceId: string): Worktree {
-	const worktree = describe(baseDir, repoPath, workspaceId);
+export async function locateWorktree(
+	baseDir: string,
+	repoPath: string,
+	workspaceId: string
+): Promise<Worktree> {
+	const worktree = await describe(baseDir, repoPath, workspaceId);
 	if (!existsSync(worktree.path)) throw new Error(NO_WORKTREE);
 	verifyLinks(worktree);
 	return worktree;
 }
-
-const quietly = (cwd: string, ...args: string[]) => {
-	try {
-		return execFileSync('git', ['-C', cwd, ...args], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore']
-		}).trim();
-	} catch {
-		return null;
-	}
-};
 
 /**
  * Where work in a repository starts from, as a revision: the branch its upstream calls its
@@ -110,9 +107,9 @@ const quietly = (cwd: string, ...args: string[]) => {
  * there, so that is where it should branch off, whatever the repository's own checkout
  * happens to be on. `HEAD` for a repository without an upstream.
  */
-export function startOf(repoPath: string): string {
-	const upstream = quietly(repoPath, 'symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD');
-	return upstream && quietly(repoPath, 'rev-parse', '--verify', '--quiet', upstream)
+export async function startOf(repoPath: string): Promise<string> {
+	const upstream = await quietGit(repoPath, 'symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD');
+	return upstream && (await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', upstream))
 		? upstream
 		: 'HEAD';
 }
@@ -123,12 +120,13 @@ export function startOf(repoPath: string): string {
  * like to do), and Git remembers that. Then that is where its pushed commits and its pull
  * request are.
  */
-export function upstreamBranchOf(repoPath: string, branch: string): string {
-	const config = (key: string) => quietly(repoPath, 'config', '--get', `branch.${branch}.${key}`);
-	const name = /^refs\/heads\/(.+)$/.exec(config('merge') ?? '')?.[1];
-	if (config('remote') !== 'origin' || !name || !BRANCH.test(name)) return branch;
+export async function upstreamBranchOf(repoPath: string, branch: string): Promise<string> {
+	const config = async (key: string) =>
+		await quietGit(repoPath, 'config', '--get', `branch.${branch}.${key}`);
+	const name = /^refs\/heads\/(.+)$/.exec((await config('merge')) ?? '')?.[1];
+	if ((await config('remote')) !== 'origin' || !name || !BRANCH.test(name)) return branch;
 	// set to follow the main branch, it has not been pushed there: it has no place upstream yet
-	return `refs/remotes/origin/${name}` === startOf(repoPath) ? branch : name;
+	return `refs/remotes/origin/${name}` === (await startOf(repoPath)) ? branch : name;
 }
 
 /** How long fetching may take before a workspace starts from what is already known. */
@@ -140,31 +138,20 @@ const FETCH_TIMEOUT_MS = 30_000;
  * network or without credentials, the workspace starts from what is known. Resolves to why
  * it didn't work, if it didn't.
  */
-export function fetchUpstream(repoPath: string): Promise<string | null> {
-	if (quietly(repoPath, 'remote', 'get-url', 'origin') === null) return Promise.resolve(null);
-	const run = (...args: string[]) =>
-		new Promise<string | null>((resolve) =>
-			execFile(
-				'git',
-				['-C', repoPath, ...args],
-				{
-					timeout: FETCH_TIMEOUT_MS,
-					// nobody is there to answer a question about a password
-					env: {
-						GIT_SSH_COMMAND: 'ssh -oBatchMode=yes',
-						...process.env,
-						GIT_TERMINAL_PROMPT: '0'
-					}
-				},
-				(error, _stdout, stderr) => resolve(error ? stderr.trim() || error.message : null)
-			)
-		);
-	return run('fetch', '--quiet', 'origin').then(async (problem) => {
-		// a remote added by hand has no idea which branch is the main one until asked
-		if (!problem && startOf(repoPath) === 'HEAD')
-			await run('remote', 'set-head', 'origin', '--auto');
-		return problem;
-	});
+export async function fetchUpstream(repoPath: string): Promise<string | null> {
+	if ((await quietGit(repoPath, 'remote', 'get-url', 'origin')) === null) return null;
+	const env = { GIT_SSH_COMMAND: 'ssh -oBatchMode=yes', ...process.env, GIT_TERMINAL_PROMPT: '0' };
+	try {
+		await git(repoPath, ['fetch', '--quiet', 'origin'], { timeout: FETCH_TIMEOUT_MS, env });
+		if ((await startOf(repoPath)) === 'HEAD')
+			await git(repoPath, ['remote', 'set-head', 'origin', '--auto'], {
+				timeout: FETCH_TIMEOUT_MS,
+				env
+			}).catch(() => {});
+		return null;
+	} catch (error) {
+		return (error as { stderr?: string }).stderr?.trim() || (error as Error).message;
+	}
 }
 
 /**
@@ -173,7 +160,7 @@ export function fetchUpstream(repoPath: string): Promise<string | null> {
  * derived from the workspace ID, so this is idempotent. A worktree that went missing is
  * brought back from its branch (`restored`).
  */
-export function ensureWorktree(
+export async function ensureWorktree(
 	baseDir: string,
 	repoPath: string,
 	workspaceId: string,
@@ -181,7 +168,7 @@ export function ensureWorktree(
 	/** The branch it was last known to be on, if not the one named after it (see `continueOn`). */
 	branch?: string
 ) {
-	const described = describe(baseDir, repoPath, workspaceId);
+	const described = await describe(baseDir, repoPath, workspaceId);
 	const worktree = branch && branchRef(branch) ? { ...described, branch } : described;
 
 	const missing = !existsSync(worktree.path);
@@ -190,17 +177,25 @@ export function ensureWorktree(
 	// worktree comes back from it; what wasn't committed is gone with the directory.
 	const restored =
 		missing &&
-		quietly(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(worktree.branch)) !== null;
+		(await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(worktree.branch))) !==
+			null;
 	if (missing) {
 		mkdirSync(join(baseDir, basename(repoPath)), { recursive: true });
 		// git still lists a worktree whose directory is gone, and won't add it again until told
-		git(repoPath, 'worktree', 'prune');
-		if (restored) git(repoPath, 'worktree', 'add', worktree.path, worktree.branch);
+		await git(repoPath, ['worktree', 'prune']);
+		if (restored)
+			await git(repoPath, ['worktree', 'add', worktree.path, worktree.branch], {
+				timeout: CHECKOUT_TIMEOUT
+			});
 		else {
-			const start = base ? branchRef(base) : startOf(repoPath);
+			const start = base ? branchRef(base) : await startOf(repoPath);
 			// `--no-track`: the new branch is its own, not a local name for the upstream's main
 			// one (which is where a plain `git push` would otherwise try to send it)
-			git(repoPath, 'worktree', 'add', '--no-track', '-b', worktree.branch, worktree.path, start);
+			await git(
+				repoPath,
+				['worktree', 'add', '--no-track', '-b', worktree.branch, worktree.path, start],
+				{ timeout: CHECKOUT_TIMEOUT }
+			);
 		}
 	}
 	const created = missing && !restored;
@@ -226,22 +221,22 @@ export function ensureWorktree(
  * outside, and its HEAD is pointed there by hand. The caller makes sure there is nothing
  * uncommitted to lose.
  */
-export function continueOn(worktree: Worktree, repoPath: string): string {
+export async function continueOn(worktree: Worktree, repoPath: string): Promise<string> {
 	verifyLinks(worktree);
 	// named after the worktree, like its first branch, and numbered
 	const stem = `geordi/${basename(worktree.path)}`;
 	let branch = '';
 	for (let n = 2; !branch; n++) {
 		const name = `${stem}-${n}`;
-		if (quietly(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(name)) === null)
+		if ((await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(name))) === null)
 			branch = name;
 	}
 
-	git(repoPath, 'branch', '--no-track', branch, startOf(repoPath));
+	await git(repoPath, ['branch', '--no-track', branch, await startOf(repoPath)]);
 	try {
-		gitIn(worktree, 'read-tree', '--reset', '-u', branchRef(branch));
+		await gitIn(worktree, 'read-tree', '--reset', '-u', branchRef(branch));
 	} catch (error) {
-		git(repoPath, 'branch', '-D', branch); // nothing is on it yet
+		await git(repoPath, ['branch', '-D', branch]); // nothing is on it yet
 		throw error;
 	}
 	// The worktree's admin directory is the agent's to write: a HEAD turned into a link
@@ -302,12 +297,9 @@ export const gitEnv = ({ path, adminDir, commonDir }: Worktree): NodeJS.ProcessE
  * worktree's `config.worktree` or repointed links), the worktree's files, and the worktree's
  * index. `HEAD` therefore means the repository's HEAD here: use `headOf` for the worktree's.
  */
-export function gitIn(worktree: Worktree, ...args: string[]): string {
-	return execFileSync('git', ['--literal-pathspecs', ...args], {
-		cwd: worktree.path,
+export function gitIn(worktree: Worktree, ...args: string[]): Promise<string> {
+	return git(worktree.path, ['--literal-pathspecs', ...args], {
 		env: gitEnv(worktree),
-		encoding: 'utf8',
-		stdio: ['ignore', 'pipe', 'pipe'],
-		maxBuffer: 64 * 1024 * 1024
+		timeout: ['merge-tree', 'read-tree'].includes(args[0]) ? CHECKOUT_TIMEOUT : undefined
 	});
 }

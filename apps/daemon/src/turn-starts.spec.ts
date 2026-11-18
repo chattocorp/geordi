@@ -53,7 +53,7 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 		if (stage === 'setup') setups.set('tree', gate.promise);
 		vi.mocked(hasWorktree).mockReturnValue(stage !== 'fetch');
 		vi.mocked(fetchUpstream).mockReturnValue(gate.promise);
-		vi.mocked(ensureWorktree).mockImplementation(() => ({
+		vi.mocked(ensureWorktree).mockImplementation(async () => ({
 			path: '/worktree',
 			adminDir: '',
 			commonDir: '',

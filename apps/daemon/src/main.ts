@@ -112,7 +112,7 @@ const ports = createPorts(
  * gives a workspace its ports, and a job its own among them, the first time around.
  */
 async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeRef) {
-	const found = settingsOf(worktree, repoPath);
+	const found = await settingsOf(worktree, repoPath);
 	const assigned = await ports.ensure(
 		worktreeId,
 		found.settings?.ports ?? DEFAULT_PORTS,
@@ -246,7 +246,7 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
-	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
+	async ({ repoPath, worktreeId }) => await locateWorktree(worktreesDir, repoPath, worktreeId),
 	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
 );
 
@@ -429,10 +429,10 @@ async function answer(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'title') return titleFor(request.text);
-	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
+	if (request.kind === 'repoIcon') return await repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;
-		const worktree = removable(worktreesDir, repoPath, worktreeId, force);
+		const worktree = await removable(worktreesDir, repoPath, worktreeId, force);
 		if (worktree && request.teardown) await tearDown(worktree, request);
 		// what it comes back from if the workspace is brought back, which the agent may have renamed
 		let branch: string | null = null;
@@ -443,7 +443,7 @@ async function answer(request: DaemonRequest) {
 		}
 		// an agent whose CLI is still running there (with nothing to do) goes with its directory
 		if (worktree) for (const session of sessionsIn(worktree.path)) session.kill();
-		removeWorktree(worktreesDir, repoPath, worktreeId, force);
+		await removeWorktree(worktreesDir, repoPath, worktreeId, force);
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return { branch };
@@ -457,18 +457,18 @@ async function answer(request: DaemonRequest) {
 		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
 	if (request.kind === 'continueWorktree') {
 		const { repoPath, worktreeId } = request;
-		const worktree = locateWorktree(worktreesDir, repoPath, worktreeId);
+		const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
 		const requireIdle = () => {
 			if (workingIn(worktree.path)) throw new Error('Its agent is still at work');
 		};
 		requireIdle();
-		if (uncommittedFiles(worktree).length > 0)
+		if ((await uncommittedFiles(worktree)).length > 0)
 			throw new Error('It has uncommitted changes: commit or discard them first');
 		// from where the upstream stands now, as a new workspace would
 		const problem = await fetchUpstream(repoPath);
 		if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		requireIdle();
-		const branch = continueOn(worktree, repoPath);
+		const branch = await continueOn(worktree, repoPath);
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { branch };
 	}
@@ -479,24 +479,24 @@ async function answer(request: DaemonRequest) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
-		const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
+		const worktree = await ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
 		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { path: worktree.path, branch: worktree.branch };
 	}
 
-	const worktree = locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
+	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
-			return status(worktree, comparisonOrigin(worktree, request));
+			return await status(worktree, comparisonOrigin(worktree, request));
 		case 'release':
 			// which notes are this workspace's: the files it has added
 			return releasePlan(
 				worktree,
-				() =>
+				async () =>
 					new Set(
-						changes(worktree, comparisonOrigin(worktree, request))
+						(await changes(worktree, comparisonOrigin(worktree, request)))
 							.filter((file) => file.status === 'added')
 							.map((file) => file.path)
 					),
@@ -505,7 +505,7 @@ async function answer(request: DaemonRequest) {
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':
-			return versions(worktree, comparisonOrigin(worktree, request), request.path);
+			return await versions(worktree, comparisonOrigin(worktree, request), request.path);
 		case 'source':
 			return readText(worktree, request.path);
 		case 'picture':
@@ -562,7 +562,7 @@ async function handle(message: ForgeMessage) {
 			const { terminalId } = message;
 			const { output, exit } = relay(terminalId);
 			try {
-				const worktree = locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
+				const worktree = await locateWorktree(worktreesDir, message.repoPath, message.worktreeId);
 				const guard = () => verifyLinks(worktree);
 				const { config, env } = await configFor(worktree, message);
 				// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
