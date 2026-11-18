@@ -424,6 +424,7 @@
 				'group item pr-1 text-base',
 				// on its way out: it shows, and there is nothing more to do with it
 				leaving && 'pointer-events-none opacity-60',
+				!leaving && workspace.working && workspace.outcome !== 'asking' && 'opacity-80',
 				current && 'item-active',
 				// it came to rest out of sight, and they haven't looked since
 				unread.has(workspace.id) && 'font-semibold text-ink',
