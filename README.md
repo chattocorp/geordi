@@ -199,6 +199,34 @@ mode.
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
 
+### Live ACP session checks
+
+From the repository root, install dependencies with `pnpm install --frozen-lockfile` and
+sign in to the provider you want to test. Each command starts a detached production
+session host with the pinned wrapper in a fresh temporary workspace. It uses your
+provider account and the daemon permission settings above.
+
+```sh
+pnpm --filter @geordi/daemon acp:probe codex inspect
+pnpm --filter @geordi/daemon acp:probe claude steer
+pnpm --filter @geordi/daemon acp:probe claude background
+pnpm --filter @geordi/daemon acp:probe codex ask
+pnpm --filter @geordi/daemon acp:probe claude ask
+```
+
+Either provider accepts all four scenarios. Each prints host events and exits with an
+error if the expected behavior is missing or the two-minute deadline expires.
+
+- `inspect` checks that the ACP v2 session opens and completes a short prompt.
+- `steer` reconnects while a foreground command runs and checks that its output and
+  the steering message both reach the original turn.
+- `background` checks that the foreground turn ends while the command is still running.
+  The follower reconnects and waits for a second turn with the command output.
+- `ask` reconnects the daemon's session follower while a native question is open. It
+  submits a fresh token, retries the same answer, and checks for one question, one
+  copy of the token in the reply, and one completed turn. This exercises the host and
+  wrapper. The forge's event store and the workspace UI are outside this check.
+
 ## Project docs
 
 - [`planning/`](planning/): backlog, managed with [means](https://github.com/hmans/means)
