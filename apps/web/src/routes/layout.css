@@ -358,6 +358,16 @@
 	font-size: var(--text-base);
 	line-height: var(--text-base--line-height);
 
+	:where(ul > li) {
+		@apply my-0.5;
+	}
+	:where(ul > li > p:first-child) {
+		@apply mt-0;
+	}
+	:where(ul > li > p:last-child) {
+		@apply mb-0;
+	}
+
 	:where(h1, h2, h3, h4) {
 		font-size: 1em;
 	}
