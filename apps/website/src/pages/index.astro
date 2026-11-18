@@ -1,0 +1,339 @@
+---
+import Button from '../components/Button.astro';
+import Demo from '../components/Demo.astro';
+import Spinner from '../components/Spinner.astro';
+import Base from '../layouts/Base.astro';
+import { site } from '../site.ts';
+
+/** The ribbon at the top of a workspace: how the work stands, and the step that is next. */
+const ribbon = [
+	{
+		tone: 'bg-sunken text-muted',
+		icon: 'icon-[lucide--file-diff]',
+		stands: '3 files changed',
+		next: 'Create PR'
+	},
+	{
+		tone: 'bg-danger-soft text-danger',
+		icon: 'icon-[lucide--circle-x]',
+		stands: 'Checks failing',
+		next: 'Fix errors'
+	},
+	{
+		tone: 'bg-danger-soft text-danger',
+		icon: 'icon-[lucide--git-merge-conflict]',
+		stands: 'Conflicts',
+		next: 'Resolve conflicts'
+	},
+	{
+		tone: 'bg-ok/12 text-ok',
+		icon: 'icon-[lucide--circle-check]',
+		stands: 'Ready to merge',
+		next: 'Merge PR'
+	},
+	{
+		tone: 'bg-merged/15 text-merged',
+		icon: 'icon-[lucide--git-merge]',
+		stands: 'Merged',
+		next: 'Archive'
+	}
+];
+
+const opinions = [
+	{
+		title: 'It stays quiet',
+		text: "Most of the screen is the conversation and the diff. Colour is used sparingly, and the only things that move are an agent that's working or a check that's running."
+	},
+	{
+		title: 'No plan mode',
+		text: "If you want a plan first, ask for one and tell the agent to hold off until you've read it. Geordi shows the agent's checklist while it works."
+	},
+	{
+		title: 'Two permission modes',
+		text: 'Full Access or Auto Mode, set per workspace. We left out the mode where you approve every single tool call.'
+	},
+	{
+		title: 'No built-in browser',
+		text: 'Previews of your project and links open in the browser you already have.'
+	},
+	{
+		title: "Quitting doesn't stop anything",
+		text: "Close the app and the agents carry on. Open it again and you're back where you were."
+	},
+	{
+		title: "It's all local",
+		text: 'Geordi runs on your machine and keeps its history in a SQLite file in your home directory.'
+	}
+];
+
+const steps = [
+	{
+		title: 'Log in to Claude Code or Codex',
+		text: "Geordi doesn't bring its own agents, it runs the ones you already have. For GitHub it borrows the login from the gh CLI."
+	},
+	{
+		title: 'Install the app',
+		text: 'On a Mac, open the disk image and drag Geordi into Applications. On Windows, unzip it and start Geordi.'
+	},
+	{
+		title: 'Start your first workspace',
+		text: 'Add a repository, write down what you want done, pick an agent and hit send.'
+	}
+];
+---
+
+<Base>
+	<section class="sheet sheet-pad">
+		<div class="max-w-4xl pt-4 pb-10 sm:pt-10 sm:pb-14">
+			<h1 class="text-display font-semibold text-balance">
+				Run several coding agents and still know what's going on.
+			</h1>
+			<p class="mt-6 max-w-2xl text-lede text-pretty text-muted sm:mt-8">
+				Geordi is a desktop app for working with Claude Code and Codex. Every task gets its own
+				agent, in its own Git worktree and branch, so they don't get in each other's way. You can
+				see what each one is changing while it's still at it, tell it when it's going wrong, and get
+				the result merged without leaving the window.
+			</p>
+			<div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+				<Button variant="primary" size="lg" href={site.download} icon="icon-[lucide--download]">
+					Download Geordi
+				</Button>
+				<p class="text-sm text-muted">
+					Version {site.version} for macOS (Apple silicon) and Windows. It's early, and things still
+					change a lot.
+				</p>
+			</div>
+		</div>
+		<Demo />
+	</section>
+
+	<div id="features" class="grid gap-2 lg:grid-cols-12">
+		<h2 class="sr-only">What Geordi does</h2>
+
+		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
+			<div class="max-w-xl">
+				<h3 class="text-headline font-semibold text-balance">Each task gets its own workspace</h3>
+				<p class="mt-4 text-pretty text-muted">
+					A workspace is a conversation with an agent that has a Git worktree and a branch to
+					itself. Start five and they can't trip over each other's files, or over yours. You choose
+					the agent, the model and how hard it should think each time.
+				</p>
+			</div>
+			<ul class="mt-auto space-y-px code-dense">
+				<li class="flex items-center gap-3 py-1 text-muted">
+					<span class="icon-[lucide--git-commit-horizontal] size-4 shrink-0"></span>
+					main
+				</li>
+				{[
+					{
+						branch: 'geordi/return-after-sign-in',
+						agent: 'Claude',
+						tone: 'text-claude',
+						icon: 'icon-[lucide--sparkles]'
+					},
+					{
+						branch: 'geordi/audit-log-pages',
+						agent: 'Codex',
+						tone: 'text-codex',
+						icon: 'icon-[lucide--code-xml]'
+					},
+					{
+						branch: 'geordi/vite-8',
+						agent: 'Claude',
+						tone: 'text-claude',
+						icon: 'icon-[lucide--sparkles]'
+					}
+				].map((row, index) => (
+					<li class="flex items-center gap-3 py-1">
+						<span class="icon-[lucide--git-branch] size-4 shrink-0 text-muted" />
+						<span class="min-w-0 flex-1 truncate">{row.branch}</span>
+						<span class:list={['hidden items-center gap-1.5 font-sans sm:flex', row.tone]}>
+							<span class:list={['size-3.5', row.icon]} />
+							{row.agent}
+						</span>
+						<span class="grid size-5 shrink-0 place-items-center text-muted">
+							{index < 2 ? (
+								<Spinner />
+							) : (
+								<span class="icon-[lucide--circle-check] size-4 text-ok" />
+							)}
+						</span>
+					</li>
+				))}
+			</ul>
+		</article>
+
+		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
+			<div>
+				<h3 class="text-headline font-semibold text-balance">You can interrupt</h3>
+				<p class="mt-4 text-pretty text-muted">
+					If you write to an agent while it's busy, it gets the message right away, or once it has
+					finished if you'd rather queue it. It works the other way round, too: when an agent isn't
+					sure about something, it can ask you and wait.
+				</p>
+			</div>
+			<div class="mt-auto space-y-3">
+				<div class="space-y-3 card p-4">
+					<p class="font-medium">Should old sessions return people, too?</p>
+					<div class="flex flex-wrap gap-2 text-sm">
+						<span class="rounded-full bg-accent-soft px-3 py-1 font-medium text-accent-ink">
+							Only new ones
+						</span>
+						<span class="rounded-full bg-sunken px-3 py-1 text-muted">All of them</span>
+					</div>
+				</div>
+				<div class="ml-auto message ring-1 ring-line">
+					<p class="label">Queued</p>
+					<p>And add a test for links that lead off the site.</p>
+				</div>
+			</div>
+		</article>
+
+		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
+			<div>
+				<h3 class="text-headline font-semibold text-balance">It tells you what's next</h3>
+				<p class="mt-4 text-pretty text-muted">
+					The bar at the top of a workspace shows where its pull request is at, with a button for
+					whatever comes next. Checks are red? Fix errors. Green? Merge. The sidebar shows the same
+					for every other workspace, so you notice when one of them needs you.
+				</p>
+			</div>
+			<ol class="mt-auto space-y-2">
+				{ribbon.map((state) => (
+					<li
+						class:list={[
+							'flex h-9 w-fit items-center gap-2 rounded-full pr-1 pl-3 text-sm font-medium',
+							state.tone
+						]}
+					>
+						<span class:list={['size-4 shrink-0', state.icon]} />
+						{state.stands}
+						<span class="ml-1 flex h-7 items-center rounded-full bg-current/12 px-3 text-xs">
+							{state.next}
+						</span>
+					</li>
+				))}
+			</ol>
+		</article>
+
+		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
+			<div class="max-w-xl">
+				<h3 class="text-headline font-semibold text-balance">Agents can get help</h3>
+				<p class="mt-4 text-pretty text-muted">
+					You can ask an agent to start more agents, hand out the work and report back. It does that
+					with MCP tools that Geordi gives it. The agents it starts are ordinary conversations, so
+					you can read along, chip in, or stop them.
+				</p>
+			</div>
+			<div class="mt-auto">
+				<div class="flex flex-wrap gap-1">
+					<p class="item h-7 px-2 tab-active">
+						<span class="icon-[lucide--sparkles] size-3.5 text-claude"></span>
+						Claude
+					</p>
+					<p class="item h-7 px-2 tab-inactive">
+						<span class="icon-[lucide--code-xml] size-3.5 text-codex"></span>
+						Review the redirect
+						<Spinner />
+					</p>
+					<p class="item h-7 px-2 tab-inactive">
+						<span class="icon-[lucide--sparkles] size-3.5 text-claude"></span>
+						Find other redirects
+						<Spinner />
+					</p>
+				</div>
+				<p class="mt-4 max-w-prose">
+					I've asked Codex to review the change, and a second agent to look for other places that
+					send people to the home page. I'll put together what they find.
+				</p>
+			</div>
+		</article>
+
+		<article class="grid items-center gap-8 sheet sheet-pad lg:col-span-12 lg:grid-cols-2 lg:gap-16">
+			<div class="max-w-xl">
+				<h3 class="text-headline font-semibold text-balance">It can run your project, too</h3>
+				<p class="mt-4 text-pretty text-muted">
+					Put a few lines into the repository about what to start and which URL to open. From then
+					on every workspace has a Run button and terminals next to the conversation. Each one also
+					gets its own ports, so the same dev server can be up in five workspaces without anything
+					colliding.
+				</p>
+				<p class="mt-4">
+					<a
+						href={site.docs.configuration}
+						class="font-medium underline decoration-accent underline-offset-4 hover:decoration-2"
+					>
+						Read the configuration docs
+					</a>
+				</p>
+			</div>
+			<div class="overflow-hidden rounded-control bg-sunken">
+				<p class="px-4 pt-3 code-dense text-muted">.geordi.yml</p>
+				<pre class="overflow-x-auto p-4 pt-2 code-dense"><span class="text-accent-ink">setup</span>: pnpm install
+
+<span class="text-accent-ink">jobs</span>:
+  <span class="text-accent-ink">db</span>:
+    <span class="text-accent-ink">command</span>: docker compose up db
+  <span class="text-accent-ink">web</span>:
+    <span class="text-accent-ink">command</span>: pnpm dev --port $PORT
+    <span class="text-accent-ink">needs</span>: [db]
+
+<span class="text-accent-ink">urls</span>:
+  <span class="text-accent-ink">app</span>:
+    <span class="text-accent-ink">url</span>: http://localhost:&#123;web&#125;/</pre>
+			</div>
+		</article>
+	</div>
+
+	<section class="sheet-quiet sheet-pad">
+		<h2 class="max-w-2xl text-headline font-semibold text-balance">Things we decided for you</h2>
+		<dl class="mt-10 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+			{opinions.map((opinion) => (
+				<div>
+					<dt class="heading">{opinion.title}</dt>
+					<dd class="mt-1.5 text-pretty text-muted">{opinion.text}</dd>
+				</div>
+			))}
+		</dl>
+	</section>
+
+	<section id="install" class="grid gap-10 sheet sheet-pad lg:grid-cols-2 lg:gap-16">
+		<div>
+			<h2 class="text-headline font-semibold text-balance">Try it</h2>
+			<p class="mt-4 max-w-xl text-pretty text-muted">
+				The desktop app brings everything it needs and keeps its data in{' '}
+				<code class="code text-(--inline-code)">~/.geordi</code>. Geordi is young and changes fast,
+				so expect a rough edge here and there.
+			</p>
+			<div class="mt-8 flex flex-wrap items-center gap-3">
+				<Button variant="primary" size="lg" href={site.download} icon="icon-[lucide--download]">
+					Download Geordi {site.version}
+				</Button>
+				<Button size="lg" href={site.docs.selfHosting}>
+					Run it without the app
+				</Button>
+			</div>
+			<div class="mt-10 flex max-w-xl gap-3 rounded-control bg-accent-soft p-4 text-sm text-accent-ink">
+				<span class="mt-0.5 icon-[lucide--shield-alert] size-4 shrink-0"></span>
+				<p class="text-pretty">
+					Heads up: there's no login yet, which is why Geordi only listens on your own computer. By
+					default, agents run with Full Access and can do anything your user account can. Pick Auto
+					Mode if you want them reined in.
+				</p>
+			</div>
+		</div>
+		<ol class="space-y-8">
+			{steps.map((step, index) => (
+				<li class="flex gap-5">
+					<span class="grid size-8 shrink-0 place-items-center rounded-full bg-sunken text-sm font-semibold tabular-nums">
+						{index + 1}
+					</span>
+					<div>
+						<h3 class="heading">{step.title}</h3>
+						<p class="mt-1.5 max-w-md text-pretty text-muted">{step.text}</p>
+					</div>
+				</li>
+			))}
+		</ol>
+	</section>
+</Base>
