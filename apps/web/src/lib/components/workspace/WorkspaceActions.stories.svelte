@@ -38,7 +38,7 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'working' | 'refreshing'> = {}
+	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'working'> = {}
 )}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
@@ -152,16 +152,6 @@
 		changes: pushed,
 		upstream: upstream({ checks: { state: 'pending', total: 3, failed: 0, url: null } })
 	})}
-</Story>
-
-<Story name="Refreshing workspace" asChild>
-	{@render bar(
-		{
-			changes: pushed,
-			upstream: upstream({ autoMerge: { enabled: true, canEnable: false, canDisable: true } })
-		},
-		{ refreshing: true }
-	)}
 </Story>
 
 <Story name="Merged" asChild>

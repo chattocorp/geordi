@@ -776,7 +776,6 @@
 			</div>
 		</div>
 		<WorkspaceActions
-			refreshing={workspace.refreshing}
 			{standing}
 			pull={standingState?.upstream?.pull}
 			actions={offered}
