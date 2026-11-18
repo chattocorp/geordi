@@ -70,6 +70,17 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	 */
 	const commands = new Map<string, AgentCommand[]>();
 	const commandListeners = new Set<(workspaceId: string) => void>();
+	/**
+	 * What each workspace's agent suggests saying next. It outlives its daemon's connection
+	 * (the agent said it, whoever relays it); a reconnecting daemon says it again anyway.
+	 */
+	const suggestions = new Map<string, string>();
+	function setSuggestion(id: string, text: string | null) {
+		if ((suggestions.get(id) ?? null) === text) return;
+		if (text) suggestions.set(id, text);
+		else suggestions.delete(id);
+		for (const listener of taskListeners) listener(id);
+	}
 	/** What each connected daemon's agent CLIs offer, as it said when it connected. */
 	const offers = new Map<WebSocket, Harness[]>();
 	/** Told when a daemon connects or goes away. */
@@ -148,11 +159,19 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				for (const listener of commandListeners) listener(message.workspaceId);
 				return;
 			}
+			if (message.type === 'workspace.suggestion') {
+				if (assigned.get(message.workspaceId) === daemonId)
+					setSuggestion(message.workspaceId, message.text);
+				return;
+			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
 			else if (
 				message.type !== 'workspace.event' ||
 				assigned.get(message.workspaceId) === daemonId
 			) {
+				// what was suggested was for the turn that ended, not for the next
+				if (message.type === 'workspace.event' && message.event.kind === 'turn.started')
+					setSuggestion(message.workspaceId, null);
 				handlers.onMessage(message);
 				if (message.type === 'workspace.event' && message.cursor) {
 					const ack: ForgeMessage = {
@@ -184,6 +203,8 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	return {
 		send,
 		background: (id: string) => background.get(id)?.tasks ?? [],
+		suggestion: (id: string) => suggestions.get(id) ?? null,
+		/** Calls `listener` when a workspace's background tasks or suggestion change. */
 		followBackground(listener: (workspaceId: string) => void) {
 			taskListeners.add(listener);
 			return () => taskListeners.delete(listener);

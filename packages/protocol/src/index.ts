@@ -730,6 +730,11 @@ export type DaemonMessage =
 	| { type: 'workspace.usage'; workspaceId: string; usage: ContextUsage }
 	/** The commands the workspace's agent offers now, all of them; sent again whenever they change. */
 	| { type: 'workspace.commands'; workspaceId: string; commands: AgentCommand[] }
+	/**
+	 * What the workspace's agent suggests the person say next, now that its turn is over;
+	 * `null` when it withdraws it. Live, like background tasks: said again on reconnecting.
+	 */
+	| { type: 'workspace.suggestion'; workspaceId: string; text: string | null }
 	| {
 			type: 'hello';
 			protocol: number;

@@ -47,7 +47,9 @@ export type HostEvent =
 	| { kind: 'background'; tasks: BackgroundTask[] }
 	| { kind: 'usage'; usage: ContextUsage }
 	/** The agent's commands, all of them, whenever they change: live data, not history. */
-	| { kind: 'commands'; commands: AgentCommand[] };
+	| { kind: 'commands'; commands: AgentCommand[] }
+	/** What the agent suggests saying next; `null` once it withdraws it. Live data, not history. */
+	| { kind: 'suggestion'; text: string | null };
 
 export type Meta = {
 	agent: Agent;

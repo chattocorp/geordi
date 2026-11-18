@@ -436,6 +436,8 @@ function connect(delay = 500) {
 				if (usage) sendLive({ type: 'workspace.usage', workspaceId, usage });
 				const commands = session.commands();
 				if (commands) sendLive({ type: 'workspace.commands', workspaceId, commands });
+				const text = session.suggestion();
+				if (text) sendLive({ type: 'workspace.suggestion', workspaceId, text });
 			}
 			delay = 500;
 			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));

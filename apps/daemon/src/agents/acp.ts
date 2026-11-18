@@ -31,6 +31,7 @@ import { TerminalOutput } from './terminal-output.ts';
 import { nativeSubagents } from './subagents.ts';
 import { ToolInfos } from './tool-info.ts';
 import { ToolDiffs } from './diffs.ts';
+import { promptSuggestion } from './suggestions.ts';
 import { API_SERVER, type SessionOptions } from './adapter.ts';
 
 /** The choice Codex adds to a question whose answer may be a note instead. */
@@ -140,6 +141,9 @@ export function connectAgent(
 	}
 	function update(u: SessionUpdate) {
 		if (terminalOutput.receive(u)) return;
+		// Before the switch: the same update may carry other news (a title) for a case below.
+		const suggestion = promptSuggestion(u);
+		if (suggestion !== undefined) emit({ kind: 'suggestion', text: suggestion });
 		switch (true) {
 			case SessionUpdate.isStateUpdate(u):
 				if (u.state === 'running' || u.state === 'requires_action') {
@@ -387,9 +391,14 @@ export function connectAgent(
 			info: { name: 'Geordi', version: '1' },
 			capabilities: {
 				elicitation: { form: {} },
-				...(provider === 'codex' && {
-					_meta: { jetbrains: { air: { version: 1, capabilities: ['asyncTasks'] } } }
-				})
+				session: { promptSuggestions: {} },
+				// Both wrappers suggest what to say next only to a client that declares AIR's
+				// `_meta` (see `suggestions.ts`). For Claude it changes nothing else Geordi reads.
+				_meta: {
+					jetbrains: {
+						air: { version: 1, capabilities: provider === 'codex' ? ['asyncTasks'] : [] }
+					}
+				}
 			}
 		});
 		if (info.protocolVersion !== PROTOCOL_VERSION) throw new Error('This wrapper requires ACP v2');
