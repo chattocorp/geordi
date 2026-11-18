@@ -204,6 +204,8 @@
 		const answer = await canvas.findByRole('button', { name: 'Answer' });
 		await expect(answer).toBeDisabled(); // nothing to say yet
 		await userEvent.click(canvas.getByRole('button', { name: /Postgres/ }));
+		// Selecting an option can scroll the virtual list, which pauses pointer input.
+		await waitFor(() => expect(getComputedStyle(answer).pointerEvents).not.toBe('none'));
 		await userEvent.click(answer);
 		await waitFor(() => expect(canvas.queryByRole('button', { name: 'Answer' })).toBeNull());
 		await expect(canvas.getByText('Postgres')).toBeVisible();
