@@ -1,6 +1,7 @@
+import { desktopUpdates } from './updates.js';
 import { desktopRuntime } from './runtime.js';
 import { execFileSync } from 'node:child_process';
-import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	app,
@@ -261,6 +262,8 @@ function contextMenu(window, { mediaType, srcURL, selectionText, isEditable, edi
 	if (items.length) Menu.buildFromTemplate(items).popup({ window });
 }
 
+let updates;
+
 function menu() {
 	Menu.setApplicationMenu(
 		Menu.buildFromTemplate([
@@ -367,11 +370,55 @@ else {
 		notified.delete(id);
 	});
 
+	ipcMain.on('geordi:updates', (event, action, value) => {
+		const frame = event.senderFrame;
+		if (!frame || frame !== event.sender.mainFrame || URL.parse(frame.url)?.origin !== url) return;
+		switch (action) {
+			case 'read':
+				event.reply('geordi:update-state', updates?.state() ?? null);
+				break;
+			case 'beta':
+				updates?.setBeta(value);
+				break;
+			case 'check':
+				void updates?.check();
+				break;
+			case 'restart':
+				updates?.restart();
+				break;
+		}
+	});
+
 	app.whenReady().then(async () => {
 		menu();
 		startForge();
 		await forgeReady();
 		startDaemon();
 		open();
+		// Only the signed release workflow adds the update feed before signing.
+		if (
+			process.platform === 'darwin' &&
+			app.isPackaged &&
+			!runtime.directory &&
+			existsSync(join(process.resourcesPath, 'app-update.yml'))
+		) {
+			const { default: updater } = await import('./release-updater.cjs');
+			const file = join(app.getPath('userData'), 'update-channel');
+			updates = desktopUpdates({
+				updater,
+				preferences: {
+					read: () => (existsSync(file) ? readFileSync(file, 'utf8') : 'latest'),
+					write: (channel) => writeFileSync(file, channel)
+				},
+				refresh() {
+					for (const window of BrowserWindow.getAllWindows()) {
+						window.webContents.send('geordi:update-state', updates.state());
+					}
+				},
+				note
+			});
+			void updates.check();
+			setInterval(updates.check, 60 * 60 * 1000).unref();
+		}
 	});
 }

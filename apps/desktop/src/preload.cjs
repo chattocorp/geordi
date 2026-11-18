@@ -11,5 +11,16 @@ contextBridge.exposeInMainWorld('geordiDesktop', {
 	/** Takes a notification back: what it told of has been seen. */
 	dismiss: (id) => ipcRenderer.send('geordi:dismiss', id),
 	/** Calls back with the ID of a notification that was clicked. */
-	onOpen: (opened) => ipcRenderer.on('geordi:open', (_event, id) => opened(id))
+	onOpen: (opened) => ipcRenderer.on('geordi:open', (_event, id) => opened(id)),
+	updates: {
+		subscribe(callback) {
+			const receive = (_event, state) => callback(state);
+			ipcRenderer.on('geordi:update-state', receive);
+			ipcRenderer.send('geordi:updates', 'read');
+			return () => ipcRenderer.removeListener('geordi:update-state', receive);
+		},
+		setBeta: (value) => ipcRenderer.send('geordi:updates', 'beta', value),
+		check: () => ipcRenderer.send('geordi:updates', 'check'),
+		restart: () => ipcRenderer.send('geordi:updates', 'restart')
+	}
 });
