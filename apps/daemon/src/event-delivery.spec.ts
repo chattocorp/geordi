@@ -33,6 +33,9 @@ function backlog(count: number, send: Parameters<typeof eventDelivery>[1]) {
 }
 
 it('delivers a burst in order at the acknowledgment rate', async () => {
+	// Only the poll is faked: acknowledgments (setImmediate) stay real. So the burst must
+	// get through on acknowledgments alone, after a single poll, however busy the machine.
+	vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
 	const received: unknown[] = [];
 	const batch = backlog(30, (message) => {
 		if (message.type !== 'workspace.event') throw Error(message.type);
@@ -41,13 +44,13 @@ it('delivers a burst in order at the acknowledgment rate', async () => {
 		setImmediate(() => batch.ack(cursor!));
 	});
 	try {
-		const start = performance.now();
-		await batch.session.done;
-		const elapsed = performance.now() - start;
+		vi.advanceTimersByTime(100);
+		for (let i = 0; i < 100 && received.length < batch.events.length; i++)
+			await new Promise((resolve) => setImmediate(resolve));
 		expect(received).toEqual(batch.events);
-		expect(elapsed).toBeLessThan(1000);
 	} finally {
 		batch.clean();
+		vi.useRealTimers();
 	}
 });
 
