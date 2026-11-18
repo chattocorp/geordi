@@ -85,6 +85,7 @@
 				}
 			)
 		],
+		access: [],
 		harnesses: null
 	};
 </script>
