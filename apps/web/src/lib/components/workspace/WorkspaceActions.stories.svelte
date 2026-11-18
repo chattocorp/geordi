@@ -56,9 +56,17 @@
 	>{@render bar({ changes: dirty, upstream: upstream(null) })}</Story
 >
 
-<Story name="Pushed branch awaiting a pull request" asChild
-	>{@render bar({ changes: pushed, upstream: upstream(null) })}</Story
+<Story
+	name="Pushed branch awaiting a pull request"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Create PR' })).toBeVisible();
+		await expect(canvas.queryByText('No pull request')).not.toBeInTheDocument();
+	}}
 >
+	{@render bar({ changes: pushed, upstream: upstream(null) })}
+</Story>
 
 <Story
 	name="Draft pull request"

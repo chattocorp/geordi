@@ -106,7 +106,7 @@ describe('actionsFor', () => {
 		// pushed, nothing new, but no pull request yet: that is the step left
 		const pushed = { changes: { ...clean, files: [file] }, upstream: upstream() };
 		expect(ids(pushed)).toEqual(['create-pull']);
-		expect(standingOf(pushed)).toMatchObject({ label: 'No pull request', tone: 'neutral' });
+		expect(standingOf(pushed)).toBeNull();
 		// pushed with nothing on it: nothing to ask for
 		expect(ids({ changes: clean, upstream: upstream() })).toEqual([]);
 	});

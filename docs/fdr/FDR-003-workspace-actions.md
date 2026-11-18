@@ -33,7 +33,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 - Archive checks the workspace and its descendants. It opens a dialog only for active agents, running processes, or unfinished Git work (FDR-001). It is also always available as a quiet button, not only when it is the obvious next step.
 - Nothing is offered while Geordi doesn't know the workspace's changes (no daemon connected).
 - A workspace whose own commits are all in the branch it started from, with no pull request to say so (an agent's work, merged by the agent that started it), stands as merged, and can be archived.
-- A branch that is pushed and has work on it, but no pull request, says so, and offers to open one.
+- A pushed branch with work ready for a pull request shows only **Create PR**.
 - An agent's turn that failed comes before everything else: the workspace says so, and offers to have the agent carry on.
 - While an agent is at work in the workspace, committing and opening or updating a pull request are not offered: the work is not done. One that was asked for before stays, shown as under way.
 - Agents can read the same: the agent API's `workspace_status` tool (FDR-002) says how an agent's own workspace stands, or that of an agent it started, and what the next steps are, with the message each would send. Agents can't trigger actions through it: a step that is a message is work the agent can do itself, or ask of the agent it started; marking ready for review, merging and archiving stay with the person.
