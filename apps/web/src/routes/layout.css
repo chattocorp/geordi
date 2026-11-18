@@ -244,12 +244,9 @@
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
-/*
- * The current tab in a pane's bar: lifted by its ground alone. A shadow or a rim is too
- * much on something this small inside a sheet.
- */
+/* Give the selected tab a visible edge without changing its width. */
 @utility tab-active {
-	@apply bg-surface text-ink hover:bg-surface;
+	@apply bg-surface text-ink inset-ring-1 inset-ring-muted hover:bg-surface;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
