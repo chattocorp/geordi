@@ -42,13 +42,12 @@ import type {
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
 
-export type HostEvent =
-	| AgentEvent
+/** What the host writes down: the agent's events, and what it says that is live (`AgentLive`). */
+export type HostEvent = AgentEvent | LiveEvent;
+export type LiveEvent =
 	| { kind: 'background'; tasks: BackgroundTask[] }
 	| { kind: 'usage'; usage: ContextUsage }
-	/** The agent's commands, all of them, whenever they change: live data, not history. */
 	| { kind: 'commands'; commands: AgentCommand[] }
-	/** What the agent suggests saying next; `null` once it withdraws it. Live data, not history. */
 	| { kind: 'suggestion'; text: string | null };
 
 export type Meta = {

@@ -166,12 +166,12 @@
 	name="Token usage"
 	asChild
 	play={async ({ canvas }) => {
-		const figure = await canvas.findByText('150K tokens');
+		const figure = await canvas.findByText('150k tokens');
 		expect(figure).toHaveAttribute(
 			'title',
 			'8 input · 353 output · 120,465 cache read · 29,504 cache write'
 		);
-		await waitFor(() => expect(canvas.getByText('79K tokens')).toBeVisible());
+		await waitFor(() => expect(canvas.getByText('79k tokens')).toBeVisible());
 	}}
 >
 	<div class="flex h-120 max-w-3xl flex-col sheet overflow-hidden">

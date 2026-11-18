@@ -15,7 +15,7 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 33;
+export const PROTOCOL_VERSION = 34;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -623,6 +623,21 @@ export type AgentCommand = {
 	hint?: string;
 };
 
+/**
+ * What an agent says of its session that is live data, not history (ADR-003): never an
+ * event, said again by a reconnecting daemon. Each is there only once the agent has said it.
+ */
+export type AgentLive = {
+	/** What it has running in the background. */
+	background?: BackgroundTask[];
+	/** How full its context is, said after every model step. */
+	usage?: ContextUsage;
+	/** Its own commands, all of them, whenever they change. */
+	commands?: AgentCommand[];
+	/** What it suggests the person say next, now that its turn is over; `null` once withdrawn. */
+	suggestion?: string | null;
+};
+
 export type AgentEvent =
 	| { kind: 'subagent'; path: string[]; update: SubagentUpdate }
 	| { kind: 'message.received'; id: string }
@@ -722,19 +737,11 @@ export type ForgeMessage =
 
 /** Daemon → forge. */
 export type DaemonMessage =
-	| { type: 'workspace.background'; workspaceId: string; tasks: BackgroundTask[] }
 	/**
-	 * How full the agent's context is, said after every model step, and again on reconnect.
-	 * Live, unacknowledged: the forge keeps it in memory and records it once per turn.
+	 * What changed in what the workspace's agent says of its session (`AgentLive`). Live,
+	 * unacknowledged: said as it changes, and all of it again on reconnecting.
 	 */
-	| { type: 'workspace.usage'; workspaceId: string; usage: ContextUsage }
-	/** The commands the workspace's agent offers now, all of them; sent again whenever they change. */
-	| { type: 'workspace.commands'; workspaceId: string; commands: AgentCommand[] }
-	/**
-	 * What the workspace's agent suggests the person say next, now that its turn is over;
-	 * `null` when it withdraws it. Live, like background tasks: said again on reconnecting.
-	 */
-	| { type: 'workspace.suggestion'; workspaceId: string; text: string | null }
+	| { type: 'workspace.live'; workspaceId: string; live: AgentLive }
 	| {
 			type: 'hello';
 			protocol: number;

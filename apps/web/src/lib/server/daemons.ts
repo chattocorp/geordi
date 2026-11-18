@@ -5,6 +5,7 @@ import {
 	type DaemonMessage,
 	type AgentCommand,
 	type BackgroundTask,
+	type ContextUsage,
 	type DaemonRequest,
 	type DaemonResults,
 	type ForgeMessage,
@@ -22,6 +23,8 @@ type Handlers = {
 		ended: Record<string, number>
 	): void;
 	onMessage(message: DaemonMessage): void;
+	/** How full a workspace's agent's context is, as it just said. */
+	onUsage(workspaceId: string, usage: ContextUsage): void;
 };
 
 const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
@@ -144,24 +147,16 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				return;
 			}
 
-			if (message.type === 'workspace.background') {
-				if (assigned.get(message.workspaceId) === daemonId)
-					setTasks(socket, message.workspaceId, message.tasks);
-				return;
-			}
-			if (message.type === 'workspace.usage') {
-				if (assigned.get(message.workspaceId) === daemonId) handlers.onMessage(message);
-				return;
-			}
-			if (message.type === 'workspace.commands') {
-				if (assigned.get(message.workspaceId) !== daemonId) return;
-				commands.set(message.workspaceId, message.commands);
-				for (const listener of commandListeners) listener(message.workspaceId);
-				return;
-			}
-			if (message.type === 'workspace.suggestion') {
-				if (assigned.get(message.workspaceId) === daemonId)
-					setSuggestion(message.workspaceId, message.text);
+			if (message.type === 'workspace.live') {
+				const { workspaceId: id, live } = message;
+				if (assigned.get(id) !== daemonId) return;
+				if (live.background) setTasks(socket, id, live.background);
+				if (live.suggestion !== undefined) setSuggestion(id, live.suggestion);
+				if (live.commands) {
+					commands.set(id, live.commands);
+					for (const listener of commandListeners) listener(id);
+				}
+				if (live.usage) handlers.onUsage(id, live.usage);
 				return;
 			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
