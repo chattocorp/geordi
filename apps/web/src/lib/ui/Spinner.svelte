@@ -4,13 +4,8 @@
 	/** Something is working. `label` says what, for those who can't see it turn. */
 	type Props = {
 		label?: string;
-		/**
-		 * In the accent, not the colour of the text around it. For the one place in a view
-		 * that says what is at work (a workspace's row in the sidebar): gold is rationed.
-		 */
-		live?: boolean;
 	};
-	let { label = 'Working', live = false }: Props = $props();
+	let { label = 'Working' }: Props = $props();
 
 	/**
 	 * The classic Braille dots going round: two columns of three, half of them lit. Drawn
@@ -38,13 +33,7 @@
 	Turned by the browser, not by us: it goes round also while the page is busy with
 	something else (waiting for the server, say), which is just when it is looked at.
 -->
-<span
-	role="img"
-	aria-label={label}
-	title={label}
-	class={['spinner shrink-0', live && 'text-accent-ink']}
-	{@attach inStep}
->
+<span role="img" aria-label={label} title={label} class="spinner shrink-0" {@attach inStep}>
 	{#each DOTS as [column, row], index (index)}
 		<span style:grid-area="{row} / {column}" style:--i={index}></span>
 	{/each}
