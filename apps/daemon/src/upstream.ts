@@ -67,7 +67,7 @@ async function ghToken(): Promise<string | null> {
 const limits = createRateLimits();
 const recentPulls = createRecentPulls();
 
-let registry: { forges: Forges; at: number } | undefined;
+let registry: { value: Promise<Forges>; at: number } | undefined;
 /** How long credentials are trusted: signing in to the GitHub CLI should not take a restart to notice. */
 const CREDENTIALS_MS = 10 * 60_000;
 
@@ -76,8 +76,17 @@ const CREDENTIALS_MS = 10 * 60_000;
  * (see https://forges.link/guides/environment-variables), plus github.com, signed in as
  * the GitHub CLI is, or anonymously (public repositories only).
  */
-async function forges() {
-	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry;
+function forges() {
+	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry.value;
+	const value = loadForges();
+	registry = { value, at: Date.now() };
+	void value.catch(() => {
+		if (registry?.value === value) registry = undefined;
+	});
+	return value;
+}
+
+async function loadForges() {
 	const providers = providersFromEnv(process.env, { fetch: limits.fetch }).flatMap(
 		(set) => set.provider ?? []
 	);
@@ -90,7 +99,7 @@ async function forges() {
 		});
 		providers.push(provider);
 	}
-	return (registry = { forges: createForges(providers), at: Date.now() });
+	return createForges(providers);
 }
 
 /** How many checks stand how. */
@@ -258,7 +267,7 @@ async function findPull(
 	repo: Repo,
 	branch: string
 ): Promise<Thread | null> {
-	const get = async (ref: Thread['ref']) => await readThread(provider, ref);
+	const get = (ref: Thread['ref']) => readThread(provider, ref);
 	const order = { sort: 'updated', direction: 'desc' } as const;
 
 	if (provider.can('search.threads')) {
@@ -284,12 +293,12 @@ async function findPull(
 	for await (const thread of recent) {
 		if (isFor(thread, repo, branch)) {
 			// the list is a summary; checks and reviews come with the full pull request
-			if (thread.state === 'open') return await get(thread.ref);
+			if (thread.state === 'open') return get(thread.ref);
 			closed ??= thread;
 		}
 		if (++searched >= SEARCH_LIMIT) break;
 	}
-	return closed ? await get(closed.ref) : null;
+	return closed ? get(closed.ref) : null;
 }
 
 /**
@@ -300,7 +309,7 @@ async function locate(worktree: Worktree, repoPath: string) {
 	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
 	if (!remote) return null;
 
-	const { forges: all } = await forges();
+	const all = await forges();
 	const parsed = all.parseUrl(remote);
 	if (!parsed) return null;
 
@@ -385,14 +394,11 @@ export async function upstream(
 	// it here; the pull request is still there, and still this branch's. What is left of
 	// the push is that Git was told where the branch goes, or that we saw its pull request.
 	const key = JSON.stringify([remote, branch, local]);
+	const tracks = !pushed && (await quietGit(repoPath, 'config', '--get', `branch.${local}.remote`));
 	const cached = cache.get(worktreeId);
 	const baseline = cached?.key === key ? cached : undefined;
 	const previous = baseline?.value;
-	if (
-		!pushed &&
-		!previous?.pull &&
-		!(await quietGit(repoPath, 'config', '--get', `branch.${local}.remote`))
-	) {
+	if (!pushed && !previous?.pull && !tracks) {
 		// Remember the unpushed branch so its first push is an observed change.
 		cache.set(worktreeId, {
 			key,

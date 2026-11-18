@@ -5,6 +5,7 @@ import type { Session } from './session.ts';
 
 vi.mock('./worktree.ts', () => ({
 	worktreePath: () => '/worktree',
+	verifyLinks: vi.fn(),
 	hasWorktree: vi.fn(),
 	fetchUpstream: vi.fn(),
 	ensureWorktree: vi.fn()

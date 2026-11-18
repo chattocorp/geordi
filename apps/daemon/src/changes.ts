@@ -60,8 +60,8 @@ async function comparison(worktree: Worktree, origin: Origin) {
 	return { fork, name: target.replace(/^refs\/(?:heads\/|remotes\/origin\/)/, '') };
 }
 
-const untracked = async (worktree: Worktree) =>
-	(await gitIn(worktree, 'ls-files', '--others', '--exclude-standard', '-z'))
+const untracked = async (worktree: Worktree, ...paths: string[]) =>
+	(await gitIn(worktree, 'ls-files', '--others', '--exclude-standard', '-z', '--', ...paths))
 		.split('\0')
 		.filter(Boolean);
 
@@ -112,30 +112,46 @@ const lines = (text: string) => (text ? text.replace(/\n$/, '').split('\n') : []
 
 const STATUS: Record<string, FileChange['status']> = { A: 'added', D: 'deleted', R: 'renamed' };
 
-export async function changes(
-	worktree: Worktree,
-	origin: Origin,
-	fork?: string
-): Promise<FileChange[]> {
-	fork ??= (await comparison(worktree, origin)).fork;
-	// With renames found (`-M`), so that a moved file is one change and not two. Git does
-	// that by comparing contents itself: nothing of the worktree's gets to run.
-	const diff = async (format: string) =>
-		(await gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, fork!)).split('\0');
-
+function fileStates(fields: string[]) {
 	// `--name-status -z`: a status, then the path; a rename has the old path and the new.
 	const states = new Map<string, Pick<FileChange, 'status' | 'from'>>();
-	for (let fields = await diff('--name-status'); fields.length > 1;) {
-		const [status, path] = fields.splice(0, 2);
-		if (status.startsWith('R')) states.set(fields.shift()!, { status: 'renamed', from: path });
+	for (let i = 0; i < fields.length - 1;) {
+		const status = fields[i++];
+		const path = fields[i++];
+		if (status.startsWith('R')) states.set(fields[i++], { status: 'renamed', from: path });
 		else states.set(path, { status: STATUS[status] ?? 'modified' });
 	}
 
+	return states;
+}
+
+export async function changes(worktree: Worktree, origin: Origin): Promise<FileChange[]> {
+	const [{ fork }, others] = await Promise.all([comparison(worktree, origin), untracked(worktree)]);
+	return filesSince(worktree, fork, others);
+}
+
+async function filesSince(
+	worktree: Worktree,
+	base: string,
+	others: string[]
+): Promise<FileChange[]> {
+	// With renames found (`-M`), so that a moved file is one change and not two. Git does
+	// that by comparing contents itself: nothing of the worktree's gets to run.
+	const diff = async (format: string) =>
+		(await gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, base)).split('\0');
+
+	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
+	const states = fileStates(names);
+
 	// `--numstat -z`: counts and the path; a rename has no path there, but two after it.
 	const tracked: FileChange[] = [];
-	for (let fields = await diff('--numstat'); fields.length > 1;) {
-		const [added, removed, ...rest] = fields.shift()!.split('\t');
-		const path = rest.join('\t') || fields.splice(0, 2)[1];
+	for (let i = 0; i < fields.length - 1;) {
+		const [added, removed, ...rest] = fields[i++].split('\t');
+		let path = rest.join('\t');
+		if (!path) {
+			i++; // old name
+			path = fields[i++];
+		}
 		const count = (value: string) => (value === '-' ? null : Number(value));
 		tracked.push({
 			path,
@@ -147,7 +163,7 @@ export async function changes(
 
 	// Reading files to count their lines is only worth it for a workspace's own handful of new
 	// files, not for a `node_modules` nobody ignored: beyond that, they are just listed.
-	const added = (await untracked(worktree)).map((path, index): FileChange => {
+	const added = others.map((path, index): FileChange => {
 		const text = index < MAX_COUNTED ? readText(worktree, path) : null;
 		return {
 			path,
@@ -165,12 +181,16 @@ export async function changes(
  * status`: `gitIn` runs against the repository's own .git, whose HEAD is not the worktree's.
  */
 export async function uncommittedFiles(worktree: Worktree): Promise<string[]> {
-	const modified = (
+	const [modified, others] = await Promise.all([modifiedFiles(worktree), untracked(worktree)]);
+	return [...modified, ...others];
+}
+
+async function modifiedFiles(worktree: Worktree) {
+	return (
 		await gitIn(worktree, 'diff', '--name-only', '--no-renames', '-z', ...SAFE, headOf(worktree))
 	)
 		.split('\0')
 		.filter(Boolean);
-	return [...modified, ...(await untracked(worktree))];
 }
 
 /**
@@ -231,10 +251,31 @@ async function incoming(worktree: Worktree, origin: Origin): Promise<Changes['in
 }
 
 /** The workspace's changes, and how far they have got: committed? pushed? */
-export async function status(worktree: Worktree, origin: Origin): Promise<Changes> {
+const loading = new Map<string, Promise<Changes>>();
+
+export function status(worktree: Worktree, origin: Origin): Promise<Changes> {
+	const key = JSON.stringify([
+		worktree.path,
+		origin.repoPath,
+		origin.base,
+		origin.pullBase,
+		origin.parents
+	]);
+	let result = loading.get(key);
+	if (!result) {
+		result = readStatus(worktree, origin).finally(() => loading.delete(key));
+		loading.set(key, result);
+	}
+	return result;
+}
+
+async function readStatus(worktree: Worktree, origin: Origin): Promise<Changes> {
 	const head = headOf(worktree);
-	const { fork, name } = await comparison(worktree, origin);
-	const uncommitted = (await uncommittedFiles(worktree)).length;
+	const [{ fork, name }, modified, others] = await Promise.all([
+		comparison(worktree, origin),
+		modifiedFiles(worktree),
+		untracked(worktree)
+	]);
 
 	// What is on the remote, as far as this machine knows: the remote-tracking branch.
 	let unpushed: number | null = null;
@@ -251,15 +292,23 @@ export async function status(worktree: Worktree, origin: Origin): Promise<Change
 		}
 	}
 
+	const [files, tip] = await Promise.all([
+		filesSince(worktree, fork, others),
+		gitIn(worktree, 'rev-parse', head)
+	]);
+	const [isLanded, behind] = await Promise.all([
+		landed(worktree, origin, head),
+		incoming(worktree, origin)
+	]);
 	return {
 		branch: branchOf(worktree),
 		comparisonTarget: name,
-		files: await changes(worktree, origin, fork),
-		unmerged: (await gitIn(worktree, 'rev-parse', head)).trim() !== fork,
-		uncommitted,
+		files,
+		unmerged: tip.trim() !== fork,
+		uncommitted: modified.length + others.length,
 		unpushed,
-		landed: await landed(worktree, origin, head),
-		incoming: await incoming(worktree, origin)
+		landed: isLanded,
+		incoming: behind
 	};
 }
 
@@ -272,14 +321,33 @@ export async function versions(
 	origin: Origin,
 	path: string
 ): Promise<FileVersions> {
+	const missing = { unavailable: 'This file has no changes any more.' };
+	if (
+		isAbsolute(path) ||
+		path.includes('\0') ||
+		path
+			.split(sep)
+			.some((part) => !part || part === '.' || part === '..' || part.toLowerCase() === '.git')
+	)
+		return missing;
 	const { fork } = await comparison(worktree, origin);
-	const change = (await changes(worktree, origin, fork)).find((file) => file.path === path);
-	if (!change) return { unavailable: 'This file has no changes any more.' };
+	const diff = (...args: string[]) =>
+		gitIn(worktree, 'diff', '--name-status', '-z', '-M', ...SAFE, fork, ...args);
+	const state = fileStates((await diff('--', path)).split('\0')).get(path);
+	let beforePath = path;
+	if (state?.status === 'added' || state?.status === 'deleted') {
+		// Filtering by destination hides the source of a rename. Ask for rename pairs only.
+		const renames = fileStates((await diff('--diff-filter=R')).split('\0'));
+		beforePath = renames.get(path)?.from ?? path;
+		if ([...renames.values()].some((rename) => rename.from === path)) {
+			if (!(await untracked(worktree, path)).includes(path)) return missing;
+		}
+	} else if (!state && !(await untracked(worktree, path)).includes(path)) return missing;
 
 	let old: string | null;
 	try {
 		// a renamed file's old version is under its old name
-		const before = `${fork}:${change.from ?? path}`;
+		const before = `${fork}:${beforePath}`;
 		old = await gitIn(worktree, 'cat-file', 'blob', before);
 	} catch {
 		old = null; // not there at the fork point: the file is new

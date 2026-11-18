@@ -5,6 +5,7 @@ import {
 	closeSync,
 	constants,
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	openSync,
 	readFileSync,
@@ -48,6 +49,23 @@ export function verifyLinks({ path, adminDir, commonDir }: Worktree) {
 export const worktreePath = (baseDir: string, repoPath: string, worktreeId: string) =>
 	join(baseDir, basename(repoPath), worktreeId.slice(0, 8));
 
+// Cache the usual checkout only. A linked checkout has a .git file that can be repointed.
+const ordinaryRepos = new Set<string>();
+
+async function commonDirOf(repoPath: string) {
+	const dotGit = resolve(repoPath, '.git');
+	if (
+		ordinaryRepos.has(repoPath) &&
+		lstatSync(dotGit, { throwIfNoEntry: false })?.isDirectory() &&
+		!existsSync(join(dotGit, 'commondir'))
+	)
+		return dotGit;
+	const dir = resolve(repoPath, (await git(repoPath, ['rev-parse', '--git-common-dir'])).trim());
+	if (dir === dotGit) ordinaryRepos.add(repoPath);
+	else ordinaryRepos.delete(repoPath);
+	return dir;
+}
+
 /**
  * Where a workspace's worktree lives. Everything is derived from the repository and the
  * workspace ID, never by asking git inside the worktree (its metadata is agent-writable).
@@ -58,10 +76,7 @@ export async function describe(
 	workspaceId: string
 ): Promise<Worktree> {
 	const short = workspaceId.slice(0, 8);
-	const commonDir = resolve(
-		repoPath,
-		(await git(repoPath, ['rev-parse', '--git-common-dir'])).trim()
-	);
+	const commonDir = await commonDirOf(repoPath);
 	return {
 		path: worktreePath(baseDir, repoPath, workspaceId),
 		branch: `geordi/${short}`,
@@ -121,8 +136,7 @@ export async function startOf(repoPath: string): Promise<string> {
  * request are.
  */
 export async function upstreamBranchOf(repoPath: string, branch: string): Promise<string> {
-	const config = async (key: string) =>
-		await quietGit(repoPath, 'config', '--get', `branch.${branch}.${key}`);
+	const config = (key: string) => quietGit(repoPath, 'config', '--get', `branch.${branch}.${key}`);
 	const name = /^refs\/heads\/(.+)$/.exec((await config('merge')) ?? '')?.[1];
 	if ((await config('remote')) !== 'origin' || !name || !BRANCH.test(name)) return branch;
 	// set to follow the main branch, it has not been pushed there: it has no place upstream yet
@@ -241,7 +255,7 @@ export async function continueOn(
 	await git(repoPath, ['branch', '--no-track', branch, start]);
 	try {
 		requireIdle();
-		await gitIn(worktree, 'read-tree', '--reset', '-u', branchRef(branch));
+		await gitIn(worktree, 'read-tree', '-m', '-u', headOf(worktree), branchRef(branch));
 	} catch (error) {
 		await git(repoPath, ['branch', '-D', branch]); // nothing is on it yet
 		throw error;

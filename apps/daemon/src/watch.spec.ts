@@ -42,6 +42,8 @@ describe('watching workspaces', () => {
 	it('keeps watching the Git state of a worktree in the background once nobody has it open', async () => {
 		const { base, ref, git, seen, watches } = setup();
 		const worktree = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		// Let the checkout's filesystem notifications settle before observing this write.
+		await wait(300);
 		watches.set([ref], 'background');
 		watches.set([ref]);
 		watches.set([]);

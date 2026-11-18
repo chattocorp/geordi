@@ -158,6 +158,7 @@ function runScript(
 	const { output, exit } = relay(terminalId);
 	return new Promise((resolve) => {
 		if (runningTerminals().includes(terminalId)) return resolve({ status: null, output: '' });
+		verifyLinks(worktree);
 		const timer = timeoutMs ? setTimeout(() => closeTerminal(terminalId), timeoutMs) : undefined;
 		openTerminal(
 			terminalId,
@@ -252,7 +253,7 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
-	async ({ repoPath, worktreeId }) => await locateWorktree(worktreesDir, repoPath, worktreeId),
+	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
 	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
 );
 
@@ -466,7 +467,7 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'title') return titleFor(request.text);
-	if (request.kind === 'repoIcon') return await repoIcon(request.repoPath);
+	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;
 		const worktree = await removable(worktreesDir, repoPath, worktreeId, force);
@@ -505,11 +506,12 @@ async function readRequest(request: DaemonRequest) {
 			if (workingIn(worktree.path)) throw new Error('Its agent is still at work');
 		};
 		requireIdle();
-		if ((await uncommittedFiles(worktree)).length > 0)
-			throw new Error('It has uncommitted changes: commit or discard them first');
+
 		// from where the upstream stands now, as a new workspace would
 		const problem = await fetchUpstream(repoPath);
 		if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
+		if ((await uncommittedFiles(worktree)).length > 0)
+			throw new Error('It has uncommitted changes: commit or discard them first');
 		requireIdle();
 		const branch = await continueOn(worktree, repoPath, requireIdle);
 		sendLive({ type: 'worktree.changed', worktreeId });
@@ -532,7 +534,7 @@ async function readRequest(request: DaemonRequest) {
 	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
-			return await status(worktree, comparisonOrigin(worktree, request));
+			return status(worktree, comparisonOrigin(worktree, request));
 		case 'release':
 			// which notes are this workspace's: the files it has added
 			return releasePlan(
@@ -548,7 +550,7 @@ async function readRequest(request: DaemonRequest) {
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':
-			return await versions(worktree, comparisonOrigin(worktree, request), request.path);
+			return versions(worktree, comparisonOrigin(worktree, request), request.path);
 		case 'source':
 			return readText(worktree, request.path);
 		case 'picture':
@@ -626,6 +628,7 @@ async function handle(message: ForgeMessage) {
 								? config.setup && { ...config.setup, port: null }
 								: config.jobs.find((job) => job.name === asked?.job);
 						const agreed = job && job.command === asked?.command && job.approved;
+						guard();
 						openTerminal(
 							terminalId,
 							worktree.path,

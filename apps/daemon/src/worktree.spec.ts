@@ -687,3 +687,32 @@ it('abandons a continuation if a turn starts while the branch is being made', as
 	expect(branchOf(worktree)).toBe(worktree.branch);
 	expect(await continueOn(worktree, repoPath)).toBe(worktree.branch + '-2');
 });
+
+it('runs Git once for a burst of identical changes requests and reads again afterward', async () => {
+	const repoPath = repo();
+	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	const trace = join(base, 'trace');
+	const original = process.env.GIT_TRACE2_EVENT;
+	process.env.GIT_TRACE2_EVENT = trace;
+	const commands = () =>
+		readFileSync(trace, 'utf8')
+			.trim()
+			.split('\n')
+			.map((line) => JSON.parse(line))
+			.filter((event) => event.event === 'start').length;
+	try {
+		await status(worktree, { repoPath });
+		const single = commands();
+		expect(single).toBeGreaterThan(0);
+		writeFileSync(join(worktree.path, 'new.txt'), 'new');
+		const results = await Promise.all(
+			Array.from({ length: 12 }, () => status(worktree, { repoPath }))
+		);
+		expect(commands()).toBe(2 * single);
+		expect(results.every((result) => result.uncommitted === 1)).toBe(true);
+	} finally {
+		if (original === undefined) delete process.env.GIT_TRACE2_EVENT;
+		else process.env.GIT_TRACE2_EVENT = original;
+	}
+});

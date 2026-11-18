@@ -1,6 +1,12 @@
 import { inWorktree } from './worktree-queue.ts';
 import { sameAgentSettings, type ForgeMessage, type AgentEvent } from '@geordi/protocol';
-import { ensureWorktree, fetchUpstream, hasWorktree, worktreePath } from './worktree.ts';
+import {
+	ensureWorktree,
+	fetchUpstream,
+	hasWorktree,
+	verifyLinks,
+	worktreePath
+} from './worktree.ts';
 import type { Meta } from './host.ts';
 import type { Session, Said } from './session.ts';
 
@@ -135,6 +141,7 @@ export function turnStarts({
 					api: { url: apiUrl }
 				};
 				checkStop();
+				verifyLinks(worktree);
 				begin(workspaceId, { agent, options, apiToken: message.apiToken }, heard);
 			});
 			await Promise.race([stopped.promise, launch]);

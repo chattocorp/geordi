@@ -134,3 +134,13 @@ describe('update', () => {
 		expect(await update(worktree, origin)).toBe(false);
 	});
 });
+
+it('restores the branch if an agent wakes during the ref update', async () => {
+	const { upstream, repoPath, worktree, origin } = await setup();
+	const before = git(repoPath, 'rev-parse', worktree.branch);
+	commit(upstream, 'incoming.txt', 'incoming');
+	const working = () => git(repoPath, 'rev-parse', worktree.branch) !== before;
+	expect(await update(worktree, origin, { working })).toBe(false);
+	expect(git(repoPath, 'rev-parse', worktree.branch)).toBe(before);
+	expect(existsSync(join(worktree.path, 'incoming.txt'))).toBe(false);
+});

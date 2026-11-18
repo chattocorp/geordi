@@ -74,8 +74,7 @@ export async function update(
 		(await gitIn(worktree, 'rev-parse', '--verify', `${rev}^{commit}`)).trim();
 	const ours = await commit(head);
 	const theirs = await commit(base);
-	const within = async (a: string, b: string) =>
-		await succeeds(worktree, 'merge-base', '--is-ancestor', a, b);
+	const within = (a: string, b: string) => succeeds(worktree, 'merge-base', '--is-ancestor', a, b);
 	if (await within(theirs, ours)) return !working(); // nothing to bring in
 
 	// named as git names them in a merge's message
@@ -90,8 +89,8 @@ export async function update(
 	if (!next || working()) return false;
 
 	// The branch first, and only from where we found it: whoever moved it meanwhile wins.
-	const move = async (to: string, was: string, why: string) =>
-		await gitIn(worktree, 'update-ref', '-m', why, head, to, was);
+	const move = (to: string, was: string, why: string) =>
+		gitIn(worktree, 'update-ref', '-m', why, head, to, was);
 	await move(next, ours, `merge ${from}: ${forward ? 'Fast-forward' : 'Merge made by Geordi'}`);
 	if (working()) {
 		await move(ours, next, 'reset: the agent is at work');

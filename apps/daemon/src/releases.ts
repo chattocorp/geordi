@@ -1,8 +1,9 @@
+import { git } from './git.ts';
 import { execFile } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
-import { gitEnv, gitIn, verifyLinks, type Worktree } from './worktree.ts';
+import { gitEnv, verifyLinks, type Worktree } from './worktree.ts';
 
 /**
  * What a workspace's worktree holds for the repository's next releases (FDR-007).
@@ -108,9 +109,14 @@ const sweet: ReleaseAdapter = {
 	detects: async (worktree) =>
 		exists(worktree, '.sweet.config.yml') ||
 		exists(worktree, '.sweet.yml') ||
-		(await gitIn(worktree, 'ls-files', '--cached', '--others', '--exclude-standard', '-z'))
-			.split('\0')
-			.some((file) => file.endsWith('/.sweet.yml')),
+		// A fixed Git pathspec. Only package manifests are returned.
+		Boolean(
+			await git(
+				worktree.path,
+				['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*/.sweet.yml'],
+				{ env: gitEnv(worktree) }
+			)
+		),
 	read: async (worktree) => {
 		const [command, ...args] = sweet.command.split(' ');
 		return fromSweet(await run(worktree, command, args));
