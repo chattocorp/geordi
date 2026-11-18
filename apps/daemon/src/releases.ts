@@ -1,8 +1,9 @@
+import { git } from './git.ts';
 import { execFile } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
-import { gitEnv, gitIn, verifyLinks, type Worktree } from './worktree.ts';
+import { gitEnv, verifyLinks, type Worktree } from './worktree.ts';
 
 /**
  * What a workspace's worktree holds for the repository's next releases (FDR-007).
@@ -19,7 +20,7 @@ export type ReleaseAdapter = {
 	/** The command that asks it, as people would type it: what they agree to having run. */
 	command: string;
 	/** Whether the repository uses it. Cheap: asked every time the worktree changes. */
-	detects(worktree: Worktree): boolean;
+	detects(worktree: Worktree): boolean | Promise<boolean>;
 	/** The packages and their pending notes. Rejects if the tool can't be asked. */
 	read(worktree: Worktree): Promise<Read>;
 };
@@ -105,12 +106,17 @@ const sweet: ReleaseAdapter = {
 	name: 'Sweet Release',
 	command: 'sweet status --json',
 	// its configuration, or a package's manifest, at the top or anywhere below
-	detects: (worktree) =>
+	detects: async (worktree) =>
 		exists(worktree, '.sweet.config.yml') ||
 		exists(worktree, '.sweet.yml') ||
-		gitIn(worktree, 'ls-files', '--cached', '--others', '--exclude-standard', '-z')
-			.split('\0')
-			.some((file) => file.endsWith('/.sweet.yml')),
+		// A fixed Git pathspec. Only package manifests are returned.
+		Boolean(
+			await git(
+				worktree.path,
+				['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*/.sweet.yml'],
+				{ env: gitEnv(worktree) }
+			)
+		),
 	read: async (worktree) => {
 		const [command, ...args] = sweet.command.split(' ');
 		return fromSweet(await run(worktree, command, args));
@@ -134,12 +140,18 @@ const ADAPTERS: ReleaseAdapter[] = [sweet];
 export async function releasePlan(
 	worktree: Worktree,
 	/** The files this workspace has added. */
-	added: () => Set<string>,
+	added: () => Set<string> | Promise<Set<string>>,
 	/** Whether a person has agreed to this command being run in this repository. */
 	approved: (command: string) => boolean,
 	adapters = ADAPTERS
 ): Promise<ReleasePlan | null> {
-	const adapter = adapters.find((adapter) => adapter.detects(worktree));
+	let adapter: ReleaseAdapter | undefined;
+	for (const candidate of adapters) {
+		if (await candidate.detects(worktree)) {
+			adapter = candidate;
+			break;
+		}
+	}
 	if (!adapter) return null;
 	const { tool, name, command } = adapter;
 	const nothing = { tool, name, packages: [], problem: null, ask: null };
@@ -147,7 +159,7 @@ export async function releasePlan(
 	try {
 		verifyLinks(worktree); // whatever git the tool runs relies on them, as ours does
 		const packages = await adapter.read(worktree);
-		const mine = added();
+		const mine = await added();
 		return {
 			...nothing,
 			packages: packages.map((pkg) => ({

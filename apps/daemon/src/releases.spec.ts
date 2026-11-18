@@ -6,14 +6,14 @@ import { describe, expect, it } from 'vitest';
 import { fromSweet, releasePlan, type ReleaseAdapter } from './releases.ts';
 import { ensureWorktree } from './worktree.ts';
 
-function worktree() {
+async function worktree() {
 	const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-release-')));
 	const git = (...args: string[]) =>
 		execFileSync('git', ['-C', repoPath, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
 	git('init', '-q');
 	git('commit', '-q', '--allow-empty', '-m', 'init');
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-	return ensureWorktree(base, repoPath, 'abcdefgh-1');
+	return await ensureWorktree(base, repoPath, 'abcdefgh-1');
 }
 
 describe('reading Sweet Release', () => {
@@ -105,12 +105,12 @@ describe('releasePlan', () => {
 
 	it('has nothing to say about a repository that uses no release tool', async () => {
 		expect(
-			await releasePlan(worktree(), added, yes, [adapter({ detects: () => false })])
+			await releasePlan(await worktree(), added, yes, [adapter({ detects: () => false })])
 		).toBeNull();
 	});
 
 	it('says what is pending, and which of it the workspace adds', async () => {
-		const plan = await releasePlan(worktree(), added, yes, [adapter()]);
+		const plan = await releasePlan(await worktree(), added, yes, [adapter()]);
 		expect(plan).toMatchObject({ tool: 'notes', name: 'Notes', problem: null });
 		expect(plan?.packages[0].notes.map((note) => [note.body, note.added])).toEqual([
 			['Old', false],
@@ -124,7 +124,7 @@ describe('releasePlan', () => {
 				throw new Error('notes is not installed on this machine');
 			}
 		});
-		expect(await releasePlan(worktree(), added, yes, [failing])).toEqual({
+		expect(await releasePlan(await worktree(), added, yes, [failing])).toEqual({
 			tool: 'notes',
 			name: 'Notes',
 			packages: [],
@@ -141,7 +141,7 @@ describe('releasePlan', () => {
 				return [pkg];
 			}
 		});
-		expect(await releasePlan(worktree(), added, no, [watched])).toEqual({
+		expect(await releasePlan(await worktree(), added, no, [watched])).toEqual({
 			tool: 'notes',
 			name: 'Notes',
 			packages: [],
@@ -152,7 +152,7 @@ describe('releasePlan', () => {
 	});
 
 	it('knows a repository that uses Sweet Release by its configuration, at the top or in a package', async () => {
-		const plain = worktree();
+		const plain = await worktree();
 		expect(await releasePlan(plain, added, no)).toBeNull();
 
 		writeFileSync(join(plain.path, '.sweet.config.yml'), 'types:\n  fix:\n    bump: patch\n');
@@ -161,7 +161,7 @@ describe('releasePlan', () => {
 			ask: 'sweet status --json'
 		});
 
-		const nested = worktree();
+		const nested = await worktree();
 		mkdirSync(join(nested.path, 'apps/api'), { recursive: true });
 		writeFileSync(join(nested.path, 'apps/api/.sweet.yml'), 'version: 1.0.0\n');
 		expect((await releasePlan(nested, added, no))?.tool).toBe('sweet-release');

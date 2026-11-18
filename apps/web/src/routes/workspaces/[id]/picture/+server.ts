@@ -21,7 +21,9 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(path.split('/').pop()!)}`,
 			// the agent may well write the file again
 			'Cache-Control': 'private, max-age=60',
-			'X-Content-Type-Options': 'nosniff'
+			'X-Content-Type-Options': 'nosniff',
+			// opened on its own, an SVG is a page of the forge's: it may run nothing, load nothing
+			'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"
 		}
 	});
 };

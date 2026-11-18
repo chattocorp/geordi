@@ -21,7 +21,7 @@ function commit(cwd: string, file: string, text: string) {
 }
 
 /** An upstream, a clone of it with an author, and a workspace's worktree in the clone. */
-function setup() {
+async function setup() {
 	const upstream = dir('upstream');
 	git(upstream, 'init', '-q', '-b', 'main');
 	commit(upstream, 'a.txt', 'one\n');
@@ -29,26 +29,29 @@ function setup() {
 	execFileSync('git', ['clone', '-q', upstream, repoPath]);
 	git(repoPath, 'config', 'user.name', 't');
 	git(repoPath, 'config', 'user.email', 't@t');
-	const worktree = ensureWorktree(dir('base'), repoPath, 'update-1');
+	const worktree = await ensureWorktree(dir('base'), repoPath, 'update-1');
 	const read = (file: string) => readFileSync(join(worktree.path, file), 'utf8');
 	return { upstream, repoPath, worktree, origin: { repoPath }, read };
 }
 
 describe('update', () => {
 	it('fast-forwards a branch with no commits of its own, fetching first', async () => {
-		const { upstream, repoPath, worktree, origin, read } = setup();
+		const { upstream, repoPath, worktree, origin, read } = await setup();
 		commit(upstream, 'b.txt', 'new upstream\n');
 
 		expect(await update(worktree, origin)).toBe(true);
 		expect(read('b.txt')).toBe('new upstream\n');
 		expect(git(repoPath, 'rev-parse', worktree.branch)).toBe(git(upstream, 'rev-parse', 'main'));
-		expect(status(worktree, origin)).toMatchObject({ uncommitted: 0, incoming: { commits: 0 } });
+		expect(await status(worktree, origin)).toMatchObject({
+			uncommitted: 0,
+			incoming: { commits: 0 }
+		});
 		// and git, asked in the worktree itself, finds nothing out of place
 		expect(git(worktree.path, 'status', '--porcelain')).toBe('');
 	});
 
 	it('leaves the worktree alone when an agent starts during the fetch', async () => {
-		const { repoPath, worktree, origin } = setup();
+		const { repoPath, worktree, origin } = await setup();
 		const before = git(repoPath, 'rev-parse', worktree.branch);
 		commit(repoPath, 'incoming.txt', 'incoming');
 		git(repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
@@ -64,7 +67,7 @@ describe('update', () => {
 	});
 
 	it('merges where the branch has commits of its own', async () => {
-		const { upstream, repoPath, worktree, origin, read } = setup();
+		const { upstream, repoPath, worktree, origin, read } = await setup();
 		commit(worktree.path, 'mine.txt', 'mine\n');
 		const mine = git(repoPath, 'rev-parse', worktree.branch);
 		commit(upstream, 'b.txt', 'new upstream\n');
@@ -80,7 +83,7 @@ describe('update', () => {
 	});
 
 	it('leaves conflicts to the agent, with everything as it was', async () => {
-		const { upstream, repoPath, worktree, origin, read } = setup();
+		const { upstream, repoPath, worktree, origin, read } = await setup();
 		commit(worktree.path, 'a.txt', 'mine\n');
 		const mine = git(repoPath, 'rev-parse', worktree.branch);
 		commit(upstream, 'a.txt', 'theirs\n');
@@ -92,7 +95,7 @@ describe('update', () => {
 	});
 
 	it('leaves a worktree with uncommitted changes alone', async () => {
-		const { upstream, repoPath, worktree, origin } = setup();
+		const { upstream, repoPath, worktree, origin } = await setup();
 		const before = git(repoPath, 'rev-parse', worktree.branch);
 		commit(upstream, 'b.txt', 'new upstream\n');
 
@@ -107,15 +110,15 @@ describe('update', () => {
 	});
 
 	it('has nothing to do for a branch that is up to date', async () => {
-		const { repoPath, worktree, origin } = setup();
+		const { repoPath, worktree, origin } = await setup();
 		const before = git(repoPath, 'rev-parse', worktree.branch);
 		expect(await update(worktree, origin)).toBe(true);
 		expect(git(repoPath, 'rev-parse', worktree.branch)).toBe(before);
 	});
 
 	it("brings a parent workspace's commits into its child, without fetching", async () => {
-		const { repoPath, worktree } = setup();
-		const child = ensureWorktree(dir('base'), repoPath, 'update-2', worktree.branch);
+		const { repoPath, worktree } = await setup();
+		const child = await ensureWorktree(dir('base'), repoPath, 'update-2', worktree.branch);
 		commit(worktree.path, 'parent.txt', 'from the parent\n');
 
 		const fetch = () => Promise.reject(new Error('fetched'));
@@ -124,10 +127,20 @@ describe('update', () => {
 	});
 
 	it('makes no commit where commits are to be signed', async () => {
-		const { upstream, repoPath, worktree, origin } = setup();
+		const { upstream, repoPath, worktree, origin } = await setup();
 		commit(worktree.path, 'mine.txt', 'mine\n');
 		commit(upstream, 'b.txt', 'new upstream\n');
 		git(repoPath, 'config', 'commit.gpgsign', 'true');
 		expect(await update(worktree, origin)).toBe(false);
 	});
+});
+
+it('restores the branch if an agent wakes during the ref update', async () => {
+	const { upstream, repoPath, worktree, origin } = await setup();
+	const before = git(repoPath, 'rev-parse', worktree.branch);
+	commit(upstream, 'incoming.txt', 'incoming');
+	const working = () => git(repoPath, 'rev-parse', worktree.branch) !== before;
+	expect(await update(worktree, origin, { working })).toBe(false);
+	expect(git(repoPath, 'rev-parse', worktree.branch)).toBe(before);
+	expect(existsSync(join(worktree.path, 'incoming.txt'))).toBe(false);
 });

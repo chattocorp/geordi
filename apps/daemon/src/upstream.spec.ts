@@ -82,14 +82,14 @@ describe('summarise', () => {
 });
 
 describe('upstream', () => {
-	function workspace(remote?: string) {
+	async function workspace(remote?: string) {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-up-')));
 		const git = (...args: string[]) => execFileSync('git', ['-C', repoPath, ...args]);
 		git('init', '-q');
 		git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
 		if (remote) git('remote', 'add', 'origin', remote);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
 		return { worktree, ref: { repoPath, worktreeId: 'abcdefgh-1' } };
 	}
 
@@ -98,7 +98,7 @@ describe('upstream', () => {
 		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
 		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
 		const { setAutoMerge } = await import('./upstream.ts');
-		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		const sha = execFileSync('git', ['-C', ref.repoPath, 'rev-parse', 'HEAD'], {
 			encoding: 'utf8'
 		}).trim();
@@ -236,7 +236,7 @@ describe('upstream', () => {
 		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
 		const { upstream: read } = await import('./upstream.ts');
 		const github = fakeGitHub();
-		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		const git = (...args: string[]) =>
 			execFileSync('git', [
 				'-C',
@@ -296,7 +296,7 @@ describe('upstream', () => {
 		const { upstream: read } = await import('./upstream.ts');
 		const github = fakeGitHub();
 		github.pulls.push({ number: 42, state: 'merged', updatedAt: '2026-11-18T10:00:00Z' });
-		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		execFileSync('git', [
 			'-C',
 			ref.repoPath,
@@ -326,7 +326,7 @@ describe('upstream', () => {
 		const { upstream: read } = await import('./upstream.ts');
 		const github = fakeGitHub();
 		github.pulls.push({ number: 42, state: 'open', updatedAt: '2026-11-18T10:00:00Z' });
-		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		execFileSync('git', [
 			'-C',
 			ref.repoPath,
@@ -348,14 +348,14 @@ describe('upstream', () => {
 	});
 
 	it('is nothing for repositories without a remote, or on a forge we do not know', async () => {
-		const local = workspace();
+		const local = await workspace();
 		expect(await upstream(local.worktree, local.ref)).toBeNull();
-		const elsewhere = workspace('git@git.example.invalid:acme/widgets.git');
+		const elsewhere = await workspace('git@git.example.invalid:acme/widgets.git');
 		expect(await upstream(elsewhere.worktree, elsewhere.ref)).toBeNull();
 	});
 
 	it('knows the repository, and asks the forge nothing while the branch is not pushed', async () => {
-		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		expect(await upstream(worktree, ref, 123)).toEqual({
 			localBranch: 'geordi/abcdefgh',
 			checkedAt: 123,

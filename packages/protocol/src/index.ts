@@ -3,10 +3,13 @@ export {
 	MAX_IMAGE_BYTES,
 	MAX_IMAGES,
 	imageTypeOf,
+	pictureTypeOf,
 	type ImageType,
-	type MessageImage
+	type MessageImage,
+	type Picture,
+	type PictureType
 } from './images.ts';
-import type { MessageImage } from './images.ts';
+import type { MessageImage, Picture } from './images.ts';
 /**
  * Messages exchanged between the forge (apps/web) and daemons (apps/daemon).
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
@@ -503,7 +506,7 @@ export type DaemonResults = {
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
-	picture: MessageImage | null;
+	picture: Picture | null;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
