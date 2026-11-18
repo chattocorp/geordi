@@ -77,22 +77,22 @@ const entry =
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(signal, () => {});
 
 const env = { ...process.env, ...options.env };
-if (agent === 'codex' && options.api && apiToken) {
-	// Codex asks for MCP tool approval separately from shell permissions. Scope that
-	// approval to the server we inject, including its exact URL and workspace credential.
+if (agent === 'codex') {
 	const config = JSON.parse(env.CODEX_CONFIG || '{}');
-	env[API_TOKEN_ENV] = apiToken;
-	env.CODEX_CONFIG = JSON.stringify({
-		...config,
-		mcp_servers: {
+	config.features = { ...config.features, default_mode_request_user_input: true };
+	if (options.api && apiToken) {
+		// Scope MCP tool approval to the server and workspace credential we inject.
+		env[API_TOKEN_ENV] = apiToken;
+		config.mcp_servers = {
 			...config.mcp_servers,
 			[API_SERVER]: {
 				url: options.api.url,
 				bearer_token_env_var: API_TOKEN_ENV,
 				default_tools_approval_mode: 'approve'
 			}
-		}
-	});
+		};
+	}
+	env.CODEX_CONFIG = JSON.stringify(config);
 }
 const err = openSync(file('err.log'), 'a', 0o600);
 const child = spawn(process.execPath, [entry], {

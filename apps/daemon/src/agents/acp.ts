@@ -157,11 +157,16 @@ export function connectAgent(
 							? field.items.enum
 							: undefined
 						: field.enum;
-					const question =
-						field.description ?? (fields.length === 1 ? params.message : field.title) ?? name;
+					// The native Codex tool puts the prompt in title and the short heading in description.
+					const meta = field._meta?.codex;
+					const nativeQuestion =
+						provider === 'codex' && meta && typeof meta === 'object' && 'isOther' in meta;
+					const header = nativeQuestion ? field.description : field.title;
+					const prompt = nativeQuestion ? field.title : field.description;
+					const question = prompt ?? (fields.length === 1 ? params.message : field.title) ?? name;
 					items.push({
 						question,
-						...(field.title && field.title !== question ? { header: field.title } : {}),
+						...(header && header !== question ? { header } : {}),
 						...(!required?.includes(name) ? { optional: true } : {}),
 						options:
 							titled?.map((o) => ({ label: o.const, description: o.description ?? o.title })) ??

@@ -26,14 +26,17 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
  switch(req.method){
  case 'initialize': return result({protocolVersion:2,info:{name:'fixture',version:'1'},capabilities:{},authMethods:[]});
  case 'session/new': return result({sessionId:id,configOptions});
+ case 'session/set_config_option': return result({configOptions});
  case 'session/cancel': slow=false;return state('idle',{stopReason:'cancelled'});
  case 'session/prompt': {
   const said=req.params.prompt[0].text;
+  if(said==='config'){state('running');result({messageId:String(req.id)});text(process.env.CODEX_CONFIG);return done();}
   if(said==='crash')process.exit(3);
   state('running');result({messageId:String(req.id)});
   if(slow){slow=false;text('Steered: '+said);return done();}
   if(said==='slow'){slow=true;return;}
   if(said==='ask'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Tea or coffee?',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',enum:['Tea','Coffee']}}}}});return;}
+  if(said==='codex question'){out({id:101,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Codex needs your input to continue.',requestedSchema:{type:'object',required:['drink'],properties:{drink:{type:'string',title:'Tea or coffee?',description:'Drink',enum:['Tea','Coffee'],_meta:{codex:{isOther:false,isSecret:false}}}}}}});return;}
   if(said==='pick'){out({id:102,method:'elicitation/create',params:{sessionId:id,mode:'form',message:'Which drinks?',requestedSchema:{type:'object',properties:{question_0:{type:'array',items:{anyOf:[{const:'Tea',title:'Tea'},{const:'Coffee',title:'Coffee'}]}},question_0_custom:{type:'string'}}}}});return;}
   if(said==='terminal'){
    const tool={sessionUpdate:'tool_call_update',toolCallId:'sh',name:'shell'};
@@ -82,16 +85,23 @@ function begin(
 	prompt: string,
 	{
 		env = {},
+		launch = meta(env),
 		dir = join(root(), 'w'),
 		ready = () => true,
 		idle = ''
-	}: { env?: Record<string, string>; dir?: string; ready?: () => boolean; idle?: string } = {}
+	}: {
+		launch?: Meta;
+		env?: Record<string, string>;
+		dir?: string;
+		ready?: () => boolean;
+		idle?: string;
+	} = {}
 ) {
 	const events: AgentEvent[] = [];
 	// how long a CLI with nothing to do is kept is the host's to know, from its environment
 	if (idle) process.env.GEORDI_SESSION_IDLE_MS = idle;
 	const session = startSession(
-		meta(env),
+		launch,
 		{ prompt },
 		(event) => events.push(event),
 		dir,
@@ -135,6 +145,47 @@ describe('a session', () => {
 			{ kind: 'text', text: 'Heard: again' },
 			{ kind: 'turn.completed' }
 		]);
+	});
+
+	it.each([false, true])('enables Codex questions with API credentials %s', async (withApi) => {
+		const config = {
+			features: { shell_snapshot: true, default_mode_request_user_input: false },
+			mcp_servers: { existing: { command: 'example' } }
+		};
+		const launch = meta({ CODEX_CONFIG: JSON.stringify(config) });
+		launch.agent = 'codex';
+		if (withApi) {
+			launch.options.api = { url: 'http://forge.test/mcp' };
+			launch.apiToken = 'test';
+		}
+		const { events, ended } = begin('config', { launch });
+		await ended(1);
+		const output = events.find((e) => e.kind === 'text');
+		expect(JSON.parse(output!.text)).toEqual({
+			features: { shell_snapshot: true, default_mode_request_user_input: true },
+			mcp_servers: {
+				...config.mcp_servers,
+				...(withApi && {
+					geordi: {
+						url: 'http://forge.test/mcp',
+						bearer_token_env_var: 'GEORDI_API_TOKEN',
+						default_tools_approval_mode: 'approve'
+					}
+				})
+			}
+		});
+	});
+
+	it('shows the Codex question under its short heading', async () => {
+		const { events, session, kinds, ended } = begin('codex question', {
+			launch: { ...meta(), agent: 'codex' }
+		});
+		await until(() => kinds().includes('question'));
+		const question = events.find((e) => e.kind === 'question')!;
+		expect(question.questions[0]).toMatchObject({ header: 'Drink', question: 'Tea or coffee?' });
+		session.answer(question.id, ['Coffee']);
+		await ended(1);
+		expect(events.at(-2)).toEqual({ kind: 'text', text: 'You said Coffee' });
 	});
 
 	it('keeps shell output across ACP byte chunks', async () => {
