@@ -44,7 +44,6 @@
 	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import {
 		mergePull,
-		archiveWorkspace as archiveAgent,
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
@@ -352,11 +351,14 @@
 			const source = sourceOf(tab);
 			if (source && !remaining.includes(tab)) citations.delete(source);
 			const aide = aideOf(tab);
-			// an agent whose conversation is closed is done here: archived, its conversation kept
-			if (aide && !remaining.includes(tab))
-				archiveAgent({ workspaceId: aide.id, confirmed: true }).catch(
-					(error) => (mergeProblem = problemOf(error, 'Could not close the conversation'))
-				);
+			// Its live workspace keeps the tab in place until archiving succeeds.
+			if (aide && !remaining.includes(tab)) {
+				void archiveWorkspace(aide.id, aide.title).then(() => {
+					const problem = archiveProblems[aide.id];
+					if (problem) mergeProblem = problem;
+				});
+				return;
+			}
 			if (terminal && !remaining.includes(tab)) {
 				starting.delete(terminal);
 				const job = jobOf(terminal);
@@ -496,13 +498,13 @@
 	const leaving = $derived(beingArchived.has(id));
 
 	async function archive() {
-		// How it stands is on screen already: the question, if there is one, needs no waiting.
+		// Show known warnings immediately when the workspace owns all the work in view.
 		// (Not with workspaces its agent started: theirs is not known here.)
 		const known =
 			!workspace.hasChildWorktrees && git?.changes && !git.checking
 				? { changes: git.changes, upstream: git.upstream }
 				: undefined;
-		if (await archiveWorkspace(id, known))
+		if (await archiveWorkspace(id, workspace.title, known))
 			// from a workspace an agent started, back to the one whose agent started it
 			await goto(
 				workspace.parentId ? resolve('/workspaces/[id]', { id: workspace.parentId }) : resolve('/')
