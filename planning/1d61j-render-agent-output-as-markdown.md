@@ -14,3 +14,5 @@ Agent messages are shown as plain pre-wrapped text. Render Markdown (sanitised),
 ## Outcome
 
 Agent messages render as Markdown via markdown-it (raw HTML disabled, unsafe link protocols rejected), styled with the typography plugin in both themes. Tool calls are single expandable lines with an icon per tool and paths relative to the worktree.
+
+Source citations follow-up (2026-11-18). Absolute Markdown links to worktree files open in a source tab. Verified the cited line, an unchanged file with spaces in its name, and the missing-file message in Chromium against an isolated forge and daemon.

@@ -16,6 +16,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - Messages can include images, with or without text. Use **Add images** to choose files or paste an image from the clipboard. The composer shows previews above the text in one horizontally scrolling row. Previews keep the full image visible at its original aspect ratio and open the full image when clicked. A small remove button appears on hover or keyboard focus; touch screens always show it. Each message accepts up to four PNG, JPEG, WebP or GIF files, at most 5 MB each. Sending waits until uploads finish; an upload error leaves the draft in place.
 - Images work in first prompts, replies, queued messages and steering messages, with both Claude and Codex. Sent and queued messages show thumbnails that open the full image. Images remain available after a restart and after the workspace is archived.
 - An agent shows a picture (a screenshot, a chart) by writing a Markdown image with the path of its file: it appears in its reply, and opens in full when clicked. The file is read where the agent works, when the reply is shown: PNG, JPEG, WebP or GIF, at most 5 MB, from the worktree or anywhere else on that machine. A file that is gone, or is no picture, leaves its path. Images from the web are never loaded, only linked.
+- An absolute Markdown link to a file in the worktree opens its current text in a workspace tab, including files with no changes. A trailing line number such as `:139` scrolls to that line and highlights it. If the file is unavailable, the tab explains why it cannot show the text.
 - The workspace's ID is shown in its header; a click copies it.
 - Cmd/Ctrl+B hides and shows the navigation on the left, and with Alt/Option the changes and dock on the right. Both also have a button, and the navigation's edge can be dragged to resize it.
 - A workspace has a fixed frame: the main area, and beside it the changes above the dock. The lines between them can be dragged to resize, and that is all that can be changed about the frame.
@@ -108,5 +109,5 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ## Open Questions
 
-- More window types: files, previews.
+- Preview windows.
 - Restoring an archived workspace, and deleting its branch along with it.

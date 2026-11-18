@@ -65,6 +65,47 @@ md.renderer.rules.image = (tokens, index, _options, env) => {
 	return `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${alt}" data-picture="${escapeHtml(path)}" loading="lazy"></a>`;
 };
 
+function sourceLink(href: string, root?: string) {
+	if (!root || !href.startsWith('/') || href.startsWith('//') || /[?#]/.test(href)) return;
+	let path: string;
+	try {
+		path = decodeURIComponent(href);
+	} catch {
+		return;
+	}
+	if (!path.startsWith(root + '/')) return;
+	const target = path.slice(root.length + 1);
+	const suffix = /:(\d+)$/.exec(target);
+	const file = suffix ? target.slice(0, suffix.index) : target;
+	if (file && !file.split('/').includes('..')) return { file, line: suffix?.[1] };
+}
+
+// Preserve the inline markup in link labels, including code that names a changed file.
+md.core.ruler.after('inline', 'workspace_links', (state) => {
+	const root = (state.env as Options).root;
+	for (const block of state.tokens) {
+		let inLink = false;
+		let source = false;
+		for (const token of block.children ?? []) {
+			if (token.type === 'link_open') {
+				inLink = true;
+				const citation = sourceLink(String(token.attrGet('href') ?? ''), root);
+				if (!citation) continue;
+				source = true;
+				token.tag = 'button';
+				token.attrs = [
+					['type', 'button'],
+					['data-source', citation.file]
+				];
+				if (citation.line) token.attrSet('data-line', citation.line);
+			} else if (token.type === 'link_close') {
+				if (source) token.tag = 'button';
+				source = inLink = false;
+			} else if (inLink && token.type === 'code_inline') token.meta = { inLink: true };
+		}
+	}
+});
+
 // Code blocks get a copy button; `Markdown.svelte` handles its clicks.
 const fence = md.renderer.rules.fence!;
 md.renderer.rules.fence = (...args) =>
@@ -75,12 +116,14 @@ md.renderer.rules.fence = (...args) =>
 const codeInline = md.renderer.rules.code_inline!;
 md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 	const code = codeInline(tokens, index, options, env, self);
+	if (tokens[index].meta?.inLink) return code;
 	const path = (env as Options | undefined)?.file?.(tokens[index].content);
 	if (!path) return code;
 	return `<button type="button" data-file="${escapeHtml(path)}" title="Show the changes to this file">${code}</button>`;
 };
 
 type Options = {
+	root?: string;
 	/**
 	 * The address that serves the pictures of the workspace this was written in
 	 * (`/workspaces/<id>/picture`). Without it, as for text from elsewhere, none are shown.

@@ -398,7 +398,8 @@
 	}
 
 	/* A file the workspace has changed, named in code (see markdown.ts): opens its diff. */
-	[data-file] {
+	[data-file],
+	[data-source] {
 		@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
 	}
 

@@ -9,6 +9,7 @@ export type ChangedFiles = {
 	readonly paths: ReadonlySet<string>;
 	/** Where the worktree is, for absolute paths. */
 	readonly root?: string;
+	openSource: (path: string, line?: number) => void;
 	open: (path: string) => void;
 };
 
