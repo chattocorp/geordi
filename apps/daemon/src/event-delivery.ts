@@ -9,7 +9,11 @@ export function eventDelivery(
 	send: (message: WorkspaceEvent) => void,
 	sendLive: (
 		message:
-			Extract<DaemonMessage, { type: 'workspace.background' | 'workspace.usage' }> | WorkspaceEvent
+			| Extract<
+					DaemonMessage,
+					{ type: 'workspace.background' | 'workspace.usage' | 'workspace.commands' }
+			  >
+			| WorkspaceEvent
 	) => void
 ) {
 	const deliveries = new Map<string, { cursor: string; sent: number; acknowledged: boolean }>();
@@ -20,6 +24,10 @@ export function eventDelivery(
 		}
 		if (event.kind === 'usage') {
 			sendLive({ type: 'workspace.usage', workspaceId, usage: event.usage });
+			return true;
+		}
+		if (event.kind === 'commands') {
+			sendLive({ type: 'workspace.commands', workspaceId, commands: event.commands });
 			return true;
 		}
 		if (!cursor) {

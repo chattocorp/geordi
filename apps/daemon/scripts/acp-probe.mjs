@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -12,6 +13,7 @@ const prompts = {
 	subagents:
 		'Use two native subagents in parallel. Ask the first to run pwd and reply DAEMON_READY and the second to run pwd and reply UI_READY. Wait for both, then summarize.',
 	inspect: 'Reply with exactly READY.',
+	commands: 'Reply with exactly READY.',
 	ask: 'Use your native blocking question tool to ask exactly one question: which token should you return? Offer Alpha and Beta. Wait for the answer, then reply with only the chosen token, exactly once.',
 	steer:
 		'Run ./probe-task as a foreground shell command. Wait for it to finish and include its output in your final reply.',
@@ -22,7 +24,7 @@ assert(
 	['codex', 'claude'].includes(agent) &&
 		Object.hasOwn(prompts, scenario) &&
 		['auto', 'full-access'].includes(permissionMode),
-	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask|subagents] [auto|full-access]'
+	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask|subagents|commands] [auto|full-access]'
 );
 
 const root = mkdtempSync(join(tmpdir(), 'geordi-acp-'));
@@ -92,6 +94,16 @@ try {
 			{ mode: 0o700 }
 		);
 	}
+	if (scenario === 'commands') {
+		// A skill of the workspace's own, which both agents list among their commands.
+		const skill = join(cwd, agent === 'codex' ? '.agents' : '.claude', 'skills', 'geordi-probe');
+		mkdirSync(skill, { recursive: true });
+		writeFileSync(
+			join(skill, 'SKILL.md'),
+			'---\nname: geordi-probe\ndescription: Answers a Geordi probe.\n---\n\nReply with exactly PROBED followed by the argument you were given, and nothing else.\n'
+		);
+		execFileSync('git', ['init', '-q'], { cwd });
+	}
 	session = startSession(
 		{
 			agent,
@@ -100,7 +112,14 @@ try {
 				dir,
 				sessionId: workspaceId,
 				resumeId: null,
-				settings: { permissionMode },
+				// the smallest model will do, where it can be chosen
+				settings: {
+					permissionMode,
+					...(scenario === 'commands' &&
+						(agent === 'claude'
+							? { model: 'haiku' }
+							: { model: process.env.PROBE_CODEX_MODEL, effort: 'low' }))
+				},
 				writableRoots: [],
 				api: null
 			}
@@ -141,6 +160,33 @@ try {
 	}
 
 	await until('foreground completion', () => ofKind('turn.completed').length);
+	if (scenario === 'commands') {
+		await until('the commands', () => ofKind('commands').length);
+		const offered = ofKind('commands').at(-1).commands;
+		console.log(`${offered.length} commands:`, offered.map((c) => c.name).join(' '));
+		const skill = offered.find((c) => c.name.replace(/^\$/, '') === 'geordi-probe');
+		assert(skill, 'The workspace skill is not among the commands');
+		// as Geordi sends it: the message begins with the command
+		session.say({ prompt: `/${skill.name} ${token}` });
+		await until('the skill', () => ofKind('turn.completed').length >= 2);
+		const start = events.indexOf(ofKind('turn.started')[1]);
+		assert.match(
+			reply(events.slice(start)),
+			new RegExp('PROBED\\s+' + token),
+			'The skill did not run'
+		);
+		// one the wrapper answers itself, without the model: its turn has to end all the same
+		const local = agent === 'codex' ? 'status' : 'context';
+		assert(
+			offered.some((c) => c.name === local),
+			`/${local} is not among the commands`
+		);
+		session.say({ prompt: `/${local}` });
+		await until(`/${local}`, () => ofKind('turn.completed').length >= 3);
+		const third = events.indexOf(ofKind('turn.started')[2]);
+		assert(reply(events.slice(third)).trim(), `/${local} said nothing`);
+		console.log(reply(events.slice(third)).slice(0, 300));
+	}
 	if (scenario === 'steer') assert(finished(), 'Steered turn ended before command completion');
 	if (scenario === 'background') {
 		assert(!finished(), 'Command finished before foreground completion');
@@ -160,7 +206,14 @@ try {
 	const turns = events.filter((event) => event.kind.startsWith('turn.')).map((event) => event.kind);
 	const pair = ['turn.started', 'turn.completed'];
 	if (scenario !== 'subagents')
-		assert.deepEqual(turns, scenario === 'background' ? [...pair, ...pair] : pair);
+		assert.deepEqual(
+			turns,
+			scenario === 'background'
+				? [...pair, ...pair]
+				: scenario === 'commands'
+					? [...pair, ...pair, ...pair]
+					: pair
+		);
 	assert.equal(new Set(cursors).size, events.length, 'Host event delivered twice');
 	assert.equal(ofKind('resume').length, 1);
 	const completion = events.indexOf(ofKind('turn.completed')[0]);

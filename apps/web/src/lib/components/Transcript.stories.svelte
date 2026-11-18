@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Markdown from './Markdown.svelte';
-	import { expect, fn, userEvent } from 'storybook/test';
+	import { expect, fn, userEvent, waitFor } from 'storybook/test';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import ToolGroup from './ToolGroup.svelte';
 
@@ -125,6 +125,74 @@
 			at
 		}
 	];
+
+	const notes = '/work/notes.md';
+	const edits = [
+		{
+			kind: 'tool' as const,
+			id: 'e1',
+			name: 'Edit',
+			input: JSON.stringify({ file_path: notes, old_string: 'one', new_string: 'two' }),
+			output: '[{"type":"diff"}]',
+			isError: false,
+			at,
+			diff: {
+				files: [{ operation: 'modify', path: notes, fileType: 'text' }],
+				patch: [
+					`diff --git ${notes} ${notes}`,
+					`--- ${notes}`,
+					`+++ ${notes}`,
+					'@@ -1,4 +1,4 @@',
+					' # Notes',
+					' ',
+					'-- one',
+					'+- two',
+					' - three',
+					''
+				].join('\n')
+			}
+		},
+		{
+			kind: 'tool' as const,
+			id: 'e2',
+			name: 'Editing files',
+			input: '',
+			output: '',
+			isError: false,
+			at,
+			diff: {
+				files: [
+					{ operation: 'add', path: '/work/src/greet.ts', fileType: 'text' },
+					{ operation: 'move', oldPath: '/work/old.txt', path: '/work/new.txt' },
+					{ operation: 'add', path: '/work/logo.png', fileType: 'binary' }
+				],
+				patch: [
+					'diff --git /work/src/greet.ts /work/src/greet.ts',
+					'new file mode 100644',
+					'--- /dev/null',
+					'+++ /work/src/greet.ts',
+					'@@ -0,0 +1,3 @@',
+					'+export function greet(name: string) {',
+					'+\treturn `Hello, ${name}!`;',
+					'+}',
+					''
+				].join('\n')
+			}
+		},
+		{
+			kind: 'tool' as const,
+			id: 'e3',
+			name: 'Write',
+			input: JSON.stringify({ file_path: '/work/data.json' }),
+			output: '',
+			isError: false,
+			at,
+			diff: {
+				files: [{ operation: 'add', path: '/work/data.json', fileType: 'text' }],
+				tooLarge: true
+			}
+		}
+	];
 </script>
 
 <script lang="ts">
@@ -202,4 +270,28 @@
 		<ToolGroup tools={described} cwd="/work" />
 		<ToolGroup tools={described} cwd="/work" live />
 	</div>
+</Story>
+
+<!--
+	Edits show what they changed, from the patch the agent sent: one file's diff after
+	another, or in words what can't be drawn (a move, a picture, a patch too large to keep).
+-->
+<Story
+	name="Edits"
+	asChild
+	play={async ({ canvas, canvasElement }) => {
+		await userEvent.click(canvas.getByText('Tools'));
+		for (const call of canvasElement.querySelectorAll('details details > summary'))
+			await userEvent.click(call);
+		await expect(await canvas.findByText('Moved old.txt to new.txt')).toBeVisible();
+		await expect(canvas.getByText('Added logo.png (not a text file)')).toBeVisible();
+		await expect(canvas.getByText('This change is too large to show here.')).toBeVisible();
+		await expect(canvas.getByText('src/greet.ts')).toBeVisible();
+		// both patches drawn by the viewer
+		await waitFor(() =>
+			expect(canvasElement.querySelectorAll('.diff-view:not(:empty)')).toHaveLength(2)
+		);
+	}}
+>
+	<div class="max-w-2xl"><ToolGroup tools={edits} cwd="/work" /></div>
 </Story>

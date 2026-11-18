@@ -551,6 +551,7 @@ export type SubagentUpdate =
 			input?: string;
 			output?: string;
 			isError?: boolean;
+			diff?: ToolDiff;
 	  } & ToolInfo);
 
 /** What ACP kinds of tool call there are: how a client may show one. */
@@ -578,6 +579,19 @@ export type ToolLocation = { path: string; line?: number };
 export type ToolInfo = { toolKind?: ToolKind; title?: string; locations?: ToolLocation[] };
 
 /**
+ * What a tool call changed in files, as the agent reports it (ACP `diff` content), kept
+ * with its result once it succeeded. Untrusted text: whoever shows it must parse it safely.
+ */
+export type ToolDiff = {
+	/** Each file changed, by absolute path; `operation` is ACP's (`add`, `delete`, `modify`, `move`, `copy`, or newer). */
+	files: { operation: string; path: string; oldPath?: string; fileType?: string }[];
+	/** The changes as a git patch, with absolute paths; absent if the agent sent none, or `tooLarge`. */
+	patch?: string;
+	/** The patch was left out: it was larger than the event log keeps. */
+	tooLarge?: boolean;
+};
+
+/**
  * How full the agent's context is, as its root session last said (ACP `usage_update`):
  * `used` of `size` tokens, and what the session has cost so far, where the agent says.
  */
@@ -596,6 +610,19 @@ export type BackgroundTask = {
 	toolCallId?: string;
 };
 
+/**
+ * One of the agent's own commands (a slash command or a skill), as its CLI offers them: the
+ * person invokes one by beginning a message with `/name`. The agent's live data (ADR-003),
+ * never stored.
+ */
+export type AgentCommand = {
+	/** Without the leading `/`. */
+	name: string;
+	description?: string;
+	/** What it takes after its name, if anything. */
+	hint?: string;
+};
+
 export type AgentEvent =
 	| { kind: 'subagent'; path: string[]; update: SubagentUpdate }
 	| { kind: 'message.received'; id: string }
@@ -609,7 +636,7 @@ export type AgentEvent =
 	| ({ kind: 'tool'; id: string; name: string; input: string } & ToolInfo)
 	/** What an agent said of a tool call after it began: only what changed. */
 	| ({ kind: 'tool.update'; id: string; input?: string } & ToolInfo)
-	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
+	| { kind: 'tool.result'; id: string; output: string; isError: boolean; diff?: ToolDiff }
 	/** What the agent calls its session (ACP `session_info_update`), at any time. */
 	| { kind: 'title'; title: string }
 	/** A form stays open until answered, withdrawn, or its turn ends. Older forms block. */
@@ -701,6 +728,8 @@ export type DaemonMessage =
 	 * Live, unacknowledged: the forge keeps it in memory and records it once per turn.
 	 */
 	| { type: 'workspace.usage'; workspaceId: string; usage: ContextUsage }
+	/** The commands the workspace's agent offers now, all of them; sent again whenever they change. */
+	| { type: 'workspace.commands'; workspaceId: string; commands: AgentCommand[] }
 	| {
 			type: 'hello';
 			protocol: number;
