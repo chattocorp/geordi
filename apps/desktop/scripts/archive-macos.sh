@@ -36,5 +36,15 @@ app="$work/extracted/Geordi.app"
 codesign --verify --deep --strict --verbose=2 "$app"
 xcrun stapler validate "$app"
 spctl --assess --type execute --verbose=2 "$app"
-cd "$app/Contents/Resources/app"
-ELECTRON_RUN_AS_NODE=1 ../../MacOS/Geordi -e "require('@lydell/node-pty')"
+(
+  cd "$app/Contents/Resources/app"
+  ELECTRON_RUN_AS_NODE=1 ../../MacOS/Geordi -e "require('@lydell/node-pty')"
+)
+
+bash scripts/dmg-macos.sh
+image="dist/Geordi-v${version}-macOS-arm64.dmg"
+codesign --sign 'Developer ID Application: ChattoCorp GmbH (59ZZ2V8BY7)' --keychain "$keychain" --timestamp "$image"
+xcrun notarytool submit "$image" --key "$work/notary.p8" --key-id "$MACOS_NOTARY_API_KEY_ID" --issuer "$MACOS_NOTARY_API_ISSUER_ID" --wait
+xcrun stapler staple "$image"
+xcrun stapler validate "$image"
+spctl --assess --type open --context context:primary-signature --verbose=2 "$image"

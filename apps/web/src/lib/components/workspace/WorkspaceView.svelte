@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { archiveAndNavigate } from './afar.svelte.ts';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -539,14 +539,6 @@
 	/** It is being archived right now, which takes a moment. */
 	const leaving = $derived(beingArchived.has(id));
 
-	async function archive() {
-		if (await archiveWorkspace(id, workspace.title))
-			// from a workspace an agent started, back to the one whose agent started it
-			await goto(
-				workspace.parentId ? resolve('/workspaces/[id]', { id: workspace.parentId }) : resolve('/')
-			);
-	}
-
 	/** The pull request is being merged right now. */
 	let merging = $state(false);
 	// A successful command can arrive before the live view that offers Archive.
@@ -628,7 +620,7 @@
 		else if (action.id === 'merge-pull') merge();
 		else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
-		else if (action.id === 'archive') archive();
+		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
 </script>
 

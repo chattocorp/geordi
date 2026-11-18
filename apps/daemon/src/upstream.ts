@@ -18,6 +18,8 @@ import {
 } from 'forges';
 import { providersFromEnv } from 'forges/env';
 import { readPull, rollupCounts } from './pull-batch.ts';
+import { createRateLimits } from './rate-limit.ts';
+import { createRecentPulls } from './recent-pulls.ts';
 import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /**
@@ -26,8 +28,21 @@ import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
  * its remotes and the user's credentials are.
  */
 
-/** How long an answer is reused. The forge's API is rate-limited, far more so without a token. */
-const FRESH_MS = 60_000;
+/**
+ * How long an answer is reused, by what it says. Looking again mostly costs nothing (the
+ * repository's pull requests are listed with a validator: see `recent-pulls.ts`), but each
+ * look is work here too. A pull request that was merged or closed hardly changes again, and
+ * a push or another branch is noticed here without asking.
+ */
+const OPEN_MS = CI_REFRESH_MS;
+const NO_PULL_MS = 20_000;
+const SETTLED_MS = 60_000;
+/**
+ * How often an open pull request is read in full though the listing says it is unchanged:
+ * whether it conflicts with its base changes when the base moves, which does not count as
+ * an update of the pull request.
+ */
+const OPEN_READ_MS = 60_000;
 /**
  * How fresh an answer has to be for someone who asked to look now: all but this moment's.
  * (Longer, and what an agent did just before its turn ended is missed: it pushes, which has
@@ -63,6 +78,10 @@ function ghToken(): string | null {
 	}
 }
 
+/** Every request to a forge goes through this, so that its rate limits pause our reads. */
+const limits = createRateLimits();
+const recentPulls = createRecentPulls();
+
 let registry: { forges: Forges; at: number } | undefined;
 /** How long credentials are trusted: signing in to the GitHub CLI should not take a restart to notice. */
 const CREDENTIALS_MS = 10 * 60_000;
@@ -74,11 +93,16 @@ const CREDENTIALS_MS = 10 * 60_000;
  */
 function forges() {
 	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry;
-	const providers = providersFromEnv(process.env).flatMap((set) => set.provider ?? []);
+	const providers = providersFromEnv(process.env, { fetch: limits.fetch }).flatMap(
+		(set) => set.provider ?? []
+	);
 
 	if (!providers.some((p) => p.forge === 'github' && p.instance === 'github.com')) {
 		const token = ghToken();
-		const provider = github(token ? { auth: { type: 'token', token } } : {});
+		const provider = github({
+			fetch: limits.fetch,
+			...(token && { auth: { type: 'token', token } as const })
+		});
 		providers.push(provider);
 	}
 	return (registry = { forges: createForges(providers), at: Date.now() });
@@ -217,6 +241,25 @@ function isFor(thread: Thread, repo: Repo, branch: string): boolean {
 	return head?.ref === branch && ours;
 }
 
+/** A pull request in full, with its checks and reviews: batched with others where the forge can. */
+async function readThread(provider: ForgeProvider, ref: Thread['ref']) {
+	return (
+		(provider.forge === 'github' &&
+		provider.authKind !== 'anonymous' &&
+		provider.can('threads.getMany')
+			? await readPull(provider, ref)
+			: null) ?? provider.threads.get(ref)
+	);
+}
+
+/** Of the pull requests for a branch, the open one if there is one, otherwise the most recent. */
+function pickFor(threads: Thread[], repo: Repo, branch: string): Thread | undefined {
+	const open = (thread: Thread) => (thread.state === 'open' ? 0 : 1);
+	return threads
+		.filter((thread) => isFor(thread, repo, branch))
+		.sort((a, b) => open(a) - open(b))[0];
+}
+
 /**
  * The pull request for a branch, with its checks and reviews: the open one if there is one,
  * otherwise the most recently updated.
@@ -230,12 +273,7 @@ async function findPull(
 	repo: Repo,
 	branch: string
 ): Promise<Thread | null> {
-	const get = async (ref: Thread['ref']) =>
-		(provider.forge === 'github' &&
-		provider.authKind !== 'anonymous' &&
-		provider.can('threads.getMany')
-			? await readPull(provider, ref)
-			: null) ?? provider.threads.get(ref);
+	const get = (ref: Thread['ref']) => readThread(provider, ref);
 	const order = { sort: 'updated', direction: 'desc' } as const;
 
 	if (provider.can('search.threads')) {
@@ -294,6 +332,9 @@ type Cached = {
 	includeChecks: boolean;
 	key: string;
 	at: number;
+	/** When the pull request was last read in full, and when the forge said it was last updated then. */
+	readAt?: number;
+	updatedAt?: number;
 	pushedSha: string | null;
 	fastUntil: number;
 	value: Upstream | null;
@@ -381,7 +422,7 @@ export async function upstream(
 	// A cold read establishes the baseline. Only an observed push opens a discovery window.
 	const sameHead = baseline?.pushedSha === pushedSha;
 	const fastUntil = sameHead ? baseline.fastUntil : baseline && pushed ? now + 60_000 : 0;
-	const normal = previous?.refreshAfterMs ?? FRESH_MS;
+	const normal = previous?.refreshAfterMs ?? NO_PULL_MS;
 	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
 	if (
 		cached &&
@@ -393,50 +434,112 @@ export async function upstream(
 		now - cached.at < fresh
 	)
 		return previous;
+	// Rate limited: what we last knew will do, until the forge lets us ask again.
+	const paused = limits.paused();
+	if (paused) {
+		if (previous) return previous;
+		throw new Error(
+			`${provider.forge} is rate limiting us until ${new Date(paused).toISOString()}`
+		);
+	}
 
-	const known = previous?.pull;
-	let pull: Thread | null = null;
-	if (known?.state === 'open' && provider.can('threads.getMany')) {
+	try {
+		return await lookUp();
+	} catch (error) {
+		// refused for asking too much: what we last knew will do
+		if (previous && limits.paused()) return previous;
+		throw error;
+	}
+
+	async function lookUp(): Promise<Upstream> {
+		const known = previous?.pull ?? null;
+		// The repository's recently updated pull requests say whether this one changed.
+		const listing = provider.can('threads.list')
+			? await recentPulls(provider, repo, asked ? FRESH_WHEN_ASKED_MS : CI_REFRESH_MS, now)
+			: null;
+		const listed = listing && pickFor(listing.threads, repo, branch);
+		// What we know must be read again anyway: checks change without the pull request
+		// counting as updated, and so does whether it conflicts with its base.
+		const due =
+			!baseline?.readAt ||
+			(includeChecks && !baseline.includeChecks) ||
+			(known?.state === 'open' &&
+				(known.checks?.state === 'pending' ||
+					!!known.checks?.counts?.pending ||
+					now - baseline.readAt >= OPEN_READ_MS));
+		/** `undefined`: what we know stands. */
+		let pull: Thread | null | undefined;
+		if (listed) {
+			const same =
+				known?.number === listed.ref.number && baseline?.updatedAt === listed.updatedAt?.getTime();
+			pull = same && !due ? undefined : await readThread(provider, listed.ref);
+		} else if (listing && (listing.complete || baseline)) {
+			// Not among the recently updated: there is none, or it has not changed since we read it.
+			pull = !known ? null : due ? await readKnown(known.number) : undefined;
+		} else pull = await findPull(provider, repo, branch);
+
+		const reread = pull !== undefined;
+		const defaultBranch =
+			reread &&
+			!pull &&
+			pushed &&
+			git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
+		const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
+		const summary = !reread ? known : pull ? summarise(pull, checks?.counts, checks?.items) : null;
+		const waiting =
+			summary?.state === 'open' &&
+			(summary.checks?.state === 'pending' || !!summary.checks?.counts?.pending);
+		const refreshAfterMs = anonymous
+			? FRESH_ANONYMOUS_MS
+			: waiting || (now < fastUntil && (!summary || summary.state === 'open'))
+				? CI_REFRESH_MS
+				: !summary
+					? NO_PULL_MS
+					: summary.state === 'open'
+						? OPEN_MS
+						: SETTLED_MS;
+		const value: Upstream = {
+			...base,
+			refreshAfterMs,
+			pull: summary,
+			createUrl: reread
+				? (defaultBranch &&
+						provider.urlFor({
+							compare: { repo, base: defaultBranch.replace(/^origin\//, ''), head: branch }
+						})) ||
+					null
+				: (previous?.createUrl ?? null)
+		};
+		// An overlapping refresh (or a merge) may have superseded this read.
+		const latest = cache.get(worktreeId);
+		if (latest === cached || (latest && !latest.invalidated && latest.at < now))
+			cache.set(worktreeId, {
+				key,
+				at: now,
+				includeChecks: reread ? includeChecks : !!baseline?.includeChecks,
+				readAt: reread ? now : baseline?.readAt,
+				updatedAt: reread ? (listed?.updatedAt ?? pull?.updatedAt)?.getTime() : baseline?.updatedAt,
+				value,
+				pushedSha,
+				fastUntil
+			});
+		return value;
+	}
+
+	/** The pull request we know of, read again; or, closed or retargeted, its successor. */
+	async function readKnown(number: string): Promise<Thread | null> {
 		const ref = {
 			forge: repo.forge,
 			instance: repo.instance,
 			repo,
 			kind: 'pull_request' as const,
-			number: known.number
+			number
 		};
-		pull = await readPull(provider, ref);
-		// A closed or retargeted PR may have a successor on the same branch.
-		if (pull && (pull.state !== 'open' || !isFor(pull, repo, branch))) pull = null;
+		const pull = await readThread(provider, ref);
+		return pull?.state === 'open' && isFor(pull, repo, branch)
+			? pull
+			: findPull(provider, repo, branch);
 	}
-	pull ??= await findPull(provider, repo, branch);
-	const defaultBranch =
-		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
-	const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
-	const summary = pull && summarise(pull, checks?.counts, checks?.items);
-	const waiting =
-		summary?.state === 'open' &&
-		(summary.checks?.state === 'pending' || !!summary.checks?.counts?.pending);
-	const refreshAfterMs = anonymous
-		? FRESH_ANONYMOUS_MS
-		: waiting || (now < fastUntil && (!summary || summary.state === 'open'))
-			? CI_REFRESH_MS
-			: undefined;
-	const value: Upstream = {
-		...base,
-		refreshAfterMs,
-		pull: summary,
-		createUrl:
-			(defaultBranch &&
-				provider.urlFor({
-					compare: { repo, base: defaultBranch.replace(/^origin\//, ''), head: branch }
-				})) ||
-			null
-	};
-	// An overlapping refresh (or a merge) may have superseded this read.
-	const latest = cache.get(worktreeId);
-	if (latest === cached || (latest && !latest.invalidated && latest.at < now))
-		cache.set(worktreeId, { key, at: now, includeChecks, value, pushedSha, fastUntil });
-	return value;
 }
 
 /** Set GitHub's native auto-merge on the pull request selected in the workspace. */

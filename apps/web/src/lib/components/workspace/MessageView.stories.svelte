@@ -203,8 +203,10 @@
 	play={async ({ canvas }) => {
 		const answer = await canvas.findByRole('button', { name: 'Answer' });
 		await expect(answer).toBeDisabled(); // nothing to say yet
-		await userEvent.click(canvas.getByRole('button', { name: /Postgres/ }));
-		await userEvent.click(answer);
+		// The virtual list pauses pointer input while it scrolls to the question or its answer.
+		const postgres = canvas.getByRole('button', { name: /Postgres/ });
+		await waitFor(() => userEvent.click(postgres));
+		await waitFor(() => userEvent.click(answer));
 		await waitFor(() => expect(canvas.queryByRole('button', { name: 'Answer' })).toBeNull());
 		await expect(canvas.getByText('Postgres')).toBeVisible();
 	}}

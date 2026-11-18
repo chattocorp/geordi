@@ -182,13 +182,14 @@ export async function hasTerminalActivity(workspaceId: string): Promise<boolean>
 
 	// A foreground or background job has a parent in the shell. An exec'd program
 	// replaces the shell itself and keeps its PID.
-	const { stdout } = await exec('/bin/ps', ['-A', '-o', 'pid=,ppid=,comm=']);
+	const { stdout } = await exec('/bin/ps', ['-A', '-o', 'pid=,ppid=,stat=,comm=']);
 	for (const line of stdout.split('\n')) {
-		const row = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
-		if (!row) continue;
+		const row = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.+?)\s*$/.exec(line);
+		// A shell may leave a finished background job in the process table until it waits.
+		if (!row || row[3].startsWith('Z')) continue;
 		if (shells.has(Number(row[2]))) return true;
 		const shell = shells.get(Number(row[1]));
-		if (shell && basename(row[3]) !== shell) return true;
+		if (shell && basename(row[4]) !== shell) return true;
 	}
 	return false;
 }

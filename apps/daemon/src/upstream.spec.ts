@@ -144,61 +144,201 @@ describe('upstream', () => {
 		}
 	});
 
-	it.each([true, false])(
-		'follows a pushed commit with authenticated access %s',
-		async (authenticated) => {
-			// A fresh provider registry for each credential mode.
-			vi.resetModules();
-			vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
-			vi.stubEnv('FORGES_GITHUB_TOKEN', authenticated ? 'fixture' : '');
-			const { upstream: read } = await import('./upstream.ts');
-			const search = vi.fn(async () => Response.json({ total_count: 0, items: [] }));
-			vi.stubGlobal('fetch', search);
-			const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
-			const git = (...args: string[]) => execFileSync('git', ['-C', ref.repoPath, ...args]);
-			const remoteBranch = 'refs/remotes/origin/geordi/abcdefgh';
-			try {
-				git('update-ref', remoteBranch, 'HEAD');
-				const initial = await read(worktree, ref, 1000);
-				expect(initial?.refreshAfterMs).toBe(authenticated ? undefined : 300_000);
-				expect(await read(worktree, ref, 9000)).toBe(initial);
-				await read(worktree, ref, 11_000);
-				const settled = await read(worktree, ref, 61_000);
-				expect(settled?.refreshAfterMs).toBe(authenticated ? undefined : 300_000);
-				expect(search).toHaveBeenCalledTimes(authenticated ? 2 : 1);
-				git(
-					'-c',
-					'user.name=t',
-					'-c',
-					'user.email=t@t',
-					'commit',
-					'-q',
-					'--allow-empty',
-					'-m',
-					'push'
+	/**
+	 * A GitHub with one repository's pull requests: it lists them with a validator, answers
+	 * `304` when they did not change, and reads them in full. `asked` says what it was asked.
+	 */
+	function fakeGitHub() {
+		type Pull = { number: number; state: 'open' | 'closed' | 'merged'; updatedAt: string };
+		const github = { pulls: [] as Pull[], version: 0, limited: false, asked: [] as string[] };
+		const branch = 'geordi/abcdefgh';
+		const rest = (pull: Pull) => ({
+			number: pull.number,
+			title: 'Add the thing',
+			state: pull.state === 'open' ? 'open' : 'closed',
+			merged_at: pull.state === 'merged' ? pull.updatedAt : null,
+			html_url: `https://github.com/acme/widgets/pull/${pull.number}`,
+			updated_at: pull.updatedAt,
+			created_at: pull.updatedAt,
+			user: { login: 'agent' },
+			head: { ref: branch, sha: 'abc', repo: { full_name: 'acme/widgets', name: 'widgets' } },
+			base: { ref: 'main' }
+		});
+		const respond = async (input: string | URL | Request, init?: RequestInit) => {
+			const url = new URL(String(input));
+			if (github.limited) {
+				github.asked.push('refused');
+				const reset = String(Math.ceil(Date.now() / 1000) + 3600);
+				return Response.json(
+					{ message: 'API rate limit exceeded' },
+					{ status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset } }
 				);
-				git('update-ref', remoteBranch, 'HEAD');
-				const pushed = await read(worktree, ref, 62_000);
-				expect(pushed?.refreshAfterMs).toBe(authenticated ? 10_000 : 300_000);
-				expect(search).toHaveBeenCalledTimes(authenticated ? 3 : 1);
-				await read(worktree, ref, 72_000);
-				expect(search).toHaveBeenCalledTimes(authenticated ? 4 : 1);
-				expect((await read(worktree, ref, 122_000))?.refreshAfterMs).toBe(
-					authenticated ? undefined : 300_000
-				);
-				if (authenticated) {
-					const newWorkspace = { ...ref, worktreeId: 'first-push' };
-					git('update-ref', '-d', remoteBranch);
-					expect((await read(worktree, newWorkspace, 123_000))?.pushed).toBe(false);
-					git('update-ref', remoteBranch, 'HEAD');
-					expect((await read(worktree, newWorkspace, 124_000))?.refreshAfterMs).toBe(10_000);
-				}
-			} finally {
-				vi.unstubAllGlobals();
-				vi.unstubAllEnvs();
 			}
+			const single = /\/pulls\/(\d+)$/.exec(url.pathname);
+			const pull =
+				single && github.pulls.find((candidate) => candidate.number === Number(single[1]));
+			if (pull) {
+				github.asked.push('read');
+				return Response.json(rest(pull));
+			}
+			if (url.pathname.endsWith('/pulls')) {
+				const etag = `"v${github.version}"`;
+				if (new Headers(init?.headers).get('if-none-match') === etag) {
+					github.asked.push('unchanged');
+					return new Response(null, { status: 304, headers: { etag } });
+				}
+				github.asked.push('list');
+				return Response.json(github.pulls.map(rest), { headers: { etag } });
+			}
+			if (url.pathname === '/graphql') {
+				const { variables } = JSON.parse(String(init?.body));
+				github.asked.push('read');
+				const data = Object.fromEntries(
+					Object.entries(variables)
+						.filter(([name]) => name.startsWith('k'))
+						.map(([name, number]) => {
+							const pull = github.pulls.find((candidate) => candidate.number === number);
+							const node = pull && {
+								__typename: 'PullRequest',
+								id: `PR_${pull.number}`,
+								number: pull.number,
+								title: 'Add the thing',
+								url: `https://github.com/acme/widgets/pull/${pull.number}`,
+								state: pull.state.toUpperCase(),
+								updatedAt: pull.updatedAt,
+								headRefName: branch,
+								baseRefName: 'main'
+							};
+							return [`t${name.slice(1)}`, { issueOrPullRequest: node ?? null }];
+						})
+				);
+				return Response.json({ data });
+			}
+			// what else a full read takes without GraphQL: its checks
+			github.asked.push(`more of ${url.pathname}`);
+			return Response.json({ total_count: 0, check_runs: [], statuses: [], state: 'pending' });
+		};
+		vi.stubGlobal('fetch', respond);
+		return github;
+	}
+
+	it('follows a branch through the listing of recent pull requests, asking nothing twice', async () => {
+		vi.resetModules();
+		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
+		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
+		const { upstream: read } = await import('./upstream.ts');
+		const github = fakeGitHub();
+		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		const git = (...args: string[]) =>
+			execFileSync('git', [
+				'-C',
+				ref.repoPath,
+				'-c',
+				'user.name=t',
+				'-c',
+				'user.email=t@t',
+				...args
+			]);
+		const remoteBranch = 'refs/remotes/origin/geordi/abcdefgh';
+		try {
+			git('update-ref', remoteBranch, 'HEAD');
+			// all of the repository's pull requests are listed: none is this branch's
+			const initial = await read(worktree, ref, 1000);
+			expect(initial?.pull).toBeNull();
+			expect(initial?.refreshAfterMs).toBe(20_000);
+			expect(await read(worktree, ref, 9000)).toBe(initial);
+			expect((await read(worktree, ref, 21_000))?.pull).toBeNull();
+			expect(github.asked).toEqual(['list', 'unchanged']);
+
+			// pushed: looked at more closely for a while, the listing still fresh
+			git('commit', '-q', '--allow-empty', '-m', 'push');
+			git('update-ref', remoteBranch, 'HEAD');
+			expect((await read(worktree, ref, 22_000))?.refreshAfterMs).toBe(10_000);
+			expect(github.asked).toHaveLength(2);
+
+			// a pull request opened: the listing changes, and it is read
+			github.pulls.push({ number: 42, state: 'open', updatedAt: '2026-11-18T10:00:00Z' });
+			github.version++;
+			const opened = await read(worktree, ref, 32_000);
+			expect(opened?.pull?.number).toBe('42');
+			expect(github.asked.slice(2)).toContain('read');
+			// unchanged since, it is not read again; a minute on, it is
+			const before = github.asked.length;
+			expect((await read(worktree, ref, 42_000))?.pull?.number).toBe('42');
+			expect(github.asked.slice(before)).toEqual(['unchanged']);
+			await read(worktree, ref, 93_000);
+			expect(github.asked.slice(before)).toEqual(['unchanged', 'unchanged', 'read']);
+
+			// merged: the listing says so
+			github.pulls[0] = { number: 42, state: 'merged', updatedAt: '2026-11-18T11:00:00Z' };
+			github.version++;
+			const merged = await read(worktree, ref, 104_000);
+			expect(merged?.pull?.state).toBe('merged');
+			expect(merged?.refreshAfterMs).toBe(60_000);
+			expect(await read(worktree, ref, 150_000)).toBe(merged);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
 		}
-	);
+	});
+
+	it('keeps what it knew while rate limited, and asks nothing until the limit resets', async () => {
+		vi.resetModules();
+		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
+		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
+		const { upstream: read } = await import('./upstream.ts');
+		const github = fakeGitHub();
+		github.pulls.push({ number: 42, state: 'merged', updatedAt: '2026-11-18T10:00:00Z' });
+		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		execFileSync('git', [
+			'-C',
+			ref.repoPath,
+			'update-ref',
+			'refs/remotes/origin/geordi/abcdefgh',
+			'HEAD'
+		]);
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const merged = await read(worktree, ref, 1000);
+			expect(merged?.pull?.state).toBe('merged');
+			github.limited = true;
+			expect(await read(worktree, ref, 100_000)).toBe(merged);
+			expect(await read(worktree, { ...ref, fresh: true }, 200_000)).toBe(merged);
+			expect(github.asked.filter((asked) => asked === 'refused')).toHaveLength(1);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+			vi.restoreAllMocks();
+		}
+	});
+
+	it('knows a pull request without credentials, and looks again only now and then', async () => {
+		vi.resetModules();
+		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
+		vi.stubEnv('FORGES_GITHUB_TOKEN', '');
+		const { upstream: read } = await import('./upstream.ts');
+		const github = fakeGitHub();
+		github.pulls.push({ number: 42, state: 'open', updatedAt: '2026-11-18T10:00:00Z' });
+		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		execFileSync('git', [
+			'-C',
+			ref.repoPath,
+			'update-ref',
+			'refs/remotes/origin/geordi/abcdefgh',
+			'HEAD'
+		]);
+		try {
+			const open = await read(worktree, ref, 1000);
+			expect(open?.pull?.number).toBe('42');
+			expect(open?.refreshAfterMs).toBe(300_000);
+			const asked = github.asked.length;
+			expect(await read(worktree, ref, 200_000)).toBe(open);
+			expect(github.asked).toHaveLength(asked);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
 
 	it('is nothing for repositories without a remote, or on a forge we do not know', async () => {
 		const local = workspace();
