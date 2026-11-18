@@ -1,9 +1,9 @@
 ---
 data:
   priority: normal
-  status: in_progress
+  status: done
   type: task
 id: 5qhch
 title: Show activity in conversation tabs
 ---
-Show the Braille spinner in each conversation tab while its own agent is running.
+Each conversation tab shows the shared spinner while its agent is running. Verified the running and idle states side by side in Storybook.
