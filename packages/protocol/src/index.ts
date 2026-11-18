@@ -596,6 +596,19 @@ export type BackgroundTask = {
 	toolCallId?: string;
 };
 
+/**
+ * One of the agent's own commands (a slash command or a skill), as its CLI offers them: the
+ * person invokes one by beginning a message with `/name`. The agent's live data (ADR-003),
+ * never stored.
+ */
+export type AgentCommand = {
+	/** Without the leading `/`. */
+	name: string;
+	description?: string;
+	/** What it takes after its name, if anything. */
+	hint?: string;
+};
+
 export type AgentEvent =
 	| { kind: 'subagent'; path: string[]; update: SubagentUpdate }
 	| { kind: 'message.received'; id: string }
@@ -701,6 +714,8 @@ export type DaemonMessage =
 	 * Live, unacknowledged: the forge keeps it in memory and records it once per turn.
 	 */
 	| { type: 'workspace.usage'; workspaceId: string; usage: ContextUsage }
+	/** The commands the workspace's agent offers now, all of them; sent again whenever they change. */
+	| { type: 'workspace.commands'; workspaceId: string; commands: AgentCommand[] }
 	| {
 			type: 'hello';
 			protocol: number;

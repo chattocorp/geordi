@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import {
 	PROTOCOL_VERSION,
 	type DaemonMessage,
+	type AgentCommand,
 	type BackgroundTask,
 	type DaemonRequest,
 	type DaemonResults,
@@ -62,6 +63,13 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		else background.delete(id);
 		for (const listener of taskListeners) listener(id);
 	}
+	/**
+	 * Each workspace's agent's commands, as its daemon last said (ADR-003: live data, never
+	 * stored). They stay when the daemon goes away, or the agent's CLI rests: they are still
+	 * what it offers when it is next started. A reconnecting daemon says them again.
+	 */
+	const commands = new Map<string, AgentCommand[]>();
+	const commandListeners = new Set<(workspaceId: string) => void>();
 	/** What each connected daemon's agent CLIs offer, as it said when it connected. */
 	const offers = new Map<WebSocket, Harness[]>();
 	/** Told when a daemon connects or goes away. */
@@ -134,6 +142,12 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				if (assigned.get(message.workspaceId) === daemonId) handlers.onMessage(message);
 				return;
 			}
+			if (message.type === 'workspace.commands') {
+				if (assigned.get(message.workspaceId) !== daemonId) return;
+				commands.set(message.workspaceId, message.commands);
+				for (const listener of commandListeners) listener(message.workspaceId);
+				return;
+			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
 			else if (
 				message.type !== 'workspace.event' ||
@@ -173,6 +187,13 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		followBackground(listener: (workspaceId: string) => void) {
 			taskListeners.add(listener);
 			return () => taskListeners.delete(listener);
+		},
+
+		/** The commands the workspace's agent offers; `null` until it has said. */
+		commands: (id: string) => commands.get(id) ?? null,
+		followCommands(listener: (workspaceId: string) => void) {
+			commandListeners.add(listener);
+			return () => commandListeners.delete(listener);
 		},
 
 		/** Asks a daemon a question about a workspace. Rejects if none answers in time. */
