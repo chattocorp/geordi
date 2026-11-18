@@ -27,6 +27,8 @@ export function instructionsFor(workspace: {
 			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
 			: 'The person you work for sees your replies, your changes as a diff against where the branch started, and the state of the branch’s pull request.',
 
+		'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.',
+
 		'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](/tmp/sidebar.png)`: it is shown right there. PNG, JPEG, WebP and GIF files on this machine, up to 5 MB; pictures from the web are only linked.',
 
 		'When you mention another Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.',
