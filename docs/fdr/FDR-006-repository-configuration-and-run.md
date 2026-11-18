@@ -1,7 +1,7 @@
 # FDR-006: Repository configuration: jobs, ports, links, setup and teardown
 
 **Status:** Active
-**Last reviewed:** 2026-11-17
+**Last reviewed:** 2026-11-18
 
 ## Overview
 
@@ -43,6 +43,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 ### Setting up and tearing down
 
 - The setup script runs once, by itself, when the daemon makes a workspace's worktree fresh from where work in the repository starts, in the workspace's directory, with its ports. It runs in a terminal tab named `setup`, which shows up in the dock by itself. Continuing a workspace, or an agent working in another's worktree, makes no new directory and runs nothing. A worktree that starts from an agent's branch (one an agent started with a worktree of its own) or is brought back from the workspace's branch gets no setup by itself: its tab says so, and its agent is told to do what it needs itself.
+- The setup tab closes automatically when the script succeeds, including after a manual retry. If setup fails, the tab stays open so the person can read its output.
 - The agent's first turn waits for it. Stopping the agent meanwhile ends that turn; the setup goes on, and the next turn waits for it in turn.
 - However the setup ends, the agent then starts. If it failed, the agent is told so with its first message, with the end of what the script printed; if it was stopped (its tab closed), or nobody has agreed to it yet, the agent is told that too. A failed setup is the agent's to fix, or the person's: it does not stop the work.
 - A setup nobody has agreed to does not run: its tab says so, and where to run it. Until it is agreed to, the workspace says so in a quiet line under its title, with **Review**, which shows the script and asks, and runs it once agreed; after that it runs by itself and nothing more is said. The Run menu lists jobs only. A setup that did not run can be run from its own terminal: a key press in a terminal that has ended starts it again.

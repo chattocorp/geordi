@@ -33,3 +33,4 @@ Extends repository configuration (FDR-006), which listed setup and teardown scri
 - UI: **Set up** in the dock's Run menu runs setup by hand. The approval dialog includes the teardown along with the first other command agreed to. `check_configuration` reports setup and teardown.
 - Tests: parser, the agent note, pty end detection, forge terminals, and teardown only on a person's archiving. End to end, with a stand-in forge restarted mid-setup: the new forge's `hello` listed the waiting turn and the `run-setup` terminal, the agent ran after setup, and archiving ran the teardown with the same `GEORDI_PORT` before the worktree went.
 - Limitations: a daemon restart mid-setup ends the setup and loses the waiting turn, and setup isn't rerun automatically. Approval is per command, not per slot: an approved job command could be named as setup.
+- Successful setup now closes its terminal automatically, including after a manual retry. A failed setup keeps its output visible.

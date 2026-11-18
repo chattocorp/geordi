@@ -152,6 +152,7 @@ function runScript(
 			{
 				cols: 120,
 				rows: 30,
+				closeOnSuccess: setup !== undefined,
 				command,
 				env,
 				onEnded: (status) => {
@@ -589,6 +590,7 @@ async function handle(message: ForgeMessage) {
 					worktree.path,
 					{
 						...message,
+						closeOnSuccess: asked?.job === 'setup',
 						command: asked && (agreed ? job.command : RUN_CHANGED),
 						// every terminal knows the workspace's ports; a job also which one is its own
 						env: { ...env, ...(agreed && job.port !== null && { PORT: String(job.port) }) },
