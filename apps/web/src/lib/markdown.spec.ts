@@ -35,11 +35,11 @@ describe('renderMarkdown', () => {
 	it('opens absolute worktree citations with an optional line and a formatted label', () => {
 		const options = { root: '/work/tree', file: (name: string) => name };
 		const html = renderMarkdown(
-			'[`line`](</work/tree/a b.ts:139>) [whole](/work/tree/a%20b.ts)',
+			'[`line`](</work/tree/a b.ts:139>) [whole](/work/tree/a%20b.ts "Read A & B")',
 			options
 		);
 		expect(html).toContain('data-source="a b.ts" data-line="139"><code>line</code></button>');
-		expect(html).toContain('data-source="a b.ts">whole</button>');
+		expect(html).toContain('data-source="a b.ts" title="Read A &amp; B">whole</button>');
 		expect(html).not.toContain('data-file');
 	});
 

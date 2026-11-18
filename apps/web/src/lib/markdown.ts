@@ -115,11 +115,13 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 				const path = citation?.file ?? (root && diffLink(href));
 				if (!path) continue;
 				button = true;
+				const title = token.attrGet('title');
 				token.tag = 'button';
 				token.attrs = [
 					['type', 'button'],
 					[citation ? 'data-source' : 'data-file', path]
 				];
+				if (title !== null) token.attrSet('title', title);
 				if (citation?.line) token.attrSet('data-line', citation.line);
 			} else if (token.type === 'link_close') {
 				if (button) token.tag = 'button';
