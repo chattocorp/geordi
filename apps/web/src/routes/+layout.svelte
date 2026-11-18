@@ -31,7 +31,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
-	import Ring from '#lib/ui/Ring.svelte';
+	import ChecksRing from '#lib/components/ChecksRing.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { connect, follow } from '#lib/live.svelte.ts';
@@ -476,18 +476,7 @@
 						title={standing.label}
 					>
 						{#if standing.checks}
-							{@const { passed, failed, pending, skipped } = standing.checks}
-							<Ring
-								label="Checks: {pending} running, {passed} passed{failed
-									? `, ${failed} failed`
-									: ''}"
-								parts={[
-									{ size: failed, tone: 'danger' },
-									{ size: passed, tone: 'ok' },
-									{ size: skipped, tone: 'neutral' },
-									{ size: pending, tone: 'accent' }
-								]}
-							/>
+							<ChecksRing counts={standing.checks} />
 						{:else}
 							<span class={['size-4', standing.icon]} role="img" aria-label={standing.label}></span>
 						{/if}

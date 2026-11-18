@@ -2,6 +2,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest } from '@geordi/protocol';
 	import PullRequestPane from './PullRequestPane.svelte';
+	import PullRequestTab from './PullRequestTab.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Pull request', component: PullRequestPane });
 
@@ -73,4 +74,12 @@
 
 <Story name="Merged" asChild>
 	{@render pane(withPull({ state: 'merged', checks: null, review: null }))}
+</Story>
+
+<Story name="Tab while checks run" asChild>
+	<div class="flex items-center gap-2">
+		<PullRequestTab
+			pull={withPull({ checks: { state: 'pending', total: null, failed: null, url: null } })}
+		/>
+	</div>
 </Story>

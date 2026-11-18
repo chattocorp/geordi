@@ -58,6 +58,7 @@
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
+	import PullRequestTab from './PullRequestTab.svelte';
 	import PullRequestPane from './PullRequestPane.svelte';
 	import Changes from './Changes.svelte';
 	import Changeset from './Changeset.svelte';
@@ -627,9 +628,8 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
 		{#if git?.changes?.files.length}{@render count(git.changes.files.length)}{/if}
-	{:else if tab === PR}
-		<span class="icon-[lucide--git-pull-request] size-3.5 shrink-0"></span>
-		<span>PR</span>
+	{:else if tab === PR && git?.upstream?.pull}
+		<PullRequestTab pull={git.upstream.pull} />
 	{:else if tab === CHANGESET}
 		{@const added = (git?.release?.packages ?? [])
 			.flatMap((pkg) => pkg.notes)
