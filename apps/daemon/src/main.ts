@@ -1,3 +1,5 @@
+import { turnStarts } from './turn-starts.ts';
+import { eventDelivery } from './event-delivery.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
 import { readFileSync } from 'node:fs';
@@ -6,14 +8,12 @@ import { join } from 'node:path';
 import {
 	DEFAULT_PORTS,
 	AGENTS,
-	sameAgentSettings,
 	JOB_TERMINAL,
 	TEARDOWN_TIMEOUT_MS,
 	PROTOCOL_VERSION,
 	type DaemonMessage,
 	type DaemonRequest,
 	type ForgeMessage,
-	type AgentEvent,
 	type Harness,
 	type WorktreeRef
 } from '@geordi/protocol';
@@ -65,7 +65,6 @@ import {
 	hasWorktree,
 	locateWorktree,
 	verifyLinks,
-	worktreePath,
 	type Worktree
 } from './worktree.ts';
 
@@ -252,9 +251,6 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 	}
 }
 
-/** Agents waiting for their worktree's setup, by workspace: what stops one. */
-const waiting = new Map<string, () => void>();
-
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
@@ -284,26 +280,7 @@ function send(message: DaemonMessage) {
 	else outbox.push(message);
 }
 
-/** Reports what a workspace's agent does. Queued while there is no forge to tell. */
-// Keep the host line until the forge acknowledges its durable append. One in flight per workspace.
-const deliveries = new Map<string, { cursor: string; sent: number; acknowledged: boolean }>();
-const emitFor = (workspaceId: string) => (event: AgentEvent, cursor?: string) => {
-	if (!cursor) {
-		send({ type: 'workspace.event', workspaceId, event });
-		return true;
-	}
-	const pending = deliveries.get(workspaceId);
-	if (pending?.cursor === cursor) {
-		if (pending.acknowledged) {
-			deliveries.delete(workspaceId);
-			return true;
-		}
-		if (Date.now() - pending.sent < 1000) return false;
-	}
-	deliveries.set(workspaceId, { cursor, sent: Date.now(), acknowledged: false });
-	sendLive({ type: 'workspace.event', workspaceId, event, cursor });
-	return false;
-};
+const { emitFor, acknowledge } = eventDelivery(send, sendLive);
 
 /**
  * Whether the forge is there to be told things. Sessions are only followed while it is: what
@@ -351,7 +328,20 @@ function attend(workspaceId: string, session: Session) {
  * Workspaces whose session is about to start (its worktree is being made, or set up), with
  * what was said to them since: all of it is the new session's to hear.
  */
-const beginning = new Map<string, { cwd: string; heard: Said[] }>();
+const { beginning, startMessage } = turnStarts({
+	worktreesDir,
+	sessions,
+	setups,
+	apiUrl,
+	configFor,
+	begin,
+	emitFor,
+	prepared(worktree, message) {
+		watches.restart(message.worktreeId);
+		sendLive({ type: 'worktree.changed', worktreeId: message.worktreeId });
+		setUp(worktree, message);
+	}
+});
 const { sessionsIn, workingIn } = worktreeSessions(sessions, beginning);
 
 /**
@@ -558,108 +548,11 @@ async function answer(request: DaemonRequest) {
 async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'workspace.ack': {
-			const pending = deliveries.get(message.workspaceId);
-			if (pending?.cursor === message.cursor) pending.acknowledged = true;
+			acknowledge(message.workspaceId, message.cursor, sessions.get(message.workspaceId)?.read);
 			return;
 		}
-		case 'agent.message': {
-			const { workspaceId, worktreeId, agent, repoPath, base, settings } = message;
-			const emit = emitFor(workspaceId);
-			const said: Said = {
-				prompt: message.prompt,
-				deliveryId: message.deliveryId,
-				...(message.images && { images: message.images })
-			};
-
-			// one that is about to start hears it when it does
-			const sooner = beginning.get(workspaceId);
-			if (sooner) {
-				sooner.heard.push(said);
-				break;
-			}
-			const heard = [said];
-			beginning.set(workspaceId, { cwd: worktreePath(worktreesDir, repoPath, worktreeId), heard });
-			try {
-				let session = sessions.get(workspaceId);
-				// A CLI runs as it was started. Told to run otherwise (with another model, say), it
-				// is started anew, unless it is in the middle of something: then that waits.
-				if (
-					session &&
-					!session.over() &&
-					!session.working() &&
-					!sameAgentSettings(session.options.settings, settings)
-				) {
-					session.close();
-					await Promise.race([session.done, new Promise((resolve) => setTimeout(resolve, 15_000))]);
-					session = sessions.get(workspaceId);
-					if (session && !session.over())
-						throw new Error(
-							'Previous session is still closing. Retry the message to apply the new settings.'
-						);
-				}
-				// An agent whose CLI is running is simply told: between turns that starts one,
-				// during a turn it steers.
-				if (session && !session.over()) {
-					heard.forEach(session.say);
-					break;
-				}
-
-				// A workspace of its own starts from where its upstream stands now. (One started
-				// by an agent starts from that agent's branch, which is here already.)
-				if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
-					const problem = await fetchUpstream(repoPath);
-					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
-				}
-				const worktree = ensureWorktree(worktreesDir, repoPath, worktreeId, base, message.branch);
-				if (worktree.created)
-					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
-				if (worktree.created || worktree.restored) {
-					// there is a directory to watch now (again), and to look at
-					watches.restart(worktreeId);
-					sendLive({ type: 'worktree.changed', worktreeId });
-					setUp(worktree, message);
-				}
-
-				// The agent starts once the directory is set up, and hears how that went. Stopped
-				// meanwhile, the turn ends; the setup goes on, for the next one to wait for.
-				const setup = setups.get(worktreeId);
-				if (setup) {
-					const stopped = new Promise<'stopped'>((resolve) =>
-						waiting.set(workspaceId, () => resolve('stopped'))
-					);
-					let note;
-					try {
-						note = await Promise.race([setup, stopped]);
-					} finally {
-						waiting.delete(workspaceId);
-					}
-					if (note === 'stopped') {
-						emit({ kind: 'turn.failed', error: 'Stopped' });
-						break;
-					}
-					if (setups.get(worktreeId) === setup) setups.delete(worktreeId);
-					if (note) heard[0] = { ...said, prompt: `${note}\n\n${said.prompt}` };
-				}
-
-				const options = {
-					sessionId: workspaceId,
-					dir: '', // `begin` knows where
-					resumeId: message.resumeId,
-					settings,
-					env: (await configFor(worktree, message)).env,
-					instructions: message.instructions,
-					cwd: worktree.path,
-					writableRoots: worktree.writableRoots,
-					api: { url: apiUrl }
-				};
-				begin(workspaceId, { agent, options, apiToken: message.apiToken }, heard);
-			} catch (error) {
-				emit({ kind: 'turn.failed', error: errorMessage(error) });
-			} finally {
-				beginning.delete(workspaceId);
-			}
-			break;
-		}
+		case 'agent.message':
+			return startMessage(message);
 
 		case 'request':
 			try {
@@ -728,8 +621,7 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'agent.stop':
-			sessions.get(message.workspaceId)?.stop();
-			waiting.get(message.workspaceId)?.();
+			(beginning.get(message.workspaceId) ?? sessions.get(message.workspaceId))?.stop();
 			break;
 
 		case 'agent.answer':

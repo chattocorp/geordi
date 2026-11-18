@@ -30,6 +30,7 @@ import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
 import { webUrl } from '../url.ts';
+import { createUpstreamRefresh } from './upstream-refresh.ts';
 import { createWatchers, type WorktreeLoad } from './watchers.ts';
 import { createWorkspaces } from './workspaces.ts';
 
@@ -122,9 +123,11 @@ function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
 				return { changes: null, unavailable, missing: unavailable === NO_WORKTREE };
 			}
 		),
-		upstream: () => ref.then((ref) => upstreamOf(ref, fresh)).catch(() => null),
-		config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
-		release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
+		upstream: () => ref.then((ref) => upstreamOf(ref, fresh)),
+		details: () => ({
+			config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
+			release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
+		})
 	};
 }
 
@@ -251,29 +254,20 @@ export async function updateWorkspace(id: string, prompt: string) {
 	workspaces().send(id, prompt);
 }
 
-/**
- * How long after a turn's end its workspace is looked at once more. A forge does not always
- * have what was just done there (a pull request opened a second ago) when it is first asked.
- */
-const UPSTREAM_SETTLES_MS = 10_000;
+const refreshUpstream = createUpstreamRefresh(
+	(id) => watchers().refreshUpstream(id),
+	(id) => standings().refresh(id, true)
+);
 
-/**
- * Has a workspace's worktree looked at afresh, including how it stands upstream as of now:
- * at once, and again a little later.
- */
 export function upstreamMayHaveChanged(workspaceId: string) {
-	const look = () => {
-		try {
-			const { worktreeId } = workspaces().ref(workspaceId);
-			watchers().changed(worktreeId, true);
-			// nobody looking at it: the sidebar still shows how it stands
-			if (!watchers().state(worktreeId)) void standings().refresh(worktreeId, true);
-		} catch {
-			// no such workspace (any more): nobody to tell
-		}
-	};
-	look();
-	setTimeout(look, UPSTREAM_SETTLES_MS).unref();
+	let ref: WorktreeRef;
+	try {
+		ref = workspaces().ref(workspaceId);
+	} catch {
+		// A late turn event can refer to a workspace that is gone.
+		return;
+	}
+	refreshUpstream(ref.worktreeId);
 }
 
 /** The jobs repositories have run for their workspaces (FDR-006). */

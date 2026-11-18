@@ -9,7 +9,9 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
 - 🤖 **Claude and Codex.** Pick the agent, its model and how hard it thinks, per workspace.
 - 💬 **Talk while it works.** Steer an agent mid-turn or queue your next message. Agents
   can ask you questions, too.
-- 🧑‍🤝‍🧑 **Agents with helpers.** Agents can start and supervise other agents.
+- 🧑‍🤝‍🧑 **Control agents through MCP.** Ask your workspace agent to start other agents,
+  send them instructions, and collect their replies. Geordi gives it access to these
+  tools through the Model Context Protocol (MCP).
 - 👀 **Live changes.** Diffs update as the agent writes.
 - 🖥️ **Terminals built in.** Open shells right next to the conversation.
 - 🚦 **Pull requests at a glance.** The sidebar shows how each workspace's PR and checks
@@ -22,11 +24,25 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
 - 🔁 **Survives restarts.** Agents keep working when you quit the app.
 - 🏠 **Yours.** Runs on your machine, with your data in a local SQLite file.
 
+## Design choices
+
+- **A calm workspace.** The conversation and diffs take priority. A small set of colors
+  makes actions and status easy to recognize. Idle workspaces stay still. A moving
+  indicator tells you an agent is working or a check is running.
+- **Planning happens in the conversation.** Ask the agent for a plan and tell it to wait
+  for feedback before editing. Geordi can show its checklist as it works. There is no
+  separate plan mode.
+- **Two permission modes.** Choose Auto Mode or Full Access. Geordi does not offer a
+  mode that asks you to approve individual tool calls. See [Safety](#safety).
+- **Use your own browser.** Project previews and external links open in your browser.
+  There is no in-app browser.
+
 ## Install
 
 Download the desktop app for macOS (Apple silicon) or Windows from the
-[latest release](https://github.com/chattocorp/geordi/releases/latest), unpack it and open
-it. It runs everything Geordi needs and keeps its data in `~/.geordi`.
+[latest release](https://github.com/chattocorp/geordi/releases/latest). On macOS, open the
+disk image and drag Geordi to Applications. On Windows, extract the ZIP and open Geordi.
+The app runs everything Geordi needs and keeps its data in `~/.geordi`.
 
 Geordi runs the agent CLIs you already use: sign in to
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or

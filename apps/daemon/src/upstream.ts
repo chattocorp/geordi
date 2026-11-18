@@ -45,12 +45,6 @@ const SETTLED_MS = 60_000;
  * an update of the pull request.
  */
 const OPEN_READ_MS = 60_000;
-/**
- * How fresh an answer has to be for someone who asked to look now: all but this moment's.
- * (Longer, and what an agent did just before its turn ended is missed: it pushes, which has
- * us look, opens the pull request a few seconds later, and is done.)
- */
-const FRESH_WHEN_ASKED_MS = 1_000;
 const FRESH_ANONYMOUS_MS = 5 * 60_000;
 /** How many of a repository's most recently updated pull requests are gone through for the branch. */
 const SEARCH_LIMIT = 100;
@@ -458,13 +452,13 @@ export async function upstream(
 	}
 
 	// Asked to look now (something may just have happened there that nothing here shows: a
-	// pull request opened, a review), we do, unless we only just did. Not without
+	// pull request opened, a review), we do. Not without
 	// credentials: those few requests are for looking now and then.
 	// A cold read establishes the baseline. Only an observed push opens a discovery window.
 	const sameHead = baseline?.pushedSha === pushedSha;
 	const fastUntil = sameHead ? baseline.fastUntil : baseline && pushed ? now + 60_000 : 0;
 	const normal = previous?.refreshAfterMs ?? NO_PULL_MS;
-	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
+	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? 0 : normal;
 	if (
 		cached &&
 		!cached.invalidated &&
@@ -496,7 +490,7 @@ export async function upstream(
 		const known = previous?.pull ?? null;
 		// The repository's recently updated pull requests say whether this one changed.
 		const listing = provider.can('threads.list')
-			? await recentPulls(provider, repo, asked ? FRESH_WHEN_ASKED_MS : CI_REFRESH_MS, now)
+			? await recentPulls(provider, repo, asked && !anonymous ? 0 : CI_REFRESH_MS, now)
 			: null;
 		const listed = listing && pickFor(listing.threads, repo, branch);
 		// What we know must be read again anyway: checks change without the pull request
@@ -514,6 +508,9 @@ export async function upstream(
 			const same =
 				known?.number === listed.ref.number && baseline?.updatedAt === listed.updatedAt?.getTime();
 			pull = same && !due ? undefined : await readThread(provider, listed.ref);
+		} else if (asked && !anonymous && pushed && !known && provider.can('search.threads')) {
+			// A PR opened during this turn may not be in the repository listing yet.
+			pull = await findPull(provider, repo, branch);
 		} else if (listing && (listing.complete || baseline)) {
 			// Not among the recently updated: there is none, or it has not changed since we read it.
 			pull = !known ? null : due ? await readKnown(known.number) : undefined;
