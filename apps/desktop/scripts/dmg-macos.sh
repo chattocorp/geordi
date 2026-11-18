@@ -14,6 +14,7 @@ if [[ ${1:-} == --local ]]; then
 fi
 ln -s /Applications "$work/volume/Applications"
 image="dist/Geordi-v${version}-macOS-${arch}.dmg"
-hdiutil create -volname Geordi -fs HFS+ -format UDZO -srcfolder "$work/volume" "$work/Geordi.dmg"
+# LZMA: a third smaller than UDZO's zlib, and macOS 10.15+ opens it (Electron needs 12+).
+hdiutil create -volname Geordi -fs HFS+ -format ULMO -srcfolder "$work/volume" "$work/Geordi.dmg"
 mv "$work/Geordi.dmg" "$image"
 echo "Created $image"

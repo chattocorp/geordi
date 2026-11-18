@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { git } from './git.ts';
 import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RepoIcon } from '@geordi/protocol';
@@ -39,14 +39,15 @@ export function pickIcon(paths: string[]): { path: string; type: string } | null
 	return best ? { path: best.path, type: best.type } : null;
 }
 
-export function repoIcon(repoPath: string): RepoIcon | null {
+export async function repoIcon(repoPath: string): Promise<RepoIcon | null> {
 	let listed: string;
 	try {
-		listed = execFileSync(
-			'git',
-			['-C', repoPath, 'ls-files', '-z', '--', ...NAMES.map(([name]) => `:(glob,icase)**/${name}`)],
-			{ encoding: 'utf8', timeout: 10_000, maxBuffer: 8 * 1024 * 1024 }
-		);
+		listed = await git(repoPath, [
+			'ls-files',
+			'-z',
+			'--',
+			...NAMES.map(([name]) => `:(glob,icase)**/${name}`)
+		]);
 	} catch {
 		return null;
 	}

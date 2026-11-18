@@ -144,12 +144,14 @@ export const workspace = (id: string) => {
 			}
 			return {
 				...workspace,
+				background: hub().background(id),
 				transcript: readTranscript(id),
 				// who but the person may have written in its conversation: the agents above it
 				senders: Object.fromEntries(parents.map(({ id, title }) => [id, title])),
 				// Each aide has its own snapshot and subsequent edits.
 				aides: aides.map((aide) => ({
 					...aide,
+					background: hub().background(aide.id),
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
@@ -160,11 +162,15 @@ export const workspace = (id: string) => {
 			};
 		},
 		also: (changed) => {
+			const stopTasks = hub().followBackground((source) => {
+				if (source === id || transcripts.has(source)) changed();
+			});
 			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();
 				transcripts.clear();
+				stopTasks();
 				unwatch();
 				unsubscribe();
 			};
@@ -178,4 +184,4 @@ export const views = { navigation, workspace };
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
 export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
-	Workspace & { aides: Workspace[] };
+	Workspace & { aides: (Workspace & Pick<WorkspaceUpdate, 'background'>)[] };

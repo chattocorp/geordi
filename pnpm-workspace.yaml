@@ -14,3 +14,7 @@ catalog:
   '@vitest/browser-playwright': ^4.1.8
 patchedDependencies:
   forges@0.3.2: patches/forges@0.3.2.patch
+# The agents' own programs (some 300 MB each): Geordi runs the ones people have installed.
+ignoredOptionalDependencies:
+  - '@anthropic-ai/claude-agent-sdk-*'
+  - '@openai/codex-*'

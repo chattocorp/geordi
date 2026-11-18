@@ -151,6 +151,7 @@ export function createUpcaster() {
 			case 'workspace.answered':
 			case 'workspace.archived':
 			case 'workspace.hidden':
+			case 'workspace.moved':
 				return [event as CurrentEvent];
 
 			default:

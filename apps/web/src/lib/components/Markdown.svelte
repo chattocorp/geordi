@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Attachment } from 'svelte/attachments';
 	import { changedFiles } from '#lib/changedFiles.ts';
+	import { drawDiagrams } from '#lib/diagrams.ts';
 	import { changedFileIn, renderMarkdown } from '#lib/markdown.ts';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 
@@ -13,6 +14,7 @@
 	}: { text: string; dimmed?: boolean; preserveLineBreaks?: boolean; pictures?: string } = $props();
 
 	const files = changedFiles();
+	let content = $state<HTMLElement>();
 	let viewing = $state<{ src: string; alt: string } | null>(null);
 	const html = $derived(
 		renderMarkdown(text, {
@@ -23,14 +25,24 @@
 		})
 	);
 
+	// Diagrams are drawn anew whenever the text changes: Pele takes a fraction of a millisecond
+	$effect(() => {
+		void html;
+		if (content) return drawDiagrams(content);
+	});
+
 	/**
 	 * Clicks on what `renderMarkdown` made a button: a code block's copy button, a changed
 	 * file's name, which opens its diff, and a picture, which opens in the viewer (with a
-	 * modifier key, its link opens it on its own instead).
+	 * modifier key, its link opens it on its own instead), as a drawn SVG does.
 	 */
 	const buttons: Attachment<HTMLElement> = (node) => {
 		const onclick = async (event: MouseEvent) => {
 			const target = event.target as Element;
+			if (target instanceof HTMLImageElement && target.dataset.svg !== undefined) {
+				viewing = { src: target.src, alt: target.alt };
+				return;
+			}
 			if (target instanceof HTMLImageElement && target.dataset.picture !== undefined) {
 				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 				event.preventDefault();
@@ -70,6 +82,7 @@
 <div
 	class="prose max-w-none prose-pre:rounded-control"
 	class:opacity-75={dimmed}
+	bind:this={content}
 	{@attach buttons}
 	{@attach missingPictures}
 >

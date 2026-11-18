@@ -290,6 +290,12 @@ export const answerQuestion = command(
 	({ workspaceId, question, answers }) => workspaces().answer(workspaceId, question, answers)
 );
 
+/** The person moved a workspace in the sidebar: above `before`, or to the end. */
+export const moveWorkspace = command(
+	v.object({ workspaceId: v.string(), before: v.nullable(v.string()) }),
+	({ workspaceId, before }) => workspaces().move(workspaceId, before)
+);
+
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));

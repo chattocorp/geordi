@@ -177,6 +177,13 @@
 @utility tab-drop-after {
 	@apply relative after:absolute after:inset-y-1 after:-right-1 after:w-0.5 after:rounded-full after:bg-accent;
 }
+/* the same, between rows of a list */
+@utility row-drop-before {
+	@apply relative before:absolute before:inset-x-1 before:-top-px before:h-0.5 before:rounded-full before:bg-accent;
+}
+@utility row-drop-after {
+	@apply relative after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded-full after:bg-accent;
+}
 
 /*
  * Everything on screen is a sheet: a rounded surface laid into the frame (`bg-frame`: the
@@ -257,7 +264,7 @@
 	color: color-mix(in srgb, var(--muted) 80%, var(--ink));
 }
 @utility tab-active {
-	@apply bg-sunken text-ink hover:bg-sunken dark:bg-line dark:hover:bg-line;
+	@apply bg-sunken text-ink hover:bg-sunken dark:bg-surface dark:hover:bg-surface;
 }
 
 /* Something someone said, as a speech bubble on the right: add a background or a ring. */
@@ -422,8 +429,31 @@
 	}
 
 	/* A picture the agent shows (see markdown.ts): no taller than leaves the words around it in view. */
-	[data-picture] {
+	[data-picture],
+	[data-svg] {
 		@apply max-h-96 rounded-control ring-1 ring-line/60;
+	}
+	[data-svg] {
+		@apply my-5 cursor-zoom-in;
+	}
+
+	/* A Mermaid diagram (see diagrams.ts), drawn by Pele in our colours and type. */
+	.diagram {
+		@apply my-5;
+	}
+	.pele {
+		--pele-bg: var(--pane);
+		--pele-fg: var(--ink);
+		--pele-muted: var(--muted);
+		--pele-line: var(--muted);
+		--pele-surface: var(--surface);
+		--pele-surface-alt: var(--sunken);
+		--pele-border: color-mix(in oklab, var(--muted) 35%, var(--pane));
+		--pele-accent: var(--accent);
+		--pele-error: var(--danger);
+		--pele-font: var(--font-sans);
+		--pele-font-mono: var(--font-mono);
+		--pele-radius: var(--radius-control);
 	}
 
 	/* Highlighted code (see markdown.ts): our own background, the theme's colours per mode. */

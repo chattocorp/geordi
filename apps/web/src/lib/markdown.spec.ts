@@ -32,6 +32,14 @@ describe('renderMarkdown', () => {
 		expect(renderMarkdown('![x](a.png)')).toBe('<p><a href="a.png">x</a></p>\n');
 	});
 
+	it('marks Mermaid and SVG code blocks as diagrams, to be drawn in their place', () => {
+		expect(renderMarkdown('```mermaid\nflowchart LR\n  A --> B\n```')).toContain(
+			'<div class="code-block" data-diagram="mermaid">'
+		);
+		expect(renderMarkdown('```svg\n<svg/>\n```')).toContain('data-diagram="svg"');
+		expect(renderMarkdown('```ts\nconst a = 1;\n```')).not.toContain('data-diagram');
+	});
+
 	it('opens absolute worktree citations with an optional line and a formatted label', () => {
 		const options = { root: '/work/tree', file: (name: string) => name };
 		const html = renderMarkdown(

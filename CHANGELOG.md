@@ -1,5 +1,48 @@
 # Geordi Changelog
 
+## 0.3.0
+
+### Fixes
+
+- Archiving a workspace with a finished background terminal job no longer asks for confirmation while the shell waits to reap the process. ([#126](https://github.com/chattocorp/geordi/pull/126))
+- Questions from agents are easier to answer: Codex's extra note field is gone (say it in your own words instead), recommended options carry a badge, and multiple-choice questions show checkboxes. ([#122](https://github.com/chattocorp/geordi/pull/122))
+- The workspace ribbon keeps its previous status and actions visible while Geordi checks for updates. ([#114](https://github.com/chattocorp/geordi/pull/114))
+- Archive a clean, idle workspace in one click. Geordi shows the archive dialog only for running agents, running terminal processes, or unfinished Git work. ([#115](https://github.com/chattocorp/geordi/pull/115))
+- The button beside “Auto-merge enabled” now reads “Disable”. ([#111](https://github.com/chattocorp/geordi/pull/111))
+- Geordi shows when it is reconnecting to the forge and keeps the last workspace view readable. ([#143](https://github.com/chattocorp/geordi/pull/143))
+- Answered questions no longer show optional notes that were left empty. ([#118](https://github.com/chattocorp/geordi/pull/118))
+- Keep the workspace you switched to when an archive finishes. ([#138](https://github.com/chattocorp/geordi/pull/138))
+- The workspace ribbon shows running checks while auto-merge is enabled and labels the button “Disable Auto-merge”. ([#136](https://github.com/chattocorp/geordi/pull/136))
+- Light mode is easier to read: secondary text, status colours and repository names in the sidebar now have stronger contrast. ([#137](https://github.com/chattocorp/geordi/pull/137))
+- Clean workspaces now archive without confirmation when their terminals are idle at a shell prompt. ([#131](https://github.com/chattocorp/geordi/pull/131))
+- Draggable dividers show a softer gray line on hover. ([#116](https://github.com/chattocorp/geordi/pull/116))
+- The sidebar shows commits, pushes and branch switches in every workspace within moments, and checks open pull requests more often. Merged and closed pull requests are checked rarely. When GitHub limits requests, Geordi pauses its checks until GitHub allows them again, keeps showing what it last knew, and notes the pause in its log. ([#134](https://github.com/chattocorp/geordi/pull/134))
+- You can archive another workspace from the sidebar while an earlier archive is still running. ([#128](https://github.com/chattocorp/geordi/pull/128))
+- The macOS release ZIP contains a Developer ID-signed and notarized Geordi app. ([#124](https://github.com/chattocorp/geordi/pull/124))
+- The workspace ribbon shows only Create PR when a pushed branch is ready for a pull request. ([#123](https://github.com/chattocorp/geordi/pull/123))
+- The workspace checks for a new pull request as soon as an agent finishes a turn, even while an earlier refresh is running. A temporary lookup failure keeps the last known pull request visible for the same branch. ([#148](https://github.com/chattocorp/geordi/pull/148))
+- The workspace ribbon shows “Uncommitted changes” when local edits are waiting for a commit. It also shows when the branch has been pushed or is behind its base. ([#132](https://github.com/chattocorp/geordi/pull/132))
+- Changes shows the comparison branch and lists the files your workspace would contribute to its merge target. ([#129](https://github.com/chattocorp/geordi/pull/129))
+- Updating or continuing a workspace no longer changes its files while another agent is starting or working in the same directory. ([#127](https://github.com/chattocorp/geordi/pull/127))
+- The Fix errors button now matches the red Checks failing status in the workspace ribbon. ([#142](https://github.com/chattocorp/geordi/pull/142))
+- Background workspace checks no longer show a spinner in the ribbon. ([#130](https://github.com/chattocorp/geordi/pull/130))
+- Stop now works while an agent is still starting. ([#144](https://github.com/chattocorp/geordi/pull/144))
+- Cancel and confirm buttons now have matching shapes and flat fills in the Archive and Run dialogs. ([#113](https://github.com/chattocorp/geordi/pull/113))
+- Keep the last terminal row and cursor fully visible when the pane opens or changes size. ([#121](https://github.com/chattocorp/geordi/pull/121))
+- Folded repositories in the sidebar show their workspace count in a quieter colour. ([#147](https://github.com/chattocorp/geordi/pull/147))
+
+### Features
+
+- Settings has more room and a new About section that shows your Geordi version. ([#110](https://github.com/chattocorp/geordi/pull/110))
+- An Overview page shows every workspace as a card, by what it needs: those waiting for you, those at work, those still open, and those done. Each card has a small version of the workspace's ribbon: its pull request, how its work stands, and the next step, which you can take from there. The sidebar counts the workspaces that need you. ([#119](https://github.com/chattocorp/geordi/pull/119))
+- Install Geordi on macOS by opening the disk image and dragging the app to Applications. ([#135](https://github.com/chattocorp/geordi/pull/135))
+- Follow native subagents in the conversation. Expand a reviewer to see its tools and report, or open its activity in a tab. Select **Assigned by** to return to the agent that delegated the work. ([#125](https://github.com/chattocorp/geordi/pull/125))
+
+### Performance
+
+- Agent activity appears promptly in the conversation when many events arrive at once. ([#144](https://github.com/chattocorp/geordi/pull/144))
+- Geordi stays fast with long conversations and a long workspace history. New image attachments share disk space when their contents are identical. ([#120](https://github.com/chattocorp/geordi/pull/120))
+
 ## 0.2.0
 
 ### Fixes

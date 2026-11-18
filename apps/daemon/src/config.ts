@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { git } from './git.ts';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -190,17 +190,14 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
  * `startOf`), so that a workspace that branched off before the file existed gets it too.
  * Where there is one of each name, the first of `CONFIG_FILES` is the one.
  */
-function fileFor(worktree: Worktree, repoPath: string) {
+async function fileFor(worktree: Worktree, repoPath: string) {
 	for (const file of CONFIG_FILES)
 		if (lstatSync(join(worktree.path, file), { throwIfNoEntry: false }))
 			return { source: 'workspace' as const, file, text: readText(worktree, file) };
+	const start = await startOf(repoPath);
 	for (const file of CONFIG_FILES)
 		try {
-			const text = execFileSync(
-				'git',
-				['-C', repoPath, 'cat-file', 'blob', `${startOf(repoPath)}:${file}`],
-				{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-			);
+			const text = await git(repoPath, ['cat-file', 'blob', `${start}:${file}`]);
 			return { source: 'base' as const, file, text };
 		} catch {
 			// not there by this name
@@ -220,8 +217,8 @@ type Found = {
  * workspace's file that can't be made sense of says so (`problem`) rather than making way
  * for the other one: whoever is working on it should hear about it.
  */
-export function settingsOf(worktree: Worktree, repoPath: string): Found {
-	const found = fileFor(worktree, repoPath);
+export async function settingsOf(worktree: Worktree, repoPath: string): Promise<Found> {
+	const found = await fileFor(worktree, repoPath);
 	if (!found) return { settings: null, problem: null, source: null, file: null };
 	const { source, file, text } = found;
 	if (text === null) return { settings: null, source, file, problem: `${file} can't be read` };

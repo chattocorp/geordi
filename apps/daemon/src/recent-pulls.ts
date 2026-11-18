@@ -44,7 +44,6 @@ export function createRecentPulls() {
 			page.notModified && known
 				? { ...known, at: now }
 				: { at: now, etag: page.etag, threads: page.items, complete: !page.cursor };
-		listings.set(key, listing);
 		return listing;
 	}
 
@@ -57,11 +56,23 @@ export function createRecentPulls() {
 	): Promise<Listing> {
 		const key = JSON.stringify([repo.forge, repo.instance, repo.owner, repo.name]);
 		const known = listings.get(key);
-		if (known && now - known.at < (known.etag ? maxAge : Math.max(maxAge, UNCONDITIONAL_MS)))
+		if (
+			maxAge > 0 &&
+			known &&
+			now - known.at < (known.etag ? maxAge : Math.max(maxAge, UNCONDITIONAL_MS))
+		)
 			return Promise.resolve(known);
 		let read = reading.get(key);
-		if (!read) {
-			read = list(provider, repo, key, now).finally(() => reading.delete(key));
+		// An explicit refresh must observe changes made after an in-flight read began.
+		if (!read || maxAge === 0) {
+			read = list(provider, repo, key, now)
+				.then((listing) => {
+					if (reading.get(key) === read) listings.set(key, listing);
+					return listing;
+				})
+				.finally(() => {
+					if (reading.get(key) === read) reading.delete(key);
+				});
 			reading.set(key, read);
 		}
 		return read;
