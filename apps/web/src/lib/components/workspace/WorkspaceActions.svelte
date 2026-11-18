@@ -113,7 +113,10 @@
 				compact ? 'pl-2.5' : 'pl-3',
 				// buttons reach the end of the pill; text keeps its distance
 				ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
-				tones[standing?.tone ?? 'neutral']
+				tones[standing?.tone ?? 'neutral'],
+				// on a card, a coloured pill is about as light as the card: a faint ring of its own
+				// colour keeps its edge, so that what is in it is seen to be in it
+				compact && 'inset-ring-1 inset-ring-current/20'
 			]}
 		>
 			{#if working}
