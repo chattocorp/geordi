@@ -153,8 +153,14 @@
 	{@render bar({ changes: pushed, upstream: upstream({ checks: failing }) }, ['fix-checks'], true)}
 </Story>
 
-<Story name="Finding out how it stands" asChild>
-	<WorkspaceActions standing={null} actions={[]} checking {onopenpull} {onaction} />
+<Story
+	name="Before the first result"
+	asChild
+	play={async ({ canvasElement }) => {
+		await expect(canvasElement).not.toHaveTextContent(/Checking/);
+	}}
+>
+	<WorkspaceActions standing={null} actions={[]} {onopenpull} {onaction} />
 </Story>
 
 <Story name="Upstream commits available" asChild>

@@ -11,17 +11,14 @@
 		pull?: { number: string; url: string | null } | null;
 		/** What could happen next, the most pressing first. */
 		actions: WorkspaceAction[];
+		/** The displayed actions belong to a branch that is no longer checked out. */
+		disabled?: boolean;
 		/** The actions already under way: asked of the agent and not done yet. */
 		pending?: WorkspaceAction['id'][];
 		/** Whether the agent is at work right now. */
 		working?: boolean;
 		/** Whether an agent has asked the person something, and waits for the answer. */
 		asking?: boolean;
-		/**
-		 * How it stands is being found out right now (or again): what was known may no longer
-		 * be so, and is not shown, nor offered to act on, until it is.
-		 */
-		checking?: boolean;
 		onopenpull(): void;
 		onaction(action: WorkspaceAction): void;
 	};
@@ -29,10 +26,10 @@
 		standing,
 		pull = null,
 		actions,
+		disabled = false,
 		pending = [],
 		working = false,
 		asking = false,
-		checking = false,
 		onopenpull,
 		onaction
 	}: Props = $props();
@@ -89,15 +86,7 @@
 			{/if}
 		</div>
 	{/if}
-	{#if checking && !working}
-		<div
-			role="status"
-			class={['inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3', tones.neutral]}
-		>
-			<Spinner label="Checking" />
-			<span class="text-sm font-medium whitespace-nowrap">Checking</span>
-		</div>
-	{:else if standing || actions.length > 0 || working}
+	{#if standing || actions.length > 0 || working}
 		<div
 			role="group"
 			aria-label="Next steps"
@@ -148,6 +137,7 @@
 							tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
 							class={next && !filled && action.id !== 'resolve-conflicts' ? 'text-ink' : undefined}
 							icon={action.icon}
+							{disabled}
 							busy={pending.includes(action.id)}
 							onclick={() => onaction(action)}
 						>
