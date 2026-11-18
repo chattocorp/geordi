@@ -50,3 +50,13 @@
 <Story name="Answered" args={{ answers: ['SQLite, for now.\nPostgreSQL later.'] }} />
 <Story name="Waiting for delivery" args={{ delivery: 'pending' }} />
 <Story name="Closed before confirmation" args={{ delivery: 'unconfirmed' }} />
+<Story
+	name="Optional note left out"
+	args={{
+		questions: [
+			{ question: 'Which database should we use?', options: [], multiSelect: false },
+			{ question: 'Additional answer or note', options: [], multiSelect: false, optional: true }
+		],
+		answers: ['SQLite', '']
+	}}
+/>

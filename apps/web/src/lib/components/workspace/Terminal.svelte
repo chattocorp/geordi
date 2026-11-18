@@ -131,4 +131,4 @@
 	};
 </script>
 
-<div class="min-h-0 flex-1 overflow-hidden py-2 pl-3 text-xs" {@attach xterm}></div>
+<div class="box-content min-h-0 flex-1 overflow-hidden py-2 pl-3 text-xs" {@attach xterm}></div>
