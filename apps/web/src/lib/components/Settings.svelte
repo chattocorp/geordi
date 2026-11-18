@@ -55,7 +55,9 @@
 <!-- Geordi's settings (FDR-005): how it looks, what it tells of, and the repositories it knows. -->
 <Dialog bind:open={settings.open} label="Settings" wide class="h-144">
 	<div class="flex h-full">
-		<div class="scroller w-14 shrink-0 space-y-3 border-r border-line bg-sidebar p-2.5 sm:w-48">
+		<div
+			class="w-14 shrink-0 space-y-3 overflow-y-auto border-r border-line bg-sidebar p-2.5 sm:w-40"
+		>
 			<p class="hidden px-2.5 pt-2 heading sm:block">Settings</p>
 			<div role="tablist" aria-orientation="vertical" aria-label="Settings" class="space-y-0.5">
 				{#each sections as section (section.id)}
