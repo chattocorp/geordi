@@ -44,3 +44,36 @@
 		await expect(args.onopen).toHaveBeenCalledWith('message.txt');
 	}}
 />
+
+<Story name="Long paths in a narrow pane" asChild>
+	<div class="w-80">
+		<Changes
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: [
+						{
+							path: 'docs/adr/ADR-124-atproto-handle-verification-needs-an-issuer.md',
+							status: 'modified',
+							added: 7,
+							removed: 4
+						},
+						{
+							path: 'docs/adr/very/deeply/nested/directories/INDEX.md',
+							status: 'modified',
+							added: 2,
+							removed: 1
+						},
+						{ path: 'docs/GLOSSARY.md', status: 'modified', added: 3, removed: 1 }
+					]
+				}
+			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
