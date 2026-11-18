@@ -5,7 +5,7 @@ import {
 } from '@agentclientprotocol/sdk/experimental/v2/unstable';
 import type { Agent, AgentEvent, SubagentState, SubagentUpdate } from '@geordi/protocol';
 import { TerminalOutput } from './terminal-output.ts';
-import { truncate } from './adapter.ts';
+import { ToolInfos } from './tool-info.ts';
 
 function stateOf(state: StateUpdate | null): SubagentState {
 	if (state?.state === 'running') return 'running';
@@ -26,6 +26,7 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 		messages: Map<string, Message>;
 		dirty: Set<string>;
 		terminal: TerminalOutput;
+		tools: ToolInfos;
 		state?: SubagentState;
 	};
 	const children = new Map<string, Child>();
@@ -49,7 +50,8 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 					path: [...(child?.path ?? []), u.sessionId],
 					messages: new Map(),
 					dirty: new Set(),
-					terminal: new TerminalOutput()
+					terminal: new TerminalOutput(),
+					tools: new ToolInfos()
 				};
 				children.set(u.sessionId, target);
 			}
@@ -101,11 +103,16 @@ export function nativeSubagents(provider: Agent, emit: (event: AgentEvent) => vo
 		} else if (SessionUpdate.isToolCallUpdate(u)) {
 			flush(child);
 			const output = child.terminal.toolResult(provider, u);
+			const fresh = !child.tools.has(u.toolCallId);
+			const news = child.tools.news(u, output !== undefined);
+			if (output !== undefined) child.tools.delete(u.toolCallId);
+			const name = fresh && (u.name ?? u.title);
+			if (!fresh && !Object.keys(news).length && output === undefined) return true;
 			send(child, {
 				kind: 'tool',
 				id: u.toolCallId,
-				...(u.name || u.title ? { name: u.name ?? u.title ?? 'Tool' } : {}),
-				...(u.rawInput !== undefined && { input: truncate(JSON.stringify(u.rawInput)) }),
+				...(name && { name }),
+				...news,
 				...(output !== undefined && {
 					output,
 					isError: u.status !== 'completed'

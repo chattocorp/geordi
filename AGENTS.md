@@ -216,7 +216,7 @@ it, perhaps you.
     `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `item`,
+    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
   - **Components** in `#lib/ui/` (`Button`, `ButtonGroup`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `Disclosure`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Ring`, `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in

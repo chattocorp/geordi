@@ -1,9 +1,10 @@
 <script lang="ts">
 	import Disclosure from '#lib/ui/Disclosure.svelte';
-	import { toolIcon, toolSummary } from '#lib/tools.ts';
+	import { iconOf, sortOf, titleOf } from '#lib/tools.ts';
 	import type { Part } from '#lib/transcript.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import ToolCall from './ToolCall.svelte';
+	import ToolTitle from './ToolTitle.svelte';
 
 	type Props = {
 		tools: Extract<Part, { kind: 'tools' }>['tools'];
@@ -22,10 +23,11 @@
 	const used = $derived(
 		Object.values(
 			tools.reduce<Record<string, { name: string; icon: string; count: number; failed: boolean }>>(
-				(kinds, { name, isError }) => {
-					const kind = (kinds[name] ??= { name, icon: toolIcon(name), count: 0, failed: false });
+				(kinds, tool) => {
+					const name = sortOf(tool);
+					const kind = (kinds[name] ??= { name, icon: iconOf(tool), count: 0, failed: false });
 					kind.count++;
-					kind.failed ||= isError;
+					kind.failed ||= tool.isError;
 					return kinds;
 				},
 				{}
@@ -44,9 +46,8 @@
 <Disclosure class="py-1 first:pt-0" summaryClass="h-7 text-sm text-muted hover:text-ink">
 	{#snippet heading()}
 		{#if active}
-			<span class={['size-3.5 shrink-0', toolIcon(active.name)]}></span>
-			<span class="shrink-0 font-medium">{active.name}</span>
-			<span class="min-w-0 truncate code-dense">{toolSummary(active.input, cwd)}</span>
+			<span class={['size-3.5 shrink-0', iconOf(active)]}></span>
+			<ToolTitle parts={titleOf(active, cwd)} />
 			<Spinner label="Running" />
 		{:else}
 			<!-- named, so that a row of small icons says what it is -->
