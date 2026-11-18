@@ -8,8 +8,8 @@ export type Standing = {
 
 /** How long what is known of a worktree is good for, when nothing says it changed. */
 const FRESH_MS = 2 * 60_000;
-/** While checks run, things change by the minute. */
-const FRESH_WHILE_PENDING_MS = 60_000;
+/** Refresh running checks on the next background tick. */
+const FRESH_WHILE_PENDING_MS = 15_000;
 /** How many worktrees are asked about at a time: the daemon and the forge have other work. */
 const AT_ONCE = 3;
 
@@ -27,31 +27,41 @@ export function createStandings(options: {
 	 * Asks a daemon how a worktree stands. Rejects if none can say. `fresh`: as of now, not
 	 * from what was learnt a moment ago.
 	 */
-	load: (worktreeId: string, fresh: boolean) => Promise<Standing>;
+	load: (worktreeId: string, fresh: boolean, keepKnown: boolean) => Promise<Standing>;
+	loadUpstream: (worktreeId: string) => Promise<Upstream | null>;
 	now?: () => number;
 }) {
 	const { worktrees, load, now = Date.now } = options;
-	const known = new Map<string, { at: number; standing: Standing }>();
-	const loading = new Set<string>();
+	const known = new Map<string, { at: number; localAt: number; standing: Standing }>();
+	const loading = new Map<string, symbol>();
 	const listeners = new Set<() => void>();
 
-	function note(worktreeId: string, standing: Standing) {
-		known.set(worktreeId, { at: now(), standing });
+	function note(worktreeId: string, standing: Standing, localAt = now()) {
+		known.set(worktreeId, { at: now(), localAt, standing });
 		for (const listener of listeners) listener();
 	}
 
-	async function refresh(worktreeId: string, fresh = false) {
-		// (one that asks as of now is not put off by one that doesn't)
+	async function refresh(worktreeId: string, fresh = false, upstreamOnly = false) {
 		if (loading.has(worktreeId) && !fresh) return;
-		loading.add(worktreeId);
+		const request = Symbol();
+		loading.set(worktreeId, request);
+		const before = known.get(worktreeId);
+		const current = () => loading.get(worktreeId) === request && known.get(worktreeId) === before;
 		try {
-			note(worktreeId, await load(worktreeId, fresh));
+			if (upstreamOnly && before) {
+				const upstream = await options.loadUpstream(worktreeId);
+				if (current()) note(worktreeId, { ...before.standing, upstream }, before.localAt);
+			} else {
+				const standing = await load(worktreeId, fresh, !!before?.standing.upstream);
+				if (current()) note(worktreeId, standing);
+			}
 		} catch {
-			// nobody could say: what was known stands, and is asked about again in its turn
-			const before = known.get(worktreeId);
-			if (before) before.at = now();
+			if (before && current()) {
+				before.at = now();
+				if (!upstreamOnly) before.localAt = now();
+			}
 		} finally {
-			loading.delete(worktreeId);
+			if (loading.get(worktreeId) === request) loading.delete(worktreeId);
 		}
 	}
 
@@ -72,15 +82,29 @@ export function createStandings(options: {
 			const inUse = worktrees();
 			for (const id of known.keys()) if (!inUse.includes(id)) known.delete(id);
 			const unknown = inUse.filter((id) => !known.has(id));
-			const stale = inUse
-				.flatMap((id) => {
-					const entry = known.get(id);
-					return entry && now() - entry.at >= goodFor(entry.standing) ? [{ id, at: entry.at }] : [];
-				})
-				.sort((a, b) => a.at - b.at)
+			const available = inUse.flatMap((id) => {
+				const entry = known.get(id);
+				return entry && !loading.has(id) ? [{ id, ...entry }] : [];
+			});
+			// A full local Git status is expensive. Keep its original budget even when CI is busy.
+			const local = available
+				.filter(({ localAt }) => now() - localAt >= FRESH_MS)
+				.sort((a, b) => a.localAt - b.localAt)
 				.slice(0, AT_ONCE)
 				.map(({ id }) => id);
-			await Promise.all([...unknown, ...stale].map((id) => refresh(id)));
+			const pulls = available
+				.filter(
+					({ id, standing, at }) =>
+						!local.includes(id) &&
+						standing.upstream?.pull?.state === 'open' &&
+						now() - at >= goodFor(standing)
+				)
+				.sort((a, b) => a.at + goodFor(a.standing) - (b.at + goodFor(b.standing)))
+				.slice(0, 20);
+			await Promise.all([
+				...[...unknown, ...local].map((id) => refresh(id)),
+				...pulls.map(({ id }) => refresh(id, false, true))
+			]);
 		},
 
 		/** Calls `listener` whenever something more is known. Returns how to stop that. */

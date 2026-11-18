@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Thread } from 'forges';
 import { describe, expect, it } from 'vitest';
-import { MergeMethodRequiredError, type MergeOptions } from 'forges';
+import { github, MergeMethodRequiredError, type MergeOptions } from 'forges';
 import { conflictsOf, count, merge, summarise, upstream } from './upstream.ts';
+import { readPull, rollupCounts } from './pull-batch.ts';
 import { ensureWorktree } from './worktree.ts';
 
 /** A pull request as `forges` reports it, with only the fields we read. */
@@ -144,5 +145,67 @@ describe('merge', () => {
 		const threads = forge(['rebase', 'merge']);
 		await merge(threads, ref, 'abc');
 		expect(threads.asked.at(-1)).toEqual({ sha: 'abc', method: 'merge' });
+	});
+});
+
+describe('batched GitHub status', () => {
+	it('reads two repositories in one request with reviews, conflicts and grouped CI counts', async () => {
+		let requests = 0;
+		const provider = github({
+			auth: { type: 'token', token: 'test' },
+			fetch: async (_, init) => {
+				requests++;
+				const { query, variables } = JSON.parse(String(init?.body));
+				expect(query).toContain('reviewDecision');
+				expect(query).toContain('mergeable');
+				expect(variables.n0).toBe('one');
+				expect(variables.n1).toBe('two');
+				const thread = {
+					__typename: 'PullRequest',
+					state: 'OPEN',
+					headRefName: 'feature',
+					baseRefName: 'main',
+					reviewDecision: 'APPROVED',
+					mergeable: 'CONFLICTING',
+					commits: {
+						nodes: [
+							{
+								commit: {
+									statusCheckRollup: {
+										state: 'PENDING',
+										contexts: {
+											totalCount: 5,
+											checkRunCountsByState: [
+												{ state: 'SUCCESS', count: 1 },
+												{ state: 'IN_PROGRESS', count: 1 },
+												{ state: 'SKIPPED', count: 1 },
+												{ state: 'FAILURE', count: 1 }
+											],
+											statusContextCountsByState: [{ state: 'SUCCESS', count: 1 }]
+										}
+									}
+								}
+							}
+						]
+					}
+				};
+				return Response.json({ data: { t0: { issueOrPullRequest: thread }, t1: null } });
+			}
+		});
+		const reads = await Promise.all(
+			['one', 'two'].map((name) => {
+				const repo = { forge: 'github', instance: 'github.com', owner: 'acme', name };
+				return readPull(provider, { ...repo, repo, kind: 'pull_request', number: '1' });
+			})
+		);
+		expect(requests).toBe(1);
+		const [thread, missing] = reads;
+		expect(missing).toBeNull();
+		expect(thread).toBeTruthy();
+		expect(summarise(thread!, rollupCounts(thread!))).toMatchObject({
+			review: 'approved',
+			conflicts: true,
+			checks: { state: 'pending', counts: { passed: 2, failed: 1, pending: 1, skipped: 1 } }
+		});
 	});
 });
