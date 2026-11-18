@@ -1,3 +1,4 @@
+import { ForgeConnection } from './forge-connection.svelte.ts';
 import { applyWorkspaceUpdate } from './workspace-update.ts';
 import type { WorkspaceLive } from './server/views.ts';
 
@@ -46,6 +47,8 @@ let socket: WebSocket | undefined;
 let address: string | undefined;
 let retry = 0;
 
+export const connection = new ForgeConnection();
+
 const say = (message: object) =>
 	socket?.readyState === WebSocket.OPEN && socket.send(JSON.stringify(message));
 
@@ -61,6 +64,7 @@ function open() {
 	const opened = new WebSocket(address);
 	socket = opened;
 	opened.onopen = () => {
+		connection.opened();
 		retry = 0;
 		for (const [id, what] of byId) {
 			if (!(what instanceof Followed)) what.open();
@@ -89,6 +93,7 @@ function open() {
 	opened.onclose = () => {
 		if (socket !== opened) return;
 		socket = undefined;
+		connection.waiting();
 		for (const what of followed.values()) what.fresh = false;
 		// again soon, and then not too often: the forge may be restarting
 		setTimeout(open, Math.min(5000, 250 * 2 ** retry++));
@@ -104,6 +109,7 @@ export function connect({ port, token }: { port: number; token: string }) {
 	if (typeof window === 'undefined' || address) return;
 	const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
 	address = `${scheme}://${location.hostname}:${port}/?token=${encodeURIComponent(token)}`;
+	connection.waiting();
 	open();
 }
 
