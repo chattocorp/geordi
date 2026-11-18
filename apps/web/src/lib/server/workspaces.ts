@@ -3,6 +3,7 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { error } from '@sveltejs/kit';
 import {
 	SETTING,
+	sameAgentSettings,
 	type Agent,
 	type AgentEvent,
 	type AgentPlan,
@@ -30,7 +31,7 @@ export type WorkspacesEvent =
 				repoId: string;
 				title: string;
 				agent: Agent;
-				/** The model and effort chosen for it; absent where that is left to the agent's CLI. */
+				/** The agent settings chosen when the workspace was created. */
 				settings?: AgentSettings;
 				/** The workspace whose agent started this one (FDR-002). */
 				parentId?: string;
@@ -75,7 +76,7 @@ export type WorkspacesEvent =
 	  }
 	/** The workspace got a better name than the first line of its first message. */
 	| { type: 'workspace.titled'; stream: WorkspaceStream; data: { id: string; title: string } }
-	/** The agent is to run with another model or effort from its next turn on; all of what is chosen. */
+	/** The complete agent settings for subsequent turns. */
 	| {
 			type: 'workspace.configured';
 			stream: WorkspaceStream;
@@ -183,7 +184,7 @@ export type Workspace = {
 	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
 	named: boolean;
 	agent: Agent;
-	/** The model and effort it runs with; what is absent is left to the agent's CLI. */
+	/** The agent settings for its next turn. */
 	settings: AgentSettings;
 	status: Status;
 	/** Whether its agent has asked the person something, and waits for the answer. */
@@ -673,10 +674,12 @@ export function createWorkspaces(
 	 */
 	function settingsFor(
 		agent: Agent,
-		inherited: AgentSettings,
+		parent: Workspace,
 		asked: AgentSettings,
 		harness: Harness | undefined
 	): AgentSettings {
+		// Model names and effort levels belong to a provider. Permission modes span providers.
+		const inherited = agent === parent.agent ? parent.settings : {};
 		const model = asked.model ?? inherited.model;
 		const efforts = harness
 			? (harness.models.find((offer) => offer.id === model)?.efforts ?? harness.efforts)
@@ -690,7 +693,7 @@ export function createWorkspaces(
 			);
 		const keeps = !asked.model || !efforts || efforts.includes(inherited.effort ?? '');
 		const effort = asked.effort ?? (keeps ? inherited.effort : undefined);
-		return { ...(model && { model }), ...(effort && { effort }) };
+		return { model, effort, permissionMode: parent.settings.permissionMode };
 	}
 
 	/** Only what was chosen, and only what can safely be handed to a CLI. */
@@ -702,6 +705,7 @@ export function createWorkspaces(
 			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
 			chosen[key] = value;
 		}
+		if (settings.permissionMode) chosen.permissionMode = settings.permissionMode;
 		return chosen;
 	}
 
@@ -888,7 +892,7 @@ export function createWorkspaces(
 			const kind = agent ?? caller.agent;
 			const settings = settingsFor(
 				kind,
-				kind === caller.agent ? caller.settings : {},
+				caller,
 				{ model, effort },
 				offered?.find((harness) => harness.agent === kind)
 			);
@@ -1202,15 +1206,16 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Has the workspace's agent run with another model or effort. A turn under way carries
-		 * on as it was started; the next one runs as chosen.
+		 * Changes the settings for the next turn. A running turn keeps its settings.
 		 */
 		configure(id: string, settings: AgentSettings, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			const chosen = chosenOf(settings);
-			const { model, effort } = workspace.settings;
-			if (chosen.model === model && chosen.effort === effort) return;
+			const chosen = chosenOf({
+				...settings,
+				permissionMode: settings.permissionMode ?? workspace.settings.permissionMode
+			});
+			if (sameAgentSettings(chosen, workspace.settings)) return;
 			store.append(
 				{ type: 'workspace.configured', stream: `workspace:${id}`, data: { id, settings: chosen } },
 				{ actor }

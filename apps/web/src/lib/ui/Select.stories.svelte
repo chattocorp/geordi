@@ -48,10 +48,6 @@
 
 <Story name="Many options, with icons" asChild>
 	<Select label="Star" options={stars} bind:value={star}>
-		{#snippet trigger()}
-			<span class="icon-[lucide--star] size-3.5"></span>
-			{star}
-		{/snippet}
 		{#snippet icon()}<span class="icon-[lucide--star] size-3.5 shrink-0"></span>{/snippet}
 	</Select>
 </Story>

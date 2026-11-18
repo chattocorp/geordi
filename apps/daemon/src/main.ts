@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import {
 	DEFAULT_PORTS,
 	AGENTS,
+	sameAgentSettings,
 	JOB_TERMINAL,
 	TEARDOWN_TIMEOUT_MS,
 	PROTOCOL_VERSION,
@@ -545,11 +546,19 @@ async function handle(message: ForgeMessage) {
 				let session = sessions.get(workspaceId);
 				// A CLI runs as it was started. Told to run otherwise (with another model, say), it
 				// is started anew, unless it is in the middle of something: then that waits.
-				const same = JSON.stringify(session?.options.settings) === JSON.stringify(settings);
-				if (session && !session.over() && !session.working() && !same) {
+				if (
+					session &&
+					!session.over() &&
+					!session.working() &&
+					!sameAgentSettings(session.options.settings, settings)
+				) {
 					session.close();
 					await Promise.race([session.done, new Promise((resolve) => setTimeout(resolve, 15_000))]);
 					session = sessions.get(workspaceId);
+					if (session && !session.over())
+						throw new Error(
+							'Previous session is still closing. Retry the message to apply the new settings.'
+						);
 				}
 				// An agent whose CLI is running is simply told: between turns that starts one,
 				// during a turn it steers.

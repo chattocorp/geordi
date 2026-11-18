@@ -12,21 +12,27 @@ import type { MessageImage } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 32;
+export const PROTOCOL_VERSION = 33;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
 
-/**
- * How an agent is run, beyond which one it is. Whatever is absent is left to the agent's
- * CLI: its own default, or what the user has configured for it.
- */
+export const PERMISSION_MODES = ['auto', 'full-access'] as const;
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
+/** The settings a workspace sends with each turn. */
 export type AgentSettings = {
+	/** Existing workspaces can have no recorded permission choice. */
+	permissionMode?: PermissionMode;
 	/** A model, by the name its CLI knows it by. */
 	model?: string;
 	/** How hard the model should think; one of the model's `efforts`. */
 	effort?: string;
 };
+
+export function sameAgentSettings(a: AgentSettings, b: AgentSettings): boolean {
+	return a.model === b.model && a.effort === b.effort && a.permissionMode === b.permissionMode;
+}
 
 /** What model names and effort levels look like. They end up as CLI arguments. */
 export const SETTING = /^[A-Za-z0-9][\w.:[\]-]{0,79}$/;

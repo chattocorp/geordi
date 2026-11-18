@@ -1,5 +1,11 @@
 <script lang="ts" module>
-	import { SETTING, type Agent, type AgentSettings, type Harness } from '@geordi/protocol';
+	import {
+		SETTING,
+		type Agent,
+		type AgentSettings,
+		type PermissionMode,
+		type Harness
+	} from '@geordi/protocol';
 
 	/**
 	 * Who should do the work, and how each agent was last set up. `named` marks a model that
@@ -11,7 +17,7 @@
 	};
 
 	const EFFORT_NAMES: Record<string, string> = { xhigh: 'Extra high' };
-	export const effortName = (effort: string) =>
+	const effortName = (effort: string) =>
 		EFFORT_NAMES[effort] ?? effort.charAt(0).toUpperCase() + effort.slice(1);
 
 	/**
@@ -30,7 +36,13 @@
 				: harness?.models[0]);
 		const efforts = model?.efforts ?? harness?.efforts ?? [];
 		const effort = efforts.find((effort) => effort === wanted.effort);
-		return { harness, model, efforts, effort };
+		return {
+			harness,
+			model,
+			efforts,
+			effort,
+			permissionMode: wanted.permissionMode ?? 'full-access'
+		};
 	}
 </script>
 
@@ -48,7 +60,9 @@
 	};
 	let { harnesses, choice, onchange }: Props = $props();
 
-	const { harness, model, efforts, effort } = $derived(resolveChoice(harnesses, choice));
+	const { harness, model, efforts, effort, permissionMode } = $derived(
+		resolveChoice(harnesses, choice)
+	);
 
 	// One list of everything that can do the work: every agent's models. An agent that names
 	// none is there itself.
@@ -91,10 +105,6 @@
 	}
 </script>
 
-<!--
-	Who does the work, and how hard it thinks: two quiet choices. The effort levels are those
-	of the model chosen; they differ.
--->
 <Select
 	label="Model"
 	shortcut={modelShortcut}
@@ -126,3 +136,22 @@
 		{/snippet}
 	</Select>
 {/if}
+
+<Select
+	label="Permission mode"
+	options={[
+		{ value: 'auto', label: 'Auto Mode' },
+		{ value: 'full-access', label: 'Full Access' }
+	] satisfies SelectOption<PermissionMode>[]}
+	bind:value={() => permissionMode, (value) => set(harness.agent, { permissionMode: value })}
+>
+	{#snippet icon(option)}
+		<span
+			aria-hidden="true"
+			class={[
+				'size-4 shrink-0',
+				option.value === 'auto' ? 'icon-[lucide--radar]' : 'icon-[lucide--key-round]'
+			]}
+		></span>
+	{/snippet}
+</Select>
