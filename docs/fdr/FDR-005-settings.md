@@ -10,11 +10,12 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 ## Behavior
 
 - Settings are a dialog over whatever page one is on. Cmd+, (Ctrl+, elsewhere than on a Mac) opens it, as does "Settings" at the foot of the sidebar and, in the desktop app, "Settings…" in the app menu. Escape, a click beside it, or its close button closes it.
-- It has sections, listed on its left, and opens where it was left. The sections are General, Notifications, Repositories and About.
+- It has sections, listed on its left, and opens where it was left. The sections are General, Notifications, Repositories, Agent access and About.
 - **General** holds the theme: System (follows the computer's setting, also while it changes), Light, or Dark. The choice belongs to the browser.
 - **Notifications** turns telling of finished agents on or off (FDR-008), and sends a test: a notification and the sound, as when an agent is done, with a word on what came of it and where to look if nothing showed.
 - **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. A path to a Git repository on the machine adds one; a path Geordi can't make sense of is refused with the reason, in the dialog.
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
+- **Agent access** issues and revokes named MCP tokens for a single repository. Settings shows a new token once, with the URL to use in the client (FDR-002).
 - **About** describes Geordi and shows the running release version.
 - Where there are no repositories yet, the new-workspace page says so and opens the settings at Repositories.
 - The sidebar does not list repositories as such: it lists workspaces under their repository's name, which folds them away: then a count of them follows the name. Which repositories are folded is remembered in this browser.

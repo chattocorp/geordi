@@ -1,3 +1,4 @@
+import { createAgentAccess } from './agent-access.ts';
 import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { error } from '@sveltejs/kit';
@@ -56,6 +57,7 @@ export type WorkspacesEvent =
 				id: string;
 				text: string;
 				images?: string[];
+				senderName?: string;
 				queued?: boolean;
 				deliveryId?: string;
 				steered?: boolean;
@@ -171,7 +173,14 @@ function subagentEdit(
 export type TranscriptItem =
 	| SubagentItem
 	/** `from`: the workspace whose agent said it, where it was not a person. */
-	| { kind: 'user'; text: string; images?: string[]; at: string; from?: string }
+	| {
+			kind: 'user';
+			text: string;
+			images?: string[];
+			at: string;
+			from?: string;
+			senderName?: string;
+	  }
 	| { kind: 'text'; text: string; at: string }
 	| { kind: 'plan'; id: string; plan: AgentPlan; at: string }
 	| {
@@ -367,6 +376,7 @@ export function createWorkspaces(
 		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
+	const access = createAgentAccess(store);
 	const imageStore = createImages(store);
 	/**
 	 * Who steered a workspace's agent in the way of before ADR-010 (`workspace.steered`), until
@@ -500,13 +510,17 @@ export function createWorkspaces(
 			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
-			const from = sender && (born.get(sender) ?? Infinity) <= seq ? sender : undefined;
+			const from =
+				sender && (sender.startsWith('external:') || (born.get(sender) ?? Infinity) <= seq)
+					? sender
+					: undefined;
 			append({
 				kind: 'user',
 				text: event.data.text,
 				...(event.data.images?.length && { images: event.data.images }),
 				at,
-				...(from && { from })
+				...(from && { from }),
+				...(event.data.senderName && { senderName: event.data.senderName })
 			});
 			return;
 		}
@@ -755,6 +769,7 @@ export function createWorkspaces(
 
 	/** The workspace a valid agent API token belongs to, or `null`. */
 	function authenticate(token: string): string | null {
+		if (token.startsWith('external:')) return access.authenticate(token);
 		const workspace = projection.get().get(token.split('.')[0]);
 		if (workspace?.status !== 'running') return null;
 		const expected = Buffer.from(tokenFor(workspace));
@@ -801,6 +816,10 @@ export function createWorkspaces(
 		images: string[] = []
 	) {
 		const { id } = workspace;
+		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
+		const senderName = sender
+			? (access.name(sender) ?? projection.get().get(sender)?.title)
+			: undefined;
 		const steers = workspace.status === 'running';
 		if (from === 'queued') images = workspace.attachments.queue[0];
 		const deliveryId = steers ? randomUUID() : undefined;
@@ -816,7 +835,8 @@ export function createWorkspaces(
 					text,
 					...(deliveryId && { deliveryId }),
 					...(images.length && { images }),
-					...(from && { [from]: true })
+					...(from && { [from]: true }),
+					...(senderName && { senderName })
 				}
 			},
 			{ actor }
@@ -993,12 +1013,68 @@ export function createWorkspaces(
 		};
 	}
 
+	function repositoryOf(caller: string) {
+		return access.get(caller)?.repoId ?? find(caller).repoId;
+	}
+
+	function inRepository(workspace: Workspace, repoId: string) {
+		return workspace.repoId === repoId && repos.ownsWorkspace(repoId, born.get(workspace.id)!);
+	}
+
+	function accessible(caller: string, id: string) {
+		const workspace = projection.get().get(id);
+		if (!workspace || !inRepository(workspace, repositoryOf(caller)))
+			error(404, 'Workspace not found');
+		return workspace;
+	}
+
+	function entry(workspace: Workspace) {
+		const { id, title, repoId, status, archivedAt, asking } = workspace;
+		return {
+			id,
+			title,
+			repoId,
+			status,
+			archivedAt,
+			asking,
+			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
+			url: `/workspaces/${id}`
+		};
+	}
+
 	/**
-	 * What agents can do through the agent API (ADR-004). Every function takes the calling
-	 * workspace, which is also recorded as the actor of what it causes.
+	 * What agents can do through the agent API (ADR-004). The authenticated actor is a workspace
+	 * or external grant. Only workspace agents can supervise descendants.
 	 */
 	const agents = {
 		authenticate,
+		reportWorkspace: (caller: string, id: string) => report(accessible(caller, id)),
+		listWorkspaces(caller: string, archived: boolean) {
+			const repo = repositoryOf(caller);
+			return [...projection.get().values()]
+				.reverse()
+				.filter((w) => inRepository(w, repo) && (archived || !w.archivedAt))
+				.map(entry);
+		},
+		readWorkspace(caller: string, id: string, before?: number) {
+			const workspace = accessible(caller, id);
+			const transcript = transcriptOf(workspace);
+			const messages = transcript.filter(
+				(item) =>
+					item.kind === 'user' ||
+					item.kind === 'text' ||
+					item.kind === 'question' ||
+					item.kind === 'error'
+			);
+			const end = Math.min(before ?? messages.length, messages.length);
+			const start = Math.max(0, end - 50);
+			return {
+				...entry(workspace),
+				messages: messages.slice(start, end),
+				before: start || null,
+				pendingQuestions: transcript.filter((item) => item.kind === 'question' && item.open)
+			};
+		},
 
 		/**
 		 * Names the caller's own workspace, so that people can tell it from the others. A few
@@ -1075,18 +1151,19 @@ export function createWorkspaces(
 
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
-		/** The caller's own workspace, or (`id`) one it started. */
+		/** The requested repository workspace, defaulting to the calling workspace. */
 		workspace(callerId: string, id?: string): Workspace {
-			const workspace = id === undefined ? find(callerId) : findControlled(callerId, id);
+			const workspace = accessible(callerId, id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
 		/**
-		 * Says something to an agent the caller started: at once if it is idle; otherwise once
+		 * Says something to an agent in the repository: at once if it is idle; otherwise once
 		 * it has finished what it is doing, or (`interrupt`) now, steering what it is doing.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
-			const workspace = findControlled(callerId, id);
+			const workspace = accessible(callerId, id);
+			if (workspace.archivedAt) error(409, 'Workspace is archived');
 			const stream = `workspace:${workspace.id}` as const;
 			const data = { id: workspace.id, text };
 			if (workspace.status === 'idle') {
@@ -1123,6 +1200,7 @@ export function createWorkspaces(
 	};
 
 	return {
+		access,
 		agents,
 		followTranscript,
 

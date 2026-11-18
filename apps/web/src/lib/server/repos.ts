@@ -28,12 +28,17 @@ function gitToplevel(path: string): string {
 }
 
 export function createRepos(store: EventStore<GeordiEvent>) {
+	const registrations = new Map<string, { seq: number; path: string }[]>();
 	const projection = store.project(
 		'repos',
 		() => new Map<string, Repo>(),
 		(repos, event) => {
-			if (event.type === 'repo.registered')
+			if (event.type === 'repo.registered') {
+				const history = registrations.get(event.data.id) ?? [];
+				history.push({ seq: event.seq, path: event.data.path });
+				registrations.set(event.data.id, history);
 				repos.set(event.data.id, { ...event.data, registeredAt: event.at });
+			}
 			if (event.type === 'repo.removed') repos.delete(event.data.id);
 			return repos;
 		},
@@ -47,6 +52,11 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 	}
 
 	return {
+		// Older installations could reuse an ID for a different path after removal.
+		ownsWorkspace(id: string, created: number) {
+			const path = registrations.get(id)?.findLast((reg) => reg.seq <= created)?.path;
+			return !!path && path === projection.get().get(id)?.path;
+		},
 		list: (): Repo[] => [...projection.get().values()].map((repo) => ({ ...repo })),
 		get,
 
@@ -65,7 +75,12 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 					.replace(/[^a-z0-9]+/g, '-')
 					.replace(/^-|-$/g, '') || 'repo';
 			let id = slug;
-			for (let n = 2; repos.has(id); n++) id = `${slug}-${n}`;
+			for (
+				let n = 2;
+				repos.has(id) || registrations.get(id)?.some((reg) => reg.path !== toplevel);
+				n++
+			)
+				id = `${slug}-${n}`;
 
 			store.append(
 				{ type: 'repo.registered', stream: `repo:${id}`, data: { id, name, path: toplevel } },

@@ -73,6 +73,7 @@ export const navigation = () =>
 						};
 					}),
 				workspaces: listed,
+				access: workspaces().access.list(),
 				/**
 				 * What each agent can be asked to run: its models and their effort levels, as the
 				 * connected daemon reports them. `null` while no daemon is connected.

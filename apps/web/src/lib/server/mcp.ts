@@ -17,8 +17,7 @@ import type { createWorkspaces } from './workspaces.ts';
 
 /**
  * Geordi's agent API (ADR-004, FDR-002) as a Model Context Protocol server: the tools that
- * let an agent start and supervise other agents. Stateless JSON-RPC over HTTP; the caller
- * is the workspace its token belongs to.
+ * let agents work with repository workspaces. Stateless JSON-RPC over HTTP.
  */
 
 /** What the tools work with: the agents API, and archiving (which needs a daemon). */
@@ -165,11 +164,31 @@ const tools = {
 		input: v.object({}),
 		run: (agents: Agents, caller: string) => agents.list(caller)
 	},
+	list_workspaces: {
+		description:
+			'List workspaces in your repository with their IDs, links, branches and status. Set include_archived to include history.',
+		input: v.object({ include_archived: v.optional(v.boolean(), false) }),
+		run: (agents: Agents, caller: string, input: { include_archived: boolean }) =>
+			agents.listWorkspaces(caller, input.include_archived)
+	},
+	read_workspace: {
+		description:
+			'Read the latest 50 conversation messages and pending questions. A user message with from came from that agent. Pass the returned before cursor to read earlier messages.',
+		input: v.object({
+			workspace_id: v.string(),
+			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
+		}),
+		run: (agents: Agents, caller: string, input: { workspace_id: string; before?: number }) =>
+			agents.readWorkspace(caller, input.workspace_id, input.before)
+	},
 	send_message: {
 		description:
-			'Send a message to an agent you started. It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt`. Returns immediately; use wait_for_agent to get its reply.',
+			'Send a message to a workspace in your repository. It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt`. Returns immediately. Read the conversation with read_workspace.',
 		input: v.object({
-			agent_id: agentId,
+			agent_id: v.pipe(
+				v.string(),
+				v.description('The workspace ID from list_workspaces or start_agent')
+			),
 			message: v.pipe(v.string(), v.minLength(1)),
 			interrupt: v.pipe(
 				v.optional(v.boolean(), false),
@@ -184,7 +203,7 @@ const tools = {
 			input: { agent_id: string; message: string; interrupt: boolean }
 		) => {
 			agents.send(caller, input.agent_id, input.message, input.interrupt);
-			return agents.get(caller, input.agent_id);
+			return agents.reportWorkspace(caller, input.agent_id);
 		}
 	},
 	archive_agent: {
@@ -256,11 +275,13 @@ const tools = {
 	},
 	workspace_status: {
 		description:
-			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Your own workspace, or that of an agent you started (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
+			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Any workspace in your repository (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
 		input: v.object({
 			agent_id: v.pipe(
 				v.optional(v.string()),
-				v.description('The id of an agent you started. Defaults to your own workspace.')
+				v.description(
+					'A workspace ID. Workspace agents default to their own ID. External callers must supply one.'
+				)
 			)
 		}),
 		run: async (agents: Agents, caller: string, input: { agent_id?: string }) => {
@@ -334,10 +355,19 @@ const failure = (id: Request['id'], code: number, message: string) => ({
 /** A tool's outcome, as text for the model. Failures are results the agent can act on. */
 const content = (text: string, isError = false) => ({ content: [{ type: 'text', text }], isError });
 
+const externalTools = new Set([
+	'list_workspaces',
+	'read_workspace',
+	'send_message',
+	'workspace_status'
+]);
+const available = (caller: string, name: string) =>
+	!caller.startsWith('external:') || externalTools.has(name);
+
 async function callTool(agents: Agents, caller: string, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };
 	const tool = name && Object.hasOwn(tools, name) ? tools[name as keyof typeof tools] : null;
-	if (!tool) return content(`Unknown tool: ${name}`, true);
+	if (!name || !tool || !available(caller, name)) return content(`Unknown tool: ${name}`, true);
 
 	const input = v.safeParse(tool.input, args);
 	if (!input.success)
@@ -373,21 +403,25 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				protocolVersion: requested ?? '2025-06-18',
 				capabilities: { tools: {} },
 				serverInfo: { name: 'geordi', version: '1' },
-				instructions: INSTRUCTIONS
+				instructions: caller.startsWith('external:')
+					? 'Use list_workspaces to find conversations in your repository, read_workspace to inspect one, and send_message to follow up.'
+					: INSTRUCTIONS
 			});
 		}
 		case 'ping':
 			return result(id, {});
 		case 'tools/list':
 			return result(id, {
-				tools: Object.entries(tools).map(([name, tool]) => ({
-					name,
-					description:
-						typeof tool.description === 'function'
-							? tool.description(agents.harnesses())
-							: tool.description,
-					inputSchema: toJsonSchema(tool.input)
-				}))
+				tools: Object.entries(tools)
+					.filter(([name]) => available(caller, name))
+					.map(([name, tool]) => ({
+						name,
+						description:
+							typeof tool.description === 'function'
+								? tool.description(agents.harnesses())
+								: tool.description,
+						inputSchema: toJsonSchema(tool.input)
+					}))
 			});
 		case 'tools/call':
 			return result(id, await callTool(agents, caller, params));

@@ -15,7 +15,8 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - The parent can message a child, wait until it has finished its turn, read its latest reply, stop it, and archive it once it is done with it (after merging its branch, say). Archiving on an agent's behalf never discards uncommitted work. Children can start children of their own, up to a limit.
 - A message to a child that is working waits for its turn to end; the parent can have it interrupt instead, which gives the child the message at once, in the middle of what it is doing (ADR-010). In the child's conversation, what an agent said is marked as that agent's, by its workspace's name.
 - The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.
-- An agent can only see and control the agents it started, directly or indirectly.
+- Workspace agents can discover, read, and message other workspaces in the same repository. People can grant an external MCP client the same access with a named token in Settings. Archived conversations can be read.
+- Stopping and archiving an agent through MCP requires the caller to be its ancestor.
 - Work from a child with its own worktree comes back by the parent merging the child's branch. Geordi does not merge on its own.
 - The sidebar groups current workspaces by repository. Archiving the last workspace in a repository removes its heading. A workspace started by an agent is marked as such, comes right after the one that started it, and sits slightly indented from it; pointing at it lights that one up.
 - A child workspace with its own worktree shows its changes against the parent’s branch.

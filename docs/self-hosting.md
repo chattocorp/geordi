@@ -52,3 +52,14 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 - `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
+
+## Connect an external agent
+
+In **Settings → Agent access**, select a repository, enter the agent's name, and create a token.
+Configure an HTTP MCP server in your client with the URL shown in Settings and the header
+`Authorization: Bearer <token>`. The desktop URL is `http://127.0.0.1:7717/mcp`.
+Copy the token before closing Settings. Use **Revoke** to end its access.
+
+Call `list_workspaces` to find a workspace, then `read_workspace` with its `workspace_id`.
+Use the same ID as `agent_id` for `workspace_status` and `send_message`. A message starts
+an idle agent. A busy agent receives it after its turn, or immediately with `interrupt: true`.

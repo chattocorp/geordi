@@ -526,3 +526,21 @@
 		/>
 	</div>
 </Story>
+
+<Story name="External agent follow-up" asChild>
+	<div class="flex h-80 flex-col overflow-hidden card">
+		<MessageView
+			blocks={[
+				{
+					kind: 'user',
+					text: 'Please check the migration.',
+					from: 'external:example',
+					senderName: 'Release assistant'
+				}
+			]}
+			agent="codex"
+			onremove={() => {}}
+			onanswer={() => {}}
+		/>
+	</div>
+</Story>
