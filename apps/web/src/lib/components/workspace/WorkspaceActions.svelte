@@ -155,6 +155,7 @@
 							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
 							colour. Fix errors and Resolve conflicts take the ribbon colour. Other soft next steps use ink.
 						-->
+						{@const busy = pending.includes(action.id)}
 						{@const next = action === primary}
 						{@const ribbonColor = action.id === 'resolve-conflicts' || action.id === 'fix-checks'}
 						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
@@ -165,10 +166,10 @@
 							class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
 							icon={action.icon}
 							{disabled}
-							busy={pending.includes(action.id)}
+							{busy}
 							onclick={() => onaction(action)}
 						>
-							{action.label}
+							{busy && action.id === 'archive' ? 'Archiving…' : action.label}
 						</Button>
 					{/each}
 				</ButtonGroup>

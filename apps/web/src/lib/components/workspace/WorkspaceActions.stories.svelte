@@ -187,6 +187,21 @@
 	{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
 </Story>
 
+<Story
+	name="Archiving"
+	asChild
+	play={async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole('button', { name: /Archiving…/ });
+		await expect(button).toBeDisabled();
+		await expect(button).toHaveAttribute('aria-busy', 'true');
+	}}
+>
+	{@render bar(
+		{ changes: pushed, upstream: upstream({ state: 'merged' }) },
+		{ pending: ['archive'] }
+	)}
+</Story>
+
 <Story name="Agent at work, nothing else to say" asChild>
 	{@render bar(
 		{ changes: { files: [], uncommitted: 0, unpushed: 0 }, upstream: null },

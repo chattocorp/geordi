@@ -842,9 +842,6 @@
 					: 'Alt+'}B)"
 				onclick={toggleSide}
 			/>
-			{#if leaving}
-				<Badge><Spinner label="Archiving" /> Archiving…</Badge>
-			{/if}
 		{/if}
 	</TitleBar>
 
