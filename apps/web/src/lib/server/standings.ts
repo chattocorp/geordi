@@ -1,8 +1,9 @@
-import { upstreamFreshFor, type Changes, type Upstream } from '@geordi/protocol';
+import { CI_REFRESH_MS, type Changes, type Upstream } from '@geordi/protocol';
 
 /** How a worktree's work stands: what changed in it, and its pull request, if it has one. */
 export type Standing = {
-	changes: Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> | null;
+	changes:
+		(Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & Partial<Pick<Changes, 'branch'>>) | null;
 	upstream: Upstream | null;
 };
 
@@ -10,6 +11,29 @@ export type Standing = {
 const FRESH_MS = 2 * 60_000;
 /** How many worktrees are asked about at a time: the daemon and the forge have other work. */
 const AT_ONCE = 3;
+// Known PRs share batched reads. Branch discovery can cost one provider request per branch.
+const PULL_BATCH = 20;
+const DISCOVERY_BATCH = 3;
+
+/** Limit both starts per polling interval and reads still waiting for a provider. */
+function readBudget(limit: number, now: () => number) {
+	let starts: number[] = [];
+	let pending = 0;
+	return (ids: string[], read: (id: string) => Promise<void>, reconnected = false) => {
+		const time = now();
+		starts = reconnected ? [] : starts.filter((at) => time - at < CI_REFRESH_MS);
+		const batch = ids.slice(0, limit - Math.max(pending, starts.length));
+		return batch.map(async (id) => {
+			starts.push(time);
+			pending++;
+			try {
+				await read(id);
+			} finally {
+				pending--;
+			}
+		});
+	};
+}
 
 /**
  * How every workspace in use stands, for showing them all at a glance (the sidebar). Live
@@ -27,6 +51,7 @@ export function createStandings(options: {
 	 */
 	load: (worktreeId: string, fresh: boolean, keepKnown: boolean) => Promise<Standing>;
 	loadUpstream: (worktreeId: string) => Promise<Upstream | null>;
+	publishUpstream?: (id: string, upstream: Upstream | null, branch?: string | null) => void;
 	now?: () => number;
 }) {
 	const { worktrees, load, now = Date.now } = options;
@@ -34,8 +59,17 @@ export function createStandings(options: {
 	const loading = new Map<string, symbol>();
 	const listeners = new Set<() => void>();
 
+	let nextLocalBatch = 0;
+	const discover = readBudget(DISCOVERY_BATCH, now);
+	const poll = readBudget(PULL_BATCH, now);
+	const retryAfter = new Map<string, number>();
+
 	function note(worktreeId: string, standing: Standing, localAt = now()) {
-		known.set(worktreeId, { at: now(), localAt, standing });
+		const previous = known.get(worktreeId);
+		const stamp = standing.upstream?.checkedAt;
+		const cached = stamp !== undefined && previous?.standing.upstream?.checkedAt === stamp;
+		retryAfter.delete(worktreeId);
+		known.set(worktreeId, { at: cached ? previous.at : now(), localAt, standing });
 		for (const listener of listeners) listener();
 	}
 
@@ -48,12 +82,19 @@ export function createStandings(options: {
 		try {
 			if (upstreamOnly && before) {
 				const upstream = await options.loadUpstream(worktreeId);
-				if (current()) note(worktreeId, { ...before.standing, upstream }, before.localAt);
+				if (current()) {
+					note(worktreeId, { ...before.standing, upstream }, before.localAt);
+					options.publishUpstream?.(worktreeId, upstream, before.standing.changes?.branch);
+				}
 			} else {
 				const standing = await load(worktreeId, fresh, !!before?.standing.upstream);
-				if (current()) note(worktreeId, standing);
+				if (current()) {
+					note(worktreeId, standing);
+					options.publishUpstream?.(worktreeId, standing.upstream, standing.changes?.branch);
+				}
 			}
 		} catch {
+			if (!before && current()) retryAfter.set(worktreeId, now() + 20_000);
 			if (before && current()) {
 				before.at = now();
 				if (!upstreamOnly) before.localAt = now();
@@ -68,36 +109,52 @@ export function createStandings(options: {
 		note,
 		refresh,
 
-		/**
-		 * Asks about the worktrees that are due. Those nothing is known of yet, all at once:
-		 * someone is looking at a list with nothing in it. The others, the stalest first, a
-		 * few at a time.
-		 */
-		async tick() {
+		/** Refresh the oldest due worktrees within the local, PR and discovery budgets. */
+		async tick(reconnected = false) {
 			const inUse = worktrees();
 			for (const id of known.keys()) if (!inUse.includes(id)) known.delete(id);
-			const unknown = inUse.filter((id) => !known.has(id));
+			for (const id of retryAfter.keys()) if (!inUse.includes(id)) retryAfter.delete(id);
+			const time = now();
+			const unknown = inUse
+				.filter(
+					(id) =>
+						!known.has(id) && !loading.has(id) && (reconnected || (retryAfter.get(id) ?? 0) <= time)
+				)
+				.sort((a, b) => (retryAfter.get(a) ?? 0) - (retryAfter.get(b) ?? 0));
 			const available = inUse.flatMap((id) => {
 				const entry = known.get(id);
 				if (!entry || loading.has(id)) return [];
-				const due = entry.at + upstreamFreshFor(entry.standing.upstream, FRESH_MS);
-				return [{ id, due, localAt: entry.localAt, pull: entry.standing.upstream?.pull }];
+				const upstream = entry.standing.upstream;
+				const interval =
+					upstream?.refreshAfterMs ??
+					(upstream?.pull?.checks?.state === 'pending' ? CI_REFRESH_MS : FRESH_MS);
+				return [
+					{
+						id,
+						due: entry.at + interval,
+						localAt: entry.localAt,
+						open: upstream?.pull?.state === 'open',
+						postPush: upstream?.refreshAfterMs === CI_REFRESH_MS
+					}
+				];
 			});
 			// A full local Git status is expensive. Keep its original budget even when CI is busy.
 			const local = available
-				.filter(({ localAt }) => now() - localAt >= FRESH_MS)
+				.filter(({ localAt }) => time >= nextLocalBatch && time - localAt >= FRESH_MS)
 				.sort((a, b) => a.localAt - b.localAt)
 				.slice(0, AT_ONCE)
 				.map(({ id }) => id);
-			const pulls = available
-				.filter(
-					({ id, pull, due }) => !local.includes(id) && pull?.state === 'open' && due <= now()
-				)
-				.sort((a, b) => a.due - b.due)
-				.slice(0, 20);
+			if (local.length) nextLocalBatch = time + 20_000;
+			const due = available
+				.filter((entry) => entry.due <= time && !local.includes(entry.id))
+				.sort((a, b) => a.due - b.due);
+			const pulls = due.filter((entry) => entry.open).map((entry) => entry.id);
+			const pushed = due.filter((entry) => entry.postPush && !entry.open).map((entry) => entry.id);
+			// Known PRs can share a provider read. Finding a PR for a branch needs a search.
 			await Promise.all([
-				...[...unknown, ...local].map((id) => refresh(id)),
-				...pulls.map(({ id }) => refresh(id, false, true))
+				...local.map((id) => refresh(id)),
+				...poll(pulls, (id) => refresh(id, false, true)),
+				...discover([...pushed, ...unknown], (id) => refresh(id, false, known.has(id)), reconnected)
 			]);
 		},
 

@@ -115,24 +115,13 @@ export const say = command(v.object({ workspaceId: v.string(), text }), ({ works
 	workspaces().send(workspaceId, text)
 );
 
-/**
- * Archives a workspace: ends its shells, removes its worktree (unless another workspace
- * still works in it) and takes it out of the lists. Its branch and conversation stay.
- *
- * Unfinished work doesn't stop it, but is not passed over either: unless `confirmed`, a
- * workspace with uncommitted, unpushed or unmerged work is not archived, and what is
- * unfinished about it comes back instead, to be shown and agreed to (FDR-001).
- */
+/** Check for unfinished work without changing the workspace. */
+export const previewArchive = command(v.string(), concernsAboutArchiving);
+
 export const archiveWorkspace = command(
-	v.object({ workspaceId: v.string(), confirmed: v.optional(v.boolean(), false) }),
-	async ({ workspaceId, confirmed }) => {
-		if (!confirmed) {
-			const concerns = await concernsAboutArchiving(workspaceId);
-			if (concerns.length > 0) return { archived: false, concerns };
-		}
-		// agreed to, what is uncommitted goes with the worktree
-		await archive(workspaceId, confirmed);
-		return { archived: true, concerns: [] as string[] };
+	v.object({ workspaceId: v.string(), confirmed: v.literal(true), discard: v.boolean() }),
+	async ({ workspaceId, discard }) => {
+		await archive(workspaceId, discard);
 	}
 );
 

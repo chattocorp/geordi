@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import {
-	upstreamFreshFor,
+	CI_REFRESH_MS,
 	type CheckCounts,
 	type PullCheck,
 	type PullRequest,
@@ -63,7 +63,7 @@ function ghToken(): string | null {
 	}
 }
 
-let registry: { forges: Forges; anonymous: ForgeProvider | null; at: number } | undefined;
+let registry: { forges: Forges; at: number } | undefined;
 /** How long credentials are trusted: signing in to the GitHub CLI should not take a restart to notice. */
 const CREDENTIALS_MS = 10 * 60_000;
 
@@ -76,14 +76,12 @@ function forges() {
 	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry;
 	const providers = providersFromEnv(process.env).flatMap((set) => set.provider ?? []);
 
-	let anonymous: ForgeProvider | null = null;
 	if (!providers.some((p) => p.forge === 'github' && p.instance === 'github.com')) {
 		const token = ghToken();
 		const provider = github(token ? { auth: { type: 'token', token } } : {});
-		if (!token) anonymous = provider;
 		providers.push(provider);
 	}
-	return (registry = { forges: createForges(providers), anonymous, at: Date.now() });
+	return (registry = { forges: createForges(providers), at: Date.now() });
 }
 
 /** How many checks stand how. */
@@ -254,7 +252,7 @@ function locate(worktree: Worktree, repoPath: string) {
 	const remote = git(repoPath, 'remote', 'get-url', 'origin');
 	if (!remote) return null;
 
-	const { forges: all, anonymous } = forges();
+	const { forges: all } = forges();
 	const parsed = all.parseUrl(remote);
 	if (!parsed) return null;
 
@@ -263,10 +261,17 @@ function locate(worktree: Worktree, repoPath: string) {
 	if (!head.startsWith('refs/heads/')) return null;
 	// what the branch is called upstream, which is where its pull request is
 	const branch = upstreamBranchOf(repoPath, head.slice('refs/heads/'.length));
-	return { remote, ...parsed, branch, head, anonymous };
+	return { remote, ...parsed, branch, head };
 }
 
-type Cached = { key: string; at: number; includeChecks: boolean; value: Upstream };
+type Cached = {
+	includeChecks: boolean;
+	key: string;
+	at: number;
+	pushedSha: string | null;
+	fastUntil: number;
+	value: Upstream | null;
+};
 const cache = new Map<string, Cached>();
 
 /**
@@ -285,11 +290,21 @@ export async function upstream(
 ): Promise<Upstream | null> {
 	const found = locate(worktree, repoPath);
 	if (!found) return null;
-	const { remote, provider, repo, branch, anonymous } = found;
-	const pushed =
-		git(repoPath, 'rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`) !== null;
+	const { remote, provider, repo, branch } = found;
+	const anonymous = provider.authKind === 'anonymous';
+	const pushedSha = git(
+		repoPath,
+		'rev-parse',
+		'--verify',
+		'--quiet',
+		`refs/remotes/origin/${branch}`
+	);
+	const pushed = pushedSha !== null;
 
+	const local = found.head.slice('refs/heads/'.length);
 	const base: Upstream = {
+		localBranch: local,
+		checkedAt: now,
 		forge: provider.forge,
 		repo: `${repo.owner}/${repo.name}`,
 		repoUrl: provider.urlFor({ repo }) ?? null,
@@ -302,22 +317,37 @@ export async function upstream(
 	// Forges delete a branch when its pull request is merged, and the next fetch forgets
 	// it here; the pull request is still there, and still this branch's. What is left of
 	// the push is that Git was told where the branch goes, or that we saw its pull request.
-	const local = found.head.slice('refs/heads/'.length);
-	const key = `${remote} ${branch}`;
+	const key = JSON.stringify([remote, branch, local]);
 	const cached = cache.get(worktreeId);
-	const previous = cached?.key === key ? cached.value : null;
-	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`))
+	const baseline = cached?.key === key ? cached : undefined;
+	const previous = baseline?.value;
+	if (!pushed && !previous?.pull && !git(repoPath, 'config', '--get', `branch.${local}.remote`)) {
+		// Remember the unpushed branch so its first push is an observed change.
+		cache.set(worktreeId, {
+			key,
+			at: now,
+			includeChecks: false,
+			pushedSha,
+			fastUntil: 0,
+			value: null
+		});
 		return base;
+	}
 
 	// Asked to look now (something may just have happened there that nothing here shows: a
 	// pull request opened, a review), we do, unless we only just did. Not without
 	// credentials: those few requests are for looking now and then.
-	const normal = upstreamFreshFor(previous, FRESH_MS);
-	const fresh = provider === anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
+	// A cold read establishes the baseline. Only an observed push opens a discovery window.
+	const sameHead = baseline?.pushedSha === pushedSha;
+	const fastUntil = sameHead ? baseline.fastUntil : baseline && pushed ? now + 60_000 : 0;
+	const normal = previous?.refreshAfterMs ?? FRESH_MS;
+	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
 	if (
 		cached &&
 		(!includeChecks || cached.includeChecks) &&
-		previous?.pushed === pushed &&
+		previous &&
+		(sameHead || anonymous) &&
+		previous.pushed === pushed &&
 		now - cached.at < fresh
 	)
 		return previous;
@@ -340,9 +370,19 @@ export async function upstream(
 	const defaultBranch =
 		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
 	const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
+	const summary = pull && summarise(pull, checks?.counts, checks?.items);
+	const waiting =
+		summary?.state === 'open' &&
+		(summary.checks?.state === 'pending' || !!summary.checks?.counts?.pending);
+	const refreshAfterMs = anonymous
+		? FRESH_ANONYMOUS_MS
+		: waiting || (now < fastUntil && (!summary || summary.state === 'open'))
+			? CI_REFRESH_MS
+			: undefined;
 	const value: Upstream = {
 		...base,
-		pull: pull && summarise(pull, checks?.counts, checks?.items),
+		refreshAfterMs,
+		pull: summary,
 		createUrl:
 			(defaultBranch &&
 				provider.urlFor({
@@ -353,7 +393,7 @@ export async function upstream(
 	// An overlapping refresh (or a merge) may have superseded this read.
 	const latest = cache.get(worktreeId);
 	if (latest === cached || (latest && latest.at < now))
-		cache.set(worktreeId, { key, at: now, includeChecks, value });
+		cache.set(worktreeId, { key, at: now, includeChecks, value, pushedSha, fastUntil });
 	return value;
 }
 

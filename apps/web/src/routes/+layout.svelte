@@ -28,6 +28,7 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import {
 		archive,
+		archiving,
 		archiveProblems,
 		beingArchived
 	} from '#lib/components/workspace/archive.svelte.ts';
@@ -99,7 +100,7 @@
 	async function archiveFromHere(workspace: Item) {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const here = page.url.pathname === href;
-		if (await archive(workspace.id)) {
+		if (await archive(workspace.id, workspace.title)) {
 			// from a workspace an agent started, back to the one whose agent started it
 			if (here)
 				await goto(
@@ -414,7 +415,7 @@
 
 <ContextMenu />
 <Settings />
-<ArchiveConfirm />
+<ArchiveConfirm asking={archiving.asking} />
 
 {#snippet row(workspace: Item, parent: Item | null, depth: number)}
 	{@const current = page.url.pathname === `/workspaces/${workspace.id}`}

@@ -1,5 +1,7 @@
-import type { ForgeMessage } from '@geordi/protocol';
+import type { ForgeMessage, Upstream } from '@geordi/protocol';
 import { describe, expect, it, vi } from 'vitest';
+import { createStandings } from './standings.ts';
+import { actionsFor } from '../actions.ts';
 import { createWatchers, type WorktreeLoad, type WorktreeState } from './watchers.ts';
 
 /** Lets pending loads settle. */
@@ -152,6 +154,97 @@ describe('watchers', () => {
 		watchers.changed('a', true); // an agent finished a turn: it may have opened a pull request
 		await settled();
 		expect(daemon.fresh).toEqual([false, false, true]);
+	});
+
+	it('publishes CI transitions to the sidebar, PR tab and ribbon on the same tick', async () => {
+		let now = 0;
+		const upstream: Upstream = {
+			forge: 'github',
+			repo: 'a/b',
+			repoUrl: null,
+			branch: 'remote-name',
+			localBranch: 'geordi/w',
+			pushed: true,
+			createUrl: null,
+			checkedAt: now,
+			refreshAfterMs: 10_000,
+			pull: {
+				number: '1',
+				title: 'Feature',
+				body: '',
+				url: null,
+				state: 'open',
+				draft: false,
+				base: 'main',
+				checks: null,
+				review: null
+			}
+		};
+		const { watchers, daemon } = setup(() => ({
+			...answers(0),
+			upstream: Promise.resolve(upstream)
+		}));
+		const stop = watchers.watch('a', () => {});
+		await settled();
+		const standings = createStandings({
+			worktrees: () => ['a'],
+			now: () => now,
+			load: async () => {
+				throw Error('Unexpected local scan');
+			},
+			loadUpstream: async () => ({
+				...upstream,
+				checkedAt: now,
+				pull: {
+					...upstream.pull!,
+					checks: {
+						state: now === 10_000 ? 'pending' : 'success',
+						total: 1,
+						failed: 0,
+						url: null
+					}
+				}
+			}),
+			publishUpstream: watchers.noteUpstream
+		});
+		standings.note('a', watchers.state('a')!);
+		now = 9000;
+		standings.note('a', watchers.state('a')!); // a file edit returned a cached upstream read
+		for (now of [10_000, 20_000]) {
+			await standings.tick();
+			const git = watchers.state('a')!;
+			expect(git.upstream).toBe(standings.get('a')?.upstream);
+			expect(git.upstream?.pull?.checks?.state).toBe(now === 10_000 ? 'pending' : 'success');
+			expect(
+				actionsFor({ ...git, failed: false, child: false }).some(
+					(action) => action.id === 'merge-pull'
+				)
+			).toBe(now === 20_000);
+		}
+		watchers.noteUpstream('a', upstream); // late cached response
+		watchers.noteUpstream('a', { ...upstream, checkedAt: now + 1, localBranch: 'old-branch' });
+		expect(watchers.state('a')?.upstream?.checkedAt).toBe(20_000);
+		expect(daemon.asked).toEqual(['a']);
+		stop();
+	});
+
+	it('refreshes a minute after the last background update and cancels the fallback on close', async () => {
+		vi.useFakeTimers();
+		try {
+			const { watchers, daemon } = setup();
+			const stop = watchers.watch('a', () => {});
+			await vi.advanceTimersByTimeAsync(1_000);
+			watchers.noteUpstream('a', null, 'geordi/w');
+			await vi.advanceTimersByTimeAsync(59_999);
+			expect(daemon.fresh).toEqual([false]);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(daemon.fresh).toEqual([false, true]);
+			stop();
+			await vi.advanceTimersByTimeAsync(60_000);
+			expect(daemon.fresh).toEqual([false, true]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('forgets a worktree nobody is looking at any more', async () => {

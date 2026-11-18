@@ -1,0 +1,73 @@
+name: Desktop releases
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      commit:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            target: macOS-arm64
+          - os: windows-2025
+            target: Windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit }}
+      - uses: ./.github/actions/package-desktop
+      - name: Archive the desktop app
+        working-directory: apps/desktop/dist
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          version=$(node -p "require('../package.json').version")
+          archive="Geordi-v${version}-$TARGET.zip"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            ditto -c -k --keepParent Geordi-darwin-arm64/Geordi.app "$archive"
+          else
+            7z a -tzip "$archive" Geordi-win32-x64
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ inputs.tag }}-${{ matrix.target }}
+          path: apps/desktop/dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-${{ inputs.tag }}-*
+          merge-multiple: true
+      - name: Publish both downloads
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag=$RELEASE_TAG
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --verify-tag --generate-notes --draft
+          fi
+          test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
+          gh release upload "$tag" --clobber \
+            "Geordi-${tag}-macOS-arm64.zip" "Geordi-${tag}-Windows-x64.zip"
+          gh release edit "$tag" --draft=false
