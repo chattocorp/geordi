@@ -36,18 +36,22 @@ const ACP_MODES = {
  */
 export function turnUsage(usage: IdleStateUpdate['usage']): { usage?: TurnUsage } {
 	if (!usage?.totalTokens) return {};
-	const { totalTokens, inputTokens, outputTokens, ...rest } = usage;
-	const optional = {
-		thoughtTokens: rest.thoughtTokens,
-		cachedReadTokens: rest.cachedReadTokens,
-		cachedWriteTokens: rest.cachedWriteTokens
-	};
+	const {
+		totalTokens,
+		inputTokens,
+		outputTokens,
+		thoughtTokens,
+		cachedReadTokens,
+		cachedWriteTokens
+	} = usage;
 	return {
 		usage: {
 			totalTokens,
 			inputTokens,
 			outputTokens,
-			...Object.fromEntries(Object.entries(optional).filter(([, count]) => count))
+			...(thoughtTokens && { thoughtTokens }),
+			...(cachedReadTokens && { cachedReadTokens }),
+			...(cachedWriteTokens && { cachedWriteTokens })
 		}
 	};
 }
