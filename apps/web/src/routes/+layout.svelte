@@ -185,7 +185,7 @@
 			{
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
-				tone: 'danger',
+				tone: 'merged',
 				disabled: busy,
 				onselect: () => archiveFromHere(workspace)
 			}
