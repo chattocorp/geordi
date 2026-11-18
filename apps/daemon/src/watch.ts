@@ -8,11 +8,13 @@ const SETTLE_MS = 250;
 
 /**
  * Calls `onChange` when anything changes that the workspace's changes or pull request
- * depend on: its files, what it has checked out and staged, and the repository's branches
- * (commits, and pushes, which move the remote-tracking branches). Returns a function that
- * stops watching.
+ * depend on: its files (unless `files` is false), what it has checked out and staged, and
+ * the repository's branches (commits, and pushes, which move the remote-tracking branches).
+ * Without the files, it is a handful of small directories, cheap on every platform: our
+ * own Git leaves the index alone (`GIT_OPTIONAL_LOCKS`). Returns a function that stops
+ * watching.
  */
-export function watchWorktree(worktree: Worktree, onChange: () => void): () => void {
+export function watchWorktree(worktree: Worktree, onChange: () => void, files = true): () => void {
 	let settle: NodeJS.Timeout | undefined;
 	const changed = (_event: string, file: string | Buffer | null) => {
 		// lock files come and go around every git command, including ones that change nothing
@@ -30,7 +32,7 @@ export function watchWorktree(worktree: Worktree, onChange: () => void): () => v
 			// not there (yet): nothing to watch
 		}
 	};
-	add(worktree.path, true);
+	if (files) add(worktree.path, true);
 	add(worktree.adminDir);
 	add(worktree.commonDir);
 	add(join(worktree.commonDir, 'refs'), true);
@@ -43,32 +45,35 @@ export function watchWorktree(worktree: Worktree, onChange: () => void): () => v
 
 /**
  * Keeps watching exactly the workspaces the forge asks for: the ones someone is looking at
- * (`open`), and every other one in use (`background`, so that the sidebar can say at once
- * how each stands). `locate` finds a workspace's worktree (and throws if it has none yet).
+ * (`open`), files and all, and every other one in use (`background`), only its Git state,
+ * so that the sidebar can say at once how each stands. `locate` finds a workspace's
+ * worktree (and throws if it has none yet).
  */
 export function createWatches(
 	locate: (ref: WorktreeRef) => Worktree,
 	onChange: (worktreeId: string) => void
 ) {
 	const wanted: Record<WatchScope, WorktreeRef[]> = { open: [], background: [] };
-	const watching = new Map<string, () => void>();
+	const watching = new Map<string, { stop: () => void; files: boolean }>();
 
 	function apply() {
 		const all = [...wanted.open, ...wanted.background];
+		const open = new Set(wanted.open.map((ref) => ref.worktreeId));
 		const ids = new Set(all.map((ref) => ref.worktreeId));
-		for (const [id, stop] of watching)
-			if (!ids.has(id)) {
+		for (const [id, { stop, files }] of watching)
+			if (!ids.has(id) || files !== open.has(id)) {
 				stop();
 				watching.delete(id);
 			}
 		for (const ref of all) {
 			const id = ref.worktreeId;
 			if (watching.has(id)) continue;
+			const files = open.has(id);
 			try {
-				watching.set(
-					id,
-					watchWorktree(locate(ref), () => onChange(id))
-				);
+				watching.set(id, {
+					stop: watchWorktree(locate(ref), () => onChange(id), files),
+					files
+				});
 			} catch {
 				// no worktree yet; `refresh()` picks it up once there is one
 			}
@@ -92,7 +97,7 @@ export function createWatches(
 		 * waiting for it, or still be watching a directory that is no longer the one there.
 		 */
 		restart(worktreeId: string) {
-			watching.get(worktreeId)?.();
+			watching.get(worktreeId)?.stop();
 			watching.delete(worktreeId);
 			apply();
 		},

@@ -39,22 +39,28 @@ describe('watching workspaces', () => {
 		watches.stop();
 	});
 
-	it('keeps watching a worktree in the background once nobody has it open', async () => {
-		const { base, ref, seen, watches } = setup();
+	it('keeps watching the Git state of a worktree in the background once nobody has it open', async () => {
+		const { base, ref, git, seen, watches } = setup();
 		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
 		watches.set([ref], 'background');
 		watches.set([ref]);
 		watches.set([]);
 		await wait(100); // let the watchers start
 
+		// files alone are for whoever has it open; commits are for everyone
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
 		await wait(600);
-		expect(seen).toEqual([ref.worktreeId]);
-
-		watches.set([], 'background');
-		writeFileSync(join(worktree.path, 'b.txt'), 'two\n');
+		expect(seen).toEqual([]);
+		git(worktree.path, 'add', '.');
+		git(worktree.path, 'commit', '-qm', 'work');
 		await wait(600);
-		expect(seen).toHaveLength(1);
+		expect(seen.length).toBeGreaterThan(0);
+
+		const before = seen.length;
+		watches.set([], 'background');
+		git(worktree.path, 'commit', '-qm', 'more', '--allow-empty');
+		await wait(600);
+		expect(seen).toHaveLength(before);
 		watches.stop();
 	});
 

@@ -10,11 +10,12 @@ export type Standing = {
 /** How long what is known upstream is good for, when the daemon names no time. */
 const FRESH_MS = 2 * 60_000;
 /**
- * Worktrees are watched, so their files and Git state are looked at again when they change;
- * now and then also without, in case a change went unnoticed.
+ * A daemon watches worktrees' Git state (not their files: too much to watch everywhere), so
+ * a commit, push or checkout is looked at at once. Files that changed without one show
+ * this much later.
  */
-const LOCAL_FALLBACK_MS = 5 * 60_000;
-/** An agent at work changes files all the time: its worktree is looked at no more often. */
+const LOCAL_FALLBACK_MS = 60_000;
+/** An agent at work changes files all the time: its worktree is looked at this often. */
 const BUSY_LOCAL_MS = 15_000;
 /** How much less often a worktree with an agent at work is looked at upstream. */
 const BUSY_FACTOR = 3;
@@ -127,8 +128,11 @@ export function createStandings(options: {
 		const due = [...known]
 			.filter(([id, { localAt }]) => {
 				if (loading.has(id)) return false;
-				const age = time - localAt;
-				return (dirty.has(id) && age >= (busy(id) ? BUSY_LOCAL_MS : 0)) || age >= LOCAL_FALLBACK_MS;
+				const atWork = busy(id);
+				return (
+					(dirty.has(id) && !atWork) ||
+					time - localAt >= (atWork ? BUSY_LOCAL_MS : LOCAL_FALLBACK_MS)
+				);
 			})
 			.sort(([, a], [, b]) => a.localAt - b.localAt)
 			.slice(0, Math.max(0, AT_ONCE - localLoads))

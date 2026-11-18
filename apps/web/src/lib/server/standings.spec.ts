@@ -75,7 +75,7 @@ describe('standings', () => {
 	it('asks again when what it knows is old: sooner while checks run', async () => {
 		const { standings, state } = setup(['a']);
 		await standings.tick();
-		state.now = 90_000;
+		state.now = 50_000;
 		await standings.tick();
 		expect(state.asked).toHaveLength(1);
 		state.now = 2 * 60_000;
@@ -169,7 +169,7 @@ describe('standings', () => {
 		expect(state.asked).toEqual(['a', 'a!']);
 	});
 
-	it('looks at once at a worktree that changed, and no more often than every 15s while busy', async () => {
+	it('looks at once at a worktree that changed, and every 15s at one with an agent at work', async () => {
 		const { standings, state } = setup(['idle', 'busy'], ['busy']);
 		await standings.tick();
 		state.asked.length = 0;
@@ -185,6 +185,14 @@ describe('standings', () => {
 		expect(state.asked).toEqual(['idle', 'busy']);
 		await standings.tick();
 		expect(state.asked).toHaveLength(2); // looked at, and nothing changed since
+
+		// its files change without the daemon saying so
+		state.now = 30_000;
+		await standings.tick();
+		expect(state.asked).toEqual(['idle', 'busy', 'busy']);
+		state.now = 61_000;
+		await standings.tick();
+		expect(state.asked).toEqual(['idle', 'busy', 'busy', 'idle', 'busy']);
 	});
 
 	it('looks upstream less often where an agent is at work', async () => {
