@@ -246,7 +246,7 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 /** Agents waiting for their worktree's setup, by workspace: what stops one. */
 const waiting = new Map<string, () => void>();
 
-/** File watchers for the workspaces someone is looking at; see the `watch` message. */
+/** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
 	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
@@ -656,7 +656,7 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'watch':
-			watches.set(message.worktrees);
+			watches.set(message.worktrees, message.scope);
 			break;
 
 		case 'terminal.open': {

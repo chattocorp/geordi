@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
-import type { WorktreeRef } from '@geordi/protocol';
+import type { WatchScope, WorktreeRef } from '@geordi/protocol';
 import type { Worktree } from './worktree.ts';
 
 /** Changes come in bursts (a save, a checkout, an install); report each burst once. */
@@ -42,24 +42,26 @@ export function watchWorktree(worktree: Worktree, onChange: () => void): () => v
 }
 
 /**
- * Keeps watching exactly the workspaces the forge says someone is looking at. `locate`
- * finds a workspace's worktree (and throws if it has none yet).
+ * Keeps watching exactly the workspaces the forge asks for: the ones someone is looking at
+ * (`open`), and every other one in use (`background`, so that the sidebar can say at once
+ * how each stands). `locate` finds a workspace's worktree (and throws if it has none yet).
  */
 export function createWatches(
 	locate: (ref: WorktreeRef) => Worktree,
 	onChange: (worktreeId: string) => void
 ) {
-	let wanted: WorktreeRef[] = [];
+	const wanted: Record<WatchScope, WorktreeRef[]> = { open: [], background: [] };
 	const watching = new Map<string, () => void>();
 
 	function apply() {
-		const ids = new Set(wanted.map((ref) => ref.worktreeId));
+		const all = [...wanted.open, ...wanted.background];
+		const ids = new Set(all.map((ref) => ref.worktreeId));
 		for (const [id, stop] of watching)
 			if (!ids.has(id)) {
 				stop();
 				watching.delete(id);
 			}
-		for (const ref of wanted) {
+		for (const ref of all) {
 			const id = ref.worktreeId;
 			if (watching.has(id)) continue;
 			try {
@@ -76,13 +78,13 @@ export function createWatches(
 	return {
 		/** A discovered or retargeted pull changes this comparison and its descendants. */
 		targetChanged(id: string) {
-			for (const ref of wanted)
+			for (const ref of wanted.open)
 				if (ref.worktreeId === id || ref.parents?.some((parent) => parent.worktreeId === id))
 					onChange(ref.worktreeId);
 		},
-		/** Replaces the set of watched workspaces. */
-		set(worktrees: WorktreeRef[]) {
-			wanted = worktrees;
+		/** Replaces one set of watched workspaces. */
+		set(worktrees: WorktreeRef[], scope: WatchScope = 'open') {
+			wanted[scope] = worktrees;
 			apply();
 		},
 		/**
@@ -95,7 +97,8 @@ export function createWatches(
 			apply();
 		},
 		stop: () => {
-			wanted = [];
+			wanted.open = [];
+			wanted.background = [];
 			apply();
 		}
 	};

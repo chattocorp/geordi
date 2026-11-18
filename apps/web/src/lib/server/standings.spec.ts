@@ -8,8 +8,14 @@ const standing = (pending = false): Standing => ({
 		: null
 });
 
-function setup(ids: string[]) {
-	const state = { now: 0, asked: [] as string[], pending: false, fails: false };
+function setup(ids: string[], busy: string[] = []) {
+	const state = {
+		now: 0,
+		asked: [] as string[],
+		pending: false,
+		fails: false,
+		watched: [] as string[][]
+	};
 	const standings = createStandings({
 		worktrees: () => ids,
 		load: async (id, fresh) => {
@@ -22,6 +28,8 @@ function setup(ids: string[]) {
 			if (state.fails) throw new Error('offline');
 			return standing(state.pending).upstream;
 		},
+		busy: (id) => busy.includes(id),
+		watch: (ids) => state.watched.push([...ids]),
 		now: () => state.now
 	});
 	return { standings, state };
@@ -47,10 +55,10 @@ describe('standings', () => {
 		await standings.tick();
 		expect(state.asked).toHaveLength(4); // all known, and fresh
 
-		// grown old together, they are asked about a few at a time
+		// grown old together, they are asked about a few at a time: upstream, and local Git
 		state.now = 10 * 60_000;
 		await standings.tick();
-		expect(state.asked).toHaveLength(7);
+		expect(state.asked.slice(4)).toEqual(['a upstream', 'b upstream', 'c upstream', 'd']);
 	});
 
 	it('asks again at once about what nobody could say anything of', async () => {
@@ -76,7 +84,7 @@ describe('standings', () => {
 		expect(state.asked).toHaveLength(2);
 		state.now += 20_000;
 		await standings.tick();
-		expect(state.asked).toEqual(['a', 'a', 'a upstream']);
+		expect(state.asked).toEqual(['a', 'a upstream', 'a upstream']);
 	});
 
 	it('refreshes a batch of running checks without running local Git for each one', async () => {
@@ -150,7 +158,8 @@ describe('standings', () => {
 		await standings.tick();
 		expect(standings.get('a')).toEqual(standing(true));
 		await standings.tick();
-		expect(state.asked).toHaveLength(1); // not asked over and over
+		await standings.tick();
+		expect(state.asked).toEqual(['a upstream', 'a']); // not asked over and over
 	});
 
 	it('asks as of now when something just happened there', async () => {
@@ -158,6 +167,48 @@ describe('standings', () => {
 		await standings.tick();
 		await standings.refresh('a', true); // an agent's turn ended
 		expect(state.asked).toEqual(['a', 'a!']);
+	});
+
+	it('looks at once at a worktree that changed, and no more often than every 15s while busy', async () => {
+		const { standings, state } = setup(['idle', 'busy'], ['busy']);
+		await standings.tick();
+		state.asked.length = 0;
+
+		state.now = 1_000;
+		standings.changed('idle');
+		standings.changed('busy');
+		await Promise.resolve();
+		expect(state.asked).toEqual(['idle']);
+
+		state.now = 15_000;
+		await standings.tick();
+		expect(state.asked).toEqual(['idle', 'busy']);
+		await standings.tick();
+		expect(state.asked).toHaveLength(2); // looked at, and nothing changed since
+	});
+
+	it('looks upstream less often where an agent is at work', async () => {
+		const { standings, state } = setup(['idle', 'busy'], ['busy']);
+		standings.note('idle', standing(true));
+		standings.note('busy', standing(true));
+		state.pending = true;
+		state.now = 10_000;
+		await standings.tick();
+		expect(state.asked).toEqual(['idle upstream']);
+		state.now = 30_000;
+		await standings.tick();
+		expect(state.asked).toEqual(['idle upstream', 'idle upstream', 'busy upstream']);
+	});
+
+	it('has the worktrees in use watched, again when they change or a daemon reconnects', async () => {
+		const ids = ['a', 'b'];
+		const { standings, state } = setup(ids);
+		await standings.tick();
+		await standings.tick();
+		ids.pop();
+		await standings.tick();
+		await standings.tick(true);
+		expect(state.watched).toEqual([['a', 'b'], ['a'], ['a']]);
 	});
 
 	it('forgets worktrees that are no longer in use', async () => {

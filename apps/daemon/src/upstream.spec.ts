@@ -160,11 +160,11 @@ describe('upstream', () => {
 			try {
 				git('update-ref', remoteBranch, 'HEAD');
 				const initial = await read(worktree, ref, 1000);
-				expect(initial?.refreshAfterMs).toBe(authenticated ? undefined : 300_000);
+				expect(initial?.refreshAfterMs).toBe(authenticated ? 60_000 : 300_000);
 				expect(await read(worktree, ref, 9000)).toBe(initial);
 				await read(worktree, ref, 11_000);
 				const settled = await read(worktree, ref, 61_000);
-				expect(settled?.refreshAfterMs).toBe(authenticated ? undefined : 300_000);
+				expect(settled?.refreshAfterMs).toBe(authenticated ? 60_000 : 300_000);
 				expect(search).toHaveBeenCalledTimes(authenticated ? 2 : 1);
 				git(
 					'-c',
@@ -184,7 +184,7 @@ describe('upstream', () => {
 				await read(worktree, ref, 72_000);
 				expect(search).toHaveBeenCalledTimes(authenticated ? 4 : 1);
 				expect((await read(worktree, ref, 122_000))?.refreshAfterMs).toBe(
-					authenticated ? undefined : 300_000
+					authenticated ? 60_000 : 300_000
 				);
 				if (authenticated) {
 					const newWorkspace = { ...ref, worktreeId: 'first-push' };
@@ -199,6 +199,85 @@ describe('upstream', () => {
 			}
 		}
 	);
+
+	it('rarely looks again at a merged pull request, and keeps what it knew while rate limited', async () => {
+		vi.resetModules();
+		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
+		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
+		const { upstream: read } = await import('./upstream.ts');
+		const { worktree, ref } = workspace('git@github.com:acme/widgets.git');
+		execFileSync('git', [
+			'-C',
+			ref.repoPath,
+			'update-ref',
+			'refs/remotes/origin/geordi/abcdefgh',
+			'HEAD'
+		]);
+		let limited = false;
+		const asked = vi.fn(async (url: string) => {
+			if (limited)
+				return Response.json(
+					{ message: 'API rate limit exceeded' },
+					{
+						status: 403,
+						headers: {
+							'x-ratelimit-remaining': '0',
+							'x-ratelimit-reset': String(Math.ceil(Date.now() / 1000) + 3600)
+						}
+					}
+				);
+			if (url.includes('/search/'))
+				return Response.json({
+					total_count: 1,
+					items: [
+						{
+							number: 42,
+							title: 'Add the thing',
+							state: 'closed',
+							html_url: 'https://github.com/acme/widgets/pull/42',
+							repository_url: 'https://api.github.com/repos/acme/widgets',
+							pull_request: { url: 'https://api.github.com/repos/acme/widgets/pulls/42' }
+						}
+					]
+				});
+			return Response.json({
+				data: {
+					t0: {
+						issueOrPullRequest: {
+							__typename: 'PullRequest',
+							id: 'PR_42',
+							number: 42,
+							title: 'Add the thing',
+							url: 'https://github.com/acme/widgets/pull/42',
+							state: 'MERGED',
+							headRefName: 'geordi/abcdefgh',
+							baseRefName: 'main'
+						}
+					}
+				}
+			});
+		});
+		vi.stubGlobal('fetch', asked);
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const merged = await read(worktree, ref, 1000);
+			expect(merged?.pull?.state).toBe('merged');
+			expect(merged?.refreshAfterMs).toBe(600_000);
+			const calls = asked.mock.calls.length;
+			expect(await read(worktree, ref, 500_000)).toBe(merged);
+			expect(asked).toHaveBeenCalledTimes(calls);
+			// due again, but refused: what was known stands, and nothing more is asked
+			limited = true;
+			expect(await read(worktree, ref, 700_000)).toBe(merged);
+			const refused = asked.mock.calls.length;
+			expect(await read(worktree, { ...ref, fresh: true }, 800_000)).toBe(merged);
+			expect(asked).toHaveBeenCalledTimes(refused);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+			vi.restoreAllMocks();
+		}
+	});
 
 	it('is nothing for repositories without a remote, or on a forge we do not know', async () => {
 		const local = workspace();

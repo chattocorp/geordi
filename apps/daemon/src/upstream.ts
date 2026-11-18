@@ -18,6 +18,7 @@ import {
 } from 'forges';
 import { providersFromEnv } from 'forges/env';
 import { readPull, rollupCounts } from './pull-batch.ts';
+import { createRateLimits } from './rate-limit.ts';
 import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /**
@@ -26,8 +27,14 @@ import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
  * its remotes and the user's credentials are.
  */
 
-/** How long an answer is reused. The forge's API is rate-limited, far more so without a token. */
-const FRESH_MS = 60_000;
+/**
+ * How long an answer is reused, by what it says. The forge's API is rate-limited, far more
+ * so without a token: an open pull request is worth looking at often; one that was merged
+ * or closed hardly changes again (a push or another branch is noticed here, without asking).
+ */
+const OPEN_MS = 20_000;
+const NO_PULL_MS = 60_000;
+const SETTLED_MS = 10 * 60_000;
 /**
  * How fresh an answer has to be for someone who asked to look now: all but this moment's.
  * (Longer, and what an agent did just before its turn ended is missed: it pushes, which has
@@ -63,6 +70,9 @@ function ghToken(): string | null {
 	}
 }
 
+/** Every request to a forge goes through this, so that its rate limits pause our reads. */
+const limits = createRateLimits();
+
 let registry: { forges: Forges; at: number } | undefined;
 /** How long credentials are trusted: signing in to the GitHub CLI should not take a restart to notice. */
 const CREDENTIALS_MS = 10 * 60_000;
@@ -74,11 +84,16 @@ const CREDENTIALS_MS = 10 * 60_000;
  */
 function forges() {
 	if (registry && Date.now() - registry.at < CREDENTIALS_MS) return registry;
-	const providers = providersFromEnv(process.env).flatMap((set) => set.provider ?? []);
+	const providers = providersFromEnv(process.env, { fetch: limits.fetch }).flatMap(
+		(set) => set.provider ?? []
+	);
 
 	if (!providers.some((p) => p.forge === 'github' && p.instance === 'github.com')) {
 		const token = ghToken();
-		const provider = github(token ? { auth: { type: 'token', token } } : {});
+		const provider = github({
+			fetch: limits.fetch,
+			...(token && { auth: { type: 'token', token } as const })
+		});
 		providers.push(provider);
 	}
 	return (registry = { forges: createForges(providers), at: Date.now() });
@@ -381,7 +396,7 @@ export async function upstream(
 	// A cold read establishes the baseline. Only an observed push opens a discovery window.
 	const sameHead = baseline?.pushedSha === pushedSha;
 	const fastUntil = sameHead ? baseline.fastUntil : baseline && pushed ? now + 60_000 : 0;
-	const normal = previous?.refreshAfterMs ?? FRESH_MS;
+	const normal = previous?.refreshAfterMs ?? NO_PULL_MS;
 	const fresh = anonymous ? FRESH_ANONYMOUS_MS : asked ? FRESH_WHEN_ASKED_MS : normal;
 	if (
 		cached &&
@@ -393,50 +408,72 @@ export async function upstream(
 		now - cached.at < fresh
 	)
 		return previous;
-
-	const known = previous?.pull;
-	let pull: Thread | null = null;
-	if (known?.state === 'open' && provider.can('threads.getMany')) {
-		const ref = {
-			forge: repo.forge,
-			instance: repo.instance,
-			repo,
-			kind: 'pull_request' as const,
-			number: known.number
-		};
-		pull = await readPull(provider, ref);
-		// A closed or retargeted PR may have a successor on the same branch.
-		if (pull && (pull.state !== 'open' || !isFor(pull, repo, branch))) pull = null;
+	// Rate limited: what we last knew will do, until the forge lets us ask again.
+	const paused = limits.paused();
+	if (paused) {
+		if (previous) return previous;
+		throw new Error(
+			`${provider.forge} is rate limiting us until ${new Date(paused).toISOString()}`
+		);
 	}
-	pull ??= await findPull(provider, repo, branch);
-	const defaultBranch =
-		!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
-	const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
-	const summary = pull && summarise(pull, checks?.counts, checks?.items);
-	const waiting =
-		summary?.state === 'open' &&
-		(summary.checks?.state === 'pending' || !!summary.checks?.counts?.pending);
-	const refreshAfterMs = anonymous
-		? FRESH_ANONYMOUS_MS
-		: waiting || (now < fastUntil && (!summary || summary.state === 'open'))
-			? CI_REFRESH_MS
-			: undefined;
-	const value: Upstream = {
-		...base,
-		refreshAfterMs,
-		pull: summary,
-		createUrl:
-			(defaultBranch &&
-				provider.urlFor({
-					compare: { repo, base: defaultBranch.replace(/^origin\//, ''), head: branch }
-				})) ||
-			null
-	};
-	// An overlapping refresh (or a merge) may have superseded this read.
-	const latest = cache.get(worktreeId);
-	if (latest === cached || (latest && !latest.invalidated && latest.at < now))
-		cache.set(worktreeId, { key, at: now, includeChecks, value, pushedSha, fastUntil });
-	return value;
+
+	try {
+		return await lookUp();
+	} catch (error) {
+		// refused for asking too much: what we last knew will do
+		if (previous && limits.paused()) return previous;
+		throw error;
+	}
+
+	async function lookUp(): Promise<Upstream> {
+		const known = previous?.pull;
+		let pull: Thread | null = null;
+		if (known?.state === 'open' && provider.can('threads.getMany')) {
+			const ref = {
+				forge: repo.forge,
+				instance: repo.instance,
+				repo,
+				kind: 'pull_request' as const,
+				number: known.number
+			};
+			pull = await readPull(provider, ref);
+			// A closed or retargeted PR may have a successor on the same branch.
+			if (pull && (pull.state !== 'open' || !isFor(pull, repo, branch))) pull = null;
+		}
+		pull ??= await findPull(provider, repo, branch);
+		const defaultBranch =
+			!pull && pushed && git(repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
+		const checks = pull && (await checksFor(provider, repo, pull, includeChecks));
+		const summary = pull && summarise(pull, checks?.counts, checks?.items);
+		const waiting =
+			summary?.state === 'open' &&
+			(summary.checks?.state === 'pending' || !!summary.checks?.counts?.pending);
+		const refreshAfterMs = anonymous
+			? FRESH_ANONYMOUS_MS
+			: waiting || (now < fastUntil && (!summary || summary.state === 'open'))
+				? CI_REFRESH_MS
+				: !summary
+					? NO_PULL_MS
+					: summary.state === 'open'
+						? OPEN_MS
+						: SETTLED_MS;
+		const value: Upstream = {
+			...base,
+			refreshAfterMs,
+			pull: summary,
+			createUrl:
+				(defaultBranch &&
+					provider.urlFor({
+						compare: { repo, base: defaultBranch.replace(/^origin\//, ''), head: branch }
+					})) ||
+				null
+		};
+		// An overlapping refresh (or a merge) may have superseded this read.
+		const latest = cache.get(worktreeId);
+		if (latest === cached || (latest && !latest.invalidated && latest.at < now))
+			cache.set(worktreeId, { key, at: now, includeChecks, value, pushedSha, fastUntil });
+		return value;
+	}
 }
 
 /** Set GitHub's native auto-merge on the pull request selected in the workspace. */

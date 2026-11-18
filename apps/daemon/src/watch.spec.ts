@@ -39,6 +39,25 @@ describe('watching workspaces', () => {
 		watches.stop();
 	});
 
+	it('keeps watching a worktree in the background once nobody has it open', async () => {
+		const { base, ref, seen, watches } = setup();
+		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		watches.set([ref], 'background');
+		watches.set([ref]);
+		watches.set([]);
+		await wait(100); // let the watchers start
+
+		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
+		await wait(600);
+		expect(seen).toEqual([ref.worktreeId]);
+
+		watches.set([], 'background');
+		writeFileSync(join(worktree.path, 'b.txt'), 'two\n');
+		await wait(600);
+		expect(seen).toHaveLength(1);
+		watches.stop();
+	});
+
 	it('reports a burst of file changes once, and commits too', async () => {
 		const { base, ref, git, seen, watches } = setup();
 		const worktree = ensureWorktree(base, ref.repoPath, ref.worktreeId);
