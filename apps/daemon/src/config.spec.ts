@@ -189,7 +189,7 @@ needs = ["db"]
 });
 
 describe('which file applies', () => {
-	function setup(config?: string) {
+	async function setup(config?: string) {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-config-')));
 		const git = (...args: string[]) =>
 			execFileSync('git', ['-C', repoPath, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
@@ -198,25 +198,25 @@ describe('which file applies', () => {
 		git('add', '.');
 		git('commit', '-q', '--allow-empty', '-m', 'init');
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		return { repoPath, git, worktree: ensureWorktree(base, repoPath, 'abcdefgh-1') };
+		return { repoPath, git, worktree: await ensureWorktree(base, repoPath, 'abcdefgh-1') };
 	}
-	const run = (found: ReturnType<typeof settingsOf>) => found.settings?.jobs[0]?.command;
+	const run = (found: Awaited<ReturnType<typeof settingsOf>>) => found.settings?.jobs[0]?.command;
 
-	it("the workspace's own", () => {
-		const { repoPath, worktree } = setup('run = "pnpm dev"');
-		expect(settingsOf(worktree, repoPath)).toMatchObject({
+	it("the workspace's own", async () => {
+		const { repoPath, worktree } = await setup('run = "pnpm dev"');
+		expect(await settingsOf(worktree, repoPath)).toMatchObject({
 			source: 'workspace',
 			problem: null,
 			file: '.geordi.toml'
 		});
 
 		writeFileSync(join(worktree.path, '.geordi.toml'), 'run = "pnpm dev --port 4000"');
-		expect(run(settingsOf(worktree, repoPath))).toBe('pnpm dev --port 4000');
+		expect(run(await settingsOf(worktree, repoPath))).toBe('pnpm dev --port 4000');
 	});
 
-	it('the one on the branch work starts from, where the workspace has none', () => {
-		const { repoPath, git, worktree } = setup();
-		expect(settingsOf(worktree, repoPath)).toEqual({
+	it('the one on the branch work starts from, where the workspace has none', async () => {
+		const { repoPath, git, worktree } = await setup();
+		expect(await settingsOf(worktree, repoPath)).toEqual({
 			settings: null,
 			problem: null,
 			source: null,
@@ -227,15 +227,15 @@ describe('which file applies', () => {
 		writeFileSync(join(repoPath, '.geordi.toml'), 'run = "make serve"');
 		git('add', '.');
 		git('commit', '-qm', 'configure');
-		const found = settingsOf(worktree, repoPath);
+		const found = await settingsOf(worktree, repoPath);
 		expect(found.source).toBe('base');
 		expect(run(found)).toBe('make serve');
 	});
 
-	it("says what is wrong with the workspace's file rather than falling back", () => {
-		const { repoPath, worktree } = setup('run = "pnpm dev"');
+	it("says what is wrong with the workspace's file rather than falling back", async () => {
+		const { repoPath, worktree } = await setup('run = "pnpm dev"');
 		writeFileSync(join(worktree.path, '.geordi.toml'), 'run = [oops');
-		expect(settingsOf(worktree, repoPath)).toEqual({
+		expect(await settingsOf(worktree, repoPath)).toEqual({
 			settings: null,
 			problem: expect.stringMatching(/^\.geordi\.toml: /),
 			source: 'workspace',
@@ -243,15 +243,15 @@ describe('which file applies', () => {
 		});
 
 		rmSync(join(worktree.path, '.geordi.toml'));
-		expect(run(settingsOf(worktree, repoPath))).toBe('pnpm dev');
+		expect(run(await settingsOf(worktree, repoPath))).toBe('pnpm dev');
 	});
 
-	it('the YAML one, where there is one of each', () => {
-		const { repoPath, git, worktree } = setup('run = "from toml"');
-		expect(run(settingsOf(worktree, repoPath))).toBe('from toml');
+	it('the YAML one, where there is one of each', async () => {
+		const { repoPath, git, worktree } = await setup('run = "from toml"');
+		expect(run(await settingsOf(worktree, repoPath))).toBe('from toml');
 
 		writeFileSync(join(worktree.path, '.geordi.yml'), 'run: from yaml');
-		expect(settingsOf(worktree, repoPath)).toMatchObject({
+		expect(await settingsOf(worktree, repoPath)).toMatchObject({
 			source: 'workspace',
 			file: '.geordi.yml',
 			settings: { jobs: [{ command: 'from yaml' }] }
@@ -263,11 +263,14 @@ describe('which file applies', () => {
 		writeFileSync(join(repoPath, '.geordi.yml'), 'run: main yaml');
 		git('add', '.');
 		git('commit', '-qm', 'configure in YAML');
-		expect(settingsOf(worktree, repoPath)).toMatchObject({ source: 'base', file: '.geordi.yml' });
-		expect(run(settingsOf(worktree, repoPath))).toBe('main yaml');
+		expect(await settingsOf(worktree, repoPath)).toMatchObject({
+			source: 'base',
+			file: '.geordi.yml'
+		});
+		expect(run(await settingsOf(worktree, repoPath))).toBe('main yaml');
 
 		writeFileSync(join(worktree.path, '.geordi.yml'), 'run: [oops');
-		expect(settingsOf(worktree, repoPath).problem).toMatch(/^\.geordi\.yml: /);
+		expect((await settingsOf(worktree, repoPath)).problem).toMatch(/^\.geordi\.yml: /);
 	});
 });
 

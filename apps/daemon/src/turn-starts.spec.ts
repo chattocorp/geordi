@@ -5,6 +5,7 @@ import type { Session } from './session.ts';
 
 vi.mock('./worktree.ts', () => ({
 	worktreePath: () => '/worktree',
+	verifyLinks: vi.fn(),
 	hasWorktree: vi.fn(),
 	fetchUpstream: vi.fn(),
 	ensureWorktree: vi.fn()
@@ -14,6 +15,7 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 	'honors Stop during %s and starts the next turn',
 	async (stage) => {
 		const gate = Promise.withResolvers<null>();
+		const entered = Promise.withResolvers<void>();
 		const sessions = new Map<string, Session>();
 		const setups = new Map<string, Promise<string | null>>();
 		const begin = vi.fn();
@@ -27,7 +29,10 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 			emitFor: () => emit,
 			begin,
 			configFor: async () => {
-				if (stage === 'config') await gate.promise;
+				if (stage === 'config') {
+					entered.resolve();
+					await gate.promise;
+				}
 				return { env: {} };
 			}
 		});
@@ -47,13 +52,22 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 				options: { settings: { model: 'old' } },
 				over: () => false,
 				working: () => false,
-				close: vi.fn(),
+				close: entered.resolve,
 				done: gate.promise
 			} as unknown as Session);
-		if (stage === 'setup') setups.set('tree', gate.promise);
+		if (stage === 'setup') {
+			setups.set('tree', gate.promise);
+			vi.spyOn(setups, 'get').mockImplementation(() => {
+				entered.resolve();
+				return gate.promise;
+			});
+		}
 		vi.mocked(hasWorktree).mockReturnValue(stage !== 'fetch');
-		vi.mocked(fetchUpstream).mockReturnValue(gate.promise);
-		vi.mocked(ensureWorktree).mockImplementation(() => ({
+		vi.mocked(fetchUpstream).mockImplementation(() => {
+			entered.resolve();
+			return gate.promise;
+		});
+		vi.mocked(ensureWorktree).mockImplementation(async () => ({
 			path: '/worktree',
 			adminDir: '',
 			commonDir: '',
@@ -69,17 +83,18 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 		};
 		if (stage === 'worktree') {
 			const ensure = vi.mocked(ensureWorktree).getMockImplementation()!;
-			vi.mocked(ensureWorktree).mockImplementationOnce((...args) => {
-				// The socket callback cannot run until synchronous git returns.
-				setImmediate(stop);
+			vi.mocked(ensureWorktree).mockImplementationOnce(async (...args) => {
+				entered.resolve();
+				await gate.promise;
 				return ensure(...args);
 			});
 		}
 		const first = startMessage(message);
-		if (stage !== 'worktree') stop();
+		await entered.promise;
+		stop();
 		sessions.clear();
-		gate.resolve(null);
 		await first;
+		gate.resolve(null);
 		expect(emit.mock.calls).toEqual([[{ kind: 'turn.failed', error: 'Stopped' }]]);
 		expect(begin).not.toHaveBeenCalled();
 		expect(beginning.size).toBe(0);
