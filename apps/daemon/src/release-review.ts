@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { ReleaseIncrease, ReleasePackage, ReleaseReview } from '@geordi/protocol';
 import { git } from './git.ts';
 import { releaseAdapter, type ReleaseAdapter } from './releases.ts';
@@ -99,6 +99,15 @@ export async function reviewRelease(
 	return { token, problem, increases };
 }
 
+/**
+ * Where to find the release tool: the repository's own checkout, whose tool manager (mise)
+ * configuration the person trusts. Never the snapshot (mise refuses a path it was never told
+ * to trust) nor the workspace's worktree (an agent could point the tool at another program).
+ * A bare repository has no checkout: then the snapshot, which fails rather than trusts.
+ */
+const toolsAt = ({ commonDir }: Worktree) =>
+	basename(commonDir) === '.git' ? dirname(commonDir) : null;
+
 async function compareTrees(
 	source: Worktree,
 	adapter: ReleaseAdapter,
@@ -112,9 +121,10 @@ async function compareTrees(
 		const commonDir = join(path, '.git');
 		const snapshot = { path, commonDir, adminDir: commonDir, branch: '' };
 		await gitIn(snapshot, '-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', base);
-		const pending = hadTool ? await adapter.read(snapshot) : [];
+		const tools = toolsAt(source) ?? path;
+		const pending = hadTool ? await adapter.read(snapshot, tools) : [];
 		await gitIn(snapshot, 'read-tree', '--reset', '-u', tree);
-		return releaseIncreases(pending, await adapter.read(snapshot));
+		return releaseIncreases(pending, await adapter.read(snapshot, tools));
 	} finally {
 		await rm(path, { recursive: true, force: true });
 	}
