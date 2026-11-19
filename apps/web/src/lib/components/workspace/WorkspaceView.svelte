@@ -880,6 +880,7 @@
 			{standing}
 			pull={standingState?.upstream?.pull}
 			actions={offered}
+			unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
 			disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 			{pending}
 			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}

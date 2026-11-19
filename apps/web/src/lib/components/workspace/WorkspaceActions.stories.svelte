@@ -38,7 +38,10 @@
 
 {#snippet bar(
 	state: Parameters<typeof actionsFor>[0],
-	activity: Pick<ComponentProps<typeof WorkspaceActions>, 'pending' | 'asking' | 'compact'> = {}
+	activity: Pick<
+		ComponentProps<typeof WorkspaceActions>,
+		'pending' | 'asking' | 'compact' | 'unreachable'
+	> = {}
 )}
 	{@const pull = state.upstream?.pull}
 	<WorkspaceActions
@@ -446,4 +449,20 @@
 		)}
 		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, { compact: true })}
 	</div>
+</Story>
+
+<!-- The forge does not answer: what was last known stays, and a quiet sign says that it may be old. -->
+<Story
+	name="Forge unreachable"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('img', { name: /cannot be reached/ })).toBeVisible();
+		await expect(canvas.getByText('Ready to merge')).toBeVisible();
+	}}
+>
+	{@render bar(
+		{ changes: pushed, upstream: upstream({}) },
+		{ unreachable: 'GitHub did not answer' }
+	)}
 </Story>

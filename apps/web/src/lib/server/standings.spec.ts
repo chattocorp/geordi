@@ -1,196 +1,357 @@
+import type { Changes, Upstream } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
-import { createStandings, type Standing } from './standings.ts';
+import { createStandings, type Local } from './standings.ts';
 
-const standing = (pending = false): Standing => ({
-	changes: { files: [], uncommitted: 0, unpushed: 0 },
-	upstream: pending
-		? ({ pull: { state: 'open', checks: { state: 'pending' } } } as unknown as Standing['upstream'])
-		: null
+/** Lets pending loads settle. */
+const settled = () => new Promise((resolve) => setTimeout(resolve));
+
+const changes = (patch: Partial<Changes> = {}): Changes => ({
+	branch: 'geordi/w',
+	files: [],
+	uncommitted: 0,
+	unpushed: 0,
+	landed: false,
+	...patch
 });
 
-function setup(ids: string[], busy: string[] = []) {
+const upstream = (patch: Partial<Upstream> = {}): Upstream => ({
+	forge: 'github',
+	repo: 'a/b',
+	repoUrl: null,
+	branch: 'geordi/w',
+	localBranch: 'geordi/w',
+	pushed: true,
+	createUrl: null,
+	pull: null,
+	...patch
+});
+
+function setup(ids: string[], { busy = [] as string[], open = [] as string[] } = {}) {
 	const state = {
 		now: 0,
 		asked: [] as string[],
-		pending: false,
-		fails: false,
-		watched: [] as string[][]
+		local: { changes: changes(), unavailable: null, missing: false } as Local,
+		upstream: null as Upstream | null,
+		/** Why the forge cannot be asked, if it cannot. */
+		offline: null as string | null,
+		/** Answers held back until released. */
+		held: [] as (() => void)[],
+		hold: false,
+		watched: [] as string[][],
+		warned: [] as string[],
+		told: [] as string[]
 	};
+	const wait = () =>
+		state.hold ? new Promise<void>((resolve) => state.held.push(resolve)) : Promise.resolve();
 	const standings = createStandings({
 		worktrees: () => ids,
-		load: async (id, fresh) => {
-			state.asked.push(fresh ? `${id}!` : id);
-			if (state.fails) throw new Error('no daemon');
-			return standing(state.pending);
+		loadLocal: async (id) => {
+			state.asked.push(id);
+			const answer = state.local;
+			await wait();
+			return answer;
 		},
-		loadUpstream: async (id) => {
-			state.asked.push(id + ' upstream');
-			if (state.fails) throw new Error('offline');
-			return standing(state.pending).upstream;
+		loadUpstream: async (id, fresh) => {
+			state.asked.push(`${id} upstream${fresh ? '!' : ''}`);
+			const answer = state.upstream && { ...state.upstream, checkedAt: state.now };
+			const offline = state.offline;
+			await wait();
+			if (offline) throw new Error(offline);
+			return answer;
 		},
 		busy: (id) => busy.includes(id),
+		open: (id) => open.includes(id),
 		watch: (ids) => state.watched.push([...ids]),
+		warn: (id, problem) => state.warned.push(`${id}: ${problem}`),
 		now: () => state.now
 	});
-	return { standings, state };
+	standings.subscribe((id) => state.told.push(id));
+	const release = async () => {
+		for (const resolve of state.held.splice(0)) resolve();
+		await settled();
+	};
+	return { standings, state, release };
 }
 
 describe('standings', () => {
-	it('paces initial discovery and tells listeners after each result', async () => {
+	it('looks at everything at first: local Git a few at a time, upstream all at once', async () => {
 		const { standings, state } = setup(['a', 'b', 'c', 'd']);
-		let told = 0;
-		standings.subscribe(() => told++);
 		expect(standings.get('a')).toBeNull();
 
 		await standings.tick();
-		expect(state.asked).toEqual(['a', 'b', 'c']);
-		state.now = 9_999;
+		expect(state.asked).toEqual([
+			'a',
+			'b',
+			'c',
+			'a upstream',
+			'b upstream',
+			'c upstream',
+			'd upstream'
+		]);
+		expect(standings.state('d')).toMatchObject({ changes: null, checking: true });
 		await standings.tick();
-		expect(state.asked).toHaveLength(3);
-		state.now++;
+		expect(state.asked.slice(7)).toEqual(['d']);
+		expect(standings.get('a')).toEqual({ changes: changes(), upstream: null });
+		expect(standings.state('d')).toMatchObject({ version: 1, checking: false });
+		expect(new Set(state.told)).toEqual(new Set(['a', 'b', 'c', 'd']));
 		await standings.tick();
-		expect(state.asked).toEqual(['a', 'b', 'c', 'd']);
-		expect(standings.get('a')).toEqual(standing());
-		expect(told).toBe(4);
-		await standings.tick();
-		expect(state.asked).toHaveLength(4); // all known, and fresh
-
-		// grown old together: upstream for all of them, local Git a few at a time
-		state.now = 10 * 60_000;
-		await standings.tick();
-		expect(state.asked.slice(4)).toEqual(['a upstream', 'b upstream', 'c upstream', 'd upstream']);
-		await standings.tick();
-		expect(state.asked.slice(8)).toEqual(['a', 'b', 'c']);
+		expect(state.asked).toHaveLength(8); // all known, and fresh
 	});
 
-	it('asks again at once about what nobody could say anything of', async () => {
+	it('shows local changes whatever the forge does, and says when it cannot be asked', async () => {
 		const { standings, state } = setup(['a']);
-		state.fails = true;
-		await standings.tick(); // no daemon yet
-		state.fails = false;
-		await standings.tick(); // wait before retrying missing worktrees
-		expect(state.asked).toHaveLength(1);
-		await standings.tick(true); // one connected
-		expect(standings.get('a')).toEqual(standing());
+		state.upstream = upstream({ refreshAfterMs: 10_000 });
+		await standings.tick();
+		const known = standings.get('a')?.upstream;
+		expect(known).toMatchObject({ pushed: true });
+
+		state.offline = 'GitHub is down';
+		state.local = { ...state.local, changes: changes({ uncommitted: 2 }) };
+		standings.changed('a');
+		state.now = 10_000;
+		await standings.tick();
+		// once may be a hiccup
+		expect(standings.state('a')).toMatchObject({
+			changes: { uncommitted: 2 },
+			upstream: known,
+			upstreamProblem: null
+		});
+		state.now = 20_000;
+		await standings.tick();
+		expect(standings.state('a')).toMatchObject({
+			upstream: known,
+			upstreamProblem: 'GitHub is down'
+		});
+		state.now = 30_000;
+		await standings.tick();
+		expect(state.warned).toEqual(['a: GitHub is down']);
+
+		state.offline = null;
+		state.now = 40_000;
+		await standings.tick();
+		expect(standings.state('a')).toMatchObject({ upstream: known, upstreamProblem: null });
 	});
 
-	it('asks again when what it knows is old: sooner while checks run', async () => {
+	it('is not left checking by a forge that never answers, and asks again soon', async () => {
 		const { standings, state } = setup(['a']);
+		state.offline = 'offline';
 		await standings.tick();
-		state.now = 50_000;
-		await standings.tick();
-		expect(state.asked).toHaveLength(1);
-		state.now = 2 * 60_000;
-		state.pending = true;
+		expect(standings.state('a')).toMatchObject({ checking: false, upstream: null });
+		state.now = 19_999;
 		await standings.tick();
 		expect(state.asked).toHaveLength(2);
-		state.now += 20_000;
+		state.now++;
 		await standings.tick();
-		expect(state.asked).toEqual(['a', 'a upstream', 'a upstream']);
+		expect(state.asked.slice(2)).toEqual(['a upstream']);
 	});
 
-	it('refreshes a batch of running checks without running local Git for each one', async () => {
-		const ids = Array.from({ length: 21 }, (_, index) => String(index));
-		const { standings, state } = setup(ids);
-		for (const id of ids) standings.note(id, standing(true));
-
-		state.now = 20_000;
-		state.pending = true;
+	it('keeps what it knew locally when nobody can say, and asks again soon', async () => {
+		const { standings, state } = setup(['a']);
+		state.local = { changes: null, unavailable: 'No daemon connected', missing: false };
 		await standings.tick();
-		expect(state.asked).toEqual(ids.slice(0, 20).map((id) => id + ' upstream'));
-
-		// The next tick serves the outstanding workspace first, even as the others come due.
-		state.asked.length = 0;
-		state.now += 20_000;
-		await standings.tick();
-		expect(state.asked[0]).toBe('20 upstream');
-	});
-
-	it('keeps a slow CI batch within its budget across overlapping ticks', async () => {
-		const ids = Array.from({ length: 21 }, (_, index) => String(index));
-		let now = 0;
-		const reads: string[] = [];
-		const slow = Promise.withResolvers<null>();
-		const standings = createStandings({
-			worktrees: () => ids,
-			now: () => now,
-			load: async () => standing(),
-			loadUpstream: (id) => {
-				reads.push(id);
-				return slow.promise;
-			}
+		expect(standings.state('a')).toMatchObject({
+			changes: null,
+			unavailable: 'No daemon connected'
 		});
-		for (const id of ids) standings.note(id, standing(true));
-		now = 10_000;
-		const first = standings.tick();
-		now += 12_000;
+		state.now = 5000;
+		// a daemon is there: at once
+		state.local = { changes: changes({ uncommitted: 1 }), unavailable: null, missing: false };
+		await standings.tick(true);
+		expect(standings.get('a')?.changes?.uncommitted).toBe(1);
+
+		state.local = { changes: null, unavailable: 'No daemon connected', missing: false };
+		state.now = 70_000;
 		await standings.tick();
-		expect(reads).toEqual(ids.slice(0, 20));
-		slow.resolve(null);
-		await first;
-		await standings.tick();
-		expect(reads).toEqual(ids);
+		expect(standings.state('a')).toMatchObject({ changes: { uncommitted: 1 }, version: 2 });
 	});
 
-	it('takes what a viewer learnt, and keeps what it knew when nobody can say', async () => {
+	it('asks nothing upstream about a worktree that is not there', async () => {
 		const { standings, state } = setup(['a']);
-		standings.note('a', standing(true));
-		await standings.tick();
-		expect(state.asked).toEqual([]); // just told
-
-		state.now = 10 * 60_000;
-		state.fails = true;
-		await standings.tick();
-		expect(standings.get('a')).toEqual(standing(true));
+		state.local = { changes: null, unavailable: 'gone', missing: true };
 		await standings.tick();
 		await standings.tick();
-		expect(state.asked).toEqual(['a upstream', 'a']); // not asked over and over
+		expect(state.asked).toEqual(['a', 'a upstream']);
+		state.now = 30_000;
+		await standings.tick();
+		expect(state.asked).toHaveLength(2);
+		expect(standings.state('a')).toMatchObject({ missing: true, checking: false });
+		// made: the forge is asked at once
+		state.local = { changes: changes(), unavailable: null, missing: false };
+		standings.changed('a');
+		await settled();
+		expect(state.asked.slice(2)).toEqual(['a', 'a upstream']);
 	});
 
-	it('asks as of now when something just happened there', async () => {
+	it('asks upstream again when what it knows is old: as soon as the daemon says', async () => {
 		const { standings, state } = setup(['a']);
 		await standings.tick();
-		await standings.refresh('a', true); // an agent's turn ended
-		expect(state.asked).toEqual(['a', 'a!']);
+		state.now = 2 * 60_000 - 1;
+		await standings.tick();
+		expect(state.asked.filter((asked) => asked.endsWith('upstream'))).toHaveLength(1);
+		state.upstream = upstream({ refreshAfterMs: 10_000 });
+		state.now++;
+		await standings.tick();
+		state.now += 9_999;
+		await standings.tick();
+		expect(state.asked.filter((asked) => asked.endsWith('upstream'))).toHaveLength(2);
+		state.now++;
+		await standings.tick();
+		expect(state.asked.filter((asked) => asked.endsWith('upstream'))).toHaveLength(3);
+	});
+
+	it('keeps a slow batch of looks upstream within its budget across overlapping ticks', async () => {
+		const ids = Array.from({ length: 25 }, (_, index) => `w${index}`);
+		const { standings, state, release } = setup(ids);
+		state.upstream = upstream({ refreshAfterMs: 10_000 });
+		for (let round = 0; round < 12; round++) await standings.tick();
+		const asked = () => state.asked.filter((entry) => entry.endsWith('upstream')).length;
+		expect(asked()).toBe(25);
+
+		state.now = 10_000;
+		state.hold = true;
+		void standings.tick();
+		void standings.tick();
+		await settled();
+		expect(asked()).toBe(45);
+		await release();
+		state.now = 19_999;
+		void standings.tick();
+		await settled();
+		expect(asked()).toBe(45);
+		state.now = 20_000;
+		void standings.tick();
+		await settled();
+		expect(asked()).toBe(65);
+		await release();
+	});
+
+	it('looks upstream less often where an agent is at work, unless someone has it open', async () => {
+		const { standings, state } = setup(['a', 'b'], { busy: ['a', 'b'], open: ['b'] });
+		state.upstream = upstream({ refreshAfterMs: 10_000 });
+		await standings.tick();
+		state.now = 10_000;
+		await standings.tick();
+		expect(state.asked.filter((asked) => asked.endsWith('upstream'))).toEqual([
+			'a upstream',
+			'b upstream',
+			'b upstream'
+		]);
+		state.now = 30_000;
+		await standings.tick();
+		expect(state.asked.filter((asked) => asked === 'a upstream')).toHaveLength(2);
 	});
 
 	it('looks at once at a worktree that changed, and every 15s at one with an agent at work', async () => {
-		const { standings, state } = setup(['idle', 'busy'], ['busy']);
+		const { standings, state } = setup(['a', 'b', 'c'], { busy: ['b', 'c'], open: ['c'] });
 		await standings.tick();
-		state.asked.length = 0;
+		const local = () => state.asked.slice(6).filter((asked) => !asked.endsWith('upstream'));
 
-		state.now = 1_000;
-		standings.changed('idle');
-		standings.changed('busy');
-		await Promise.resolve();
-		expect(state.asked).toEqual(['idle']);
-
-		state.now = 15_000;
+		standings.changed('a');
+		standings.changed('b');
+		// someone is looking: at once, whoever is at work
+		standings.changed('c');
+		await settled();
+		expect(local()).toEqual(['a', 'c']);
+		state.now = 14_999;
 		await standings.tick();
-		expect(state.asked).toEqual(['idle', 'busy']);
+		expect(local()).toEqual(['a', 'c']);
+		state.now++;
 		await standings.tick();
-		expect(state.asked).toHaveLength(2); // looked at, and nothing changed since
-
-		// its files change without the daemon saying so
-		state.now = 30_000;
+		expect(local()).toEqual(['a', 'c', 'b']);
+		// what a daemon missed shows a minute later
+		state.now = 60_000;
 		await standings.tick();
-		expect(state.asked).toEqual(['idle', 'busy', 'busy']);
-		state.now = 61_000;
-		await standings.tick();
-		expect(state.asked).toEqual(['idle', 'busy', 'busy', 'idle', 'busy']);
+		expect(local()).toEqual(['a', 'c', 'b', 'a', 'c', 'b']);
 	});
 
-	it('looks upstream less often where an agent is at work', async () => {
-		const { standings, state } = setup(['idle', 'busy'], ['busy']);
-		standings.note('idle', standing(true));
-		standings.note('busy', standing(true));
-		state.pending = true;
+	it('follows a look in flight with another when the worktree changes meanwhile', async () => {
+		const { standings, state, release } = setup(['a'], { open: ['a'] });
+		await standings.tick();
+		state.hold = true;
+		standings.changed('a');
+		standings.changed('a');
+		standings.changed('a');
+		await settled();
+		expect(state.asked.slice(2)).toEqual(['a']);
+		state.hold = false;
+		await release();
+		expect(state.asked.slice(2)).toEqual(['a', 'a']);
+		expect(standings.state('a')?.version).toBe(3);
+	});
+
+	it('asks upstream at once after a push, and as of now on another branch', async () => {
+		const { standings, state, release } = setup(['a'], { open: ['a'] });
+		state.local = { ...state.local, changes: changes({ unpushed: 1 }) };
+		state.upstream = upstream();
+		await standings.tick();
+		expect(standings.get('a')?.upstream).toMatchObject({ localBranch: 'geordi/w' });
+
+		state.local = { ...state.local, changes: changes({ unpushed: 0 }) };
+		standings.changed('a');
+		await settled();
+		expect(state.asked.slice(2)).toEqual(['a', 'a upstream']);
+
+		// on another branch: what is known is not about it
+		state.local = { ...state.local, changes: changes({ branch: 'other' }) };
+		state.hold = true;
+		standings.changed('a');
+		await settled();
+		state.upstream = upstream({ localBranch: 'other', branch: 'other' });
+		await release();
+		expect(standings.state('a')).toMatchObject({ upstream: null, checking: true });
+		expect(state.asked.slice(4)).toEqual(['a', 'a upstream!']);
+		state.hold = false;
+		await release();
+		expect(standings.state('a')).toMatchObject({ upstream: { branch: 'other' }, checking: false });
+	});
+
+	it('looks as of now when something may have happened upstream, and says so meanwhile', async () => {
+		const { standings, state, release } = setup(['a']);
+		state.upstream = upstream({ refreshAfterMs: 10_000 });
+		await standings.tick();
+		const before = standings.get('a')?.upstream;
+
+		// an ordinary look is under way when the turn ends: its answer no longer counts
+		state.hold = true;
+		state.now = 10_000;
+		void standings.tick();
+		await settled();
+		const stale = state.held.splice(0);
+		state.upstream = upstream({
+			refreshAfterMs: 10_000,
+			pull: { number: '7' } as Upstream['pull']
+		});
+		const looked = standings.look('a', { fresh: true, announce: true });
+		await settled();
+		expect(standings.state('a')).toMatchObject({ checking: true, upstream: before });
+		expect(state.asked.at(-1)).toBe('a upstream!');
+		state.hold = false;
+		await release();
+		await looked;
+		expect(standings.state('a')).toMatchObject({
+			checking: false,
+			upstream: { pull: { number: '7' } }
+		});
+		for (const resolve of stale) resolve();
+		await settled();
+		expect(standings.get('a')?.upstream?.pull?.number).toBe('7');
+	});
+
+	it('tells nobody of an answer that says nothing new', async () => {
+		const { standings, state } = setup(['a']);
+		state.upstream = upstream({ refreshAfterMs: 10_000 });
+		await standings.tick();
+		const known = standings.get('a')?.upstream;
+		state.told = [];
 		state.now = 10_000;
 		await standings.tick();
-		expect(state.asked).toEqual(['idle upstream']);
-		state.now = 30_000;
+		expect(state.asked.at(-1)).toBe('a upstream');
+		expect(state.told).toEqual([]);
+		expect(standings.get('a')?.upstream).toBe(known);
+		// still due again a whole interval later, not at once
+		state.now = 19_999;
 		await standings.tick();
-		expect(state.asked).toEqual(['idle upstream', 'idle upstream', 'busy upstream']);
+		expect(state.asked.filter((asked) => asked.endsWith('upstream'))).toHaveLength(2);
 	});
 
 	it('has the worktrees in use watched, again when they change or a daemon reconnects', async () => {
@@ -198,18 +359,24 @@ describe('standings', () => {
 		const { standings, state } = setup(ids);
 		await standings.tick();
 		await standings.tick();
-		ids.pop();
+		expect(state.watched).toEqual([['a', 'b']]);
+		ids.push('c');
 		await standings.tick();
 		await standings.tick(true);
-		expect(state.watched).toEqual([['a', 'b'], ['a'], ['a']]);
+		expect(state.watched).toEqual([
+			['a', 'b'],
+			['a', 'b', 'c'],
+			['a', 'b', 'c']
+		]);
 	});
 
 	it('forgets worktrees that are no longer in use', async () => {
-		const ids = ['a'];
+		const ids = ['a', 'b'];
 		const { standings } = setup(ids);
 		await standings.tick();
-		ids.length = 0;
+		ids.pop();
 		await standings.tick();
-		expect(standings.get('a')).toBeNull();
+		expect(standings.get('a')).not.toBeNull();
+		expect(standings.get('b')).toBeNull();
 	});
 });
