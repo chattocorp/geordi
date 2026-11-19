@@ -70,3 +70,18 @@ test('the conversation, changed files, and diff are readable without JavaScript'
 	const diff = demo.getByRole('tabpanel', { name: '+page.server.ts' });
 	await expect(diff.getByText("redirect(303, safePath(to) ?? '/');")).toBeVisible();
 });
+
+test('a link to the site is shown with a picture', async (t) => {
+	const page = await browser.newPage();
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/`);
+	const meta = (property) => page.locator(`meta[property="og:${property}"]`);
+	await expect(meta('url')).toHaveAttribute('content', 'https://geordi.run/');
+	await expect(meta('image:width')).toHaveAttribute('content', '2400');
+	await expect(meta('image:height')).toHaveAttribute('content', '1260');
+	// The address is the public one; the file is asked of the server under test.
+	const image = new URL(await meta('image').getAttribute('content'));
+	expect(image.origin).toBe('https://geordi.run');
+	const response = await page.request.get(`http://127.0.0.1:${server.port}${image.pathname}`);
+	expect(response.headers()['content-type']).toBe('image/png');
+});
