@@ -77,3 +77,22 @@
 		/>
 	</div>
 </Story>
+
+<Story name="No changes yet" asChild>
+	<div class="flex h-96 w-80 flex-col">
+		<Changes
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: []
+				}
+			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
