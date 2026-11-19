@@ -771,7 +771,8 @@ describe('workspaces', () => {
 	});
 
 	it('records a first prompt before dispatch and retries the same delivery after restart', () => {
-		const { store, repos, create } = setup();
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-prompts-')), 'events.db');
+		const { store, repos, create } = setup({ database });
 		const id = create('');
 		const verify = vi.fn((command: ForgeMessage) => {
 			if (command.type !== 'agent.message') throw new Error('Expected a prompt');
@@ -782,12 +783,50 @@ describe('workspaces', () => {
 			return false;
 		});
 		createWorkspaces(store, repos, verify, { secret: 'test' }).send(id, 'One');
-		const restarted = createWorkspaces(store, repos, verify, { secret: 'test' });
+		store.close();
+		const reopened = new EventStore<GeordiEvent>(database);
+		const retry = vi.fn(() => true);
+		const restarted = createWorkspaces(reopened, createRepos(reopened), retry, { secret: 'test' });
 		restarted.reconcile([]);
-		expect(verify.mock.calls[1]).toEqual(verify.mock.calls[0]);
+		expect(retry).toHaveBeenCalledExactlyOnceWith(verify.mock.calls[0][0]);
 		acknowledgePrompt(restarted, verify.mock.calls[0][0]);
 		restarted.reconcile([id]);
-		expect(verify).toHaveBeenCalledTimes(2);
+		expect(retry).toHaveBeenCalledTimes(1);
+		reopened.close();
+	});
+
+	it('keeps a prompt local if the event store cannot record it', () => {
+		const { store, workspaces, create, sent } = setup();
+		const id = create('');
+		vi.spyOn(store, 'append').mockImplementationOnce(() => {
+			throw new Error('Disk full');
+		});
+		expect(() => workspaces.send(id, 'Run the job')).toThrow('Disk full');
+		expect(sent).toEqual([]);
+	});
+
+	it('resumes a queue if the forge stopped after recording completion', () => {
+		const { store, repos, create, workspaces, sent, dispatch } = setup();
+		const id = create('One');
+		acknowledgePrompt(workspaces, sent.at(-1));
+		workspaces.send(id, 'Two');
+		store.append({
+			type: 'workspace.output',
+			stream: `workspace:${id}`,
+			data: { id, event: { kind: 'turn.completed' } }
+		});
+		const restored = createWorkspaces(store, repos, dispatch);
+		restored.reconcile([]);
+		const next = sent.at(-1);
+		expect(next).toMatchObject({
+			type: 'agent.message',
+			prompt: 'Two',
+			deliveryId: expect.any(String)
+		});
+		expect(restored.get(id).queue).toEqual([]);
+		acknowledgePrompt(restored, next);
+		restored.reconcile([id]);
+		expect(sent).toHaveLength(2);
 	});
 
 	it('fails turns a reconnecting daemon no longer knows about', () => {

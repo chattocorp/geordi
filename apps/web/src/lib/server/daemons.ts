@@ -188,7 +188,8 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		socket.on('close', () => {
 			clearTimeout(timeout);
 			const daemonId = daemons.get(socket);
-			if (daemonId) console.log(`[daemons] ${daemonId} disconnected`);
+			if (!daemonId) return;
+			console.log(`[daemons] ${daemonId} disconnected`);
 			for (const [id, entry] of background) if (entry.socket === socket) setTasks(socket, id, []);
 			daemons.delete(socket);
 			offers.delete(socket);

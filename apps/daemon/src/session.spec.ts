@@ -145,11 +145,13 @@ function begin(
 	{
 		env = {},
 		launch = meta(env),
+		deliveryId,
 		dir = join(root(), 'w'),
 		ready = () => true,
 		idle = ''
 	}: {
 		launch?: Meta;
+		deliveryId?: string;
 		env?: Record<string, string>;
 		dir?: string;
 		ready?: () => boolean;
@@ -161,7 +163,7 @@ function begin(
 	if (idle) process.env.GEORDI_SESSION_IDLE_MS = idle;
 	const session = startSession(
 		launch,
-		{ prompt },
+		{ prompt, deliveryId },
 		(event) => events.push(event),
 		dir,
 		ready,
@@ -529,7 +531,7 @@ describe('with nobody to report to', () => {
 describe('a daemon restart', () => {
 	it('leaves the agent working, and the next daemon carries on where the last one left off', async () => {
 		const sessions = root();
-		const first = begin('slow', { dir: join(sessions, 'w') });
+		const first = begin('slow', { dir: join(sessions, 'w'), deliveryId: 'first' });
 		await until(() => first.kinds().includes('resume'));
 		first.session.detach(); // the daemon goes away
 
@@ -538,6 +540,7 @@ describe('a daemon restart', () => {
 		started.push(session);
 		expect(session.working()).toBe(true); // it knows a turn is under way
 		expect(session.resumeId()).toBe('cli-1');
+		session.say({ prompt: 'slow', deliveryId: 'first' }); // retry after a lost receipt
 		session.say({ prompt: 'still there?' });
 		await until(() => events.some((event) => event.kind === 'turn.completed'));
 		// nothing is said twice

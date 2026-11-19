@@ -23,7 +23,7 @@ export function privateDirectory(dir: string): boolean {
 		`$sid = [System.Security.Principal.SecurityIdentifier]
 		$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 		$trusted = @($user, 'S-1-5-18', 'S-1-5-32-544')
-		$acl = Get-Acl -LiteralPath $env:GEORDI_ACL_PATH
+		$acl = [System.IO.Directory]::GetAccessControl($env:GEORDI_ACL_PATH)
 		if ($acl.GetOwner($sid).Value -notin $trusted) { return 'unsafe' }
 		$rules = $acl.GetAccessRules($true, $true, $sid)
 		if (!$rules.Count) { return 'unsafe' }
@@ -44,7 +44,10 @@ export function privateDirectory(dir: string): boolean {
 export function startedAt(pid: number): string | null {
 	if (!Number.isSafeInteger(pid) || pid <= 1) return null;
 	try {
-		if (windows) return powershell(`(Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`);
+		if (windows)
+			return powershell(
+				`[System.Diagnostics.Process]::GetProcessById(${pid}).StartTime.ToUniversalTime().Ticks`
+			);
 		return (
 			execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], {
 				encoding: 'utf8',
