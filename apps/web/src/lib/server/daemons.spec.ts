@@ -12,7 +12,8 @@ it('only reconciles the first authenticated daemon until it disconnects', async 
 		admit: () => true,
 		onHello,
 		onMessage: vi.fn(),
-		onUsage: vi.fn()
+		onUsage: vi.fn(),
+		onLimits: vi.fn()
 	});
 	async function connect(id: string, autoPong = true) {
 		const socket = new WebSocket(`ws://127.0.0.1:${hub.port()}`, { autoPong });

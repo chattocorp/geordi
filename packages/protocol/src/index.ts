@@ -625,6 +625,21 @@ export type ContextUsage = {
 	cost?: { amount: number; currency: string };
 };
 
+/**
+ * One of the usage limits of the subscription an agent runs on (a five-hour window, a
+ * week), as its provider last said. Live data: account-wide, never stored.
+ */
+export type UsageLimit = {
+	/** Which window it is, for people: `5h`, `Week`, `Week (Opus)`. */
+	name: string;
+	/** How much of it is used, 0 to 100, where the provider says. */
+	usedPercent?: number;
+	/** When it starts over (milliseconds since the epoch), where the provider says. */
+	resetsAt?: number;
+	/** `limited` once used up, `warning` when close to it. */
+	status: 'ok' | 'warning' | 'limited';
+};
+
 export type BackgroundTask = {
 	/** Identifies this live task for as long as its host can stop it. */
 	stopId?: string;
@@ -662,6 +677,8 @@ export type AgentLive = {
 	usage?: ContextUsage;
 	/** Its own commands, all of them, whenever they change. */
 	commands?: AgentCommand[];
+	/** The usage limits of the subscription it runs on, all of them, as it last said. */
+	limits?: UsageLimit[];
 	/** What it suggests the person say next, now that its turn is over; `null` once withdrawn. */
 	suggestion?: string | null;
 };
