@@ -145,7 +145,7 @@
 				class="ml-auto"
 				disabled={!chosen}
 			>
-				Start workspace
+				{prompt.value()?.trim() ? 'Get to work' : 'Start workspace'}
 			</Button>
 		{/if}
 	{/snippet}
