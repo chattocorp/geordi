@@ -178,10 +178,17 @@ function open() {
 		minWidth: 840, // the sidebar, a conversation and the changes beside it, each at its least
 		minHeight: 480,
 		title: runtime.directory ? 'Geordi Dev' : 'Geordi',
-		// No title bar: the window's buttons sit in the sidebar's top row, which the web app
+		// No title bar: the window's buttons sit in the page's top row, which the web app
 		// makes room for (and makes draggable) where `data-desktop` is set; see `app.html`.
-		titleBarStyle: 'hiddenInset',
-		trafficLightPosition: { x: 14, y: 21 },
+		// On macOS they are on the left, in the sidebar's row; elsewhere they are drawn over
+		// the page's top right, in the page's colours (`geordi:title-bar`).
+		...(process.platform === 'darwin'
+			? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 21 } }
+			: {
+					titleBarStyle: 'hidden',
+					titleBarOverlay: { color: '#17191f', symbolColor: '#a0a3b4', height: 56 },
+					autoHideMenuBar: true
+				}),
 		backgroundColor: '#2c2f3b',
 		webPreferences: { preload: join(import.meta.dirname, 'preload.cjs') }
 	});
@@ -321,6 +328,14 @@ else {
 	ipcMain.on('geordi:badge', (_event, count) =>
 		app.setBadgeCount(Number.isInteger(count) && count > 0 ? count : 0)
 	);
+
+	// The colours of the window's own buttons, where they are drawn over the page (not macOS).
+	ipcMain.on('geordi:title-bar', (event, { color, symbolColor } = {}) => {
+		const window = BrowserWindow.fromWebContents(event.sender);
+		const colour = (value) => typeof value === 'string' && /^#[0-9a-f]{3,8}$/i.test(value);
+		if (process.platform === 'darwin' || !window || !colour(color) || !colour(symbolColor)) return;
+		window.setTitleBarOverlay({ color, symbolColor });
+	});
 
 	// The web app's notifications, as the app's own. Their sound is a file in the app that
 	// the system plays with them: the app plays no sound itself, which on macOS would have

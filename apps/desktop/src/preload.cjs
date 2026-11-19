@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('geordiDesktop', {
 	dismiss: (id) => ipcRenderer.send('geordi:dismiss', id),
 	/** Calls back with the ID of a notification that was clicked. */
 	onOpen: (opened) => ipcRenderer.on('geordi:open', (_event, id) => opened(id)),
+	/** The colours of the window's own buttons, where they are drawn over the page. */
+	titleBar: (colours) => ipcRenderer.send('geordi:title-bar', colours),
 	updates: {
 		subscribe(callback) {
 			const receive = (_event, state) => callback(state);

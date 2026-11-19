@@ -94,6 +94,8 @@ if (install || process.argv.includes('--package')) {
 		dir: stage,
 		out: join(root, 'dist'),
 		name: 'Geordi',
+		// the command people type on Linux, as its packages install it
+		...(process.platform === 'linux' ? { executableName: 'geordi' } : {}),
 		appBundleId: 'com.github.chattocorp.geordi',
 		icon: process.platform === 'darwin' ? join(root, 'icon.icns') : undefined,
 		electronVersion: JSON.parse(readFileSync(electron, 'utf8')).version,
