@@ -1,3 +1,4 @@
+import type { DaemonEvent } from '../daemons.ts';
 import type { AccessEvent } from '../agent-access.ts';
 import type { ImageEvent } from '../images.ts';
 import { mkdirSync } from 'node:fs';
@@ -12,7 +13,8 @@ import { EventStore } from './store.ts';
 export { EventStore, type EventInput, type StoredEvent } from './store.ts';
 
 /** Every event Geordi knows about. Add each domain's event union here. */
-export type GeordiEvent = RepoEvent | WorkspacesEvent | LegacyEvent | ImageEvent | AccessEvent;
+export type GeordiEvent =
+	DaemonEvent | RepoEvent | WorkspacesEvent | LegacyEvent | ImageEvent | AccessEvent;
 
 /** The application's event store. Created lazily so builds don't touch the data directory. */
 export const store = lazy(() => {

@@ -1,8 +1,13 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { HostEvent, Meta } from './host.ts';
+import { signalTree } from './session-process.ts';
 import { resumeSessions, startSession, type Session } from './session.ts';
 
 /** A small ACP peer for the detached host's restart and delivery tests. */
@@ -12,6 +17,7 @@ writeFileSync(
 	fixture,
 	`
 const out = (msg) => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
+if (process.env.PID_FILE) require('node:fs').writeFileSync(process.env.PID_FILE, String(process.pid));
 const id = 'cli-1';
 const update = (u) => out({method:'session/update',params:{sessionId:id,update:u}});
 const state = (state, extra) => update({sessionUpdate:'state_update',state,...extra});
@@ -117,7 +123,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
 `
 );
 
-const root = () => mkdtempSync(join(tmpdir(), 'geordi-sessions-'));
+const root = () =>
+	mkdtempSync(join(process.platform === 'win32' ? homedir() : tmpdir(), 'geordi-sessions-'));
 const meta = (env: Record<string, string> = {}): Meta => ({
 	agent: 'claude',
 	options: {
@@ -132,6 +139,15 @@ const meta = (env: Record<string, string> = {}): Meta => ({
 		env: { CLAUDE_CODE_EXECUTABLE: 'claude', CODEX_PATH: 'codex', ...env }
 	}
 });
+
+const alive = (pid: number) => {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(what: () => boolean, ms = 8000) {
@@ -150,11 +166,13 @@ function begin(
 	{
 		env = {},
 		launch = meta(env),
+		deliveryId,
 		dir = join(root(), 'w'),
 		ready = () => true,
 		idle = ''
 	}: {
 		launch?: Meta;
+		deliveryId?: string;
 		env?: Record<string, string>;
 		dir?: string;
 		ready?: () => boolean;
@@ -166,7 +184,7 @@ function begin(
 	if (idle) process.env.GEORDI_SESSION_IDLE_MS = idle;
 	const session = startSession(
 		launch,
-		{ prompt },
+		{ prompt, deliveryId },
 		(event) => events.push(event),
 		dir,
 		ready,
@@ -528,12 +546,17 @@ describe('a session that goes wrong', () => {
 	});
 
 	it('ends for good when killed, and says the turn was stopped', async () => {
-		const { session, events, kinds, dir } = begin('slow');
+		const pidFile = join(root(), 'cli.pid');
+		const { session, events, kinds, dir } = begin('slow', { env: { PID_FILE: pidFile } });
 		await until(() => kinds().includes('resume'));
-		session.kill();
+		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
+		const cli = Number(readFileSync(pidFile, 'utf8'));
+		session.kill(); // on Windows, forced: the host notes nothing of it
 		await session.done;
 		expect(events.at(-1)).toEqual({ kind: 'turn.failed', error: 'Stopped' });
 		expect(existsSync(dir)).toBe(false);
+		// the host, and what it started
+		await until(() => !alive(host) && !alive(cli));
 	});
 });
 
@@ -552,7 +575,7 @@ describe('with nobody to report to', () => {
 describe('a daemon restart', () => {
 	it('leaves the agent working, and the next daemon carries on where the last one left off', async () => {
 		const sessions = root();
-		const first = begin('slow', { dir: join(sessions, 'w') });
+		const first = begin('slow', { dir: join(sessions, 'w'), deliveryId: 'first' });
 		await until(() => first.kinds().includes('resume'));
 		first.session.detach(); // the daemon goes away
 
@@ -561,6 +584,7 @@ describe('a daemon restart', () => {
 		started.push(session);
 		expect(session.working()).toBe(true); // it knows a turn is under way
 		expect(session.resumeId()).toBe('cli-1');
+		session.say({ prompt: 'slow', deliveryId: 'first' }); // retry after a lost receipt
 		session.say({ prompt: 'still there?' });
 		await until(() => events.some((event) => event.kind === 'turn.completed'));
 		// nothing is said twice
@@ -568,6 +592,15 @@ describe('a daemon restart', () => {
 			{ kind: 'text', text: 'Steered: still there?' },
 			{ kind: 'turn.completed' }
 		]);
+	});
+
+	it('leaves the files kept beside the sessions alone', () => {
+		const sessions = root();
+		for (const name of ['.daemon.sqlite', '.daemon.sqlite-journal', 'stray'])
+			writeFileSync(join(sessions, name), 'kept');
+		expect(resumeSessions(sessions, () => () => true).size).toBe(0);
+		for (const name of ['.daemon.sqlite', '.daemon.sqlite-journal', 'stray'])
+			expect(readFileSync(join(sessions, name), 'utf8')).toBe('kept');
 	});
 
 	it("reports how full the root session's context is, and still knows after a daemon restart", async () => {
@@ -669,6 +702,76 @@ describe('a daemon restart', () => {
 		acknowledged = true;
 		await session.done;
 		expect(events).toEqual([{ kind: 'turn.failed', error: 'Stopped' }]);
-		process.kill(-real.pid, 'SIGKILL'); // the real one, which nobody follows any more
+		signalTree(real.pid, 'SIGKILL'); // the real one, which nobody follows any more
+	});
+});
+
+describe('a launched daemon', () => {
+	// The app and the command start the daemon as a child of theirs (on Windows, in a job
+	// object that ends its members with it). The agent's session is to outlive both.
+	// Linux CI is headless. On the desktop runners, exercise the app's utilityProcess too.
+	const launchers = ['win32', 'darwin'].includes(process.platform)
+		? ['node', 'electron']
+		: ['node'];
+	it.each(launchers)('leaves the session running after its %s launcher exits', async (runtime) => {
+		const sessions = root();
+		const dir = join(sessions, 'w');
+		const scripts = mkdtempSync(join(tmpdir(), 'geordi-launch-'));
+		const daemon = join(scripts, 'daemon.mjs');
+		const launcher = join(scripts, 'launcher.cjs');
+		writeFileSync(
+			daemon,
+			`const dir = ${JSON.stringify(dir)};
+const { readFileSync } = await import('node:fs');
+const { startSession } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'session.ts')).href)});
+// nobody to report to: what the host writes waits in its files for the next daemon
+startSession(${JSON.stringify(meta())}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
+const out = dir + '/out.jsonl';
+setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);
+setTimeout(() => { console.error(readFileSync(dir + '/host.log', 'utf8')); process.exit(1); }, 20000);`
+		);
+		writeFileSync(
+			launcher,
+			`const daemon = ${JSON.stringify(daemon)};
+if (process.versions.electron) {
+	const { app, utilityProcess } = require('electron');
+	app.setPath('userData', __dirname);
+	app.whenReady().then(() => {
+		const child = utilityProcess.fork(daemon, [], { stdio: 'pipe' });
+		child.stderr.pipe(process.stderr);
+		child.on('exit', (code) => app.exit(code ?? 1));
+	});
+} else {
+	require('node:child_process').spawn(process.execPath, [daemon], { stdio: 'inherit' })
+		.on('exit', (code) => process.exit(code ?? 1));
+}`
+		);
+		const executable =
+			runtime === 'electron'
+				? createRequire(new URL('../../desktop/package.json', import.meta.url))('electron')
+				: process.execPath;
+		const launched = spawn(executable, [launcher], {
+			stdio: 'inherit',
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined }
+		});
+		expect((await once(launched, 'exit'))[0]).toBe(0);
+		await sleep(500); // for a job object to have ended its members
+
+		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
+		expect(alive(host)).toBe(true);
+		const events: HostEvent[] = [];
+		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
+		started.push(session);
+		expect(session.working()).toBe(true);
+		session.say({ prompt: 'slow', deliveryId: 'first' }); // a retry, which it has heard
+		session.say({ prompt: 'still there?' });
+		await until(() => events.some((event) => event.kind === 'turn.completed'));
+		expect(events).toEqual([
+			{ kind: 'message.received', id: 'first' },
+			{ kind: 'turn.started' },
+			{ kind: 'resume', id: 'cli-1' },
+			{ kind: 'text', text: 'Steered: still there?' },
+			{ kind: 'turn.completed' }
+		]);
 	});
 });

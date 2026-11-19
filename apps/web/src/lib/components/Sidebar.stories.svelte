@@ -79,7 +79,13 @@
 				standing: failing
 			}),
 			workspace('merged', 'Run checks, lint and tests in CI', { standing: merged }),
-			workspace('plain', 'Try out the new parser', { repoId: 'sample' }),
+			workspace('plain', 'Try out the new parser', {
+				repoId: 'sample',
+				waiting: true,
+				working: true,
+				status: 'running',
+				outcome: null
+			}),
 			workspace(
 				'long',
 				'A title that is far too long to fit into the sidebar at any sensible width',

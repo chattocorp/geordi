@@ -27,10 +27,12 @@
 	 */
 	let {
 		workspace,
+		waiting = false,
 		senders,
 		onopensubagent
 	}: {
 		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>;
+		waiting?: boolean;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
 	} = $props();
@@ -127,7 +129,7 @@
 					imageField={form.fields.images.as('hidden', '[]')}
 					disabled={form.pending > 0}
 					{form}
-					live={running}
+					live={running && !waiting}
 					rows={2}
 					placeholder={running
 						? 'Steer the agent, or queue a message'
@@ -152,9 +154,14 @@
 						<!-- (Not while the agent works in a box too narrow for them and the buttons
 						     both: then it is the buttons that are needed, on one line.) -->
 						<div
-							class={['min-w-0 flex-wrap items-center gap-1', running ? 'hidden @lg:flex' : 'flex']}
+							class={[
+								'min-w-0 flex-wrap items-center gap-1',
+								running && !waiting ? 'hidden @lg:flex' : 'flex'
+							]}
 						>
-							{#if harnesses?.length}
+							{#if waiting}
+								<span class="text-xs text-muted" role="status">Waiting for daemon</span>
+							{:else if harnesses?.length}
 								<HarnessPicker {harnesses} {choice} onchange={configure} />
 							{/if}
 							<!-- how full the conversation is: nothing until the agent first says -->

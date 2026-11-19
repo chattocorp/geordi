@@ -17,6 +17,7 @@
  * The CLI is ended when it has had nothing to do for a while (it is started again, where it
  * left off, with the next message), but never while it has something running.
  */
+import { signalTree } from './session-process.ts';
 import { linesFrom } from './journal.ts';
 import { spawn } from 'node:child_process';
 import {
@@ -180,7 +181,9 @@ function failed(error: unknown) {
 /** Ends everything in our process group but ourselves: the CLI, and what it started. */
 function kill() {
 	try {
-		process.kill(0, 'SIGTERM');
+		if (process.platform === 'win32') {
+			if (child.pid) signalTree(child.pid, 'SIGTERM');
+		} else process.kill(0, 'SIGTERM');
 	} catch {
 		// nobody left
 	}
