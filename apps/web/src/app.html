@@ -11,8 +11,24 @@
 				const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
 				document.documentElement.classList.toggle('dark', dark);
 			} catch {}
-			// The desktop app (ADR-008) has no title bar: the layout makes up for it.
-			if (navigator.userAgent.includes('Electron')) document.documentElement.dataset.desktop = '';
+			// The desktop app (ADR-008) has no title bar: the layout makes up for it. On macOS the
+			// window's buttons are on the left; elsewhere they are drawn over the top right, and
+			// take the page's colours.
+			if (navigator.userAgent.includes('Electron')) {
+				const root = document.documentElement;
+				root.dataset.desktop = navigator.userAgent.includes('Macintosh') ? 'mac' : '';
+				const paint = () => {
+					const style = getComputedStyle(root);
+					window.geordiDesktop?.titleBar?.({
+						color: style.getPropertyValue('--frame').trim(),
+						symbolColor: style.getPropertyValue('--muted').trim()
+					});
+				};
+				if (!root.dataset.desktop) {
+					new MutationObserver(paint).observe(root, { attributeFilter: ['class'] });
+					addEventListener('load', paint);
+				}
+			}
 		</script>
 		%sveltekit.head%
 	</head>

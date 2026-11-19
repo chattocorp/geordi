@@ -137,7 +137,7 @@
 
 <!-- With the sidebar hidden, its part of the title bar is where every page's bar starts. -->
 {#snippet lead()}
-	<div class="hidden items-center gap-1 md:flex desktop:pl-17">
+	<div class="hidden items-center gap-1 md:flex mac:pl-17">
 		{@render toggle('icon-[lucide--panel-left-open]')}
 		<span class="hidden items-center gap-1 desktop:flex"><HistoryButtons /></span>
 		<ConnectionIndicator {lost} />
@@ -158,10 +158,10 @@
 			style:width="{clampWidth(sidebar.current.width)}px"
 		>
 			<!--
-				The sidebar's part of the title bar. In the desktop app the window's buttons are on
-				its left, so the logo makes way and the toggle moves up beside them.
+				The sidebar's part of the title bar. On macOS the window's buttons are on its left, so
+				the logo makes way and the toggle moves up beside them.
 			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag desktop:pl-22">
+			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag mac:pl-22">
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
