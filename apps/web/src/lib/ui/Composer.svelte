@@ -10,6 +10,8 @@
 <script lang="ts">
 	import type { Attachment } from 'svelte/attachments';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
+	import Button from './Button.svelte';
+	import ButtonGroup from './ButtonGroup.svelte';
 	import { submitOnEnter } from '#lib/keys.ts';
 	import { completionQuery, matching, type Completion } from './completions.ts';
 
@@ -29,10 +31,7 @@
 		field?: HTMLTextareaAttributes;
 		value?: string;
 		disabled?: boolean;
-		/**
-		 * Something to say, offered in the empty box in place of the placeholder: Tab or a click
-		 * puts it into the box, to be edited and sent. It never sends itself.
-		 */
+		/** A suggested reply to send or edit above an empty composer. */
 		suggestion?: string | null;
 		/** Replaces what keys do in the text. By default, Enter submits. */
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
@@ -145,11 +144,14 @@
 	}
 	const complete = (completion: Completion) => write(completion.text + ' ');
 
-	// Offered only in an empty box (so never beside completions, which need a `/`). Read from
-	// the field itself, not `typed`: a draft put back into it is not typed.
-	const offered = $derived(
-		suggestion && !disabled && !(field ? String(field.value ?? '') : value) ? suggestion : null
-	);
+	let available = $derived(suggestion);
+	const offered = $derived(!disabled && !(field ? field.value : value) ? available : null);
+
+	function takeSuggestion(words: string, send: boolean) {
+		available = null;
+		write(words);
+		if (send) text?.form?.requestSubmit();
+	}
 
 	function keydown(event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
 		if (shown.length && !event.isComposing && !event.altKey && !event.metaKey && !event.ctrlKey) {
@@ -176,11 +178,6 @@
 				return;
 			}
 		}
-		if (offered && event.key === 'Tab' && !event.shiftKey && !event.isComposing) {
-			event.preventDefault();
-			write(offered);
-			return;
-		}
 		onkeydown(event);
 	}
 	// what is chosen in it (an agent, a model) is chosen for the text: back to writing it
@@ -196,7 +193,7 @@
 			return `min-height: calc(${rows}lh + 1rem)`;
 		},
 		get placeholder() {
-			return offered ? '' : placeholder;
+			return placeholder;
 		},
 		get disabled() {
 			return disabled;
@@ -225,9 +222,27 @@
 			return shown.length ? `${listId}-${active}` : undefined;
 		},
 		class:
-			'col-start-1 row-start-1 block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
+			'block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
 	};
 </script>
+
+{#if offered}
+	<div class="mb-2 flex *:max-w-full">
+		<ButtonGroup label="Suggested reply">
+			<Button
+				label="Send suggested reply"
+				class="h-auto min-h-9 min-w-0 shrink py-1.5 text-left wrap-anywhere"
+				onclick={() => takeSuggestion(offered, true)}>{offered}</Button
+			>
+			<Button
+				icon="icon-[lucide--pencil]"
+				label="Edit suggested reply"
+				class="h-auto w-9"
+				onclick={() => takeSuggestion(offered, false)}
+			/>
+		</ButtonGroup>
+	</div>
+{/if}
 
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
 <form
@@ -272,27 +287,11 @@
 		{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
 		{@render header?.()}
 		{@render attachments?.()}
-		<!-- the suggestion lies over the empty text, in the same cell: the box grows to fit it -->
-		<div class="grid">
-			{#if field}
-				<textarea {...field} {...textarea} {@attach focus}></textarea>
-			{:else}
-				<textarea bind:value {...textarea} {@attach focus}></textarea>
-			{/if}
-			{#if offered}
-				<p class="pointer-events-none col-start-1 row-start-1 px-4 py-2 text-muted">
-					<button
-						type="button"
-						tabindex="-1"
-						class="pointer-events-auto text-left hover:text-ink"
-						onclick={() => write(offered)}>{offered}</button
-					>
-					<kbd class="invisible ml-1 text-xs text-muted/60 group-focus-within/composer:visible"
-						>Tab</kbd
-					>
-				</p>
-			{/if}
-		</div>
+		{#if field}
+			<textarea {...field} {...textarea} {@attach focus}></textarea>
+		{:else}
+			<textarea bind:value {...textarea} {@attach focus}></textarea>
+		{/if}
 		{#each problems as problem (problem)}
 			<p class="px-4 text-sm text-danger">{problem}</p>
 		{/each}
