@@ -52,7 +52,7 @@
 							onselect: () => stop(name)
 						}
 					: {
-							label: `Start ${label ?? name}`,
+							label: label ?? name,
 							icon: 'icon-[lucide--play]',
 							onselect: () => start([name])
 						}
