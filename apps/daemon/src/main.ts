@@ -8,6 +8,7 @@ import { git } from './git.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
 import { existsSync, readFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -258,8 +259,11 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 	}
 }
 
+const fileCache = join(sessionsDir, '.file-index-cache');
+// The session lock excludes other daemons. Discard interrupted writes from the last run.
+await rm(join(fileCache, 'pending'), { recursive: true, force: true }).catch(() => {});
+const fileSearch = createFileSearch(fileCache);
 /** File watchers for the workspaces in use; see the `watch` message. */
-const fileSearch = createFileSearch();
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
 	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId }),
@@ -516,6 +520,7 @@ async function readRequest(request: DaemonRequest) {
 				session.kill();
 			}
 		});
+		await fileSearch.discard(worktreeId, worktreePath(worktreesDir, repoPath, worktreeId));
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return { branch };

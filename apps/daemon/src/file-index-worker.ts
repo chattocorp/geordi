@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
+import { loadFileIndex } from './file-index-cache.ts';
 import {
-	buildFileIndex,
 	refreshFileIndex,
 	MAX_FILE_CHANGES,
 	type FileChanges,
@@ -8,7 +8,7 @@ import {
 	type FileSource
 } from './file-index.ts';
 
-const source = workerData as FileSource;
+const { source, cacheDir } = workerData as { source: FileSource; cacheDir?: string };
 let index: FileIndex | undefined;
 const dirty = new Set<string>();
 let gitIndex = false;
@@ -33,7 +33,7 @@ parentPort!.on('message', (message: { id: number; query: string } | { changes?: 
 			gitIndex = false;
 			dirty.clear();
 			let snapshot = index;
-			if (!snapshot) snapshot = await buildFileIndex(source);
+			if (!snapshot) snapshot = await loadFileIndex(source, cacheDir, started === 0);
 			else if (changes.paths.length || changes.gitIndex)
 				snapshot = await refreshFileIndex(snapshot, source, changes);
 			// Events arriving during either operation are still pending for the next request.

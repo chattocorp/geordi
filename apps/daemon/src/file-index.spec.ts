@@ -1,5 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync, unlinkSync } from 'node:fs';
+import {
+	readFileSync,
+	readdirSync,
+	mkdirSync,
+	mkdtempSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
+	unlinkSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -125,5 +134,58 @@ it('reconciles named paths, moved subtrees, and index-only changes with Git', as
 	} finally {
 		service.close();
 		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+it('catches up a saved worktree across worker restarts and replaces a damaged checkpoint', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'geordi-file-checkpoint-'));
+	const repo = join(root, 'repo');
+	const cache = join(root, 'cache');
+	let service = createFileSearch(cache);
+	function restart() {
+		service.close();
+		service = createFileSearch(cache);
+	}
+	try {
+		mkdirSync(repo);
+		const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args]);
+		git(repo, 'init', '-q');
+		writeFileSync(join(repo, 'tracked'), '');
+		writeFileSync(join(repo, '.gitignore'), 'forced\n');
+		git(repo, 'add', '.');
+		git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'Initial');
+		const tree = await ensureWorktree(join(root, 'trees'), repo, '12345678');
+		const names = async () =>
+			(await service.search('test', { worktree: tree }, '')).map((hit) => hit.path).sort();
+		writeFileSync(join(tree.path, 'old'), '');
+		writeFileSync(join(tree.path, 'forced'), '');
+		expect(await names()).toEqual(['.gitignore', 'old', 'tracked']);
+		const [file] = readdirSync(cache).filter((name) => name !== 'pending');
+		const checkpoint = join(cache, file);
+		const original = readFileSync(checkpoint);
+
+		restart();
+		expect(await names()).toEqual(['.gitignore', 'old', 'tracked']);
+		expect(readFileSync(checkpoint)).toEqual(original);
+		restart();
+		renameSync(join(tree.path, 'old'), join(tree.path, 'new'));
+		unlinkSync(join(tree.path, 'tracked'));
+		writeFileSync(join(tree.path, 'added'), '');
+		git(tree.path, 'add', '-f', 'forced');
+		expect(await names()).toEqual(['.gitignore', 'added', 'forced', 'new']);
+
+		restart();
+		writeFileSync(join(tree.commonDir, 'info/exclude'), 'added\n');
+		expect(await names()).toEqual(['.gitignore', 'forced', 'new']);
+		restart();
+		writeFileSync(checkpoint, 'truncated');
+		writeFileSync(join(tree.path, 'recovered'), '');
+		expect(await names()).toEqual(['.gitignore', 'forced', 'new', 'recovered']);
+		expect(readFileSync(checkpoint).length).toBeGreaterThan(32);
+		await service.discard('test', tree.path);
+		expect(readdirSync(cache)).toEqual(['pending']);
+	} finally {
+		service.close();
+		rmSync(root, { recursive: true, force: true });
 	}
 });

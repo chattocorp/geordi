@@ -162,6 +162,10 @@ export class FileIndex {
 		return this;
 	}
 
+	checkpointPaths() {
+		return this.holes ? this.paths.filter(Boolean) : this.paths;
+	}
+
 	search(query: string): FileMatch[] {
 		if (!query) {
 			const matches: FileMatch[] = [];

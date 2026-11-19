@@ -1,5 +1,7 @@
+import { rm } from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 import type { FileMatch } from '@geordi/protocol';
+import { checkpointName } from './file-index-cache.ts';
 import type { FileChanges, FileSource } from './file-index.ts';
 
 const program = new URL(
@@ -9,7 +11,7 @@ const program = new URL(
 type Reply = { id: number; result: FileMatch[] } | { id: number; error: string };
 
 /** Each index lives entirely in its worker. Keep at most two workers. Release an idle index after five minutes. */
-export function createFileSearch() {
+export function createFileSearch(cacheDir?: string) {
 	type Entry = ReturnType<typeof start>;
 	const entries = new Map<string, Entry>();
 	let sequence = 0;
@@ -22,7 +24,7 @@ export function createFileSearch() {
 		capacity = undefined;
 	}
 	function start(key: string, source: FileSource, retain?: () => () => void) {
-		const worker = new Worker(program, { workerData: source });
+		const worker = new Worker(program, { workerData: { source, cacheDir } });
 		const pending = new Map<
 			number,
 			{ resolve: (result: FileMatch[]) => void; reject: (error: Error) => void }
@@ -37,7 +39,7 @@ export function createFileSearch() {
 			for (const request of pending.values()) request.reject(error);
 			pending.clear();
 			available();
-			void worker.terminate();
+			return worker.terminate();
 		}
 		worker.on('error', stop);
 		worker.on('exit', () => stop(new Error('File index worker exited')));
@@ -80,6 +82,10 @@ export function createFileSearch() {
 		},
 		invalidate(key: string, changes?: FileChanges) {
 			entries.get(key)?.worker.postMessage({ changes });
+		},
+		async discard(key: string, path: string) {
+			await entries.get(key)?.stop();
+			if (cacheDir) await rm(checkpointName(cacheDir, path), { force: true }).catch(() => {});
 		},
 		close() {
 			closed = true;

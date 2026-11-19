@@ -27,7 +27,7 @@ const banner = {
  *   wrappers, one file each. Bundled, the wrappers bring none of the agents' own programs
  *   (some 300 MB each), which Geordi does not use: it runs the ones people have installed.
  *
- * The daemon's one dependency stays outside: `@lydell/node-pty`, with its native binary.
+ * The daemon loads its native terminal and file-watcher packages alongside the bundle.
  */
 export async function stageServices(stage) {
 	mkdirSync(stage, { recursive: true });
@@ -57,7 +57,7 @@ export async function stageServices(stage) {
 			join(repo, 'apps/daemon/src/file-index-worker.ts')
 		],
 		outdir: join(stage, 'daemon'),
-		external: ['@lydell/node-pty']
+		external: ['@lydell/node-pty', '@parcel/watcher']
 	});
 	const resolve = createRequire(join(repo, 'apps/daemon/package.json')).resolve;
 	for (const wrapper of ['claude-agent-acp', 'codex-acp']) {
