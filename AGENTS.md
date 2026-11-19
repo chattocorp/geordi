@@ -51,6 +51,9 @@ it, perhaps you.
   connection error for a moment. Do it when a change is ready to be used, not to try
   something out: for that, run a second instance on other ports with its own data
   (`GEORDI_DATA_DIR`, `PORT`, `GEORDI_DAEMON_PORT`, and a daemon pointed at it).
+  In a workspace, the `web` and `daemon` jobs are that: their data is the worktree's `.data/`,
+  seeded with two sample repositories (`scripts/seed-dev-data.mjs`), each with a local bare
+  `origin`. The `reset` job starts that data over.
 - When something misbehaves there, look before you change anything: the page's console
   (clicks that do nothing were six connections used up, and it said so), the forge's and
   daemon's log (`~/Library/Logs/Geordi/geordi.log`), and for macOS's own prompts

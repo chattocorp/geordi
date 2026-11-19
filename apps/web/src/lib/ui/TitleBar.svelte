@@ -21,11 +21,13 @@
 	The bar at the top of a page: what the page is, and what can be done with it. Every page
 	has one, also with nothing to put in it, so that the bar runs across the whole window. It
 	starts with what the app's shell puts there. In the desktop app it is what the window is
-	dragged by (`window-drag`), except where there is something in it to use.
+	dragged by (`window-drag`), except where there is something in it to use, and ends with
+	room for the window's buttons where they are drawn over it (`window-controls-room`).
 -->
 <header
 	class={['flex h-14 shrink-0 items-center gap-3 bg-frame px-5 select-none window-drag', extra]}
 >
 	{@render lead?.()?.()}
 	{@render children?.()}
+	<span class="hidden window-controls-room desktop:block mac:hidden"></span>
 </header>

@@ -290,6 +290,14 @@ export const moveWorkspace = command(
 	({ workspaceId, before }) => workspaces().move(workspaceId, before)
 );
 
+export const stopTask = command(
+	v.object({ workspaceId: v.string(), stopId: v.string() }),
+	({ workspaceId, stopId }) => {
+		if (!hub().stopTask(workspaceId, stopId))
+			error(409, 'This background task is no longer available.');
+	}
+);
+
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));

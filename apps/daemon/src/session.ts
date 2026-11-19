@@ -53,6 +53,7 @@ export type Session = Meta & {
 	read(): void;
 	/** Stops the turn under way. The session goes on. */
 	stop(): void;
+	stopTask(stopId: string): void;
 	answer(id: string, answers: string[]): void;
 	/** Ends the session's CLI, to be started anew with the next thing said. */
 	close(): void;
@@ -245,6 +246,7 @@ function follow(
 			expecting = true;
 			writeFileSync(file('expecting'), '');
 		},
+		stopTask: (stopId) => tell({ type: 'stopTask', stopId }),
 		stop: () => tell({ type: 'interrupt' }),
 		close: () => tell({ type: 'close' }),
 		answer: (id, answers) => tell({ type: 'answer', id, answers }),

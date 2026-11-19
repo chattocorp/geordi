@@ -15,6 +15,7 @@
 		answerQuestion,
 		removeQueued,
 		sendMessage,
+		stopTask,
 		stopAgent
 	} from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
@@ -102,6 +103,7 @@
 			showJump
 			{blocks}
 			withComposer={!workspace.archivedAt}
+			onstoptask={(stopId) => stopTask({ workspaceId: workspace.id, stopId })}
 			background={workspace.background?.filter((task) => !task.session)}
 			agent={workspace.agent}
 			{running}

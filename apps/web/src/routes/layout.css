@@ -20,6 +20,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 /* In the desktop app's window, which has no title bar of its own (ADR-008). */
 @custom-variant desktop (&:where([data-desktop], [data-desktop] *));
+/* In the desktop app on macOS, whose window's buttons sit at the top left. */
+@custom-variant mac (&:where([data-desktop='mac'], [data-desktop='mac'] *));
 
 /*
  * Geordi's design system starts here: colour tokens, type and shape (in `@theme`), and
@@ -298,6 +300,13 @@
  * page, which may be right under the bar, and exempting it there would punch a hole into
  * the bar that moves as one scrolls.
  */
+/* Room for the window's buttons, where the desktop app draws them over the page's top right
+ * (not on macOS): what the Window Controls Overlay leaves of the width, else nothing. */
+@utility window-controls-room {
+	flex-shrink: 0;
+	width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}
+
 @utility window-drag {
 	-webkit-app-region: drag;
 }

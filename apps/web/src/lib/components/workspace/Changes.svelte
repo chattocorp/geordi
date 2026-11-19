@@ -60,6 +60,12 @@
 			</p>
 		{:else if git.unavailable}
 			<p class="px-3.5 py-2 text-sm text-muted">{git.unavailable}</p>
+		{:else if files.length === 0}
+			<!-- nothing to list: a quiet word in the middle of the pane, not a line in its corner -->
+			<div class="flex min-h-full flex-col items-center justify-center gap-3 px-6 text-center">
+				<span class="icon-[lucide--file-diff] size-6 text-muted opacity-60"></span>
+				<p class="text-sm font-medium text-ink">No changes yet</p>
+			</div>
 		{:else}
 			{#if git.changes?.comparisonTarget}
 				<p class="truncate px-3.5 py-1 text-xs text-muted" title={git.changes.comparisonTarget}>
@@ -91,8 +97,6 @@
 							<DiffStat added={file.added} removed={file.removed} />
 						</button>
 					</li>
-				{:else}
-					<li class="px-3.5 py-2 text-sm text-muted">No changes yet.</li>
 				{/each}
 			</ul>
 		{/if}

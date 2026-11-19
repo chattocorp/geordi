@@ -238,6 +238,10 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			server.close();
 		},
 		send,
+		stopTask(workspaceId: string, stopId: string) {
+			if (!background.get(workspaceId)?.some((task) => task.stopId === stopId)) return false;
+			return send({ type: 'agent.stopTask', workspaceId, stopId });
+		},
 		background: (id: string) => background.get(id) ?? [],
 		suggestion: (id: string) => suggestions.get(id) ?? null,
 		/** Calls `listener` when a workspace's background tasks or suggestion change. */

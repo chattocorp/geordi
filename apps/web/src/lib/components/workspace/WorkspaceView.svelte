@@ -57,6 +57,7 @@
 		runSetup,
 		say,
 		startJobs,
+		stopTask,
 		stopJob,
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
@@ -805,6 +806,7 @@
 	{:else if reviewer}
 		<MessageView
 			blocks={subagentBlocks(reviewer.child)}
+			onstoptask={(stopId) => stopTask({ workspaceId: reviewer.owner.id, stopId })}
 			background={reviewer.owner.background?.filter((task) => task.session === reviewer.child.id)}
 			parentAgent={{ name: reviewer.parentName, open: () => showTab(reviewer.parentTab) }}
 			agent={reviewer.owner.agent}

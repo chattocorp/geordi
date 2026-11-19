@@ -32,6 +32,12 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
  case 'session/resume':
  case 'session/new': return result({sessionId:id,configOptions});
  case 'session/set_config_option': if(!process.env.REFUSE_MODE)configOptions[0].currentValue=req.params.value;return result({configOptions});
+ case 'tool_call/cancel':
+  if(req.params.sessionId===id && req.params.toolCallId==='first'){
+   state('idle',{stopReason:'end_turn',background:[{type:'tool_call',toolCallId:'second'}]});
+   return result({});
+  }
+  return out({id:req.id,error:{code:-32602,message:'Cannot stop this task'}});
  case 'session/cancel': slow=false;return state('idle',{stopReason:'cancelled'});
  case 'session/prompt': {
   const said=req.params.prompt[0].text;
@@ -106,6 +112,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    ]});
    commands(update);commands(update);text('listed');return done();
   }
+  if(said==='two tasks'){state('idle',{stopReason:'end_turn',background:['first','second'].map(toolCallId=>({type:'tool_call',toolCallId}))});return;}
   if(said==='background'){text('started');state('idle',{stopReason:'end_turn',background:[{type:'tool_call',toolCallId:'task'}]});setTimeout(()=>{state('running');text('it finished');done();},700);return;}
   text('Heard: '+said);return done();
  }
@@ -433,11 +440,29 @@ describe('a session', () => {
 		]);
 	});
 
+	it('stops one selected background task after reconnect and leaves other tasks available', async () => {
+		const sessions = root();
+		const first = begin('two tasks', { dir: join(sessions, 'w') });
+		await first.ended(1);
+		const [one, two] = first.session.live().background!;
+		first.session.detach();
+		const session = resumeSessions(sessions, () => () => {}).get('w')!;
+		started.push(session);
+		session.stopTask(one.stopId!);
+		await until(() => session.live().background?.length === 1);
+		expect(session.live().background).toEqual([two]);
+		session.stopTask(two.stopId!);
+		await until(() => !!session.live().background?.[0].stopError);
+		expect(session.working()).toBe(false);
+		session.close();
+		await session.done;
+	});
+
 	it('reports a turn the agent begins by itself, and is not ended while something runs', async () => {
 		const { session, events, ended } = begin('background', { idle: '200' });
 		await ended(1);
 		expect(session.live().background).toEqual([
-			{ type: 'tool_call', id: 'task', toolCallId: 'task' }
+			{ type: 'tool_call', id: 'task', toolCallId: 'task', stopId: expect.any(String) }
 		]);
 		await ended(2);
 		expect(session.live().background).toEqual([]);

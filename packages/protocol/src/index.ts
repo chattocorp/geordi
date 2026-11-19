@@ -602,6 +602,10 @@ export type ContextUsage = {
 };
 
 export type BackgroundTask = {
+	/** Identifies this live task for as long as its host can stop it. */
+	stopId?: string;
+	stopping?: boolean;
+	stopError?: string;
 	type: 'terminal' | 'tool_call' | 'subagent';
 	id: string;
 	/** Absent for work owned by the root ACP session. */
@@ -706,6 +710,7 @@ export type ForgeMessage =
 			images?: MessageImage[];
 	  } & WorktreeRef)
 	/** Stops what the agent is doing. Its CLI goes on running, to be told what to do instead. */
+	| { type: 'agent.stopTask'; workspaceId: string; stopId: string }
 	| { type: 'agent.stop'; workspaceId: string }
 	/** Answers a `question` the agent asked: one answer per question, in their order. */
 	| { type: 'agent.answer'; workspaceId: string; questionId: string; answers: string[] }
