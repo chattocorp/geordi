@@ -34,9 +34,9 @@ export type ReleaseAdapter = {
 	/** Whether the repository uses it. Cheap: asked every time the worktree changes. */
 	detects(worktree: Worktree, committedPaths?: string[]): boolean | Promise<boolean>;
 	/**
-	 * The packages and their pending notes. Rejects if the tool can't be asked. A tool is
-	 * found from `toolsAt` (by default the worktree), where the person's tool manager
-	 * (mise, asdf) trusts the configuration; it reads the worktree through Git either way.
+	 * The packages and their pending notes. Rejects if the tool can't be asked. The tool runs
+	 * in `toolsAt` (by default the worktree), which decides what a tool manager (mise, asdf)
+	 * runs as it; it reads the worktree through Git either way.
 	 */
 	read(worktree: Worktree, toolsAt?: string): Promise<Read>;
 };
