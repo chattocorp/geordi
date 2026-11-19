@@ -190,7 +190,8 @@ describe('upstream', () => {
 	 * A GitHub with one repository's pull requests: it lists them with a validator, answers
 	 * `304` when they did not change, finds them by branch and reads them in full. `asked`
 	 * says what it was asked. `paged`: its pull requests are older than the
-	 * listing's first page, which holds another branch's.
+	 * listing's first page, which holds another branch's. `held`: the listing is answered
+	 * once it settles.
 	 */
 	function fakeGitHub() {
 		type Pull = {
@@ -206,6 +207,7 @@ describe('upstream', () => {
 			limited: false,
 			broken: false,
 			paged: false,
+			held: null as Promise<unknown> | null,
 			asked: [] as string[]
 		};
 		const branch = 'geordi/abcdefgh';
@@ -261,6 +263,7 @@ describe('upstream', () => {
 					return new Response(null, { status: 304, headers: { etag } });
 				}
 				github.asked.push('list');
+				await github.held;
 				const next = '<https://api.github.com/repos/acme/widgets/pulls?page=2>; rel="next"';
 				const other = {
 					number: 1,
@@ -499,9 +502,26 @@ describe('upstream', () => {
 	});
 
 	it('finds the pull requests of several branches with one GraphQL request', async () => {
+		// Both look once the listing is in: each asks for it after its own work in Git, which
+		// takes as long as it takes, and only what is asked together goes in one request.
+		let listings = 0;
+		const bothAsked = Promise.withResolvers<void>();
+		vi.doMock('./recent-pulls.ts', async (original) => {
+			const { createRecentPulls } = await original<typeof import('./recent-pulls.ts')>();
+			return {
+				createRecentPulls: () => {
+					const recentPulls = createRecentPulls();
+					return (...args: Parameters<typeof recentPulls>) => {
+						if (++listings === 2) bothAsked.resolve();
+						return recentPulls(...args);
+					};
+				}
+			};
+		});
 		const { upstream: read } = await configured();
 		const github = fakeGitHub();
 		github.paged = true;
+		github.held = bothAsked.promise;
 		github.pulls.push(
 			{ number: 41, state: 'merged', updatedAt: '2026-11-18T09:00:00Z' },
 			{ number: 42, state: 'open', updatedAt: '2026-11-18T08:00:00Z' },
@@ -522,6 +542,7 @@ describe('upstream', () => {
 			// a listing in full reads its pull requests' checks; then one look for both branches
 			expect(github.asked).toEqual(['list', 'read', 'find', 'read']);
 		} finally {
+			vi.doUnmock('./recent-pulls.ts');
 			vi.unstubAllGlobals();
 			vi.unstubAllEnvs();
 		}
