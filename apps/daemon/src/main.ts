@@ -58,6 +58,7 @@ import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
 import {
 	cachedPullBase,
+	repositoryThreads,
 	markReady,
 	mergePull,
 	setAutoMerge,
@@ -513,6 +514,8 @@ async function readRequest(request: DaemonRequest) {
 		).trim();
 		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
+	if (request.kind === 'repoThreads')
+		return repositoryThreads(request.repoPath, request.category, request.after);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);

@@ -15,7 +15,7 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 37;
+export const PROTOCOL_VERSION = 38;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
@@ -531,12 +531,19 @@ export type DaemonRequest =
 	| { kind: 'findFiles'; query: string; repoPath: string; worktreeId?: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
+	| { kind: 'repoThreads'; repoPath: string; category: 'issue' | 'pull_request'; after?: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
 
 /** Highlight positions are UTF-16 offsets into the repository-relative path. */
 export type FileMatch = { path: string; indices: number[] };
+
+export type RepositoryThread = Pick<PullRequest, 'number' | 'title' | 'review' | 'draft'> & {
+	url: string;
+	author?: string;
+	updatedAt?: string;
+};
 
 export type DaemonResults = {
 	changes: Changes;
@@ -553,6 +560,7 @@ export type DaemonResults = {
 	findFiles: FileMatch[];
 	editReleaseNote: null;
 	repoIcon: RepoIcon | null;
+	repoThreads: { items: RepositoryThread[]; next?: string };
 	diff: FileVersions;
 	source: string | null;
 	picture: Picture | null;

@@ -35,7 +35,7 @@ function write(key: string, saved: Saved) {
  * functions, as they may change: one component may show one conversation after another.
  * Call during component setup.
  */
-export function draft(key: () => string, field: () => Field) {
+export function draft(key: () => string, field: () => Field, initial = () => '') {
 	let images = $state.raw<string[]>([]);
 
 	// what was left here last time comes back; text unless the field holds something already
@@ -44,7 +44,8 @@ export function draft(key: () => string, field: () => Field) {
 		const f = field();
 		untrack(() => {
 			const saved = read(k);
-			if (saved.text && !f.value()) f.set(saved.text);
+			const text = saved.text || initial();
+			if (text && !f.value()) f.set(text);
 			images = saved.images;
 		});
 	});

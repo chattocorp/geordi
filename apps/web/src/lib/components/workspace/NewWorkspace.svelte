@@ -23,6 +23,7 @@
 		repos: { id: string; name: string }[];
 		/** The repository picked to begin with; the first one, unless said otherwise. */
 		preferred?: string;
+		issue?: { title: string; url: string };
 		label?: string;
 		/** Whether the cursor starts in the text: on the page that is for starting a workspace. */
 		focused?: boolean;
@@ -32,7 +33,7 @@
 		 */
 		alongside?: string;
 	};
-	let { repos, preferred, label, focused = false, alongside }: Props = $props();
+	let { repos, preferred, issue, label, focused = false, alongside }: Props = $props();
 
 	const fields = createWorkspace.fields;
 	const { prompt, images } = fields;
@@ -42,8 +43,10 @@
 	// draft for a new workspace, and one for each workspace to start a conversation in.
 	prompt.set('');
 	const written = draft(
-		() => (alongside ? `alongside:${alongside}` : 'new'),
-		() => prompt
+		() =>
+			alongside ? `alongside:${alongside}` : issue ? `issue:${preferred}:${issue.url}` : 'new',
+		() => prompt,
+		() => (issue ? `${issue.title}\n${issue.url}` : '')
 	);
 	// (Starting one goes to it, so the form is not reset: the draft is forgotten here.)
 	const form = createWorkspace.enhance(async ({ submit }) => {
