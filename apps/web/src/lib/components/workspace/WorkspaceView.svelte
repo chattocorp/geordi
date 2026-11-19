@@ -51,6 +51,7 @@
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
+		editReleaseNote,
 		jobsReady,
 		openLink,
 		restoreWorktree,
@@ -767,6 +768,8 @@
 		{#if git?.release}
 			<Changeset
 				plan={git.release}
+				onsave={(path, original, body) =>
+					editReleaseNote({ workspaceId: id, path, original, body })}
 				onopen={openDiff}
 				onallow={(command) =>
 					approveRun({ workspaceId: id, commands: [command] }).catch(

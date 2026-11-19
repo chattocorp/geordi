@@ -1,7 +1,7 @@
 # FDR-007: Changesets: what a workspace means for the next releases
 
 **Status:** Active
-**Last reviewed:** 2026-11-16
+**Last reviewed:** 2026-11-19
 
 ## Overview
 
@@ -11,7 +11,7 @@ Many repositories keep notes on their changes with a release tool, which later t
 
 - In a repository that uses a release tool Geordi knows, a workspace has a **Changeset** tab next to **Changes**, above its terminals. Like every window but the conversation, both can be dragged to any of the workspace's three areas. Changes is in front to begin with.
 - The Changeset tab's badge counts the change notes the workspace adds.
-- The tab is about what the workspace adds, and nothing else: how many notes merging it adds, and for each package it adds notes to, its name, its version now and after the next release, how big that step is, and those notes with their kind and text. A breaking change is marked. A note opens as a diff when clicked.
+- The tab is about what the workspace adds, and nothing else: how many notes merging it adds, and for each package it adds notes to, its name, its version now and after the next release, how big that step is, and those notes with their kind and text. A breaking change is marked. Select the filename to open its diff. Use the pencil to edit the note’s Markdown in place. Save writes the text to the worktree and preserves the note metadata. Cancel discards the draft. If another edit changes the body, saving reports the conflict and keeps the draft.
 - Where notes were pending for such a package already, a line says how many: the next version counts them too.
 - It follows the files: a note the agent writes, or one that comes in from the main branch, shows at once.
 - The first time in a repository, the tab asks: it shows the command it would run to ask the tool, and runs it only once that was allowed. That holds for the repository from then on.
@@ -47,5 +47,5 @@ Many repositories keep notes on their changes with a release tool, which later t
 
 ## Out of Scope
 
-- Writing notes, or preparing releases, from Geordi: agents and people do that with the tool.
+- Creating notes, or preparing releases, from Geordi: agents and people do that with the tool.
 - Tools other than Sweet Release, for now.

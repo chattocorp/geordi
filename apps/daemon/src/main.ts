@@ -38,7 +38,7 @@ import {
 	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
-import { releasePlan } from './releases.ts';
+import { editReleaseNote, releasePlan } from './releases.ts';
 import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import {
@@ -465,6 +465,7 @@ function answer(request: DaemonRequest) {
 		case 'continueWorktree':
 		case 'updateWorktree':
 		case 'removeWorktree':
+		case 'editReleaseNote':
 		case 'config':
 			return inWorktree(worktreePath(worktreesDir, request.repoPath, request.worktreeId), () =>
 				readRequest(request)
@@ -545,9 +546,10 @@ async function readRequest(request: DaemonRequest) {
 	switch (request.kind) {
 		case 'changes':
 			return status(worktree, comparisonOrigin(worktree, request));
-		case 'release':
+		case 'editReleaseNote':
+		case 'release': {
 			// which notes are this workspace's: the files it has added
-			return releasePlan(
+			const plan = await releasePlan(
 				worktree,
 				async () =>
 					new Set(
@@ -557,6 +559,11 @@ async function readRequest(request: DaemonRequest) {
 					),
 				(command) => approvals.has(request.repoPath, command)
 			);
+			if (request.kind === 'release') return plan;
+			editReleaseNote(worktree, plan, request);
+			sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId });
+			return null;
+		}
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':

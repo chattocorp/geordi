@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { fromSweet, releasePlan, type ReleaseAdapter } from './releases.ts';
+import { editReleaseNote, fromSweet, releasePlan, type ReleaseAdapter } from './releases.ts';
 import { ensureWorktree } from './worktree.ts';
 
 async function worktree() {
@@ -166,4 +166,38 @@ describe('releasePlan', () => {
 		writeFileSync(join(nested.path, 'apps/api/.sweet.yml'), 'version: 1.0.0\n');
 		expect((await releasePlan(nested, added, no))?.tool).toBe('sweet-release');
 	});
+});
+
+it('saves a note body with its original metadata and refuses a stale draft', async () => {
+	const tree = await worktree();
+	const path = '.sweet/a-note.md';
+	const file = join(tree.path, path);
+	const header = '---\r\ntype: fix\r\nbreaking: true\r\n# preserve this comment\r\n---\r\n\r\n';
+	mkdirSync(join(tree.path, '.sweet'));
+	writeFileSync(file, header + 'Long original body\r\n');
+	const plan = await releasePlan(
+		tree,
+		() => new Set([path]),
+		() => true,
+		[
+			{
+				tool: 'sweet-release',
+				name: 'Sweet Release',
+				command: 'sweet status --json',
+				detects: () => true,
+				read: async () =>
+					fromSweet(
+						JSON.stringify([
+							{ path: '.', changes: [{ path, type: 'fix', body: 'Long original body' }] }
+						])
+					)
+			}
+		]
+	);
+	const edit = { path, original: 'Long original body', body: 'A\nB' };
+	editReleaseNote(tree, plan, edit);
+	expect(readFileSync(file, 'utf8')).toBe(header + 'A\r\nB\r\n');
+	expect(() => editReleaseNote(tree, plan, edit)).toThrow('note changed');
+	expect(() => editReleaseNote(tree, null, edit)).toThrow('no longer available');
+	expect(readFileSync(file, 'utf8')).toBe(header + 'A\r\nB\r\n');
 });

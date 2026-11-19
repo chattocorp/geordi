@@ -209,6 +209,17 @@ export const approveRun = command(
 	}
 );
 
+export const editReleaseNote = command(
+	v.object({ workspaceId: v.string(), path: v.string(), original: v.string(), body: v.string() }),
+	async ({ workspaceId, ...edit }) => {
+		try {
+			await hub().request({ kind: 'editReleaseNote', ...workspaces().ref(workspaceId), ...edit });
+		} catch (cause) {
+			error(409, message(cause));
+		}
+	}
+);
+
 /** Starts jobs, and before each the jobs it needs. */
 export const startJobs = command(
 	v.object({ workspaceId: v.string(), jobs: v.array(jobName), seen }),

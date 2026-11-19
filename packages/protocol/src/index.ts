@@ -451,6 +451,7 @@ export type DaemonRequest =
 	| ({ kind: 'prepareWorktree' } & WorktreeRef)
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	| ({ kind: 'release' } & WorktreeRef)
+	| ({ kind: 'editReleaseNote'; path: string; original: string; body: string } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Current text of a worktree-relative file, including files with no changes. */
@@ -498,6 +499,7 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
+	editReleaseNote: null;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
