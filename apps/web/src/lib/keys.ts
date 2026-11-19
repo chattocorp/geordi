@@ -23,6 +23,12 @@ export const shortcuts = {
 	},
 	previousWorkspace: { key: '[', label: 'Previous workspace', group: 'General' },
 	nextWorkspace: { key: ']', label: 'Next workspace', group: 'General' },
+	focusRepo: {
+		code: 'KeyF',
+		shift: true,
+		label: 'Show only the repository of this workspace, or all again',
+		group: 'General'
+	},
 	toggleSidebar: { code: 'KeyB', label: 'Toggle the sidebar', group: 'General' },
 	settings: { key: ',', label: 'Open the settings', group: 'General' },
 	toggleSide: {

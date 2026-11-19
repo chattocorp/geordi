@@ -11,7 +11,7 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
-	import { inSidebarOrder, stepThrough } from '#lib/family.ts';
+	import { inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '#lib/keys.ts';
 	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
@@ -58,6 +58,14 @@
 	const toggleHint = `Toggle the sidebar (${hint('toggleSidebar')})`;
 	/** What the sidebar has folded away: also what the previous and next workspace skip. */
 	const folded = persisted<string[]>('geordi:folded', []);
+	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
+	const focus = persisted<string | null>('geordi:focus', null);
+
+	/** Shows only the repository of the workspace on screen; with that shown alone already, or none on screen, all again. */
+	function toggleFocus() {
+		const repoId = nav.current?.workspaces.find(({ id }) => id === viewed)?.repoId ?? null;
+		focus.current = repoId === focus.current ? null : repoId;
+	}
 
 	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
 	function stepWorkspace(step: 1 | -1) {
@@ -65,7 +73,10 @@
 		if (!all) return;
 		const order = inSidebarOrder(
 			all.workspaces,
-			all.repos.map(({ id }) => id),
+			inFocus(
+				all.repos.filter((repo) => repo.workspaceCount > 0),
+				focus.current
+			).map(({ id }) => id),
 			folded.current
 		);
 		const to = stepThrough(order, viewed, step);
@@ -116,6 +127,9 @@
 		} else if (pressed(event, 'settings')) {
 			event.preventDefault();
 			openSettings();
+		} else if (pressed(event, 'focusRepo')) {
+			event.preventDefault();
+			toggleFocus();
 		} else if (pressed(event, 'toggleSidebar')) {
 			event.preventDefault();
 			toggleSidebar();
@@ -173,7 +187,7 @@
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
 			<div class="mb-2 ml-2 flex min-h-0 flex-1">
-				<Sidebar {lost} nav={nav.current} path={page.url.pathname} {folded} />
+				<Sidebar {lost} nav={nav.current} path={page.url.pathname} {folded} {focus} />
 			</div>
 
 			<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->

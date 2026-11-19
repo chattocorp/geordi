@@ -12,7 +12,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
-	import { byRepository, unfolded } from '#lib/family.ts';
+	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
 	import { hint } from '#lib/keys.ts';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes } from '#lib/overview.ts';
@@ -20,23 +20,29 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import Spinner from '#lib/ui/Spinner.svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { slide } from 'svelte/transition';
 	import { moveWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
 	 * The sidebar's sheet: where to go (the overview, a new workspace), the workspaces by
 	 * repository, and the settings below. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
-	 * repository under its name, and those its agents started under a workspace.
+	 * repository under its name, and those its agents started under a workspace. `focus` is
+	 * the repository shown alone, if any.
 	 */
 	let {
 		nav,
 		path,
 		folded,
+		focus,
 		lost = false
 	}: {
 		nav: Navigation | undefined;
 		path: string;
 		folded: { current: string[] };
+		focus: { current: string | null };
 		lost?: boolean;
 	} = $props();
 
@@ -44,7 +50,25 @@
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav?.workspaces ?? []));
-	const sidebarRepos = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
+	/** How many repositories a focus hides: offered at the end, to show them again. */
+	const hidden = $derived(withWorkspaces.length - sidebarRepos.length);
+
+	/**
+	 * Repositories slide away and back when the focus changes, and only then: not when the
+	 * list first arrives, nor when a repository comes or goes on its own.
+	 */
+	let shifting = $state(false);
+	let lastFocus = focus.current;
+	$effect.pre(() => {
+		if (focus.current === lastFocus) return;
+		lastFocus = focus.current;
+		shifting = !prefersReducedMotion.current;
+		const settled = setTimeout(() => (shifting = false), MOTION + 50);
+		return () => clearTimeout(settled);
+	});
+	const motion = () => ({ duration: shifting ? MOTION : 0, easing: cubicOut });
 	/** How many workspaces wait for the person: counted beside the overview. */
 	const needYou = $derived(lanes(nav?.workspaces ?? [], unread).attention.length);
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
@@ -163,6 +187,9 @@
 			? folded.current.filter((other) => other !== id)
 			: [...folded.current, id]);
 	const settingsHint = hint('settings');
+	const focusHint = hint('focusRepo');
+	/** How long repositories take to slide away or back, in milliseconds. */
+	const MOTION = 200;
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
 
@@ -179,12 +206,17 @@
 			{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 		</div>
 
-		<div class="space-y-4">
+		<!--
+			Each repository keeps its own space below it, rather than space between them: what
+			slides away takes its space along, and nothing is left to jump when it is gone.
+		-->
+		<div>
 			{#each sidebarRepos as repo (repo.id)}
 				{@const all = listed.get(repo.id) ?? []}
 				{@const rows = unfolded(all, folded.current)}
 				{@const isFolded = folded.current.includes(repo.id)}
-				<div>
+				{@const focused = focus.current === repo.id}
+				<div class="pb-4" transition:slide={motion()}>
 					<!--
 				A label for what is under it: its picture, its name (quiet, by its colour: the
 				workspaces are what is read here), and the way to start something in it. What is
@@ -202,6 +234,21 @@
 							{#if isFolded}
 								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{all.length}</span>
 							{/if}
+						</button>
+						<button
+							type="button"
+							class={[
+								'invisible grid size-6 shrink-0 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink',
+								focused ? 'bg-sunken text-ink' : 'text-muted'
+							]}
+							title={focused
+								? `Show all repositories (${focusHint})`
+								: `Show only ${repo.name} (${focusHint})`}
+							aria-label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
+							aria-pressed={focused}
+							onclick={() => (focus.current = focused ? null : repo.id)}
+						>
+							<span class="icon-[lucide--search] size-4"></span>
 						</button>
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 						<a
@@ -229,6 +276,22 @@
 					{/if}
 				</div>
 			{/each}
+			<!-- with one repository shown alone, the others wait here, out of the way -->
+			{#if hidden > 0}
+				<button
+					type="button"
+					class="mb-4 flex h-7 w-full items-center gap-2 pr-2 pl-1.5 text-left text-sm text-muted hover:text-ink"
+					transition:slide={motion()}
+					onclick={() => (focus.current = null)}
+				>
+					<span class="grid size-5 shrink-0 place-items-center">
+						<span class="icon-[lucide--chevrons-up-down] size-4"></span>
+					</span>
+					<span class="truncate">
+						Show {hidden} other {hidden === 1 ? 'repository' : 'repositories'}
+					</span>
+				</button>
+			{/if}
 		</div>
 	</nav>
 

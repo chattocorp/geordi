@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { byRepository, inSidebarOrder, stepThrough, unfolded, withAides } from './family.ts';
+import {
+	byRepository,
+	inFocus,
+	inSidebarOrder,
+	stepThrough,
+	unfolded,
+	withAides
+} from './family.ts';
 
 const workspace = (id: string, repoId: string, parentId: string | null = null) => ({
 	id,
@@ -106,6 +113,19 @@ describe('inSidebarOrder', () => {
 	it('leaves out what is folded away', () => {
 		expect(inSidebarOrder(all, ['one', 'two'], ['a']).map(({ id }) => id)).toEqual(['a', 'c', 'b']);
 		expect(inSidebarOrder(all, ['one', 'two'], ['one']).map(({ id }) => id)).toEqual(['b']);
+	});
+});
+
+describe('inFocus', () => {
+	const repos = [{ id: 'one' }, { id: 'two' }];
+
+	it('keeps only the repository in focus', () => {
+		expect(inFocus(repos, 'two')).toEqual([{ id: 'two' }]);
+	});
+
+	it('shows all without a focus, or with one on a repository not listed', () => {
+		expect(inFocus(repos, null)).toEqual(repos);
+		expect(inFocus(repos, 'gone')).toEqual(repos);
 	});
 });
 
