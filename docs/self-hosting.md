@@ -36,8 +36,7 @@ ORIGIN=http://localhost:3000 pnpm --filter @geordi/web start
 node apps/daemon/src/main.ts
 ```
 
-The daemon connects once the forge has served its first request. They authenticate each
-other with a shared token, which the forge creates in its data directory.
+The daemon connects when the forge starts. They authenticate each other with a shared token in the forge’s data directory. One daemon owns each session directory. After a forge restart, the daemon reconnects automatically. If you also restart the daemon, use the same session directory to resume unfinished work.
 
 > **Geordi has no authentication yet.** Keep the forge on 127.0.0.1.
 

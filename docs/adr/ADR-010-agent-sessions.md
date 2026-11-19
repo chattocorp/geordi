@@ -12,6 +12,8 @@ Each active workspace has a detached host that owns the pipes of its ACP wrapper
 
 The daemon writes commands to a private session directory. The host writes normalized events there. Each output record has a cursor scoped to the host instance. The forge records the cursor with the event and acknowledges it. The daemon advances its offset after the acknowledgment. After a reconnect the forge also knows which daemon owns each idle session.
 
+The forge records every prompt with a delivery ID before sending it. On reconnect it resends outstanding prompts in order. The daemon recognizes IDs already in the session input journal, and the host records a receipt when it reads each prompt. A receipt confirms delivery to the host. If a saved attachment becomes unreadable, the conversation records the delivery failure. Other workspaces continue to reconnect.
+
 The forge records a question answer before it sends it. The host resolves each ACP request once and journals its receipt or withdrawal by question ID. On reconnect, the forge retries outstanding answers for running sessions. A receipt confirms acceptance at the host. The wrapper controls subsequent delivery to the model.
 
 The host sends a working Codex session the steering extension it advertises. Claude accepts more input on its live prompt stream. Geordi keeps explicitly queued messages in its event log. Cancellation is a separate request. An idle host can retire after five minutes if the provider reports no outstanding work. A later message resumes the provider session.

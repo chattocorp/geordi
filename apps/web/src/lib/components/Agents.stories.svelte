@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { Harness } from '@geordi/protocol';
-	import AgentAvatar from './AgentAvatar.svelte';
+	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import StatusBadge from './StatusBadge.svelte';
 	import HarnessPicker, { type HarnessChoice } from './workspace/HarnessPicker.svelte';
 

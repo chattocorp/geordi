@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { expect, fireEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { move, singleGroup, groupsOf, type Layout } from '#lib/layout.ts';
 	import Panes from './Panes.svelte';
@@ -26,7 +27,31 @@
 {/snippet}
 
 <!-- Drag a tab onto another group, or towards an edge to split. Drag the dividers to resize. -->
-<Story name="Tabs" asChild>
+<Story
+	name="Tabs"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const file = canvas.getByRole('tab', { name: 'WorkspaceView.svelte' });
+		await userEvent.click(file);
+		await expect(file).toHaveAttribute('aria-selected', 'true');
+		await expect(canvas.getByRole('tabpanel', { name: 'WorkspaceView.svelte' })).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'New window' }));
+		const added = canvas.getByRole('tab', { name: /^Tab / });
+		const conversation = canvas.getByRole('tab', { name: 'Conversation' });
+		const dataTransfer = new DataTransfer();
+		await fireEvent.dragStart(added, { dataTransfer });
+		await fireEvent.dragOver(conversation, {
+			dataTransfer,
+			clientX: conversation.getBoundingClientRect().left
+		});
+		await fireEvent.drop(conversation, { dataTransfer });
+		await expect(canvas.getAllByRole('tab')[0]).toHaveTextContent(added.textContent!.trim());
+		await userEvent.click(
+			within(added.closest('[draggable]') as HTMLElement).getByRole('button', { name: 'Close' })
+		);
+		await expect(conversation).toHaveAttribute('aria-selected', 'true');
+	}}
+>
 	<div class="flex h-80 sheet overflow-hidden">
 		<Panes
 			layout={single}

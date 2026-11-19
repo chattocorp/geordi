@@ -3,17 +3,9 @@ import { mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Thread } from 'forges';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { github, MergeMethodRequiredError, type MergeOptions } from 'forges';
-import {
-	conflictsOf,
-	count,
-	hostOf,
-	markDraftReady,
-	merge,
-	summarise,
-	upstream
-} from './upstream.ts';
+import { conflictsOf, count, hostOf, markDraftReady, merge, summarise } from './upstream.ts';
 import { readPull, rollupCounts } from './pull-batch.ts';
 import { ensureWorktree } from './worktree.ts';
 
@@ -114,6 +106,8 @@ describe('summarise', () => {
 });
 
 describe('upstream', () => {
+	afterEach(() => vi.unstubAllEnvs());
+
 	async function workspace(remote?: string) {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-up-')));
 		const git = (...args: string[]) => execFileSync('git', ['-C', repoPath, ...args]);
@@ -125,11 +119,19 @@ describe('upstream', () => {
 		return { worktree, ref: { repoPath, worktreeId: 'abcdefgh-1' } };
 	}
 
-	it('enables auto-merge for the checked-out commit and cancels it through forges', async () => {
+	/**
+	 * The module afresh, with GitHub configured from the environment: never the GitHub CLI
+	 * of the machine the tests run on, which may take seconds to answer.
+	 */
+	async function configured(token = 'fixture') {
 		vi.resetModules();
 		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
-		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
-		const { setAutoMerge } = await import('./upstream.ts');
+		vi.stubEnv('FORGES_GITHUB_TOKEN', token);
+		return import('./upstream.ts');
+	}
+
+	it('enables auto-merge for the checked-out commit and cancels it through forges', async () => {
+		const { setAutoMerge, mergePull } = await configured();
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		const sha = execFileSync('git', ['-C', ref.repoPath, 'rev-parse', 'HEAD'], {
 			encoding: 'utf8'
@@ -140,6 +142,7 @@ describe('upstream', () => {
 			state: 'OPEN',
 			headRefName: 'geordi/abcdefgh',
 			baseRefName: 'main',
+			baseRefOid: sha,
 			headRefOid: 'stale',
 			repository: { squashMergeAllowed: true },
 			viewerCanEnableAutoMerge: true,
@@ -156,11 +159,18 @@ describe('upstream', () => {
 		});
 		try {
 			const request = { ...ref, pullNumber: '42', enabled: true };
-			await expect(setAutoMerge(worktree, request)).rejects.toThrow('Push the workspace commit');
+			await expect(setAutoMerge(worktree, request, () => false)).rejects.toThrow(
+				'Push the workspace commit'
+			);
 			node.headRefOid = sha;
-			await setAutoMerge(worktree, request);
-			await setAutoMerge(worktree, request);
-			await setAutoMerge(worktree, { ...request, enabled: false });
+			await setAutoMerge(worktree, request, () => false);
+			await setAutoMerge(worktree, request, () => false);
+			await setAutoMerge(worktree, { ...request, enabled: false }, () => false);
+			node.state = 'CLOSED';
+			await expect(
+				mergePull(worktree, { ...request, confirmation: 'old-review' }, () => true)
+			).rejects.toThrow('Pull request #42 is no longer open');
+
 			expect(writes).toEqual([
 				{
 					operationName: 'EnableAutoMerge',
@@ -263,10 +273,7 @@ describe('upstream', () => {
 	}
 
 	it('follows a branch through the listing of recent pull requests, asking nothing twice', async () => {
-		vi.resetModules();
-		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
-		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
-		const { upstream: read } = await import('./upstream.ts');
+		const { upstream: read } = await configured();
 		const github = fakeGitHub();
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		const git = (...args: string[]) =>
@@ -322,10 +329,7 @@ describe('upstream', () => {
 	});
 
 	it('keeps what it knew while rate limited, and asks nothing until the limit resets', async () => {
-		vi.resetModules();
-		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
-		vi.stubEnv('FORGES_GITHUB_TOKEN', 'fixture');
-		const { upstream: read } = await import('./upstream.ts');
+		const { upstream: read } = await configured();
 		const github = fakeGitHub();
 		github.pulls.push({ number: 42, state: 'merged', updatedAt: '2026-11-18T10:00:00Z' });
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
@@ -352,10 +356,7 @@ describe('upstream', () => {
 	});
 
 	it('knows a pull request without credentials, and looks again only now and then', async () => {
-		vi.resetModules();
-		vi.stubEnv('FORGES_GITHUB_ENABLED', 'true');
-		vi.stubEnv('FORGES_GITHUB_TOKEN', '');
-		const { upstream: read } = await import('./upstream.ts');
+		const { upstream: read } = await configured('');
 		const github = fakeGitHub();
 		github.pulls.push({ number: 42, state: 'open', updatedAt: '2026-11-18T10:00:00Z' });
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
@@ -380,15 +381,17 @@ describe('upstream', () => {
 	});
 
 	it('is nothing for repositories without a remote, or on a forge we do not know', async () => {
+		const { upstream: read } = await configured();
 		const local = await workspace();
-		expect(await upstream(local.worktree, local.ref)).toBeNull();
+		expect(await read(local.worktree, local.ref)).toBeNull();
 		const elsewhere = await workspace('git@git.example.invalid:acme/widgets.git');
-		expect(await upstream(elsewhere.worktree, elsewhere.ref)).toBeNull();
+		expect(await read(elsewhere.worktree, elsewhere.ref)).toBeNull();
 	});
 
 	it('knows the repository, and asks the forge nothing while the branch is not pushed', async () => {
+		const { upstream: read } = await configured();
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
-		expect(await upstream(worktree, ref, 123)).toEqual({
+		expect(await read(worktree, ref, 123)).toEqual({
 			localBranch: 'geordi/abcdefgh',
 			checkedAt: 123,
 			forge: 'github',

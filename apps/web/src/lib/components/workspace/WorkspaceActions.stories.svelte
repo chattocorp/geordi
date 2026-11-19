@@ -3,8 +3,8 @@
 	import { expect, fn, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest, Upstream } from '@geordi/protocol';
-	import { actionsFor, standingOf } from '#lib/actions.ts';
-	import WorkspaceActions from './WorkspaceActions.svelte';
+	import { actionsFor, standingOf } from '@geordi/ui/actions';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace actions', component: WorkspaceActions });
 

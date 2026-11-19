@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import type { ArchiveQuestion } from './archive.svelte.ts';
 

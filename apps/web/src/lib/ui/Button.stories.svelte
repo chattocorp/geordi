@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Button from './Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Button', component: Button });
 </script>

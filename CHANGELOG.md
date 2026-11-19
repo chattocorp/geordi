@@ -1,5 +1,56 @@
 # Geordi Changelog
 
+## 0.6.1
+
+### Fixes
+
+- Running jobs show a gold sweep across the play icon in their terminal tab. ([#228](https://github.com/chattocorp/geordi/pull/228))
+- The reply box receives focus when you start a workspace and after you send, steer, or queue a message. ([#230](https://github.com/chattocorp/geordi/pull/230))
+- Until the agent names your workspace, the header shows as much of your first prompt as fits the conversation column. ([#231](https://github.com/chattocorp/geordi/pull/231))
+- You can find Geordi’s license and copyright notice in the repository, npm package, and desktop app bundle. ([#232](https://github.com/chattocorp/geordi/pull/232))
+- Agents now receive instructions to leave SVG corners square so Geordi can round them when displayed. ([#225](https://github.com/chattocorp/geordi/pull/225))
+- The website updates its download version when a stable desktop release is published. ([#224](https://github.com/chattocorp/geordi/pull/224))
+- Removed the back and forward buttons from the desktop title bar. ([#226](https://github.com/chattocorp/geordi/pull/226))
+
+## 0.6.0
+
+### Fixes
+
+- An empty Changes pane now says so calmly, in its middle. ([#218](https://github.com/chattocorp/geordi/pull/218))
+- Ctrl+C stops `npx geordi` again: the forge no longer kept running after it, and a second Ctrl+C stops everything at once. ([#199](https://github.com/chattocorp/geordi/pull/199))
+- Buttons in the ribbon now share one text colour, so the next step and the actions beside it read alike. ([#214](https://github.com/chattocorp/geordi/pull/214))
+- Buttons, links, tabs, the sidebar and the title bar no longer get selected as text when you click or drag across them. ([#197](https://github.com/chattocorp/geordi/pull/197))
+- A repository you add that has the same name as one you removed gets a new ID, and no longer takes over the removed one's archived workspaces or agent access. ([#196](https://github.com/chattocorp/geordi/pull/196))
+- In dark mode, the sidebar and the panes beside your work now sit back in the window, so the page or conversation you are reading is what stands out. ([#212](https://github.com/chattocorp/geordi/pull/212))
+- On Windows and Linux, the desktop app's window has its minimise, maximise and close buttons again, at the top right, and no longer leaves room for buttons on the left that are not there. ([#213](https://github.com/chattocorp/geordi/pull/213))
+- A workspace whose agent edited one file in several places opens again, instead of showing an internal error. ([#219](https://github.com/chattocorp/geordi/pull/219))
+- The pull request tab shows how its checks stand next to its number, also once they have finished. ([#209](https://github.com/chattocorp/geordi/pull/209))
+- Sidebar rows switch to bold at once again, without easing between font weights. ([#203](https://github.com/chattocorp/geordi/pull/203))
+- Prompts survive a lost daemon connection. Windows sessions can resume after a restart, and a second daemon can no longer interrupt an active daemon’s work. ([#215](https://github.com/chattocorp/geordi/pull/215))
+- Hovering the archive button of a workspace in the sidebar now shows a background, like every other button. ([#208](https://github.com/chattocorp/geordi/pull/208))
+- Agent replies and messages are set in a slightly softer text colour, easier on the eyes when reading at length. ([#205](https://github.com/chattocorp/geordi/pull/205))
+
+### Features
+
+- ⚠️ **BREAKING CHANGE:** Agent access tokens are now for the repositories you choose when you create them; repositories you add later are not included. MCP clients, and the agents they start, see nothing of the others. Tokens created with Geordi 0.5.0 no longer work: create a new one in Settings → Agent access. ([#185](https://github.com/chattocorp/geordi/pull/185))
+- Use the stop icon beside a background task to end it from the conversation. ([#216](https://github.com/chattocorp/geordi/pull/216))
+- When an agent edits a file, opening the tool call in the conversation now shows the change as a diff. ([#189](https://github.com/chattocorp/geordi/pull/189))
+- Workspaces are now named by their own agent, so Geordi no longer needs an OpenRouter key: `OPENROUTER_API_KEY` and `GEORDI_TITLE_MODEL` are no longer used. ([#186](https://github.com/chattocorp/geordi/pull/186))
+- Geordi now comes for Linux (x64), as a Debian package and as a tarball. ([#213](https://github.com/chattocorp/geordi/pull/213))
+- Focus a repository: the magnifying glass beside its name in the sidebar (or Cmd/Ctrl+Shift+F, for the workspace on screen) shows it alone, and the previous and next workspace stay within it. ([#221](https://github.com/chattocorp/geordi/pull/221))
+- Under each agent reply, the byline now says how long the agent worked on it; point at that to see the tokens it used. Earlier replies show their byline only while the pointer is over them, so the conversation stays calm. ([#207](https://github.com/chattocorp/geordi/pull/207))
+- Each reply in a conversation now says how many tokens its turn used, with the full breakdown on hover. ([#187](https://github.com/chattocorp/geordi/pull/187))
+- Type `/` at the start of a reply to see the agent's own commands and skills, as Claude or Codex offers them. Pick one with the arrow keys and Enter or Tab, then add what it needs and send. ([#194](https://github.com/chattocorp/geordi/pull/194))
+- When an agent finishes its turn and suggests what you might say next, the reply box offers it in muted text. Press Tab or click it to put it in the box, edit it if you like, and send it. ([#193](https://github.com/chattocorp/geordi/pull/193))
+- Fold away the workspaces an agent started: point at the workspace that started them and click the arrow in place of its icon. ([#190](https://github.com/chattocorp/geordi/pull/190))
+- The bar at the top of a workspace now fades in when its state or next step changes. ([#211](https://github.com/chattocorp/geordi/pull/211))
+- Tool calls in a conversation now read at a glance: an icon for what kind of call it is and the agent’s own title (“Read notes.txt”, “List files”), with paths relative to the workspace. Opening a call shows the files it touched; click one to open it, or its changes. Claude’s tool input, which used to show as `{}`, is now kept. ([#192](https://github.com/chattocorp/geordi/pull/192))
+- The button that starts a workspace says "Get to work" once something is written. ([#210](https://github.com/chattocorp/geordi/pull/210))
+- Go to the previous or next workspace in the sidebar with Cmd+[ and Cmd+] (Ctrl elsewhere than on a Mac), and find every keyboard shortcut in the new Keyboard section of the settings. ([#204](https://github.com/chattocorp/geordi/pull/204))
+- A workspace shows how full its agent's context is: a small ring and percentage beside the model choice. Hover over it for the tokens used and, for Claude, what the conversation has cost so far. ([#191](https://github.com/chattocorp/geordi/pull/191))
+- The checks bar now moves smoothly as checks finish, and every check is listed without an "Other checks" fold. ([#220](https://github.com/chattocorp/geordi/pull/220))
+- Switching between light and dark now fades from one to the other. ([#200](https://github.com/chattocorp/geordi/pull/200))
+
 ## 0.5.0
 
 ### Fixes

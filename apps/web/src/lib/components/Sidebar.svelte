@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
-	import StandingIcon from '#lib/components/StandingIcon.svelte';
+	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import {
 		actFromAfar,
 		archiveAndNavigate,
@@ -12,31 +12,36 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
-	import { byRepository, unfolded } from '#lib/family.ts';
-	import { hint } from '#lib/keys.ts';
+	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
+	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import Badge from '#lib/ui/Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { slide } from 'svelte/transition';
 	import { moveWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
 	 * The sidebar's sheet: where to go (the overview, a new workspace), the workspaces by
 	 * repository, and the settings below. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
-	 * repository under its name, and those its agents started under a workspace.
+	 * repository under its name, and those its agents started under a workspace. `focus` is
+	 * the repository shown alone, if any.
 	 */
 	let {
 		nav,
 		path,
 		folded,
+		focus,
 		lost = false
 	}: {
 		nav: Navigation | undefined;
 		path: string;
 		folded: { current: string[] };
+		focus: { current: string | null };
 		lost?: boolean;
 	} = $props();
 
@@ -44,7 +49,25 @@
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(nav?.workspaces ?? []));
-	const sidebarRepos = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
+	/** How many repositories a focus hides: offered at the end, to show them again. */
+	const hidden = $derived(withWorkspaces.length - sidebarRepos.length);
+
+	/**
+	 * Repositories slide away and back when the focus changes, and only then: not when the
+	 * list first arrives, nor when a repository comes or goes on its own.
+	 */
+	let shifting = $state(false);
+	let lastFocus = focus.current;
+	$effect.pre(() => {
+		if (focus.current === lastFocus) return;
+		lastFocus = focus.current;
+		shifting = !prefersReducedMotion.current;
+		const settled = setTimeout(() => (shifting = false), MOTION + 50);
+		return () => clearTimeout(settled);
+	});
+	const motion = () => ({ duration: shifting ? MOTION : 0, easing: cubicOut });
 	/** How many workspaces wait for the person: counted beside the overview. */
 	const needYou = $derived(lanes(nav?.workspaces ?? [], unread).attention.length);
 	/** A workspace counts as working, for archiving, while anything its agent started is. */
@@ -163,6 +186,9 @@
 			? folded.current.filter((other) => other !== id)
 			: [...folded.current, id]);
 	const settingsHint = hint('settings');
+	const focusHint = hint('focusRepo');
+	/** How long repositories take to slide away or back, in milliseconds. */
+	const MOTION = 200;
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
 
@@ -176,15 +202,21 @@
 				path === '/overview',
 				needYou
 			)}
+			{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
 			{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 		</div>
 
-		<div class="space-y-4">
+		<!--
+			Each repository keeps its own space below it, rather than space between them: what
+			slides away takes its space along, and nothing is left to jump when it is gone.
+		-->
+		<div>
 			{#each sidebarRepos as repo (repo.id)}
 				{@const all = listed.get(repo.id) ?? []}
 				{@const rows = unfolded(all, folded.current)}
 				{@const isFolded = folded.current.includes(repo.id)}
-				<div>
+				{@const focused = focus.current === repo.id}
+				<div class="pb-4" transition:slide={motion()}>
 					<!--
 				A label for what is under it: its picture, its name (quiet, by its colour: the
 				workspaces are what is read here), and the way to start something in it. What is
@@ -202,6 +234,21 @@
 							{#if isFolded}
 								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{all.length}</span>
 							{/if}
+						</button>
+						<button
+							type="button"
+							class={[
+								'invisible grid size-6 shrink-0 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink',
+								focused ? 'bg-sunken text-ink' : 'text-muted'
+							]}
+							title={focused
+								? `Show all repositories (${focusHint})`
+								: `Show only ${repo.name} (${focusHint})`}
+							aria-label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
+							aria-pressed={focused}
+							onclick={() => (focus.current = focused ? null : repo.id)}
+						>
+							<span class="icon-[lucide--search] size-4"></span>
 						</button>
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 						<a
@@ -229,6 +276,22 @@
 					{/if}
 				</div>
 			{/each}
+			<!-- with one repository shown alone, the others wait here, out of the way -->
+			{#if hidden > 0}
+				<button
+					type="button"
+					class="mb-4 flex h-7 w-full items-center gap-2 pr-2 pl-1.5 text-left text-sm text-muted/60 hover:text-ink"
+					transition:slide={motion()}
+					onclick={() => (focus.current = null)}
+				>
+					<span class="grid size-5 shrink-0 place-items-center">
+						<span class="icon-[lucide--chevrons-up-down] size-4"></span>
+					</span>
+					<span class="truncate">
+						Show {hidden} other {hidden === 1 ? 'repository' : 'repositories'}
+					</span>
+				</button>
+			{/if}
 		</div>
 	</nav>
 
@@ -258,9 +321,6 @@
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
-	<!-- Routine publishing steps only need to appear inside the workspace. -->
-	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
-	{@const archivable = !busy && !leaving}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
 	<li
@@ -272,6 +332,7 @@
 				index === rows.length - 1 &&
 				'row-drop-after'
 		]}
+		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
 		draggable={depth === 0 && !leaving}
 		ondragstart={(event) => {
 			dragged = workspace;
@@ -282,108 +343,28 @@
 		ondragover={(event) => overRow(event, rows, index)}
 		ondrop={(event) => drop(event, workspace.repoId)}
 	>
-		<!-- the whole row is the item: the link, and what appears beside it on hover -->
-		<div
-			class={[
-				'group relative item pr-1 text-base',
-				// on its way out: it shows, and there is nothing more to do with it
-				(leaving || dragged?.id === workspace.id) && 'opacity-60',
-				leaving && 'pointer-events-none',
-				current && 'item-active',
-				// it came to rest out of sight, and they haven't looked since
-				unread.has(workspace.id) && 'font-semibold text-ink',
-				pointedAt === workspace.id && 'bg-surface/60 text-ink'
-			]}
-			{@attach contextMenu(() => workspaceMenu(workspace))}
-		>
-			<a
-				href={resolve('/workspaces/[id]', { id: workspace.id })}
-				class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-1.5"
-				draggable="false"
-				aria-current={current ? 'page' : undefined}
-				title={parent ? `Started by the agent in "${parent.title}"` : undefined}
-				onpointerenter={() => (pointedAt = parent?.id ?? null)}
-				onpointerleave={() => (pointedAt = null)}
-				onfocus={() => (pointedAt = parent?.id ?? null)}
-				onblur={() => (pointedAt = null)}
-			>
-				<!-- what it is, or is doing, in one place: every title starts on the same edge -->
-				<!-- as wide as the repository's picture above, and right under it -->
-				<span
-					class={[
-						'grid size-5 shrink-0 place-items-center text-muted/80',
-						under > 0 && !leaving && 'group-hover:invisible group-has-focus-visible:invisible'
-					]}
-				>
-					{#if leaving}
-						<Spinner label="Archiving" />
-					{:else if workspace.outcome === 'asking'}
-						<!-- an agent there waits for the person's answer -->
-						<span class="icon-[lucide--message-circle-question] size-4 text-accent-ink"></span>
-					{:else if workspace.working || (isFolded && busy)}
-						<!-- its agent, one working alongside it, or one folded away under it -->
-						<Spinner />
-					{:else if workspace.parentId}
-						<!-- started by an agent: the one above it, where that is still around -->
-						<span class="icon-[lucide--corner-down-right] size-4"></span>
-					{:else}
-						<span class="icon-[lucide--git-branch] size-4"></span>
-					{/if}
-				</span>
-				<span class="min-w-0 truncate">{workspace.title}</span>
-				{#if isFolded}
-					<span class="shrink-0 font-normal text-muted/60 tabular-nums">{under}</span>
-				{/if}
-			</a>
-			<!-- with workspaces under it: pointed at, its icon becomes the way to fold them -->
-			{#if under > 0 && !leaving}
-				<button
-					type="button"
-					class="invisible absolute top-1/2 left-1.5 grid size-5 -translate-y-1/2 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:text-ink"
-					aria-expanded={!isFolded}
-					aria-label="{isFolded ? 'Unfold' : 'Fold'} {workspace.title}"
-					title={isFolded ? `Show the ${under} under it` : `Fold the ${under} under it`}
-					onclick={() => toggleFolded(workspace.id)}
-				>
-					<span
-						class={[
-							'size-4',
-							isFolded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'
-						]}
-					></span>
-				</button>
-			{/if}
-			<!--
-				At its end: how its work stands, at a glance. Pointed at, that makes way for what
-				can be done with it; the two share one place, so that nothing moves.
-			-->
-			<span class="grid size-6 shrink-0 place-items-center">
-				{#if standing}
-					<span
-						class={[
-							'col-start-1 row-start-1',
-							archivable && 'group-hover:invisible group-has-focus-visible:invisible'
-						]}
-					>
-						<StandingIcon {standing} />
-					</span>
-				{/if}
-				{#if archivable}
-					<button
-						type="button"
-						class={[
-							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-hover',
-							standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
-						]}
-						title="Archive workspace"
-						aria-label="Archive {workspace.title}"
-						onclick={() => archiveAndNavigate(workspace)}
-					>
-						<span class="icon-[lucide--archive] size-3.5"></span>
-					</button>
-				{/if}
-			</span>
-		</div>
+		<WorkspaceRow
+			title={workspace.title}
+			href={resolve('/workspaces/[id]', { id: workspace.id })}
+			parentTitle={parent?.title}
+			child={!!workspace.parentId}
+			{current}
+			{leaving}
+			dragging={dragged?.id === workspace.id}
+			highlighted={pointedAt === workspace.id}
+			unread={unread.has(workspace.id)}
+			asking={workspace.outcome === 'asking'}
+			waiting={workspace.waiting}
+			working={workspace.working || (isFolded && busy)}
+			standing={workspace.standing}
+			actions={workspace.actions}
+			fold={under > 0
+				? { count: under, folded: isFolded, toggle: () => toggleFolded(workspace.id) }
+				: undefined}
+			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
+			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
+			onarchive={busy || leaving ? undefined : () => archiveAndNavigate(workspace)}
+		/>
 	</li>
 {/snippet}
 

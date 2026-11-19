@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { expect } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Disclosure from './Disclosure.svelte';
+	import Disclosure from '@geordi/ui/Disclosure.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Disclosure', component: Disclosure });
 </script>

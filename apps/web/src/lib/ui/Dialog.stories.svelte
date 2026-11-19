@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, userEvent, waitFor } from 'storybook/test';
-	import Button from './Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from './Dialog.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Dialog', component: Dialog });

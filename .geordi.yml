@@ -1,7 +1,7 @@
 setup: pnpm install --frozen-lockfile
 
-# The install job needs no listener; web uses its port for the browser WebSocket.
-ports: 8
+# Electron needs two spare ports. Existing workspaces also reserve the retired install port.
+ports: 9
 
 jobs:
   web:
@@ -25,10 +25,6 @@ jobs:
   desktop:
     label: Electron dev app
     command: pnpm desktop:dev
-
-  desktop-install:
-    label: Install Electron app (restarts Geordi)
-    command: pnpm desktop:install
 
 urls:
   app:

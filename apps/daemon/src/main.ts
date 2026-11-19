@@ -1,10 +1,12 @@
+import { claimDaemon } from './daemon-owner.ts';
+import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir, hostname } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
 	DEFAULT_PORTS,
@@ -36,7 +38,7 @@ import {
 	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
-import { releasePlan } from './releases.ts';
+import { editReleaseNote, releasePlan } from './releases.ts';
 import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import {
@@ -78,7 +80,10 @@ const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geord
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
-const daemonId = hostname();
+prepareSessionsDirectory(sessionsDir);
+const owner = claimDaemon(sessionsDir);
+const daemonId = owner.id;
+process.once('exit', owner.close);
 /** The models and effort levels this machine's agent CLIs offer; told to the forge. */
 const harnesses: Harness[] = await Promise.all(
 	AGENTS.map(async (agent) => ({ agent, ...(await adapterFor(agent)).offers() }))
@@ -467,6 +472,7 @@ function answer(request: DaemonRequest) {
 		case 'continueWorktree':
 		case 'updateWorktree':
 		case 'removeWorktree':
+		case 'editReleaseNote':
 		case 'config':
 			return inWorktree(worktreePath(worktreesDir, request.repoPath, request.worktreeId), () =>
 				readRequest(request)
@@ -532,15 +538,22 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'prepareWorktree') {
 		const { repoPath, worktreeId, base, branch } = request;
 		// a new one starts from where its upstream stands now, as with a first turn
-		if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+		if (!request.requireBranch && !base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
-		const worktree = await ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
+		const worktree = await ensureWorktree(
+			worktreesDir,
+			repoPath,
+			worktreeId,
+			base,
+			branch,
+			request.requireBranch
+		);
 		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
-		return { path: worktree.path, branch: worktree.branch };
+		return { path: worktree.path, branch: branchOf(worktree) ?? worktree.branch };
 	}
 
 	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
@@ -553,9 +566,10 @@ async function readRequest(request: DaemonRequest) {
 			]);
 			return unknown ? { ...changes, unknownForge: unknown } : changes;
 		}
-		case 'release':
+		case 'editReleaseNote':
+		case 'release': {
 			// which notes are this workspace's: the files it has added
-			return releasePlan(
+			const plan = await releasePlan(
 				worktree,
 				async () =>
 					new Set(
@@ -565,6 +579,11 @@ async function readRequest(request: DaemonRequest) {
 					),
 				(command) => approvals.has(request.repoPath, command)
 			);
+			if (request.kind === 'release') return plan;
+			editReleaseNote(worktree, plan, request);
+			sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId });
+			return null;
+		}
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':
@@ -582,11 +601,13 @@ async function readRequest(request: DaemonRequest) {
 			return result;
 		}
 		case 'setAutoMerge':
-			return setAutoMerge(worktree, request);
+			return setAutoMerge(worktree, request, (cmd) => approvals.has(request.repoPath, cmd));
 		case 'markReady':
 			return markReady(worktree, request);
 		case 'mergePull': {
-			const status = await mergePull(worktree, request);
+			const status = await mergePull(worktree, request, (cmd) =>
+				approvals.has(request.repoPath, cmd)
+			);
 			// The merge is a new commit upstream: fetching it lets every workspace of the
 			// repository see it (their watchers notice the refs change). Not waited for.
 			if (status === 'merged')

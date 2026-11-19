@@ -12,7 +12,7 @@ import {
 } from '@geordi/protocol';
 import { toJsonSchema } from '@valibot/to-json-schema';
 import * as v from 'valibot';
-import { actionsFor, standingOf } from '#lib/actions.ts';
+import { actionsFor, standingOf } from '@geordi/ui/actions';
 import { isExternal } from './agent-access.ts';
 import type { createWorkspaces } from './workspaces.ts';
 

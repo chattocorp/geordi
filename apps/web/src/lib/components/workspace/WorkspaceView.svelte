@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -9,8 +11,9 @@
 		standingOf,
 		type WorkspaceAction,
 		type WorkspaceStanding
-	} from '#lib/actions.ts';
-	import { hint, pressed } from '#lib/keys.ts';
+	} from '@geordi/ui/actions';
+	import { hint, pressed } from '@geordi/ui/keys';
+	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks } from '#lib/transcript.ts';
 	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
@@ -38,22 +41,23 @@
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
-	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
-	import TitleBar from '#lib/ui/TitleBar.svelte';
+	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
-		mergePull,
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
+		editReleaseNote,
 		jobsReady,
 		openLink,
 		restoreWorktree,
+		restoreWorkspace,
 		runSetup,
 		say,
 		startJobs,
@@ -61,19 +65,21 @@
 		stopJob,
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
+	import { addedNoteCount } from '#lib/release-notes.ts';
 	import { pendingPullAction, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
-	import PullRequestTab from './PullRequestTab.svelte';
-	import PullRequestPane from './PullRequestPane.svelte';
-	import Changes from './Changes.svelte';
-	import DiffStat from '#lib/components/DiffStat.svelte';
+	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
+	import Changes from '@geordi/ui/Changes.svelte';
+	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
-	import WorkspaceActions from './WorkspaceActions.svelte';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 
 	type Props = {
 		/** The workspace as it is now: it comes live, over the page's one connection. */
@@ -92,6 +98,8 @@
 			name: workspace.repoId
 		}
 	);
+	let columnWidth = $state<number>();
+	const firstPrompt = $derived(workspace.transcript.find((item) => item.kind === 'user')?.text);
 	const git = $derived(workspace.git);
 	// Local Git can answer before the upstream lookup. Keep the last complete result
 	// for the ribbon and its pull request tab while the next check is in flight.
@@ -102,10 +110,13 @@
 	const checked = $derived(git?.checking ? lastChecked : git);
 	const pull = $derived(checked?.upstream?.pull);
 	const running = $derived(workspace.status === 'running');
+	const offline = $derived(everything.current?.harnesses === null);
+	const waiting = (conversation: { pendingDelivery?: boolean }) =>
+		!!conversation.pendingDelivery && offline;
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
 	// the other (the side, and the dock). Windows are tabs named after what they show: the
-	// conversation, the workspace's `changes` and its `changeset`, `diff:<path>` and
+	// conversation, the workspace's `changes` and its `changeset`, `diff` and
 	// `terminal:<name>`. The conversation lives in the main area; everything else can be
 	// dragged from any area to any other.
 	const CHAT = 'chat';
@@ -114,8 +125,6 @@
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
 	const DRAFT = 'draft';
-	type Area = 'main' | 'side' | 'dock';
-	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
 	const sourceOf = (tab: string) => (tab.startsWith('source:') ? tab.slice(7) : undefined);
 	const terminalOf = (tab: string) => (tab.startsWith('terminal:') ? tab.slice(9) : undefined);
 	/** An agent working alongside this workspace's own (`agent:<its workspace's ID>`). */
@@ -159,10 +168,8 @@
 
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
-	const arrangement = persisted<Partial<Record<Area, Layout | null>>>(
-		`geordi:arrangement:${id}`,
-		{}
-	);
+	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
+	const saved = $derived(restoreDiff(arrangement.current));
 	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
@@ -183,7 +190,9 @@
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('subagent:')) return reviewers.has(tab);
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
-		return tab === CHAT || tab === CHANGES || !!pathOf(tab) || !!sourceOf(tab);
+		return (
+			tab === CHAT || tab === CHANGES || (tab === 'diff' && !!saved.diffPath) || !!sourceOf(tab)
+		);
 	};
 	/** The three areas' windows: as they were arranged, and what is new where it belongs. */
 	const layouts = $derived.by((): Record<Area, Layout> => {
@@ -191,7 +200,7 @@
 		// a window is in one place only: where it was put first, going through the areas
 		const arranged = (area: Area) => {
 			const layout = prune(
-				arrangement.current[area] ?? singleGroup([], { id: area }),
+				saved[area] ?? singleGroup([], { id: area }),
 				(tab) =>
 					!placed.includes(tab) &&
 					(exists(tab) || (tab === CHANGESET && (!workspace.git || workspace.git.releasePending)))
@@ -389,7 +398,7 @@
 	});
 
 	/** Remembers a new arrangement. A terminal whose window is gone from it has its shell ended. */
-	function arrange(next: Partial<Record<Area, Layout>>) {
+	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
 		if (!remaining.includes(DRAFT)) drafting = false;
@@ -414,7 +423,7 @@
 				else closeTerminal({ workspaceId: id, terminal }).catch(() => {});
 			}
 		}
-		arrangement.current = after;
+		arrangement.current = { ...after, diffPath: remaining.includes('diff') ? diffPath : undefined };
 	}
 
 	/** A window dragged from one area was dropped in another. */
@@ -438,12 +447,12 @@
 		aideOf(tab)?.status !== 'running';
 
 	/** Focus the tab where it is, or open it next to the conversation. */
-	const showTab = (tab: string) => {
+	const showTab = (tab: string, diffPath = saved.diffPath) => {
 		const area = areaOf(tab) ?? 'main';
 		if (area !== 'main' && !frame.current.open) toggleSide();
-		arrange({ [area]: open(layouts[area], tab, chatGroup) });
+		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath);
 	};
-	const openDiff = (path: string) => showTab(`diff:${path}`);
+	const openDiff = (path: string) => showTab('diff', path);
 
 	// Its conversations link the files it has changed to their diffs. The list is compared as
 	// text: the changes are new with every update, and each new set renders every reply again.
@@ -539,7 +548,7 @@
 			.filter((action) =>
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
-					: (action.id === 'merge-pull' && (merging || mergeConfirmed)) ||
+					: (action.id === 'merge-pull' && mergeConfirmed) ||
 						(!!action.pullNumber && pendingPullAction.has(id)) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
@@ -553,25 +562,23 @@
 	/** It is being archived right now, which takes a moment. */
 	const leaving = $derived(beingArchived.has(id));
 
-	/** The pull request is being merged right now. */
-	let merging = $state(false);
 	// A successful command can arrive before the live view that offers Archive.
 	let mergedPull = $state<string | null>(null);
 	const mergeConfirmed = $derived(mergedPull !== null && mergedPull === pull?.number);
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
-	async function merge() {
-		const number = pull?.number;
-		if (!number || merging || mergeConfirmed) return;
+	let restoringWorkspace = $state(false);
+	async function reopen() {
+		restoringWorkspace = true;
 		mergeProblem = null;
-		merging = true;
 		try {
-			if ((await mergePull(id)) === 'merged') mergedPull = number;
+			await restoreWorkspace(id);
+			if (page.params.id === id && workspace.worktreeId !== id) await invalidateAll();
 		} catch (error) {
-			mergeProblem = problemOf(error, 'Could not merge the pull request');
+			mergeProblem = problemOf(error, 'Could not restore the workspace');
 		} finally {
-			merging = false;
+			restoringWorkspace = false;
 		}
 	}
 
@@ -626,13 +633,15 @@
 		)
 	);
 
-	function act(action: WorkspaceAction) {
+	async function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
 		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
-		else if (action.pullNumber) runPullAction(id, action);
-		else if (action.id === 'merge-pull') merge();
-		else if (action.id === 'restore-worktree') restore();
+		else if (action.pullNumber) {
+			if (action.id === 'merge-pull' && mergeConfirmed) return;
+			mergeProblem = null;
+			if ((await runPullAction(id, action)) === 'merged') mergedPull = action.pullNumber;
+		} else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
@@ -670,7 +679,7 @@
 
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
-	{@const path = pathOf(tab) ?? sourceOf(tab)}
+	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -684,9 +693,7 @@
 	{:else if tab === PR && pull}
 		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}
-		{@const added = (git?.release?.packages ?? [])
-			.flatMap((pkg) => pkg.notes)
-			.filter((note) => note.added).length}
+		{@const added = addedNoteCount(git?.release?.packages ?? [])}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
 		<span class="truncate">Changeset</span>
 		{#if added > 0}{@render count(added)}{/if}
@@ -707,7 +714,12 @@
 				<!-- on its way up: until it listens on its port -->
 				<span class="grid size-3.5 shrink-0 place-items-center"><Spinner label="Starting" /></span>
 			{:else if status === undefined}
-				<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
+				<span
+					class="bar-running icon-[lucide--play] size-3.5 shrink-0 text-accent"
+					role="img"
+					aria-label="Running"
+					title="Running"
+				></span>
 			{:else if status === 0}
 				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
 			{:else}
@@ -736,15 +748,20 @@
 		/>
 	{:else if aideOf(tab)}
 		{@const aide = aideOf(tab)!}
-		<ConversationTab agent={aide.agent} title={aide.title} running={aide.status === 'running'} />
+		<ConversationTab
+			agent={aide.agent}
+			title={aide.title}
+			running={aide.status === 'running'}
+			waiting={waiting(aide)}
+		/>
 	{:else}
-		<ConversationTab agent={workspace.agent} {running} />
+		<ConversationTab agent={workspace.agent} {running} waiting={waiting(workspace)} />
 	{/if}
 {/snippet}
 
 {#snippet window(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
-	{@const path = pathOf(tab)}
+	{@const path = tab === 'diff' ? saved.diffPath : undefined}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
 	{#if tab === CHANGES}
@@ -754,11 +771,15 @@
 			onopen={openDiff}
 		/>
 	{:else if tab === PR && pull}
-		<PullRequestPane {pull} />
+		<PullRequestPane {pull}
+			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
 				plan={git.release}
+				onsave={(path, original, body) =>
+					editReleaseNote({ workspaceId: id, path, original, body })}
 				onopen={openDiff}
 				onallow={(command) =>
 					approveRun({ workspaceId: id, commands: [command] }).catch(
@@ -772,7 +793,9 @@
 		{/if}
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
-		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+		{#key path}
+			<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+		{/key}
 	{:else if source}
 		<SourceWindow
 			workspaceId={id}
@@ -811,12 +834,14 @@
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
 			workspace={aideOf(tab)!}
+			waiting={waiting(aideOf(tab)!)}
 			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
 			senders={{ ...workspace.senders, [workspace.id]: workspace.title }}
 		/>
 	{:else}
 		<Conversation
 			{workspace}
+			waiting={waiting(workspace)}
 			onopensubagent={(child) => showTab(reviewerTab(id, child))}
 			senders={workspace.senders}
 		/>
@@ -826,9 +851,11 @@
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
 	<TitleBar>
 		<div class="min-w-0 flex-1">
-			<h1 class="truncate heading" title={workspace.title}>
-				{workspace.title}
-			</h1>
+			<WorkspaceHeading
+				title={workspace.title}
+				prompt={workspace.named ? undefined : firstPrompt}
+				{columnWidth}
+			/>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
 				<span class="flex shrink-0 items-center gap-1">
 					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
@@ -854,6 +881,9 @@
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
+			<Button onclick={reopen} disabled={restoringWorkspace}
+				>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
+			>
 		{:else}
 			<Button
 				variant="ghost"
@@ -913,6 +943,7 @@
 			<!-- what is read, as a sheet in the frame: as far from the window's edge as the others, -->
 			<!-- and half a gap from what is beside it, where there is something -->
 			<div
+				bind:clientWidth={columnWidth}
 				class={[
 					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
 					frame.current.open ? 'mr-1' : 'mr-2'

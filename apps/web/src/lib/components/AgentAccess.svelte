@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
-	import MessageCopy from './workspace/MessageCopy.svelte';
+	import MessageCopy from '@geordi/ui/MessageCopy.svelte';
 	import { problemOf } from '#lib/problem.ts';
 	type Repo = { id: string; name: string };
 	let {

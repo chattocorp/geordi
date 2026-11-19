@@ -47,9 +47,9 @@
 </script>
 
 <script lang="ts">
-	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import { agentName } from '#lib/format.ts';
-	import { effortShortcut, modelShortcut } from '#lib/keys.ts';
+	import { effortShortcut, modelShortcut } from '@geordi/ui/keys';
 	import Select, { type SelectOption } from '#lib/ui/Select.svelte';
 
 	type Props = {

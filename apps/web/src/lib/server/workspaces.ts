@@ -1,3 +1,5 @@
+import { promptTitle } from '#lib/prompt-title.ts';
+import { problemOf } from '#lib/problem.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -77,6 +79,11 @@ export type WorkspacesEvent =
 			stream: WorkspaceStream;
 			data: { id: string; text: string; images?: string[] };
 	  }
+	| {
+			type: 'workspace.undeliverable';
+			stream: WorkspaceStream;
+			data: { id: string; deliveryId: string; reason: string };
+	  }
 	/** A message to send once the agent has finished what it is doing. */
 	| {
 			type: 'workspace.queued';
@@ -112,6 +119,7 @@ export type WorkspacesEvent =
 	  }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
+	| { type: 'workspace.restored'; stream: WorkspaceStream; data: { id: string } }
 	/** What a person answered to a question the agent asked: one answer per question, in their order. */
 	| {
 			type: 'workspace.answered';
@@ -262,6 +270,8 @@ function updateAsking(workspace: Workspace) {
 	);
 }
 
+type PendingMessage = { deliveryId: string; text: string; images: string[] };
+
 type Status = 'running' | 'idle';
 
 /**
@@ -271,7 +281,7 @@ type Status = 'running' | 'idle';
  */
 export type Workspace = {
 	outputCursor?: string;
-	pendingSteers?: { deliveryId: string; text: string; images: string[] }[];
+	pendingMessages?: PendingMessage[];
 	/** When the turn that is running began, for the `turn` item that ends it. */
 	turnStartedAt?: string;
 	id: string;
@@ -348,7 +358,9 @@ function initialWorkspace(
 	};
 }
 
-export type WorkspaceSummary = Omit<Workspace, 'transcript'>;
+export type WorkspaceSummary = Omit<Workspace, 'transcript' | 'pendingMessages'> & {
+	pendingDelivery?: boolean;
+};
 
 /** What an agent sees of an agent it started (FDR-002). */
 export type AgentReport = {
@@ -431,7 +443,10 @@ export function createWorkspaces(
 		restoring = false
 	) {
 		if (event.type === 'workspace.created') {
-			workspaces.set(event.data.id, initialWorkspace(event.data, at, actor));
+			workspaces.set(
+				event.data.id,
+				initialWorkspace({ ...event.data, title: promptTitle(event.data.title) }, at, actor)
+			);
 			return;
 		}
 
@@ -495,11 +510,17 @@ export function createWorkspaces(
 				workspace.worktree = { ...workspace.worktree, branch: event.data.branch };
 			return;
 		}
+		if (event.type === 'workspace.restored') {
+			if (!restoring) workspace.transcript = transcriptOf(workspace, seq);
+			workspace.archivedAt = null;
+			return;
+		}
 		if (event.type === 'workspace.archived') {
 			workspace.archivedAt = at;
 			if (!restoring) workspace.transcript = [];
 			workspace.queue = [];
 			workspace.attachments.queue = [];
+			workspace.sentBy.queue = [];
 			return;
 		}
 		if (event.type === 'workspace.queued') {
@@ -531,11 +552,20 @@ export function createWorkspaces(
 			}
 			return;
 		}
+		if (event.type === 'workspace.undeliverable') {
+			workspace.pendingMessages = workspace.pendingMessages?.filter(
+				(m) => m.deliveryId !== event.data.deliveryId
+			);
+			append({ kind: 'error', error: event.data.reason, at });
+			return;
+		}
 		if (event.type === 'workspace.message') {
 			if (event.data.deliveryId)
-				(workspace.pendingSteers ??= []).push({
+				(workspace.pendingMessages ??= []).push({
 					deliveryId: event.data.deliveryId,
-					text: event.data.text,
+					text: workspace.briefing
+						? workspace.briefing + '\n\n' + event.data.text
+						: event.data.text,
 					images: event.data.images ?? []
 				});
 			// said by whoever queued it, or steered with it, or says it now
@@ -576,7 +606,7 @@ export function createWorkspaces(
 				if (output.path.length) edit(...subagentEdit(transcript, output.path, output.update, at));
 				break;
 			case 'message.received':
-				workspace.pendingSteers = workspace.pendingSteers?.filter(
+				workspace.pendingMessages = workspace.pendingMessages?.filter(
 					(s) => s.deliveryId !== output.id
 				);
 				break;
@@ -659,7 +689,7 @@ export function createWorkspaces(
 				workspace.asking = false;
 				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
 				if (output.kind === 'turn.failed') {
-					workspace.pendingSteers = [];
+					workspace.pendingMessages = [];
 					workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
 					// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
 					if (!(output.error === 'Stopped' && steering.has(workspace.id)))
@@ -718,7 +748,7 @@ export function createWorkspaces(
 
 	// Reuse the normal reducer for a private reconstruction. Session mappings were learned
 	// during replay. Never feed creation events back into that stateful upcaster.
-	function transcriptOf(workspace: Workspace): TranscriptItem[] {
+	function transcriptOf(workspace: Workspace, before = Infinity): TranscriptItem[] {
 		if (!workspace.archivedAt) return workspace.transcript;
 		const { id, repoId, agent, title } = workspace;
 		const restored = initialWorkspace({ id, repoId, agent, title }, workspace.createdAt);
@@ -732,6 +762,7 @@ export function createWorkspaces(
 			events.sort((a, b) => a.seq - b.seq);
 		}
 		for (const event of events) {
+			if (event.seq >= before) break;
 			if (event.seq <= createdAtSeq) continue;
 			if (event.type === 'workspace.created' || event.type === 'session.created') continue;
 			for (const current of upcast(event))
@@ -759,10 +790,16 @@ export function createWorkspaces(
 		store.append({ type: 'workspace.usage', stream: `workspace:${id}`, data: { id, usage } });
 	}
 
-	const summarise = ({ transcript, ...workspace }: Workspace): WorkspaceSummary => {
+	const summarise = ({
+		transcript,
+		pendingMessages,
+		...workspace
+	}: Workspace): WorkspaceSummary => {
 		void transcript;
+
 		return structuredClone({
 			...workspace,
+			...(pendingMessages?.length && { pendingDelivery: true }),
 			usage: usages.get(workspace.id) ?? workspace.usage,
 			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
 		});
@@ -854,8 +891,7 @@ export function createWorkspaces(
 		});
 		const measured = usages.get(id);
 		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
-		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
-			say(workspace, workspace.queue[0], null, 'queued');
+		if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
 	}
 
 	/**
@@ -883,16 +919,33 @@ export function createWorkspaces(
 	/** Workspaces that must not start a turn right now; see `hold`. */
 	const held = new Set<string>();
 
-	/**
-	 * Says something to the workspace's agent, through a daemon: that starts a turn, or, if
-	 * the agent is at work, steers it. An agent at work that cannot be reached is not told
-	 * (and that is an error); one that was to start is noted as having failed to.
-	 */
-	function deliver(workspace: Workspace, text: string, images: string[], deliveryId?: string) {
+	/** Send the recorded prompt. An unacknowledged delivery is retried on reconnect. */
+	function deliver(workspace: Workspace, message: PendingMessage, working: boolean) {
+		const { text, images, deliveryId } = message;
+		let target: WorktreeRef;
+		let attachments;
+		try {
+			target = ref(workspace.id);
+			attachments = images.map(imageStore.get);
+		} catch (error) {
+			const reason =
+				'Could not deliver the prompt. ' +
+				problemOf(error, 'Check its repository and attached images.');
+			console.error(`[workspace ${workspace.id}] ${reason}`, error);
+			if (!working && workspace.pendingMessages?.length === 1)
+				record(workspace.id, { kind: 'turn.failed', error: reason });
+			else
+				store.append({
+					type: 'workspace.undeliverable',
+					stream: `workspace:${workspace.id}`,
+					data: { id: workspace.id, deliveryId, reason }
+				});
+			return false;
+		}
 		return dispatch({
 			type: 'agent.message',
 			workspaceId: workspace.id,
-			...ref(workspace.id),
+			...target,
 			agent: workspace.agent,
 			settings: workspace.settings,
 			apiToken: tokenFor(workspace),
@@ -903,8 +956,8 @@ export function createWorkspaces(
 				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
-			...(images.length && { images: images.map(imageStore.get) }),
-			...(deliveryId && { deliveryId }),
+			...(attachments.length && { images: attachments }),
+			deliveryId,
 			prompt: text
 		});
 	}
@@ -921,12 +974,9 @@ export function createWorkspaces(
 		const senderName = sender
 			? (access.name(sender) ?? projection.get().get(sender)?.title)
 			: undefined;
-		const steers = workspace.status === 'running';
 		if (from === 'queued') images = workspace.attachments.queue[0];
-		const deliveryId = steers ? randomUUID() : undefined;
-		const prompt = workspace.briefing ? workspace.briefing + '\n\n' + text : text;
-		const sent = deliver(workspace, prompt, images, deliveryId);
-		if (!sent && steers) error(503, 'No daemon is connected: the agent cannot be told right now');
+		const deliveryId = randomUUID();
+		const working = workspace.status === 'running';
 		store.append(
 			{
 				type: 'workspace.message',
@@ -934,7 +984,7 @@ export function createWorkspaces(
 				data: {
 					id,
 					text,
-					...(deliveryId && { deliveryId }),
+					deliveryId,
 					...(images.length && { images }),
 					...(from && { [from]: true }),
 					...(senderName && { senderName })
@@ -942,7 +992,14 @@ export function createWorkspaces(
 			},
 			{ actor }
 		);
-		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });
+		// append applies the projection synchronously, including the briefing and attachments.
+		const pending = workspace.pendingMessages?.find((message) => message.deliveryId === deliveryId);
+		if (pending) deliver(workspace, pending, working);
+	}
+
+	function promoteCompletedQueue(workspace: Workspace) {
+		if (workspace.lastTurn === 'completed' && workspace.queue.length)
+			say(workspace, workspace.queue[0], null, 'queued');
 	}
 
 	/**
@@ -1012,7 +1069,13 @@ export function createWorkspaces(
 	 */
 	function nameAfter(workspace: Workspace, text: string) {
 		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
-		retitle(workspace.id, text.split('\n')[0].slice(0, 300));
+		const title = promptTitle(text);
+		if (title && title !== UNTITLED)
+			store.append({
+				type: 'workspace.titled',
+				stream: `workspace:${workspace.id}`,
+				data: { id: workspace.id, title }
+			});
 	}
 
 	/**
@@ -1050,9 +1113,7 @@ export function createWorkspaces(
 		repos.get(workspace.repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
-		// The first line; the UI clamps long titles visually. One started without a word is
-		// named when it is first told something (`nameAfter`).
-		const title = prompt.split('\n')[0].trim().slice(0, 300) || UNTITLED;
+		const title = promptTitle(prompt) || UNTITLED;
 		store.append(
 			{
 				type: 'workspace.created',
@@ -1392,6 +1453,18 @@ export function createWorkspaces(
 				.reverse()
 				.map(summarise),
 
+		archived: () =>
+			[...projection.get().values()]
+				.flatMap(({ id, title, repoId, archivedAt }) =>
+					archivedAt ? [{ id, title, repoId, archivedAt }] : []
+				)
+				.sort((a, b) => b.archivedAt.localeCompare(a.archivedAt)),
+
+		restore(id: string) {
+			if (find(id).archivedAt)
+				store.append({ type: 'workspace.restored', stream: `workspace:${id}`, data: { id } });
+		},
+
 		/** A repository's workspaces in use, newest first, without their transcripts. */
 		list: (repoId: string): WorkspaceSummary[] =>
 			[...projection.get().values()]
@@ -1463,6 +1536,7 @@ export function createWorkspaces(
 				actor
 			);
 		},
+		hasRunningTurn: () => Array.from(projection.get().values()).some((w) => w.status === 'running'),
 		worktreeOf: (id: string) => projection.get().get(id)?.worktreeId,
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
@@ -1568,6 +1642,7 @@ export function createWorkspaces(
 		 * it. Not in the event log: it lasts no longer than the request that asked for it.
 		 */
 		hold(ids: string[]): () => void {
+			if (ids.some((id) => held.has(id))) error(409, 'A workspace is being archived or restored');
 			for (const id of ids) held.add(id);
 			return () => ids.forEach((id) => held.delete(id));
 		},
@@ -1683,9 +1758,11 @@ export function createWorkspaces(
 		 * were apart is not among them; it says so next.)
 		 */
 		reconcile(running: string[]) {
+			const reported = new Set(running);
 			for (const workspace of projection.get().values()) {
 				if (workspace.archivedAt) continue;
-				if (running.includes(workspace.id))
+				let working = reported.has(workspace.id);
+				if (working)
 					for (const item of workspace.transcript)
 						if (item.kind === 'question' && item.delivery === 'pending' && item.answers)
 							dispatch({
@@ -1694,8 +1771,10 @@ export function createWorkspaces(
 								questionId: item.id,
 								answers: item.answers
 							});
-				for (const steer of workspace.pendingSteers ?? [])
-					deliver(workspace, steer.text, steer.images, steer.deliveryId);
+				for (const message of workspace.pendingMessages ?? [])
+					if (deliver(workspace, message, working)) working = true;
+				// A restart can fall between recording completion and promoting the queue.
+				promoteCompletedQueue(workspace);
 			}
 			for (const id of running)
 				if (projection.get().get(id)?.status !== 'running')
@@ -1703,8 +1782,8 @@ export function createWorkspaces(
 			for (const workspace of projection.get().values())
 				if (
 					workspace.status === 'running' &&
-					!workspace.pendingSteers?.length &&
-					!running.includes(workspace.id)
+					!workspace.pendingMessages?.length &&
+					!reported.has(workspace.id)
 				)
 					record(workspace.id, {
 						kind: 'turn.failed',
