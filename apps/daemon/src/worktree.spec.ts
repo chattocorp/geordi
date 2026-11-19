@@ -284,6 +284,9 @@ describe('ensureWorktree', () => {
 describe('changes', () => {
 	it('reports committed, uncommitted and untracked changes against the fork point', async () => {
 		const repoPath = repo();
+		const pixels = Buffer.from('524946460000000057454250ff', 'hex');
+		const picture = { mediaType: 'image/webp', data: pixels.toString('base64') };
+		writeFileSync(join(repoPath, 'original.webp'), pixels);
 		writeFileSync(join(repoPath, 'kept.txt'), 'one\ntwo\n');
 		execFileSync('git', ['-C', repoPath, 'add', '.']);
 		execFileSync('git', [
@@ -323,6 +326,11 @@ describe('changes', () => {
 		});
 		expect(await versions(worktree, origin, 'new.txt')).toEqual({ old: null, new: 'x\ny\n' });
 		expect(await versions(worktree, origin, 'committed.txt')).toEqual({ old: null, new: 'a\n' });
+
+		writeFileSync(join(worktree.path, 'sample.webp'), pixels);
+		expect(await versions(worktree, origin, 'sample.webp')).toEqual({ old: null, new: picture });
+		rmSync(join(worktree.path, 'original.webp'));
+		expect(await versions(worktree, origin, 'original.webp')).toEqual({ old: picture, new: null });
 
 		// deleted, and binary
 		rmSync(join(worktree.path, 'kept.txt'));

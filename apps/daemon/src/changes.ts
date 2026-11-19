@@ -9,10 +9,18 @@ import {
 	realpathSync
 } from 'node:fs';
 import { isAbsolute, join, sep } from 'node:path';
-import type { Changes, FileChange, FileVersions } from '@geordi/protocol';
+import {
+	MAX_IMAGE_BYTES,
+	pictureTypeOf,
+	type FileContent,
+	type Changes,
+	type FileChange,
+	type FileVersions
+} from '@geordi/protocol';
 import {
 	branchOf,
 	branchRef,
+	readBlobIn,
 	gitIn,
 	headOf,
 	startOf,
@@ -20,7 +28,7 @@ import {
 	type Worktree
 } from './worktree.ts';
 
-/** Files are for reading; beyond this size (in characters) they are not shown. */
+/** Files are for reading; beyond this size (in bytes) they are not shown. */
 const MAX_FILE = 1_000_000;
 /**
  * Never run code the worktree can supply: no diff drivers, and no looking inside submodules
@@ -66,7 +74,7 @@ const untracked = async (worktree: Worktree, ...paths: string[]) =>
 		.filter(Boolean);
 
 /**
- * The text of a file in the worktree, or `null` if it is not a readable, regular text file
+ * The bytes of a file in the worktree, or `null` if it is not a readable, regular file
  * that really is inside the worktree.
  *
  * An agent can swap any part of the path for a symlink at any moment. So the path must
@@ -75,7 +83,7 @@ const untracked = async (worktree: Worktree, ...paths: string[]) =>
  * checked on the open file, not on the path. Opening never waits (a named pipe would block
  * the whole daemon otherwise).
  */
-export function readText(worktree: Worktree, path: string): string | null {
+function readBytes(worktree: Worktree, path: string, limit: number): Buffer | null {
 	if (
 		isAbsolute(path) ||
 		path.split(sep).some((part) => part === '..' || part.toLowerCase() === '.git')
@@ -95,14 +103,39 @@ export function readText(worktree: Worktree, path: string): string | null {
 		const named = lstatSync(file);
 		const same = opened.dev === named.dev && opened.ino === named.ino;
 		if (!same || realpathSync(file) !== file) return null;
-		if (!opened.isFile() || opened.size > MAX_FILE) return null;
-		const text = readFileSync(fd, 'utf8');
-		return text.includes('\0') ? null : text;
+		if (!opened.isFile() || opened.size > limit) return null;
+		return readFileSync(fd);
 	} catch {
 		return null;
 	} finally {
 		closeSync(fd);
 	}
+}
+
+function asText(bytes: Buffer | null) {
+	return bytes && bytes.length <= MAX_FILE && !bytes.includes(0) ? bytes.toString('utf8') : null;
+}
+
+export function readText(worktree: Worktree, path: string) {
+	return asText(readBytes(worktree, path, MAX_FILE));
+}
+
+function fileContent(bytes: Buffer | null): FileContent | null {
+	if (!bytes || bytes.length > MAX_IMAGE_BYTES) return null;
+	const mediaType = pictureTypeOf(bytes);
+	if (mediaType && mediaType !== 'image/svg+xml')
+		return { mediaType, data: bytes.toString('base64') };
+	return asText(bytes) ?? (mediaType && { mediaType, data: bytes.toString('base64') });
+}
+
+export function readWorktreePicture(worktree: Worktree, path: string) {
+	const bytes = readBytes(worktree, path, MAX_IMAGE_BYTES);
+	const mediaType = bytes && pictureTypeOf(bytes);
+	return bytes && mediaType && { mediaType, data: bytes.toString('base64') };
+}
+
+export function readSource(worktree: Worktree, path: string) {
+	return fileContent(readBytes(worktree, path, MAX_IMAGE_BYTES));
 }
 
 /** How many untracked files get their lines counted. */
@@ -356,19 +389,22 @@ export async function versions(
 		}
 	} else if (!state && !(await untracked(worktree, path)).includes(path)) return missing;
 
-	let old: string | null;
+	const unavailable = { unavailable: 'This file is binary, too large or not a regular file.' };
+	let old: FileContent | null = null;
+	const before = `${fork}:${beforePath}`;
+	let size: number | undefined;
 	try {
-		// a renamed file's old version is under its old name
-		const before = `${fork}:${beforePath}`;
-		old = await gitIn(worktree, 'cat-file', 'blob', before);
+		size = Number(await gitIn(worktree, 'cat-file', '-s', before));
 	} catch {
-		old = null; // not there at the fork point: the file is new
+		// A new file has no blob at the fork point.
 	}
-
+	if (size !== undefined) {
+		if (size > MAX_IMAGE_BYTES) return unavailable;
+		old = fileContent(await readBlobIn(worktree, before));
+		if (old === null) return unavailable;
+	}
 	const exists = lstatSync(join(worktree.path, path), { throwIfNoEntry: false });
-	const now = exists ? readText(worktree, path) : null;
-	if ((exists && now === null) || old?.includes('\0') || (old?.length ?? 0) > MAX_FILE)
-		return { unavailable: 'This file is binary, too large or not a regular file.' };
-
+	const now = exists ? readSource(worktree, path) : null;
+	if (exists && now === null) return unavailable;
 	return { old, new: now };
 }
