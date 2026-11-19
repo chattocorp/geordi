@@ -4,6 +4,6 @@ data:
   status: done
   type: feature
 id: pr62c
-title: Run or edit suggested prompts above the composer
+title: Run or edit suggested prompts inside the composer
 ---
-Suggested replies now appear above the empty composer. Selecting the prompt sends it immediately. Selecting the pencil dismisses the suggestion and focuses the text for editing. Composer stories cover both actions and Tab navigation.
+The empty composer shows a suggested reply as a lightbulb button above the text field. Select the prompt to send it immediately, or the pencil to dismiss it and focus the full text for editing. Long prompts scroll within the available space. Composer stories cover placement, scrolling, sending, editing, and Tab navigation.

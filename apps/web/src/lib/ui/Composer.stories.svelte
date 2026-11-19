@@ -309,6 +309,7 @@
 		const prompt = canvas.getByRole('button', { name: /Review the failing tests/ });
 		const send = canvas.getByRole('button', { name: 'Send' });
 		const pane = canvas.getByTestId('conversation-pane');
+		await expect(canvas.getByRole('textbox').closest('form')).toContainElement(prompt);
 		await expect(prompt.scrollHeight).toBeGreaterThan(prompt.clientHeight);
 		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
 			pane.getBoundingClientRect().bottom

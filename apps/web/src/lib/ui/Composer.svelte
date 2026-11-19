@@ -30,7 +30,7 @@
 		field?: HTMLTextareaAttributes;
 		value?: string;
 		disabled?: boolean;
-		/** A suggested reply to send or edit above an empty composer. */
+		/** A suggested reply to send or edit inside an empty composer. */
 		suggestion?: string | null;
 		/** Replaces what keys do in the text. By default, Enter submits. */
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
@@ -225,40 +225,39 @@
 	};
 </script>
 
-{#if offered}
-	<div
-		role="group"
-		aria-label="Suggested reply"
-		class="mb-2 flex max-h-48 min-h-0 w-fit max-w-full gap-1 rounded-control bg-sunken p-1"
-	>
-		<button
-			type="button"
-			title="Send suggested reply"
-			class="flex min-h-0 min-w-0 items-baseline gap-2 overflow-y-auto overscroll-contain rounded-control px-2 py-1 text-left text-sm text-prose hover:bg-hover"
-			onclick={() => takeSuggestion(offered, true)}
-		>
-			<span
-				aria-hidden="true"
-				class="mt-1 icon-[lucide--lightbulb] size-3.5 shrink-0 self-start text-muted"
-			></span>
-			<span class="min-w-0 wrap-anywhere whitespace-pre-wrap">{offered}</span>
-		</button>
-		<Button
-			variant="ghost"
-			icon="icon-[lucide--pencil]"
-			label="Edit suggested reply"
-			class="self-start"
-			onclick={() => takeSuggestion(offered, false)}
-		/>
-	</div>
-{/if}
-
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
 <form
 	{...form}
 	data-live={live || undefined}
-	class="group/composer @container edge-live shrink-0 card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
+	class="group/composer @container edge-live flex min-h-0 flex-col card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
 >
+	{#if offered}
+		<div
+			role="group"
+			aria-label="Suggested reply"
+			class="mx-2 mb-1 flex max-h-48 min-h-0 max-w-prose gap-1 self-start"
+		>
+			<button
+				type="button"
+				title="Send suggested reply"
+				class="flex min-h-0 min-w-0 items-baseline gap-2 overflow-y-auto overscroll-contain rounded-control bg-bg px-3 py-2 text-left text-sm font-medium text-ink shadow-soft inset-ring-1 inset-ring-line hover:bg-hover active:shadow-none"
+				onclick={() => takeSuggestion(offered, true)}
+			>
+				<span
+					aria-hidden="true"
+					class="mt-1 icon-[lucide--lightbulb] size-4 shrink-0 self-start text-accent-ink"
+				></span>
+				<span class="min-w-0 wrap-anywhere whitespace-pre-wrap">{offered}</span>
+			</button>
+			<Button
+				variant="ghost"
+				icon="icon-[lucide--pencil]"
+				label="Edit suggested reply"
+				class="mt-1 self-start rounded-full"
+				onclick={() => takeSuggestion(offered, false)}
+			/>
+		</div>
+	{/if}
 	{#if shown.length}
 		<!-- Above the text, which is at the bottom of the page: what fits, and the rest scrolls.
 		     Pressing anything in it leaves the cursor in the text. -->
@@ -292,7 +291,7 @@
 			{/each}
 		</div>
 	{/if}
-	<fieldset {disabled} class="min-w-0">
+	<fieldset {disabled} class="min-w-0 shrink-0">
 		{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
 		{@render header?.()}
 		{@render attachments?.()}

@@ -2,4 +2,4 @@
 type: feature
 ---
 
-Click a suggested reply above the composer to send it immediately, or select its pencil to edit it first. Look for the lightbulb above the composer. Long suggestions scroll within the available space.
+Inside the composer, click the suggested reply with the lightbulb to send it, or select the pencil to edit it. Long suggestions scroll while you keep access to the reply field.
