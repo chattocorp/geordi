@@ -15,7 +15,7 @@
 		await userEvent.click(canvas.getByRole('button', { name: 'Enlarge image' }));
 		await expect(canvas.getByRole('dialog')).toBeVisible();
 		await userEvent.keyboard('{Escape}');
-		await userEvent.click(canvas.getByRole('radio', { name: 'Source' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Source' }));
 		await expect(canvas.getByText(logo.trim())).toBeVisible();
 	}}
 />
@@ -25,7 +25,9 @@
 	args={{ path: 'notes.md', old: null, current: '# Release notes\n\nImages in the workspace.' }}
 	play={async ({ canvas, userEvent }) => {
 		await expect(canvas.getByRole('heading', { name: 'Release notes' })).toBeVisible();
-		await userEvent.click(canvas.getByRole('radio', { name: 'Diff' }));
-		await expect(canvas.getByRole('radio', { name: 'Diff' })).toBeChecked();
+		await userEvent.click(canvas.getByRole('button', { name: 'Diff' }));
+		await expect(canvas.getByRole('button', { name: 'Diff', pressed: true })).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Preview' }));
+		await expect(canvas.getByRole('heading', { name: 'Release notes' })).toBeVisible();
 	}}
 />

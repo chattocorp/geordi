@@ -2,7 +2,6 @@
 	import type { FileContent } from '@geordi/protocol';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 	import Markdown from '../Markdown.svelte';
-	import Segmented from '#lib/ui/Segmented.svelte';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 	import SourceView from './SourceView.svelte';
 
@@ -40,28 +39,32 @@
 	let ready = $state(false);
 </script>
 
+{#snippet viewChoice(label: string, active: boolean, choose: () => void)}
+	<button
+		type="button"
+		aria-pressed={active}
+		onclick={choose}
+		class={[
+			'h-7 text-xs hover:text-ink',
+			active ? 'font-semibold text-ink underline decoration-2 underline-offset-4' : 'text-muted'
+		]}>{label}</button
+	>
+{/snippet}
+
 {#if binaryPair || (rich && (typeof file === 'string' || (diff && current === null)))}
-	<div class="flex items-center justify-between gap-3 px-5 pt-4">
+	<div class="flex shrink-0 items-center gap-4 px-5">
 		{#if binaryPair}
-			<Segmented
-				label="Image version"
-				bind:value={side}
-				options={[
-					{ value: 'before', label: 'Before' },
-					{ value: 'after', label: 'After' }
-				]}
-			/>
+			<div role="group" aria-label="Image version" class="flex items-center gap-4">
+				{@render viewChoice('Before', side === 'before', () => (side = 'before'))}
+				{@render viewChoice('After', side === 'after', () => (side = 'after'))}
+			</div>
 		{:else if typeof file === 'string'}
-			<Segmented
-				label="File view"
-				bind:value={mode}
-				options={[
-					{ value: 'rendered', label: 'Preview' },
-					{ value: 'text', label: diff ? 'Diff' : 'Source' }
-				]}
-			/>
+			<div role="group" aria-label="File view" class="flex items-center gap-4">
+				{@render viewChoice('Preview', mode === 'rendered', () => (mode = 'rendered'))}
+				{@render viewChoice(diff ? 'Diff' : 'Source', mode === 'text', () => (mode = 'text'))}
+			</div>
 		{/if}
-		{#if diff && current === null}<span class="text-sm text-muted">Deleted file</span>{/if}
+		{#if diff && current === null}<span class="ml-auto text-xs text-muted">Deleted file</span>{/if}
 	</div>
 {/if}
 
