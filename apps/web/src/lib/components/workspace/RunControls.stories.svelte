@@ -62,9 +62,7 @@
 		await expect(canvas.queryByRole('menu')).toBeNull();
 		await expect(canvas.getByText('Start: web')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Run menu' }));
-		await userEvent.click(
-			await canvas.findByRole('menuitem', { name: 'Start Development server' })
-		);
+		await userEvent.click(await canvas.findByRole('menuitem', { name: 'Development server' }));
 		await expect(canvas.getByText('Start: web')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Run menu' }));
 		await userEvent.click(await canvas.findByRole('menuitem', { name: 'Geordi dev app' }));
