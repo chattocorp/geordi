@@ -103,10 +103,13 @@ export async function reviewRelease(
  * Where to find the release tool: the repository's own checkout, whose tool manager (mise)
  * configuration the person trusts. Never the snapshot (mise refuses a path it was never told
  * to trust) nor the workspace's worktree (an agent could point the tool at another program).
- * A bare repository has no checkout: then the snapshot, which fails rather than trusts.
+ * A bare repository has no checkout, and nowhere else is safe: then the review fails.
  */
-const toolsAt = ({ commonDir }: Worktree) =>
-	basename(commonDir) === '.git' ? dirname(commonDir) : null;
+function toolsAt({ commonDir }: Worktree) {
+	if (basename(commonDir) !== '.git')
+		throw new Error('Checking a release needs a checkout of the repository');
+	return dirname(commonDir);
+}
 
 async function compareTrees(
 	source: Worktree,
@@ -121,7 +124,7 @@ async function compareTrees(
 		const commonDir = join(path, '.git');
 		const snapshot = { path, commonDir, adminDir: commonDir, branch: '' };
 		await gitIn(snapshot, '-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', base);
-		const tools = toolsAt(source) ?? path;
+		const tools = toolsAt(source);
 		const pending = hadTool ? await adapter.read(snapshot, tools) : [];
 		await gitIn(snapshot, 'read-tree', '--reset', '-u', tree);
 		return releaseIncreases(pending, await adapter.read(snapshot, tools));
