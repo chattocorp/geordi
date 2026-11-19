@@ -33,8 +33,12 @@ export type ReleaseAdapter = {
 	command: string;
 	/** Whether the repository uses it. Cheap: asked every time the worktree changes. */
 	detects(worktree: Worktree, committedPaths?: string[]): boolean | Promise<boolean>;
-	/** The packages and their pending notes. Rejects if the tool can't be asked. */
-	read(worktree: Worktree): Promise<Read>;
+	/**
+	 * The packages and their pending notes. Rejects if the tool can't be asked. A tool is
+	 * found from `toolsAt` (by default the worktree), where the person's tool manager
+	 * (mise, asdf) trusts the configuration; it reads the worktree through Git either way.
+	 */
+	read(worktree: Worktree, toolsAt?: string): Promise<Read>;
 };
 /** What a tool knows: everything about a package but which of its notes a workspace adds. */
 type Read = (Omit<ReleasePackage, 'notes'> & {
@@ -49,13 +53,13 @@ const TIMEOUT_MS = 10_000;
  * runs looks at the worktree the way we do: through the repository's own Git metadata,
  * never the worktree's, which is the agent's to write (`gitEnv`).
  */
-const run = (worktree: Worktree, command: string, args: string[]) =>
+const run = (worktree: Worktree, command: string, args: string[], toolsAt = worktree.path) =>
 	new Promise<string>((resolve, reject) =>
 		execFile(
 			command,
 			args,
 			{
-				cwd: worktree.path,
+				cwd: toolsAt,
 				env: gitEnv(worktree),
 				timeout: TIMEOUT_MS,
 				maxBuffer: 16 * 1024 * 1024
@@ -143,9 +147,9 @@ const sweet: ReleaseAdapter = {
 						{ env: gitEnv(worktree) }
 					)
 				),
-	read: async (worktree) => {
+	read: async (worktree, toolsAt) => {
 		const [command, ...args] = sweet.command.split(' ');
-		return fromSweet(await run(worktree, command, args));
+		return fromSweet(await run(worktree, command, args, toolsAt));
 	}
 };
 

@@ -112,9 +112,11 @@ async function compareTrees(
 		const commonDir = join(path, '.git');
 		const snapshot = { path, commonDir, adminDir: commonDir, branch: '' };
 		await gitIn(snapshot, '-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', base);
-		const pending = hadTool ? await adapter.read(snapshot) : [];
+		// Tools are found from the person's worktree: a tool manager (mise) would refuse the
+		// snapshot's configuration, at a path it has never been told to trust.
+		const pending = hadTool ? await adapter.read(snapshot, source.path) : [];
 		await gitIn(snapshot, 'read-tree', '--reset', '-u', tree);
-		return releaseIncreases(pending, await adapter.read(snapshot));
+		return releaseIncreases(pending, await adapter.read(snapshot, source.path));
 	} finally {
 		await rm(path, { recursive: true, force: true });
 	}
