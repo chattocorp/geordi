@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -708,10 +709,14 @@ describe('a daemon restart', () => {
 describe('a launched daemon', () => {
 	// The app and the command start the daemon as a child of theirs (on Windows, in a job
 	// object that ends its members with it). The agent's session is to outlive both.
-	it('leaves the session running when it and whoever launched it are gone', async () => {
+	// Linux CI is headless. On the desktop runners, exercise the app's utilityProcess too.
+	const launchers = ['win32', 'darwin'].includes(process.platform)
+		? ['node', 'electron']
+		: ['node'];
+	it.each(launchers)('leaves the session running after its %s launcher exits', async (runtime) => {
 		const scripts = mkdtempSync(join(tmpdir(), 'geordi-launch-'));
 		const daemon = join(scripts, 'daemon.mjs');
-		const launcher = join(scripts, 'launcher.mjs');
+		const launcher = join(scripts, 'launcher.cjs');
 		writeFileSync(
 			daemon,
 			`const [, , session, dir, wrapper, launch] = process.argv;
@@ -720,17 +725,30 @@ const { startSession } = await import(session);
 // nobody to report to: what the host writes waits in its files for the next daemon
 startSession(JSON.parse(launch), { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, wrapper);
 const out = dir + '/out.jsonl';
-setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);`
+setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);
+setTimeout(() => { console.error(readFileSync(dir + '/host.log', 'utf8')); process.exit(1); }, 20000);`
 		);
 		writeFileSync(
 			launcher,
-			`import { spawn } from 'node:child_process';
-spawn(process.execPath, process.argv.slice(2), { stdio: 'inherit' }).on('exit', (code) => process.exit(code ?? 1));`
+			`const [daemon, ...args] = process.argv.slice(2);
+if (process.versions.electron) {
+	const { app, utilityProcess } = require('electron');
+	app.setPath('userData', __dirname);
+	app.whenReady().then(() => utilityProcess.fork(daemon, args, { stdio: 'inherit' })
+		.on('exit', (code) => app.exit(code ?? 1)));
+} else {
+	require('node:child_process').spawn(process.execPath, [daemon, ...args], { stdio: 'inherit' })
+		.on('exit', (code) => process.exit(code ?? 1));
+}`
 		);
 		const sessions = root();
 		const dir = join(sessions, 'w');
+		const executable =
+			runtime === 'electron'
+				? createRequire(new URL('../../desktop/package.json', import.meta.url))('electron')
+				: process.execPath;
 		const launched = spawn(
-			process.execPath,
+			executable,
 			[
 				launcher,
 				daemon,
@@ -739,7 +757,7 @@ spawn(process.execPath, process.argv.slice(2), { stdio: 'inherit' }).on('exit', 
 				fixture,
 				JSON.stringify(meta())
 			],
-			{ stdio: 'inherit' }
+			{ stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined } }
 		);
 		expect((await once(launched, 'exit'))[0]).toBe(0);
 		await sleep(500); // for a job object to have ended its members
