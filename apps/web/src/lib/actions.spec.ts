@@ -232,6 +232,17 @@ describe('actionsFor', () => {
 			expect(actions[0].prompt).toBeUndefined();
 		}
 	});
+
+	it('offers only to carry on when there is new work on a merged or closed branch', () => {
+		// an agent may start a turn unasked after the merge: its edits go to the new branch
+		for (const state of ['merged', 'closed'] as const) {
+			const begun = { changes: { ...clean, uncommitted: 2 }, upstream: upstream({ state }) };
+			const actions = actionsFor(begun);
+			expect(actions.map((action) => action.id)).toEqual(['continue']);
+			expect(actions[0].aside).toBeUndefined();
+			expect(standingOf(begun)).toMatchObject({ label: 'Uncommitted changes', tone: 'accent' });
+		}
+	});
 });
 
 describe('standingOf', () => {

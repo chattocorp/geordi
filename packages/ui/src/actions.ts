@@ -159,12 +159,16 @@ function nextActions(state: State): WorkspaceAction[] {
 		icon: 'icon-[lucide--archive]'
 	};
 	// Its work has landed (or was given up): the workspace is done with, unless there is
-	// more to do in it. Then it carries on, on a fresh branch.
-	if (pull.state === 'merged' || pull.state === 'closed')
-		return [
-			{ id: 'continue', label: 'Continue', icon: 'icon-[lucide--git-branch-plus]', aside: true },
-			archive
-		];
+	// more to do in it. Then it carries on, on a fresh branch. Work begun since (an agent
+	// may start a turn unasked) has only that way to go: it comes along.
+	if (pull.state === 'merged' || pull.state === 'closed') {
+		const carryOn: WorkspaceAction = {
+			id: 'continue',
+			label: 'Continue',
+			icon: 'icon-[lucide--git-branch-plus]'
+		};
+		return uncommitted ? [carryOn] : [{ ...carryOn, aside: true }, archive];
+	}
 
 	const number = `pull request #${pull.number}`;
 	const actions: WorkspaceAction[] = [];
@@ -319,6 +323,9 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		return null;
 	}
 
+	// new work on a branch that is done with: that, not where the old work went, is the news
+	if (uncommitted && (pull.state === 'merged' || pull.state === 'closed'))
+		return todo('Uncommitted changes');
 	if (pull.state === 'merged')
 		return { label: 'Merged', tone: 'merged', icon: 'icon-[lucide--git-merge]' };
 	if (pull.state === 'closed')
