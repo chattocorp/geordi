@@ -15,6 +15,7 @@
 		"./DiffView.svelte": "./src/DiffView.svelte",
 		"./Disclosure.svelte": "./src/Disclosure.svelte",
 		"./FittedPath.svelte": "./src/FittedPath.svelte",
+		"./LinkCard.svelte": "./src/LinkCard.svelte",
 		"./MessageCopy.svelte": "./src/MessageCopy.svelte",
 		"./PaneTabs.svelte": "./src/PaneTabs.svelte",
 		"./PullRequestPane.svelte": "./src/PullRequestPane.svelte",

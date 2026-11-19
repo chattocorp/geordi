@@ -250,25 +250,32 @@
 				under it lines up with it: icon under picture, title under name.
 			-->
 					<div class="group flex h-7 items-center pr-1.5">
+						{#if repo.id !== null}
+							<a
+								href={resolve('/repos/[id]', { id: repo.id })}
+								aria-current={path === resolve('/repos/[id]', { id: repo.id }) ? 'page' : undefined}
+								class="flex min-w-0 flex-1 items-center gap-2 pl-1.5 text-sm font-semibold text-muted hover:text-ink aria-[current=page]:text-ink"
+								><RepoIcon id={repo.id} /><span class="truncate">{repo.name}</span></a
+							>
+						{/if}
 						<button
 							type="button"
-							class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-sm font-semibold text-muted hover:text-ink"
 							aria-expanded={!isFolded}
+							aria-label={`${isFolded ? 'Expand' : 'Collapse'} ${repo.name}`}
 							onclick={() => toggleFolded(repo.id ?? PROJECTS)}
+							class={[
+								'flex h-6 items-center gap-2 rounded-control px-1.5 text-sm text-muted hover:bg-hover',
+								repo.id === null && 'flex-1 font-semibold'
+							]}
 						>
-							{#if repo.id === null}
-								<!-- as wide as a repository's picture: its projects line up under it -->
-								<span class="grid size-5 shrink-0 place-items-center">
-									<span class="icon-[lucide--folders] size-4.5 text-muted/70"></span>
-								</span>
-							{:else}
-								<RepoIcon id={repo.id} />
-							{/if}
-							<span class="truncate">{repo.name}</span>
-							{#if isFolded}
-								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{all.length}</span>
-							{/if}
-						</button>
+							{#if repo.id === null}<span class="icon-[lucide--folders] size-5"></span>Projects{/if}
+							{#if isFolded}{all.length}{/if}<span
+								class={[
+									isFolded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]',
+									'size-3.5'
+								]}
+							></span></button
+						>
 						{#if repo.id !== null}
 							<button
 								type="button"
