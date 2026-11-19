@@ -7,8 +7,8 @@
 
 	/**
 	 * How full the agent's context is: a quiet ring beside the model it talks to. On hover,
-	 * its numbers in words, and how much of its subscription's usage limits is used. Only a
-	 * context that is nearly full stands out.
+	 * what is left of it and of its subscription's usage limits, each as a bar with its
+	 * numbers in words. Only what is nearly used up stands out.
 	 */
 	let {
 		usage,
@@ -47,39 +47,43 @@
 		<span aria-hidden="true" class={{ 'text-danger': nearlyFull }}>{Math.round(share * 100)}%</span>
 	</span>
 	{#snippet tip()}
-		<p>{label}</p>
-		{#if limits.length}
-			<p class="mt-1.5 text-muted">{agentName[agent]} usage limits</p>
-			<table class="tabular-nums">
-				<tbody>
+		<!-- the context and each limit alike: what is left of it, as a bar and in words -->
+		<table class="tabular-nums">
+			<tbody>
+				{@render row('Context', Math.round((1 - share) * 100), nearlyFull, describeUsage(usage))}
+				{#if limits.length}
+					<tr><td colspan="4" class="pt-1.5 text-muted">{agentName[agent]} usage limits</td></tr>
 					{#each limits as limit (limit.name)}
-						{@const left = remaining(limit)}
-						<tr>
-							<td class="pr-3">{limit.name}</td>
-							<!-- what is left of it, as a bar: the fuller, the more there is -->
-							<td class="pr-2">
-								{#if left !== undefined}
-									<span class="block h-1.5 w-20 overflow-hidden rounded-full bg-sunken">
-										<span
-											class={[
-												'block h-full rounded-full',
-												limit.status === 'ok' ? 'bg-muted' : 'bg-danger'
-											]}
-											style:width="{left}%"
-										></span>
-									</span>
-								{/if}
-							</td>
-							<td class={['pr-3 text-right', limit.status !== 'ok' && 'font-medium text-danger']}>
-								{left === undefined ? '' : `${left}% left`}
-							</td>
-							<td class="text-muted">
-								{limit.resetsAt ? `resets ${resets(limit.resetsAt)}` : ''}
-							</td>
-						</tr>
+						{@render row(
+							limit.name,
+							remaining(limit),
+							limit.status !== 'ok',
+							limit.resetsAt ? `resets ${resets(limit.resetsAt)}` : ''
+						)}
 					{/each}
-				</tbody>
-			</table>
-		{/if}
+				{/if}
+			</tbody>
+		</table>
 	{/snippet}
 </Tooltip>
+
+<!-- `low`: what is left is little enough to stand out -->
+{#snippet row(name: string, left: number | undefined, low: boolean, detail: string)}
+	<tr>
+		<td class="pr-3">{name}</td>
+		<td class="pr-2">
+			{#if left !== undefined}
+				<span class="block h-1.5 w-20 overflow-hidden rounded-full bg-sunken">
+					<span
+						class={['block h-full rounded-full', low ? 'bg-danger' : 'bg-muted']}
+						style:width="{left}%"
+					></span>
+				</span>
+			{/if}
+		</td>
+		<td class={['pr-3 text-right', low && 'font-medium text-danger']}>
+			{left === undefined ? '' : `${left}% left`}
+		</td>
+		<td class="text-muted">{detail}</td>
+	</tr>
+{/snippet}
