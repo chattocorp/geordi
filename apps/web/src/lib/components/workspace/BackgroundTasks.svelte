@@ -40,7 +40,11 @@
 		>{row.label}</span
 	>
 	{#if row.label !== row.kind}
-		<span class="hidden shrink-0 text-xs text-muted @sm:block">{row.kind}</span>
+		<span
+			class={row.kind === 'Terminal' || row.kind === 'Subagent'
+				? 'sr-only'
+				: 'hidden shrink-0 text-xs text-muted @sm:block'}>{row.kind}</span
+		>
 	{/if}
 	{#if row.open}<span
 			aria-hidden="true"

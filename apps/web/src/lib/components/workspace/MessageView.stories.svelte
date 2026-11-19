@@ -632,21 +632,21 @@
 		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
 		await userEvent.click(heading);
 		await expect(await canvas.findByText('pnpm dev', { exact: true })).toBeVisible();
+		const testTask = await canvas.findByRole('button', { name: 'pnpm test Terminal' });
+		await expect(
+			await canvas.findByRole('button', { name: 'Review changes Subagent' })
+		).toBeVisible();
 		const stop = await canvas.findByRole('button', { name: 'Stop pnpm test' });
 		await expect(stop).toHaveTextContent(/^$/);
 		await userEvent.click(stop);
 		await expect(stopBackground).toHaveBeenCalledWith('stop-tests');
-		await userEvent.click(await canvas.findByRole('button', { name: /^pnpm test/ }));
+		await userEvent.click(testTask);
 		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
 			'aria-expanded',
 			'true'
 		);
 		await waitFor(() =>
-			expect(
-				canvas
-					.getByRole('button', { name: /^pnpm test/ })
-					.ownerDocument.activeElement?.closest('details')
-			).toHaveAttribute('open')
+			expect(testTask.ownerDocument.activeElement?.closest('details')).toHaveAttribute('open')
 		);
 	}}
 >
