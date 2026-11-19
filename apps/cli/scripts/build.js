@@ -12,6 +12,7 @@ import { stageServices } from '@geordi/launch/stage.js';
 const root = join(import.meta.dirname, '..');
 const repo = join(root, '../..');
 const stage = join(root, 'stage');
+const { license, author } = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const daemon = JSON.parse(readFileSync(join(repo, 'apps/daemon/package.json'), 'utf8'));
 const pty = '@lydell/node-pty';
@@ -33,6 +34,8 @@ writeFileSync(
 		{
 			name: 'geordi',
 			version,
+			license,
+			author,
 			description: 'A self-hostable code forge and agent orchestrator.',
 			homepage: 'https://github.com/chattocorp/geordi',
 			repository: { type: 'git', url: 'git+https://github.com/chattocorp/geordi.git' },

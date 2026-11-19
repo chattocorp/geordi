@@ -100,3 +100,7 @@ See [Configuration](docs/configuration.md) for everything it can say.
 - [Contributing](CONTRIBUTING.md): developing Geordi
 - [Architecture decisions](docs/adr/INDEX.md) and [feature decisions](docs/fdr/INDEX.md)
 - [Backlog](planning/), managed with [means](https://github.com/hmans/means)
+
+## License
+
+Copyright 2026 ChattoCorp GmbH. Geordi is licensed under the [Apache License, Version 2.0](LICENSE).

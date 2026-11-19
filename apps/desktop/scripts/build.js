@@ -28,6 +28,7 @@ const repo = join(root, '../..');
 const stage = process.argv.includes('--dev')
 	? join(repo, '.data/desktop/stage')
 	: join(root, 'stage');
+const { license, author } = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 // --- Stage: everything the app consists of, in one directory ---------------------------------
@@ -40,6 +41,8 @@ writeFileSync(
 		name: 'geordi',
 		productName: 'Geordi',
 		version,
+		license,
+		author,
 		type: 'module',
 		main: 'main.js'
 	})

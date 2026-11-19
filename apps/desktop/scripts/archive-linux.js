@@ -17,7 +17,7 @@ await build({
 			executableName: 'geordi',
 			icon: 'icon.icns',
 			category: 'Development',
-			maintainer: 'Chatto',
+			maintainer: 'ChattoCorp GmbH',
 			synopsis: 'A calmer way to run coding agents.'
 		}
 	}
