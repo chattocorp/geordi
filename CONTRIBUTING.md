@@ -51,6 +51,9 @@ ports. The setup script installs dependencies when the worktree is made.
   installed one.
 - On macOS, `pnpm desktop:dmg` builds a drag-to-install disk image for your Mac in
   `apps/desktop/dist/`.
+- On macOS, run `pnpm desktop:install` from the repository root to build the full app,
+  replace `/Applications/Geordi.app`, and open it. Restarting Geordi ends its terminals
+  and jobs. The installer writes to `apps/desktop/dist/install.log`.
 
 ## Release notes
 
