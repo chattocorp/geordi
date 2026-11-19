@@ -303,6 +303,44 @@
 </Story>
 
 <Story
+	name="Scrollable suggestion"
+	asChild
+	play={async ({ canvas }) => {
+		const prompt = canvas.getByRole('button', { name: /Review the failing tests/ });
+		const send = canvas.getByRole('button', { name: 'Send' });
+		const pane = canvas.getByTestId('conversation-pane');
+		await expect(prompt.scrollHeight).toBeGreaterThan(prompt.clientHeight);
+		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			pane.getBoundingClientRect().bottom
+		);
+		prompt.scrollTop = prompt.scrollHeight;
+		await expect(prompt.scrollTop + prompt.clientHeight).toBeGreaterThanOrEqual(
+			prompt.scrollHeight - 1
+		);
+		prompt.scrollTop = 0;
+	}}
+>
+	<div data-testid="conversation-pane" class="flex h-64 max-w-sm flex-col">
+		<Composer
+			{form}
+			rows={2}
+			placeholder="Reply to the agent"
+			suggestion={Array(12).fill(longSuggestion).join('\n\n')}
+		>
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<Story
 	name="Editing a suggestion"
 	asChild
 	play={async ({ canvas, userEvent }) => {

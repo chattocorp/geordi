@@ -229,17 +229,17 @@
 	<div
 		role="group"
 		aria-label="Suggested reply"
-		class="mb-2 flex w-fit max-w-full items-start gap-1 rounded-control bg-sunken p-1"
+		class="mb-2 flex max-h-48 min-h-0 w-fit max-w-full gap-1 rounded-control bg-sunken p-1"
 	>
 		<button
 			type="button"
 			title="Send suggested reply"
-			class="flex min-w-0 items-baseline gap-2 rounded-control px-2 py-1 text-left text-sm text-prose hover:bg-hover"
+			class="flex min-h-0 min-w-0 items-baseline gap-2 overflow-y-auto overscroll-contain rounded-control px-2 py-1 text-left text-sm text-prose hover:bg-hover"
 			onclick={() => takeSuggestion(offered, true)}
 		>
 			<span
 				aria-hidden="true"
-				class="mt-1 icon-[lucide--corner-down-right] size-3.5 shrink-0 self-start text-muted"
+				class="mt-1 icon-[lucide--lightbulb] size-3.5 shrink-0 self-start text-muted"
 			></span>
 			<span class="min-w-0 wrap-anywhere whitespace-pre-wrap">{offered}</span>
 		</button>
@@ -247,6 +247,7 @@
 			variant="ghost"
 			icon="icon-[lucide--pencil]"
 			label="Edit suggested reply"
+			class="self-start"
 			onclick={() => takeSuggestion(offered, false)}
 		/>
 	</div>
@@ -256,7 +257,7 @@
 <form
 	{...form}
 	data-live={live || undefined}
-	class="group/composer @container edge-live card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
+	class="group/composer @container edge-live shrink-0 card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
 >
 	{#if shown.length}
 		<!-- Above the text, which is at the bottom of the page: what fits, and the rest scrolls.
