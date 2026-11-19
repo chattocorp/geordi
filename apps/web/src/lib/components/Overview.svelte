@@ -4,13 +4,13 @@
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { actFromAfar } from '#lib/components/workspace/afar.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
-	import WorkspaceActions from '#lib/components/workspace/WorkspaceActions.svelte';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import { timeAgo } from '#lib/format.ts';
 	import WaitingForView from '#lib/components/WaitingForView.svelte';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes, LANES, type Lane } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
 	import { persisted } from '#lib/persisted.svelte.ts';
 

@@ -76,3 +76,39 @@ export function unfolded<T extends { id: string }>(
 	});
 	return shown;
 }
+
+/**
+ * The workspaces the sidebar shows, top to bottom: by repository (in `repoIds`' order),
+ * leaving out what is folded away. What the previous and next workspace are.
+ */
+export function inSidebarOrder<T extends Member>(
+	all: T[],
+	repoIds: readonly string[],
+	folded: readonly string[]
+): T[] {
+	const listed = byRepository(all);
+	return repoIds
+		.filter((repoId) => !folded.includes(repoId))
+		.flatMap((repoId) => unfolded(listed.get(repoId) ?? [], folded))
+		.map(({ workspace }) => workspace);
+}
+
+/**
+ * The repositories the sidebar lists: only `focus`, when that is one of them; else all.
+ * A focus on a repository that is gone (or has nothing to show) shows everything again.
+ */
+export function inFocus<T extends { id: string }>(repos: T[], focus: string | null): T[] {
+	const focused = repos.filter(({ id }) => id === focus);
+	return focused.length > 0 ? focused : repos;
+}
+
+/** The workspace `step` places from `current` in `order`, round at the ends; from outside it, the first or last. */
+export function stepThrough<T extends { id: string }>(
+	order: T[],
+	current: string | null,
+	step: 1 | -1
+): T | undefined {
+	const at = order.findIndex(({ id }) => id === current);
+	if (at === -1) return step === 1 ? order[0] : order.at(-1);
+	return order[(at + step + order.length) % order.length];
+}

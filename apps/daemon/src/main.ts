@@ -1,11 +1,13 @@
 import { projectPath, removeProject } from './projects.ts';
+import { claimDaemon } from './daemon-owner.ts';
+import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir, hostname } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
 	DEFAULT_PORTS,
@@ -37,7 +39,7 @@ import {
 	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
-import { releasePlan } from './releases.ts';
+import { editReleaseNote, releasePlan } from './releases.ts';
 import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import {
@@ -74,7 +76,10 @@ const projectsDir = process.env.GEORDI_PROJECTS_DIR || join(homedir(), '.geordi'
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
-const daemonId = hostname();
+prepareSessionsDirectory(sessionsDir);
+const owner = claimDaemon(sessionsDir);
+const daemonId = owner.id;
+process.once('exit', owner.close);
 /** The models and effort levels this machine's agent CLIs offer; told to the forge. */
 const harnesses: Harness[] = await Promise.all(
 	AGENTS.map(async (agent) => ({ agent, ...(await adapterFor(agent)).offers() }))
@@ -312,8 +317,8 @@ function begin(workspaceId: string, meta: Meta, [first, ...rest]: Said[]) {
  */
 function attend(workspaceId: string, session: Session) {
 	void session.done.then((unheard) => {
-		if (sessions.get(workspaceId) === session && session.background().length)
-			sendLive({ type: 'workspace.background', workspaceId, tasks: [] });
+		if (sessions.get(workspaceId) === session && session.live().background?.length)
+			sendLive({ type: 'workspace.live', workspaceId, live: { background: [] } });
 		if (unheard.length === 0 || retired.has(session)) {
 			if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
 			return;
@@ -434,12 +439,8 @@ function connect(delay = 500) {
 			socket = ws;
 			for (const [workspaceId, session] of sessions) {
 				if (session.over()) continue;
-				const tasks = session.background();
-				if (tasks.length) sendLive({ type: 'workspace.background', workspaceId, tasks });
-				const usage = session.usage();
-				if (usage) sendLive({ type: 'workspace.usage', workspaceId, usage });
-				const commands = session.commands();
-				if (commands) sendLive({ type: 'workspace.commands', workspaceId, commands });
+				const live = session.live();
+				if (Object.keys(live).length) sendLive({ type: 'workspace.live', workspaceId, live });
 			}
 			delay = 500;
 			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));
@@ -468,6 +469,7 @@ function answer(request: DaemonRequest) {
 		case 'continueWorktree':
 		case 'updateWorktree':
 		case 'removeWorktree':
+		case 'editReleaseNote':
 		case 'config':
 			return inWorktree(worktreePath(worktreesDir, request.repoPath, request.worktreeId), () =>
 				readRequest(request)
@@ -544,24 +546,32 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'prepareWorktree') {
 		const { repoPath, worktreeId, base, branch } = request;
 		// a new one starts from where its upstream stands now, as with a first turn
-		if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+		if (!request.requireBranch && !base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
-		const worktree = await ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
+		const worktree = await ensureWorktree(
+			worktreesDir,
+			repoPath,
+			worktreeId,
+			base,
+			branch,
+			request.requireBranch
+		);
 		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
-		return { path: worktree.path, branch: worktree.branch };
+		return { path: worktree.path, branch: branchOf(worktree) ?? worktree.branch };
 	}
 
 	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
 		case 'changes':
 			return status(worktree, comparisonOrigin(worktree, request));
-		case 'release':
+		case 'editReleaseNote':
+		case 'release': {
 			// which notes are this workspace's: the files it has added
-			return releasePlan(
+			const plan = await releasePlan(
 				worktree,
 				async () =>
 					new Set(
@@ -571,6 +581,11 @@ async function readRequest(request: DaemonRequest) {
 					),
 				(command) => approvals.has(request.repoPath, command)
 			);
+			if (request.kind === 'release') return plan;
+			editReleaseNote(worktree, plan, request);
+			sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId });
+			return null;
+		}
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':
@@ -588,11 +603,13 @@ async function readRequest(request: DaemonRequest) {
 			return result;
 		}
 		case 'setAutoMerge':
-			return setAutoMerge(worktree, request);
+			return setAutoMerge(worktree, request, (cmd) => approvals.has(request.repoPath, cmd));
 		case 'markReady':
 			return markReady(worktree, request);
 		case 'mergePull': {
-			const status = await mergePull(worktree, request);
+			const status = await mergePull(worktree, request, (cmd) =>
+				approvals.has(request.repoPath, cmd)
+			);
 			// The merge is a new commit upstream: fetching it lets every workspace of the
 			// repository see it (their watchers notice the refs change). Not waited for.
 			if (status === 'merged')
@@ -690,6 +707,9 @@ async function handle(message: ForgeMessage) {
 			closeTerminal(message.terminalId);
 			break;
 
+		case 'agent.stopTask':
+			sessions.get(message.workspaceId)?.stopTask(message.stopId);
+			break;
 		case 'agent.stop':
 			(beginning.get(message.workspaceId) ?? sessions.get(message.workspaceId))?.stop();
 			break;

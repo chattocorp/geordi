@@ -55,7 +55,7 @@ export function instructionsFor(workspace: {
 const ASKING =
 	'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.';
 const DIAGRAMS =
-	'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Diagrams cannot load images or follow links.';
+	'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Keep the outer corners of generated SVGs square. Geordi rounds them in the UI. Diagrams cannot load images or follow links.';
 const LINKS =
 	'When you mention a Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.';
 

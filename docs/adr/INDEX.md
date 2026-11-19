@@ -12,3 +12,4 @@
 | [ADR-008](ADR-008-desktop-app.md)                                | A desktop app that runs forge and daemon unchanged        | 2026-11-16 |
 | [ADR-009](ADR-009-one-websocket-per-window.md)                   | What is live on a page comes over one WebSocket           | 2026-11-16 |
 | [ADR-010](ADR-010-agent-sessions.md)                             | Agents run as sessions, talked to for as long as they run | 2026-11-17 |
+| [ADR-011](ADR-011-shared-workspace-ui.md)                        | Share workspace components with the website               | 2026-11-19 |

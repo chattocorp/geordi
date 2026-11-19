@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ContextUsage } from '@geordi/protocol';
-	import { describeUsage, fullness, NEARLY_FULL } from '#lib/usage.ts';
-	import Ring from '#lib/ui/Ring.svelte';
+	import { describeUsage, fullness, NEARLY_FULL } from '#lib/tokens.ts';
+	import Ring from '@geordi/ui/Ring.svelte';
 
 	/**
 	 * How full the agent's context is: a quiet ring beside the model it talks to, its numbers

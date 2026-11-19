@@ -7,10 +7,10 @@
 </script>
 
 <script lang="ts">
-	import { submitOnEnter } from '#lib/keys.ts';
+	import { submitOnEnter } from '@geordi/ui/keys';
 	import { draft } from '#lib/drafts.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import RepoPicker from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
@@ -147,7 +147,7 @@
 				class="ml-auto"
 				disabled={!chosen}
 			>
-				{project ? 'Start project' : 'Start workspace'}
+				{prompt.value()?.trim() ? 'Get to work' : project ? 'Start project' : 'Start workspace'}
 			</Button>
 		{/if}
 	{/snippet}

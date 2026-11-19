@@ -2,25 +2,33 @@
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
 	import BackgroundTasks from './BackgroundTasks.svelte';
-	import { toolSummary } from '#lib/tools.ts';
+	import { toolSummary } from '@geordi/ui/tools';
 	import type { Agent, BackgroundTask, TurnUsage } from '@geordi/protocol';
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
+	import { duration } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Block, Part } from '#lib/transcript.ts';
-	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import AgentText from '@geordi/ui/AgentText.svelte';
+	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
+	import UserMessage from '@geordi/ui/UserMessage.svelte';
+	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
+	import PatchView from '../PatchView.svelte';
+	import { changedFiles } from '#lib/changedFiles.ts';
 	import MessageImages from '#lib/components/MessageImages.svelte';
-	import MessageCopy from './MessageCopy.svelte';
+	import MessageCopy from '@geordi/ui/MessageCopy.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import PlanCard from '#lib/components/PlanCard.svelte';
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import SubagentRow from '#lib/components/SubagentRow.svelte';
-	import ToolGroup from '#lib/components/ToolGroup.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
+	import Tooltip from '#lib/ui/Tooltip.svelte';
 
 	let {
 		blocks,
 		background = [],
+		onstoptask,
 		withComposer = false,
 		showJump = false,
 		agent,
@@ -37,6 +45,7 @@
 		following = $bindable(true)
 	}: {
 		blocks: Block[];
+		onstoptask?: (stopId: string) => Promise<void>;
 		background?: BackgroundTask[];
 		withComposer?: boolean;
 		showJump?: boolean;
@@ -56,6 +65,7 @@
 		following?: boolean;
 	} = $props();
 
+	const workspaceFiles = changedFiles();
 	const expanded = new SvelteSet<number>();
 
 	/**
@@ -145,6 +155,12 @@
 		parentAgent ? blocks.findIndex((block) => block.kind === 'user' && block.delegated) : -1
 	);
 
+	type AgentBlock = Extract<Block, { kind: 'agent' }>;
+	/** The latest reply says where it ends at all times; earlier ones when the pointer is on them. */
+	const latestReply = $derived(blocks.findLastIndex((block) => block.kind === 'agent'));
+	const fade = 'transition-opacity pointer-fine:opacity-0 pointer-fine:focus-within:opacity-100';
+	const quietReply = `${fade} pointer-fine:group-hover/reply:opacity-100`;
+
 	const rows = $derived([
 		...blocks.map((block) => ({ kind: 'block' as const, block })),
 		...queue.map((text, index) => ({
@@ -194,22 +210,27 @@
 </script>
 
 {#snippet tokens(usage: TurnUsage)}
-	<!-- what the reply used: in short, and in full on hover -->
-	<span class="px-1 text-xs text-muted" title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
+	<p>{tokenSummary(usage)}</p>
+	<p class="text-muted">{tokenBreakdown(usage)}</p>
 {/snippet}
 
-{#snippet messageActions(text: string, outgoing = false, remove?: () => void, usage?: TurnUsage)}
-	<div class={['mt-1 flex items-center gap-1', outgoing && 'justify-end']}>
+<!-- Where a reply ends: its last words to copy, and how long it took, with what it used on hover. -->
+{#snippet byline(reply: AgentBlock, text: string, latest: boolean)}
+	{@const usage = reply.usage}
+	<div class={['flex items-center gap-2 text-xs text-muted', !latest && quietReply]}>
 		{#if text}<MessageCopy {text} />{/if}
-		{#if usage}{@render tokens(usage)}{/if}
-		{#if remove}
-			<Button
-				variant="ghost"
-				size="sm"
-				icon="icon-[lucide--x]"
-				label="Don't send this"
-				onclick={remove}
-			/>
+		{#if reply.took !== undefined}
+			{#if usage}
+				<Tooltip>
+					{duration(reply.took)}
+					{#snippet tip()}{@render tokens(usage)}{/snippet}
+				</Tooltip>
+			{:else}
+				<span>{duration(reply.took)}</span>
+			{/if}
+		{:else if usage}
+			<!-- from before turns said when they began: what it used is all there is to say -->
+			<span title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
 		{/if}
 	</div>
 {/snippet}
@@ -219,19 +240,31 @@
 	dimmed: boolean,
 	live: boolean,
 	at: string,
-	usage: TurnUsage | undefined
+	ending: { reply: AgentBlock; latest: boolean } | undefined
 )}
 	{@const pictures = picturesAt(at)}
 	{#if part.kind === 'text'}
-		<div>
+		{#snippet footer()}{#if ending}{@render byline(
+					ending.reply,
+					part.text,
+					ending.latest
+				)}{/if}{/snippet}
+		<AgentText text={part.text} footer={ending ? footer : undefined}>
 			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
-			{#if part.text || usage}{@render messageActions(part.text, false, undefined, usage)}{/if}
-		</div>
+		</AgentText>
 	{:else if part.kind === 'subagent'}
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
 	{:else if part.kind === 'tools'}
 		<!-- live: the agent is at work, and this is the last thing it did -->
-		<ToolGroup tools={part.tools} {cwd} {live} {reveal} {backgroundIds} />
+		<ToolGroup
+			{PatchView}
+			workspace={workspaceFiles}
+			tools={part.tools}
+			{cwd}
+			{live}
+			{reveal}
+			{backgroundIds}
+		/>
 	{:else if part.kind === 'plan'}
 		{#key part.id}
 			<PlanCard plan={part.plan} {pictures} />
@@ -296,11 +329,10 @@
 											: 'From another agent'}
 								</p>
 							{/if}
-							<div class="ml-auto message bg-bubble">
+							<UserMessage text={block.text}>
 								{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
 								<MessageImages images={block.images} />
-							</div>
-							{#if block.text}{@render messageActions(block.text, true)}{/if}
+							</UserMessage>
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">
@@ -319,43 +351,30 @@
 								.slice(0, hiddenCount)
 								.filter((part) => part.kind !== 'subagent')}
 							<!-- said where the reply ends: beside its last words, else on its own -->
-							{@const usage = live ? undefined : block.usage}
-							<div class="flex gap-3.5">
-								<AgentAvatar {agent} />
-								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
-									{#if hidden.length}
-										<button
-											type="button"
-											class="flex h-7 items-center gap-1.5 rounded-control text-xs text-muted hover:text-ink"
-											aria-expanded={expanded.has(i)}
-											onclick={() => toggleActivity(i)}
-										>
-											Turn activity
-											<span class="text-muted">{activitySummary(hidden)}</span>
-											<span
-												class={[
-													'icon-[lucide--chevron-right] size-3.5',
-													expanded.has(i) && 'rotate-90'
-												]}
-											></span>
-										</button>
+							{@const ending = live ? undefined : { reply: block, latest: i === latestReply }}
+							<AgentMessage {agent}>
+								{#if hidden.length}
+									<TurnActivity
+										summary={activitySummary(hidden)}
+										expanded={expanded.has(i)}
+										ontoggle={() => toggleActivity(i)}
+									/>
+								{/if}
+								{#each block.parts as part, j (j)}
+									{#if part.kind === 'subagent' || j >= hiddenCount || expanded.has(i)}
+										{@render agentPart(
+											part,
+											j !== lastText,
+											live && j === block.parts.length - 1,
+											`${i}.${j}`,
+											j === block.parts.length - 1 ? ending : undefined
+										)}
 									{/if}
-									{#each block.parts as part, j (j)}
-										{#if part.kind === 'subagent' || j >= hiddenCount || expanded.has(i)}
-											{@render agentPart(
-												part,
-												j !== lastText,
-												live && j === block.parts.length - 1,
-												`${i}.${j}`,
-												j === block.parts.length - 1 ? usage : undefined
-											)}
-										{/if}
-									{/each}
-									{#if usage && last?.kind !== 'text'}
-										<div class="-mt-2">{@render tokens(usage)}</div>
-									{/if}
-								</div>
-							</div>
+								{/each}
+								{#if ending && last?.kind !== 'text'}
+									<div class="-mt-2">{@render byline(ending.reply, '', ending.latest)}</div>
+								{/if}
+							</AgentMessage>
 						{/if}
 					</div>
 				{:else}
@@ -365,7 +384,16 @@
 						{#if text}<Markdown preserveLineBreaks {text} {pictures} dimmed />{/if}
 						<MessageImages {images} />
 					</div>
-					{@render messageActions(text, true, onremove && (() => onremove(index, text, images)))}
+					<div class="mt-1 flex items-center justify-end gap-1">
+						{#if text}<MessageCopy {text} />{/if}
+						{#if onremove}<Button
+								variant="ghost"
+								size="sm"
+								icon="icon-[lucide--x]"
+								label="Don't send this"
+								onclick={() => onremove?.(index, text, images)}
+							/>{/if}
+					</div>
 				{/if}
 			</div>
 		{/snippet}
@@ -382,5 +410,5 @@
 	</div>
 {/if}
 {#if backgroundRows.length}
-	<BackgroundTasks rows={backgroundRows} {withComposer} />
+	<BackgroundTasks rows={backgroundRows} {onstoptask} {withComposer} />
 {/if}

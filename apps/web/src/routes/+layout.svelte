@@ -7,25 +7,21 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
-	import HistoryButtons from '#lib/components/HistoryButtons.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
-	import {
-		modifierKey,
-		newWorkspaceShortcut,
-		repoShortcut,
-		settingsShortcut,
-		sidebarToggle
-	} from '#lib/keys.ts';
+	import { inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
+	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
+	import { releaseReview } from '#lib/components/workspace/release-review.svelte.ts';
+	import ReleaseConfirm from '#lib/components/workspace/ReleaseConfirm.svelte';
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
-	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
+	import { setTitleBarLead } from '@geordi/ui/TitleBar.svelte';
 	import { connect, connection, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import type { LayoutProps } from './$types';
@@ -60,7 +56,33 @@
 	// Leave room for the conversation and its tools in smaller windows.
 	const maxWidth = $derived(Math.max(240, Math.min(720, (innerWidth.current ?? 1320) - 600)));
 	const clampWidth = (width: number) => Math.round(Math.min(maxWidth, Math.max(240, width)));
-	const toggleHint = `Toggle the sidebar (${modifierKey()}B)`;
+	const toggleHint = `Toggle the sidebar (${hint('toggleSidebar')})`;
+	/** What the sidebar has folded away: also what the previous and next workspace skip. */
+	const folded = persisted<string[]>('geordi:folded', []);
+	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
+	const focus = persisted<string | null>('geordi:focus', null);
+
+	/** Shows only the repository of the workspace on screen; with that shown alone already, or none on screen, all again. */
+	function toggleFocus() {
+		const repoId = nav.current?.workspaces.find(({ id }) => id === viewed)?.repoId ?? null;
+		focus.current = repoId === focus.current ? null : repoId;
+	}
+
+	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
+	function stepWorkspace(step: 1 | -1) {
+		const all = nav.current;
+		if (!all) return;
+		const order = inSidebarOrder(
+			all.workspaces,
+			inFocus(
+				all.repos.filter((repo) => repo.workspaceCount > 0),
+				focus.current
+			).map(({ id }) => id),
+			folded.current
+		);
+		const to = stepThrough(order, viewed, step);
+		if (to) void goto(resolve('/workspaces/[id]', { id: to.id }));
+	}
 
 	function resize(event: PointerEvent & { currentTarget: HTMLElement }) {
 		const handle = event.currentTarget;
@@ -94,15 +116,22 @@
 <svelte:window
 	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
-		if (newWorkspaceShortcut(event) || repoShortcut(event)) {
+		const newIn = pressed(event, 'newWorkspaceIn');
+		if (newIn || pressed(event, 'newWorkspace')) {
 			event.preventDefault();
 			if (event.repeat) return;
-			if (repoShortcut(event)) pickRepo();
+			if (newIn) pickRepo();
 			if (page.url.pathname !== resolve('/')) void goto(resolve('/'));
-		} else if (settingsShortcut(event)) {
+		} else if (pressed(event, 'previousWorkspace') || pressed(event, 'nextWorkspace')) {
+			event.preventDefault();
+			stepWorkspace(pressed(event, 'nextWorkspace') ? 1 : -1);
+		} else if (pressed(event, 'settings')) {
 			event.preventDefault();
 			openSettings();
-		} else if (sidebarToggle(event) === 'left') {
+		} else if (pressed(event, 'focusRepo')) {
+			event.preventDefault();
+			toggleFocus();
+		} else if (pressed(event, 'toggleSidebar')) {
 			event.preventDefault();
 			toggleSidebar();
 		}
@@ -123,9 +152,8 @@
 
 <!-- With the sidebar hidden, its part of the title bar is where every page's bar starts. -->
 {#snippet lead()}
-	<div class="hidden items-center gap-1 md:flex desktop:pl-17">
+	<div class="hidden items-center gap-1 md:flex mac:pl-17">
 		{@render toggle('icon-[lucide--panel-left-open]')}
-		<span class="hidden items-center gap-1 desktop:flex"><HistoryButtons /></span>
 		<ConnectionIndicator {lost} />
 	</div>
 {/snippet}
@@ -144,22 +172,19 @@
 			style:width="{clampWidth(sidebar.current.width)}px"
 		>
 			<!--
-				The sidebar's part of the title bar. In the desktop app the window's buttons are on
-				its left, so the logo makes way and the toggle moves up beside them.
+				The sidebar's part of the title bar. On macOS the window's buttons are on its left, so
+				the logo makes way and the toggle moves up beside them.
 			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag desktop:pl-22">
+			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag mac:pl-22">
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
-				>
-				<span class="hidden items-center gap-1 desktop:order-3 desktop:flex"
-					><HistoryButtons /></span
 				>
 			</div>
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
 			<div class="mb-2 ml-2 flex min-h-0 flex-1">
-				<Sidebar {lost} nav={nav.current} path={page.url.pathname} />
+				<Sidebar {lost} nav={nav.current} path={page.url.pathname} {folded} {focus} />
 			</div>
 
 			<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->
@@ -197,3 +222,5 @@
 
 <ContextMenu />
 <ArchiveConfirm asking={archiving.asking} />
+
+<ReleaseConfirm asking={releaseReview.asking} />

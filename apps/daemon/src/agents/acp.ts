@@ -19,6 +19,7 @@ import {
 import type {
 	Agent,
 	AgentCommand,
+	BackgroundTask,
 	ContextUsage,
 	MessageImage,
 	PermissionMode,
@@ -31,6 +32,7 @@ import { TerminalOutput } from './terminal-output.ts';
 import { nativeSubagents } from './subagents.ts';
 import { ToolInfos } from './tool-info.ts';
 import { ToolDiffs } from './diffs.ts';
+import { promptSuggestion } from './suggestions.ts';
 import { API_SERVER, type SessionOptions } from './adapter.ts';
 
 /** The choice Codex adds to a question whose answer may be a note instead. */
@@ -112,7 +114,24 @@ export function connectAgent(
 ) {
 	let id = '';
 	let running = false;
-	const background = new BackgroundTasks((tasks) => emit({ kind: 'background', tasks }));
+	let tasks: BackgroundTask[] = [];
+	const publishTasks = () => emit({ kind: 'background', tasks });
+	const background = new BackgroundTasks((snapshot) => {
+		tasks = snapshot.map((task) => {
+			const previous = tasks.find(
+				(t) => t.session === task.session && t.type === task.type && t.id === task.id
+			);
+			if (previous)
+				return {
+					...task,
+					stopId: previous.stopId,
+					stopping: previous.stopping,
+					stopError: previous.stopError
+				};
+			return { ...task, stopId: randomUUID() };
+		});
+		publishTasks();
+	});
 	let steering = false;
 	const messages = new Map<string, string>();
 	// ACP tool IDs belong to the session. A command can span several foreground turns.
@@ -140,6 +159,9 @@ export function connectAgent(
 	}
 	function update(u: SessionUpdate) {
 		if (terminalOutput.receive(u)) return;
+		// Before the switch: the same update may carry other news (a title) for a case below.
+		const suggestion = promptSuggestion(u);
+		if (suggestion !== undefined) emit({ kind: 'suggestion', text: suggestion });
 		switch (true) {
 			case SessionUpdate.isStateUpdate(u):
 				if (u.state === 'running' || u.state === 'requires_action') {
@@ -212,12 +234,13 @@ export function connectAgent(
 				emit({ kind: 'plan', id: u.planId, plan: null });
 				break;
 			case SessionUpdate.isToolCallUpdate(u): {
-				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
 				diffs.receive(u);
 				const output = terminalOutput.toolResult(provider, u);
 				const { input = '', ...info } = toolInfos.news(u, output !== undefined);
 				if (!tools.has(u.toolCallId)) {
+					// Only a new tool adds a transcript row. Earlier tools can finish mid-reply.
+					flush();
 					tools.set(u.toolCallId, 'open');
 					emit({
 						kind: 'tool',
@@ -387,9 +410,14 @@ export function connectAgent(
 			info: { name: 'Geordi', version: '1' },
 			capabilities: {
 				elicitation: { form: {} },
-				...(provider === 'codex' && {
-					_meta: { jetbrains: { air: { version: 1, capabilities: ['asyncTasks'] } } }
-				})
+				session: { promptSuggestions: {} },
+				// Both wrappers suggest what to say next only to a client that declares AIR's
+				// `_meta` (see `suggestions.ts`). For Claude it changes nothing else Geordi reads.
+				_meta: {
+					jetbrains: {
+						air: { version: 1, capabilities: provider === 'codex' ? ['asyncTasks'] : [] }
+					}
+				}
 			}
 		});
 		if (info.protocolVersion !== PROTOCOL_VERSION) throw new Error('This wrapper requires ACP v2');
@@ -481,6 +509,40 @@ export function connectAgent(
 				if (r.outcome !== 'promptRequired') throw new Error('Steering failed: ' + r.outcome);
 			}
 			await agent.request(methods.agent.session.prompt, { sessionId: id, prompt });
+		},
+		async stopTask(stopId: string) {
+			const task = tasks.find((t) => t.stopId === stopId);
+			if (!task || task.stopping) return;
+			task.stopping = true;
+			delete task.stopError;
+			publishTasks();
+			const sessionId = task.session ?? id;
+			try {
+				if (task.type === 'subagent') {
+					await agent.notify(methods.agent.session.cancel, { sessionId: task.id });
+				} else if (provider === 'codex') {
+					const result = await agent.request<{ stopped: boolean }>('_session/async_task/stop', {
+						sessionId,
+						asyncTaskId: task.id
+					});
+					if (!result.stopped) throw new Error('The agent could not stop this task.');
+				} else if (task.type === 'terminal') {
+					await agent.request(methods.agent.terminal.cancel, { sessionId, terminalId: task.id });
+				} else {
+					await agent.request(methods.agent.toolCall.cancel, { sessionId, toolCallId: task.id });
+				}
+			} catch (error) {
+				const current = tasks.find((t) => t.stopId === stopId);
+				if (current) {
+					current.stopError = error instanceof Error ? error.message : 'Could not stop this task.';
+				}
+			} finally {
+				const current = tasks.find((t) => t.stopId === stopId);
+				if (current) {
+					delete current.stopping;
+					publishTasks();
+				}
+			}
 		},
 		interrupt: () => agent.notify(methods.agent.session.cancel, { sessionId: id }),
 		answer: (key: string, answers: string[]) => questions.get(key)?.(answers),

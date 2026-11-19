@@ -10,7 +10,7 @@
 <script lang="ts" generics="T extends string">
 	import { tick, type Snippet } from 'svelte';
 	import { fuzzyFilter, fuzzySegments } from '#lib/fuzzy.ts';
-	import { composerText } from './Composer.svelte';
+	import { composerText } from '@geordi/ui/Composer.svelte';
 
 	type Option = SelectOption<T>;
 	type Props = {
@@ -155,7 +155,7 @@
 	aria-expanded={open}
 	aria-label="{label}: {selected?.label}"
 	class={[
-		'inline-flex h-8 min-w-0 items-center gap-1.5 rounded-control px-2 text-sm hover:bg-sunken hover:text-ink',
+		'inline-flex h-8 min-w-0 items-center gap-1.5 rounded-control px-2 text-sm hover:bg-hover hover:text-ink',
 		open ? 'bg-sunken text-ink' : 'text-muted'
 	]}
 >

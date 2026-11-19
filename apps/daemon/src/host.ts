@@ -17,6 +17,7 @@
  * The CLI is ended when it has had nothing to do for a while (it is started again, where it
  * left off, with the next message), but never while it has something running.
  */
+import { signalTree } from './session-process.ts';
 import { linesFrom } from './journal.ts';
 import { spawn } from 'node:child_process';
 import {
@@ -42,12 +43,13 @@ import type {
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
 
-export type HostEvent =
-	| AgentEvent
+/** What the host writes down: the agent's events, and what it says that is live (`AgentLive`). */
+export type HostEvent = AgentEvent | LiveEvent;
+export type LiveEvent =
 	| { kind: 'background'; tasks: BackgroundTask[] }
 	| { kind: 'usage'; usage: ContextUsage }
-	/** The agent's commands, all of them, whenever they change: live data, not history. */
-	| { kind: 'commands'; commands: AgentCommand[] };
+	| { kind: 'commands'; commands: AgentCommand[] }
+	| { kind: 'suggestion'; text: string | null };
 
 export type Meta = {
 	agent: Agent;
@@ -62,6 +64,7 @@ export type Command =
 	| { type: 'message'; deliveryId?: string; prompt: string; images?: MessageImage[] }
 	/** Stops the turn under way; the CLI goes on running. */
 	| { type: 'interrupt' }
+	| { type: 'stopTask'; stopId: string }
 	| { type: 'answer'; id: string; answers: string[] }
 	/** Ends the CLI now, whatever it is doing. */
 	| { type: 'close' };
@@ -178,7 +181,9 @@ function failed(error: unknown) {
 /** Ends everything in our process group but ourselves: the CLI, and what it started. */
 function kill() {
 	try {
-		process.kill(0, 'SIGTERM');
+		if (process.platform === 'win32') {
+			if (child.pid) signalTree(child.pid, 'SIGTERM');
+		} else process.kill(0, 'SIGTERM');
 	} catch {
 		// nobody left
 	}
@@ -200,6 +205,9 @@ function obey(command: Command) {
 			emit({ kind: 'turn.started' }); // told now, rather than when the CLI gets round to it
 			if (missing) return failed(missing);
 			void ready.then(() => dialogue.message(command.prompt, command.images ?? [])).catch(failed);
+			return;
+		case 'stopTask':
+			void dialogue.stopTask(command.stopId);
 			return;
 		case 'interrupt':
 			if (!open || stopping) return;

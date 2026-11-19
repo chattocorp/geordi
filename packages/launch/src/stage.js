@@ -31,6 +31,9 @@ const banner = {
  */
 export async function stageServices(stage) {
 	mkdirSync(stage, { recursive: true });
+	for (const file of ['LICENSE', 'NOTICE']) {
+		cpSync(join(repo, file), join(stage, file));
+	}
 	cpSync(join(import.meta.dirname, 'services.js'), join(stage, 'services.js'));
 
 	pnpm(['--filter', '@geordi/web', 'build']);

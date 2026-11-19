@@ -11,7 +11,11 @@ import { applyWorkspaceUpdate } from '../workspace-update.ts';
 
 vi.mock('./app.ts', () => ({
 	workspaces: vi.fn(),
-	hub: () => ({ background: () => [], followBackground: () => () => {} }),
+	hub: () => ({
+		background: () => [],
+		suggestion: () => null,
+		followBackground: () => () => {}
+	}),
 	watchers: () => ({ watch: () => () => {}, state: () => null }),
 	terminals: () => ({ subscribe: () => () => {}, running: () => [], finished: () => ({}) })
 }));

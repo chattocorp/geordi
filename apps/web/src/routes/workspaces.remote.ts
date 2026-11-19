@@ -118,6 +118,33 @@ export const say = command(v.object({ workspaceId: v.string(), text }), ({ works
 	workspaces().send(workspaceId, text)
 );
 
+export const restoreWorkspace = command(v.string(), async (id) => {
+	const domain = workspaces();
+	const workspace = domain.summary(id);
+	if (!workspace.archivedAt) return;
+	// a project has no worktree to bring back: its folder is made again, empty, when it next works
+	if (workspace.repoId === null) return domain.restore(id);
+	const ref = domain.ref(id);
+	const release = domain.hold([id, ref.worktreeId]);
+	try {
+		const tree = await hub().request(
+			{
+				kind: 'prepareWorktree',
+				...ref,
+				requireBranch: !!ref.branch
+			},
+			90_000
+		);
+		domain.restore(id);
+		domain.record(id, { kind: 'worktree', ...tree });
+		watchers().changed(ref.worktreeId);
+	} catch (cause) {
+		error(422, cause instanceof Error ? cause.message : 'Could not restore the workspace');
+	} finally {
+		release();
+	}
+});
+
 /** Check for unfinished work without changing the workspace. */
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 
@@ -132,27 +159,44 @@ export const archiveWorkspace = command(
  * Merges the workspace's pull request on the forge it is hosted on. Geordi does this
  * itself, through the daemon (ADR-006), rather than asking the agent to.
  */
-export const mergePull = command(v.string(), async (workspaceId) => {
-	const ref = workspaces().ref(workspaceId);
-	try {
-		const status = await hub().request({ kind: 'mergePull', ...ref }, 60_000);
-		watchers().changed(ref.worktreeId);
-		return status;
-	} catch (cause) {
-		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+export const mergePull = command(
+	v.object({
+		workspaceId: v.string(),
+		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
+		confirmation: v.optional(v.string())
+	}),
+	async ({ workspaceId, pullNumber, confirmation }) => {
+		const ref = workspaces().ref(workspaceId);
+		try {
+			const status = await hub().request(
+				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
+				60_000
+			);
+			if (typeof status === 'string') watchers().changed(ref.worktreeId);
+			return status;
+		} catch (cause) {
+			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+		}
 	}
-});
+);
 
 export const setAutoMerge = command(
 	v.object({
 		workspaceId: v.string(),
 		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
-		enabled: v.boolean()
+		enabled: v.boolean(),
+		confirmation: v.optional(v.string())
 	}),
-	async ({ workspaceId, pullNumber, enabled }) => {
+	async ({ workspaceId, pullNumber, enabled, confirmation }) => {
 		try {
-			await hub().request(
-				{ kind: 'setAutoMerge', ...workspaces().ref(workspaceId), pullNumber, enabled },
+			return await hub().request(
+				{
+					kind: 'setAutoMerge',
+					...workspaces().ref(workspaceId),
+					pullNumber,
+					enabled,
+					confirmation
+				},
 				60_000
 			);
 		} catch (cause) {
@@ -208,6 +252,17 @@ export const approveRun = command(
 			await hub().request({ kind: 'approveRun', commands, ...ref });
 		} catch (cause) {
 			error(502, `Could not note that: ${cause instanceof Error ? cause.message : String(cause)}`);
+		}
+	}
+);
+
+export const editReleaseNote = command(
+	v.object({ workspaceId: v.string(), path: v.string(), original: v.string(), body: v.string() }),
+	async ({ workspaceId, ...edit }) => {
+		try {
+			await hub().request({ kind: 'editReleaseNote', ...workspaces().ref(workspaceId), ...edit });
+		} catch (cause) {
+			error(409, message(cause));
 		}
 	}
 );
@@ -291,6 +346,14 @@ export const answerQuestion = command(
 export const moveWorkspace = command(
 	v.object({ workspaceId: v.string(), before: v.nullable(v.string()) }),
 	({ workspaceId, before }) => workspaces().move(workspaceId, before)
+);
+
+export const stopTask = command(
+	v.object({ workspaceId: v.string(), stopId: v.string() }),
+	({ workspaceId, stopId }) => {
+		if (!hub().stopTask(workspaceId, stopId))
+			error(409, 'This background task is no longer available.');
+	}
 );
 
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));

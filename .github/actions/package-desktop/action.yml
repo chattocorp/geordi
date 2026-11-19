@@ -14,6 +14,9 @@ runs:
         if [[ "$RUNNER_OS" == "macOS" ]]; then
           cd apps/desktop/dist/Geordi-darwin-arm64/Geordi.app/Contents/Resources/app
           electron=../../MacOS/Geordi
+        elif [[ "$RUNNER_OS" == "Linux" ]]; then
+          cd apps/desktop/dist/Geordi-linux-x64/resources/app
+          electron=../../geordi
         else
           cd apps/desktop/dist/Geordi-win32-x64/resources/app
           electron=../../Geordi.exe

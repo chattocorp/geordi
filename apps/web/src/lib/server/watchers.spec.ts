@@ -1,7 +1,7 @@
 import type { ForgeMessage, Upstream } from '@geordi/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { createStandings } from './standings.ts';
-import { actionsFor } from '../actions.ts';
+import { actionsFor } from '@geordi/ui/actions';
 import { createWatchers, type WorktreeLoad, type WorktreeState } from './watchers.ts';
 
 /** Lets pending loads settle. */

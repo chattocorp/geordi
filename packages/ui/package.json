@@ -1,0 +1,56 @@
+{
+	"name": "@geordi/ui",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./AgentAvatar.svelte": "./src/AgentAvatar.svelte",
+		"./AgentMessage.svelte": "./src/AgentMessage.svelte",
+		"./AgentText.svelte": "./src/AgentText.svelte",
+		"./Badge.svelte": "./src/Badge.svelte",
+		"./Button.svelte": "./src/Button.svelte",
+		"./ButtonGroup.svelte": "./src/ButtonGroup.svelte",
+		"./Changes.svelte": "./src/Changes.svelte",
+		"./Composer.svelte": "./src/Composer.svelte",
+		"./DiffStat.svelte": "./src/DiffStat.svelte",
+		"./DiffView.svelte": "./src/DiffView.svelte",
+		"./Disclosure.svelte": "./src/Disclosure.svelte",
+		"./FittedPath.svelte": "./src/FittedPath.svelte",
+		"./MessageCopy.svelte": "./src/MessageCopy.svelte",
+		"./PaneTabs.svelte": "./src/PaneTabs.svelte",
+		"./PullRequestPane.svelte": "./src/PullRequestPane.svelte",
+		"./PullRequestTab.svelte": "./src/PullRequestTab.svelte",
+		"./ReplyComposer.svelte": "./src/ReplyComposer.svelte",
+		"./Ring.svelte": "./src/Ring.svelte",
+		"./Spinner.svelte": "./src/Spinner.svelte",
+		"./StandingIcon.svelte": "./src/StandingIcon.svelte",
+		"./TitleBar.svelte": "./src/TitleBar.svelte",
+		"./ToolCall.svelte": "./src/ToolCall.svelte",
+		"./ToolGroup.svelte": "./src/ToolGroup.svelte",
+		"./TurnActivity.svelte": "./src/TurnActivity.svelte",
+		"./UserMessage.svelte": "./src/UserMessage.svelte",
+		"./WorkspaceActions.svelte": "./src/WorkspaceActions.svelte",
+		"./WorkspaceRow.svelte": "./src/WorkspaceRow.svelte",
+		"./actions": "./src/actions.ts",
+		"./agents": "./src/agents.ts",
+		"./checks": "./src/checks.ts",
+		"./completions": "./src/completions.ts",
+		"./duration": "./src/duration.ts",
+		"./keys": "./src/keys.ts",
+		"./paths": "./src/paths.ts",
+		"./tools": "./src/tools.ts"
+	},
+	"dependencies": {
+		"@geordi/protocol": "workspace:*",
+		"@pierre/diffs": "catalog:"
+	},
+	"peerDependencies": {
+		"svelte": "^5.57.2"
+	},
+	"scripts": {
+		"check": "svelte-check --tsconfig ./tsconfig.json"
+	},
+	"devDependencies": {
+		"svelte-check": "^4.6.0",
+		"typescript": "catalog:"
+	}
+}

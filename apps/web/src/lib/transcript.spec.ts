@@ -49,25 +49,33 @@ describe('toBlocks', () => {
 		expect(blocks.map((block) => block.kind)).toEqual(['user', 'agent', 'note', 'user']);
 	});
 
-	it("adds up the usage of a reply's turns, and drops usage with no reply to go with", () => {
-		const usage = (inputTokens: number, cachedReadTokens?: number) => ({
-			kind: 'usage' as const,
+	it("adds up the usage and time of a reply's turns, and drops turns with no reply to go with", () => {
+		const turn = (
+			inputTokens: number,
+			startedAt: string,
+			end: string,
+			cachedReadTokens?: number
+		) => ({
+			kind: 'turn' as const,
+			startedAt,
 			usage: {
 				totalTokens: inputTokens + 10 + (cachedReadTokens ?? 0),
 				inputTokens,
 				outputTokens: 10,
 				...(cachedReadTokens && { cachedReadTokens })
 			},
-			at
+			at: end
 		});
 		const blocks = toBlocks([
-			usage(1),
+			turn(1, '2026-01-01T09:00:00Z', '2026-01-01T09:00:01Z'),
 			{ kind: 'user', text: 'Do it', at },
 			{ kind: 'text', text: 'Started.', at },
-			usage(5),
+			turn(5, '2026-01-01T10:00:00Z', '2026-01-01T10:01:00Z'),
 			// a turn the agent began by itself, when something in the background ended
 			{ kind: 'text', text: 'Finished.', at },
-			usage(2, 100)
+			turn(2, '2026-01-01T10:05:00Z', '2026-01-01T10:05:30Z', 100),
+			// one from before turns said when they began
+			{ kind: 'turn', at: '2026-01-01T10:06:00Z' }
 		]);
 		expect(blocks).toEqual([
 			{ kind: 'user', text: 'Do it' },
@@ -77,7 +85,8 @@ describe('toBlocks', () => {
 					{ kind: 'text', text: 'Started.' },
 					{ kind: 'text', text: 'Finished.' }
 				],
-				usage: { totalTokens: 127, inputTokens: 7, outputTokens: 20, cachedReadTokens: 100 }
+				usage: { totalTokens: 127, inputTokens: 7, outputTokens: 20, cachedReadTokens: 100 },
+				took: 90_000
 			}
 		]);
 	});

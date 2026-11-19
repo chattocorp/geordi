@@ -7,9 +7,13 @@ allowBuilds:
   esbuild: true
   electron: true
   electron-winstaller: false
+  # Wrangler only deploys the website; its local runtime is never started.
+  workerd: false
 
 catalog:
+  '@pierre/diffs': ^1.6.4
   '@types/node': ^24
+  playwright: ^1.65.0
   typescript: ^6.0.3
   vitest: ^4.1.8
   '@vitest/browser-playwright': ^4.1.8

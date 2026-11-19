@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { byRepository, unfolded, withAides } from './family.ts';
+import {
+	byRepository,
+	inFocus,
+	inSidebarOrder,
+	stepThrough,
+	unfolded,
+	withAides
+} from './family.ts';
 
 const workspace = (id: string, repoId: string, parentId: string | null = null) => ({
 	id,
@@ -83,5 +90,57 @@ describe('unfolded', () => {
 
 	it('ignores a folded workspace with nothing under it', () => {
 		expect(ids(unfolded(rows, ['other', 'grandchild']))).toEqual(ids(rows));
+	});
+});
+
+describe('inSidebarOrder', () => {
+	const all = [
+		workspace('a', 'one'),
+		workspace('b', 'two'),
+		workspace('child', 'one', 'a'),
+		workspace('c', 'one')
+	];
+
+	it('lists by repository, each started one after its parent', () => {
+		expect(inSidebarOrder(all, ['two', 'one'], []).map(({ id }) => id)).toEqual([
+			'b',
+			'a',
+			'child',
+			'c'
+		]);
+	});
+
+	it('leaves out what is folded away', () => {
+		expect(inSidebarOrder(all, ['one', 'two'], ['a']).map(({ id }) => id)).toEqual(['a', 'c', 'b']);
+		expect(inSidebarOrder(all, ['one', 'two'], ['one']).map(({ id }) => id)).toEqual(['b']);
+	});
+});
+
+describe('inFocus', () => {
+	const repos = [{ id: 'one' }, { id: 'two' }];
+
+	it('keeps only the repository in focus', () => {
+		expect(inFocus(repos, 'two')).toEqual([{ id: 'two' }]);
+	});
+
+	it('shows all without a focus, or with one on a repository not listed', () => {
+		expect(inFocus(repos, null)).toEqual(repos);
+		expect(inFocus(repos, 'gone')).toEqual(repos);
+	});
+});
+
+describe('stepThrough', () => {
+	const order = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+	it('steps forward and back, round at the ends', () => {
+		expect(stepThrough(order, 'b', 1)?.id).toBe('c');
+		expect(stepThrough(order, 'c', 1)?.id).toBe('a');
+		expect(stepThrough(order, 'a', -1)?.id).toBe('c');
+	});
+
+	it('starts at the first or last from outside the list', () => {
+		expect(stepThrough(order, null, 1)?.id).toBe('a');
+		expect(stepThrough(order, null, -1)?.id).toBe('c');
+		expect(stepThrough([], null, 1)).toBeUndefined();
 	});
 });

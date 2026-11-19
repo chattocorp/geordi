@@ -26,3 +26,5 @@
 		</Panes>
 	</div>
 </Story>
+
+<Story name="Waiting for daemon" args={{ agent: 'codex', running: true, waiting: true }} />

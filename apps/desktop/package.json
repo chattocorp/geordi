@@ -1,6 +1,6 @@
 {
 	"name": "@geordi/desktop",
-	"version": "0.5.0",
+	"version": "0.6.1",
 	"private": true,
 	"type": "module",
 	"main": "src/main.js",
@@ -9,18 +9,21 @@
 		"dev:app": "node scripts/dev.js",
 		"start": "node scripts/build.js && electron stage",
 		"package": "node scripts/build.js --package",
-		"dmg": "node scripts/build.js --package && bash scripts/dmg-macos.sh --local",
-		"app:install": "node scripts/build.js --install"
+		"dmg": "node scripts/build.js --package && bash scripts/dmg-macos.sh --local"
 	},
 	"devDependencies": {
 		"@electron/notarize": "3.1.2",
 		"@electron/osx-sign": "2.7.2",
 		"@electron/packager": "^20.3.0",
+		"@geordi/launch": "workspace:*",
 		"@types/node": "catalog:",
 		"electron": "45.2.3",
 		"electron-builder": "^26.18.0",
 		"electron-updater": "^6.8.11",
-		"esbuild": "^0.28.2",
-		"@geordi/launch": "workspace:*"
-	}
+		"esbuild": "^0.28.2"
+	},
+	"description": "A calmer way to run coding agents.",
+	"homepage": "https://geordi.run",
+	"author": "ChattoCorp GmbH",
+	"license": "Apache-2.0"
 }

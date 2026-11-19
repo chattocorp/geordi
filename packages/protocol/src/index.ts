@@ -15,7 +15,7 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 33;
+export const PROTOCOL_VERSION = 35;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -150,6 +150,8 @@ export type PullCheck = {
 	state: 'pending' | 'success' | 'failure' | 'neutral' | 'unknown';
 	/** More precise upstream status, such as queued or timed_out. */
 	status: string;
+	/** Check start time in milliseconds since the Unix epoch, when the forge supplies it. */
+	startedAt?: number;
 	url?: string;
 };
 
@@ -388,6 +390,23 @@ export type ReleaseNote = {
 	added: boolean;
 };
 
+/** A package whose release level rises when the PR merges. */
+export type ReleaseIncrease = {
+	path: string;
+	name: string;
+	before: string;
+	from: string;
+	after: string;
+	to: string;
+};
+
+/** Returned instead of merging when the person needs to make a choice. */
+export type ReleaseReview = {
+	token: string;
+	increases: ReleaseIncrease[];
+	problem: string | null;
+};
+
 /** One of a repository's packages, as its release tool sees it: where it stands, and where its pending notes take it. */
 export type ReleasePackage = {
 	/** Its directory, from the top of the repository. */
@@ -456,9 +475,10 @@ export type DaemonRequest =
 	 * workspace started without anything to do yet, or one whose worktree was removed
 	 * behind Geordi's back (which comes back from its branch). Answers where it is.
 	 */
-	| ({ kind: 'prepareWorktree' } & WorktreeRef)
+	| ({ kind: 'prepareWorktree'; requireBranch?: boolean } & WorktreeRef)
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	| ({ kind: 'release' } & WorktreeRef)
+	| ({ kind: 'editReleaseNote'; path: string; original: string; body: string } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Current text of a worktree-relative file, including files with no changes. */
@@ -482,8 +502,13 @@ export type DaemonRequest =
 	 * Merges the pull request for the workspace's branch on the upstream forge. Refused
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
-	| ({ kind: 'mergePull' } & WorktreeRef)
-	| ({ kind: 'setAutoMerge'; pullNumber: string; enabled: boolean } & WorktreeRef)
+	| ({ kind: 'mergePull'; pullNumber: string; confirmation?: string } & WorktreeRef)
+	| ({
+			kind: 'setAutoMerge';
+			pullNumber: string;
+			enabled: boolean;
+			confirmation?: string;
+	  } & WorktreeRef)
 	| ({ kind: 'markReady'; pullNumber: string } & WorktreeRef)
 	/**
 	 * Brings the latest of the branch the workspace's work is based on into its branch, where
@@ -507,6 +532,7 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
+	editReleaseNote: null;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
@@ -514,9 +540,9 @@ export type DaemonResults = {
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
-	mergePull: 'merged' | 'queued';
+	mergePull: 'merged' | 'queued' | ReleaseReview;
 	markReady: null;
-	setAutoMerge: null;
+	setAutoMerge: null | ReleaseReview;
 	/** `false` if it was left alone: bringing it up to date takes an agent's judgement. */
 	updateWorktree: boolean;
 	/**
@@ -611,6 +637,10 @@ export type ContextUsage = {
 };
 
 export type BackgroundTask = {
+	/** Identifies this live task for as long as its host can stop it. */
+	stopId?: string;
+	stopping?: boolean;
+	stopError?: string;
 	type: 'terminal' | 'tool_call' | 'subagent';
 	id: string;
 	/** Absent for work owned by the root ACP session. */
@@ -630,6 +660,21 @@ export type AgentCommand = {
 	description?: string;
 	/** What it takes after its name, if anything. */
 	hint?: string;
+};
+
+/**
+ * What an agent says of its session that is live data, not history (ADR-003): never an
+ * event, said again by a reconnecting daemon. Each is there only once the agent has said it.
+ */
+export type AgentLive = {
+	/** What it has running in the background. */
+	background?: BackgroundTask[];
+	/** How full its context is, said after every model step. */
+	usage?: ContextUsage;
+	/** Its own commands, all of them, whenever they change. */
+	commands?: AgentCommand[];
+	/** What it suggests the person say next, now that its turn is over; `null` once withdrawn. */
+	suggestion?: string | null;
 };
 
 export type AgentEvent =
@@ -700,6 +745,7 @@ export type ForgeMessage =
 			images?: MessageImage[];
 	  } & (WorktreeRef | ProjectRef))
 	/** Stops what the agent is doing. Its CLI goes on running, to be told what to do instead. */
+	| { type: 'agent.stopTask'; workspaceId: string; stopId: string }
 	| { type: 'agent.stop'; workspaceId: string }
 	/** Answers a `question` the agent asked: one answer per question, in their order. */
 	| { type: 'agent.answer'; workspaceId: string; questionId: string; answers: string[] }
@@ -731,17 +777,15 @@ export type ForgeMessage =
 
 /** Daemon → forge. */
 export type DaemonMessage =
-	| { type: 'workspace.background'; workspaceId: string; tasks: BackgroundTask[] }
 	/**
-	 * How full the agent's context is, said after every model step, and again on reconnect.
-	 * Live, unacknowledged: the forge keeps it in memory and records it once per turn.
+	 * What changed in what the workspace's agent says of its session (`AgentLive`). Live,
+	 * unacknowledged: said as it changes, and all of it again on reconnecting.
 	 */
-	| { type: 'workspace.usage'; workspaceId: string; usage: ContextUsage }
-	/** The commands the workspace's agent offers now, all of them; sent again whenever they change. */
-	| { type: 'workspace.commands'; workspaceId: string; commands: AgentCommand[] }
+	| { type: 'workspace.live'; workspaceId: string; live: AgentLive }
 	| {
 			type: 'hello';
 			protocol: number;
+			/** Stable identity of the daemon's exclusively held session directory. */
 			daemonId: string;
 			/** The daemon's challenge for the forge. */
 			nonce: string;

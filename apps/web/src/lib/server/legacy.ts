@@ -141,6 +141,7 @@ export function createUpcaster() {
 				return isSkillText(event) ? [] : [event as CurrentEvent];
 
 			case 'workspace.message':
+			case 'workspace.undeliverable':
 			case 'workspace.queued':
 			case 'workspace.dequeued':
 			case 'workspace.titled':
@@ -149,6 +150,7 @@ export function createUpcaster() {
 			case 'workspace.switched':
 			case 'workspace.steered':
 			case 'workspace.answered':
+			case 'workspace.restored':
 			case 'workspace.archived':
 			case 'workspace.moved':
 			case 'workspace.usage':

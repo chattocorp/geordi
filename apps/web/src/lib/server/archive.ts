@@ -44,7 +44,9 @@ export function createArchiver({
 		const busy = family.find((workspace) => workspace.status === 'running');
 		if (busy) error(409, `Stop the agent in “${busy.title}” before archiving`);
 
-		const release = workspaces.hold(family.map((workspace) => workspace.id));
+		const release = workspaces.hold(
+			family.flatMap((workspace) => [workspace.id, workspace.worktreeId])
+		);
 		try {
 			for (const workspace of family) {
 				if (workspace.archivedAt) continue;

@@ -1,18 +1,12 @@
+import type { ChangedFiles } from '@geordi/ui/tools';
 import { getContext, setContext } from 'svelte';
+
+export type { ChangedFiles } from '@geordi/ui/tools';
 
 /**
  * The files a workspace has changed, for its conversations: code there that names one of
  * them links to its diff (`Markdown.svelte`).
  */
-export type ChangedFiles = {
-	/** Their paths, in the worktree. */
-	readonly paths: ReadonlySet<string>;
-	/** Where the worktree is, for absolute paths. */
-	readonly root?: string;
-	openSource: (path: string, line?: number) => void;
-	open: (path: string) => void;
-};
-
 const KEY = Symbol('changed files');
 
 export const setChangedFiles = (files: ChangedFiles) => setContext(KEY, files);
