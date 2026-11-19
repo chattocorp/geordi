@@ -61,7 +61,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 
 ## Related
 
-- **ADRs:** ADR-003, ADR-006
+- **ADRs:** ADR-003, ADR-006, ADR-011
 - **FDRs:** FDR-001, FDR-002
 
 ## Open Questions

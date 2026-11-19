@@ -1,6 +1,6 @@
 <script lang="ts">
 	import DiffView from '#lib/components/DiffView.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { getDiff } from '../../../routes/workspaces.remote';
 
 	type Props = {

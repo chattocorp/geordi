@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { expect, fn } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Changes from './Changes.svelte';
+	import Changes from '@geordi/ui/Changes.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Changes', component: Changes });
 	const pending = {

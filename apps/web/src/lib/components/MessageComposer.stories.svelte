@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, userEvent, waitFor, within } from 'storybook/test';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from './MessageComposer.svelte';
 
 	const { Story } = defineMeta({ title: 'Workspace/MessageComposer', component: MessageComposer });

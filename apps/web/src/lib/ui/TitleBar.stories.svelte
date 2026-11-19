@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Badge from './Badge.svelte';
-	import Button from './Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import TitleBar from './TitleBar.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/TitleBar', component: TitleBar });

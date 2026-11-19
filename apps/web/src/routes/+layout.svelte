@@ -17,7 +17,7 @@
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
 	import { connect, connection, follow } from '#lib/live.svelte.ts';

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ClassValue } from 'svelte/elements';
-	import { fitPath } from '#lib/paths.ts';
+	import { fitPath } from './paths.ts';
 
 	/**
 	 * A path in monospace, shortened to fit its width (`fitPath`): the directories muted, their

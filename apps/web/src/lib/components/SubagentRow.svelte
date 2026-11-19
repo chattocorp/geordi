@@ -2,8 +2,8 @@
 	import SubagentRow from './SubagentRow.svelte';
 	import type { SubagentItem } from '#lib/server/workspaces.ts';
 	import Disclosure from '#lib/ui/Disclosure.svelte';
-	import Button from '#lib/ui/Button.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Button from '@geordi/ui/Button.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Markdown from './Markdown.svelte';
 	import ToolCall from './ToolCall.svelte';
 	let {

@@ -3,7 +3,7 @@
 	import { expect, fn, userEvent, waitFor } from 'storybook/test';
 	import { subagentBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Composer from '#lib/ui/Composer.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });

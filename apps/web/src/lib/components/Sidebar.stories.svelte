@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { expect, fireEvent, waitFor, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
 	import Sidebar from './Sidebar.svelte';
 

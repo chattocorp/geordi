@@ -9,7 +9,7 @@
 		standingOf,
 		type WorkspaceAction,
 		type WorkspaceStanding
-	} from '#lib/actions.ts';
+	} from '@geordi/ui/actions';
 	import { hint, pressed } from '#lib/keys.ts';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
@@ -40,11 +40,11 @@
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import {
@@ -66,15 +66,15 @@
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import PullRequestTab from './PullRequestTab.svelte';
 	import PullRequestPane from './PullRequestPane.svelte';
-	import Changes from './Changes.svelte';
-	import DiffStat from '#lib/components/DiffStat.svelte';
+	import Changes from '@geordi/ui/Changes.svelte';
+	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
-	import WorkspaceActions from './WorkspaceActions.svelte';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 
 	type Props = {
 		/** The workspace as it is now: it comes live, over the page's one connection. */

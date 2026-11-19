@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import NewWorkspace from '#lib/components/workspace/NewWorkspace.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
 	import WaitingForView from '#lib/components/WaitingForView.svelte';
 	import { connection, follow } from '#lib/live.svelte.ts';

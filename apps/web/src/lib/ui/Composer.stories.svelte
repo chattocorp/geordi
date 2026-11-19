@@ -2,7 +2,7 @@
 	import { tick } from 'svelte';
 	import { expect, fn } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Button from './Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Composer from './Composer.svelte';
 	import Select from './Select.svelte';
 

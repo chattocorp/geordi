@@ -5,7 +5,7 @@
 	import { draft } from '#lib/drafts.svelte.ts';
 	import { hint, pressed } from '#lib/keys.ts';
 	import { toBlocks } from '#lib/transcript.ts';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { AgentCommand } from '@geordi/protocol';

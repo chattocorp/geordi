@@ -3,7 +3,7 @@
 	import { changedFiles } from '#lib/changedFiles.ts';
 	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import { filesOf, iconOf, relativeTo, titleOf } from '#lib/tools.ts';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import PatchView from './PatchView.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 

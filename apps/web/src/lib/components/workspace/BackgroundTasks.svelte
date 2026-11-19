@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { BackgroundTask } from '@geordi/protocol';
 	import { toolIcon } from '#lib/tools.ts';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import Disclosure from '#lib/ui/Disclosure.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 
 	type Row = { task: BackgroundTask; label: string; kind: string; open?: () => void };
 	let {

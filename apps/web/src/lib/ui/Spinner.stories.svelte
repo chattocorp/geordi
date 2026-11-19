@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Badge from './Badge.svelte';
-	import Spinner from './Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Spinner', component: Spinner });
 </script>

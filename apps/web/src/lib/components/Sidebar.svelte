@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceAction, WorkspaceStanding } from '@geordi/ui/actions';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
@@ -19,7 +19,7 @@
 	import type { Navigation } from '#lib/server/views.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';

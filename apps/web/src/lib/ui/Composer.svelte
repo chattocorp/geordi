@@ -10,7 +10,7 @@
 <script lang="ts">
 	import type { Attachment } from 'svelte/attachments';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
-	import Button from './Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import { submitOnEnter } from '#lib/keys.ts';
 	import { completionQuery, matching, type Completion } from './completions.ts';
 

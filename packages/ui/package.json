@@ -1,0 +1,29 @@
+{
+	"name": "@geordi/ui",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./Button.svelte": "./src/Button.svelte",
+		"./ButtonGroup.svelte": "./src/ButtonGroup.svelte",
+		"./Changes.svelte": "./src/Changes.svelte",
+		"./DiffStat.svelte": "./src/DiffStat.svelte",
+		"./FittedPath.svelte": "./src/FittedPath.svelte",
+		"./Spinner.svelte": "./src/Spinner.svelte",
+		"./WorkspaceActions.svelte": "./src/WorkspaceActions.svelte",
+		"./actions": "./src/actions.ts",
+		"./paths": "./src/paths.ts"
+	},
+	"dependencies": {
+		"@geordi/protocol": "workspace:*"
+	},
+	"peerDependencies": {
+		"svelte": "^5.57.2"
+	},
+	"scripts": {
+		"check": "svelte-check --tsconfig ./tsconfig.json"
+	},
+	"devDependencies": {
+		"svelte-check": "^4.6.0",
+		"typescript": "catalog:"
+	}
+}

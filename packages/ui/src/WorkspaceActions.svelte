@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
-	import Button from '#lib/ui/Button.svelte';
-	import ButtonGroup from '#lib/ui/ButtonGroup.svelte';
+	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
+	import Button from './Button.svelte';
+	import ButtonGroup from './ButtonGroup.svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';

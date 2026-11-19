@@ -8,7 +8,7 @@
 	import { problemOf } from '#lib/problem.ts';
 	import { hint, shortcutGroups } from '#lib/keys.ts';
 	import { theme } from '#lib/theme.svelte.ts';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Segmented from '#lib/ui/Segmented.svelte';

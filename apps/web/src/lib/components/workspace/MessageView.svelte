@@ -16,7 +16,7 @@
 	import QuestionCard from '#lib/components/QuestionCard.svelte';
 	import SubagentRow from '#lib/components/SubagentRow.svelte';
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 

@@ -1,0 +1,97 @@
+import type { Changes } from '@geordi/protocol';
+
+export const message =
+	'After signing in, people land on the home page instead of the page they came for. Send them back there.';
+
+export const tools = [
+	{
+		step: 2,
+		icon: 'icon-[lucide--file-text]',
+		name: 'Read',
+		what: 'src/routes/login/+page.server.ts'
+	},
+	{ step: 3, icon: 'icon-[lucide--pencil]', name: 'Edit', what: 'src/lib/server/auth.ts' },
+	{
+		step: 4,
+		icon: 'icon-[lucide--pencil]',
+		name: 'Edit',
+		what: 'src/routes/login/+page.server.ts'
+	},
+	{
+		step: 5,
+		icon: 'icon-[lucide--file-plus]',
+		name: 'Write',
+		what: 'src/lib/server/auth.spec.ts'
+	},
+	{ step: 6, icon: 'icon-[lucide--terminal]', name: 'Bash', what: 'pnpm test auth' }
+];
+
+/** The other workspaces in the sidebar, and how each stands. */
+export const others = [
+	{
+		title: 'Dark mode for emails',
+		icon: 'icon-[lucide--circle-check] text-ok',
+		means: 'Ready to merge'
+	},
+	{
+		title: 'Upgrade to Vite 8',
+		icon: 'icon-[lucide--circle-x] text-danger',
+		means: 'Checks failing'
+	},
+	{
+		title: 'Rate-limit invitations',
+		icon: 'icon-[lucide--git-merge] text-merged',
+		means: 'Merged'
+	}
+];
+
+const loginDiff = [
+	[' ', 'export const actions = {'],
+	[' ', '  default: async ({ request, url }) => {'],
+	[' ', '    await signIn(request);'],
+	['-', "    redirect(303, '/');"],
+	['+', "    const to = url.searchParams.get('returnTo');"],
+	['+', "    redirect(303, safePath(to) ?? '/');"],
+	[' ', '  }'],
+	[' ', '};']
+];
+
+export const files = [
+	{
+		step: 3,
+		path: 'src/lib/server/auth.ts',
+		status: 'modified',
+		added: 9,
+		removed: 2,
+		lines: [
+			['+', "const destinations = new Set(['/account', '/settings']);"],
+			['+', 'export function safePath(value: string | null) {'],
+			['+', '  return value && destinations.has(value) ? value : null;'],
+			['+', '}']
+		]
+	},
+	{
+		step: 4,
+		path: 'src/routes/login/+page.server.ts',
+		status: 'modified',
+		added: 3,
+		removed: 1,
+		lines: loginDiff
+	},
+	{
+		step: 5,
+		path: 'src/lib/server/auth.spec.ts',
+		status: 'added',
+		added: 24,
+		removed: 0,
+		lines: [
+			['+', "it('keeps redirects on this site', () => {"],
+			['+', "  expect(safePath('/account')).toBe('/account');"],
+			['+', "  expect(safePath('//other.test')).toBeNull();"],
+			['+', '});']
+		]
+	}
+] satisfies (Changes['files'][number] & { step: number; lines: string[][] })[];
+
+export const hold = [400, 1000, 900, 1200, 1300, 1000, 1700, 3600, 3200, 3600, 9000];
+export const last = hold.length - 1;

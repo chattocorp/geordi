@@ -2,7 +2,7 @@
 	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import { iconOf, sortOf, titleOf } from '#lib/tools.ts';
 	import type { Part } from '#lib/transcript.ts';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import ToolCall from './ToolCall.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 

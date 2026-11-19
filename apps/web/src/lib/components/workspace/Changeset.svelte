@@ -2,7 +2,7 @@
 	import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 
 	type Props = {
 		/** What the worktree holds for the repository's next releases, as its release tool reads it. */

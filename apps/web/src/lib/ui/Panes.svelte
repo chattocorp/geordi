@@ -11,7 +11,7 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import Button from './Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import { drag, endDrag } from './drag.svelte.ts';
 	import Split from './Split.svelte';
 

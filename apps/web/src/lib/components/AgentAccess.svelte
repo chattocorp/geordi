@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import MessageCopy from './workspace/MessageCopy.svelte';
 	import { problemOf } from '#lib/problem.ts';
