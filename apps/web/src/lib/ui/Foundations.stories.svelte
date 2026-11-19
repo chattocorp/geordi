@@ -98,3 +98,14 @@
 		<a href="#top" class="item px-2.5 py-1"><span class="dot"></span> another item</a>
 	</div>
 </Story>
+
+<Story name="Running job" asChild>
+	<div class="inline-flex items-center gap-1.5 rounded-control bg-sunken px-2.5 py-1 text-sm">
+		<span
+			class="bar-running icon-[lucide--play] size-3.5 shrink-0 text-accent"
+			role="img"
+			aria-label="Running"
+		></span>
+		run
+	</div>
+</Story>

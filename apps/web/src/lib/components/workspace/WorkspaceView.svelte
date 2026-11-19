@@ -710,7 +710,12 @@
 				<!-- on its way up: until it listens on its port -->
 				<span class="grid size-3.5 shrink-0 place-items-center"><Spinner label="Starting" /></span>
 			{:else if status === undefined}
-				<span class="icon-[lucide--play] size-3.5 shrink-0"></span>
+				<span
+					class="bar-running icon-[lucide--play] size-3.5 shrink-0 text-accent"
+					role="img"
+					aria-label="Running"
+					title="Running"
+				></span>
 			{:else if status === 0}
 				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
 			{:else}
