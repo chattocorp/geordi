@@ -41,5 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/install
+      - name: Keep session directories private
+        run: pnpm --filter @geordi/daemon test src/session-process.spec.ts src/daemon-owner.spec.ts --testTimeout 30000
       - name: Recover detached Windows sessions
-        run: pnpm --filter @geordi/daemon test src/session.spec.ts -t "a daemon restart" --testTimeout 30000
+        run: pnpm --filter @geordi/daemon test src/session.spec.ts -t "a daemon restart|a launched daemon|when killed" --testTimeout 30000

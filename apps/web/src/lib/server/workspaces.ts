@@ -1,3 +1,4 @@
+import { problemOf } from '#lib/problem.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -76,6 +77,11 @@ export type WorkspacesEvent =
 			type: 'workspace.steered';
 			stream: WorkspaceStream;
 			data: { id: string; text: string; images?: string[] };
+	  }
+	| {
+			type: 'workspace.undeliverable';
+			stream: WorkspaceStream;
+			data: { id: string; deliveryId: string; reason: string };
 	  }
 	/** A message to send once the agent has finished what it is doing. */
 	| {
@@ -262,6 +268,8 @@ function updateAsking(workspace: Workspace) {
 	);
 }
 
+type PendingMessage = { deliveryId: string; text: string; images: string[] };
+
 type Status = 'running' | 'idle';
 
 /**
@@ -271,7 +279,7 @@ type Status = 'running' | 'idle';
  */
 export type Workspace = {
 	outputCursor?: string;
-	pendingMessages?: { deliveryId: string; text: string; images: string[] }[];
+	pendingMessages?: PendingMessage[];
 	/** When the turn that is running began, for the `turn` item that ends it. */
 	turnStartedAt?: string;
 	id: string;
@@ -348,7 +356,9 @@ function initialWorkspace(
 	};
 }
 
-export type WorkspaceSummary = Omit<Workspace, 'transcript'>;
+export type WorkspaceSummary = Omit<Workspace, 'transcript' | 'pendingMessages'> & {
+	pendingDelivery?: boolean;
+};
 
 /** What an agent sees of an agent it started (FDR-002). */
 export type AgentReport = {
@@ -529,6 +539,13 @@ export function createWorkspaces(
 				});
 				updateAsking(workspace);
 			}
+			return;
+		}
+		if (event.type === 'workspace.undeliverable') {
+			workspace.pendingMessages = workspace.pendingMessages?.filter(
+				(m) => m.deliveryId !== event.data.deliveryId
+			);
+			append({ kind: 'error', error: event.data.reason, at });
 			return;
 		}
 		if (event.type === 'workspace.message') {
@@ -761,10 +778,16 @@ export function createWorkspaces(
 		store.append({ type: 'workspace.usage', stream: `workspace:${id}`, data: { id, usage } });
 	}
 
-	const summarise = ({ transcript, ...workspace }: Workspace): WorkspaceSummary => {
+	const summarise = ({
+		transcript,
+		pendingMessages,
+		...workspace
+	}: Workspace): WorkspaceSummary => {
 		void transcript;
+
 		return structuredClone({
 			...workspace,
+			...(pendingMessages?.length && { pendingDelivery: true }),
 			usage: usages.get(workspace.id) ?? workspace.usage,
 			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
 		});
@@ -856,8 +879,7 @@ export function createWorkspaces(
 		});
 		const measured = usages.get(id);
 		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
-		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
-			say(workspace, workspace.queue[0], null, 'queued');
+		if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
 	}
 
 	/**
@@ -886,11 +908,32 @@ export function createWorkspaces(
 	const held = new Set<string>();
 
 	/** Send the recorded prompt. An unacknowledged delivery is retried on reconnect. */
-	function deliver(workspace: Workspace, text: string, images: string[], deliveryId: string) {
+	function deliver(workspace: Workspace, message: PendingMessage, working: boolean) {
+		const { text, images, deliveryId } = message;
+		let target: WorktreeRef;
+		let attachments;
+		try {
+			target = ref(workspace.id);
+			attachments = images.map(imageStore.get);
+		} catch (error) {
+			const reason =
+				'Could not deliver the prompt. ' +
+				problemOf(error, 'Check its repository and attached images.');
+			console.error(`[workspace ${workspace.id}] ${reason}`, error);
+			if (!working && workspace.pendingMessages?.length === 1)
+				record(workspace.id, { kind: 'turn.failed', error: reason });
+			else
+				store.append({
+					type: 'workspace.undeliverable',
+					stream: `workspace:${workspace.id}`,
+					data: { id: workspace.id, deliveryId, reason }
+				});
+			return false;
+		}
 		return dispatch({
 			type: 'agent.message',
 			workspaceId: workspace.id,
-			...ref(workspace.id),
+			...target,
 			agent: workspace.agent,
 			settings: workspace.settings,
 			apiToken: tokenFor(workspace),
@@ -901,7 +944,7 @@ export function createWorkspaces(
 				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
-			...(images.length && { images: images.map(imageStore.get) }),
+			...(attachments.length && { images: attachments }),
 			deliveryId,
 			prompt: text
 		});
@@ -921,7 +964,7 @@ export function createWorkspaces(
 			: undefined;
 		if (from === 'queued') images = workspace.attachments.queue[0];
 		const deliveryId = randomUUID();
-		const prompt = workspace.briefing ? workspace.briefing + '\n\n' + text : text;
+		const working = workspace.status === 'running';
 		store.append(
 			{
 				type: 'workspace.message',
@@ -937,7 +980,14 @@ export function createWorkspaces(
 			},
 			{ actor }
 		);
-		deliver(workspace, prompt, images, deliveryId);
+		// append applies the projection synchronously, including the briefing and attachments.
+		const pending = workspace.pendingMessages?.find((message) => message.deliveryId === deliveryId);
+		if (pending) deliver(workspace, pending, working);
+	}
+
+	function promoteCompletedQueue(workspace: Workspace) {
+		if (workspace.lastTurn === 'completed' && workspace.queue.length)
+			say(workspace, workspace.queue[0], null, 'queued');
 	}
 
 	/**
@@ -1458,6 +1508,7 @@ export function createWorkspaces(
 				actor
 			);
 		},
+		hasRunningTurn: () => Array.from(projection.get().values()).some((w) => w.status === 'running'),
 		worktreeOf: (id: string) => projection.get().get(id)?.worktreeId,
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
@@ -1678,9 +1729,11 @@ export function createWorkspaces(
 		 * were apart is not among them; it says so next.)
 		 */
 		reconcile(running: string[]) {
+			const reported = new Set(running);
 			for (const workspace of projection.get().values()) {
 				if (workspace.archivedAt) continue;
-				if (running.includes(workspace.id))
+				let working = reported.has(workspace.id);
+				if (working)
 					for (const item of workspace.transcript)
 						if (item.kind === 'question' && item.delivery === 'pending' && item.answers)
 							dispatch({
@@ -1690,10 +1743,9 @@ export function createWorkspaces(
 								answers: item.answers
 							});
 				for (const message of workspace.pendingMessages ?? [])
-					deliver(workspace, message.text, message.images, message.deliveryId);
+					if (deliver(workspace, message, working)) working = true;
 				// A restart can fall between recording completion and promoting the queue.
-				if (workspace.lastTurn === 'completed' && workspace.queue.length)
-					say(workspace, workspace.queue[0], null, 'queued');
+				promoteCompletedQueue(workspace);
 			}
 			for (const id of running)
 				if (projection.get().get(id)?.status !== 'running')
@@ -1702,7 +1754,7 @@ export function createWorkspaces(
 				if (
 					workspace.status === 'running' &&
 					!workspace.pendingMessages?.length &&
-					!running.includes(workspace.id)
+					!reported.has(workspace.id)
 				)
 					record(workspace.id, {
 						kind: 'turn.failed',

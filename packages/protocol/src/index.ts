@@ -15,7 +15,7 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 34;
+export const PROTOCOL_VERSION = 35;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -745,6 +745,7 @@ export type DaemonMessage =
 	| {
 			type: 'hello';
 			protocol: number;
+			/** Stable identity of the daemon's exclusively held session directory. */
 			daemonId: string;
 			/** The daemon's challenge for the forge. */
 			nonce: string;

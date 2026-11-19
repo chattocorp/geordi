@@ -28,10 +28,13 @@ export const navigation = () =>
 	({
 		read: () => {
 			const all = workspaces().all();
+			const harnesses = hub().harnesses();
 			const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
 			const listed = withAides(all).map(({ workspace, aides }) => {
 				const { id, title, repoId, parentId, status, worktree } = workspace;
-				const working = status === 'running' || aides.some((aide) => aide.status === 'running');
+				const busy = [workspace, ...aides].filter((w) => w.status === 'running');
+				const working = busy.length > 0;
+				const waiting = working && !harnesses && busy.every((w) => w.pendingDelivery);
 				// how its work stands, as far as is known: asked about in the background
 				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
 				const pull = known.upstream?.pull;
@@ -47,6 +50,7 @@ export const navigation = () =>
 					parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
 					status,
 					working,
+					...(waiting && { waiting: true }),
 					outcome: outcome([workspace, ...aides]),
 					standing: standingOf(state),
 					// what could happen next (FDR-003): offered in its context menu
@@ -78,7 +82,7 @@ export const navigation = () =>
 				 * What each agent can be asked to run: its models and their effort levels, as the
 				 * connected daemon reports them. `null` while no daemon is connected.
 				 */
-				harnesses: hub().harnesses()
+				harnesses
 			};
 		},
 		also: (changed) => {
@@ -200,4 +204,6 @@ export const views = { navigation, workspace, commands };
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
 export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
-	Workspace & { aides: (Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>)[] };
+	Workspace & {
+		aides: (Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'pendingDelivery'>)[];
+	};

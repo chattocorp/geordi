@@ -23,7 +23,7 @@ Apps like Paseo and T3 Code split logic into a daemon with a separate frontend. 
 
 ## Consequences
 
-- Agent sessions survive forge restarts. The forge accepts one authenticated daemon at a time because its inventory covers the entire installation. A second connection can take over after the active connection closes.
+- Agent sessions survive forge restarts. The forge accepts one authenticated daemon at a time because its inventory covers the entire installation. A heartbeat releases a connection that stops responding. The forge remembers which daemon owns unfinished turns across restarts. Another daemon can take over once those turns have ended and the active connection has closed. Each daemon holds an exclusive lock on its session directory, which also holds its stable identity.
 - One language and shared types across the boundary, with no code generation.
 - Type stripping means erasable TypeScript syntax only (no enums, namespaces, or parameter properties).
 - We must design a reconnect-safe protocol and keep the daemon's buffer and the forge's log consistent.

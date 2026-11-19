@@ -10,6 +10,7 @@ import type { Rest } from './attention.ts';
 export type Sortable = {
 	id: string;
 	working: boolean;
+	waiting?: boolean;
 	outcome: Rest | null;
 	standing: WorkspaceStanding | null;
 	updatedAt: string;
@@ -29,7 +30,7 @@ export const LANES: Lane[] = ['attention', 'working', 'open', 'done'];
 export function laneOf(workspace: Sortable, unread: ReadonlySet<string>): Lane {
 	// a question goes before everything, at work or not
 	if (workspace.outcome === 'asking') return 'attention';
-	if (workspace.working) return 'working';
+	if (workspace.working && !workspace.waiting) return 'working';
 	if (workspace.standing?.tone === 'danger' || unread.has(workspace.id)) return 'attention';
 	const done = workspace.standing?.tone === 'merged' || workspace.standing?.label === 'Closed';
 	return done ? 'done' : 'open';

@@ -23,7 +23,7 @@ import { archiveConcerns, type Standing } from '../archiving.ts';
 import { createArchiver } from './archive.ts';
 import { store } from './events/index.ts';
 import { loadSecret } from './secret.ts';
-import { createHub } from './daemons.ts';
+import { createHub, daemonAdmission } from './daemons.ts';
 import { createJobs } from './jobs.ts';
 import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
@@ -273,8 +273,9 @@ export const watchers = lazy(() =>
 	)
 );
 
-export const hub = lazy(() =>
+export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 	createHub(GEORDI_DAEMON_PORT, loadSecret(join(GEORDI_DATA_DIR, 'daemon-token')), {
+		admit: daemonAdmission(store(), () => workspaces().hasRunningTurn()),
 		onHello: (_daemonId, running, runningTerminals, ended) => {
 			workspaces().reconcile(running);
 			terminals().reconcile(runningTerminals, ended);

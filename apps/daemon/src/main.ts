@@ -1,10 +1,12 @@
+import { claimDaemon } from './daemon-owner.ts';
+import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { homedir, hostname } from 'node:os';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
 	DEFAULT_PORTS,
@@ -71,7 +73,10 @@ const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geord
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
-const daemonId = hostname();
+prepareSessionsDirectory(sessionsDir);
+const owner = claimDaemon(sessionsDir);
+const daemonId = owner.id;
+process.once('exit', owner.close);
 /** The models and effort levels this machine's agent CLIs offer; told to the forge. */
 const harnesses: Harness[] = await Promise.all(
 	AGENTS.map(async (agent) => ({ agent, ...(await adapterFor(agent)).offers() }))
@@ -290,7 +295,6 @@ const connected = () => socket?.readyState === WebSocket.OPEN;
 endLegacyTurns(join(sessionsDir, '..', 'turns'));
 /** The agents' sessions (ADR-010), by workspace: ones we started, and ones we found running. */
 const retired = new WeakSet<Session>();
-mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });
 const sessions = resumeSessions(sessionsDir, emitFor, connected);
 for (const [workspaceId, session] of sessions) attend(workspaceId, session);
 

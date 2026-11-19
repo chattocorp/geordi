@@ -1,4 +1,11 @@
-import { privateDirectory, signalTree, startedAt } from './session-process.ts';
+import {
+	gentleSignals,
+	prepareSessionsDirectory,
+	privateDirectory,
+	signalTree,
+	startedAt,
+	startTimes
+} from './session-process.ts';
 import { linesFrom } from './journal.ts';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -78,6 +85,9 @@ const HOST = fileURLToPath(
 	new URL(import.meta.url.endsWith('.ts') ? './host.ts' : './host.js', import.meta.url)
 );
 
+const hostOf = (dir: string) =>
+	JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')) as { pid: number; started?: string };
+
 const alive = (pid: number) => {
 	try {
 		process.kill(pid, 0);
@@ -96,19 +106,23 @@ const alive = (pid: number) => {
  * and an event only counts as passed on (`offset`) once it could be sent. So a daemon that
  * goes away while the forge is away too loses nothing either.
  */
-function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
+function follow(
+	dir: string,
+	emit: Deliver,
+	ready: () => boolean,
+	/** When the host's process started, as asked once for all sessions; see `startTimes`. */
+	startOf: (pid: number) => string | null = startedAt
+): Session {
 	const file = (name: string) => join(dir, name);
 	const meta = JSON.parse(readFileSync(file('meta.json'), 'utf8')) as Meta & { generation: string };
-	const { pid, started } = JSON.parse(readFileSync(file('host.json'), 'utf8')) as {
-		pid: number;
-		started?: string;
-	};
+	const { pid, started } = hostOf(dir);
 	// Process IDs are reused, after a reboot at the latest: the process is only ours if it
 	// also started when ours did. Never signal, or wait for, somebody else's.
-	const ours = !!started && startedAt(pid) === started;
+	const ours = !!started && startOf(pid) === started;
 	const running = () => ours && alive(pid);
 	const signal = (name: NodeJS.Signals) => {
 		try {
+			// asked again: the ID may have been someone else's since
 			if (running() && startedAt(pid) === started) signalTree(pid, name); // the whole group: the host, the CLI and what it started
 		} catch {
 			// already gone
@@ -237,9 +251,11 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 		kill() {
 			if (finished) return;
 			writeFileSync(file('stopped'), '');
+			// On Windows this is forced at once: the host notes nothing, `poll` reports the turn
+			// as stopped, and what it had not read yet goes with it, as stopping means.
 			signal('SIGTERM');
 			// what won't end is ended
-			setTimeout(() => !finished && signal('SIGKILL'), KILL_AFTER_MS).unref();
+			if (gentleSignals) setTimeout(() => !finished && signal('SIGKILL'), KILL_AFTER_MS).unref();
 		},
 		detach: () => finish(),
 		live: () => live,
@@ -296,8 +312,9 @@ export function startSession(
 		throw new Error(`Failed to start ${meta.agent}`);
 	}
 	child.unref();
-	writeFileSync(file('host.json'), JSON.stringify({ pid, started: startedAt(pid) ?? undefined }));
-	return follow(dir, emit, ready);
+	const started = startedAt(pid);
+	writeFileSync(file('host.json'), JSON.stringify({ pid, started: started ?? undefined }));
+	return follow(dir, emit, ready, () => started);
 }
 
 /**
@@ -313,13 +330,28 @@ export function resumeSessions(
 	if (!existsSync(sessionsDir)) return sessions;
 	// Session directories name processes to signal and hold output we pass on as the agent's:
 	// only trust a directory that nobody else could have written to.
-	if (!privateDirectory(sessionsDir))
-		throw new Error(`${sessionsDir} must belong to you and not be writable by others`);
+	prepareSessionsDirectory(sessionsDir);
 
-	for (const workspaceId of readdirSync(sessionsDir)) {
+	// only directories are sessions: the daemon keeps files of its own here (`.daemon.sqlite`)
+	const dirs = readdirSync(sessionsDir, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+		.map((entry) => entry.name);
+	const pids = dirs.flatMap((workspaceId) => {
+		try {
+			return [hostOf(join(sessionsDir, workspaceId)).pid];
+		} catch {
+			return [];
+		}
+	});
+	// one question for all of them: on Windows, each costs a PowerShell
+	const times = startTimes(pids);
+	for (const workspaceId of dirs) {
 		const dir = join(sessionsDir, workspaceId);
 		try {
-			sessions.set(workspaceId, follow(dir, emitFor(workspaceId), ready));
+			sessions.set(
+				workspaceId,
+				follow(dir, emitFor(workspaceId), ready, (pid) => times.get(pid) ?? null)
+			);
 		} catch {
 			rmSync(dir, { recursive: true, force: true }); // not a session we can make sense of
 		}

@@ -320,6 +320,9 @@
 					{:else if workspace.outcome === 'asking'}
 						<!-- an agent there waits for the person's answer -->
 						<span class="icon-[lucide--message-circle-question] size-4 text-accent-ink"></span>
+					{:else if workspace.waiting}
+						<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"
+						></span>
 					{:else if workspace.working || (isFolded && busy)}
 						<!-- its agent, one working alongside it, or one folded away under it -->
 						<Spinner />

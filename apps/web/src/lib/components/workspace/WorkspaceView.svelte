@@ -101,6 +101,9 @@
 	const checked = $derived(git?.checking ? lastChecked : git);
 	const pull = $derived(checked?.upstream?.pull);
 	const running = $derived(workspace.status === 'running');
+	const offline = $derived(everything.current?.harnesses === null);
+	const waiting = (conversation: { pendingDelivery?: boolean }) =>
+		!!conversation.pendingDelivery && offline;
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
 	// the other (the side, and the dock). Windows are tabs named after what they show: the
@@ -735,9 +738,14 @@
 		/>
 	{:else if aideOf(tab)}
 		{@const aide = aideOf(tab)!}
-		<ConversationTab agent={aide.agent} title={aide.title} running={aide.status === 'running'} />
+		<ConversationTab
+			agent={aide.agent}
+			title={aide.title}
+			running={aide.status === 'running'}
+			waiting={waiting(aide)}
+		/>
 	{:else}
-		<ConversationTab agent={workspace.agent} {running} />
+		<ConversationTab agent={workspace.agent} {running} waiting={waiting(workspace)} />
 	{/if}
 {/snippet}
 
@@ -809,12 +817,14 @@
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
 			workspace={aideOf(tab)!}
+			waiting={waiting(aideOf(tab)!)}
 			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
 			senders={{ ...workspace.senders, [workspace.id]: workspace.title }}
 		/>
 	{:else}
 		<Conversation
 			{workspace}
+			waiting={waiting(workspace)}
 			onopensubagent={(child) => showTab(reviewerTab(id, child))}
 			senders={workspace.senders}
 		/>

@@ -1,6 +1,9 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { HostEvent, Meta } from './host.ts';
 import { signalTree } from './session-process.ts';
@@ -13,6 +16,7 @@ writeFileSync(
 	fixture,
 	`
 const out = (msg) => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
+if (process.env.PID_FILE) require('node:fs').writeFileSync(process.env.PID_FILE, String(process.pid));
 const id = 'cli-1';
 const update = (u) => out({method:'session/update',params:{sessionId:id,update:u}});
 const state = (state, extra) => update({sessionUpdate:'state_update',state,...extra});
@@ -127,6 +131,15 @@ const meta = (env: Record<string, string> = {}): Meta => ({
 		env: { CLAUDE_CODE_EXECUTABLE: 'claude', CODEX_PATH: 'codex', ...env }
 	}
 });
+
+const alive = (pid: number) => {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(what: () => boolean, ms = 8000) {
@@ -507,12 +520,17 @@ describe('a session that goes wrong', () => {
 	});
 
 	it('ends for good when killed, and says the turn was stopped', async () => {
-		const { session, events, kinds, dir } = begin('slow');
+		const pidFile = join(root(), 'cli.pid');
+		const { session, events, kinds, dir } = begin('slow', { env: { PID_FILE: pidFile } });
 		await until(() => kinds().includes('resume'));
-		session.kill();
+		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
+		const cli = Number(readFileSync(pidFile, 'utf8'));
+		session.kill(); // on Windows, forced: the host notes nothing of it
 		await session.done;
 		expect(events.at(-1)).toEqual({ kind: 'turn.failed', error: 'Stopped' });
 		expect(existsSync(dir)).toBe(false);
+		// the host, and what it started
+		await until(() => !alive(host) && !alive(cli));
 	});
 });
 
@@ -548,6 +566,15 @@ describe('a daemon restart', () => {
 			{ kind: 'text', text: 'Steered: still there?' },
 			{ kind: 'turn.completed' }
 		]);
+	});
+
+	it('leaves the files kept beside the sessions alone', () => {
+		const sessions = root();
+		for (const name of ['.daemon.sqlite', '.daemon.sqlite-journal', 'stray'])
+			writeFileSync(join(sessions, name), 'kept');
+		expect(resumeSessions(sessions, () => () => true).size).toBe(0);
+		for (const name of ['.daemon.sqlite', '.daemon.sqlite-journal', 'stray'])
+			expect(readFileSync(join(sessions, name), 'utf8')).toBe('kept');
 	});
 
 	it("reports how full the root session's context is, and still knows after a daemon restart", async () => {
@@ -650,5 +677,63 @@ describe('a daemon restart', () => {
 		await session.done;
 		expect(events).toEqual([{ kind: 'turn.failed', error: 'Stopped' }]);
 		signalTree(real.pid, 'SIGKILL'); // the real one, which nobody follows any more
+	});
+});
+
+describe('a launched daemon', () => {
+	// The app and the command start the daemon as a child of theirs (on Windows, in a job
+	// object that ends its members with it). The agent's session is to outlive both.
+	it('leaves the session running when it and whoever launched it are gone', async () => {
+		const scripts = mkdtempSync(join(tmpdir(), 'geordi-launch-'));
+		const daemon = join(scripts, 'daemon.mjs');
+		const launcher = join(scripts, 'launcher.mjs');
+		writeFileSync(
+			daemon,
+			`const [, , session, dir, wrapper, launch] = process.argv;
+const { readFileSync } = await import('node:fs');
+const { startSession } = await import(session);
+// nobody to report to: what the host writes waits in its files for the next daemon
+startSession(JSON.parse(launch), { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, wrapper);
+const out = dir + '/out.jsonl';
+setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);`
+		);
+		writeFileSync(
+			launcher,
+			`import { spawn } from 'node:child_process';
+spawn(process.execPath, process.argv.slice(2), { stdio: 'inherit' }).on('exit', (code) => process.exit(code ?? 1));`
+		);
+		const sessions = root();
+		const dir = join(sessions, 'w');
+		const launched = spawn(
+			process.execPath,
+			[
+				launcher,
+				daemon,
+				pathToFileURL(join(import.meta.dirname, 'session.ts')).href,
+				dir,
+				fixture,
+				JSON.stringify(meta())
+			],
+			{ stdio: 'inherit' }
+		);
+		expect((await once(launched, 'exit'))[0]).toBe(0);
+		await sleep(500); // for a job object to have ended its members
+
+		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
+		expect(alive(host)).toBe(true);
+		const events: HostEvent[] = [];
+		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
+		started.push(session);
+		expect(session.working()).toBe(true);
+		session.say({ prompt: 'slow', deliveryId: 'first' }); // a retry, which it has heard
+		session.say({ prompt: 'still there?' });
+		await until(() => events.some((event) => event.kind === 'turn.completed'));
+		expect(events).toEqual([
+			{ kind: 'message.received', id: 'first' },
+			{ kind: 'turn.started' },
+			{ kind: 'resume', id: 'cli-1' },
+			{ kind: 'text', text: 'Steered: still there?' },
+			{ kind: 'turn.completed' }
+		]);
 	});
 });

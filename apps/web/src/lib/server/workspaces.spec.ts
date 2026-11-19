@@ -543,15 +543,16 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).status).toBe('running');
 	});
 
-	it('keeps steering messages while the daemon is offline', () => {
-		const { create, store } = setup();
+	it('delivers pending prompts in order after the daemon returns', () => {
+		const { create, store, repos } = setup({ connected: false });
 		const id = create('One');
-		const unreachable = createWorkspaces(store, createRepos(store), () => false);
-		unreachable.steer(id, 'Two');
-		expect(unreachable.get(id).pendingMessages?.map((message) => message.text)).toEqual([
-			'One',
-			'Two'
-		]);
+		createWorkspaces(store, repos, () => false).steer(id, 'Two');
+		const sent: string[] = [];
+		createWorkspaces(store, repos, (message) => {
+			if (message.type === 'agent.message') sent.push(message.prompt);
+			return true;
+		}).reconcile([]);
+		expect(sent).toEqual(['One', 'Two']);
 	});
 
 	it('replays steering from before it reached a working agent: stopped, then said', () => {
@@ -1446,6 +1447,29 @@ describe('messages with images', () => {
 		workspaces.dequeue(id, 0, '', null, [first]);
 		workspaces.dequeue(id, 0, '', null, [first]); // stale browser snapshot
 		expect(workspaces.get(id).attachments.queue).toEqual([[second]]);
+	});
+
+	it('isolates missing attachments during reconnect and keeps a live turn working', () => {
+		const { store, repos, workspaces, create, sent, dispatch } = setup();
+		const absent = create('');
+		const working = create('Already working');
+		acknowledgePrompt(workspaces, sent.at(-1));
+		for (const id of [absent, working])
+			store.append({
+				type: 'workspace.message',
+				stream: `workspace:${id}`,
+				data: { id, text: 'Look', images: ['missing'], deliveryId: 'missing-picture' }
+			});
+		const healthy = create('Run');
+		const resumed = createWorkspaces(store, repos, dispatch);
+		resumed.reconcile([working]);
+		expect(resumed.get(absent).lastTurn).toBe('failed');
+		expect(resumed.get(working).status).toBe('running');
+		expect(resumed.get(working).transcript.at(-1)).toMatchObject({ kind: 'error' });
+		expect(sent.at(-1)).toMatchObject({ workspaceId: healthy, prompt: 'Run' });
+		expect(
+			createWorkspaces(store, repos, dispatch).summary(working).pendingDelivery
+		).toBeUndefined();
 	});
 
 	it('validates image references before recording a message or workspace', () => {
