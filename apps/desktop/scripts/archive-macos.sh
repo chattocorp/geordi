@@ -33,7 +33,16 @@ version=$(node -p "require('./package.json').version")
 bash scripts/dmg-macos.sh
 image="dist/Geordi-v${version}-macOS-arm64.dmg"
 codesign --sign 'Developer ID Application: ChattoCorp GmbH (59ZZ2V8BY7)' --keychain "$keychain" --timestamp "$image"
-xcrun notarytool submit "$image" --key "$work/notary.p8" --key-id "$MACOS_NOTARY_API_KEY_ID" --issuer "$MACOS_NOTARY_API_ISSUER_ID" --wait
+notary_auth=(--key "$work/notary.p8" --key-id "$MACOS_NOTARY_API_KEY_ID" --issuer "$MACOS_NOTARY_API_ISSUER_ID")
+submission=$(xcrun notarytool submit "$image" "${notary_auth[@]}" --output-format json | jq -er '.id')
+echo "Waiting for Apple notarization $submission"
+# A status request can time out after Apple has received the image.
+wait_for_ticket() {
+  xcrun notarytool wait "$submission" "${notary_auth[@]}" --output-format json > "$work/status.json"
+}
+wait_for_ticket || wait_for_ticket
+cat "$work/status.json"
+jq -e '.status == "Accepted"' "$work/status.json" > /dev/null
 xcrun stapler staple "$image"
 xcrun stapler validate "$image"
 spctl --assess --type open --context context:primary-signature --verbose=2 "$image"
