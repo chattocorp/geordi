@@ -39,6 +39,8 @@
 	--surface: #ffffff;
 	--sunken: #dcdce5;
 	--ink: #1b1c24;
+	/* long text (agent replies, messages): a little softer than ink, kinder to read at length */
+	--prose: #33353f;
 	--inline-code: #982664;
 	--muted: #585a69;
 	--line: #e2e2ea;
@@ -68,6 +70,7 @@
 	--surface: #2c2f3b;
 	--sunken: #262833;
 	--ink: #eceef4;
+	--prose: #d4d6de;
 	--inline-code: #f0bbd2;
 	--muted: #a0a3b4;
 	--line: #3a3d4b;
@@ -128,6 +131,7 @@
 	--color-surface: var(--surface);
 	--color-sunken: var(--sunken);
 	--color-ink: var(--ink);
+	--color-prose: var(--prose);
 	--color-muted: var(--muted);
 	--color-line: var(--line);
 	--color-accent: var(--accent);
@@ -409,7 +413,7 @@
 		font-size: var(--text-sm);
 	}
 
-	--tw-prose-body: var(--ink);
+	--tw-prose-body: var(--prose);
 	--tw-prose-headings: var(--ink);
 	--tw-prose-lead: var(--muted);
 	--tw-prose-links: var(--ink);
