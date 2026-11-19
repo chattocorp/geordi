@@ -314,7 +314,10 @@
 		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
 			pane.getBoundingClientRect().bottom
 		);
+		const edit = canvas.getByRole('button', { name: 'Edit suggested reply' });
+		const editTop = edit.getBoundingClientRect().top;
 		prompt.scrollTop = prompt.scrollHeight;
+		await expect(edit.getBoundingClientRect().top).toBe(editTop);
 		await expect(prompt.scrollTop + prompt.clientHeight).toBeGreaterThanOrEqual(
 			prompt.scrollHeight - 1
 		);

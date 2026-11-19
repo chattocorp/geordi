@@ -235,12 +235,12 @@
 		<div
 			role="group"
 			aria-label="Suggested reply"
-			class="mx-2 mb-1 flex max-h-48 min-h-0 max-w-prose gap-1 self-start"
+			class="mx-2 mb-1 flex max-h-48 min-h-0 max-w-prose self-start rounded-control bg-bg shadow-soft inset-ring-1 inset-ring-line"
 		>
 			<button
 				type="button"
 				title="Send suggested reply"
-				class="flex min-h-0 min-w-0 items-baseline gap-2 overflow-y-auto overscroll-contain rounded-control bg-bg px-3 py-2 text-left text-sm font-medium text-ink shadow-soft inset-ring-1 inset-ring-line hover:bg-hover active:shadow-none"
+				class="flex min-h-0 min-w-0 items-baseline gap-2 overflow-y-auto overscroll-contain rounded-l-control py-2 pr-2 pl-3 text-left text-sm font-medium text-ink hover:bg-hover"
 				onclick={() => takeSuggestion(offered, true)}
 			>
 				<span
@@ -253,7 +253,7 @@
 				variant="ghost"
 				icon="icon-[lucide--pencil]"
 				label="Edit suggested reply"
-				class="mt-1 self-start rounded-full"
+				class="mt-1 mr-1 self-start"
 				onclick={() => takeSuggestion(offered, false)}
 			/>
 		</div>
