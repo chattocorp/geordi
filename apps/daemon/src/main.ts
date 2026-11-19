@@ -51,7 +51,14 @@ import {
 import type { Meta } from './host.ts';
 import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
-import { cachedPullBase, markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
+import {
+	cachedPullBase,
+	markReady,
+	mergePull,
+	setAutoMerge,
+	unknownForge,
+	upstream
+} from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
 	branchOf,
@@ -551,8 +558,14 @@ async function readRequest(request: DaemonRequest) {
 
 	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
-		case 'changes':
-			return status(worktree, comparisonOrigin(worktree, request));
+		case 'changes': {
+			const [changes, unknown] = await Promise.all([
+				status(worktree, comparisonOrigin(worktree, request)),
+				// without it, all the rest still stands
+				unknownForge(request.repoPath).catch(() => null)
+			]);
+			return unknown ? { ...changes, unknownForge: unknown } : changes;
+		}
 		case 'editReleaseNote':
 		case 'release': {
 			// which notes are this workspace's: the files it has added

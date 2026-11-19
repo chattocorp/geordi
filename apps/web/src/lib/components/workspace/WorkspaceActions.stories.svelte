@@ -66,6 +66,22 @@
 </Story>
 
 <Story
+	name="Committed work on a forge that is not set up"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = canvas.getByRole('link', { name: 'Forge not set up' });
+		await expect(link).toHaveAttribute('title', expect.stringContaining('git.example.com'));
+		await expect(canvas.queryByRole('button')).not.toBeInTheDocument();
+	}}
+>
+	{@render bar({
+		changes: { ...pushed, unpushed: null, unknownForge: 'git.example.com' },
+		upstream: null
+	})}
+</Story>
+
+<Story
 	name="Pushed branch awaiting a pull request"
 	asChild
 	play={async ({ canvasElement }) => {

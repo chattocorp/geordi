@@ -153,7 +153,19 @@
 						role={worded ? undefined : 'img'}
 						aria-label={worded ? undefined : standing.label}
 					></span>
-					{#if worded}
+					{#if worded && standing.hint && !compact}
+						<!-- what it means, and what to do about it, a click away -->
+						<a
+							href={standing.hint.href}
+							target="_blank"
+							rel="external noreferrer"
+							title={standing.hint.text}
+							class={[
+								'pr-1.5 pl-1 font-medium whitespace-nowrap underline decoration-current/40 decoration-dotted underline-offset-4 hover:text-ink',
+								text
+							]}>{standing.label}</a
+						>
+					{:else if worded}
 						<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span
 						>
 					{/if}
