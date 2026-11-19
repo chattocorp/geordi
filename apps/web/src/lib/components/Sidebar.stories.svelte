@@ -58,7 +58,7 @@
 	/** One of each state a row can be in: what is at work, what waits, how the work stands. */
 	const nav: Navigation = {
 		repos: [
-			repo('geordi', 'geordi', 7),
+			repo('geordi', 'geordi', 8),
 			repo('sample', 'sample-project', 2),
 			repo('idle', 'no-workspaces', 0)
 		],
@@ -75,12 +75,37 @@
 				working: true,
 				outcome: null
 			}),
-			workspace('ready', 'Raise light mode text contrast', { standing: ready }),
+			workspace('ready', 'Raise light mode text contrast', {
+				standing: ready,
+				actions: [{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]
+			}),
 			workspace('tokens', 'Check every token in dark mode', { parentId: 'ready' }),
 			workspace('failing', 'Guard shared worktrees from update and continue', {
-				standing: failing
+				standing: failing,
+				actions: [{ id: 'fix-checks', label: 'Fix errors', icon: 'icon-[lucide--wrench]' }]
 			}),
-			workspace('merged', 'Run checks, lint and tests in CI', { standing: merged }),
+			workspace('conflict', 'Update the daemon protocol', {
+				standing: { label: 'Conflicts', tone: 'danger', icon: 'icon-[lucide--git-merge-conflict]' },
+				actions: [
+					{
+						id: 'resolve-conflicts',
+						label: 'Resolve conflicts',
+						icon: 'icon-[lucide--git-merge-conflict]'
+					}
+				]
+			}),
+			workspace('merged', 'Run checks, lint and tests in CI', {
+				standing: merged,
+				actions: [
+					{
+						id: 'continue',
+						label: 'Continue',
+						icon: 'icon-[lucide--git-branch-plus]',
+						aside: true
+					},
+					{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }
+				]
+			}),
 			workspace('plain', 'Try out the new parser', {
 				repoId: 'sample',
 				waiting: true,
@@ -121,6 +146,24 @@
 		// a repository without workspaces has no place here
 		await expect(canvas.queryByText('no-workspaces')).toBeNull();
 		await expect(canvas.queryByText('Reconnecting')).toBeNull();
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Workspace action pills"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
+			const pill = canvas.getByText(label, { selector: 'button' });
+			const row = within(pill.closest('li')!);
+			row.getByRole('link').focus();
+			await expect(pill).toBeVisible();
+			pill.focus();
+			await expect(pill).toHaveFocus();
+		}
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
