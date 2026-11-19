@@ -290,8 +290,9 @@
 			.getByRole('button', { name: 'Edit suggested reply' })
 			.getBoundingClientRect();
 		await expect(pen.left).toBeGreaterThanOrEqual(lastLine.right);
-		await expect(pen.top).toBeLessThan(lastLine.bottom);
-		await expect(pen.bottom).toBeGreaterThan(lastLine.top);
+		await expect(
+			Math.abs(pen.top + pen.height / 2 - (lastLine.top + lastLine.height / 2))
+		).toBeLessThan(1);
 		const text = canvas.getByRole('textbox');
 		await expect(text).toHaveAttribute('placeholder', '');
 		await expect(send.getBoundingClientRect().top).toBeGreaterThanOrEqual(

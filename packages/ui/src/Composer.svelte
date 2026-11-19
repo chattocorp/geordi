@@ -434,14 +434,16 @@
 							}
 						}}>{offered}</span
 					><span class="whitespace-nowrap"
-						>&nbsp;<Button
-							variant="ghost"
-							icon="icon-[lucide--pencil]"
-							label="Edit suggested reply"
-							size="sm"
-							class="pointer-events-auto align-middle"
-							onclick={() => takeSuggestion(offered, false)}
-						/></span
+						>&NoBreak;<span class="relative inline-block w-6 align-baseline" style="height: 1cap"
+							><Button
+								variant="ghost"
+								icon="icon-[lucide--pencil]"
+								label="Edit suggested reply"
+								size="sm"
+								class="pointer-events-auto absolute top-1/2 left-0 -translate-y-1/2"
+								onclick={() => takeSuggestion(offered, false)}
+							/></span
+						></span
 					>
 				</div>
 			{/if}
