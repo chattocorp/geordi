@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { FileContent } from '@geordi/protocol';
 	import DiffView from '@geordi/ui/DiffView.svelte';
+	import Toolbar from '@geordi/ui/Toolbar.svelte';
 	import Markdown from '../Markdown.svelte';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 	import SourceView from './SourceView.svelte';
@@ -39,33 +40,45 @@
 	let ready = $state(false);
 </script>
 
-{#snippet viewChoice(label: string, active: boolean, choose: () => void)}
-	<button
-		type="button"
-		aria-pressed={active}
-		onclick={choose}
-		class={[
-			'h-7 text-xs hover:text-ink',
-			active ? 'font-semibold text-ink underline decoration-2 underline-offset-4' : 'text-muted'
-		]}>{label}</button
-	>
-{/snippet}
-
-{#if binaryPair || (rich && (typeof file === 'string' || (diff && current === null)))}
-	<div class="flex shrink-0 items-center gap-4 px-5">
-		{#if binaryPair}
-			<div role="group" aria-label="Image version" class="flex items-center gap-4">
-				{@render viewChoice('Before', side === 'before', () => (side = 'before'))}
-				{@render viewChoice('After', side === 'after', () => (side = 'after'))}
-			</div>
-		{:else if typeof file === 'string'}
-			<div role="group" aria-label="File view" class="flex items-center gap-4">
-				{@render viewChoice('Preview', mode === 'rendered', () => (mode = 'rendered'))}
-				{@render viewChoice(diff ? 'Diff' : 'Source', mode === 'text', () => (mode = 'text'))}
-			</div>
-		{/if}
-		{#if diff && current === null}<span class="ml-auto text-xs text-muted">Deleted file</span>{/if}
-	</div>
+{#if binaryPair}
+	<Toolbar
+		label="Image version"
+		items={[
+			{
+				label: 'Before',
+				icon: 'icon-[lucide--history]',
+				pressed: side === 'before',
+				onclick: () => (side = 'before')
+			},
+			{
+				label: 'After',
+				icon: 'icon-[lucide--image]',
+				pressed: side === 'after',
+				onclick: () => (side = 'after')
+			}
+		]}
+	/>
+{:else if rich && typeof file === 'string'}
+	<Toolbar
+		label="File view"
+		status={current === null ? 'Deleted file' : undefined}
+		items={[
+			{
+				label: 'Preview',
+				icon: 'icon-[lucide--eye]',
+				pressed: mode === 'rendered',
+				onclick: () => (mode = 'rendered')
+			},
+			{
+				label: diff ? 'Diff' : 'Source',
+				icon: diff ? 'icon-[lucide--file-diff]' : 'icon-[lucide--code]',
+				pressed: mode === 'text',
+				onclick: () => (mode = 'text')
+			}
+		]}
+	/>
+{:else if image && current === null}
+	<p class="px-5 text-xs text-muted">Deleted file</p>
 {/if}
 
 {#if rich && (mode === 'rendered' || typeof file !== 'string')}
