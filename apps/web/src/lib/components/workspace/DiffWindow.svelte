@@ -1,5 +1,5 @@
 <script lang="ts">
-	import DiffView from '#lib/components/DiffView.svelte';
+	import DiffView from '@geordi/ui/DiffView.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { getDiff } from '../../../routes/workspaces.remote';
 

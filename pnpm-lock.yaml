@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@pierre/diffs':
+      specifier: ^1.6.4
+      version: 1.6.4
     '@types/node':
       specifier: ^24
       version: 24.19.2
@@ -166,7 +169,7 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3(tailwindcss@4.3.5)
       '@pierre/diffs':
-        specifier: ^1.6.4
+        specifier: 'catalog:'
         version: 1.6.4(@shikijs/themes@4.6.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@storybook/addon-a11y':
         specifier: ^10.6.7
@@ -327,6 +330,9 @@ importers:
       '@geordi/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@pierre/diffs':
+        specifier: 'catalog:'
+        version: 1.6.4(@shikijs/themes@4.6.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       svelte:
         specifier: ^5.57.2
         version: 5.57.3(@typescript-eslint/types@8.72.2)

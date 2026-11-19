@@ -59,7 +59,7 @@ export const others = [
 	}
 ] satisfies { title: string; standing: WorkspaceStanding }[];
 
-const loginDiff = [
+export const loginDiff = [
 	[' ', 'export const actions = {'],
 	[' ', '  default: async ({ request, url }) => {'],
 	[' ', '    await signIn(request);'],
@@ -70,34 +70,29 @@ const loginDiff = [
 	[' ', '};']
 ];
 
-export const files = [
+const sampleFiles = [
 	{
 		step: 3,
 		path: 'src/lib/server/auth.ts',
 		status: 'modified',
-		added: 9,
-		removed: 2,
 		lines: [
-			['+', "const destinations = new Set(['/account', '/settings']);"],
-			['+', 'export function safePath(value: string | null) {'],
+			[' ', 'export function safePath(value: string | null) {'],
+			['-', "  return value === '/account' ? value : null;"],
+			['+', "  const destinations = new Set(['/account', '/settings']);"],
 			['+', '  return value && destinations.has(value) ? value : null;'],
-			['+', '}']
+			[' ', '}']
 		]
 	},
 	{
 		step: 4,
 		path: 'src/routes/login/+page.server.ts',
 		status: 'modified',
-		added: 3,
-		removed: 1,
 		lines: loginDiff
 	},
 	{
 		step: 5,
 		path: 'src/lib/server/auth.spec.ts',
 		status: 'added',
-		added: 24,
-		removed: 0,
 		lines: [
 			['+', "it('keeps redirects on this site', () => {"],
 			['+', "  expect(safePath('/account')).toBe('/account');"],
@@ -105,7 +100,28 @@ export const files = [
 			['+', '});']
 		]
 	}
-] satisfies (Changes['files'][number] & { step: number; lines: string[][] })[];
+] satisfies (Pick<Changes['files'][number], 'path' | 'status'> & {
+	step: number;
+	lines: string[][];
+})[];
+
+// Keep the file counts, static preview and interactive diff in sync.
+export const files = sampleFiles.map(({ step, path, status, lines }) => {
+	const contentsWithout = (sign: string) =>
+		lines
+			.filter(([prefix]) => prefix !== sign)
+			.map(([, text]) => text + '\n')
+			.join('');
+	return {
+		step,
+		path,
+		status,
+		old: status === 'added' ? null : contentsWithout('+'),
+		new: contentsWithout('-'),
+		added: lines.filter(([sign]) => sign === '+').length,
+		removed: lines.filter(([sign]) => sign === '-').length
+	};
+});
 
 export const hold = [400, 1000, 900, 1200, 1300, 1000, 1700, 3600, 3200, 3600, 9000];
 export const last = hold.length - 1;

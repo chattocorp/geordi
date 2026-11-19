@@ -4,6 +4,7 @@
 	import type { Changes, Upstream } from '@geordi/protocol';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
+	import DiffView from '@geordi/ui/DiffView.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
 	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
@@ -15,7 +16,7 @@
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { actionsFor, standingOf, type WorkspaceAction } from '@geordi/ui/actions';
 
-	import { files, hold, last, message, others, tools } from './demo.ts';
+	import { files, hold, last, loginDiff, message, others, tools } from './demo.ts';
 	let step = $state(last);
 	let draft = $state('');
 	let editing = false;
@@ -75,6 +76,13 @@
 	let pullInfo: HTMLDialogElement;
 	const narrow = new MediaQuery('(max-width: 40rem)', true);
 	let selected = $state<string | null>(null);
+	let diffReady = $state(false);
+	function openDiff(path: string) {
+		if (selected === path) return;
+		diffReady = false;
+		selected = path;
+		if (step === last) schedule();
+	}
 	const file = $derived(files.find((f) => f.path === selected) ?? (step >= 4 ? files[1] : null));
 	const branch = 'geordi/return-after-sign-in';
 	const changedFiles = $derived(files.filter((file) => step >= file.step));
@@ -135,7 +143,7 @@
 			stopped ||
 			activityOpen ||
 			pullInfo?.open ||
-			(step === last && replies.length)
+			(step === last && (replies.length || selected))
 		)
 			return;
 		if (step === 0 && draft.length < message.length) {
@@ -381,7 +389,7 @@
 				<div class="pane-bar px-2">
 					<p class="item h-7 tab-active px-2">Changes</p>
 				</div>
-				<ChangesPane {git} onopen={(path) => (selected = path)} />
+				<ChangesPane {git} onopen={openDiff} />
 			</section>
 			<section class="flex min-h-0 flex-3 flex-col sheet-quiet">
 				<div class="pane-bar px-2">
@@ -393,9 +401,21 @@
 				<p class="px-3.5 py-2 text-sm text-muted" hidden={!!file}>
 					Diffs fill in as the agent writes.
 				</p>
-				{#if file}
+				{#if selected && file}
+					{#key file.path}
+						<div class="scroller">
+							{#if !diffReady}<p
+									class="flex items-center gap-2 p-5 text-sm text-muted"
+									role="status"
+								>
+									<Spinner label="Loading the diff" /> Loading the diff…
+								</p>{/if}
+							<DiffView path={file.path} old={file.old} new={file.new} bind:ready={diffReady} />
+						</div>
+					{/key}
+				{:else if file}
 					<pre
-						class="overflow-hidden py-1 code-dense">{#each file.lines as [sign, line], index (index)}<span
+						class="overflow-hidden py-1 code-dense">{#each loginDiff as [sign, line], index (index)}<span
 								class={[
 									'block px-3.5',
 									sign === '+' && 'bg-ok/12',

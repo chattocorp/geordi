@@ -11,6 +11,7 @@
 		"./Changes.svelte": "./src/Changes.svelte",
 		"./Composer.svelte": "./src/Composer.svelte",
 		"./DiffStat.svelte": "./src/DiffStat.svelte",
+		"./DiffView.svelte": "./src/DiffView.svelte",
 		"./Disclosure.svelte": "./src/Disclosure.svelte",
 		"./FittedPath.svelte": "./src/FittedPath.svelte",
 		"./MessageCopy.svelte": "./src/MessageCopy.svelte",
@@ -33,7 +34,8 @@
 		"./tools": "./src/tools.ts"
 	},
 	"dependencies": {
-		"@geordi/protocol": "workspace:*"
+		"@geordi/protocol": "workspace:*",
+		"@pierre/diffs": "catalog:"
 	},
 	"peerDependencies": {
 		"svelte": "^5.57.2"

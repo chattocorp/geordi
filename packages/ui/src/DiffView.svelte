@@ -9,7 +9,7 @@
 		old?: string | null;
 		new?: string | null;
 		/**
-		 * Instead of both versions, a file's part of a patch (`#lib/patch.ts`): its changes
+		 * Instead of both versions, a file's part of a parsed patch: its changes
 		 * with a few lines around them, which is all there is to see.
 		 */
 		patch?: FileDiffMetadata;

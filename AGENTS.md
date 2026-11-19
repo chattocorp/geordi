@@ -264,7 +264,7 @@ it, perhaps you.
   state; only their arrangement is a per-browser preference (`persisted`), not an event.
   The ribbon at the top (`WorkspaceActions`) says where the work stands and what to do
   next, from `@geordi/ui/actions`.
-- **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
+- **Diffs** are rendered by `@geordi/ui/DiffView.svelte` with `@pierre/diffs`
   (https://diffs.com) from both whole file versions, which is what makes context
   expandable. It renders into a shadow root; style it through its `--diffs-*` properties.
 - **Agent output** is rendered as Markdown with `markdown-it` (raw HTML disabled), via
