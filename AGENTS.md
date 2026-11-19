@@ -212,7 +212,7 @@ it, perhaps you.
 - **Design system (ADR-005).** Three layers; use them in this order before writing raw
   Tailwind:
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `frame`, `sidebar`,
-    `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`, `accent-soft`,
+    `surface`, `sunken`, `bubble`, `ink`, `prose` (long text), `muted`, `line`, `accent`, `accent-soft`,
     `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
