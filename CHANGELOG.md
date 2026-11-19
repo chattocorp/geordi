@@ -1,5 +1,23 @@
 # Geordi Changelog
 
+## 0.8.0-beta.0
+
+### Fixes
+
+- Your background task widget uses smaller text and simpler rows. Icons identify terminal and subagent tasks. The header has no spinner or hover highlight. ([#260](https://github.com/chattocorp/geordi/pull/260))
+- You can expand or collapse a repository from its icon in the sidebar. Select its name to open the repository. ([#262](https://github.com/chattocorp/geordi/pull/262))
+- The Run menu shows stopped jobs by name. ([#259](https://github.com/chattocorp/geordi/pull/259))
+- A workspace's branch and pull request state now reaches you sooner and stays in step everywhere. A merge, a push, a new pull request, auto-merge or marking a draft ready shows at once, in the sidebar as in the open workspace, which now always say the same. Changed files keep showing while the forge is slow or cannot be reached, the sidebar fills in faster after a restart, and a quiet sign beside the ribbon tells you when the forge could not be asked and you are looking at what was last known. ([#256](https://github.com/chattocorp/geordi/pull/256))
+- Suggested replies appear as plain text inside your empty composer. Click the text to send it, or click the pencil to edit it first. ([#257](https://github.com/chattocorp/geordi/pull/257))
+- Merging a pull request in a repository whose mise configuration sets environment variables no longer fails its release check with a mise trust error. ([#264](https://github.com/chattocorp/geordi/pull/264))
+- When an agent starts new work after you merged its pull request, the workspace now says "Uncommitted changes" instead of "Merged", and Continue takes those changes along onto the fresh branch. ([#253](https://github.com/chattocorp/geordi/pull/253))
+- You can click the full sidebar action pill, including its padding. A checkmark briefly replaces the action icon when you click. ([#261](https://github.com/chattocorp/geordi/pull/261))
+
+### Features
+
+- Review the files and lines changed during one agent turn from its reply. Open the numbered turn tab to review or fold each file’s diff. ([#265](https://github.com/chattocorp/geordi/pull/265))
+- You can browse cards for open pull requests and issues on a repository page, open a linked workspace, and start a workspace from an issue. ([#254](https://github.com/chattocorp/geordi/pull/254))
+
 ## 0.7.0
 
 ### Fixes
