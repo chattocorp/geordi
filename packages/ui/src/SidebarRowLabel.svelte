@@ -27,18 +27,13 @@
 
 {#snippet label()}
 	<span class="grid size-5 shrink-0 place-items-center text-muted/80">
-		<span
-			class={[
-				'col-start-1 row-start-1 grid place-items-center',
-				fold && 'group-hover:opacity-0 group-has-focus-visible:opacity-0'
-			]}
-		>
+		<span class={['col-start-1 row-start-1 grid place-items-center', fold && 'reveal:opacity-0']}>
 			{@render icon()}
 		</span>
 		{#if fold}
 			<span
 				class={[
-					'pointer-events-none col-start-1 row-start-1 size-4 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100',
+					'pointer-events-none col-start-1 row-start-1 size-4 opacity-0 reveal:opacity-100',
 					fold.folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'
 				]}
 			></span>
