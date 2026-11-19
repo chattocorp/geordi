@@ -180,7 +180,8 @@ export async function ensureWorktree(
 	workspaceId: string,
 	base?: string,
 	/** The branch it was last known to be on, if not the one named after it (see `continueOn`). */
-	branch?: string
+	branch?: string,
+	requireBranch = false
 ) {
 	const described = await describe(baseDir, repoPath, workspaceId);
 	const worktree = branch && branchRef(branch) ? { ...described, branch } : described;
@@ -193,6 +194,8 @@ export async function ensureWorktree(
 		missing &&
 		(await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(worktree.branch))) !==
 			null;
+	if (missing && requireBranch && !restored)
+		throw new Error(`The local branch ${worktree.branch} is missing.`);
 	if (missing) {
 		mkdirSync(join(baseDir, basename(repoPath)), { recursive: true });
 		// git still lists a worktree whose directory is gone, and won't add it again until told

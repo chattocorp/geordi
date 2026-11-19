@@ -150,6 +150,7 @@ export function createUpcaster() {
 			case 'workspace.switched':
 			case 'workspace.steered':
 			case 'workspace.answered':
+			case 'workspace.restored':
 			case 'workspace.archived':
 			case 'workspace.moved':
 			case 'workspace.usage':

@@ -15,6 +15,8 @@
 	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
+	import { releaseReview } from '#lib/components/workspace/release-review.svelte.ts';
+	import ReleaseConfirm from '#lib/components/workspace/ReleaseConfirm.svelte';
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '@geordi/ui/Button.svelte';
@@ -220,3 +222,5 @@
 
 <ContextMenu />
 <ArchiveConfirm asking={archiving.asking} />
+
+<ReleaseConfirm asking={releaseReview.asking} />

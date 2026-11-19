@@ -119,7 +119,7 @@ describe('upstream', () => {
 	}
 
 	it('enables auto-merge for the checked-out commit and cancels it through forges', async () => {
-		const { setAutoMerge } = await configured();
+		const { setAutoMerge, mergePull } = await configured();
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
 		const sha = execFileSync('git', ['-C', ref.repoPath, 'rev-parse', 'HEAD'], {
 			encoding: 'utf8'
@@ -130,6 +130,7 @@ describe('upstream', () => {
 			state: 'OPEN',
 			headRefName: 'geordi/abcdefgh',
 			baseRefName: 'main',
+			baseRefOid: sha,
 			headRefOid: 'stale',
 			repository: { squashMergeAllowed: true },
 			viewerCanEnableAutoMerge: true,
@@ -146,11 +147,18 @@ describe('upstream', () => {
 		});
 		try {
 			const request = { ...ref, pullNumber: '42', enabled: true };
-			await expect(setAutoMerge(worktree, request)).rejects.toThrow('Push the workspace commit');
+			await expect(setAutoMerge(worktree, request, () => false)).rejects.toThrow(
+				'Push the workspace commit'
+			);
 			node.headRefOid = sha;
-			await setAutoMerge(worktree, request);
-			await setAutoMerge(worktree, request);
-			await setAutoMerge(worktree, { ...request, enabled: false });
+			await setAutoMerge(worktree, request, () => false);
+			await setAutoMerge(worktree, request, () => false);
+			await setAutoMerge(worktree, { ...request, enabled: false }, () => false);
+			node.state = 'CLOSED';
+			await expect(
+				mergePull(worktree, { ...request, confirmation: 'old-review' }, () => true)
+			).rejects.toThrow('Pull request #42 is no longer open');
+
 			expect(writes).toEqual([
 				{
 					operationName: 'EnableAutoMerge',

@@ -105,6 +105,10 @@ describe('ensureWorktree', () => {
 		rmSync(path, { recursive: true });
 		execFileSync('git', ['-C', repoPath, 'worktree', 'prune']);
 		execFileSync('git', ['-C', repoPath, 'branch', '-qD', 'geordi/12345678']);
+		await expect(
+			ensureWorktree(base, repoPath, '12345678-aaaa', undefined, 'geordi/12345678', true)
+		).rejects.toThrow('The local branch geordi/12345678 is missing');
+		expect(existsSync(path)).toBe(false);
 		expect(await ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({
 			created: true,
 			restored: false

@@ -38,7 +38,7 @@ Run from the repository root:
 - `pnpm --filter @geordi/web storybook`: the design system, on http://localhost:6006
 - `pnpm cli`: build the npm package into `apps/cli/stage` and run it
 - `pnpm desktop`: build the desktop app and run it from `apps/desktop/stage`
-- `pnpm desktop:install`: build it, replace `/Applications/Geordi.app` and open it
+- `pnpm desktop:dev`: run an isolated Electron app on the workspace ports
 
 Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 
@@ -47,12 +47,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 The person runs the installed app (`/Applications/Geordi.app`) all day, and agents work in
 it, perhaps you.
 
-- `pnpm desktop:install` quits and replaces that app. Agents' turns go on (ADR-007), but
-  open terminals and running jobs end, and an agent waiting on another one sees a
-  connection error for a moment. Do it when a change is ready to be used, not to try
-  something out: for that, run a second instance on other ports with its own data
-  (`GEORDI_DATA_DIR`, `PORT`, `GEORDI_DAEMON_PORT`, and a daemon pointed at it).
-  In a workspace, the `web` and `daemon` jobs are that: their data is the worktree's `.data/`,
+- Test desktop changes with the **Electron dev app** workspace job. For web and daemon
+  changes, use the `web` and `daemon` jobs. Their data is the worktree's `.data/`,
   seeded with two sample repositories (`scripts/seed-dev-data.mjs`), each with a local bare
   `origin`. The `reset` job starts that data over.
 - When something misbehaves there, look before you change anything: the page's console
@@ -156,9 +152,7 @@ it, perhaps you.
   What the page can ask of the app is in `preload.cjs` (`window.geordiDesktop`: the Dock
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that
-  are files in the bundle and that the system plays (FDR-008). Installing signs the bundle
-  (ad hoc), without which macOS shows none of its notifications; macOS may ask for
-  permissions again after an install.
+  are files in the bundle and that the system plays (FDR-008).
 - **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names jobs to run
   (with what they need), links to open, and how many ports a workspace gets. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
@@ -173,7 +167,7 @@ it, perhaps you.
   for agents in `CONFIG_SETTINGS`; a new one goes there and into `parseConfig`.
 - **Changesets (FDR-007).** In a repository that uses a release tool, a workspace shows the
   change notes it adds and the versions they lead to. One adapter per tool in the daemon
-  (`releases.ts`; Sweet Release so far) says whether a repository uses it and asks the tool
+  (`releases.ts`; Sweet Release and Changesets) says whether a repository uses it and asks the tool
   what is pending; everything else deals in packages, versions and notes (`ReleasePlan`).
   A tool is run with `gitEnv`, like our own git: never trusting the worktree's Git metadata.
 - **Standings.** The sidebar shows how each workspace's work stands (its pull request, its
@@ -258,7 +252,7 @@ it, perhaps you.
   pure functions); only the main area can be split, the two beside it are one row of tabs
   each (`splits={false}`). Windows are tabs named after what they show: `chat` (pinned to
   the main area), `agent:<id>` (an agent working alongside), `draft` (a conversation not
-  begun yet), `changes`, `changeset`, `diff:<path>` and `terminal:<name>`. All but `chat`
+  begun yet), `changes`, `changeset`, `diff` (one tab titled with the selected filename) and `terminal:<name>`. All but `chat`
   can be dragged to any area, and into another order (`Panes` props `accepts`/`onreceive`,
   shared drag state in `drag.svelte.ts`). Which windows exist follows from the workspace's
   state; only their arrangement is a per-browser preference (`persisted`), not an event.

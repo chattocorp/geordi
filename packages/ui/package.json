@@ -34,6 +34,7 @@
 		"./agents": "./src/agents.ts",
 		"./checks": "./src/checks.ts",
 		"./completions": "./src/completions.ts",
+		"./duration": "./src/duration.ts",
 		"./keys": "./src/keys.ts",
 		"./paths": "./src/paths.ts",
 		"./tools": "./src/tools.ts"

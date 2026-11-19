@@ -1,7 +1,19 @@
 import { git } from './git.ts';
 import { execFile } from 'node:child_process';
-import { lstatSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+	closeSync,
+	constants,
+	fstatSync,
+	ftruncateSync,
+	lstatSync,
+	openSync,
+	readFileSync,
+	realpathSync,
+	writeSync
+} from 'node:fs';
+import { isAbsolute, join, relative } from 'node:path';
+import { getReleasePlan } from '@changesets/get-release-plan';
+import { getPackages } from '@manypkg/get-packages';
 import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
 import { gitEnv, verifyLinks, type Worktree } from './worktree.ts';
 
@@ -20,7 +32,7 @@ export type ReleaseAdapter = {
 	/** The command that asks it, as people would type it: what they agree to having run. */
 	command: string;
 	/** Whether the repository uses it. Cheap: asked every time the worktree changes. */
-	detects(worktree: Worktree): boolean | Promise<boolean>;
+	detects(worktree: Worktree, committedPaths?: string[]): boolean | Promise<boolean>;
 	/** The packages and their pending notes. Rejects if the tool can't be asked. */
 	read(worktree: Worktree): Promise<Read>;
 };
@@ -81,12 +93,22 @@ type SweetPackage = {
 /** What `sweet status --json` says, in our words. */
 export function fromSweet(output: string): Read {
 	const packages: unknown = JSON.parse(output);
-	if (!Array.isArray(packages)) throw new Error('sweet status said something unexpected');
+	if (
+		!Array.isArray(packages) ||
+		!packages.every(
+			(pkg) =>
+				pkg &&
+				typeof pkg.path === 'string' &&
+				typeof pkg.version === 'string' &&
+				typeof pkg.bump === 'string'
+		)
+	)
+		throw new Error('Sweet Release returned an incomplete package plan');
 	return (packages as SweetPackage[]).map((pkg) => ({
-		path: String(pkg.path),
+		path: pkg.path,
 		name: pkg.name || null,
-		version: String(pkg.version ?? ''),
-		bump: String(pkg.bump ?? 'none'),
+		version: pkg.version,
+		bump: pkg.bump,
 		// with nothing pending, "next" is where it is already: nothing to announce
 		nextVersion: pkg.nextVersion && pkg.nextVersion !== pkg.version ? pkg.nextVersion : null,
 		notes: (pkg.changes ?? []).map((change) => ({
@@ -106,17 +128,21 @@ const sweet: ReleaseAdapter = {
 	name: 'Sweet Release',
 	command: 'sweet status --json',
 	// its configuration, or a package's manifest, at the top or anywhere below
-	detects: async (worktree) =>
-		exists(worktree, '.sweet.config.yml') ||
-		exists(worktree, '.sweet.yml') ||
-		// A fixed Git pathspec. Only package manifests are returned.
-		Boolean(
-			await git(
-				worktree.path,
-				['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*/.sweet.yml'],
-				{ env: gitEnv(worktree) }
-			)
-		),
+	detects: async (worktree, paths) =>
+		paths
+			? paths.some(
+					(p) => p === '.sweet.config.yml' || p === '.sweet.yml' || p.endsWith('/.sweet.yml')
+				)
+			: exists(worktree, '.sweet.config.yml') ||
+				exists(worktree, '.sweet.yml') ||
+				// A fixed Git pathspec. Only package manifests are returned.
+				Boolean(
+					await git(
+						worktree.path,
+						['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*/.sweet.yml'],
+						{ env: gitEnv(worktree) }
+					)
+				),
 	read: async (worktree) => {
 		const [command, ...args] = sweet.command.split(' ');
 		return fromSweet(await run(worktree, command, args));
@@ -125,7 +151,51 @@ const sweet: ReleaseAdapter = {
 
 // ----------------------------------------------------------------------------------------------
 
-const ADAPTERS: ReleaseAdapter[] = [sweet];
+const changesets: ReleaseAdapter = {
+	tool: 'changesets',
+	name: 'Changesets',
+	command: 'Read Changesets release plan with @changesets/get-release-plan',
+	detects: (worktree, paths) =>
+		paths ? paths.includes('.changeset/config.json') : exists(worktree, '.changeset/config.json'),
+	async read({ path }) {
+		const { packages, rootDir } = await getPackages(path);
+		if (relative(path, rootDir))
+			throw new Error('Changesets workspace root is outside the repository');
+		const { releases, changesets: notes } = await getReleasePlan(path);
+		return releases.map((release) => {
+			const pkg = packages.find((p) => p.packageJson.name === release.name);
+			if (!pkg) throw new Error(`Unknown Changesets package ${release.name}`);
+			return {
+				path: relative(path, pkg.dir) || '.',
+				name: release.name,
+				version: release.oldVersion ?? '',
+				nextVersion: release.type === 'none' ? null : release.newVersion,
+				bump: release.type,
+				problems: [],
+				notes: notes
+					.filter((note) => release.changesets.includes(note.id))
+					.map((note) => {
+						const type = note.releases.find((r) => r.name === release.name)?.type ?? release.type;
+						return {
+							path: `.changeset/${note.id}.md`,
+							type,
+							breaking: type === 'major',
+							body: note.summary
+						};
+					})
+			};
+		});
+	}
+};
+
+const ADAPTERS: ReleaseAdapter[] = [sweet, changesets];
+
+export async function releaseAdapter(worktree: Worktree, adapters = ADAPTERS, paths?: string[]) {
+	for (const adapter of adapters) {
+		if (await adapter.detects(worktree, paths)) return adapter;
+	}
+	return null;
+}
 
 /**
  * What the worktree holds for the repository's next releases: every package with its
@@ -145,13 +215,7 @@ export async function releasePlan(
 	approved: (command: string) => boolean,
 	adapters = ADAPTERS
 ): Promise<ReleasePlan | null> {
-	let adapter: ReleaseAdapter | undefined;
-	for (const candidate of adapters) {
-		if (await candidate.detects(worktree)) {
-			adapter = candidate;
-			break;
-		}
-	}
+	const adapter = await releaseAdapter(worktree, adapters);
 	if (!adapter) return null;
 	const { tool, name, command } = adapter;
 	const nothing = { tool, name, packages: [], problem: null, ask: null };
@@ -169,5 +233,67 @@ export async function releasePlan(
 		};
 	} catch (error) {
 		return { ...nothing, problem: error instanceof Error ? error.message : String(error) };
+	}
+}
+
+/** Edit only the body of a current, workspace-added release note. */
+export function editReleaseNote(
+	worktree: Worktree,
+	plan: ReleasePlan | null,
+	{ path, original, body }: { path: string; original: string; body: string }
+) {
+	const parts = path.split('/');
+	if (
+		!plan ||
+		!(
+			(plan.tool === sweet.tool && parts.at(-2) === '.sweet') ||
+			(plan.tool === changesets.tool && parts.length === 2 && parts[0] === '.changeset')
+		) ||
+		!plan.packages.some((pkg) => pkg.notes.some((note) => note.added && note.path === path)) ||
+		isAbsolute(path) ||
+		parts.some(
+			(part) =>
+				!part ||
+				part === '.' ||
+				part === '..' ||
+				part.toLowerCase() === '.git' ||
+				part.includes('\\')
+		) ||
+		!path.endsWith('.md')
+	)
+		throw new Error('This change note is no longer available to edit.');
+	if (!body.trim()) throw new Error('Enter a change note before saving.');
+	const file = join(realpathSync(worktree.path), path);
+	if (realpathSync(file) !== file) throw new Error('Cannot edit a linked note.');
+	const fd = openSync(file, constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+	try {
+		const stat = fstatSync(fd);
+		const named = lstatSync(file);
+		if (
+			!stat.isFile() ||
+			stat.nlink !== 1 ||
+			stat.ino !== named.ino ||
+			stat.dev !== named.dev ||
+			realpathSync(file) !== file
+		)
+			throw new Error('Cannot edit a linked or replaced note.');
+		const source = readFileSync(fd, 'utf8');
+		const header = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(source)?.[0];
+		if (
+			!header ||
+			source.slice(header.length).trim().replaceAll('\r\n', '\n') !==
+				original.replaceAll('\r\n', '\n')
+		)
+			throw new Error('The note changed. Cancel and reopen it to edit the latest text.');
+		const newline = header.includes('\r\n') ? '\r\n' : '\n';
+		const content = Buffer.from(
+			header.trimEnd() + newline + newline + body.trim().replace(/\r?\n/g, newline) + newline
+		);
+		let offset = 0;
+		while (offset < content.length)
+			offset += writeSync(fd, content, offset, content.length - offset, offset);
+		ftruncateSync(fd, content.length);
+	} finally {
+		closeSync(fd);
 	}
 }

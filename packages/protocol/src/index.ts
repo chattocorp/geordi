@@ -144,6 +144,8 @@ export type PullCheck = {
 	state: 'pending' | 'success' | 'failure' | 'neutral' | 'unknown';
 	/** More precise upstream status, such as queued or timed_out. */
 	status: string;
+	/** Check start time in milliseconds since the Unix epoch, when the forge supplies it. */
+	startedAt?: number;
 	url?: string;
 };
 
@@ -382,6 +384,23 @@ export type ReleaseNote = {
 	added: boolean;
 };
 
+/** A package whose release level rises when the PR merges. */
+export type ReleaseIncrease = {
+	path: string;
+	name: string;
+	before: string;
+	from: string;
+	after: string;
+	to: string;
+};
+
+/** Returned instead of merging when the person needs to make a choice. */
+export type ReleaseReview = {
+	token: string;
+	increases: ReleaseIncrease[];
+	problem: string | null;
+};
+
 /** One of a repository's packages, as its release tool sees it: where it stands, and where its pending notes take it. */
 export type ReleasePackage = {
 	/** Its directory, from the top of the repository. */
@@ -448,9 +467,10 @@ export type DaemonRequest =
 	 * workspace started without anything to do yet, or one whose worktree was removed
 	 * behind Geordi's back (which comes back from its branch). Answers where it is.
 	 */
-	| ({ kind: 'prepareWorktree' } & WorktreeRef)
+	| ({ kind: 'prepareWorktree'; requireBranch?: boolean } & WorktreeRef)
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	| ({ kind: 'release' } & WorktreeRef)
+	| ({ kind: 'editReleaseNote'; path: string; original: string; body: string } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Current text of a worktree-relative file, including files with no changes. */
@@ -474,8 +494,13 @@ export type DaemonRequest =
 	 * Merges the pull request for the workspace's branch on the upstream forge. Refused
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
-	| ({ kind: 'mergePull' } & WorktreeRef)
-	| ({ kind: 'setAutoMerge'; pullNumber: string; enabled: boolean } & WorktreeRef)
+	| ({ kind: 'mergePull'; pullNumber: string; confirmation?: string } & WorktreeRef)
+	| ({
+			kind: 'setAutoMerge';
+			pullNumber: string;
+			enabled: boolean;
+			confirmation?: string;
+	  } & WorktreeRef)
 	| ({ kind: 'markReady'; pullNumber: string } & WorktreeRef)
 	/**
 	 * Brings the latest of the branch the workspace's work is based on into its branch, where
@@ -498,6 +523,7 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
+	editReleaseNote: null;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
@@ -505,9 +531,9 @@ export type DaemonResults = {
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
-	mergePull: 'merged' | 'queued';
+	mergePull: 'merged' | 'queued' | ReleaseReview;
 	markReady: null;
-	setAutoMerge: null;
+	setAutoMerge: null | ReleaseReview;
 	/** `false` if it was left alone: bringing it up to date takes an agent's judgement. */
 	updateWorktree: boolean;
 	/**

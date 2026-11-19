@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
+	import { problemOf } from '#lib/problem.ts';
+	import { addedNoteCount } from '#lib/release-notes.ts';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
@@ -9,15 +11,44 @@
 		plan: ReleasePlan;
 		/** Opens a note's file as a diff. */
 		onopen(path: string): void;
+		onsave(path: string, original: string, body: string): Promise<void>;
 		/** The person agrees to the tool being asked in this repository, by running `command`. */
 		onallow(command: string): void;
 	};
-	let { plan, onopen, onallow }: Props = $props();
+	let { plan, onopen, onallow, onsave }: Props = $props();
+
+	let editing = $state<{ path: string; pkg: string } | null>(null);
+	let original = $state('');
+	let draft = $state('');
+	let saving = $state(false);
+	let problem = $state('');
+	function edit(pkg: string, path: string, body: string) {
+		editing = { pkg, path };
+		original = draft = body;
+		problem = '';
+	}
+	async function save(path: string) {
+		saving = true;
+		problem = '';
+		try {
+			await onsave(path, original, draft);
+			editing = null;
+		} catch (error) {
+			problem = problemOf(error, 'Could not save the note.');
+		} finally {
+			saving = false;
+		}
+	}
 
 	const mine = (pkg: ReleasePackage) => pkg.notes.filter((note) => note.added);
 	// only what this workspace changes about the next releases: that is what it is about
 	const touched = $derived(plan.packages.filter((pkg) => mine(pkg).length > 0));
-	const added = $derived(touched.reduce((count, pkg) => count + mine(pkg).length, 0));
+	const editorVisible = $derived(
+		touched.some(
+			(pkg) => pkg.path === editing?.pkg && mine(pkg).some((note) => note.path === editing?.path)
+		)
+	);
+	const added = $derived(addedNoteCount(touched));
 	const troubled = $derived(plan.packages.filter((pkg) => pkg.problems.length > 0));
 </script>
 
@@ -51,32 +82,67 @@
 			{#each mine(pkg) as note (note.path)}
 				<li class="rounded-card bg-sunken px-4 pt-2.5 pb-3.5">
 					<!-- its kind, and the file it is: which opens as a diff -->
-					<button
-						type="button"
-						onclick={() => onopen(note.path)}
-						title="Open {note.path}"
-						class="group flex w-full items-center gap-2 pb-2 text-left text-xs"
-					>
-						<span class={['dot', note.breaking ? 'bg-danger' : 'bg-accent']}></span>
-						<span
-							class={[
-								'font-medium first-letter:uppercase',
-								note.breaking ? 'text-danger' : 'text-ink'
-							]}
+					<div class="flex items-center gap-1 pb-2">
+						<button
+							type="button"
+							onclick={() => onopen(note.path)}
+							title="Open {note.path}"
+							class="group flex min-w-0 flex-1 items-center gap-2 text-left text-xs"
 						>
-							{note.type}{#if note.breaking && note.type !== 'breaking'}, breaking{/if}
-						</span>
-						<span
-							class="min-w-0 flex-1 truncate text-right code-dense text-muted group-hover:text-ink"
-						>
-							{note.path.split('/').at(-1)}
-						</span>
-						<span
-							class="icon-[lucide--chevron-right] size-3 shrink-0 text-muted group-hover:text-ink"
-						></span>
-					</button>
-					<!-- set as the conversation is: the same text, the same way -->
-					<Markdown text={note.body} />
+							<span class={['dot', note.breaking ? 'bg-danger' : 'bg-accent']}></span>
+							<span
+								class={[
+									'font-medium first-letter:uppercase',
+									note.breaking ? 'text-danger' : 'text-ink'
+								]}
+							>
+								{note.type}{#if note.breaking && note.type !== 'breaking'}, breaking{/if}
+							</span>
+							<span
+								class="min-w-0 flex-1 truncate text-right code-dense text-muted group-hover:text-ink"
+							>
+								{note.path.split('/').at(-1)}
+							</span>
+							<span
+								class="icon-[lucide--chevron-right] size-3 shrink-0 text-muted group-hover:text-ink"
+							></span>
+						</button>
+						{#if !editorVisible}
+							<Button
+								label="Edit {note.path.split('/').at(-1)}"
+								size="sm"
+								variant="ghost"
+								icon="icon-[lucide--pencil]"
+								onclick={() => edit(pkg.path, note.path, note.body)}
+							/>
+						{/if}
+					</div>
+					{#if editing?.pkg === pkg.path && editing.path === note.path}
+						<textarea
+							class="w-full input"
+							aria-label="Change note text"
+							rows="5"
+							bind:value={draft}
+							disabled={saving}
+							{@attach (element) => {
+								element.focus();
+							}}></textarea>
+						{#if problem}<p role="alert" class="text-xs text-danger">{problem}</p>{/if}
+						<div class="mt-2 flex justify-end gap-2">
+							<Button size="sm" variant="ghost" disabled={saving} onclick={() => (editing = null)}
+								>Cancel</Button
+							>
+							<Button
+								size="sm"
+								variant="primary"
+								busy={saving}
+								disabled={!draft.trim() || draft === original}
+								onclick={() => save(note.path)}>Save</Button
+							>
+						</div>
+					{:else}
+						<Markdown text={note.body} />
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -112,10 +178,9 @@
 			<!-- asked once per repository: the tool runs as the person, where the agent can write -->
 			<div class="space-y-3 px-3.5 py-2 text-sm">
 				<p class="text-muted">
-					This repository uses {plan.name}. To show what this workspace means for its next releases,
-					Geordi runs this in the workspace's directory, as you:
+					Allow Geordi to read the {plan.name} release plan for this repository.
 				</p>
-				<pre class="rounded-control bg-sunken p-3 code-dense">{ask}</pre>
+				<pre class="rounded-control bg-sunken p-3 code-dense whitespace-pre-wrap">{ask}</pre>
 				<Button size="sm" onclick={() => onallow(ask)}>Allow in this repository</Button>
 			</div>
 		{:else if plan.problem}
