@@ -9,9 +9,13 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ params, url }) => {
 	const path = url.searchParams.get('path');
 	if (!path) error(400, 'Which picture?');
-	const ref = workspaces().ref(params.id);
+	const where = workspaces().locate(params.id);
 	const picture = await hub()
-		.request({ kind: 'picture', path, ...ref })
+		.request(
+			'project' in where
+				? { kind: 'projectPicture', path, ...where }
+				: { kind: 'picture', path, ...where }
+		)
 		.catch(() => null); // no daemon, or no worktree: no picture
 	if (!picture) error(404, 'There is no such picture');
 	return new Response(Buffer.from(picture.data, 'base64'), {

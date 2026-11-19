@@ -90,12 +90,14 @@
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
 
+	/** A project (FDR-012) is conversations and nothing else: no repository, no changes, no terminals. */
+	const project = $derived(workspace.repoId === null);
 	// its repository, as everyone knows it; by its ID until that has come
 	const everything = follow<Navigation>('navigation');
 	const repo = $derived(
 		everything.current?.repos.find((repo) => repo.id === workspace.repoId) ?? {
-			id: workspace.repoId,
-			name: workspace.repoId
+			id: workspace.repoId ?? '',
+			name: workspace.repoId ?? 'Project'
 		}
 	);
 	let columnWidth = $state<number>();
@@ -858,7 +860,12 @@
 			/>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
 				<span class="flex shrink-0 items-center gap-1">
-					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
+					<span
+						class={[
+							project ? 'icon-[lucide--folder-kanban]' : 'icon-[lucide--folder-git-2]',
+							'size-3.5'
+						]}
+					></span>
 					{repo.name}
 				</span>
 				{#if workspace.worktree}
@@ -884,7 +891,7 @@
 			<Button onclick={reopen} disabled={restoringWorkspace}
 				>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
 			>
-		{:else}
+		{:else if !project}
 			<Button
 				variant="ghost"
 				icon={frame.current.open
@@ -933,7 +940,7 @@
 		bare
 		min={[320, 260]}
 		minRatio={0.5}
-		collapsed={!frame.current.open}
+		collapsed={!frame.current.open || project}
 		bind:ratio={
 			() => 1 - frame.current.side,
 			(ratio) => (frame.current = { ...frame.current, side: 1 - ratio })
@@ -946,7 +953,7 @@
 				bind:clientWidth={columnWidth}
 				class={[
 					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
-					frame.current.open ? 'mr-1' : 'mr-2'
+					frame.current.open && !project ? 'mr-1' : 'mr-2'
 				]}
 			>
 				<Panes

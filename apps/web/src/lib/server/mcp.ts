@@ -98,13 +98,19 @@ const tools = {
 			repository: v.pipe(
 				v.optional(v.string()),
 				v.description(
-					'Clients outside Geordi only: the ID of the repository to start in (see list_repositories). An agent in a workspace starts agents in its own.'
+					'Projects and clients outside Geordi only: the ID of the repository to start in (see list_repositories). An agent in a repository workspace starts agents in its own.'
 				)
 			),
 			worktree: v.pipe(
 				v.optional(v.picklist(WORKTREE_MODES), 'own'),
 				v.description(
-					'"own" (default): a new worktree and branch, branched from your branch, for work that should not interfere with yours. "shared": your worktree, for work that needs to see your uncommitted files, such as a review.'
+					'"own" (default): a new worktree and branch, branched from your branch, for work that should not interfere with yours. "shared": your worktree, for work that needs to see your uncommitted files, such as a review. In a project: "shared" starts the agent in the project itself, working in its folder alongside you.'
+				)
+			),
+			workspace: v.pipe(
+				v.optional(v.string()),
+				v.description(
+					'Projects only: the ID of an existing workspace in a repository to start the agent in, alongside its agent, in its worktree and on its branch.'
 				)
 			),
 			agent: v.pipe(
@@ -137,6 +143,7 @@ const tools = {
 				prompt: string;
 				repository?: string;
 				worktree: 'own' | 'shared';
+				workspace?: string;
 				agent?: (typeof AGENTS)[number];
 				model?: string;
 				effort?: string;
@@ -196,7 +203,7 @@ const tools = {
 	},
 	send_message: {
 		description:
-			'Send a message to an agent you started (a client outside Geordi: to any workspace). It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt` (only for agents you started). Returns immediately; use wait_for_agent to get its reply.',
+			'Send a message to an agent you started (a project or a client outside Geordi: to any workspace). It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt` (only for agents you started). Returns immediately; use wait_for_agent to get its reply.',
 		input: v.object({
 			agent_id: v.pipe(
 				v.string(),
@@ -374,15 +381,22 @@ const workspaceTools = new Set([
 	'configuration_reference',
 	'check_configuration'
 ]);
-const available = (caller: string, name: string) =>
-	!isExternal(caller) || !workspaceTools.has(name);
+/** What is about a workspace's repository, which a project has none of (FDR-012). */
+const repositoryTools = new Set(['configuration_reference', 'check_configuration']);
+const available = (agents: Agents, caller: string, name: string) =>
+	isExternal(caller)
+		? !workspaceTools.has(name)
+		: !agents.isProject(caller) || !repositoryTools.has(name);
 
 const EXTERNAL_INSTRUCTIONS = `You are connected to Geordi, an agent orchestrator: each workspace is one conversation with a coding agent, in a worktree on its own branch. list_workspaces and read_workspace show you any of them in the repositories you were given access to; send_message follows up with an agent, and wait_for_agent waits for its reply. To start work, find a repository with list_repositories and give start_agent a task in it: you may then supervise that agent (interrupt, stop, archive), as you may not others. Questions an agent asks are for the person to answer.`;
+
+const PROJECT_INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator, in a project: a workspace that belongs to no repository, from which you orchestrate coding agents for the person. Find a repository with list_repositories and give start_agent a task in it (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. Each agent you start works in a worktree and branch of its own, from the repository's main branch. You act for the person: list_workspaces, read_workspace and workspace_status show you any workspace, and you may message, interrupt, stop and archive any agent in a repository, whoever started it, and the agents in your own project. Start an agent alongside an existing workspace's agent with start_agent's workspace parameter, or alongside you with worktree "shared". Other projects are not yours to see or touch. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them.`;
 
 async function callTool(agents: Agents, caller: string, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };
 	const tool = name && Object.hasOwn(tools, name) ? tools[name as keyof typeof tools] : null;
-	if (!name || !tool || !available(caller, name)) return content(`Unknown tool: ${name}`, true);
+	if (!name || !tool || !available(agents, caller, name))
+		return content(`Unknown tool: ${name}`, true);
 
 	const input = v.safeParse(tool.input, args);
 	if (!input.success)
@@ -418,7 +432,11 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				protocolVersion: requested ?? '2025-06-18',
 				capabilities: { tools: {} },
 				serverInfo: { name: 'geordi', version: '1' },
-				instructions: isExternal(caller) ? EXTERNAL_INSTRUCTIONS : INSTRUCTIONS
+				instructions: isExternal(caller)
+					? EXTERNAL_INSTRUCTIONS
+					: agents.isProject(caller)
+						? PROJECT_INSTRUCTIONS
+						: INSTRUCTIONS
 			});
 		}
 		case 'ping':
@@ -426,7 +444,7 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 		case 'tools/list':
 			return result(id, {
 				tools: Object.entries(tools)
-					.filter(([name]) => available(caller, name))
+					.filter(([name]) => available(agents, caller, name))
 					.map(([name, tool]) => ({
 						name,
 						description:

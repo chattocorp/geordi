@@ -47,7 +47,8 @@ export const navigation = () =>
 					id,
 					title,
 					repoId,
-					parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
+					// one whose parent is gone (an archived project's, FDR-012) stands for itself
+					parentId: (parentId && ownerOf.get(parentId)) ?? null,
 					status,
 					working,
 					...(waiting && { waiting: true }),
@@ -139,7 +140,8 @@ export const workspace = (id: string) => {
 			owner = workspace.worktreeId;
 			// Archived conversations can outlive the local repository. Start following Git
 			// only once the conversation is active and has a worktree to show again.
-			if (workspace.archivedAt) {
+			// A project has no worktree to watch at all (FDR-012).
+			if (workspace.archivedAt || workspace.repoId === null) {
 				unwatch?.();
 				unwatch = undefined;
 			} else if (notify) {
@@ -173,7 +175,8 @@ export const workspace = (id: string) => {
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				git: watchers().state(workspace.worktreeId),
+				// a project has no worktree to watch (FDR-012)
+				git: workspace.repoId === null ? null : watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read
 				finished: terminals().finished(id)
@@ -221,7 +224,10 @@ const archive = () => ({
 		);
 		return workspaces()
 			.archived()
-			.map((entry) => ({ ...entry, repository: names.get(entry.repoId) ?? entry.repoId }));
+			.map((entry) => ({
+				...entry,
+				repository: entry.repoId === null ? 'Project' : (names.get(entry.repoId) ?? entry.repoId)
+			}));
 	},
 	affects: (event: GeordiEvent) =>
 		[

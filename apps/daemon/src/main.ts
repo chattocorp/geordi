@@ -1,3 +1,4 @@
+import { projectPath } from './projects.ts';
 import { claimDaemon } from './daemon-owner.ts';
 import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
@@ -77,6 +78,8 @@ const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 const apiUrl = new URL('/mcp', process.env.GEORDI_FORGE_HTTP_URL || 'http://127.0.0.1:3000').href;
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
 /** Where agents' sessions keep what they are told and what they do, so that they outlive this process (ADR-007). */
+/** Where projects' folders are (FDR-012). */
+const projectsDir = process.env.GEORDI_PROJECTS_DIR || join(homedir(), '.geordi', 'projects');
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
@@ -359,6 +362,7 @@ function attend(workspaceId: string, session: Session) {
  */
 const { beginning, startMessage } = turnStarts({
 	worktreesDir,
+	projectsDir,
 	sessions,
 	setups,
 	apiUrl,
@@ -486,6 +490,18 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
+	if (request.kind === 'projectPicture')
+		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
+	if (request.kind === 'closeProject') {
+		// its agents, whose CLIs may still be running there with nothing to do, end; the folder stays
+		const path = projectPath(projectsDir, request.worktreeId);
+		for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
+		for (const session of sessionsIn(path)) {
+			retired.add(session);
+			session.kill();
+		}
+		return null;
+	}
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;
 		const worktree = await removable(worktreesDir, repoPath, worktreeId, force);

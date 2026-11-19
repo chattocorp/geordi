@@ -22,7 +22,8 @@ import {
 	type ToolInfo,
 	type TurnUsage,
 	type WorktreeMode,
-	type WorktreeRef
+	type WorktreeRef,
+	type ProjectRef
 } from '@geordi/protocol';
 import type { TurnEnd } from '../attention.ts';
 import type { EventStore, GeordiEvent } from './events/index.ts';
@@ -38,7 +39,8 @@ export type WorkspacesEvent =
 			stream: WorkspaceStream;
 			data: {
 				id: string;
-				repoId: string;
+				/** Absent for a project, which belongs to no repository (FDR-012). */
+				repoId?: string;
 				title: string;
 				agent: Agent;
 				/** The agent settings chosen when the workspace was created. */
@@ -285,7 +287,8 @@ export type Workspace = {
 	/** When the turn that is running began, for the `turn` item that ends it. */
 	turnStartedAt?: string;
 	id: string;
-	repoId: string;
+	/** `null` for a project: a workspace that belongs to no repository, for orchestrating (FDR-012). */
+	repoId: string | null;
 	title: string;
 	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
 	named: boolean;
@@ -332,9 +335,17 @@ function initialWorkspace(
 	at: string,
 	actor: string | null = null
 ): Workspace {
-	const { parentId = null, worktreeId = created.id, base = null, settings = {}, ...data } = created;
+	const {
+		repoId = null,
+		parentId = null,
+		worktreeId = created.id,
+		base = null,
+		settings = {},
+		...data
+	} = created;
 	return {
 		...data,
+		repoId,
 		named: false,
 		settings,
 		status: 'idle',
@@ -400,7 +411,8 @@ export const UNTITLED = 'New workspace';
 const MAX_NAMES = 3;
 
 type NewWorkspace = {
-	repoId: string;
+	/** `null` for a project (FDR-012). */
+	repoId: string | null;
 	agent: Agent;
 	settings?: AgentSettings;
 	prompt: string;
@@ -751,7 +763,10 @@ export function createWorkspaces(
 	function transcriptOf(workspace: Workspace, before = Infinity): TranscriptItem[] {
 		if (!workspace.archivedAt) return workspace.transcript;
 		const { id, repoId, agent, title } = workspace;
-		const restored = initialWorkspace({ id, repoId, agent, title }, workspace.createdAt);
+		const restored = initialWorkspace(
+			{ id, ...(repoId && { repoId }), agent, title },
+			workspace.createdAt
+		);
 		const copy = new Map([[id, restored]]);
 		const steering = new Map<string, string | null>();
 		const createdAtSeq = born.get(id)!;
@@ -829,9 +844,16 @@ export function createWorkspaces(
 		};
 	}
 
-	/** What a daemon needs to find the worktree a workspace works in. */
+	/** Where a workspace's agent works: its worktree, or a project's folder (FDR-012). */
+	function locate(id: string): WorktreeRef | ProjectRef {
+		const { repoId, worktreeId } = find(id);
+		return repoId === null ? { worktreeId, project: true } : ref(id);
+	}
+
+	/** What a daemon needs to find the worktree a workspace works in. A project has none. */
 	function ref(id: string): WorktreeRef {
 		const { repoId, worktreeId, base } = find(id);
+		if (repoId === null) error(409, 'A project has no worktree');
 		const owner = find(worktreeId);
 		const branch = owner.worktree?.branch;
 		const parents: NonNullable<WorktreeRef['parents']> = [];
@@ -922,10 +944,10 @@ export function createWorkspaces(
 	/** Send the recorded prompt. An unacknowledged delivery is retried on reconnect. */
 	function deliver(workspace: Workspace, message: PendingMessage, working: boolean) {
 		const { text, images, deliveryId } = message;
-		let target: WorktreeRef;
+		let target: WorktreeRef | ProjectRef;
 		let attachments;
 		try {
-			target = ref(workspace.id);
+			target = locate(workspace.id);
 			attachments = images.map(imageStore.get);
 		} catch (error) {
 			const reason =
@@ -952,6 +974,7 @@ export function createWorkspaces(
 			resumeId: workspace.resumeId,
 			instructions: instructionsFor({
 				parent: (workspace.parentId && projection.get().get(workspace.parentId)) || null,
+				project: workspace.repoId === null,
 				sharesWorktree: workspace.worktreeId !== workspace.id,
 				named: workspace.named,
 				mayDelegate: depthOf(workspace) < limits.depth
@@ -1110,7 +1133,8 @@ export function createWorkspaces(
 		actor: string | null = null
 	): string {
 		imageStore.resolve(images);
-		repos.get(workspace.repoId); // 404s for unknown repos
+		const { repoId, ...rest } = workspace;
+		if (repoId !== null) repos.get(repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
 		const title = promptTitle(prompt) || UNTITLED;
@@ -1121,7 +1145,8 @@ export function createWorkspaces(
 				data: {
 					id,
 					title,
-					...workspace,
+					...(repoId !== null && { repoId }),
+					...rest,
 					...(Object.keys(chosen).length > 0 && { settings: chosen })
 				}
 			},
@@ -1154,17 +1179,32 @@ export function createWorkspaces(
 	 * granted, and so may the agents it started (directly or not), or they would be its way
 	 * around that.
 	 */
-	function reaches(callerId: string, repoId: string): boolean {
+	function reaches(callerId: string, repoId: string | null): boolean {
 		const workspace = projection.get().get(callerId);
 		const starter = workspace && starterOf(workspace);
 		if (starter) return reaches(starter, repoId);
-		return !isExternal(callerId) || access.reaches(callerId, repoId);
+		// a token for chosen repositories doesn't reach a project, which is in none (FDR-012)
+		return !isExternal(callerId) || (repoId !== null && access.reaches(callerId, repoId));
 	}
 
-	/** A workspace the caller may see. One in a repository it may not doesn't exist for it. */
+	/**
+	 * Whether the caller may see a workspace: one in a repository it reaches. A project's agents
+	 * see no other project (FDR-012): only their own, and the agents working in it.
+	 */
+	function sees(callerId: string, workspace: Workspace): boolean {
+		if (!reaches(callerId, workspace.repoId)) return false;
+		const caller = projection.get().get(callerId);
+		return (
+			workspace.repoId !== null ||
+			caller?.repoId !== null ||
+			workspace.worktreeId === caller.worktreeId
+		);
+	}
+
+	/** A workspace the caller may see. Any other doesn't exist for it. */
 	function findFor(callerId: string, id: string): Workspace {
 		const workspace = projection.get().get(id);
-		if (!workspace || !reaches(callerId, workspace.repoId)) error(404, `Workspace ${id} not found`);
+		if (!workspace || !sees(callerId, workspace)) error(404, `Workspace ${id} not found`);
 		return workspace;
 	}
 
@@ -1181,8 +1221,20 @@ export function createWorkspaces(
 	const descendantsOf = (id: string): Workspace[] =>
 		childrenOf(id).flatMap((child) => [child, ...descendantsOf(child.id)]);
 
-	/** A workspace the caller started (directly or not). Anything else doesn't exist for it. */
+	/**
+	 * Whether the caller is a project's agent (FDR-012): it acts for the person, and
+	 * may do whatever they may.
+	 */
+	const isProject = (callerId: string) =>
+		!isExternal(callerId) && projection.get().get(callerId)?.repoId === null;
+
+	/**
+	 * A workspace the caller started (directly or not). Anything else doesn't exist for it,
+	 * unless the caller is a project, which may supervise any it sees: in a repository, or in
+	 * the project itself. Never another project (FDR-012).
+	 */
 	function findControlled(callerId: string, id: string): Workspace {
+		if (isProject(callerId)) return findFor(callerId, id);
 		const workspace = descendantsOf(callerId).find((candidate) => candidate.id === id);
 		if (!workspace) error(404, `You have not started an agent with ID ${id}`);
 		return workspace;
@@ -1235,6 +1287,7 @@ export function createWorkspaces(
 	 */
 	const agents = {
 		authenticate,
+		isProject,
 		reportWorkspace: (callerId: string, id: string) => report(findFor(callerId, id)),
 		listRepositories: (callerId: string) =>
 			repos
@@ -1244,7 +1297,7 @@ export function createWorkspaces(
 		listWorkspaces(callerId: string, archived: boolean) {
 			return [...projection.get().values()]
 				.reverse()
-				.filter((w) => (archived || !w.archivedAt) && reaches(callerId, w.repoId))
+				.filter((w) => (archived || !w.archivedAt) && sees(callerId, w))
 				.map(entry);
 		},
 		readWorkspace(callerId: string, id: string, before?: number) {
@@ -1293,6 +1346,7 @@ export function createWorkspaces(
 			{
 				repository,
 				worktree,
+				workspace: alongside,
 				agent,
 				model,
 				effort,
@@ -1301,6 +1355,8 @@ export function createWorkspaces(
 			}: {
 				repository?: string;
 				worktree: WorktreeMode;
+				/** A project's: an existing workspace to start the agent in, alongside its own. */
+				workspace?: string;
 				agent?: Agent;
 				model?: string;
 				effort?: string;
@@ -1320,13 +1376,27 @@ export function createWorkspaces(
 				worktreeId?: string;
 				base?: string;
 			};
-			if (!caller) {
+			const project = caller?.repoId === null;
+			if (alongside !== undefined && !project)
+				error(400, 'Only a project starts agents in other workspaces');
+			if (caller && project && (alongside !== undefined || worktree === 'shared')) {
+				// a project starts agents alongside the agent of a workspace it sees, its own included
+				const owner = find(findControlled(callerId, alongside ?? callerId).worktreeId);
+				if (owner.archivedAt) error(409, 'That workspace is archived');
+				where = {
+					repoId: owner.repoId,
+					parentId: callerId,
+					worktreeId: owner.id,
+					...(owner.base && { base: owner.base })
+				};
+			} else if (!caller || project) {
+				// a project, like a client outside Geordi, starts agents in whichever repository it names
 				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
 				if (worktree === 'shared')
 					error(400, 'Only an agent in a workspace can share its worktree');
 				if (!reaches(callerId, repository))
 					error(404, `There is no repository ${repository} you have access to`);
-				where = { repoId: repos.get(repository).id };
+				where = { repoId: repos.get(repository).id, ...(project && { parentId: callerId }) };
 			} else {
 				if (repository && repository !== caller.repoId)
 					error(403, 'Agents start agents in their own repository');
@@ -1492,12 +1562,14 @@ export function createWorkspaces(
 		/**
 		 * The IDs of the workspaces in use that belong to this one, and go when it goes: those
 		 * its agent started, the agents working in its worktree (whoever started them), and
-		 * theirs. Parents first.
+		 * theirs. Parents first. For a project, only the agents working in its folder: what it
+		 * started in a repository is work there, which carries on without it (FDR-012).
 		 */
 		descendants(id: string): string[] {
 			const alongside = [...projection.get().values()].filter(
 				(other) => other.id !== id && other.worktreeId === id && !other.archivedAt
 			);
+			if (find(id).repoId === null) return alongside.map((workspace) => workspace.id);
 			const all = [
 				...descendantsOf(id),
 				...alongside.flatMap((workspace) => [workspace, ...descendantsOf(workspace.id)])
@@ -1540,6 +1612,7 @@ export function createWorkspaces(
 		worktreeOf: (id: string) => projection.get().get(id)?.worktreeId,
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
+		locate,
 
 		/** Starts a workspace with a first message to its agent. Returns the workspace's ID. */
 		create: (workspace: NewWorkspace, actor: string | null = null) => create(workspace, actor),

@@ -8,6 +8,7 @@
 		href,
 		parentTitle,
 		child = false,
+		icon,
 		current = false,
 		leaving = false,
 		dragging = false,
@@ -27,6 +28,8 @@
 		href?: string;
 		parentTitle?: string;
 		child?: boolean;
+		/** What it is, where it is not a branch: an Iconify class (a project's, say). */
+		icon?: string;
 		current?: boolean;
 		leaving?: boolean;
 		dragging?: boolean;
@@ -176,6 +179,8 @@
 		{:else if working}
 			<!-- its agent, one working alongside it, or one folded away under it -->
 			<Spinner />
+		{:else if icon}
+			<span class={[icon, 'size-4']}></span>
 		{:else if child}
 			<!-- started by an agent: the one above it, where that is still around -->
 			<span class="icon-[lucide--corner-down-right] size-4"></span>

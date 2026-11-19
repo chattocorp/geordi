@@ -51,6 +51,17 @@
 	const listed = $derived(byRepository(nav?.workspaces ?? []));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
+	/**
+	 * What the sidebar groups workspaces under: projects first (FDR-012: workspaces in no
+	 * repository, `id` `null`), where there are any, then the repositories that have some.
+	 * Focusing a repository leaves the projects, which are in none.
+	 */
+	const groups = $derived([
+		...(listed.get(null)?.length ? [{ id: null, name: 'Projects' }] : []),
+		...sidebarRepos
+	]);
+	/** What stands for the projects among the folded: no repository has it as its ID. */
+	const PROJECTS = 'projects';
 	/** How many repositories a focus hides: offered at the end, to show them again. */
 	const hidden = $derived(withWorkspaces.length - sidebarRepos.length);
 
@@ -70,10 +81,14 @@
 	const motion = () => ({ duration: shifting ? MOTION : 0, easing: cubicOut });
 	/** How many workspaces wait for the person: counted beside the overview. */
 	const needYou = $derived(lanes(nav?.workspaces ?? [], unread).attention.length);
-	/** A workspace counts as working, for archiving, while anything its agent started is. */
+	/**
+	 * A workspace counts as working, for archiving, while anything its agent started is. Not
+	 * a project's: what it started in a repository carries on without it.
+	 */
 	const working = (workspace: Item): boolean =>
 		workspace.working ||
-		(nav?.workspaces ?? []).some((other) => other.parentId === workspace.id && working(other));
+		(workspace.repoId !== null &&
+			(nav?.workspaces ?? []).some((other) => other.parentId === workspace.id && working(other)));
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
@@ -85,6 +100,7 @@
 	function workspaceMenu(workspace: Item): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
+		const project = workspace.repoId === null;
 		// archiving takes the workspaces its agent started along: none of them may be working
 		const busy = working(workspace);
 		// the menu has these already, below
@@ -108,19 +124,28 @@
 				icon: 'icon-[lucide--hash]',
 				onselect: () => navigator.clipboard.writeText(workspace.id)
 			},
-			{
-				label: 'Copy branch name',
-				icon: 'icon-[lucide--git-branch]',
-				disabled: !workspace.branch,
-				onselect: () => navigator.clipboard.writeText(workspace.branch ?? '')
-			},
+			// a project has no branch to copy or carry on from
+			...(project
+				? []
+				: [
+						{
+							label: 'Copy branch name',
+							icon: 'icon-[lucide--git-branch]',
+							disabled: !workspace.branch,
+							onselect: () => navigator.clipboard.writeText(workspace.branch ?? '')
+						}
+					]),
 			'separator',
-			{
-				label: 'Continue on a new branch',
-				icon: 'icon-[lucide--git-branch-plus]',
-				disabled: busy,
-				onselect: () => continueFromAfar(workspace)
-			},
+			...(project
+				? []
+				: [
+						{
+							label: 'Continue on a new branch',
+							icon: 'icon-[lucide--git-branch-plus]',
+							disabled: busy,
+							onselect: () => continueFromAfar(workspace)
+						}
+					]),
 			{
 				label: 'Stop agent',
 				icon: 'icon-[lucide--square]',
@@ -169,7 +194,7 @@
 		dropBefore = stays ? undefined : before;
 	}
 
-	function drop(event: DragEvent, repoId: string) {
+	function drop(event: DragEvent, repoId: string | null) {
 		event.preventDefault();
 		if (dragged?.repoId === repoId && dropBefore !== undefined)
 			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
@@ -211,11 +236,13 @@
 			slides away takes its space along, and nothing is left to jump when it is gone.
 		-->
 		<div>
-			{#each sidebarRepos as repo (repo.id)}
+			{#each groups as repo (repo.id ?? PROJECTS)}
 				{@const all = listed.get(repo.id) ?? []}
 				{@const rows = unfolded(all, folded.current)}
-				{@const isFolded = folded.current.includes(repo.id)}
+				{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
 				{@const focused = focus.current === repo.id}
+				{@const newHref = `${resolve('/')}?${repo.id === null ? 'project' : `repo=${repo.id}`}`}
+				{@const newLabel = repo.id === null ? 'New project' : `New workspace in ${repo.name}`}
 				<div class="pb-4" transition:slide={motion()}>
 					<!--
 				A label for what is under it: its picture, its name (quiet, by its colour: the
@@ -227,35 +254,44 @@
 							type="button"
 							class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-sm font-semibold text-muted hover:text-ink"
 							aria-expanded={!isFolded}
-							onclick={() => toggleFolded(repo.id)}
+							onclick={() => toggleFolded(repo.id ?? PROJECTS)}
 						>
-							<RepoIcon id={repo.id} />
+							{#if repo.id === null}
+								<!-- as wide as a repository's picture: its projects line up under it -->
+								<span class="grid size-5 shrink-0 place-items-center">
+									<span class="icon-[lucide--folders] size-4.5 text-muted/70"></span>
+								</span>
+							{:else}
+								<RepoIcon id={repo.id} />
+							{/if}
 							<span class="truncate">{repo.name}</span>
 							{#if isFolded}
 								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{all.length}</span>
 							{/if}
 						</button>
-						<button
-							type="button"
-							class={[
-								'invisible grid size-6 shrink-0 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink',
-								focused ? 'bg-sunken text-ink' : 'text-muted'
-							]}
-							title={focused
-								? `Show all repositories (${focusHint})`
-								: `Show only ${repo.name} (${focusHint})`}
-							aria-label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
-							aria-pressed={focused}
-							onclick={() => (focus.current = focused ? null : repo.id)}
-						>
-							<span class="icon-[lucide--search] size-4"></span>
-						</button>
+						{#if repo.id !== null}
+							<button
+								type="button"
+								class={[
+									'invisible grid size-6 shrink-0 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink',
+									focused ? 'bg-sunken text-ink' : 'text-muted'
+								]}
+								title={focused
+									? `Show all repositories (${focusHint})`
+									: `Show only ${repo.name} (${focusHint})`}
+								aria-label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
+								aria-pressed={focused}
+								onclick={() => (focus.current = focused ? null : repo.id)}
+							>
+								<span class="icon-[lucide--search] size-4"></span>
+							</button>
+						{/if}
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 						<a
-							href="{resolve('/')}?repo={repo.id}"
+							href={newHref}
 							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-hover hover:text-ink"
-							title="New workspace in {repo.name}"
-							aria-label="New workspace in {repo.name}"
+							title={newLabel}
+							aria-label={newLabel}
 						>
 							<span class="icon-[lucide--plus] size-4"></span>
 						</a>
@@ -348,6 +384,7 @@
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
 			child={!!workspace.parentId}
+			icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : undefined}
 			{current}
 			{leaving}
 			dragging={dragged?.id === workspace.id}

@@ -100,6 +100,11 @@ it, perhaps you.
     another's worktree (`worktreeId`): such an agent is shown in that workspace, as a
     conversation tab (`agent:<id>`), and not in the sidebar (`withAides` in `#lib/family.ts`). The daemon derives a worktree from that ID
     (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
+  - A **project** (FDR-012) is a workspace in no repository (`repoId: null`), for
+    orchestrating: its agent works in a folder of its own (`ProjectRef`, `projects.ts` in the
+    daemon; kept when archived), with no worktree, so `ref()` refuses it and `locate()` says
+    where it works. Projects are started from the repository chooser and listed above the
+    repositories. Code that assumes a repository must leave projects out.
   - Turns are the agent's to begin and end (ADR-010): the daemon says `turn.started` (an
     agent may start one unasked, when something it ran in the background ends) and how it
     ended. The forge drops what a daemon says of a workspace that is not working, as far as
@@ -135,7 +140,10 @@ it, perhaps you.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per workspace; the
   daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`) for chosen repositories (`repoIds`; never later ones), see only those, start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
-  and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
+  and the `actor` of the events. A project's agents act for the person: they start agents
+  in any repository, or alongside any workspace's agent there (`workspace`), and supervise
+  and archive any agent in a repository or in their own project; they never see another
+  project (`sees`). The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and
   the daemon as they are, on ports of its own (7717, 7718, and 7719 for browsers' WebSocket), with data in `~/.geordi`; `pnpm dev`

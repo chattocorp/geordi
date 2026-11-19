@@ -118,6 +118,13 @@
 				{ changes: dirty, upstream: upstream(null) },
 				{ ...working, repoId: 'site', minutes: 4 }
 			),
+			// a project (FDR-012): no repository, no changes
+			workspace(
+				'project',
+				'Ship the protocol bump everywhere',
+				{ changes: null, upstream: null },
+				{ ...working, repoId: null, branch: null, minutes: 2 }
+			),
 			// open
 			workspace(
 				'ready',

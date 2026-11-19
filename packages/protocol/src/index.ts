@@ -83,6 +83,12 @@ export type WorktreeRef = {
 	branch?: string;
 };
 
+/**
+ * Where a project's agent works (FDR-012): a project belongs to no repository, and works in an
+ * empty folder of its own that the daemon makes for it, derived from its ID.
+ */
+export type ProjectRef = { worktreeId: string; project: true };
+
 /** Where an agent started by another agent works: in a worktree of its `own`, or `shared` with its parent. */
 export const WORKTREE_MODES = ['own', 'shared'] as const;
 export type WorktreeMode = (typeof WORKTREE_MODES)[number];
@@ -454,6 +460,11 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
+	/**
+	 * Ends the agents working in a project's folder (FDR-012), which is archived. The folder
+	 * stays, with whatever they left there: restored, the project finds it again.
+	 */
+	| ({ kind: 'closeProject' } & ProjectRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -488,6 +499,8 @@ export type DaemonRequest =
 	 * if there is no such file, or it is not a picture.
 	 */
 	| ({ kind: 'picture'; path: string } & WorktreeRef)
+	/** As `picture`, for a picture where a project's agent works: in its folder (FDR-012). */
+	| ({ kind: 'projectPicture'; path: string } & ProjectRef)
 	/** The workspace's branch on the repository's upstream forge. */
 	| ({
 			kind: 'upstream';
@@ -522,6 +535,8 @@ export type DaemonResults = {
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
+	closeProject: null;
+	projectPicture: Picture | null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
@@ -756,7 +771,7 @@ export type ForgeMessage =
 			prompt: string;
 			deliveryId?: string;
 			images?: MessageImage[];
-	  } & WorktreeRef)
+	  } & (WorktreeRef | ProjectRef))
 	/** Stops what the agent is doing. Its CLI goes on running, to be told what to do instead. */
 	| { type: 'agent.stopTask'; workspaceId: string; stopId: string }
 	| { type: 'agent.stop'; workspaceId: string }

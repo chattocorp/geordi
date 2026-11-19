@@ -361,6 +361,9 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 				REMOVE_TIMEOUT_MS
 			);
 			workspaces().onBranch(ref.worktreeId, branch);
+		},
+		closeProject: async (projectId) => {
+			await hub().request({ kind: 'closeProject', worktreeId: projectId, project: true });
 		}
 	})(id, discard, actor);
 
