@@ -4,13 +4,13 @@
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { actFromAfar } from '#lib/components/workspace/afar.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
-	import WorkspaceActions from '#lib/components/workspace/WorkspaceActions.svelte';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import { timeAgo } from '#lib/format.ts';
 	import WaitingForView from '#lib/components/WaitingForView.svelte';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes, LANES, type Lane } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
 	import { persisted } from '#lib/persisted.svelte.ts';
 
@@ -110,8 +110,13 @@
 {#snippet card(workspace: Item)}
 	<li class="relative flex flex-col gap-3 card p-4 card-link">
 		<span class="flex items-center gap-2 text-xs text-muted">
-			<span class="scale-80"><RepoIcon id={workspace.repoId} /></span>
-			<span class="truncate">{repoNames.get(workspace.repoId)}</span>
+			{#if workspace.repoId === null}
+				<span class="icon-[lucide--folder-kanban] size-3.5 shrink-0"></span>
+				<span class="truncate">Project</span>
+			{:else}
+				<span class="scale-80"><RepoIcon id={workspace.repoId} /></span>
+				<span class="truncate">{repoNames.get(workspace.repoId)}</span>
+			{/if}
 			<span class="ml-auto shrink-0 tabular-nums">{timeAgo(workspace.updatedAt, now)}</span>
 		</span>
 

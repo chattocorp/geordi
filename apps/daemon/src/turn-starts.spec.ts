@@ -2,6 +2,9 @@ import { expect, it, vi } from 'vitest';
 import { turnStarts } from './turn-starts.ts';
 import { ensureWorktree, fetchUpstream, hasWorktree } from './worktree.ts';
 import type { Session } from './session.ts';
+import { mkdtempSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 vi.mock('./worktree.ts', () => ({
 	worktreePath: () => '/worktree',
@@ -22,6 +25,7 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 		const emit = vi.fn();
 		const { beginning, startMessage } = turnStarts({
 			worktreesDir: '/trees',
+			projectsDir: '/projects',
 			sessions,
 			setups,
 			apiUrl: '',
@@ -104,3 +108,46 @@ it.each(['close', 'fetch', 'worktree', 'setup', 'config'])(
 		]);
 	}
 );
+
+it('starts a project in a folder of its own, without a worktree or its configuration', async () => {
+	const projectsDir = mkdtempSync(join(tmpdir(), 'projects-'));
+	const begin = vi.fn();
+	const configFor = vi.fn();
+	const prepared = vi.fn();
+	const { startMessage } = turnStarts({
+		worktreesDir: '/trees',
+		projectsDir,
+		sessions: new Map(),
+		setups: new Map(),
+		apiUrl: '',
+		prepared,
+		emitFor: () => vi.fn(),
+		begin,
+		configFor
+	});
+	const projectId = '00000000-0000-4000-8000-000000000001';
+	vi.mocked(ensureWorktree).mockClear();
+	await startMessage({
+		type: 'agent.message',
+		agent: 'claude',
+		settings: {},
+		project: true,
+		worktreeId: projectId,
+		workspaceId: projectId,
+		apiToken: '',
+		resumeId: null,
+		prompt: 'orchestrate'
+	});
+	const path = join(projectsDir, projectId);
+	expect(existsSync(path)).toBe(true);
+	expect(ensureWorktree).not.toHaveBeenCalled();
+	expect(configFor).not.toHaveBeenCalled();
+	expect(prepared).not.toHaveBeenCalled();
+	expect(begin).toHaveBeenCalledExactlyOnceWith(
+		projectId,
+		expect.objectContaining({
+			options: expect.objectContaining({ cwd: path, env: {}, writableRoots: [] })
+		}),
+		[{ prompt: 'orchestrate', deliveryId: undefined }]
+	);
+});

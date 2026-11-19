@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Agent } from '@geordi/protocol';
-	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
+	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import { agentName } from '#lib/format.ts';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 
 	let {
 		agent,

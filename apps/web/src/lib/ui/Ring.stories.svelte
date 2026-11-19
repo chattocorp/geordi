@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Ring from './Ring.svelte';
+	import Ring from '@geordi/ui/Ring.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Ring', component: Ring });
 </script>

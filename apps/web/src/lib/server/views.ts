@@ -1,7 +1,7 @@
-import { actionsFor, PUBLISHING, standingOf } from '#lib/actions.ts';
+import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
-import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';
+import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
@@ -47,7 +47,8 @@ export const navigation = () =>
 					id,
 					title,
 					repoId,
-					parentId: (parentId && ownerOf.get(parentId)) ?? parentId,
+					// one whose parent is gone (an archived project's, FDR-012) stands for itself
+					parentId: (parentId && ownerOf.get(parentId)) ?? null,
 					status,
 					working,
 					...(waiting && { waiting: true }),
@@ -110,10 +111,14 @@ export const workspace = (id: string) => {
 		return follower.read();
 	};
 	let owner = id;
+	let notify: (() => void) | undefined;
+	let unwatch: (() => void) | undefined;
 	let ancestors = new Set<string>();
 	return {
 		incremental: true,
 		affects(event) {
+			if (event.type === 'workspace.restored' && workspaces().worktreeOf(event.data.id) === id)
+				return true;
 			if (event.type === 'workspace.created' && event.data.worktreeId === id) return true;
 			if (!event.stream.startsWith('workspace:')) return false;
 			const source = event.data.id;
@@ -133,6 +138,15 @@ export const workspace = (id: string) => {
 		read: () => {
 			const workspace = workspaces().summary(id);
 			owner = workspace.worktreeId;
+			// Archived conversations can outlive the local repository. Start following Git
+			// only once the conversation is active and has a worktree to show again.
+			// A project has no worktree to watch at all (FDR-012).
+			if (workspace.archivedAt || workspace.repoId === null) {
+				unwatch?.();
+				unwatch = undefined;
+			} else if (notify) {
+				unwatch ??= watchers().watch(owner, notify);
+			}
 			const parents = workspaces().ancestors(id);
 			ancestors = new Set(parents.map((parent) => parent.id));
 			// the agents working in this workspace's directory are part of it: shown in it, as
@@ -161,7 +175,8 @@ export const workspace = (id: string) => {
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
-				git: watchers().state(workspace.worktreeId),
+				// a project has no worktree to watch (FDR-012)
+				git: workspace.repoId === null ? null : watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read
 				finished: terminals().finished(id)
@@ -173,14 +188,16 @@ export const workspace = (id: string) => {
 			};
 			const stopTasks = hub().followBackground(relevant);
 			const stopUsage = workspaces().followUsage(relevant);
-			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
+			notify = changed;
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();
 				transcripts.clear();
 				stopTasks();
 				stopUsage();
-				unwatch();
+				notify = undefined;
+				unwatch?.();
+				unwatch = undefined;
 				unsubscribe();
 			};
 		}
@@ -198,8 +215,40 @@ export const commands = (id: string) =>
 		also: (changed) => hub().followCommands((source) => source === id && changed())
 	}) satisfies View<unknown>;
 
+const archive = () => ({
+	read: () => {
+		const names = new Map(
+			repos()
+				.list()
+				.map((repo) => [repo.id, repo.name])
+		);
+		return workspaces()
+			.archived()
+			.map((entry) => ({
+				...entry,
+				repository: entry.repoId === null ? 'Project' : (names.get(entry.repoId) ?? entry.repoId)
+			}));
+	},
+	affects: (event: GeordiEvent) =>
+		[
+			'workspace.archived',
+			'workspace.restored',
+			'workspace.titled',
+			'repo.registered',
+			'repo.removed'
+		].includes(event.type)
+});
+export type ArchiveEntry = ReturnType<ReturnType<typeof archive>['read']>[number];
+
+/** The usage limits of the agents' subscriptions, for the context meter's tip (`limits.ts`). */
+export const usageLimits = () =>
+	({
+		read: () => limits().read(),
+		also: (changed) => limits().subscribe(changed)
+	}) satisfies View<unknown>;
+
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace, commands };
+export const views = { navigation, workspace, commands, archive, limits: usageLimits };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;

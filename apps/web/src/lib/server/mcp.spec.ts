@@ -510,7 +510,7 @@ describe('installation-wide workspace access', () => {
 		const otherRepo = repos.register(gitRepository()).id;
 		const hiddenRepo = repos.register(gitRepository()).id;
 		const token = workspaces.access.issue('Release assistant', [
-			workspaces.get(caller).repoId,
+			workspaces.get(caller).repoId!,
 			otherRepo
 		]);
 		const other = workspaces.create({ repoId: otherRepo, agent: 'codex', prompt: 'Test it' });
@@ -636,7 +636,7 @@ it('issues tokens only for repositories that exist', () => {
 		expect.objectContaining({ status: 400 })
 	);
 	expect(() => workspaces.access.issue('Unknown', ['made-up'])).toThrow();
-	const repoId = workspaces.get(caller).repoId;
+	const repoId = workspaces.get(caller).repoId!;
 	workspaces.access.issue('Twice', [repoId, repoId]);
 	expect(workspaces.access.list()).toEqual([
 		expect.objectContaining({ name: 'Twice', repoIds: [repoId] })

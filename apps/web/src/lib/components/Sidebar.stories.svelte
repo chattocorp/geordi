@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { expect, fireEvent, waitFor, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
 	import Sidebar from './Sidebar.svelte';
 
@@ -125,6 +125,28 @@
 		access: [],
 		harnesses: null
 	};
+
+	/** Projects (FDR-012) above the repositories; what one started is listed with its repository. */
+	const withProjects: Navigation = {
+		...nav,
+		workspaces: [
+			workspace('project', 'Ship the protocol bump everywhere', {
+				repoId: null,
+				branch: null,
+				status: 'running',
+				working: true,
+				outcome: null
+			}),
+			workspace('project-quiet', 'Triage this week’s issues', { repoId: null, branch: null }),
+			workspace('bump', 'Bump the protocol in the daemon', {
+				parentId: 'project',
+				status: 'running',
+				working: true,
+				outcome: null
+			}),
+			...nav.workspaces
+		]
+	};
 </script>
 
 {#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
@@ -238,4 +260,20 @@
 	}}
 >
 	{@render frame(nav, '/workspaces/plain')}
+</Story>
+
+<Story
+	name="With projects"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Projects')).toBeVisible();
+		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
+		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
+			'title',
+			'Started by the agent in "Ship the protocol bump everywhere"'
+		);
+	}}
+>
+	{@render frame(withProjects, '/workspaces/project')}
 </Story>

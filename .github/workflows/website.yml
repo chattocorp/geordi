@@ -6,6 +6,8 @@ on:
       - apps/website/**
       # The website is drawn with the forge's design system.
       - apps/web/src/routes/layout.css
+      - packages/ui/**
+      - packages/protocol/**
       - pnpm-lock.yaml
       - .github/workflows/website.yml
   workflow_call:

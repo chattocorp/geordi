@@ -1,6 +1,7 @@
 <script module lang="ts">
+	import { expect, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import DiffView from './DiffView.svelte';
+	import DiffView from '@geordi/ui/DiffView.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Diff view', component: DiffView });
 
@@ -28,7 +29,18 @@
 	<div class="overflow-hidden card"><DiffView path="src/values.ts" old={before} new={after} /></div>
 </Story>
 
-<Story name="New file" asChild>
+<Story
+	name="New file"
+	asChild
+	play={async ({ canvasElement }) => {
+		await waitFor(() =>
+			expect(
+				canvasElement.querySelector('diffs-container')?.shadowRoot?.querySelector('code')
+					?.textContent
+			).toContain('# Notes')
+		);
+	}}
+>
 	<div class="overflow-hidden card">
 		<DiffView path="notes.md" old={null} new={notes} />
 	</div>

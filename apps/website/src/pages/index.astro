@@ -1,7 +1,7 @@
 ---
 import Button from '../components/Button.astro';
-import Demo from '../components/Demo.astro';
-import Spinner from '../components/Spinner.astro';
+import Demo from '../components/Demo.svelte';
+import Spinner from '@geordi/ui/Spinner.svelte';
 import Base from '../layouts/Base.astro';
 import { site } from '../site.ts';
 
@@ -130,7 +130,7 @@ const steps = [
 				</p>
 			</div>
 		</div>
-		<Demo />
+		<Demo client:visible />
 	</section>
 
 	<div id="features" class="grid gap-2 lg:grid-cols-12">

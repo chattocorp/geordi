@@ -1,6 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { ReleasePlan } from '@geordi/protocol';
+	import { expect, fn, userEvent } from 'storybook/test';
 	import Changeset from './Changeset.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Changeset', component: Changeset });
@@ -61,12 +62,13 @@
 			}
 		]
 	};
+	const onsave = fn(async () => {});
 	const onopen = () => {};
 </script>
 
 {#snippet pane(plan: ReleasePlan)}
 	<div class="flex h-128 w-full max-w-2xl flex-col overflow-hidden card">
-		<Changeset {plan} {onopen} onallow={onopen} />
+		<Changeset {plan} {onopen} onallow={onopen} {onsave} />
 	</div>
 {/snippet}
 
@@ -85,4 +87,27 @@
 
 <Story name="Not allowed to ask yet" asChild>
 	{@render pane({ ...plan, packages: [], ask: 'sweet status --json' })}
+</Story>
+
+<Story
+	name="Edit a note"
+	asChild
+	play={async ({ canvas }) => {
+		const note = plan.packages[0].notes[1];
+		const edit = canvas.getByRole('button', { name: 'Edit red-bold-otter.md' });
+		await userEvent.click(edit);
+		const field = canvas.getByRole('textbox', { name: 'Change note text' });
+		await expect(field).toHaveValue(note.body);
+		await userEvent.clear(field);
+		await expect(canvas.getByRole('button', { name: 'Save' })).toBeDisabled();
+		await userEvent.type(field, 'Refresh access tokens every five minutes.');
+		await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
+		await expect(onsave).toHaveBeenCalledWith(
+			note.path,
+			note.body,
+			'Refresh access tokens every five minutes.'
+		);
+	}}
+>
+	{@render pane(plan)}
 </Story>

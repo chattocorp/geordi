@@ -1,3 +1,4 @@
+import { projectPath } from './projects.ts';
 import { claimDaemon } from './daemon-owner.ts';
 import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
@@ -42,7 +43,7 @@ import {
 	scrollbackOf,
 	writeTerminal
 } from './terminals.ts';
-import { releasePlan } from './releases.ts';
+import { editReleaseNote, releasePlan } from './releases.ts';
 import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import {
@@ -55,7 +56,14 @@ import {
 import type { Meta } from './host.ts';
 import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
-import { cachedPullBase, markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
+import {
+	cachedPullBase,
+	markReady,
+	mergePull,
+	setAutoMerge,
+	unknownForge,
+	upstream
+} from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
 	startOf,
@@ -75,6 +83,8 @@ const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 const apiUrl = new URL('/mcp', process.env.GEORDI_FORGE_HTTP_URL || 'http://127.0.0.1:3000').href;
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
 /** Where agents' sessions keep what they are told and what they do, so that they outlive this process (ADR-007). */
+/** Where projects' folders are (FDR-012). */
+const projectsDir = process.env.GEORDI_PROJECTS_DIR || join(homedir(), '.geordi', 'projects');
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
@@ -363,6 +373,7 @@ function attend(workspaceId: string, session: Session) {
  */
 const { beginning, startMessage } = turnStarts({
 	worktreesDir,
+	projectsDir,
 	sessions,
 	setups,
 	apiUrl,
@@ -476,6 +487,7 @@ function answer(request: DaemonRequest) {
 		case 'continueWorktree':
 		case 'updateWorktree':
 		case 'removeWorktree':
+		case 'editReleaseNote':
 		case 'config':
 			return inWorktree(worktreePath(worktreesDir, request.repoPath, request.worktreeId), () =>
 				readRequest(request)
@@ -502,6 +514,18 @@ async function readRequest(request: DaemonRequest) {
 		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
+	if (request.kind === 'projectPicture')
+		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
+	if (request.kind === 'closeProject') {
+		// its agents, whose CLIs may still be running there with nothing to do, end; the folder stays
+		const path = projectPath(projectsDir, request.worktreeId);
+		for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
+		for (const session of sessionsIn(path)) {
+			retired.add(session);
+			session.kill();
+		}
+		return null;
+	}
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;
 		const worktree = await removable(worktreesDir, repoPath, worktreeId, force);
@@ -555,24 +579,38 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'prepareWorktree') {
 		const { repoPath, worktreeId, base, branch } = request;
 		// a new one starts from where its upstream stands now, as with a first turn
-		if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+		if (!request.requireBranch && !base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
-		const worktree = await ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
+		const worktree = await ensureWorktree(
+			worktreesDir,
+			repoPath,
+			worktreeId,
+			base,
+			branch,
+			request.requireBranch
+		);
 		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
-		return { path: worktree.path, branch: worktree.branch };
+		return { path: worktree.path, branch: branchOf(worktree) ?? worktree.branch };
 	}
 
 	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
 	switch (request.kind) {
-		case 'changes':
-			return status(worktree, comparisonOrigin(worktree, request));
-		case 'release':
+		case 'changes': {
+			const [changes, unknown] = await Promise.all([
+				status(worktree, comparisonOrigin(worktree, request)),
+				// without it, all the rest still stands
+				unknownForge(request.repoPath).catch(() => null)
+			]);
+			return unknown ? { ...changes, unknownForge: unknown } : changes;
+		}
+		case 'editReleaseNote':
+		case 'release': {
 			// which notes are this workspace's: the files it has added
-			return releasePlan(
+			const plan = await releasePlan(
 				worktree,
 				async () =>
 					new Set(
@@ -582,6 +620,11 @@ async function readRequest(request: DaemonRequest) {
 					),
 				(command) => approvals.has(request.repoPath, command)
 			);
+			if (request.kind === 'release') return plan;
+			editReleaseNote(worktree, plan, request);
+			sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId });
+			return null;
+		}
 		case 'config':
 			return (await configFor(worktree, request)).config;
 		case 'diff':
@@ -599,11 +642,13 @@ async function readRequest(request: DaemonRequest) {
 			return result;
 		}
 		case 'setAutoMerge':
-			return setAutoMerge(worktree, request);
+			return setAutoMerge(worktree, request, (cmd) => approvals.has(request.repoPath, cmd));
 		case 'markReady':
 			return markReady(worktree, request);
 		case 'mergePull': {
-			const status = await mergePull(worktree, request);
+			const status = await mergePull(worktree, request, (cmd) =>
+				approvals.has(request.repoPath, cmd)
+			);
 			// The merge is a new commit upstream: fetching it lets every workspace of the
 			// repository see it (their watchers notice the refs change). Not waited for.
 			if (status === 'merged')

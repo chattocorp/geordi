@@ -4,21 +4,23 @@
 	"type": "module",
 	"scripts": {
 		"acp:probe": "node scripts/acp-probe.mjs",
-		"dev": "GEORDI_DAEMON_TOKEN_FILE=../../.data/daemon-token GEORDI_SESSIONS_DIR=../../.data/sessions GEORDI_FORGE_HTTP_URL=http://localhost:5173 node --watch src/main.ts",
+		"dev": "GEORDI_DAEMON_TOKEN_FILE=../../.data/daemon-token GEORDI_SESSIONS_DIR=../../.data/sessions GEORDI_PROJECTS_DIR=../../.data/projects GEORDI_FORGE_HTTP_URL=http://localhost:5173 node --watch src/main.ts",
 		"start": "node src/main.ts",
 		"check": "tsc",
 		"test": "vitest --run"
 	},
 	"dependencies": {
+		"@agentclientprotocol/claude-agent-acp": "0.107.3",
+		"@agentclientprotocol/codex-acp": "2.7.0",
+		"@agentclientprotocol/sdk": "2.7.0",
+		"@changesets/get-release-plan": "^5.0.2",
 		"@geordi/protocol": "workspace:*",
 		"@lydell/node-pty": "1.2.0-beta.18",
+		"@manypkg/get-packages": "^3.1.0",
 		"@parcel/watcher": "2.6.0",
 		"forges": "^0.3.2",
 		"smol-toml": "1.9.1",
-		"yaml": "2.9.1",
-		"@agentclientprotocol/claude-agent-acp": "0.107.3",
-		"@agentclientprotocol/codex-acp": "2.7.0",
-		"@agentclientprotocol/sdk": "2.7.0"
+		"yaml": "2.9.1"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

@@ -1,6 +1,6 @@
 import type { PullRequest, Upstream } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
-import { actionsFor, standingOf } from './actions.ts';
+import { actionsFor, standingOf } from '@geordi/ui/actions';
 
 const clean = { files: [], uncommitted: 0, unpushed: 0 };
 const file = { path: 'a.txt', status: 'modified' as const, added: 1, removed: 0 };
@@ -252,6 +252,29 @@ describe('standingOf', () => {
 		const ahead = { ...changes, unpushed: 1 };
 		expect(label({ changes: ahead, upstream: upstream() })).toBe('Changes to publish');
 		expect(label({ changes: ahead, upstream: upstream({}) })).toBe('Unpublished changes');
+	});
+
+	it('says when the work has nowhere to go because its forge is not set up', () => {
+		const ahead = {
+			files: [file],
+			uncommitted: 0,
+			unpushed: null,
+			unknownForge: 'git.example.com'
+		};
+		expect(standingOf({ changes: ahead, upstream: null })).toMatchObject({
+			label: 'Forge not set up',
+			hint: { text: expect.stringContaining('git.example.com') }
+		});
+		expect(ids({ changes: ahead, upstream: null })).toEqual([]);
+		// uncommitted work comes first: committing still works
+		expect(label({ changes: { ...ahead, uncommitted: 1 }, upstream: null })).toBe(
+			'Uncommitted changes'
+		);
+		// a local origin, or no work: nothing to say
+		expect(label({ changes: { ...ahead, unknownForge: undefined }, upstream: null })).toBeNull();
+		expect(
+			label({ changes: { ...clean, unknownForge: 'git.example.com' }, upstream: null })
+		).toBeNull();
 	});
 
 	it('puts what is wrong before what is merely unfinished', () => {

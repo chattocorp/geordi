@@ -25,6 +25,7 @@ import { store } from './events/index.ts';
 import { loadSecret } from './secret.ts';
 import { createHub, daemonAdmission } from './daemons.ts';
 import { createJobs } from './jobs.ts';
+import { createLimits } from './limits.ts';
 import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
@@ -284,6 +285,7 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 			void standings().tick(true);
 		},
 		onUsage: (workspaceId, usage) => workspaces().measure(workspaceId, usage),
+		onLimits: (workspaceId, known) => limits().note(workspaces().summary(workspaceId).agent, known),
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.cursor);
@@ -305,6 +307,9 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		}
 	})
 );
+
+/** The usage limits of the agents' subscriptions, as their sessions last said (`createLimits`). */
+export const limits = lazy(() => createLimits());
 
 /** Check every workspace affected by the archive, including agents sharing a worktree. */
 export async function concernsAboutArchiving(id: string) {
@@ -356,6 +361,9 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 				REMOVE_TIMEOUT_MS
 			);
 			workspaces().onBranch(ref.worktreeId, branch);
+		},
+		closeProject: async (projectId) => {
+			await hub().request({ kind: 'closeProject', worktreeId: projectId, project: true });
 		}
 	})(id, discard, actor);
 

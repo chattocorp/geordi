@@ -1012,6 +1012,33 @@ describe('archiving', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
 	});
 
+	it('continues the saved session and replays each restored transcript exactly once', () => {
+		const { store, repos, workspaces, create, dispatch, sent } = setup();
+		const id = create('First');
+		workspaces.record(id, { kind: 'resume', id: 'saved-session' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		for (const message of ['Second', 'Third']) {
+			const history = workspaces.get(id).transcript;
+			workspaces.archive(id);
+			expect(workspaces.archived().map((entry) => entry.id)).toEqual([id]);
+			workspaces.restore(id);
+			workspaces.restore(id);
+			expect(workspaces.archived()).toEqual([]);
+			expect(workspaces.get(id).transcript).toEqual(history);
+			workspaces.send(id, message);
+			expect(sent.at(-1)).toMatchObject({ resumeId: 'saved-session' });
+			workspaces.record(id, { kind: 'turn.completed' });
+		}
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id)).toEqual(workspaces.get(id));
+		expect(
+			replay
+				.get(id)
+				.transcript.filter((item) => item.kind === 'user')
+				.map((item) => item.text)
+		).toEqual(['First', 'Second', 'Third']);
+	});
+
 	it("adds an agent to a workspace at a person's word: in its worktree, and going when it goes", () => {
 		const { workspaces, create, sent } = setup();
 		const lead = create('Lead');
@@ -1497,5 +1524,115 @@ describe('messages with images', () => {
 			workspaces.create({ repoId: repo.id, agent: 'codex', prompt: '', images: ['missing'] })
 		).toThrow();
 		expect(store.readAll()).toHaveLength(count);
+	});
+});
+
+describe('projects (FDR-012)', () => {
+	const setupProject = () => {
+		const context = setup();
+		const project = context.workspaces.create({ repoId: null, agent: 'claude', prompt: 'Lead' });
+		return { ...context, project };
+	};
+	const messageTo = (sent: ForgeMessage[], id: string) =>
+		sent.findLast(
+			(message): message is Extract<ForgeMessage, { type: 'agent.message' }> =>
+				message.type === 'agent.message' && message.workspaceId === id
+		);
+
+	it('belong to no repository, and are told to work in a folder of their own', () => {
+		const { workspaces, sent, project } = setupProject();
+		expect(workspaces.get(project).repoId).toBeNull();
+		const message = messageTo(sent, project)!;
+		expect(message).toMatchObject({ worktreeId: project, project: true });
+		expect(message).not.toHaveProperty('repoPath');
+		expect(message.instructions).toContain('Geordi project');
+		expect(() => workspaces.ref(project)).toThrow();
+		expect(workspaces.locate(project)).toEqual({ worktreeId: project, project: true });
+	});
+
+	it('start agents in any repository they name, as their parent', () => {
+		const { workspaces, repo, project } = setupProject();
+		const refusal = (start: () => unknown) => {
+			try {
+				start();
+			} catch (error) {
+				return (error as { body: { message: string } }).body.message;
+			}
+		};
+		expect(
+			refusal(() => workspaces.agents.start(project, { worktree: 'own', prompt: 'Build' }))
+		).toMatch(/Say which repository/);
+		const { id } = workspaces.agents.start(project, {
+			repository: repo.id,
+			worktree: 'own',
+			prompt: 'Build'
+		});
+		expect(workspaces.get(id)).toMatchObject({ repoId: repo.id, parentId: project, base: null });
+	});
+
+	it('is out of reach of a token for chosen repositories, as it is in none', () => {
+		const { workspaces, repo, project } = setupProject();
+		const token = workspaces.access.issue('Scoped', [repo.id]);
+		const client = workspaces.agents.authenticate(token)!;
+		expect(workspaces.agents.listWorkspaces(client, false).map((w) => w.id)).not.toContain(project);
+		expect(workspaces.agents.listWorkspaces(project, false).map((w) => w.id)).toContain(project);
+	});
+
+	it('start agents alongside the agent of a workspace in a repository, or in themselves', () => {
+		const { workspaces, sent, create, repo, project } = setupProject();
+		const target = create('Someone else’s work');
+		const { id: reviewer } = workspaces.agents.start(project, {
+			worktree: 'own',
+			workspace: target,
+			prompt: 'Review'
+		});
+		expect(workspaces.get(reviewer)).toMatchObject({
+			repoId: repo.id,
+			worktreeId: target,
+			parentId: project
+		});
+		const { id: helper } = workspaces.agents.start(project, { worktree: 'shared', prompt: 'Help' });
+		expect(workspaces.get(helper)).toMatchObject({ repoId: null, worktreeId: project });
+		expect(messageTo(sent, helper)).toMatchObject({ worktreeId: project, project: true });
+		// a person can add a conversation to a project too
+		expect(workspaces.get(workspaces.join(project)).worktreeId).toBe(project);
+		// what works in it goes with it; what it started in a repository stays
+		expect(workspaces.descendants(project).sort()).toEqual(
+			workspaces
+				.sharing(project)
+				.map((w) => w.id)
+				.filter((id) => id !== project)
+				.sort()
+		);
+		// only a project starts agents in other workspaces
+		const lead = create('Lead in a repository');
+		expect(() =>
+			workspaces.agents.start(lead, { worktree: 'own', workspace: target, prompt: 'No' })
+		).toThrow();
+	});
+
+	it('leave other projects alone, and are left alone by them', () => {
+		const { workspaces, project } = setupProject();
+		const other = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Other' });
+		expect(() => workspaces.agents.get(project, other)).toThrow();
+		expect(() => workspaces.agents.stop(project, other)).toThrow();
+		expect(() => workspaces.agents.send(project, other, 'Hi')).toThrow();
+		expect(() => workspaces.agents.readWorkspace(project, other)).toThrow();
+		expect(() =>
+			workspaces.agents.start(project, { worktree: 'own', workspace: other, prompt: 'No' })
+		).toThrow();
+		const seen = workspaces.agents.listWorkspaces(project, false).map((w) => w.id);
+		expect(seen).toContain(project);
+		expect(seen).not.toContain(other);
+	});
+
+	it('supervise any agent, whoever started it', () => {
+		const { workspaces, sent, create, project } = setupProject();
+		const other = create('Someone else’s work');
+		expect(workspaces.agents.get(project, other).id).toBe(other);
+		workspaces.agents.send(project, other, 'Change of plan', true);
+		expect(messageTo(sent, other)?.prompt).toBe('Change of plan');
+		workspaces.agents.stop(project, other);
+		expect(sent.at(-1)).toEqual({ type: 'agent.stop', workspaceId: other });
 	});
 });

@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Badge from './Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Badge', component: Badge });
 </script>

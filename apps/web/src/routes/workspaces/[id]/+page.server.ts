@@ -9,9 +9,9 @@ import type { PageServerLoad } from './$types';
  * not there (any more: the desktop app reopens the page it showed last) leads to a new one.
  */
 export const load: PageServerLoad = ({ params }) => {
-	const { worktreeId } = known(params.id) ?? redirect(307, resolve('/'));
+	const { worktreeId, archivedAt } = known(params.id) ?? redirect(307, resolve('/'));
 	// one whose workspace is archived (or unknown) stands for itself
-	if (worktreeId !== params.id && known(worktreeId)?.archivedAt === null)
+	if (!archivedAt && worktreeId !== params.id && known(worktreeId)?.archivedAt === null)
 		redirect(307, `${resolve('/workspaces/[id]', { id: worktreeId })}?agent=${params.id}`);
 };
 

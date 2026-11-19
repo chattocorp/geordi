@@ -55,3 +55,15 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
 	}
 	return best;
 }
+
+/** `text` cut into runs that were matched (`hit`) and runs that weren't, for highlighting. */
+export function fuzzySegments(text: string, indices: number[]): { text: string; hit: boolean }[] {
+	const segments: { text: string; hit: boolean }[] = [];
+	for (let i = 0; i < text.length; i++) {
+		const hit = indices.includes(i);
+		const last = segments.at(-1);
+		if (last?.hit === hit) last.text += text[i];
+		else segments.push({ text: text[i], hit });
+	}
+	return segments;
+}

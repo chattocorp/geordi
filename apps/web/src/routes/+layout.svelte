@@ -11,15 +11,17 @@
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
-	import { hint, pressed } from '#lib/keys.ts';
+	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
+	import { releaseReview } from '#lib/components/workspace/release-review.svelte.ts';
+	import ReleaseConfirm from '#lib/components/workspace/ReleaseConfirm.svelte';
 	import ArchiveConfirm from '#lib/components/workspace/ArchiveConfirm.svelte';
 	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
-	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
+	import { setTitleBarLead } from '@geordi/ui/TitleBar.svelte';
 	import { connect, connection, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import type { LayoutProps } from './$types';
@@ -220,3 +222,5 @@
 
 <ContextMenu />
 <ArchiveConfirm asking={archiving.asking} />
+
+<ReleaseConfirm asking={releaseReview.asking} />

@@ -6,6 +6,7 @@ import {
 	type AgentCommand,
 	type BackgroundTask,
 	type ContextUsage,
+	type UsageLimit,
 	type DaemonRequest,
 	type DaemonResults,
 	type ForgeMessage,
@@ -47,6 +48,8 @@ type Handlers = {
 	onMessage(message: DaemonMessage): void;
 	/** How full a workspace's agent's context is, as it just said. */
 	onUsage(workspaceId: string, usage: ContextUsage): void;
+	/** The usage limits of a workspace's agent's subscription, as it just said. */
+	onLimits(workspaceId: string, limits: UsageLimit[]): void;
 };
 
 const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
@@ -196,6 +199,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 					for (const listener of commandListeners) listener(id);
 				}
 				if (live.usage) handlers.onUsage(id, live.usage);
+				if (live.limits) handlers.onLimits(id, live.limits);
 				return;
 			}
 			if (message.type === 'response') pending.get(message.id)?.(message);

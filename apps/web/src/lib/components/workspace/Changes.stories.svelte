@@ -2,9 +2,9 @@
 	import { expect, fn } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Panes from '#lib/ui/Panes.svelte';
-	import DiffView from '#lib/components/DiffView.svelte';
+	import DiffView from '@geordi/ui/DiffView.svelte';
 	import { open, singleGroup, type Layout } from '#lib/layout.ts';
-	import Changes from './Changes.svelte';
+	import Changes from '@geordi/ui/Changes.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Changes', component: Changes });
 	const versions: Record<string, [string, string]> = {

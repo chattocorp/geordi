@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -10,8 +11,8 @@
 		standingOf,
 		type WorkspaceAction,
 		type WorkspaceStanding
-	} from '#lib/actions.ts';
-	import { hint, pressed } from '#lib/keys.ts';
+	} from '@geordi/ui/actions';
+	import { hint, pressed } from '@geordi/ui/keys';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks } from '#lib/transcript.ts';
@@ -40,22 +41,23 @@
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
-	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
-	import TitleBar from '#lib/ui/TitleBar.svelte';
+	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
-		mergePull,
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
+		editReleaseNote,
 		jobsReady,
 		openLink,
 		restoreWorktree,
+		restoreWorkspace,
 		runSetup,
 		say,
 		startJobs,
@@ -63,19 +65,21 @@
 		stopJob,
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
+	import { addedNoteCount } from '#lib/release-notes.ts';
 	import { pendingPullAction, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
-	import PullRequestTab from './PullRequestTab.svelte';
-	import PullRequestPane from './PullRequestPane.svelte';
-	import Changes from './Changes.svelte';
-	import DiffStat from '#lib/components/DiffStat.svelte';
+	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
+	import Changes from '@geordi/ui/Changes.svelte';
+	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
-	import WorkspaceActions from './WorkspaceActions.svelte';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 
 	type Props = {
 		/** The workspace as it is now: it comes live, over the page's one connection. */
@@ -86,12 +90,14 @@
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
 
+	/** A project (FDR-012) is conversations and nothing else: no repository, no changes, no terminals. */
+	const project = $derived(workspace.repoId === null);
 	// its repository, as everyone knows it; by its ID until that has come
 	const everything = follow<Navigation>('navigation');
 	const repo = $derived(
 		everything.current?.repos.find((repo) => repo.id === workspace.repoId) ?? {
-			id: workspace.repoId,
-			name: workspace.repoId
+			id: workspace.repoId ?? '',
+			name: workspace.repoId ?? 'Project'
 		}
 	);
 	let columnWidth = $state<number>();
@@ -544,7 +550,7 @@
 			.filter((action) =>
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
-					: (action.id === 'merge-pull' && (merging || mergeConfirmed)) ||
+					: (action.id === 'merge-pull' && mergeConfirmed) ||
 						(!!action.pullNumber && pendingPullAction.has(id)) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
@@ -558,25 +564,23 @@
 	/** It is being archived right now, which takes a moment. */
 	const leaving = $derived(beingArchived.has(id));
 
-	/** The pull request is being merged right now. */
-	let merging = $state(false);
 	// A successful command can arrive before the live view that offers Archive.
 	let mergedPull = $state<string | null>(null);
 	const mergeConfirmed = $derived(mergedPull !== null && mergedPull === pull?.number);
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
-	async function merge() {
-		const number = pull?.number;
-		if (!number || merging || mergeConfirmed) return;
+	let restoringWorkspace = $state(false);
+	async function reopen() {
+		restoringWorkspace = true;
 		mergeProblem = null;
-		merging = true;
 		try {
-			if ((await mergePull(id)) === 'merged') mergedPull = number;
+			await restoreWorkspace(id);
+			if (page.params.id === id && workspace.worktreeId !== id) await invalidateAll();
 		} catch (error) {
-			mergeProblem = problemOf(error, 'Could not merge the pull request');
+			mergeProblem = problemOf(error, 'Could not restore the workspace');
 		} finally {
-			merging = false;
+			restoringWorkspace = false;
 		}
 	}
 
@@ -631,13 +635,15 @@
 		)
 	);
 
-	function act(action: WorkspaceAction) {
+	async function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
 		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
-		else if (action.pullNumber) runPullAction(id, action);
-		else if (action.id === 'merge-pull') merge();
-		else if (action.id === 'restore-worktree') restore();
+		else if (action.pullNumber) {
+			if (action.id === 'merge-pull' && mergeConfirmed) return;
+			mergeProblem = null;
+			if ((await runPullAction(id, action)) === 'merged') mergedPull = action.pullNumber;
+		} else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
@@ -689,9 +695,7 @@
 	{:else if tab === PR && pull}
 		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}
-		{@const added = (git?.release?.packages ?? [])
-			.flatMap((pkg) => pkg.notes)
-			.filter((note) => note.added).length}
+		{@const added = addedNoteCount(git?.release?.packages ?? [])}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
 		<span class="truncate">Changeset</span>
 		{#if added > 0}{@render count(added)}{/if}
@@ -769,11 +773,15 @@
 			onopen={openDiff}
 		/>
 	{:else if tab === PR && pull}
-		<PullRequestPane {pull} />
+		<PullRequestPane {pull}
+			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
 				plan={git.release}
+				onsave={(path, original, body) =>
+					editReleaseNote({ workspaceId: id, path, original, body })}
 				onopen={openDiff}
 				onallow={(command) =>
 					approveRun({ workspaceId: id, commands: [command] }).catch(
@@ -852,7 +860,12 @@
 			/>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
 				<span class="flex shrink-0 items-center gap-1">
-					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
+					<span
+						class={[
+							project ? 'icon-[lucide--folder-kanban]' : 'icon-[lucide--folder-git-2]',
+							'size-3.5'
+						]}
+					></span>
 					{repo.name}
 				</span>
 				{#if workspace.worktree}
@@ -875,7 +888,10 @@
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
-		{:else}
+			<Button onclick={reopen} disabled={restoringWorkspace}
+				>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
+			>
+		{:else if !project}
 			<Button
 				variant="ghost"
 				icon={frame.current.open
@@ -924,7 +940,7 @@
 		bare
 		min={[320, 260]}
 		minRatio={0.5}
-		collapsed={!frame.current.open}
+		collapsed={!frame.current.open || project}
 		bind:ratio={
 			() => 1 - frame.current.side,
 			(ratio) => (frame.current = { ...frame.current, side: 1 - ratio })
@@ -937,7 +953,7 @@
 				bind:clientWidth={columnWidth}
 				class={[
 					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
-					frame.current.open ? 'mr-1' : 'mr-2'
+					frame.current.open && !project ? 'mr-1' : 'mr-2'
 				]}
 			>
 				<Panes

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import TitleBar from './TitleBar.svelte';
+	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import type { Snippet } from 'svelte';
 
 	type Props = {
