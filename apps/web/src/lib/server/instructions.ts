@@ -31,7 +31,7 @@ export function instructionsFor(workspace: {
 
 		'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](/tmp/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too.',
 
-		'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Diagrams cannot load images or follow links.',
+		'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Keep the outer corners of generated SVGs square. Geordi rounds them in the UI. Diagrams cannot load images or follow links.',
 
 		'When you mention another Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.',
 
