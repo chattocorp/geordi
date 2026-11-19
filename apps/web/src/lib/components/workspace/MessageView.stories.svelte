@@ -9,6 +9,14 @@
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
 	const openParent = fn();
+	const openTurn = fn();
+	const changes = {
+		files: [{ path: 'src/format.ts', operation: 'modify' }],
+		added: 1,
+		removed: 1,
+		patch:
+			'diff --git a/src/format.ts b/src/format.ts\n--- a/src/format.ts\n+++ b/src/format.ts\n@@ -1 +1 @@\n-export const label = name;\n+export const label = name.trim();\n'
+	};
 	const stopBackground = fn<(id: string) => Promise<void>>().mockResolvedValue(undefined);
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const reply =
@@ -710,5 +718,31 @@
 					/>{/snippet}
 			</Composer>
 		</div>
+	</div>
+</Story>
+
+<Story
+	name="Completed turn changes"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const summary = await canvas.findByRole('button', { name: /1 file changed/ });
+		await userEvent.click(summary);
+		await expect(openTurn).toHaveBeenCalledWith({ number: 1, diff: changes });
+	}}
+>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="codex"
+			onopenturn={openTurn}
+			blocks={[
+				{ kind: 'user', text: 'Trim whitespace from display names.' },
+				{
+					kind: 'agent',
+					parts: [{ kind: 'text', text: 'Display names now use the trimmed value.' }],
+					changes: { number: 1, diff: changes },
+					took: 18000
+				}
+			]}
+		/>
 	</div>
 </Story>

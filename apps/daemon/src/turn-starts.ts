@@ -155,6 +155,7 @@ export function turnStarts({
 							: (await configFor(worktree, message)).env,
 					instructions: message.instructions,
 					cwd: worktree.path,
+					...(!project && { worktree }),
 					writableRoots: project ? [] : worktree.writableRoots,
 					api: { url: apiUrl }
 				};

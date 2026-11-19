@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
+import { startTurnDiff } from './turn-diff.ts';
 import { removeWorktree } from './remove.ts';
 import {
 	branchOf,
@@ -825,5 +826,43 @@ it('runs Git once for a burst of identical changes requests and reads again afte
 	} finally {
 		if (original === undefined) delete process.env.GIT_TRACE2_EVENT;
 		else process.env.GIT_TRACE2_EVENT = original;
+	}
+});
+
+it('captures net changes across a commit without staging files or including earlier edits', async () => {
+	const repoPath = repo();
+	const base = mkdtempSync(join(tmpdir(), 'geordi-turn-'));
+	try {
+		const wt = await ensureWorktree(base, repoPath, '12345678');
+		const write = (name: string, text: string) => writeFileSync(join(wt.path, name), text);
+		const git = (...args: string[]) =>
+			execFileSync('git', ['-C', wt.path, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8'
+			});
+		write('existing', 'before\n');
+		write('untouched', 'already dirty\n');
+		write('.gitignore', 'ignored\n');
+		git('add', 'existing');
+		const finish = startTurnDiff(wt, base);
+		write('existing', 'after\n');
+		git('add', 'existing');
+		git('commit', '-qm', 'change');
+		write('added', 'one\ntwo\n');
+		write('ignored', 'excluded');
+		const diff = finish();
+		expect(diff).toMatchObject({
+			files: [{ path: 'added' }, { path: 'existing' }],
+			added: 3,
+			removed: 1
+		});
+		expect(diff?.patch).toContain('-before\n+after');
+		expect(git('diff', '--cached', '--name-only')).toBe('');
+		expect(startTurnDiff(wt, base)()).toBeUndefined();
+		const large = startTurnDiff(wt, base);
+		write('large', 'lots of text\n'.repeat(30000));
+		expect(large()).toMatchObject({ files: [{ path: 'large' }], added: 30000, tooLarge: true });
+	} finally {
+		rmSync(base, { recursive: true, force: true });
+		rmSync(repoPath, { recursive: true, force: true });
 	}
 });

@@ -21,6 +21,7 @@ import {
 	type ToolDiff,
 	type ToolInfo,
 	type TurnUsage,
+	type TurnDiff,
 	type WorktreeMode,
 	type WorktreeRef,
 	type ProjectRef
@@ -228,7 +229,7 @@ export type TranscriptItem =
 	 * A turn ends here (`at`): when it began, where that is known, and what it used, where
 	 * its agent said.
 	 */
-	| { kind: 'turn'; startedAt?: string; usage?: TurnUsage; at: string }
+	| { kind: 'turn'; diff?: TurnDiff; startedAt?: string; usage?: TurnUsage; at: string }
 	/**
 	 * Something the agent asked the person, which it waits to hear about. `answers` once it
 	 * was answered; no longer `open` once it was, or the turn ended without.
@@ -711,6 +712,7 @@ export function createWorkspaces(
 					kind: 'turn',
 					...(workspace.turnStartedAt && { startedAt: workspace.turnStartedAt }),
 					...(output.usage && { usage: output.usage }),
+					...(output.diff && { diff: output.diff }),
 					at
 				});
 				delete workspace.turnStartedAt;

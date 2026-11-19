@@ -125,22 +125,8 @@ function fileStates(fields: string[]) {
 	return states;
 }
 
-export async function changes(worktree: Worktree, origin: Origin): Promise<FileChange[]> {
-	const [{ fork }, others] = await Promise.all([comparison(worktree, origin), untracked(worktree)]);
-	return filesSince(worktree, fork, others);
-}
-
-async function filesSince(
-	worktree: Worktree,
-	base: string,
-	others: string[]
-): Promise<FileChange[]> {
-	// With renames found (`-M`), so that a moved file is one change and not two. Git does
-	// that by comparing contents itself: nothing of the worktree's gets to run.
-	const diff = async (format: string) =>
-		(await gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, base)).split('\0');
-
-	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
+/** Pair Git's NUL-delimited --name-status and --numstat results, including rename pairs. */
+export function parseFileChanges(names: string[], fields: string[]): FileChange[] {
 	const states = fileStates(names);
 
 	// `--numstat -z`: counts and the path; a rename has no path there, but two after it.
@@ -160,6 +146,27 @@ async function filesSince(
 			removed: count(removed)
 		});
 	}
+
+	return tracked;
+}
+
+export async function changes(worktree: Worktree, origin: Origin): Promise<FileChange[]> {
+	const [{ fork }, others] = await Promise.all([comparison(worktree, origin), untracked(worktree)]);
+	return filesSince(worktree, fork, others);
+}
+
+async function filesSince(
+	worktree: Worktree,
+	base: string,
+	others: string[]
+): Promise<FileChange[]> {
+	// With renames found (`-M`), so that a moved file is one change and not two. Git does
+	// that by comparing contents itself: nothing of the worktree's gets to run.
+	const diff = async (format: string) =>
+		(await gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, base)).split('\0');
+
+	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
+	const tracked = parseFileChanges(names, fields);
 
 	// Reading files to count their lines is only worth it for a workspace's own handful of new
 	// files, not for a `node_modules` nobody ignored: beyond that, they are just listed.

@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -213,6 +213,55 @@ function begin(
 }
 
 describe('a session', () => {
+	it('keeps the turn baseline while steered and delivers the patch after a disconnect', async () => {
+		const cwd = root();
+		const launch = meta();
+		const gitDir = join(cwd, '.git');
+		try {
+			execFileSync('git', ['init', '-q', cwd]);
+			writeFileSync(join(cwd, 'example'), 'before\n');
+			execFileSync('git', ['-C', cwd, 'add', 'example']);
+			launch.options.cwd = cwd;
+			launch.options.worktree = { path: cwd, branch: 'main', adminDir: gitDir, commonDir: gitDir };
+			let online = true;
+			const {
+				session,
+				events,
+				kinds,
+				ended,
+				dir: launchDir
+			} = begin('slow', { launch, ready: () => online });
+			await until(() => kinds().includes('turn.started'));
+			online = false;
+			writeFileSync(join(cwd, 'example'), 'during\n');
+			session.say({ prompt: 'finish' });
+			await until(() =>
+				readFileSync(join(launchDir, 'out.jsonl'), 'utf8').includes('turn.completed')
+			);
+			online = true;
+			await ended(1);
+			expect(events).toContainEqual(
+				expect.objectContaining({
+					kind: 'turn.completed',
+					diff: expect.objectContaining({
+						added: 1,
+						removed: 1,
+						patch: expect.stringContaining('-before\n+during')
+					})
+				})
+			);
+			session.say({ prompt: 'another turn' });
+			await ended(2);
+			expect(events.filter((event) => event.kind === 'turn.completed').at(-1)).toEqual({
+				kind: 'turn.completed'
+			});
+			session.close();
+			await session.done;
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	});
+
 	it('declines a tool permission request without asking the person', async () => {
 		const { events, ended } = begin('permission');
 		await ended(1);
