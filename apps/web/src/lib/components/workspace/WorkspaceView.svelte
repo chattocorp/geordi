@@ -10,7 +10,7 @@
 		type WorkspaceAction,
 		type WorkspaceStanding
 	} from '#lib/actions.ts';
-	import { modifierKey, sidebarToggle } from '#lib/keys.ts';
+	import { hint, pressed } from '#lib/keys.ts';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks } from '#lib/transcript.ts';
 	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
@@ -641,7 +641,7 @@
 
 <svelte:window
 	onkeydown={(event) => {
-		if (sidebarToggle(event) !== 'right') return;
+		if (!pressed(event, 'toggleSide')) return;
 		event.preventDefault();
 		toggleSide();
 	}}
@@ -858,9 +858,7 @@
 				icon={frame.current.open
 					? 'icon-[lucide--panel-right-close]'
 					: 'icon-[lucide--panel-right-open]'}
-				label="Toggle changes and terminals ({modifierKey()}{modifierKey() === '⌘'
-					? '⌥'
-					: 'Alt+'}B)"
+				label="Toggle changes and terminals ({hint('toggleSide')})"
 				onclick={toggleSide}
 			/>
 		{/if}

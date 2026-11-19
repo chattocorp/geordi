@@ -13,10 +13,9 @@
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
 	import { byRepository, unfolded } from '#lib/family.ts';
-	import { modifierKey } from '#lib/keys.ts';
+	import { hint } from '#lib/keys.ts';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes } from '#lib/overview.ts';
-	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import Badge from '#lib/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
@@ -26,13 +25,20 @@
 	/**
 	 * The sidebar's sheet: where to go (the overview, a new workspace), the workspaces by
 	 * repository, and the settings below. `nav` is what there is, once known; `path` is the
-	 * page on screen, which is marked.
+	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
+	 * repository under its name, and those its agents started under a workspace.
 	 */
 	let {
 		nav,
 		path,
+		folded,
 		lost = false
-	}: { nav: Navigation | undefined; path: string; lost?: boolean } = $props();
+	}: {
+		nav: Navigation | undefined;
+		path: string;
+		folded: { current: string[] };
+		lost?: boolean;
+	} = $props();
 
 	type Item = Navigation['workspaces'][number];
 
@@ -152,16 +158,11 @@
 		dropBefore = undefined;
 	}
 
-	/**
-	 * What is folded away: the workspaces of a repository under its name, and those its
-	 * agents started under a workspace.
-	 */
-	const folded = persisted<string[]>('geordi:folded', []);
 	const toggleFolded = (id: string) =>
 		(folded.current = folded.current.includes(id)
 			? folded.current.filter((other) => other !== id)
 			: [...folded.current, id]);
-	const settingsHint = `${modifierKey()},`;
+	const settingsHint = hint('settings');
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
 

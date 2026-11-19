@@ -3,7 +3,7 @@
 	import MessageView from './MessageView.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
 	import { draft } from '#lib/drafts.svelte.ts';
-	import { modifierKey } from '#lib/keys.ts';
+	import { hint, pressed } from '#lib/keys.ts';
 	import { toBlocks } from '#lib/transcript.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
@@ -79,7 +79,6 @@
 
 	let messages = $state<MessageView>();
 	const toLatest = () => messages?.toLatest();
-	const modifier = modifierKey();
 
 	/**
 	 * Enter says it now (steering the agent if it is working); with Cmd or Ctrl it waits for
@@ -89,7 +88,7 @@
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
 		event.preventDefault();
 		const { form } = event.currentTarget;
-		const mode = running && (event.metaKey || event.ctrlKey) ? 'queue' : 'steer';
+		const mode = running && pressed(event, 'queue') ? 'queue' : 'steer';
 		form?.requestSubmit(form.querySelector<HTMLButtonElement>(`button[value=${mode}]`));
 	}
 </script>
@@ -169,7 +168,7 @@
 								class="invisible hidden pr-1 text-xs whitespace-nowrap text-muted group-focus-within/composer:visible @4xl:block"
 							>
 								{running
-									? `Enter to steer, ${modifier}Enter to queue`
+									? `Enter to steer, ${hint('queue')} to queue`
 									: 'Enter to send, Shift+Enter for a new line'}
 							</p>
 							{#if running}

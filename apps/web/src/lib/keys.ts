@@ -1,26 +1,74 @@
 /**
- * Which sidebar a key press asks to toggle: Cmd+B (Ctrl+B elsewhere than on a Mac) the left
- * one, with Alt/Option the right one. Not while typing in a terminal with Ctrl: there,
- * Ctrl+B belongs to the shell.
+ * Geordi's keyboard shortcuts, all in one place: what each is pressed with, and what it is
+ * called (the settings list them). Every one goes with Cmd on a Mac and Ctrl elsewhere.
  */
-export function sidebarToggle(event: KeyboardEvent): 'left' | 'right' | null {
-	const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-	if (event.code !== 'KeyB' || event.shiftKey) return null;
-	if (!(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return null;
-	if (!mac && (event.target as Element | null)?.closest?.('.xterm')) return null;
-	return event.altKey ? 'right' : 'left';
+type Combo = {
+	/** The physical key (`KeyN`), for letters: the same place on every layout. */
+	code?: string;
+	/** The character (`[`), for punctuation: wherever the layout has it, Option or not. */
+	key?: string;
+	shift?: boolean;
+	alt?: boolean;
+};
+
+export type Shortcut = Combo & { label: string; group: string };
+
+export const shortcuts = {
+	newWorkspace: { code: 'KeyN', label: 'New workspace', group: 'General' },
+	newWorkspaceIn: {
+		code: 'KeyN',
+		shift: true,
+		label: 'New workspace, choosing its repository',
+		group: 'General'
+	},
+	previousWorkspace: { key: '[', label: 'Previous workspace', group: 'General' },
+	nextWorkspace: { key: ']', label: 'Next workspace', group: 'General' },
+	toggleSidebar: { code: 'KeyB', label: 'Toggle the sidebar', group: 'General' },
+	settings: { key: ',', label: 'Open the settings', group: 'General' },
+	toggleSide: {
+		code: 'KeyB',
+		alt: true,
+		label: 'Toggle changes and terminals',
+		group: 'Workspace'
+	},
+	queue: { key: 'Enter', label: 'Queue a message for when the agent is done', group: 'Workspace' },
+	model: { code: 'KeyM', shift: true, label: 'Choose the model', group: 'Workspace' },
+	effort: { code: 'KeyE', shift: true, label: 'Choose the effort', group: 'Workspace' }
+} satisfies Record<string, Shortcut>;
+
+export type ShortcutId = keyof typeof shortcuts;
+
+const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/**
+ * Whether a key press is the shortcut `id`. Not while typing in a terminal with Ctrl
+ * (elsewhere than on a Mac): there, Ctrl and a key belong to the shell.
+ */
+export function pressed(event: KeyboardEvent, id: ShortcutId): boolean {
+	const shortcut: Shortcut = shortcuts[id];
+	const mac = isMac();
+	if (event.isComposing || event.shiftKey !== !!shortcut.shift) return false;
+	if (!(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return false;
+	if (shortcut.code ? event.code !== shortcut.code : event.key !== shortcut.key) return false;
+	// a character may take Option to type (`[` on a German Mac): only letters care about Alt
+	if (shortcut.code && event.altKey !== !!shortcut.alt) return false;
+	return mac || !(event.target as Element | null)?.closest?.('.xterm');
 }
 
-/** Whether a key press asks for the settings: Cmd+, (Ctrl+, elsewhere than on a Mac). */
-export function settingsShortcut(event: KeyboardEvent): boolean {
-	const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-	if (event.key !== ',' || event.altKey || event.shiftKey) return false;
-	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+/** How a shortcut is written, as people know it on their platform: `⌥⌘B`, `Ctrl+Alt+B`. */
+export function hint(id: ShortcutId): string {
+	const shortcut: Shortcut = shortcuts[id];
+	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
+	if (isMac()) return `${shortcut.alt ? '⌥' : ''}${shortcut.shift ? '⇧' : ''}⌘${key}`;
+	return ['Ctrl', shortcut.alt && 'Alt', shortcut.shift && 'Shift', key].filter(Boolean).join('+');
 }
 
-/** The modifier key for shortcuts, as people know it on their platform. */
-export const modifierKey = () =>
-	typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+/** The shortcuts by group, in the order they are defined, for listing. */
+export const shortcutGroups = () =>
+	Map.groupBy(
+		Object.entries(shortcuts) as [ShortcutId, Shortcut][],
+		([, shortcut]) => shortcut.group
+	);
 
 /** Textarea keydown handler: Enter submits the form, Shift+Enter inserts a newline. */
 export function submitOnEnter(event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
@@ -29,29 +77,11 @@ export function submitOnEnter(event: KeyboardEvent & { currentTarget: HTMLTextAr
 	event.currentTarget.form?.requestSubmit();
 }
 
-/** Cmd (Ctrl elsewhere than on a Mac) with a key, Shift if asked, and no other modifier. */
-function command(event: KeyboardEvent, code: string, shift = false): boolean {
-	const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-	if (event.code !== code || event.altKey || event.shiftKey !== shift || event.isComposing)
-		return false;
-	return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
-}
-
-/** Cmd+N (Ctrl+N elsewhere than on a Mac) starts a workspace or chooses its repository. */
-export const newWorkspaceShortcut = (event: KeyboardEvent) => command(event, 'KeyN');
-
-/** Cmd+Shift+N (Ctrl+Shift+N) starts a workspace, beginning with which repository. */
-export const repoShortcut = (event: KeyboardEvent) => command(event, 'KeyN', true);
-
-/**
- * Cmd+Shift+M (Ctrl+Shift+M) chooses the model, Cmd+Shift+E (Ctrl+Shift+E) the effort, of
- * the composer in use.
- */
+/** The model and effort shortcuts, for the composer in use: with several on screen, the one typed in. */
 export const modelShortcut = (event: KeyboardEvent, at: Element) =>
-	command(event, 'KeyM', true) && inSameForm(event, at);
+	pressed(event, 'model') && inSameForm(event, at);
 export const effortShortcut = (event: KeyboardEvent, at: Element) =>
-	command(event, 'KeyE', true) && inSameForm(event, at);
+	pressed(event, 'effort') && inSameForm(event, at);
 
-/** Whether a key was pressed in the form `at` is in: with several on screen, the one in use. */
 const inSameForm = (event: KeyboardEvent, at: Element) =>
 	!!at.closest('form')?.contains(event.target as Node | null);

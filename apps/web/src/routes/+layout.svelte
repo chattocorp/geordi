@@ -11,13 +11,8 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
-	import {
-		modifierKey,
-		newWorkspaceShortcut,
-		repoShortcut,
-		settingsShortcut,
-		sidebarToggle
-	} from '#lib/keys.ts';
+	import { inSidebarOrder, stepThrough } from '#lib/family.ts';
+	import { hint, pressed } from '#lib/keys.ts';
 	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
@@ -60,7 +55,22 @@
 	// Leave room for the conversation and its tools in smaller windows.
 	const maxWidth = $derived(Math.max(240, Math.min(720, (innerWidth.current ?? 1320) - 600)));
 	const clampWidth = (width: number) => Math.round(Math.min(maxWidth, Math.max(240, width)));
-	const toggleHint = `Toggle the sidebar (${modifierKey()}B)`;
+	const toggleHint = `Toggle the sidebar (${hint('toggleSidebar')})`;
+	/** What the sidebar has folded away: also what the previous and next workspace skip. */
+	const folded = persisted<string[]>('geordi:folded', []);
+
+	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
+	function stepWorkspace(step: 1 | -1) {
+		const all = nav.current;
+		if (!all) return;
+		const order = inSidebarOrder(
+			all.workspaces,
+			all.repos.map(({ id }) => id),
+			folded.current
+		);
+		const to = stepThrough(order, viewed, step);
+		if (to) void goto(resolve('/workspaces/[id]', { id: to.id }));
+	}
 
 	function resize(event: PointerEvent & { currentTarget: HTMLElement }) {
 		const handle = event.currentTarget;
@@ -94,15 +104,19 @@
 <svelte:window
 	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
-		if (newWorkspaceShortcut(event) || repoShortcut(event)) {
+		const newIn = pressed(event, 'newWorkspaceIn');
+		if (newIn || pressed(event, 'newWorkspace')) {
 			event.preventDefault();
 			if (event.repeat) return;
-			if (repoShortcut(event)) pickRepo();
+			if (newIn) pickRepo();
 			if (page.url.pathname !== resolve('/')) void goto(resolve('/'));
-		} else if (settingsShortcut(event)) {
+		} else if (pressed(event, 'previousWorkspace') || pressed(event, 'nextWorkspace')) {
+			event.preventDefault();
+			stepWorkspace(pressed(event, 'nextWorkspace') ? 1 : -1);
+		} else if (pressed(event, 'settings')) {
 			event.preventDefault();
 			openSettings();
-		} else if (sidebarToggle(event) === 'left') {
+		} else if (pressed(event, 'toggleSidebar')) {
 			event.preventDefault();
 			toggleSidebar();
 		}
@@ -159,7 +173,7 @@
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
 			<div class="mb-2 ml-2 flex min-h-0 flex-1">
-				<Sidebar {lost} nav={nav.current} path={page.url.pathname} />
+				<Sidebar {lost} nav={nav.current} path={page.url.pathname} {folded} />
 			</div>
 
 			<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->
