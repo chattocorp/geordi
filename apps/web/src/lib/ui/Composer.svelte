@@ -153,7 +153,13 @@
 	}
 
 	function keydown(event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
-		if (shown.length && !event.isComposing && !event.altKey && !event.metaKey && !event.ctrlKey) {
+		const plainKey = !event.isComposing && !event.altKey && !event.metaKey && !event.ctrlKey;
+		if (offered && plainKey && event.key === 'Tab' && !event.shiftKey) {
+			event.preventDefault();
+			takeSuggestion(offered, false);
+			return;
+		}
+		if (shown.length && plainKey) {
 			const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
 			if (step) {
 				event.preventDefault();
