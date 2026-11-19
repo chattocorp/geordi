@@ -5,6 +5,7 @@
 	"scripts": {
 		"dev": "astro dev",
 		"build": "astro build",
+		"test": "astro build && node --test tests/demo.test.mjs",
 		"preview": "astro preview",
 		"check": "astro check && svelte-check --tsconfig ./tsconfig.json",
 		"deploy": "astro build && wrangler deploy"
@@ -18,6 +19,7 @@
 		"@iconify/tailwind4": "^1.2.3",
 		"@tailwindcss/vite": "^4.3.0",
 		"astro": "7.4.12",
+		"playwright": "catalog:",
 		"svelte": "^5.57.2",
 		"svelte-check": "^4.6.0",
 		"tailwindcss": "^4.3.0",
