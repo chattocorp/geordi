@@ -135,7 +135,8 @@
 							]}>{check.name}</span
 						>
 						<span class="shrink-0 text-xs whitespace-nowrap text-muted tabular-nums">
-							{label(check)}{timed(check) ? ` · ${duration(now - check.startedAt)}` : ''}
+							<span class:sr-only={label(check) === 'Running'}>{label(check)}</span>
+							{#if timed(check)}{duration(now - check.startedAt)}{/if}
 						</span>
 					</svelte:element>
 				</li>

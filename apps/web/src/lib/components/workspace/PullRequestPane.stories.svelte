@@ -122,7 +122,7 @@
 	play={async ({ canvas }) => {
 		const list = canvas.getByRole('region', { name: 'Checks' }).querySelector('ul')!;
 		await expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
-		await expect(list.firstElementChild).toHaveTextContent(/Running · \d/);
+		await expect(list.firstElementChild).toHaveTextContent(/\d+[smh]$/);
 		list.scrollTop = list.scrollHeight;
 		await expect(list.scrollTop).toBeGreaterThan(0);
 		list.scrollTop = 0;
