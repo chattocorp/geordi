@@ -21,9 +21,8 @@ function port(name) {
 const web = port('GEORDI_PORT_WEB');
 const daemon = port('GEORDI_PORT_DAEMON');
 const storybook = port('GEORDI_PORT_STORYBOOK');
-// Installation has no server. Use that job's assigned port for browser updates,
-// rather than assuming a workspace's allocations stay contiguous as jobs are added.
-const live = port('GEORDI_PORT_DESKTOP_INSTALL');
+// Reset runs with the web server stopped, so its port can serve browser updates.
+const live = port('GEORDI_PORT_RESET');
 if (new Set([web, daemon, storybook, live]).size !== 4) {
 	throw new Error('The workspace jobs must have distinct assigned ports.');
 }
