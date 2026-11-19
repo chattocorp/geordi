@@ -722,7 +722,7 @@
 	play={async ({ canvas, userEvent }) => {
 		const summary = await canvas.findByRole('button', { name: /1 file changed/ });
 		await userEvent.click(summary);
-		await expect(openTurn).toHaveBeenCalledWith(changes);
+		await expect(openTurn).toHaveBeenCalledWith({ number: 1, diff: changes });
 	}}
 >
 	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
@@ -734,7 +734,7 @@
 				{
 					kind: 'agent',
 					parts: [{ kind: 'text', text: 'Display names now use the trimmed value.' }],
-					changes,
+					changes: { number: 1, diff: changes },
 					took: 18000
 				}
 			]}

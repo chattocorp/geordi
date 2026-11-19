@@ -15,7 +15,7 @@
 	import { hint, pressed } from '@geordi/ui/keys';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
-	import { subagentBlocks } from '#lib/transcript.ts';
+	import { subagentBlocks, type TurnChanges } from '#lib/transcript.ts';
 	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
 	import { agentName } from '#lib/format.ts';
 	import ConversationTab from './ConversationTab.svelte';
@@ -73,7 +73,7 @@
 	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
 	import PatchView from '../PatchView.svelte';
-	import type { TurnDiff } from '@geordi/protocol';
+
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
@@ -126,7 +126,7 @@
 	const CHAT = 'chat';
 	const PR = 'pr';
 	const TURN = 'turn-changes';
-	let selectedTurn = $state.raw<TurnDiff>();
+	let selectedTurn = $state.raw<TurnChanges>();
 	const CHANGES = 'changes';
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
@@ -459,7 +459,7 @@
 		if (area !== 'main' && !frame.current.open) toggleSide();
 		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath);
 	};
-	function openTurn(changes: TurnDiff) {
+	function openTurn(changes: TurnChanges) {
 		selectedTurn = changes;
 		showTab(TURN);
 	}
@@ -693,7 +693,7 @@
 	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
 	{#if tab === TURN}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
-		<span>Turn changes</span>
+		<span>Turn {selectedTurn?.number} changes</span>
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -779,11 +779,20 @@
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
 	{#if tab === TURN && selectedTurn}
-		<div class="scroller space-y-3 p-4">
-			<p class="text-xs text-muted">
-				Worktree changes during this turn, including any concurrent edits.
-			</p>
-			<PatchView diff={selectedTurn} showPaths />
+		<div class="scroller px-3 pb-4">
+			{#key selectedTurn}
+				<header
+					class="flex items-center gap-3 px-2 py-3"
+					title="Worktree changes during this turn, including concurrent edits"
+				>
+					<h2 class="text-base heading">
+						{selectedTurn.diff.files.length}
+						{selectedTurn.diff.files.length === 1 ? 'file' : 'files'} changed
+					</h2>
+					<DiffStat added={selectedTurn.diff.added} removed={selectedTurn.diff.removed} />
+				</header>
+				<PatchView diff={selectedTurn.diff} collapsible />
+			{/key}
 		</div>
 	{:else if tab === CHANGES}
 		<Changes

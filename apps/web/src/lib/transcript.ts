@@ -1,6 +1,8 @@
 import type { TurnDiff, TurnUsage } from '@geordi/protocol';
 import type { SubagentItem, TranscriptItem } from '#lib/server/workspaces.ts';
 
+export type TurnChanges = { number: number; diff: TurnDiff };
+
 type Tool = Extract<TranscriptItem, { kind: 'tool' }>;
 
 export type Part =
@@ -23,12 +25,13 @@ export type Block =
 	 * Of the turns of this reply, together: what they `used`, where their agent said, and how
 	 * long they `took` (ms), where they said when they began.
 	 */
-	| { kind: 'agent'; parts: Part[]; changes?: TurnDiff; usage?: TurnUsage; took?: number }
+	| { kind: 'agent'; parts: Part[]; changes?: TurnChanges; usage?: TurnUsage; took?: number }
 	| { kind: 'note'; text: string };
 
 /** Groups a flat transcript into turns, merging consecutive tool calls into one part. */
 export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): Block[] {
 	const blocks: Block[] = [];
+	let turnNumber = 0;
 
 	for (const item of transcript) {
 		if (item.kind === 'message') {
@@ -54,11 +57,12 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 		}
 
 		if (item.kind === 'turn') {
+			turnNumber++;
 			let agent = blocks.at(-1);
 			if (item.diff && (agent?.kind !== 'agent' || agent.changes))
 				blocks.push((agent = { kind: 'agent', parts: [] }));
 			if (agent?.kind !== 'agent') continue;
-			if (item.diff) agent.changes = item.diff;
+			if (item.diff) agent.changes = { number: turnNumber, diff: item.diff };
 			if (item.usage) agent.usage = addUsage(agent.usage, item.usage);
 			if (item.startedAt)
 				agent.took = (agent.took ?? 0) + Date.parse(item.at) - Date.parse(item.startedAt);
