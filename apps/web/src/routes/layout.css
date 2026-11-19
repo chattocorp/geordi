@@ -198,7 +198,7 @@
  */
 @utility sheet {
 	--pane: var(--bg);
-	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line/60;
+	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line;
 }
 /*
  * A sheet for what is beside the one that is read (the sidebar, a workspace's changes and
@@ -206,7 +206,7 @@
  */
 @utility sheet-quiet {
 	--pane: var(--sidebar);
-	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/60;
+	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/30;
 }
 
 @utility dialog-actions {
