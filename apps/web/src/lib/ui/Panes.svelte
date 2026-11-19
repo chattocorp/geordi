@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { fade } from 'svelte/transition';
+	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import {
 		groupsOf,
 		close,
@@ -130,90 +130,40 @@
 		</Split>
 	{:else}
 		<section class="flex min-h-0 min-w-0 flex-1 flex-col">
-			<div
-				role="tablist"
-				tabindex="-1"
-				class="pane-bar gap-1 overflow-x-auto px-2"
-				ondragover={(event) => over(event, n.id, 'center', null)}
-				ondrop={drop}
-			>
-				{#each n.tabs as id, index (id)}
-					{@const active = id === n.active}
-					{@const here = droppable && target?.group === n.id && target.before !== undefined}
-					<!-- The tab and its close button are siblings: a tab can't hold another control. -->
-					<div
-						role="presentation"
-						draggable="true"
-						transition:fade={{ duration: 120 }}
-						ondragstart={(event) => {
-							drag.tab = id;
-							drag.source = self;
-							event.dataTransfer?.setData('text/plain', id);
-						}}
-						ondragend={endDrag}
-						ondragover={(event) => overTab(event, n, index)}
-						ondrop={drop}
-						onmousedown={(event) => {
-							// the middle button closes; it is not for scrolling by here
-							if (event.button === 1) event.preventDefault();
-						}}
-						onauxclick={(event) => {
-							if (event.button !== 1 || !closable(id)) return;
-							event.preventDefault();
-							onchange(close(layout, id));
-						}}
-						class={[
-							// as much room before what it starts with as after what it ends with
-							'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
-							closable(id) ? 'pr-1' : 'pr-2',
-							active ? 'tab-active' : 'tab-inactive',
-							// where the dragged tab would go: a line before this one, or after the last
-							here && target?.before === id && 'tab-drop-before',
-							here && target?.before === null && index === n.tabs.length - 1 && 'tab-drop-after'
-						]}
-					>
-						<button
-							type="button"
-							role="tab"
-							id="{uid}-{n.id}-tab-{index}"
-							aria-selected={active}
-							aria-controls="{uid}-{n.id}-panel-{index}"
-							onclick={() => onchange(open(layout, id))}
-							class="flex min-w-0 flex-1 items-center gap-2 self-stretch"
-						>
-							{@render tab(id)}
-						</button>
-						{#if closable(id)}
-							<Button
-								variant="ghost"
-								size="sm"
-								icon="icon-[lucide--x]"
-								label="Close"
-								onclick={() => onchange(close(layout, id))}
-								class={[
-									'opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100',
-									active && 'opacity-60'
-								]}
-							/>
-						{/if}
-					</div>
-				{/each}
-				{#if newTab || (actions && groupsOf(layout)[0]?.id === n.id)}
-					<!-- at the far end, where it stays however many tabs there are to scroll through -->
-					<div class="sticky right-0 ml-auto flex shrink-0 items-center gap-1 bg-pane pl-2">
-						{#if actions && groupsOf(layout)[0]?.id === n.id}{@render actions()}{/if}
-						{#if newTab}
-							<Button
-								variant="ghost"
-								size="sm"
-								icon="icon-[lucide--plus]"
-								label={newLabel}
-								onclick={() => onchange(open(layout, newTab(), n.id))}
-							/>
-						{/if}
-					</div>
+			{#snippet barActions()}
+				{#if actions && groupsOf(layout)[0]?.id === n.id}{@render actions()}{/if}
+				{#if newTab}
+					<Button
+						variant="ghost"
+						size="sm"
+						icon="icon-[lucide--plus]"
+						label={newLabel}
+						onclick={() => onchange(open(layout, newTab(), n.id))}
+					/>
 				{/if}
-			</div>
+			{/snippet}
+			<PaneTabs
+				prefix="{uid}-{n.id}"
+				tabs={n.tabs}
+				current={n.active}
+				{tab}
+				actions={newTab || (actions && groupsOf(layout)[0]?.id === n.id) ? barActions : undefined}
+				onselect={(id) => onchange(open(layout, id))}
+				onclose={(id) => onchange(close(layout, id))}
+				{closable}
+				before={droppable && target?.group === n.id ? target.before : undefined}
+				drag={{
+					start(event, id) {
+						drag.tab = id;
+						drag.source = self;
+						event.dataTransfer?.setData('text/plain', id);
+					},
+					end: endDrag,
+					overTab: (event, index) => overTab(event, n, index),
+					overBar: (event) => over(event, n.id, 'center', null),
+					drop
+				}}
+			/>
 
 			<div
 				role="presentation"

@@ -9,7 +9,7 @@
 	import { hint, shortcutGroups } from '@geordi/ui/keys';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
-	import TitleBar from '#lib/ui/TitleBar.svelte';
+	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Segmented from '#lib/ui/Segmented.svelte';
 	import { follow } from '#lib/live.svelte.ts';

@@ -4,6 +4,8 @@
 	import type { Changes, Upstream } from '@geordi/protocol';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
+	import TitleBar from '@geordi/ui/TitleBar.svelte';
+	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
@@ -75,15 +77,20 @@
 	let frame: HTMLElement;
 	let pullInfo: HTMLDialogElement;
 	const narrow = new MediaQuery('(max-width: 40rem)', true);
+	const uid = $props.id();
+	let opened = $state<string[]>([]);
 	let selected = $state<string | null>(null);
 	let diffReady = $state(false);
 	function openDiff(path: string) {
 		if (selected === path) return;
+		const tabs = opened.length ? opened : file ? [file.path] : [];
+		opened = tabs.includes(path) ? tabs : [...tabs, path];
 		diffReady = false;
 		selected = path;
 		if (step === last) schedule();
 	}
 	const file = $derived(files.find((f) => f.path === selected) ?? (step >= 4 ? files[1] : null));
+	const diffTabs = $derived(opened.length ? opened : [file?.path ?? 'Diff']);
 	const branch = 'geordi/return-after-sign-in';
 	const changedFiles = $derived(files.filter((file) => step >= file.step));
 	const changes: Changes = $derived({
@@ -169,6 +176,7 @@
 			queue = [];
 			firstMessage = message;
 			selected = null;
+			opened = [];
 		}
 		schedule();
 	}
@@ -185,6 +193,7 @@
 			if (pullInfo.open) pullInfo.close();
 			playing = !motion.matches;
 			selected = null;
+			opened = [];
 			editing = false;
 			draft = '';
 			stopped = false;
@@ -213,7 +222,7 @@
 	aria-label="A Geordi workspace, playing through a piece of work"
 >
 	<!-- the window's title bar: what the workspace is, and the ribbon that says what is next -->
-	<div class="flex h-14 items-center gap-3 pr-3 pl-5">
+	<TitleBar>
 		<span class="flex gap-2" aria-hidden="true">
 			<span class="size-3 rounded-full bg-muted/25"></span>
 			<span class="size-3 rounded-full bg-muted/25"></span>
@@ -242,7 +251,7 @@
 				/>
 			</div>
 		{/if}
-	</div>
+	</TitleBar>
 
 	<div class="flex h-120 gap-2 px-2 pb-2 sm:h-136">
 		<!-- the sidebar: every workspace, and how its work stands -->
@@ -296,137 +305,173 @@
 
 		<!-- the conversation -->
 		<section class="flex min-w-0 flex-1 flex-col sheet">
-			<div class="pane-bar gap-1 px-2">
-				<p class="item h-7 tab-active px-2">
-					<span class="icon-[lucide--sparkles] size-3.5 text-claude"></span>
-					Claude
-				</p>
-			</div>
-			<div bind:this={transcript} class="scroller flex min-h-0 flex-1 flex-col gap-4 px-5 pb-4">
-				{#if step === 0}<p class="m-auto max-w-xs text-center text-sm text-balance text-muted">
-						Say what you want done.
-					</p>
-				{:else}
-					<div class="mt-auto pt-4"><UserMessage text={firstMessage} /></div>
-					<AgentMessage agent="claude">
-						{#if step >= 7}
-							<TurnActivity
-								summary={`${calls.length} tool calls`}
-								expanded={activityOpen}
-								ontoggle={() => {
-									activityOpen = !activityOpen;
-									schedule();
-								}}
-							/>
-						{/if}
-						{#if calls.length && (step < 7 || activityOpen)}<ToolGroup
-								tools={calls}
-								live={running}
-							/>{/if}
-						{#if step === 1 && running}<p class="flex h-7 items-center gap-2 text-xs text-muted">
-								<Spinner /> Working
-							</p>{/if}
-						{#if step >= 7}
-							<AgentText text={`${replyStart} \`returnTo\`${replyEnd}`}>
-								<div class="prose"><p>{replyStart} <code>returnTo</code>{replyEnd}</p></div>
-							</AgentText>
-						{/if}
-						{#if step >= 8}<p class="flex items-center gap-2 text-sm text-muted">
-								<span class="icon-[lucide--git-pull-request] size-3.5"></span>Opened pull request
-								#412
-							</p>{/if}
-					</AgentMessage>
-					{#if stopped}<p class="text-xs text-muted" role="status">Agent stopped</p>{/if}
-					{#each replies as text, index (index)}<UserMessage {text} />{/each}
-					{#each queue as text, index (index)}
-						<div class="ml-auto message ring-1 ring-line">
-							<p class="label">Queued</p>
-							<p class="whitespace-pre-wrap">{text}</p>
-						</div>
-					{/each}
-				{/if}
-			</div>
-			<div class="mx-3 mb-3">
-				<ReplyComposer
-					bind:value={draft}
-					disabled={!hydrated}
-					{running}
-					empty={step === 0}
-					form={{
-						onsubmit: submitReply,
-						onfocusin: () => {
-							if (step === 0) {
+			<PaneTabs prefix="{uid}-chat" tabs={['Claude']} current="Claude">
+				{#snippet tab(id: string)}<span class="icon-[lucide--sparkles] size-3.5 text-claude"
+					></span>{id}{/snippet}
+			</PaneTabs>
+			<div
+				role="tabpanel"
+				id="{uid}-chat-panel-0"
+				aria-labelledby="{uid}-chat-tab-0"
+				class="flex min-h-0 flex-1 flex-col"
+			>
+				<div bind:this={transcript} class="scroller flex min-h-0 flex-1 flex-col gap-4 px-5 pb-4">
+					{#if step === 0}<p class="m-auto max-w-xs text-center text-sm text-balance text-muted">
+							Say what you want done.
+						</p>
+					{:else}
+						<div class="mt-auto pt-4"><UserMessage text={firstMessage} /></div>
+						<AgentMessage agent="claude">
+							{#if step >= 7}
+								<TurnActivity
+									summary={`${calls.length} tool calls`}
+									expanded={activityOpen}
+									ontoggle={() => {
+										activityOpen = !activityOpen;
+										schedule();
+									}}
+								/>
+							{/if}
+							{#if calls.length && (step < 7 || activityOpen)}<ToolGroup
+									tools={calls}
+									live={running}
+								/>{/if}
+							{#if step === 1 && running}<p class="flex h-7 items-center gap-2 text-xs text-muted">
+									<Spinner /> Working
+								</p>{/if}
+							{#if step >= 7}
+								<AgentText text={`${replyStart} \`returnTo\`${replyEnd}`}>
+									<div class="prose"><p>{replyStart} <code>returnTo</code>{replyEnd}</p></div>
+								</AgentText>
+							{/if}
+							{#if step >= 8}<p class="flex items-center gap-2 text-sm text-muted">
+									<span class="icon-[lucide--git-pull-request] size-3.5"></span>Opened pull request
+									#412
+								</p>{/if}
+						</AgentMessage>
+						{#if stopped}<p class="text-xs text-muted" role="status">Agent stopped</p>{/if}
+						{#each replies as text, index (index)}<UserMessage {text} />{/each}
+						{#each queue as text, index (index)}
+							<div class="ml-auto message ring-1 ring-line">
+								<p class="label">Queued</p>
+								<p class="whitespace-pre-wrap">{text}</p>
+							</div>
+						{/each}
+					{/if}
+				</div>
+				<div class="mx-3 mb-3">
+					<ReplyComposer
+						bind:value={draft}
+						disabled={!hydrated}
+						{running}
+						empty={step === 0}
+						form={{
+							onsubmit: submitReply,
+							onfocusin: () => {
+								if (step === 0) {
+									editing = true;
+									clearTimeout(timer);
+								}
+							},
+							oninput: () => {
 								editing = true;
 								clearTimeout(timer);
+							},
+							onfocusout: (event) => {
+								if (
+									!event.currentTarget.contains(event.relatedTarget as Node | null) &&
+									(step === 0 ? message.startsWith(draft) : !draft)
+								) {
+									editing = false;
+									schedule();
+								}
 							}
-						},
-						oninput: () => {
-							editing = true;
-							clearTimeout(timer);
-						},
-						onfocusout: (event) => {
-							if (
-								!event.currentTarget.contains(event.relatedTarget as Node | null) &&
-								(step === 0 ? message.startsWith(draft) : !draft)
-							) {
-								editing = false;
-								schedule();
-							}
-						}
-					}}
-					onstop={stopDemo}
-				>
-					{#snippet options()}<span class="inline-flex items-center gap-1.5 text-sm text-muted"
-							><AgentAvatar agent="claude" bare />Claude</span
-						>{/snippet}
-				</ReplyComposer>
+						}}
+						onstop={stopDemo}
+					>
+						{#snippet options()}<span class="inline-flex items-center gap-1.5 text-sm text-muted"
+								><AgentAvatar agent="claude" bare />Claude</span
+							>{/snippet}
+					</ReplyComposer>
+				</div>
 			</div>
 		</section>
 
 		<!-- beside it: what has changed, and one of the diffs -->
 		<div class="hidden w-80 shrink-0 flex-col gap-2 md:flex xl:w-96">
 			<section class="flex min-h-0 flex-2 flex-col sheet-quiet">
-				<div class="pane-bar px-2">
-					<p class="item h-7 tab-active px-2">Changes</p>
+				<PaneTabs prefix="{uid}-changes" tabs={['Changes']} current="Changes">
+					{#snippet tab(id: string)}{id}{/snippet}
+				</PaneTabs>
+				<div
+					role="tabpanel"
+					id="{uid}-changes-panel-0"
+					aria-labelledby="{uid}-changes-tab-0"
+					class="flex min-h-0 flex-1 flex-col"
+				>
+					<ChangesPane {git} onopen={openDiff} />
 				</div>
-				<ChangesPane {git} onopen={openDiff} />
 			</section>
 			<section class="flex min-h-0 flex-3 flex-col sheet-quiet">
-				<div class="pane-bar px-2">
-					<p class="item h-7 tab-active px-2 code-dense" hidden={!file}>
-						{file?.path.split('/').at(-1)}
-					</p>
-					<p class="item h-7 px-2 tab-inactive" hidden={!!file}>Diff</p>
-				</div>
-				<p class="px-3.5 py-2 text-sm text-muted" hidden={!!file}>
-					Diffs fill in as the agent writes.
-				</p>
-				{#if selected && file}
-					{#key file.path}
-						<div class="scroller">
-							{#if !diffReady}<p
-									class="flex items-center gap-2 p-5 text-sm text-muted"
-									role="status"
-								>
-									<Spinner label="Loading the diff" /> Loading the diff…
-								</p>{/if}
-							<DiffView path={file.path} old={file.old} new={file.new} bind:ready={diffReady} />
-						</div>
-					{/key}
-				{:else if file}
-					<pre
-						class="overflow-hidden py-1 code-dense">{#each loginDiff as [sign, line], index (index)}<span
-								class={[
-									'block px-3.5',
-									sign === '+' && 'bg-ok/12',
-									sign === '-' && 'bg-danger-soft'
-								]}
-								><span
-									class={['inline-block w-4 select-none', sign === '+' ? 'text-ok' : 'text-danger']}
-									>{sign.trim()}</span
-								>{line}</span
-							>{/each}</pre>
-				{/if}
+				<PaneTabs
+					prefix="{uid}-diff"
+					tabs={diffTabs}
+					current={file?.path ?? 'Diff'}
+					onselect={(id) => {
+						if (id !== 'Diff') openDiff(id);
+					}}
+				>
+					{#snippet tab(id: string)}<span class={['truncate', file && 'code-dense']}
+							>{id.split('/').at(-1)}</span
+						>{/snippet}
+				</PaneTabs>
+				{#each diffTabs as path, index (path)}
+					<div
+						role="tabpanel"
+						id="{uid}-diff-panel-{index}"
+						aria-labelledby="{uid}-diff-tab-{index}"
+						hidden={path !== (file?.path ?? 'Diff')}
+						class="min-h-0 overflow-hidden"
+					>
+						{#if path === (file?.path ?? 'Diff')}
+							<p class="px-3.5 py-2 text-sm text-muted" hidden={!!file}>
+								Diffs fill in as the agent writes.
+							</p>
+							{#if selected && file}
+								{#key file.path}
+									<div class="scroller h-full">
+										{#if !diffReady}<p
+												class="flex items-center gap-2 p-5 text-sm text-muted"
+												role="status"
+											>
+												<Spinner label="Loading the diff" /> Loading the diff…
+											</p>{/if}
+										<DiffView
+											path={file.path}
+											old={file.old}
+											new={file.new}
+											bind:ready={diffReady}
+										/>
+									</div>
+								{/key}
+							{:else if file}
+								<pre
+									class="overflow-hidden py-1 code-dense">{#each loginDiff as [sign, line], index (index)}<span
+											class={[
+												'block px-3.5',
+												sign === '+' && 'bg-ok/12',
+												sign === '-' && 'bg-danger-soft'
+											]}
+											><span
+												class={[
+													'inline-block w-4 select-none',
+													sign === '+' ? 'text-ok' : 'text-danger'
+												]}>{sign.trim()}</span
+											>{line}</span
+										>{/each}</pre>
+							{/if}
+						{/if}
+					</div>{/each}
 			</section>
 		</div>
 	</div>

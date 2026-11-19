@@ -19,7 +19,7 @@
 	import { pickRepo } from '#lib/components/workspace/NewWorkspace.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
-	import { setTitleBarLead } from '#lib/ui/TitleBar.svelte';
+	import { setTitleBarLead } from '@geordi/ui/TitleBar.svelte';
 	import { connect, connection, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import type { LayoutProps } from './$types';

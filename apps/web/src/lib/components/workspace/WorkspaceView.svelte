@@ -46,7 +46,7 @@
 	import Panes from '#lib/ui/Panes.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
-	import TitleBar from '#lib/ui/TitleBar.svelte';
+	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
 		mergePull,
 		closeTerminal,
