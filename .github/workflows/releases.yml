@@ -68,4 +68,5 @@ jobs:
       id-token: write
     uses: ./.github/workflows/npm.yml
     with:
+      tag: ${{ matrix.release.tag }}
       commit: ${{ matrix.release.commit }}
