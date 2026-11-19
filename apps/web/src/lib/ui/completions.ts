@@ -1,4 +1,5 @@
-import { fuzzyMatch, fuzzySegments } from '../fuzzy.ts';
+import type { FileMatch } from '@geordi/protocol';
+import { fuzzySegments } from '../fuzzy.ts';
 
 /** Something the text can begin with, offered as one types: `/review`, say. */
 export type Completion = {
@@ -50,42 +51,16 @@ export function fileMention(text: string, caret: number) {
 	};
 }
 
-/** Prefer file names over matches that need the folder, then rank by how closely the letters fit. */
-export function matchingFiles(paths: string[], query: string): Completion[] {
-	const wanted = query.toLowerCase();
-	const ranked = [];
-	for (const path of paths) {
-		const split = path.lastIndexOf('/') + 1;
-		const name = path.slice(split);
-		const inName = fuzzyMatch(query, name);
-		const match = inName ?? fuzzyMatch(query, path);
-		if (!match) continue;
-		const lower = name.toLowerCase();
-		const tier = lower === wanted ? 0 : lower.startsWith(wanted) ? 1 : inName ? 2 : 3;
-		ranked.push({
-			path,
-			split,
-			tier,
-			score: match.score,
-			indices: match.indices,
-			offset: inName ? split : 0
-		});
-		if (!wanted && ranked.length === 40) break;
-	}
-	return ranked
-		.sort((a, b) => a.tier - b.tier || b.score - a.score)
-		.slice(0, 40)
-		.map(({ path, split, indices, offset }) => ({
-			text: path,
-			file: {
-				name: fuzzySegments(
-					path.slice(split),
-					indices.map((i) => i + offset - split)
-				),
-				directory: fuzzySegments(
-					path.slice(0, Math.max(0, split - 1)),
-					indices.map((i) => i + offset)
-				)
-			}
-		}));
+export function fileCompletion({ path, indices }: FileMatch): Completion {
+	const split = path.lastIndexOf('/') + 1;
+	return {
+		text: path,
+		file: {
+			name: fuzzySegments(
+				path.slice(split),
+				indices.map((i) => i - split)
+			),
+			directory: fuzzySegments(path.slice(0, Math.max(0, split - 1)), indices)
+		}
+	};
 }

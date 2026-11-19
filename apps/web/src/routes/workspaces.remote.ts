@@ -7,6 +7,7 @@ import {
 	CONFIG_NAME,
 	JOB_TERMINAL,
 	MAX_IMAGES,
+	FILE_SEARCH_TIMEOUT_MS,
 	type FileVersions
 } from '@geordi/protocol';
 import {
@@ -303,15 +304,22 @@ export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-export const getFileNames = query(
-	v.union([v.object({ workspaceId: v.string() }), v.object({ repoId: v.string() })]),
+export const findFiles = command(
+	v.union([
+		v.object({ workspaceId: v.string(), query: v.string() }),
+		v.object({ repoId: v.string(), query: v.string() })
+	]),
 	(scope) =>
-		hub().request({
-			kind: 'fileNames',
-			...('workspaceId' in scope
-				? workspaces().ref(scope.workspaceId)
-				: { repoPath: repos().get(scope.repoId).path })
-		})
+		hub().request(
+			{
+				kind: 'findFiles',
+				query: scope.query,
+				...('workspaceId' in scope
+					? workspaces().ref(scope.workspaceId)
+					: { repoPath: repos().get(scope.repoId).path })
+			},
+			FILE_SEARCH_TIMEOUT_MS
+		)
 );
 
 /** Both versions of a changed file, for the diff viewer. */

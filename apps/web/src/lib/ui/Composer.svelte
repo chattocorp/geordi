@@ -8,6 +8,7 @@
 </script>
 
 <script lang="ts">
+	import type { FileMatch } from '@geordi/protocol';
 	import type { Attachment } from 'svelte/attachments';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
 	import Button from './Button.svelte';
@@ -15,7 +16,7 @@
 	import {
 		completionQuery,
 		fileMention,
-		matchingFiles,
+		fileCompletion,
 		matching,
 		type Completion
 	} from './completions.ts';
@@ -45,7 +46,7 @@
 		 * word. Arrow keys and Enter (or Tab) choose one, Escape puts them away.
 		 */
 		completions?: Completion[];
-		files?: () => PromiseLike<string[]>;
+		files?: (query: string) => PromiseLike<FileMatch[]>;
 		/** What the completions are, for those who can't see them: "Commands". */
 		completionsLabel?: string;
 		/** What is wrong with the input, if anything. */
@@ -136,28 +137,47 @@
 	const mention = $derived(
 		files && writing && typed !== dismissed && caret >= 0 ? fileMention(typed, caret) : null
 	);
-	const needsFiles = $derived(!!mention);
-	let paths = $state.raw<string[]>([]);
+	let fileResults = $state.raw<Completion[]>([]);
+	let loadingFiles = $state(false);
+	let showFileProgress = $state(false);
+	let fileError = $state(false);
+	let previous = Promise.resolve();
+	const fileQuery = $derived(mention?.query);
 	$effect(() => {
-		paths = [];
-		if (!needsFiles || !files) return;
+		const search = files;
+		const wanted = fileQuery;
+		fileResults = [];
+		fileError = false;
+		showFileProgress = false;
+		loadingFiles = wanted !== undefined && !!search;
+		if (wanted === undefined || !search) return;
 		let current = true;
-		Promise.resolve(files()).then(
-			(names) => {
-				if (current) paths = names;
-			},
-			() => {}
-		);
+		const slow = setTimeout(() => {
+			showFileProgress = true;
+		}, 200);
+		// Coalesce typing, including edits made while a cold index is still building.
+		const timer = setTimeout(() => {
+			previous = previous.then(async () => {
+				if (!current) return;
+				try {
+					const matches = await search(wanted);
+					if (current) fileResults = matches.map(fileCompletion);
+				} catch {
+					if (current) fileError = true;
+				} finally {
+					clearTimeout(slow);
+					if (current) loadingFiles = false;
+				}
+			});
+		}, 35);
 		return () => {
 			current = false;
+			clearTimeout(slow);
+			clearTimeout(timer);
 		};
 	});
 	const shown = $derived(
-		mention
-			? matchingFiles(paths, mention.query)
-			: query === null
-				? []
-				: matching(completions, query)
+		mention ? fileResults : query === null ? [] : matching(completions, query)
 	);
 	$effect.pre(() => {
 		void query;
@@ -203,6 +223,22 @@
 		if (offered && plainKey && event.key === 'Tab' && !event.shiftKey) {
 			event.preventDefault();
 			takeSuggestion(offered, false);
+			return;
+		}
+		if (mention && plainKey && event.key === 'Escape') {
+			event.preventDefault();
+			event.stopPropagation();
+			dismissed = typed;
+			return;
+		}
+		if (
+			mention &&
+			loadingFiles &&
+			plainKey &&
+			!event.shiftKey &&
+			(event.key === 'Enter' || event.key === 'Tab')
+		) {
+			event.preventDefault();
 			return;
 		}
 		if (shown.length && plainKey) {
@@ -315,6 +351,14 @@
 				class="mt-1 mr-1 self-start"
 				onclick={() => takeSuggestion(offered, false)}
 			/>
+		</div>
+	{/if}
+	{#if mention && ((loadingFiles && showFileProgress) || fileError)}
+		<div
+			role="status"
+			class="absolute inset-x-0 bottom-full z-10 mb-2 max-w-lg card-float px-4 py-2 text-sm text-muted"
+		>
+			{loadingFiles ? 'Finding files…' : 'Could not search repository files'}
 		</div>
 	{/if}
 	{#if shown.length}

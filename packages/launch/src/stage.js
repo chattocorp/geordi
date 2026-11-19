@@ -51,7 +51,11 @@ export async function stageServices(stage) {
 	};
 	await build({
 		...common,
-		entryPoints: [join(repo, 'apps/daemon/src/main.ts'), join(repo, 'apps/daemon/src/host.ts')],
+		entryPoints: [
+			join(repo, 'apps/daemon/src/main.ts'),
+			join(repo, 'apps/daemon/src/host.ts'),
+			join(repo, 'apps/daemon/src/file-index-worker.ts')
+		],
 		outdir: join(stage, 'daemon'),
 		external: ['@lydell/node-pty']
 	});

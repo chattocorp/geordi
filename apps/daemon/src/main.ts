@@ -3,6 +3,7 @@ import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
+import { createFileSearch } from './file-search.ts';
 import { git } from './git.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
@@ -56,7 +57,6 @@ import { cachedPullBase, markReady, mergePull, setAutoMerge, upstream } from './
 import { createWatches } from './watch.ts';
 import {
 	startOf,
-	gitIn,
 	branchOf,
 	continueOn,
 	ensureWorktree,
@@ -259,9 +259,11 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 }
 
 /** File watchers for the workspaces in use; see the `watch` message. */
+const fileSearch = createFileSearch();
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
-	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
+	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId }),
+	(worktreeId) => fileSearch.invalidate(worktreeId)
 );
 
 function comparisonOrigin(worktree: Worktree, ref: WorktreeRef) {
@@ -480,32 +482,18 @@ function answer(request: DaemonRequest) {
 async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
-	if (request.kind === 'fileNames') {
-		const { repoPath, worktreeId } = request;
-		if (!worktreeId) {
-			const listed = await git(repoPath, [
-				'ls-tree',
-				'-rz',
-				'--name-only',
-				await startOf(repoPath)
-			]);
-			return listed.split('\0').filter(Boolean);
+	if (request.kind === 'findFiles') {
+		const { repoPath, worktreeId, query } = request;
+		if (worktreeId) {
+			const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
+			return fileSearch.search(worktreeId, { worktree }, query, () =>
+				watches.hold({ repoPath, worktreeId }, worktree)
+			);
 		}
-		const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
-		const [listed, removed] = await Promise.all([
-			gitIn(
-				worktree,
-				'ls-files',
-				'--cached',
-				'--others',
-				'--exclude-standard',
-				'--deduplicate',
-				'-z'
-			),
-			gitIn(worktree, 'ls-files', '--deleted', '-z')
-		]);
-		const deleted = new Set(removed.split('\0'));
-		return listed.split('\0').filter((path) => path && !deleted.has(path));
+		const revision = (
+			await git(repoPath, ['rev-parse', '--verify', await startOf(repoPath)])
+		).trim();
+		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {

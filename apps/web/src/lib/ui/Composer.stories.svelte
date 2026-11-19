@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { tick } from 'svelte';
+	import { fuzzyMatch } from '@geordi/protocol/fuzzy';
 	import { expect, fn } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Button from './Button.svelte';
@@ -459,7 +460,9 @@
 		await userEvent.type(text, '@ui/Composer.');
 		await expect(
 			Array.from(
-				canvas.getByRole('option', { name: 'src/ui/Composer.svelte' }).querySelectorAll('mark'),
+				(await canvas.findByRole('option', { name: 'src/ui/Composer.svelte' })).querySelectorAll(
+					'mark'
+				),
 				(mark) => mark.textContent
 			)
 		).toEqual(['Composer.', 'ui']);
@@ -475,12 +478,16 @@
 		<Composer
 			{form}
 			placeholder="Reply to the agent"
-			files={async () => [
-				'src/ui/Composer.svelte',
-				'src/ui/Composer.stories.svelte',
-				'src/components/MessageComposer.svelte',
-				'src/workspace/components/Composer.svelte'
-			]}
+			files={async (query) =>
+				[
+					'src/ui/Composer.svelte',
+					'src/ui/Composer.stories.svelte',
+					'src/components/MessageComposer.svelte',
+					'src/workspace/components/Composer.svelte'
+				].flatMap((path) => {
+					const indices = fuzzyMatch(query, path)?.indices;
+					return indices ? [{ path, indices }] : [];
+				})}
 		>
 			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
 				>{/snippet}

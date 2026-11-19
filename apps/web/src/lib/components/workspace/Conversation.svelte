@@ -11,7 +11,7 @@
 	import type { AgentCommand } from '@geordi/protocol';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
-		getFileNames,
+		findFiles,
 		configureWorkspace,
 		answerQuestion,
 		removeQueued,
@@ -38,6 +38,10 @@
 		senders?: Record<string, string>;
 	} = $props();
 
+	const searchFiles = $derived.by(() => {
+		const workspaceId = workspace.id;
+		return (query: string) => findFiles({ workspaceId, query });
+	});
 	const cwd = $derived(workspace.worktree?.path);
 
 	const running = $derived(workspace.status === 'running');
@@ -126,7 +130,7 @@
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest}>
 				<MessageComposer
-					files={() => getFileNames({ workspaceId: workspace.id })}
+					files={searchFiles}
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
 					focused

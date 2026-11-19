@@ -15,7 +15,9 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 36;
+export const PROTOCOL_VERSION = 37;
+/** A first search can include a cold scan of a large checkout. */
+export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -484,13 +486,16 @@ export type DaemonRequest =
 	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
 	 */
 	| ({ kind: 'updateWorktree' } & WorktreeRef)
-	/** Repository-relative paths available to a new or existing workspace. */
-	| { kind: 'fileNames'; repoPath: string; worktreeId?: string }
+	/** Up to forty ranked paths with highlight positions for the composer. */
+	| { kind: 'findFiles'; query: string; repoPath: string; worktreeId?: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
+
+/** Highlight positions are UTF-16 offsets into the repository-relative path. */
+export type FileMatch = { path: string; indices: number[] };
 
 export type DaemonResults = {
 	changes: Changes;
@@ -502,7 +507,7 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
-	fileNames: string[];
+	findFiles: FileMatch[];
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
