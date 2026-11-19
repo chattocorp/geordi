@@ -4,7 +4,6 @@
 	import Button from '@geordi/ui/Button.svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import Disclosure from '@geordi/ui/Disclosure.svelte';
-	import Spinner from '@geordi/ui/Spinner.svelte';
 
 	type Row = { task: BackgroundTask; label: string; kind: string; open?: () => void };
 	let {
@@ -22,13 +21,14 @@
 		}
 	}
 	let open = $state(false);
+	const rowClass = 'flex min-h-7 min-w-0 flex-1 items-center gap-2 px-2 py-1 text-xs text-ink';
 </script>
 
 {#snippet contents(row: Row)}
 	<span
 		aria-hidden="true"
 		class={[
-			'size-4 shrink-0 text-muted',
+			'size-3.5 shrink-0 text-muted',
 			row.kind === 'Subagent'
 				? 'icon-[lucide--git-branch]'
 				: row.kind === 'Terminal'
@@ -36,14 +36,15 @@
 					: toolIcon(row.kind)
 		]}
 	></span>
-	<span
-		class={[
-			'min-w-0 flex-1 truncate text-left text-sm font-medium',
-			row.kind === 'Terminal' && 'font-mono'
-		]}>{row.label}</span
+	<span class={['min-w-0 flex-1 truncate text-left', row.kind === 'Terminal' && 'font-mono']}
+		>{row.label}</span
 	>
 	{#if row.label !== row.kind}
-		<span class="hidden shrink-0 text-xs text-muted @sm:block">{row.kind}</span>
+		<span
+			class={row.kind === 'Terminal' || row.kind === 'Subagent'
+				? 'sr-only'
+				: 'hidden shrink-0 text-xs text-muted @sm:block'}>{row.kind}</span
+		>
 	{/if}
 	{#if row.open}<span
 			aria-hidden="true"
@@ -57,13 +58,9 @@
 		class="@container mx-1 rounded-card bg-sidebar px-2 pt-1 ring-1 ring-line/60 {withComposer
 			? 'pb-4'
 			: 'pb-1'}"
-		summaryClass="min-h-9 w-full px-2 text-sm hover:bg-hover focus-visible:outline-offset-0"
+		summaryClass="min-h-9 w-full px-2 text-sm focus-visible:outline-offset-0"
 	>
 		{#snippet heading()}
-			<span
-				class="grid size-6 shrink-0 place-items-center rounded-control bg-accent-soft text-accent-ink"
-				><Spinner label="Running" /></span
-			>
 			<span class="shrink-0 font-semibold">Background tasks</span>
 			<span class="rounded-control bg-sunken px-1.5 text-xs font-semibold text-muted tabular-nums"
 				>{rows.length}</span
@@ -73,32 +70,20 @@
 				>{/if}
 		{/snippet}
 		{#if open}
-			<ul class="max-h-40 overflow-y-auto px-2 pb-1">
-				{#each rows as row, index (row.task.type + row.task.id)}
-					<li class="relative flex items-stretch pt-1 pl-8">
-						<!-- Connect the live indicator to its tasks. The final branch ends at the row. -->
-						<span
-							aria-hidden="true"
-							class="absolute top-0 left-3 h-1/2 w-4 rounded-bl-control border-b border-l border-muted/35"
-						></span>
-						{#if index < rows.length - 1}<span
-								aria-hidden="true"
-								class="absolute inset-y-0 left-3 border-l border-muted/35"
-							></span>{/if}
+			<ul class="max-h-40 overflow-y-auto pb-1">
+				{#each rows as row (row.task.type + row.task.id)}
+					<li class="flex items-center gap-1">
 						{#if row.open}
 							<button
 								type="button"
-								class="group flex min-w-0 flex-1 items-center gap-2.5 rounded-control bg-surface px-3 py-2 text-ink hover:shadow-soft focus-visible:outline-offset-0"
+								class="{rowClass} group rounded-control hover:bg-hover focus-visible:outline-offset-0"
 								title={row.label}
 								onclick={row.open}
 							>
 								{@render contents(row)}
 							</button>
 						{:else}
-							<div
-								class="flex min-w-0 flex-1 items-center gap-2.5 rounded-control bg-surface px-3 py-2 text-ink"
-								title={row.label}
-							>
+							<div class={rowClass} title={row.label}>
 								{@render contents(row)}
 							</div>
 						{/if}
@@ -106,7 +91,6 @@
 							<Button
 								variant="ghost"
 								size="sm"
-								class="ml-1 self-center"
 								icon="icon-[lucide--square]"
 								label={'Stop ' + row.label}
 								busy={row.task.stopping}
@@ -115,7 +99,7 @@
 						{/if}
 					</li>
 					{#if row.task.stopError || errors.get(row.task.stopId ?? '')}
-						<li role="alert" class="pl-8 text-xs text-danger">
+						<li role="alert" class="px-2 text-xs text-danger">
 							{row.task.stopError || errors.get(row.task.stopId ?? '')}
 						</li>
 					{/if}

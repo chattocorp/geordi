@@ -628,23 +628,27 @@
 	asChild
 	play={async ({ canvas }) => {
 		const heading = await canvas.findByText('Background tasks');
+		await expect(canvas.queryByRole('img', { name: 'Running' })).toBeNull();
 		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
+		await userEvent.hover(heading);
+		await expect(heading.closest('summary')).toHaveStyle('background-color: rgba(0, 0, 0, 0)');
 		await userEvent.click(heading);
+		await expect(await canvas.findByText('pnpm dev', { exact: true })).toBeVisible();
+		const testTask = await canvas.findByRole('button', { name: 'pnpm test Terminal' });
+		await expect(
+			await canvas.findByRole('button', { name: 'Review changes Subagent' })
+		).toBeVisible();
 		const stop = await canvas.findByRole('button', { name: 'Stop pnpm test' });
 		await expect(stop).toHaveTextContent(/^$/);
 		await userEvent.click(stop);
 		await expect(stopBackground).toHaveBeenCalledWith('stop-tests');
-		await userEvent.click(await canvas.findByRole('button', { name: /^pnpm test/ }));
+		await userEvent.click(testTask);
 		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
 			'aria-expanded',
 			'true'
 		);
 		await waitFor(() =>
-			expect(
-				canvas
-					.getByRole('button', { name: /^pnpm test/ })
-					.ownerDocument.activeElement?.closest('details')
-			).toHaveAttribute('open')
+			expect(testTask.ownerDocument.activeElement?.closest('details')).toHaveAttribute('open')
 		);
 	}}
 >
@@ -656,7 +660,8 @@
 			onstoptask={stopBackground}
 			background={[
 				{ type: 'tool_call', id: 'tests', toolCallId: 'tests', stopId: 'stop-tests' },
-				{ type: 'subagent', id: 'review', stopId: 'stop-review' }
+				{ type: 'subagent', id: 'review', stopId: 'stop-review' },
+				{ type: 'terminal', id: 'dev', label: 'pnpm dev', stopId: 'stop-dev' }
 			]}
 			blocks={[
 				{ kind: 'user', text: 'Run the tests and review the changes.' },
