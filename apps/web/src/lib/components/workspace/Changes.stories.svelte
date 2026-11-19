@@ -172,3 +172,39 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Shared directories and lone files"
+	args={{
+		git: {
+			unavailable: null,
+			changes: {
+				branch: 'feature',
+				comparisonTarget: 'main',
+				uncommitted: 0,
+				unpushed: null,
+				landed: false,
+				files: [
+					'.sweet/green-tender-birch.md',
+					...['ar', 'cs-CZ', 'de-DE', 'el', 'en-GB', 'eo', 'es-419', 'es-ES'].map(
+						(locale) => `apps/frontend/messages/${locale}/admin.json`
+					),
+					'apps/frontend/src/server/jobs/jobPresentation.ts'
+				].map((path) => ({ path, status: 'modified', added: 1, removed: 0 }))
+			}
+		},
+		onopen: fn()
+	}}
+	play={async ({ canvas, userEvent, args }) => {
+		const group = canvas.getByTitle('apps/frontend/messages/');
+		await expect(group).toHaveAttribute('aria-expanded', 'false');
+		await expect(canvas.getAllByRole('button')).toHaveLength(4);
+		await userEvent.click(group);
+		await expect(canvas.getAllByRole('button')).toHaveLength(12);
+		const path = 'apps/frontend/messages/ar/admin.json';
+		await userEvent.click(canvas.getByTitle(`Modified: ${path}`));
+		await expect(args.onopen).toHaveBeenCalledWith(path);
+		await userEvent.click(group);
+		await expect(canvas.getAllByRole('button')).toHaveLength(4);
+	}}
+/>

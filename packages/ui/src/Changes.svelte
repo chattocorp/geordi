@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { SvelteMap } from 'svelte/reactivity';
+	import { groupChanges, type ChangeRow } from './changeGroups.ts';
 	import Spinner from './Spinner.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
@@ -17,6 +19,9 @@
 	let { git, gone = null, onopen }: Props = $props();
 
 	const files = $derived(git?.changes?.files ?? []);
+
+	const groups = $derived(groupChanges(files));
+	const expanded = new SvelteMap<string, boolean>();
 
 	type File = (typeof files)[number];
 	const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1);
@@ -73,27 +78,59 @@
 					Compared with <span class="code-dense">{git.changes.comparisonTarget}</span>
 				</p>
 			{/if}
-			<ul>
-				{#each files as file (file.path)}
-					{@const { letter, tone, means } = flag(file)}
-					<li>
-						<button
-							type="button"
-							onclick={() => onopen(file.path)}
-							title="{means}: {file.path}"
-							class="flex w-full items-center gap-2.5 overflow-hidden px-3.5 py-1 text-left code-dense whitespace-nowrap hover:bg-hover"
-						>
-							<span class={['w-2 shrink-0 text-center font-semibold', tone]} aria-label={means}>
-								{letter}
-							</span>
-							<!-- the name is what is looked for: where room runs out, the directories give way
-							     first (`fitPath`); the full path is in the row's tooltip -->
-							<FittedPath path={file.path} class={{ 'line-through': file.status === 'deleted' }} />
-							<DiffStat added={file.added} removed={file.removed} />
-						</button>
-					</li>
-				{/each}
-			</ul>
+			{@render rows(groups, '')}
 		{/if}
 	</div>
 </section>
+
+{#snippet rows(entries: ChangeRow[], prefix: string)}
+	<ul class:pl-3={!!prefix}>
+		{#each entries as row (row.path)}
+			<li>
+				{#if 'file' in row}
+					{@const file = row.file}
+					{@const { letter, tone, means } = flag(file)}
+					<button
+						type="button"
+						onclick={() => onopen(file.path)}
+						title="{means}: {file.path}"
+						class="flex w-full items-center gap-2.5 overflow-hidden px-3.5 py-1 text-left code-dense whitespace-nowrap hover:bg-hover"
+					>
+						<span class={['w-2 shrink-0 text-center font-semibold', tone]} aria-label={means}>
+							{letter}
+						</span>
+						<!-- the name is what is looked for: where room runs out, the directories give way
+							     first (`fitPath`); the full path is in the row's tooltip -->
+						<FittedPath
+							path={row.path.slice(prefix.length)}
+							class={{ 'line-through': file.status === 'deleted' }}
+						/>
+						<DiffStat added={file.added} removed={file.removed} />
+					</button>
+				{:else}
+					{@const open = expanded.get(row.path) ?? row.children.length < 8}
+					<button
+						type="button"
+						aria-expanded={open}
+						title={row.path}
+						onclick={() => expanded.set(row.path, !open)}
+						class="flex w-full items-center gap-2.5 px-3.5 py-1 text-left text-xs text-muted hover:bg-hover"
+					>
+						<span
+							aria-hidden="true"
+							class={['icon-[lucide--chevron-right] size-3 shrink-0', open && 'rotate-90']}
+						></span>
+						<span class="min-w-0 flex-1 truncate code-dense">{row.path.slice(prefix.length)}</span>
+						<span class="shrink-0">{row.count} files</span>
+						{#if row.added || row.removed}
+							<DiffStat added={row.added} removed={row.removed} />
+						{/if}
+					</button>
+					{#if open}
+						{@render rows(row.children, row.path)}
+					{/if}
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/snippet}
