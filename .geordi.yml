@@ -11,6 +11,9 @@ jobs:
     label: Agent daemon
     command: node scripts/workspace-dev.mjs daemon
     needs: [web]
+  reset:
+    label: Reset development data (stop the web server first)
+    command: node scripts/workspace-dev.mjs reset
   storybook:
     label: Storybook
     command: node scripts/workspace-dev.mjs storybook

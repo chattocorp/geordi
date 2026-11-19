@@ -1,10 +1,13 @@
+import { rmSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { join, resolve } from 'node:path';
+import { seed } from './seed-dev-data.mjs';
 
 // Replace this process so the job terminal's Ctrl+C reaches the service directly.
 const root = resolve(import.meta.dirname, '..');
 const job = process.argv[2];
-if (!['web', 'daemon', 'storybook'].includes(job)) {
-	throw new Error('Usage: node scripts/workspace-dev.mjs web|daemon|storybook');
+if (!['web', 'daemon', 'storybook', 'reset'].includes(job)) {
+	throw new Error('Usage: node scripts/workspace-dev.mjs web|daemon|storybook|reset');
 }
 
 function port(name) {
@@ -43,6 +46,16 @@ const env = {
 	PORT: String(job === 'storybook' ? storybook : web)
 };
 delete env.GEORDI_DAEMON_TOKEN;
+
+if (job === 'reset') {
+	// Stopping the web server stops the daemon too, which needs it.
+	if (await listening(web)) throw new Error('Stop the web server first.');
+	rmSync(data, { recursive: true, force: true });
+	seed(data);
+	console.log('The development data is new again.');
+	process.exit(0);
+}
+if (job === 'web') seed(data);
 
 if (job === 'daemon') {
 	// Vite loads the forge on its first HTTP request. Initialise its token and
@@ -89,3 +102,11 @@ const args =
 					'--exact-port'
 				];
 process.execve(process.execPath, [process.execPath, ...args], env);
+
+function listening(port) {
+	return new Promise((resolve) => {
+		const socket = createConnection({ host: '127.0.0.1', port });
+		socket.once('connect', () => (socket.destroy(), resolve(true)));
+		socket.once('error', () => resolve(false));
+	});
+}
