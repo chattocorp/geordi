@@ -304,6 +304,7 @@ export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+// A worktree can change between keystrokes. Each search needs a fresh daemon response.
 export const findFiles = command(
 	v.union([
 		v.object({ workspaceId: v.string(), query: v.string() }),

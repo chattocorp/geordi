@@ -1,8 +1,8 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { loadFileIndex } from './file-index-cache.ts';
+import { loadFileIndex, readExcludesState } from './file-index-cache.ts';
 import {
 	refreshFileIndex,
-	MAX_FILE_CHANGES,
+	addFileScope,
 	type FileChanges,
 	type FileIndex,
 	type FileSource
@@ -12,14 +12,17 @@ const { source, cacheDir } = workerData as { source: FileSource; cacheDir?: stri
 let index: FileIndex | undefined;
 const dirty = new Set<string>();
 let gitIndex = false;
+let excludes: Awaited<ReturnType<typeof readExcludesState>> | undefined;
 let revision = 0;
 let pending = Promise.resolve();
 
 parentPort!.on('message', (message: { id: number; query: string } | { changes?: FileChanges }) => {
 	if (!('id' in message)) {
 		gitIndex ||= !!message.changes?.gitIndex;
-		for (const path of message.changes?.paths ?? []) dirty.add(path);
-		if (!message.changes || dirty.size > MAX_FILE_CHANGES) {
+		if (
+			!message.changes ||
+			!message.changes.paths.every((path) => addFileScope(dirty, index?.changeScope(path) ?? path))
+		) {
 			revision++;
 			index = undefined;
 			dirty.clear();
@@ -33,7 +36,16 @@ parentPort!.on('message', (message: { id: number; query: string } | { changes?: 
 			gitIndex = false;
 			dirty.clear();
 			let snapshot = index;
-			if (!snapshot) snapshot = await loadFileIndex(source, cacheDir, started === 0);
+			// Git may read ignore rules outside every directory the worktree watcher covers.
+			if ('worktree' in source) {
+				const next = await readExcludesState(source.worktree, snapshot && excludes?.path).catch(
+					() => undefined
+				);
+				if (!next || next.stamp !== excludes?.stamp) snapshot = undefined;
+				excludes = next;
+			}
+			if (!snapshot)
+				snapshot = await loadFileIndex(source, cacheDir, started === 0, excludes?.stamp);
 			else if (changes.paths.length || changes.gitIndex)
 				snapshot = await refreshFileIndex(snapshot, source, changes);
 			// Events arriving during either operation are still pending for the next request.

@@ -1,12 +1,22 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+	mkdir,
+	mkdtemp,
+	opendir,
+	readFile,
+	realpath,
+	rename,
+	rm,
+	stat,
+	writeFile
+} from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { deserialize, serialize } from 'node:v8';
 import {
 	buildFileIndex,
 	FileIndex,
-	MAX_FILE_CHANGES,
+	addFileScope,
 	refreshFileIndex,
 	type FileSource
 } from './file-index.ts';
@@ -28,7 +38,7 @@ async function stamp(path: string, directory = false) {
 	}
 }
 
-async function worktreeState(tree: Worktree) {
+async function gitExcludesFile(tree: Worktree) {
 	const defaultIgnore = join(
 		process.env.XDG_CONFIG_HOME || join(homedir(), '.config'),
 		'git',
@@ -37,18 +47,37 @@ async function worktreeState(tree: Worktree) {
 	const excludes = (
 		await gitIn(tree, 'config', '--path', '--default', defaultIgnore, '--get', 'core.excludesFile')
 	).trimEnd();
-	const [root, admin, rules, excludesFile, config, gitIndex] = await Promise.all([
+	return isAbsolute(excludes) ? excludes : join(tree.path, excludes);
+}
+
+export async function readExcludesState(tree: Worktree, knownPath?: string) {
+	const path = knownPath ?? (await gitExcludesFile(tree));
+	return { path, stamp: await stamp(path) };
+}
+
+async function worktreeState(tree: Worktree, excludesStamp: string) {
+	const [root, admin, rules, config, gitIndex] = await Promise.all([
 		stamp(tree.path, true),
 		stamp(tree.adminDir, true),
 		stamp(join(tree.commonDir, 'info/exclude')),
-		stamp(isAbsolute(excludes) ? excludes : join(tree.path, excludes)),
 		gitIn(tree, 'config', '--null', '--list'),
 		stamp(join(tree.adminDir, 'index'))
 	]);
 	return {
-		identity: digest(JSON.stringify([root, admin, rules, excludesFile, config])).toString('hex'),
+		identity: digest(JSON.stringify([root, admin, rules, excludesStamp, config])).toString('hex'),
 		gitIndex
 	};
+}
+
+/** Bound disk use for repositories or worktrees removed outside Geordi. */
+export async function pruneFileCheckpoints(cacheDir: string) {
+	const expired = Date.now() - 30 * 24 * 60 * 60 * 1000;
+	for await (const entry of await opendir(cacheDir)) {
+		if (!entry.isFile() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
+		const path = join(cacheDir, entry.name);
+		const file = await stat(path);
+		if (Math.max(file.atimeMs, file.mtimeMs) < expired) await rm(path, { force: true });
+	}
 }
 
 type Checkpoint = {
@@ -69,27 +98,22 @@ async function readCheckpoint(path: string, identity: string) {
 
 /** Read the old cursor only after taking the next one. Edits made during enumeration
  * or replay then belong to the next generation as well. */
-async function prepare(source: FileSource, temp: string) {
+async function prepare(source: FileSource, temp: string, excludesStamp?: string) {
 	if (!('worktree' in source))
 		return { identity: JSON.stringify([1, source.repoPath, source.revision]) };
 	const tree = source.worktree;
 	const root = await realpath(tree.path);
-	const state = await worktreeState(tree);
+	if (excludesStamp === undefined) throw new Error('Could not check Git ignore rules');
+	const state = await worktreeState(tree, excludesStamp);
 	const watcher = (await import('@parcel/watcher')).default;
-	// Snapshot formats differ across backends. Use the same one across daemon restarts.
-	const backend = process.platform === 'darwin' ? 'fs-events' : 'brute-force';
-	const options = { backend } as const;
+	const options = { backend: 'fs-events' } as const;
 	const file = join(temp, 'cursor');
 	await watcher.writeSnapshot(root, file, options);
-	const snapshot = await readFile(file);
-	if (!snapshot.length) throw new Error('Empty file watcher snapshot');
-	// Portable snapshots enumerate the tree. Parcel's portable diff omits some
-	// file-to-directory replacements, so a changed tree needs a fresh Git listing.
-	const cursor = backend === 'brute-force' ? digest(snapshot) : snapshot;
+	const cursor = await readFile(file);
+	if (!cursor.length) throw new Error('Empty file watcher snapshot');
 
 	async function changedPaths(previous?: Buffer) {
 		if (!previous?.length) return;
-		if (backend === 'brute-force') return cursor.equals(previous) ? [] : undefined;
 		await writeFile(file, previous);
 		const scopes = new Set<string>();
 		for (const event of await watcher.getEventsSince(root, file, options)) {
@@ -97,13 +121,12 @@ async function prepare(source: FileSource, temp: string) {
 			if (basename(name) === '.gitignore') name = dirname(name);
 			if (!name || name === '.' || name === '..' || name.startsWith('../') || isAbsolute(name))
 				return;
-			scopes.add(name);
-			if (scopes.size > MAX_FILE_CHANGES) return;
+			if (!addFileScope(scopes, name)) return;
 		}
 		return [...scopes];
 	}
 	return {
-		identity: JSON.stringify([1, backend, state.identity]),
+		identity: JSON.stringify([2, options.backend, state.identity]),
 		gitIndex: state.gitIndex,
 		cursor,
 		changedPaths
@@ -113,10 +136,12 @@ async function prepare(source: FileSource, temp: string) {
 export async function loadFileIndex(
 	source: FileSource,
 	cacheDir: string | undefined,
-	restore: boolean
+	restore: boolean,
+	excludesStamp?: string
 ) {
 	if (
 		!cacheDir ||
+		('worktree' in source && process.platform !== 'darwin') ||
 		('revision' in source && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(source.revision))
 	)
 		return buildFileIndex(source);
@@ -131,7 +156,7 @@ export async function loadFileIndex(
 			const pending = join(cacheDir, 'pending');
 			await mkdir(pending, { recursive: true, mode: 0o700 });
 			temp = await mkdtemp(join(pending, 'write-'));
-			current = await prepare(source, temp);
+			current = await prepare(source, temp, excludesStamp);
 		} catch {
 			return await buildFileIndex(source);
 		}

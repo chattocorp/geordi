@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import {
+	existsSync,
 	readFileSync,
 	readdirSync,
 	mkdirSync,
@@ -7,12 +8,14 @@ import {
 	renameSync,
 	rmSync,
 	writeFileSync,
+	utimesSync,
 	unlinkSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { FileIndex } from './file-index.ts';
+import { addFileScope, FileIndex } from './file-index.ts';
+import { checkpointName, pruneFileCheckpoints } from './file-index-cache.ts';
 import { createFileSearch } from './file-search.ts';
 import { ensureWorktree } from './worktree.ts';
 
@@ -83,6 +86,25 @@ it('promotes the next duplicate after a directory or its file disappears', () =>
 	expect(index.search('dir0/new')[0].path).toBe('dir0/new/name.ts');
 });
 
+it('removes a file replaced by a directory when only its new child is reported', () => {
+	const index = new FileIndex();
+	index.add('src/entry');
+	index.reconcile(['src/entry/child'], new Set(['src/entry/child']));
+	expect(index.search('entry').map((hit) => hit.path)).toEqual(['src/entry/child']);
+	index.reconcile(['src/entry'], new Set(['src/entry/child']));
+	expect(index.search('entry').map((hit) => hit.path)).toEqual(['src/entry/child']);
+	expect(index.checkpointPaths()).toEqual(['src/entry/child']);
+});
+
+it('bounds a burst of file events without losing unrelated paths in the same batch', () => {
+	const scopes = new Set(['src/visible']);
+	for (let i = 0; i < 2048; i++) {
+		expect(addFileScope(scopes, `out/pkg${i}/generated`)).toBe(true);
+	}
+	expect(scopes.has('out')).toBe(true);
+	expect(scopes.has('src/visible')).toBe(true);
+});
+
 it('reconciles named paths, moved subtrees, and index-only changes with Git', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'geordi-file-deltas-'));
 	const repo = join(root, 'repo');
@@ -93,6 +115,8 @@ it('reconciles named paths, moved subtrees, and index-only changes with Git', as
 		git(repo, 'init', '-q');
 		writeFileSync(join(repo, 'tracked'), '');
 		writeFileSync(join(repo, '.gitignore'), 'ignored*\n');
+		const external = join(root, 'excludes');
+		git(repo, 'config', 'core.excludesFile', external);
 		git(repo, 'add', '.');
 		git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'Initial');
 		const worktree = await ensureWorktree(join(root, 'trees'), repo, '12345678');
@@ -107,7 +131,12 @@ it('reconciles named paths, moved subtrees, and index-only changes with Git', as
 		mkdirSync(join(base, 'one/sub'), { recursive: true });
 		writeFileSync(join(base, 'one/sub/new [x]'), '');
 		writeFileSync(join(base, 'ignored file'), '');
-		changes(['one', 'ignored file']);
+		// Overflow the old event limit while an unrelated unreported path is present.
+		// A full rebuild would accidentally discover it.
+		mkdirSync(join(base, 'ignored-output'));
+		const burst = Array.from({ length: 180 }, (_, i) => `ignored-output/${i}.js`);
+		for (const path of burst) writeFileSync(join(base, path), '');
+		changes([...burst, 'one', 'ignored file']);
 		expect(await names()).toEqual(['.gitignore', 'one/sub/new [x]', 'tracked']);
 		renameSync(join(base, 'one'), join(base, 'two'));
 		changes(['one', 'two', 'two/sub']);
@@ -123,13 +152,17 @@ it('reconciles named paths, moved subtrees, and index-only changes with Git', as
 		unlinkSync(join(base, 'tracked'));
 		mkdirSync(join(base, 'tracked'));
 		writeFileSync(join(base, 'tracked', 'child'), '');
-		changes(['tracked']);
+		changes(['tracked/child']);
 		expect(await names()).toEqual(['.gitignore', 'tracked/child', 'two/sub/new [x]']);
 		rmSync(join(base, 'tracked'), { recursive: true });
 		writeFileSync(join(base, 'tracked'), '');
 		changes(['tracked']);
 		expect(await names()).toEqual(['.gitignore', 'tracked', 'two/sub/new [x]']);
 		service.invalidate('test');
+		expect(await names()).toContain('unreported');
+		writeFileSync(external, 'unreported\n');
+		expect(await names()).not.toContain('unreported');
+		unlinkSync(external);
 		expect(await names()).toContain('unreported');
 	} finally {
 		service.close();
@@ -160,13 +193,13 @@ it('catches up a saved worktree across worker restarts and replaces a damaged ch
 		writeFileSync(join(tree.path, 'old'), '');
 		writeFileSync(join(tree.path, 'forced'), '');
 		expect(await names()).toEqual(['.gitignore', 'old', 'tracked']);
-		const [file] = readdirSync(cache).filter((name) => name !== 'pending');
-		const checkpoint = join(cache, file);
-		const original = readFileSync(checkpoint);
+		const checkpoint = checkpointName(cache, tree.path);
+		expect(existsSync(checkpoint)).toBe(process.platform === 'darwin');
+		const original = existsSync(checkpoint) ? readFileSync(checkpoint) : undefined;
 
 		restart();
 		expect(await names()).toEqual(['.gitignore', 'old', 'tracked']);
-		expect(readFileSync(checkpoint)).toEqual(original);
+		if (original) expect(readFileSync(checkpoint)).toEqual(original);
 		restart();
 		renameSync(join(tree.path, 'old'), join(tree.path, 'new'));
 		unlinkSync(join(tree.path, 'tracked'));
@@ -178,14 +211,32 @@ it('catches up a saved worktree across worker restarts and replaces a damaged ch
 		writeFileSync(join(tree.commonDir, 'info/exclude'), 'added\n');
 		expect(await names()).toEqual(['.gitignore', 'forced', 'new']);
 		restart();
-		writeFileSync(checkpoint, 'truncated');
+		if (original) writeFileSync(checkpoint, 'truncated');
 		writeFileSync(join(tree.path, 'recovered'), '');
 		expect(await names()).toEqual(['.gitignore', 'forced', 'new', 'recovered']);
-		expect(readFileSync(checkpoint).length).toBeGreaterThan(32);
+		if (original) expect(readFileSync(checkpoint).length).toBeGreaterThan(32);
 		await service.discard('test', tree.path);
-		expect(readdirSync(cache)).toEqual(['pending']);
+		expect(existsSync(checkpoint)).toBe(false);
 	} finally {
 		service.close();
 		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it('prunes old unused file indexes and retains recently read indexes', async () => {
+	const dir = mkdtempSync(join(tmpdir(), 'geordi-prune-indexes-'));
+	try {
+		const stale = checkpointName(dir, 'removed tree');
+		const active = checkpointName(dir, 'active tree');
+		const old = new Date(0);
+		writeFileSync(stale, '');
+		writeFileSync(active, '');
+		utimesSync(stale, old, old);
+		utimesSync(active, new Date(), old);
+		await pruneFileCheckpoints(dir);
+		expect(readdirSync(dir)).toHaveLength(1);
+		expect(readFileSync(active, 'utf8')).toBe('');
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
 	}
 });

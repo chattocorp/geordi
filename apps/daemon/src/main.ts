@@ -3,6 +3,7 @@ import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
+import { pruneFileCheckpoints } from './file-index-cache.ts';
 import { createFileSearch } from './file-search.ts';
 import { git } from './git.ts';
 import { repoIcon } from './icon.ts';
@@ -262,6 +263,7 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 const fileCache = join(sessionsDir, '.file-index-cache');
 // The session lock excludes other daemons. Discard interrupted writes from the last run.
 await rm(join(fileCache, 'pending'), { recursive: true, force: true }).catch(() => {});
+await pruneFileCheckpoints(fileCache).catch(() => {});
 const fileSearch = createFileSearch(fileCache);
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(

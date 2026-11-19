@@ -138,6 +138,7 @@
 		files && writing && typed !== dismissed && caret >= 0 ? fileMention(typed, caret) : null
 	);
 	let fileResults = $state.raw<Completion[]>([]);
+	let resultsFrom: typeof files;
 	let loadingFiles = $state(false);
 	let showFileProgress = $state(false);
 	let fileError = $state(false);
@@ -146,7 +147,11 @@
 	$effect(() => {
 		const search = files;
 		const wanted = fileQuery;
-		fileResults = [];
+		if (wanted === undefined || resultsFrom !== search) {
+			fileResults = [];
+			active = 0;
+		}
+		resultsFrom = search;
 		fileError = false;
 		showFileProgress = false;
 		loadingFiles = wanted !== undefined && !!search;
@@ -161,9 +166,21 @@
 				if (!current) return;
 				try {
 					const matches = await search(wanted);
-					if (current) fileResults = matches.map(fileCompletion);
+					if (current) {
+						const selected = active > 0 ? fileResults[active]?.text : undefined;
+						fileResults = matches.map(fileCompletion);
+						active = selected
+							? Math.max(
+									0,
+									fileResults.findIndex((row) => row.text === selected)
+								)
+							: 0;
+					}
 				} catch {
-					if (current) fileError = true;
+					if (current) {
+						fileResults = [];
+						fileError = true;
+					}
 				} finally {
 					clearTimeout(slow);
 					if (current) loadingFiles = false;
@@ -181,8 +198,7 @@
 	);
 	$effect.pre(() => {
 		void query;
-		void mention;
-		active = 0;
+		if (!mention) active = 0;
 	});
 	const listId = `${id}-completions`;
 	$effect(() => {
@@ -231,17 +247,7 @@
 			dismissed = typed;
 			return;
 		}
-		if (
-			mention &&
-			loadingFiles &&
-			plainKey &&
-			!event.shiftKey &&
-			(event.key === 'Enter' || event.key === 'Tab')
-		) {
-			event.preventDefault();
-			return;
-		}
-		if (shown.length && plainKey) {
+		if (shown.length && plainKey && !loadingFiles) {
 			const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
 			if (step) {
 				event.preventDefault();
@@ -306,7 +312,7 @@
 			return shown.length ? listId : undefined;
 		},
 		get 'aria-activedescendant'() {
-			return shown.length ? `${listId}-${active}` : undefined;
+			return shown.length && !loadingFiles ? `${listId}-${active}` : undefined;
 		},
 		class:
 			'block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
@@ -353,7 +359,7 @@
 			/>
 		</div>
 	{/if}
-	{#if mention && ((loadingFiles && showFileProgress) || fileError)}
+	{#if mention && !shown.length && ((loadingFiles && showFileProgress) || fileError)}
 		<div
 			role="status"
 			class="absolute inset-x-0 bottom-full z-10 mb-2 max-w-lg card-float px-4 py-2 text-sm text-muted"
@@ -367,6 +373,7 @@
 		<div
 			id={listId}
 			role="listbox"
+			aria-busy={loadingFiles || undefined}
 			tabindex="-1"
 			aria-label={mention ? 'Repository files' : completionsLabel}
 			class={[
@@ -381,12 +388,13 @@
 					id="{listId}-{index}"
 					role="option"
 					tabindex="-1"
-					aria-selected={index === active}
+					aria-selected={!loadingFiles && index === active}
+					aria-disabled={loadingFiles || undefined}
 					aria-label={mention ? completion.text : undefined}
 					title={mention ? completion.text : undefined}
 					class={['menu-item cursor-pointer', index === active && 'menu-item-active']}
-					onmousedown={() => complete(completion)}
-					onmousemove={() => (active = index)}
+					onmousedown={() => !loadingFiles && complete(completion)}
+					onmousemove={() => !loadingFiles && (active = index)}
 				>
 					{#if completion.file}
 						<span
@@ -406,7 +414,7 @@
 								>
 							{/if}
 						</span>
-						{#if index === active}
+						{#if index === active && !loadingFiles}
 							<span
 								aria-hidden="true"
 								class="mr-1 icon-[lucide--corner-down-left] size-3.5 shrink-0 text-muted"

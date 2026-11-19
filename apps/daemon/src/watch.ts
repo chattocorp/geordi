@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { basename, isAbsolute, join, sep } from 'node:path';
 import type { WatchScope, WorktreeRef } from '@geordi/protocol';
-import { MAX_FILE_CHANGES, type FileChanges } from './file-index.ts';
+import { addFileScope, type FileChanges } from './file-index.ts';
 import { branchOf, type Worktree } from './worktree.ts';
 
 /** Changes come in bursts (a save, a checkout, an install); report each burst once. */
@@ -33,10 +33,7 @@ export function watchWorktree(
 		if (!onNames) return;
 		if (staged) gitIndex = true;
 		else if (path === undefined) paths = undefined;
-		else if (paths) {
-			paths.add(path);
-			if (paths.size > MAX_FILE_CHANGES) paths = undefined;
-		}
+		else if (paths && !addFileScope(paths, path)) paths = undefined;
 		namesTimer ??= setTimeout(() => {
 			onNames(paths && { paths: [...paths], gitIndex });
 			gitIndex = false;

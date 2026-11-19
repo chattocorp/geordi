@@ -1,13 +1,15 @@
 <script module lang="ts">
 	import { tick } from 'svelte';
 	import { fuzzyMatch } from '@geordi/protocol/fuzzy';
-	import { expect, fn } from 'storybook/test';
+	import { expect, fn, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Button from './Button.svelte';
 	import Composer from './Composer.svelte';
 	import Select from './Select.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Composer', component: Composer });
+
+	const slowFiles = fn(async (query: string) => [{ path: query + '.ts', indices: [0] }]);
 
 	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
 
@@ -435,7 +437,13 @@
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		const text = canvas.getByRole('combobox');
-		await userEvent.type(text, 'Review @compose');
+		await userEvent.type(text, 'Review @comp');
+		const second = await canvas.findByRole('option', { name: 'src/ui/Composer.stories.svelte' });
+		await userEvent.keyboard('{ArrowDown}');
+		await expect(second).toHaveAttribute('aria-selected', 'true');
+		await userEvent.type(text, 'ose', { skipClick: true });
+		await waitFor(() => expect(second).toHaveAttribute('aria-selected', 'true'));
+		await userEvent.keyboard('{ArrowUp}');
 		const option = await canvas.findByRole('option', { name: 'src/ui/Composer.svelte' });
 		await expect(option.querySelector('mark')).toHaveTextContent('Compose');
 		await expect(
@@ -489,6 +497,42 @@
 					return indices ? [{ path, indices }] : [];
 				})}
 		>
+			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
+				>{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<Story
+	name="Typing while file results load"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const text = canvas.getByRole('combobox');
+		const pending = Promise.withResolvers<{ path: string; indices: number[] }[]>();
+		sentSuggestion.mockClear();
+		await userEvent.type(text, '@a');
+		const first = await canvas.findByRole('option', { name: 'a.ts' });
+		slowFiles.mockImplementationOnce(() => pending.promise);
+		try {
+			await userEvent.type(text, 'b');
+			await expect(first).toBeVisible();
+			await expect(first).toHaveAttribute('aria-disabled', 'true');
+			await userEvent.click(first);
+			await expect(text).toHaveValue('@ab');
+			await userEvent.keyboard('{Enter}');
+			await expect(sentSuggestion).toHaveBeenCalledWith('@ab');
+			await userEvent.clear(text);
+			await userEvent.type(text, '@z');
+			await userEvent.tab();
+			await expect(canvas.getByRole('button', { name: 'Send' })).toHaveFocus();
+		} finally {
+			pending.resolve([]);
+			slowFiles.mockReset();
+		}
+	}}
+>
+	<div class="mx-auto mt-64 max-w-2xl">
+		<Composer form={suggestionForm} files={slowFiles} placeholder="Reply to the agent">
 			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
 				>{/snippet}
 		</Composer>

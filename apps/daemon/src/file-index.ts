@@ -9,6 +9,36 @@ export const MAX_FILE_CHANGES = 128;
 export type FileChanges = { paths: string[]; gitIndex: boolean };
 const SAFE_DIFF = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all', '--no-renames'];
 
+/** Keep a burst bounded by folding sibling paths into their directory. A burst
+ * spread across too many unrelated root entries still needs a full Git listing. */
+export function addFileScope(scopes: Set<string>, path: string): boolean {
+	for (let parent = path; parent; parent = parent.slice(0, Math.max(0, parent.lastIndexOf('/')))) {
+		if (scopes.has(parent)) return true;
+	}
+	scopes.add(path);
+	if (scopes.size <= MAX_FILE_CHANGES) return true;
+
+	// Fold the closest relatives. A lone edit elsewhere (e.g. src/main.ts)
+	// should remain a file lookup even during a package install.
+	const parents = new Set<string>();
+	let shared = '';
+	for (const name of scopes) {
+		for (let slash = name.lastIndexOf('/'); slash >= 0; slash = name.lastIndexOf('/', slash - 1)) {
+			const parent = name.slice(0, slash);
+			if (parent.length <= shared.length) break;
+			if (parents.has(parent) || scopes.has(parent)) {
+				shared = parent;
+				break;
+			}
+			parents.add(parent);
+		}
+	}
+	if (!shared) return false;
+	for (const name of scopes) if (name.startsWith(shared + '/')) scopes.delete(name);
+	scopes.add(shared);
+	return true;
+}
+
 /** A cheap rejection before scoring a full path. Collisions only admit extra candidates. */
 function characterMask(lower: string) {
 	let mask = 0;
@@ -80,7 +110,11 @@ export class FileIndex {
 		const found = this.directories!.get(path);
 		if (found) return found;
 		const split = path.lastIndexOf('/');
-		this.directory(path.slice(0, Math.max(0, split))).set(path.slice(split + 1), null);
+		const parent = path.slice(0, Math.max(0, split));
+		const name = path.slice(split + 1);
+		// A watcher can report only the new child of a file replaced by a directory.
+		if (typeof this.directories!.get(parent)?.get(name) === 'number') this.remove(path);
+		this.directory(parent).set(name, null);
 		const entries = new Map<string, number | null>();
 		this.directories!.set(path, entries);
 		return entries;
@@ -100,6 +134,15 @@ export class FileIndex {
 		if (!group) this.byName.set(name, { created: id, first: id, mask: characterMask(name) });
 		else if (this.directories || (group.others?.size ?? 0) < LIMIT - 1)
 			(group.others ??= new Set()).add(id);
+	}
+
+	/** Git can check a whole new or ignored directory with one literal pathspec. */
+	changeScope(path: string) {
+		for (let slash = path.indexOf('/'); slash >= 0; slash = path.indexOf('/', slash + 1)) {
+			const parent = path.slice(0, slash);
+			if (!this.directories?.has(parent)) return parent;
+		}
+		return path;
 	}
 
 	private *under(path: string): Generator<string> {
@@ -317,7 +360,7 @@ export async function buildFileIndex(source: FileSource): Promise<FileIndex> {
 
 export async function refreshFileIndex(index: FileIndex, source: FileSource, changes: FileChanges) {
 	if (!('worktree' in source)) return index;
-	const scopes = new Set(changes.paths);
+	const scopes = new Set(changes.paths.map((path) => index.changeScope(path)));
 	if (changes.gitIndex) {
 		if (!index.staging?.changed) return buildFileIndex(source);
 		const next = await stagedNames(source, index.staging.commit);
