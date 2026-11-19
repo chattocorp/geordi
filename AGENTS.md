@@ -37,7 +37,7 @@ Run from the repository root:
 - `pnpm --filter @geordi/web storybook`: the design system, on http://localhost:6006
 - `pnpm cli`: build the npm package into `apps/cli/stage` and run it
 - `pnpm desktop`: build the desktop app and run it from `apps/desktop/stage`
-- `pnpm desktop:install`: build it, replace `/Applications/Geordi.app` and open it
+- `pnpm desktop:dev`: run an isolated Electron app on the workspace ports
 
 Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 
@@ -46,12 +46,8 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 The person runs the installed app (`/Applications/Geordi.app`) all day, and agents work in
 it, perhaps you.
 
-- `pnpm desktop:install` quits and replaces that app. Agents' turns go on (ADR-007), but
-  open terminals and running jobs end, and an agent waiting on another one sees a
-  connection error for a moment. Do it when a change is ready to be used, not to try
-  something out: for that, run a second instance on other ports with its own data
-  (`GEORDI_DATA_DIR`, `PORT`, `GEORDI_DAEMON_PORT`, and a daemon pointed at it).
-  In a workspace, the `web` and `daemon` jobs are that: their data is the worktree's `.data/`,
+- Test desktop changes with the **Electron dev app** workspace job. For web and daemon
+  changes, use the `web` and `daemon` jobs. Their data is the worktree's `.data/`,
   seeded with two sample repositories (`scripts/seed-dev-data.mjs`), each with a local bare
   `origin`. The `reset` job starts that data over.
 - When something misbehaves there, look before you change anything: the page's console
@@ -155,9 +151,7 @@ it, perhaps you.
   What the page can ask of the app is in `preload.cjs` (`window.geordiDesktop`: the Dock
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that
-  are files in the bundle and that the system plays (FDR-008). Installing signs the bundle
-  (ad hoc), without which macOS shows none of its notifications; macOS may ask for
-  permissions again after an install.
+  are files in the bundle and that the system plays (FDR-008).
 - **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names jobs to run
   (with what they need), links to open, and how many ports a workspace gets. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
