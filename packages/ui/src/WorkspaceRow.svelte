@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import Spinner from './Spinner.svelte';
 	import StandingIcon from './StandingIcon.svelte';
@@ -59,6 +60,17 @@
 	const primary = $derived(actions.find((action) => !action.aside));
 	const pillColor = $derived(primary && onaction && pillColors[primary.id]);
 	const visibleStanding = $derived(leaving || standing?.tone === 'accent' ? null : standing);
+
+	let activated = $state<WorkspaceAction['id']>();
+	let reset: ReturnType<typeof setTimeout>;
+	onDestroy(() => clearTimeout(reset));
+
+	function activate(action: WorkspaceAction) {
+		activated = action.id;
+		clearTimeout(reset);
+		reset = setTimeout(() => (activated = undefined), 1500);
+		onaction?.(action);
+	}
 </script>
 
 <!-- the whole row is the item: the link, and what appears beside it on hover -->
@@ -118,7 +130,7 @@
 					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
 					(pillColor || onarchive) &&
 						(pillColor
-							? 'group-hover:opacity-0 group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
+							? 'group-hover:pointer-events-none group-hover:opacity-0 group-has-focus-visible:pointer-events-none group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
 							: 'group-hover:invisible group-has-focus-visible:invisible')
 				]}
 			>
@@ -135,10 +147,11 @@
 				]}
 				style:interpolate-size="allow-keywords"
 				aria-label="{primary.label} — {title}"
-				onclick={() => onaction?.(primary)}
+				onclick={() => activate(primary)}
 			>
 				{primary.label}
-				<span class={[primary.icon, 'size-3.5']}></span>
+				<span class={[activated === primary.id ? 'icon-[lucide--check]' : primary.icon, 'size-3.5']}
+				></span>
 			</button>
 		{:else if onarchive}
 			<button
