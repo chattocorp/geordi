@@ -11,6 +11,11 @@
 
 	const live = follow<Navigation>('navigation');
 	const nav = $derived(live.current);
+	const issue = $derived.by(() => {
+		const url = page.url.searchParams.get('issue');
+		const title = page.url.searchParams.get('title');
+		return url && title ? { url, title } : undefined;
+	});
 	// the one that was asked for (from its place in the sidebar: a repository, or a new
 	// project), else most likely the one worked in last
 	const preferred = $derived(
@@ -30,7 +35,7 @@
 		<WaitingForView lost={connection.state === 'lost'} />
 	{:else if nav.repos.length > 0}
 		<div class="flex flex-1 flex-col justify-center">
-			<NewWorkspace repos={nav.repos} {preferred} focused />
+			{#key page.url.search}<NewWorkspace repos={nav.repos} {preferred} {issue} focused />{/key}
 		</div>
 	{:else}
 		<div class="empty">

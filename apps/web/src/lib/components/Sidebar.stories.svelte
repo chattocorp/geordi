@@ -277,3 +277,22 @@
 >
 	{@render frame(withProjects, '/workspaces/project')}
 </Story>
+
+<Story
+	name="Open or fold a repository"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const repo = canvas.getByRole('link', { name: 'sample-project', exact: true });
+		await expect(repo).toHaveAttribute('href', '/repos/sample');
+		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse sample-project' }));
+		await expect(repo).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Expand sample-project' })).toHaveAttribute(
+			'aria-expanded',
+			'false'
+		);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Expand sample-project' }));
+	}}
+>
+	{@render frame(nav, '/repos/sample')}
+</Story>
