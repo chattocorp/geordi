@@ -83,7 +83,7 @@
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
 
-	/** A project (FDR-012) is a conversation and nothing else: no repository, no changes, no terminals. */
+	/** A project (FDR-012) is conversations and nothing else: no repository, no changes, no terminals. */
 	const project = $derived(workspace.repoId === null);
 	// its repository, as everyone knows it; by its ID until that has come
 	const everything = follow<Navigation>('navigation');
@@ -933,7 +933,7 @@
 					{closable}
 					accepts={movable}
 					onreceive={receive('main')}
-					newTab={workspace.archivedAt || project ? undefined : newConversation}
+					newTab={workspace.archivedAt ? undefined : newConversation}
 					newLabel="New conversation"
 				/>
 			</div>

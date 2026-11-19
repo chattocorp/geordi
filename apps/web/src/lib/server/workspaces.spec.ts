@@ -1397,7 +1397,6 @@ describe('projects (FDR-012)', () => {
 		expect(message).not.toHaveProperty('repoPath');
 		expect(message.instructions).toContain('Geordi project');
 		expect(() => workspaces.ref(project)).toThrow();
-		expect(() => workspaces.join(project)).toThrow();
 	});
 
 	it('start agents in any repository they name, as their parent', () => {
@@ -1412,15 +1411,6 @@ describe('projects (FDR-012)', () => {
 		expect(
 			refusal(() => workspaces.agents.start(project, { worktree: 'own', prompt: 'Build' }))
 		).toMatch(/Say which repository/);
-		expect(
-			refusal(() =>
-				workspaces.agents.start(project, {
-					repository: repo.id,
-					worktree: 'shared',
-					prompt: 'Review'
-				})
-			)
-		).toMatch(/no worktree to share/);
 		const { id } = workspaces.agents.start(project, {
 			repository: repo.id,
 			worktree: 'own',
@@ -1437,12 +1427,52 @@ describe('projects (FDR-012)', () => {
 		expect(workspaces.agents.listWorkspaces(project, false).map((w) => w.id)).toContain(project);
 	});
 
-	it('leave other projects alone', () => {
+	it('start agents alongside the agent of a workspace in a repository, or in themselves', () => {
+		const { workspaces, sent, create, repo, project } = setupProject();
+		const target = create('Someone else’s work');
+		const { id: reviewer } = workspaces.agents.start(project, {
+			worktree: 'own',
+			workspace: target,
+			prompt: 'Review'
+		});
+		expect(workspaces.get(reviewer)).toMatchObject({
+			repoId: repo.id,
+			worktreeId: target,
+			parentId: project
+		});
+		const { id: helper } = workspaces.agents.start(project, { worktree: 'shared', prompt: 'Help' });
+		expect(workspaces.get(helper)).toMatchObject({ repoId: null, worktreeId: project });
+		expect(messageTo(sent, helper)).toMatchObject({ worktreeId: project, project: true });
+		// a person can add a conversation to a project too
+		expect(workspaces.get(workspaces.join(project)).worktreeId).toBe(project);
+		// what works in it goes with it; what it started in a repository stays
+		expect(workspaces.descendants(project).sort()).toEqual(
+			workspaces
+				.sharing(project)
+				.map((w) => w.id)
+				.filter((id) => id !== project)
+				.sort()
+		);
+		// only a project starts agents in other workspaces
+		const lead = create('Lead in a repository');
+		expect(() =>
+			workspaces.agents.start(lead, { worktree: 'own', workspace: target, prompt: 'No' })
+		).toThrow();
+	});
+
+	it('leave other projects alone, and are left alone by them', () => {
 		const { workspaces, project } = setupProject();
 		const other = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Other' });
 		expect(() => workspaces.agents.get(project, other)).toThrow();
 		expect(() => workspaces.agents.stop(project, other)).toThrow();
 		expect(() => workspaces.agents.send(project, other, 'Hi')).toThrow();
+		expect(() => workspaces.agents.readWorkspace(project, other)).toThrow();
+		expect(() =>
+			workspaces.agents.start(project, { worktree: 'own', workspace: other, prompt: 'No' })
+		).toThrow();
+		const seen = workspaces.agents.listWorkspaces(project, false).map((w) => w.id);
+		expect(seen).toContain(project);
+		expect(seen).not.toContain(other);
 	});
 
 	it('supervise any agent, whoever started it', () => {

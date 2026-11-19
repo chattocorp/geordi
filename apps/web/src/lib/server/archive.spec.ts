@@ -125,7 +125,7 @@ describe('archiving', () => {
 		expect(workspaces.list(repo.id)).toEqual([]);
 	});
 
-	it('archives a project alone, with its folder: what it started carries on', async () => {
+	it('archives a project with the agents in it, and its folder: what it started in a repository carries on', async () => {
 		const { workspaces, repo, archive, removed, projectsRemoved } = setup();
 		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Orchestrate' });
 		workspaces.record(project, { kind: 'turn.started' });
@@ -134,11 +134,17 @@ describe('archiving', () => {
 			worktree: 'own',
 			prompt: 'Build'
 		});
+		const { id: helper } = workspaces.agents.start(project, { worktree: 'shared', prompt: 'Help' });
+		workspaces.record(helper, { kind: 'turn.completed' });
 		workspaces.record(project, { kind: 'turn.completed' });
 
+		await archive(helper, false);
+		expect(projectsRemoved).toEqual([]); // the project still works in its folder
+		const again = workspaces.join(project);
 		await archive(project, false);
 
 		expect(projectsRemoved).toEqual([project]);
+		expect(workspaces.get(again).archivedAt).not.toBeNull();
 		expect(removed).toEqual([]);
 		expect(workspaces.get(project).archivedAt).not.toBeNull();
 		expect(workspaces.get(child)).toMatchObject({ archivedAt: null, status: 'running' });

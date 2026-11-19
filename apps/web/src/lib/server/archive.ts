@@ -48,7 +48,12 @@ export function createArchiver({
 		try {
 			for (const workspace of family) {
 				if (workspace.archivedAt) continue;
-				if (workspace.repoId === null)
+				// a project's folder goes with the project, once nothing else works in it
+				if (
+					workspace.repoId === null &&
+					workspace.worktreeId === workspace.id &&
+					!workspaces.worktreeInUse(workspace.id)
+				)
 					try {
 						await removeProject(workspace.id);
 					} catch (problem) {
