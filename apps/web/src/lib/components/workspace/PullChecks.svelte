@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import type { PullCheck, PullRequest } from '@geordi/protocol';
 	import { describeChecks } from '#lib/checks.ts';
 
@@ -44,39 +43,10 @@
 			.map(([status, checks]) => `${checks!.length} ${status}`)
 			.join(', ');
 	});
-	const active = $derived(sorted.filter((c) => c.state === 'failure' || c.state === 'pending'));
-	const remaining = $derived(sorted.filter((c) => c.state !== 'failure' && c.state !== 'pending'));
+	const active = $derived(sorted.some((c) => c.state === 'failure' || c.state === 'pending'));
 	let expanded = $state<boolean>();
-	const show = $derived(expanded ?? active.length > 0);
+	const show = $derived(expanded ?? active);
 </script>
-
-{#snippet rows(items: PullCheck[])}
-	<ul>
-		{#each items as check (check.id)}
-			<li>
-				<svelte:element
-					this={check.url ? 'a' : 'div'}
-					href={check.url}
-					target={check.url ? '_blank' : undefined}
-					rel={check.url ? 'noreferrer' : undefined}
-					class={[
-						'group/row flex items-center gap-2 rounded-control px-2 py-1.5',
-						check.url && 'hover:bg-hover'
-					]}
-				>
-					<span aria-hidden="true" class={['size-4 shrink-0', states[check.state].icon]}></span>
-					<span
-						class={[
-							'min-w-0 flex-1 text-sm wrap-anywhere',
-							check.url && 'group-hover/row:underline'
-						]}>{check.name}</span
-					>
-					<span class="text-xs text-muted">{label(check)}</span>
-				</svelte:element>
-			</li>
-		{/each}
-	</ul>
-{/snippet}
 
 <section aria-label="Checks" class="space-y-1 rounded-card bg-surface p-2">
 	<div class="flex items-center gap-1">
@@ -115,25 +85,42 @@
 		<div
 			role="img"
 			aria-label={statusText || 'No checks'}
-			class="flex h-1 gap-0.5 overflow-hidden rounded-full"
+			class="flex h-2 gap-0.5 overflow-hidden rounded-full"
 		>
 			{#each summary.parts as part (part.tone)}<span
-					class={bar[part.tone]}
+					class={[
+						'transition-all duration-500 ease-out motion-reduce:transition-none',
+						bar[part.tone]
+					]}
 					style:flex-grow={part.size}
 				></span>{/each}
 		</div>
 	</div>
 	{#if show && sorted.length}
-		{#if active.length}
-			{@render rows(active)}
-			{#if remaining.length}
-				<Disclosure summaryClass="px-2 py-1.5 text-xs text-muted hover:bg-hover">
-					{#snippet heading()}Other checks ({remaining.length}){/snippet}
-					{@render rows(remaining)}
-				</Disclosure>
-			{/if}
-		{:else}
-			{@render rows(sorted)}
-		{/if}
+		<ul>
+			{#each sorted as check (check.id)}
+				<li>
+					<svelte:element
+						this={check.url ? 'a' : 'div'}
+						href={check.url}
+						target={check.url ? '_blank' : undefined}
+						rel={check.url ? 'noreferrer' : undefined}
+						class={[
+							'group/row flex items-center gap-2 rounded-control px-2 py-1.5',
+							check.url && 'hover:bg-hover'
+						]}
+					>
+						<span aria-hidden="true" class={['size-4 shrink-0', states[check.state].icon]}></span>
+						<span
+							class={[
+								'min-w-0 flex-1 text-sm wrap-anywhere',
+								check.url && 'group-hover/row:underline'
+							]}>{check.name}</span
+						>
+						<span class="text-xs text-muted">{label(check)}</span>
+					</svelte:element>
+				</li>
+			{/each}
+		</ul>
 	{/if}
 </section>

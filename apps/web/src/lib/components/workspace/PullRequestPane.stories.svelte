@@ -75,8 +75,6 @@
 		const browser = canvas.getByRole('link', { name: 'Browser tests Running' });
 		await expect(browser).toBeVisible();
 		await expect(canvas.getAllByRole('listitem')[0]).toHaveTextContent('Unit tests');
-		await expect(canvas.getByText('Lint')).not.toBeVisible();
-		await userEvent.click(canvas.getByText('Other checks (3)'));
 		await expect(canvas.getByText('Lint')).toBeVisible();
 		await userEvent.click(summary);
 		await expect(browser).not.toBeVisible();
