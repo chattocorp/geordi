@@ -1,3 +1,4 @@
+import type { WorkspaceStanding } from '@geordi/ui/actions';
 import type { Changes } from '@geordi/protocol';
 
 export const message =
@@ -30,20 +31,17 @@ export const tools = [
 export const others = [
 	{
 		title: 'Dark mode for emails',
-		icon: 'icon-[lucide--circle-check] text-ok',
-		means: 'Ready to merge'
+		standing: { icon: 'icon-[lucide--circle-check]', tone: 'ok', label: 'Ready to merge' }
 	},
 	{
 		title: 'Upgrade to Vite 8',
-		icon: 'icon-[lucide--circle-x] text-danger',
-		means: 'Checks failing'
+		standing: { icon: 'icon-[lucide--circle-x]', tone: 'danger', label: 'Checks failing' }
 	},
 	{
 		title: 'Rate-limit invitations',
-		icon: 'icon-[lucide--git-merge] text-merged',
-		means: 'Merged'
+		standing: { icon: 'icon-[lucide--git-merge]', tone: 'merged', label: 'Merged' }
 	}
-];
+] satisfies { title: string; standing: WorkspaceStanding }[];
 
 const loginDiff = [
 	[' ', 'export const actions = {'],

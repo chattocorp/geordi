@@ -8,9 +8,13 @@
 		"./Changes.svelte": "./src/Changes.svelte",
 		"./DiffStat.svelte": "./src/DiffStat.svelte",
 		"./FittedPath.svelte": "./src/FittedPath.svelte",
+		"./Ring.svelte": "./src/Ring.svelte",
 		"./Spinner.svelte": "./src/Spinner.svelte",
+		"./StandingIcon.svelte": "./src/StandingIcon.svelte",
 		"./WorkspaceActions.svelte": "./src/WorkspaceActions.svelte",
+		"./WorkspaceRow.svelte": "./src/WorkspaceRow.svelte",
 		"./actions": "./src/actions.ts",
+		"./checks": "./src/checks.ts",
 		"./paths": "./src/paths.ts"
 	},
 	"dependencies": {

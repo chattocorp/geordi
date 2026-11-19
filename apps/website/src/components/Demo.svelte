@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import type { Changes, Upstream } from '@geordi/protocol';
+	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
@@ -46,10 +47,23 @@
 						draft: false,
 						base: 'main',
 						review: null,
-						checks: { state: step === 8 ? 'pending' : 'success', total: 1, failed: 0, url: null }
+						checks: {
+							state: step === 8 ? 'pending' : 'success',
+							total: 1,
+							failed: 0,
+							url: null,
+							counts: {
+								passed: step === 8 ? 0 : 1,
+								pending: step === 8 ? 1 : 0,
+								failed: 0,
+								skipped: 0
+							}
+						}
 					}
 	});
 	const git = $derived({ changes, upstream, unavailable: null });
+	const standing = $derived(standingOf(git));
+	const actions = $derived(actionsFor(git));
 	const at = (from: number, until = last + 1) => ({
 		'data-from': from,
 		hidden: step < from || step >= until
@@ -129,8 +143,8 @@
 		{#if step >= 7}
 			<div class="ml-auto">
 				<WorkspaceActions
-					standing={standingOf(git)}
-					actions={actionsFor(git)}
+					{standing}
+					{actions}
 					disabled={!playing}
 					pull={upstream.pull}
 					compact={narrow.current}
@@ -162,57 +176,28 @@
 						chatto
 					</p>
 					<ul class="space-y-px">
-						<li class="item h-8 item-active px-1.5 font-medium" {...at(1)}>
-							<span class="grid size-5 shrink-0 place-items-center text-muted/80">
-								<span class="icon-[lucide--git-branch] size-4"></span>
-							</span>
-							<span class="min-w-0 flex-1 truncate">Return people after sign-in</span>
-							<span class="grid size-6 shrink-0 place-items-center">
-								<span {...at(1, 7)}>
-									<Spinner />
-								</span>
-								<span class="dot dot-live" title="Changes to look at" {...at(7, 8)}></span>
-								<span
-									class="icon-[lucide--loader-circle] size-4 text-muted motion-safe:animate-checks-spin"
-									title="Checks running"
-									{...at(8, 9)}
-								></span>
-								<span
-									class="icon-[lucide--circle-check] size-4 text-ok"
-									title="Ready to merge"
-									{...at(9, 10)}
-								></span>
-								<span class="icon-[lucide--git-merge] size-4 text-merged" title="Merged" {...at(10)}
-								></span>
-							</span>
-						</li>
-						<li class="item h-8 px-1.5">
-							<span class="grid size-5 shrink-0 place-items-center text-muted/80">
-								<span class="icon-[lucide--git-branch] size-4" {...at(0, 6)}></span>
-								<span
-									class="icon-[lucide--message-circle-question] size-4 text-accent-ink"
-									title="Waiting for your answer"
-									{...at(6)}
-								></span>
-							</span>
-							<span class="min-w-0 flex-1 truncate" {...at(0, 6)}> Paginate the audit log </span>
-							<span class="min-w-0 flex-1 truncate font-semibold text-ink" {...at(6)}>
-								Paginate the audit log
-							</span>
-							<span class="grid size-6 shrink-0 place-items-center" {...at(0, 6)}>
-								<Spinner />
-							</span>
+						{#if step > 0}
+							<li>
+								<WorkspaceRow
+									title="Return people after sign-in"
+									current
+									working={step < 7}
+									{standing}
+									{actions}
+									onaction={playing && step >= 7 ? act : undefined}
+								/>
+							</li>
+						{/if}
+						<li>
+							<WorkspaceRow
+								title="Paginate the audit log"
+								working={step < 6}
+								asking={step >= 6}
+								unread={step >= 6}
+							/>
 						</li>
 						{#each others as other (other.title)}
-							<li class="item h-8 px-1.5">
-								<span class="grid size-5 shrink-0 place-items-center text-muted/80">
-									<span class="icon-[lucide--git-branch] size-4"></span>
-								</span>
-								<span class="min-w-0 flex-1 truncate">{other.title}</span>
-								<span class="grid size-6 shrink-0 place-items-center">
-									<span class={['size-4', other.icon]} title={other.means}></span>
-								</span>
-							</li>
+							<li><WorkspaceRow {...other} /></li>
 						{/each}
 					</ul>
 				</div>
@@ -341,7 +326,7 @@
 		class="m-auto card-float p-5 text-ink"
 	>
 		<p id="demo-pull-title" class="heading">#412 · {upstream.pull?.title}</p>
-		<p class="my-3 text-sm text-muted">{standingOf(git)?.label}</p>
+		<p class="my-3 text-sm text-muted">{standing?.label}</p>
 		<form method="dialog"><button class="item px-3 py-1">Close</button></form>
 	</dialog>
 </figure>

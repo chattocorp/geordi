@@ -223,8 +223,8 @@ it, perhaps you.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `@geordi/ui` (`Button`, `ButtonGroup`, `Spinner`) and `#lib/ui/` (`Badge`, `Composer`, `ContextMenu`, `Dialog`, `Disclosure`, `ImageViewer`, `Notice`, `Page`, `Panes`,
-    `Ring`, `Segmented`, `Select`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
+  - **Components** in `@geordi/ui` (`Button`, `ButtonGroup`, `Ring`, `Spinner`) and `#lib/ui/` (`Badge`, `Composer`, `ContextMenu`, `Dialog`, `Disclosure`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+    `Segmented`, `Select`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
     `#lib/components/` or, when both apps use them, in `@geordi/ui`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary
