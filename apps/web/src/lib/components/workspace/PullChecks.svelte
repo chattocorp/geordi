@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PullCheck, PullRequest } from '@geordi/protocol';
+	import { duration } from '#lib/format.ts';
 	import { describeChecks } from '#lib/checks.ts';
 
 	let { checks }: { checks: NonNullable<PullRequest['checks']> } = $props();
@@ -12,7 +13,11 @@
 	};
 	const states = {
 		failure: { label: 'Failed', icon: 'icon-[lucide--circle-x] text-danger', order: 0 },
-		pending: { label: 'Running', icon: 'icon-[lucide--circle-dot] text-accent-ink', order: 1 },
+		pending: {
+			label: 'Running',
+			icon: 'icon-[lucide--circle-dot] text-accent-ink motion-safe:animate-pulse',
+			order: 1
+		},
 		success: { label: 'Passed', icon: 'icon-[lucide--circle-check] text-ok', order: 2 },
 		neutral: { label: 'Neutral', icon: 'icon-[lucide--circle-minus] text-muted', order: 3 },
 		unknown: { label: 'Unknown', icon: 'icon-[lucide--circle-help] text-muted', order: 4 }
@@ -36,6 +41,18 @@
 	function label(check: PullCheck) {
 		return Object.hasOwn(labels, check.status) ? labels[check.status] : states[check.state].label;
 	}
+	function timed(check: PullCheck): check is PullCheck & { startedAt: number } {
+		return (
+			check.state === 'pending' && label(check) === 'Running' && Number.isFinite(check.startedAt)
+		);
+	}
+	let now = $state(Date.now());
+	function tick() {
+		now = Date.now();
+		const timer = setInterval(() => (now = Date.now()), 1000);
+		return () => clearInterval(timer);
+	}
+	const ticking = $derived(sorted.some(timed));
 	const statusText = $derived.by(() => {
 		if (!sorted.length) return summary.text;
 		const groups = Object.groupBy(sorted, (check) => label(check).toLowerCase());
@@ -97,7 +114,7 @@
 		</div>
 	</div>
 	{#if show && sorted.length}
-		<ul>
+		<ul class="max-h-80 overflow-y-auto" {@attach ticking ? tick : undefined}>
 			{#each sorted as check (check.id)}
 				<li>
 					<svelte:element
@@ -117,7 +134,9 @@
 								check.url && 'group-hover/row:underline'
 							]}>{check.name}</span
 						>
-						<span class="text-xs text-muted">{label(check)}</span>
+						<span class="shrink-0 text-xs whitespace-nowrap text-muted tabular-nums">
+							{label(check)}{timed(check) ? ` · ${duration(now - check.startedAt)}` : ''}
+						</span>
 					</svelte:element>
 				</li>
 			{/each}

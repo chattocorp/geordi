@@ -144,6 +144,8 @@ export type PullCheck = {
 	state: 'pending' | 'success' | 'failure' | 'neutral' | 'unknown';
 	/** More precise upstream status, such as queued or timed_out. */
 	status: string;
+	/** Check start time in milliseconds since the Unix epoch, when the forge supplies it. */
+	startedAt?: number;
 	url?: string;
 };
 
