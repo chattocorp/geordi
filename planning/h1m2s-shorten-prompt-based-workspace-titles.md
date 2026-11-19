@@ -6,4 +6,4 @@ data:
 id: h1m2s
 title: Shorten prompt-based workspace titles
 ---
-Long first prompts now produce a short title with an ellipsis. Regression coverage verifies both ways to start a conversation and preserves the full message.
+The workspace header displays the first prompt up to the width of the conversation column. The sidebar keeps a short title. Tests cover immediate and delayed first messages and the width of the rendered heading.

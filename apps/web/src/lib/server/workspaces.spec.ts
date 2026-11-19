@@ -906,7 +906,7 @@ describe('titles', () => {
 
 	it('uses the same short title for an initial prompt and a first message sent later', () => {
 		const { workspaces, create } = setup();
-		const prefix = 'Please update the workspace header so it shows a shorter';
+		const prefix = '“Please update the workspace header so it shows a shorter';
 		const prompt = prefix + ' description while the agent is working.';
 		const initial = create(prompt);
 		const later = create('');

@@ -11,6 +11,7 @@
 		type WorkspaceStanding
 	} from '#lib/actions.ts';
 	import { hint, pressed } from '#lib/keys.ts';
+	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks } from '#lib/transcript.ts';
 	import type { SubagentItem, Workspace } from '#lib/server/workspaces.ts';
@@ -92,6 +93,8 @@
 			name: workspace.repoId
 		}
 	);
+	let columnWidth = $state<number>();
+	const firstPrompt = $derived(workspace.transcript.find((item) => item.kind === 'user')?.text);
 	const git = $derived(workspace.git);
 	// Local Git can answer before the upstream lookup. Keep the last complete result
 	// for the ribbon and its pull request tab while the next check is in flight.
@@ -841,9 +844,11 @@
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
 	<TitleBar>
 		<div class="min-w-0 flex-1">
-			<h1 class="truncate heading" title={workspace.title}>
-				{workspace.title}
-			</h1>
+			<WorkspaceHeading
+				title={workspace.title}
+				prompt={workspace.named ? undefined : firstPrompt}
+				{columnWidth}
+			/>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
 				<span class="flex shrink-0 items-center gap-1">
 					<span class="icon-[lucide--folder-git-2] size-3.5"></span>
@@ -928,6 +933,7 @@
 			<!-- what is read, as a sheet in the frame: as far from the window's edge as the others, -->
 			<!-- and half a gap from what is beside it, where there is something -->
 			<div
+				bind:clientWidth={columnWidth}
 				class={[
 					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
 					frame.current.open ? 'mr-1' : 'mr-2'

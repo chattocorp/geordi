@@ -1,3 +1,4 @@
+import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createImages } from './images.ts';
@@ -393,18 +394,6 @@ const continuedBriefing = (branch: string) =>
 
 /** What a workspace is called until it is told what to do, or named. */
 export const UNTITLED = 'New workspace';
-
-const promptTitleLimit = 60;
-const graphemes = new Intl.Segmenter();
-
-function promptTitle(text: string) {
-	const line = text.split('\n', 1)[0].trim();
-	if (line.length <= promptTitleLimit) return line;
-	const cut = graphemes.segment(line).containing(promptTitleLimit - 1)!.index;
-	const prefix = line.slice(0, cut);
-	const words = /\s/u.test(line[cut]) ? prefix : prefix.replace(/\s+\S*$/u, '');
-	return words.trimEnd() + '…';
-}
 
 /** How often an agent may name its own workspace. */
 const MAX_NAMES = 3;
@@ -1072,7 +1061,13 @@ export function createWorkspaces(
 	 */
 	function nameAfter(workspace: Workspace, text: string) {
 		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
-		retitle(workspace.id, promptTitle(text));
+		const title = promptTitle(text);
+		if (title && title !== UNTITLED)
+			store.append({
+				type: 'workspace.titled',
+				stream: `workspace:${workspace.id}`,
+				data: { id: workspace.id, title }
+			});
 	}
 
 	/**
