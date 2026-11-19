@@ -229,12 +229,6 @@
 			)}
 			{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
 			{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
-			{@render link(
-				resolve('/project'),
-				'icon-[lucide--folder-plus]',
-				'New project',
-				path === '/project'
-			)}
 		</div>
 
 		<!--
@@ -247,8 +241,7 @@
 				{@const rows = unfolded(all, folded.current)}
 				{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
 				{@const focused = focus.current === repo.id}
-				{@const newHref =
-					repo.id === null ? resolve('/project') : `${resolve('/')}?repo=${repo.id}`}
+				{@const newHref = `${resolve('/')}?${repo.id === null ? 'project' : `repo=${repo.id}`}`}
 				{@const newLabel = repo.id === null ? 'New project' : `New workspace in ${repo.name}`}
 				<div class="pb-4" transition:slide={motion()}>
 					<!--
@@ -263,7 +256,14 @@
 							aria-expanded={!isFolded}
 							onclick={() => toggleFolded(repo.id ?? PROJECTS)}
 						>
-							{#if repo.id !== null}<RepoIcon id={repo.id} />{/if}
+							{#if repo.id === null}
+								<!-- as wide as a repository's picture: its projects line up under it -->
+								<span class="grid size-5 shrink-0 place-items-center">
+									<span class="icon-[lucide--folders] size-4.5 text-muted/70"></span>
+								</span>
+							{:else}
+								<RepoIcon id={repo.id} />
+							{/if}
 							<span class="truncate">{repo.name}</span>
 							{#if isFolded}
 								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{all.length}</span>

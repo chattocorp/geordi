@@ -9,7 +9,7 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 
 ## Behavior
 
-- Projects have a section of their own in the sidebar, above the repositories, with a way to start a new one there and beside **New workspace** at the top. Each shows what every workspace shows there: when its agent is at work, when it asks something, when it has come to rest unseen.
+- A project is started from the page for a new workspace: **New project** is the last choice where the repository is chosen. Projects have a section of their own in the sidebar, above the repositories, whose **+** opens that page with it chosen. Each shows what every workspace shows there: when its agent is at work, when it asks something, when it has come to rest unseen.
 - There can be many projects, one per effort. A project is archived when its work is done, like any workspace.
 - A project is a conversation with one agent, chosen with its model and effort as anywhere else (FDR-004). Further conversations can be started beside it, by the person or by its agent; they work in the project's folder too. Nothing else is there.
 - Its agent works in a folder of its own that Geordi makes for the project: empty, not a Git repository, there for notes and anything it fetches. The folder is removed when the project is archived.

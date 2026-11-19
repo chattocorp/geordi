@@ -12,7 +12,7 @@
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
-	import RepoPicker from './RepoPicker.svelte';
+	import RepoPicker, { PROJECT } from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { createWorkspace } from '../../../routes/workspaces.remote';
@@ -31,10 +31,8 @@
 		 * with an agent that works in its directory.
 		 */
 		alongside?: string;
-		/** Whether this starts a project (FDR-012): no repository to choose. */
-		project?: boolean;
 	};
-	let { repos, preferred, label, focused = false, alongside, project = false }: Props = $props();
+	let { repos, preferred, label, focused = false, alongside }: Props = $props();
 
 	const fields = createWorkspace.fields;
 	const { prompt, images } = fields;
@@ -44,7 +42,7 @@
 	// draft for a new workspace, and one for each workspace to start a conversation in.
 	prompt.set('');
 	const written = draft(
-		() => (alongside ? `alongside:${alongside}` : project ? 'project' : 'new'),
+		() => (alongside ? `alongside:${alongside}` : 'new'),
 		() => prompt
 	);
 	// (Starting one goes to it, so the form is not reset: the draft is forgotten here.)
@@ -52,13 +50,15 @@
 		if (await submit()) written.clear();
 	});
 
-	/** The repository picked here, if one was; otherwise the preferred one, or the first. */
+	/**
+	 * Where it begins, as picked here, else as preferred: a repository's ID, or `PROJECT` for
+	 * a new project (FDR-012).
+	 */
 	let picked = $state<string>();
-	const repo = $derived(
-		repos.find((repo) => repo.id === picked) ??
-			repos.find((repo) => repo.id === preferred) ??
-			repos[0]
-	);
+	const target = $derived(picked ?? preferred);
+	const project = $derived(!alongside && target === PROJECT);
+	/** The repository picked, or the first one. */
+	const repo = $derived(repos.find((repo) => repo.id === target) ?? repos[0]);
 
 	// `undefined` until loaded, `null` while no daemon is connected: nothing to choose from
 	const offered = follow<Navigation>('navigation');
@@ -70,9 +70,9 @@
 	let pickingRepo = $state(false);
 	// only where repositories are to be chosen from: on the page for a new workspace
 	$effect(() => {
-		if (!focused || alongside || project || !asked.repo) return;
+		if (!focused || alongside || !asked.repo) return;
 		asked.repo = false;
-		pickingRepo = repos.length > 1;
+		pickingRepo = true;
 	});
 </script>
 
@@ -108,11 +108,12 @@
 	{/snippet}
 	{#snippet footer()}
 		<div class="flex min-w-0 flex-wrap items-center gap-1">
-			{#if repos.length > 1 && !project}
+			<!-- a repository to work in, or a new project (FDR-012), which is in none -->
+			{#if !alongside}
 				<RepoPicker
 					{repos}
 					bind:open={pickingRepo}
-					bind:value={() => repo.id, (id) => (picked = id)}
+					bind:value={() => (project ? PROJECT : repo.id), (id) => (picked = id)}
 				/>
 			{/if}
 			{#if harnesses?.length}

@@ -268,7 +268,7 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Projects')).toBeVisible();
-		await expect(canvas.getByRole('link', { name: 'New project' })).toBeVisible();
+		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',
 			'Started by the agent in "Ship the protocol bump everywhere"'
