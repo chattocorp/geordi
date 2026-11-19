@@ -6,6 +6,7 @@
 	import Logo from './Logo.svelte';
 	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
+	import { hint, shortcutGroups } from '#lib/keys.ts';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';
@@ -145,6 +146,24 @@
 					<Button icon="icon-[lucide--bell-ring]" onclick={async () => (tested = await test())}>
 						Send a test
 					</Button>
+				</div>
+			{:else if section === 'keyboard'}
+				<h2 class="heading">Keyboard</h2>
+				<p class="pb-4 text-sm text-muted">The shortcuts Geordi knows.</p>
+				<div class="space-y-6">
+					{#each shortcutGroups() as [group, shortcuts] (group)}
+						<div class="space-y-2">
+							<h3 class="label">{group}</h3>
+							<ul class="divide-y divide-line/60 card">
+								{#each shortcuts as [id, shortcut] (id)}
+									<li class="flex items-center justify-between gap-4 px-3.5 py-2">
+										<span class="text-sm">{shortcut.label}</span>
+										<kbd class="font-sans text-sm text-muted">{hint(id)}</kbd>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/each}
 				</div>
 			{:else if section === 'repositories'}
 				<h2 class="heading">Repositories</h2>

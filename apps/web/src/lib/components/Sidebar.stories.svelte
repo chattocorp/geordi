@@ -9,6 +9,9 @@
 
 	type Item = Navigation['workspaces'][number];
 
+	/** What is folded away: in the app, remembered in the browser. */
+	const folded = $state({ current: [] as string[] });
+
 	const ready: WorkspaceStanding = {
 		label: 'Ready to merge',
 		tone: 'ok',
@@ -94,7 +97,7 @@
 {#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh w-64 bg-frame p-2">
-		<Sidebar {nav} {path} {lost} />
+		<Sidebar {nav} {path} {folded} {lost} />
 	</div>
 {/snippet}
 
