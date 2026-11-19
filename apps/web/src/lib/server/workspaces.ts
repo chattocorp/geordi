@@ -1,3 +1,4 @@
+import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createImages } from './images.ts';
@@ -442,7 +443,10 @@ export function createWorkspaces(
 		restoring = false
 	) {
 		if (event.type === 'workspace.created') {
-			workspaces.set(event.data.id, initialWorkspace(event.data, at, actor));
+			workspaces.set(
+				event.data.id,
+				initialWorkspace({ ...event.data, title: promptTitle(event.data.title) }, at, actor)
+			);
 			return;
 		}
 
@@ -1065,7 +1069,13 @@ export function createWorkspaces(
 	 */
 	function nameAfter(workspace: Workspace, text: string) {
 		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
-		retitle(workspace.id, text.split('\n')[0].slice(0, 300));
+		const title = promptTitle(text);
+		if (title && title !== UNTITLED)
+			store.append({
+				type: 'workspace.titled',
+				stream: `workspace:${workspace.id}`,
+				data: { id: workspace.id, title }
+			});
 	}
 
 	/**
@@ -1103,9 +1113,7 @@ export function createWorkspaces(
 		repos.get(workspace.repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
-		// The first line; the UI clamps long titles visually. One started without a word is
-		// named when it is first told something (`nameAfter`).
-		const title = prompt.split('\n')[0].trim().slice(0, 300) || UNTITLED;
+		const title = promptTitle(prompt) || UNTITLED;
 		store.append(
 			{
 				type: 'workspace.created',

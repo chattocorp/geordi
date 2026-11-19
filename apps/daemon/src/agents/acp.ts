@@ -234,12 +234,13 @@ export function connectAgent(
 				emit({ kind: 'plan', id: u.planId, plan: null });
 				break;
 			case SessionUpdate.isToolCallUpdate(u): {
-				flush();
 				if (tools.get(u.toolCallId) === 'closed') break;
 				diffs.receive(u);
 				const output = terminalOutput.toolResult(provider, u);
 				const { input = '', ...info } = toolInfos.news(u, output !== undefined);
 				if (!tools.has(u.toolCallId)) {
+					// Only a new tool adds a transcript row. Earlier tools can finish mid-reply.
+					flush();
 					tools.set(u.toolCallId, 'open');
 					emit({
 						kind: 'tool',

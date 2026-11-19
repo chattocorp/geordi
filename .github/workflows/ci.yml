@@ -29,7 +29,8 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
-      - run: pnpm --filter @geordi/web exec playwright install --with-deps --only-shell chromium
+      # The hosted runner already has the shared libraries for headless Chromium.
+      - run: pnpm --filter @geordi/web exec playwright install --only-shell chromium
       - name: Configure Git for test repositories
         run: |
           git config --global user.name 'Geordi CI'

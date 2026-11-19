@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Spinner from '#lib/ui/Spinner.svelte';
 	import DiffStat from '#lib/components/DiffStat.svelte';
+	import FittedPath from '#lib/components/FittedPath.svelte';
 	import type { WorktreeState } from '#lib/server/watchers.ts';
 
 	type Props = {
@@ -74,7 +75,6 @@
 			{/if}
 			<ul>
 				{#each files as file (file.path)}
-					{@const slash = dirOf(file.path).length}
 					{@const { letter, tone, means } = flag(file)}
 					<li>
 						<button
@@ -86,14 +86,9 @@
 							<span class={['w-2 shrink-0 text-center font-semibold', tone]} aria-label={means}>
 								{letter}
 							</span>
-							<!-- the name is what is looked for: where room runs out, the directory gives
-							     way first, and only then the name itself -->
-							<span class={['flex min-w-0 flex-1', file.status === 'deleted' && 'line-through']}>
-								{#if slash > 0}
-									<span class="min-w-0 truncate text-muted">{file.path.slice(0, slash)}</span>
-								{/if}
-								<span class="max-w-full shrink-0 truncate">{file.path.slice(slash)}</span>
-							</span>
+							<!-- the name is what is looked for: where room runs out, the directories give way
+							     first (`fitPath`); the full path is in the row's tooltip -->
+							<FittedPath path={file.path} class={{ 'line-through': file.status === 'deleted' }} />
 							<DiffStat added={file.added} removed={file.removed} />
 						</button>
 					</li>
