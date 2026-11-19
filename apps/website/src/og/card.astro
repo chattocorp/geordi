@@ -1,0 +1,63 @@
+---
+/*
+ * The picture a link to the website is shown with (Open Graph), drawn with the pages' own
+ * parts: `pnpm --filter @geordi/website og` photographs this page into `src/assets/og.png`.
+ * Only the dev server has it (`astro.config.mjs`); it is no page of the site.
+ */
+import '../styles/site.css';
+import Demo from '../components/Demo.svelte';
+import Visor from '../components/Visor.astro';
+---
+
+<!doctype html>
+<html lang="en" class="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="robots" content="noindex" />
+		<title>Geordi's Open Graph image</title>
+	</head>
+	<body>
+		<main id="card" class="bg-frame">
+			<div class="copy">
+				<p class="flex items-center gap-4 text-2xl font-semibold">
+					<Visor class="h-6 w-12" />
+					Geordi
+				</p>
+				<h1 class="mt-auto font-semibold">A calmer way to run coding agents.</h1>
+				<p class="mt-auto text-2xl text-muted">geordi.run</p>
+			</div>
+			<div class="window">
+				<Demo client:load />
+			</div>
+		</main>
+	</body>
+</html>
+
+<style>
+	/* A picture's measures are its own: 1200 by 630 is what Open Graph asks for. */
+	#card {
+		position: relative;
+		width: 1200px;
+		height: 630px;
+		overflow: hidden;
+	}
+	.copy {
+		position: absolute;
+		inset: 64px auto 64px 64px;
+		width: 400px;
+		display: flex;
+		flex-direction: column;
+	}
+	h1 {
+		font-size: 72px;
+		line-height: 0.96;
+		letter-spacing: -0.04em;
+	}
+	/* The window runs off the picture's right edge. */
+	.window {
+		position: absolute;
+		top: 64px;
+		left: 520px;
+		width: 1120px;
+	}
+</style>

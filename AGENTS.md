@@ -13,6 +13,8 @@ pnpm monorepo:
 - `packages/launch`: how both stage and start forge and daemon (`stage.js`, `services.js`).
 - `apps/website`: the website (Astro, static). Drawn with the forge's design system: it
   imports `apps/web/src/routes/layout.css`, so a change to tokens or utilities shows there too.
+  Its Open Graph image is a photograph of `src/og/card.astro`: after a change that shows in
+  it, make it anew with `pnpm --filter @geordi/website og`.
 - `packages/ui`: Svelte components and action rules shared by the forge and website demo (ADR-011).
 - `packages/protocol`: message types shared by forge and daemon.
 - `planning/`: the backlog (means collection).
