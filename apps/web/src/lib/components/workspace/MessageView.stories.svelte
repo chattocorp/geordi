@@ -9,6 +9,7 @@
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
 	const openParent = fn();
+	const stopBackground = fn<(id: string) => Promise<void>>().mockResolvedValue(undefined);
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const reply =
 		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
@@ -629,7 +630,11 @@
 		const heading = await canvas.findByText('Background tasks');
 		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
 		await userEvent.click(heading);
-		await userEvent.click(await canvas.findByRole('button', { name: /pnpm test/ }));
+		const stop = await canvas.findByRole('button', { name: 'Stop pnpm test' });
+		await expect(stop).toHaveTextContent(/^$/);
+		await userEvent.click(stop);
+		await expect(stopBackground).toHaveBeenCalledWith('stop-tests');
+		await userEvent.click(await canvas.findByRole('button', { name: /^pnpm test/ }));
 		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
 			'aria-expanded',
 			'true'
@@ -637,7 +642,7 @@
 		await waitFor(() =>
 			expect(
 				canvas
-					.getByRole('button', { name: /pnpm test/ })
+					.getByRole('button', { name: /^pnpm test/ })
 					.ownerDocument.activeElement?.closest('details')
 			).toHaveAttribute('open')
 		);
@@ -648,9 +653,10 @@
 			agent="codex"
 			withComposer
 			onopensubagent={openReviewer}
+			onstoptask={stopBackground}
 			background={[
-				{ type: 'tool_call', id: 'tests', toolCallId: 'tests' },
-				{ type: 'subagent', id: 'review' }
+				{ type: 'tool_call', id: 'tests', toolCallId: 'tests', stopId: 'stop-tests' },
+				{ type: 'subagent', id: 'review', stopId: 'stop-review' }
 			]}
 			blocks={[
 				{ kind: 'user', text: 'Run the tests and review the changes.' },

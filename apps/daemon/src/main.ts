@@ -671,6 +671,9 @@ async function handle(message: ForgeMessage) {
 			closeTerminal(message.terminalId);
 			break;
 
+		case 'agent.stopTask':
+			sessions.get(message.workspaceId)?.stopTask(message.stopId);
+			break;
 		case 'agent.stop':
 			(beginning.get(message.workspaceId) ?? sessions.get(message.workspaceId))?.stop();
 			break;

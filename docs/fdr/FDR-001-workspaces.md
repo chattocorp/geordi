@@ -1,7 +1,7 @@
 # FDR-001: Workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-18
+**Last reviewed:** 2026-11-19
 
 ## Overview
 
@@ -111,7 +111,7 @@ After two seconds without a connection, the window shows “Reconnecting” abov
 
 ### 13. Background tasks stay within reach after a reply
 
-While an agent reports background work, a tray above the composer shows its commands and subagents. The tray opens expanded. Collapse it to keep the count and first task name in view. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
+While an agent reports background work, a tray above the composer shows its commands and subagents. Expand the tray to see each task. Select Stop beside a task to end it. Its row stays visible until the agent reports that it ended. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
 
 ### 14. Titles come from the agent's own session
 
