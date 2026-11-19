@@ -15,6 +15,7 @@
 	import {
 		completionQuery,
 		fileMention,
+		fileSegments,
 		matchingFiles,
 		matching,
 		type Completion
@@ -277,6 +278,13 @@
 	};
 </script>
 
+{#snippet highlighted(parts: ReturnType<typeof fileSegments>)}
+	{#each parts as part, index (index)}
+		{#if part.hit}<mark class="bg-transparent font-semibold text-accent-ink">{part.text}</mark
+			>{:else}{part.text}{/if}
+	{/each}
+{/snippet}
+
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
 <form
 	{...form}
@@ -348,11 +356,15 @@
 						></span>
 						<span class="min-w-0 flex-1">
 							<span class="block truncate code font-medium text-ink"
-								>{completion.text.slice(split)}</span
+								>{@render highlighted(fileSegments(completion.text, mention.query, split))}</span
 							>
 							{#if split}
 								<span class="block truncate text-left code-dense text-muted" dir="rtl"
-									><bdi>{completion.text.slice(0, split - 1)}</bdi></span
+									><bdi
+										>{@render highlighted(
+											fileSegments(completion.text, mention.query, 0, split - 1)
+										)}</bdi
+									></span
 								>
 							{/if}
 						</span>

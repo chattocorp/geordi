@@ -62,3 +62,23 @@ export function matchingFiles(paths: string[], query: string): Completion[] {
 		.slice(0, 40)
 		.map((text) => ({ text }));
 }
+
+/** Split the visible part of a path into plain text and literal query matches. A match
+ * can cross the slash between the directory and the file name. */
+export function fileSegments(path: string, query: string, start = 0, end = path.length) {
+	const parts: { text: string; hit: boolean }[] = [];
+	let cursor = start;
+	if (query) {
+		const literal = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		for (const match of path.matchAll(new RegExp(literal, 'gi'))) {
+			const from = Math.max(start, match.index);
+			const to = Math.min(end, match.index + match[0].length);
+			if (from >= to) continue;
+			if (cursor < from) parts.push({ text: path.slice(cursor, from), hit: false });
+			parts.push({ text: path.slice(from, to), hit: true });
+			cursor = to;
+		}
+	}
+	if (cursor < end) parts.push({ text: path.slice(cursor, end), hit: false });
+	return parts;
+}

@@ -435,12 +435,21 @@
 	play={async ({ canvas, userEvent }) => {
 		const text = canvas.getByRole('combobox');
 		await userEvent.type(text, 'Review @compose');
-		await canvas.findByRole('option', { name: 'src/ui/Composer.svelte' });
+		const option = await canvas.findByRole('option', { name: 'src/ui/Composer.svelte' });
+		await expect(option.querySelector('mark')).toHaveTextContent('Compose');
 		await expect(
 			canvas.getByRole('option', { name: 'src/workspace/components/Composer.svelte' })
 		).toBeVisible();
 		await userEvent.keyboard('{Enter}');
 		await expect(text).toHaveValue('Review @src/ui/Composer.svelte ');
+		await userEvent.clear(text);
+		await userEvent.type(text, '@ui/Composer.');
+		await expect(
+			Array.from(
+				canvas.getByRole('option', { name: 'src/ui/Composer.svelte' }).querySelectorAll('mark'),
+				(mark) => mark.textContent
+			)
+		).toEqual(['Composer.', 'ui']);
 		await userEvent.clear(text);
 		await userEvent.type(text, 'Check @comp next');
 		await userEvent.keyboard('{ArrowLeft>5/}');
