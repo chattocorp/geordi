@@ -233,7 +233,7 @@
 	>
 		<button
 			type="button"
-			title={offered}
+			title="Send suggested reply"
 			class="flex min-w-0 items-baseline gap-2 rounded-control px-2 py-1 text-left text-sm text-prose hover:bg-hover"
 			onclick={() => takeSuggestion(offered, true)}
 		>
@@ -241,7 +241,7 @@
 				aria-hidden="true"
 				class="mt-1 icon-[lucide--corner-down-right] size-3.5 shrink-0 self-start text-muted"
 			></span>
-			<span class="line-clamp-2 wrap-anywhere">{offered}</span>
+			<span class="min-w-0 wrap-anywhere whitespace-pre-wrap">{offered}</span>
 		</button>
 		<Button
 			variant="ghost"

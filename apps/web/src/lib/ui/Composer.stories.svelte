@@ -274,7 +274,19 @@
 	</div>
 </Story>
 
-<Story name="Long suggestion" asChild>
+<Story
+	name="Long suggestion"
+	asChild
+	play={async ({ canvas }) => {
+		const send = canvas.getByRole('button', { name: /Review the failing tests/ });
+		const words = canvas.getByText(longSuggestion.replace(/\s+/g, ' '));
+		await expect(words.textContent).toBe(longSuggestion);
+		await expect(words.scrollHeight).toBeLessThanOrEqual(words.clientHeight + 1);
+		await expect(words.getBoundingClientRect().right).toBeLessThanOrEqual(
+			send.getBoundingClientRect().right
+		);
+	}}
+>
 	<div class="max-w-sm">
 		<Composer {form} rows={2} placeholder="Reply to the agent" suggestion={longSuggestion}>
 			{#snippet footer()}
