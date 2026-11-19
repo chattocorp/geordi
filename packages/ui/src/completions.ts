@@ -41,7 +41,7 @@ export function matching<T extends Completion>(completions: T[], query: string):
 
 /** The @ token under a collapsed caret, including the part after the caret. */
 export function fileMention(text: string, caret: number) {
-	const match = /(?:^|\s)@([^\s@]*)$/.exec(text.slice(0, caret));
+	const match = /(?:^|\s)@([^\s@]+)$/.exec(text.slice(0, caret));
 	if (!match) return null;
 	const query = match[1];
 	return {

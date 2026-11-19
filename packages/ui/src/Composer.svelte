@@ -153,13 +153,9 @@
 		}
 		resultsFrom = search;
 		fileError = false;
-		showFileProgress = false;
 		loadingFiles = wanted !== undefined && !!search;
 		if (wanted === undefined || !search) return;
 		let current = true;
-		const slow = setTimeout(() => {
-			showFileProgress = true;
-		}, 200);
 		// Coalesce typing, including edits made while a cold index is still building.
 		const timer = setTimeout(() => {
 			previous = previous.then(async () => {
@@ -182,16 +178,21 @@
 						fileError = true;
 					}
 				} finally {
-					clearTimeout(slow);
 					if (current) loadingFiles = false;
 				}
 			});
-		}, 35);
+		}, 150);
 		return () => {
 			current = false;
-			clearTimeout(slow);
 			clearTimeout(timer);
 		};
+	});
+	const waitingForFirstResults = $derived(loadingFiles && !fileResults.length);
+	$effect(() => {
+		showFileProgress = false;
+		if (!waitingForFirstResults) return;
+		const timer = setTimeout(() => (showFileProgress = true), 500);
+		return () => clearTimeout(timer);
 	});
 	const shown = $derived(
 		mention ? fileResults : query === null ? [] : matching(completions, query)
@@ -387,7 +388,7 @@
 								>
 							{/if}
 						</span>
-						{#if index === active && !loadingFiles}
+						{#if index === active}
 							<span
 								aria-hidden="true"
 								class="mr-1 icon-[lucide--corner-down-left] size-3.5 shrink-0 text-muted"
