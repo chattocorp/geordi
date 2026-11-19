@@ -118,7 +118,9 @@ export function startTimes(pids: number[]): Map<number, string> {
 					$process = [System.Diagnostics.Process]::GetProcessById($id)
 					[string]::Concat($id, ' ', $process.StartTime.ToUniversalTime().Ticks)
 				} catch [System.ArgumentException] { continue }
-			}`
+			}
+			# A missing last PID leaves PowerShell's implicit exit status at 1.
+			exit 0`
 			)
 		);
 		return times;
