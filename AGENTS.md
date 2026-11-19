@@ -151,7 +151,7 @@ it, perhaps you.
   no title bar: every page starts with a `TitleBar`, which in the app (`desktop:` variant) makes
   room for the window's buttons and is what the window is dragged by (`window-drag`, on
   the bar itself; what can be used in it is exempt). The
-  layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
+  layout puts the sidebar toggle into it (`setTitleBarLead`).
   What the page can ask of the app is in `preload.cjs` (`window.geordiDesktop`: the Dock
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that

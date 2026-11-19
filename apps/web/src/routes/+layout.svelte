@@ -7,7 +7,6 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
-	import HistoryButtons from '#lib/components/HistoryButtons.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
@@ -153,7 +152,6 @@
 {#snippet lead()}
 	<div class="hidden items-center gap-1 md:flex mac:pl-17">
 		{@render toggle('icon-[lucide--panel-left-open]')}
-		<span class="hidden items-center gap-1 desktop:flex"><HistoryButtons /></span>
 		<ConnectionIndicator {lost} />
 	</div>
 {/snippet}
@@ -179,9 +177,6 @@
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
-				>
-				<span class="hidden items-center gap-1 desktop:order-3 desktop:flex"
-					><HistoryButtons /></span
 				>
 			</div>
 
