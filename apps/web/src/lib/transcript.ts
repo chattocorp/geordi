@@ -19,8 +19,11 @@ export type Block =
 	  > & {
 			delegated?: boolean;
 	  })
-	/** `usage`: what the turns of this reply used, together, where their agent said. */
-	| { kind: 'agent'; parts: Part[]; usage?: TurnUsage }
+	/**
+	 * Of the turns of this reply, together: what they `used`, where their agent said, and how
+	 * long they `took` (ms), where they said when they began.
+	 */
+	| { kind: 'agent'; parts: Part[]; usage?: TurnUsage; took?: number }
 	| { kind: 'note'; text: string };
 
 /** Groups a flat transcript into turns, merging consecutive tool calls into one part. */
@@ -50,9 +53,12 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 			continue;
 		}
 
-		if (item.kind === 'usage') {
+		if (item.kind === 'turn') {
 			const agent = blocks.at(-1);
-			if (agent?.kind === 'agent') agent.usage = addUsage(agent.usage, item.usage);
+			if (agent?.kind !== 'agent') continue;
+			if (item.usage) agent.usage = addUsage(agent.usage, item.usage);
+			if (item.startedAt)
+				agent.took = (agent.took ?? 0) + Date.parse(item.at) - Date.parse(item.startedAt);
 			continue;
 		}
 
