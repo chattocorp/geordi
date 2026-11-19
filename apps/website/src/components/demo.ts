@@ -1,3 +1,4 @@
+import type { ToolEntry } from '@geordi/ui/tools';
 import type { WorkspaceStanding } from '@geordi/ui/actions';
 import type { Changes } from '@geordi/protocol';
 
@@ -7,25 +8,40 @@ export const message =
 export const tools = [
 	{
 		step: 2,
-		icon: 'icon-[lucide--file-text]',
+		id: 'read-login',
 		name: 'Read',
-		what: 'src/routes/login/+page.server.ts'
+		input: JSON.stringify({ file_path: 'src/routes/login/+page.server.ts' }),
+		output: "await signIn(request);\nredirect(303, '/');"
 	},
-	{ step: 3, icon: 'icon-[lucide--pencil]', name: 'Edit', what: 'src/lib/server/auth.ts' },
+	{
+		step: 3,
+		id: 'edit-auth',
+		name: 'Edit',
+		input: JSON.stringify({ file_path: 'src/lib/server/auth.ts' }),
+		output: 'Updated src/lib/server/auth.ts'
+	},
 	{
 		step: 4,
-		icon: 'icon-[lucide--pencil]',
+		id: 'edit-login',
 		name: 'Edit',
-		what: 'src/routes/login/+page.server.ts'
+		input: JSON.stringify({ file_path: 'src/routes/login/+page.server.ts' }),
+		output: 'Updated the sign-in redirect.'
 	},
 	{
 		step: 5,
-		icon: 'icon-[lucide--file-plus]',
+		id: 'write-test',
 		name: 'Write',
-		what: 'src/lib/server/auth.spec.ts'
+		input: JSON.stringify({ file_path: 'src/lib/server/auth.spec.ts' }),
+		output: 'Added redirect tests.'
 	},
-	{ step: 6, icon: 'icon-[lucide--terminal]', name: 'Bash', what: 'pnpm test auth' }
-];
+	{
+		step: 6,
+		id: 'test',
+		name: 'Bash',
+		input: JSON.stringify({ command: 'pnpm test auth' }),
+		output: '2 tests passed.'
+	}
+] satisfies (Omit<ToolEntry, 'isError'> & { step: number })[];
 
 /** The other workspaces in the sidebar, and how each stands. */
 export const others = [

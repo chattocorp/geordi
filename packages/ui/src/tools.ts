@@ -1,6 +1,6 @@
 /** Presentation helpers for agent tool calls. */
 
-import type { ToolKind, ToolLocation } from '@geordi/protocol';
+import type { ToolKind, ToolLocation, ToolInfo, ToolDiff } from '@geordi/protocol';
 
 /** An icon for a tool, by the names Claude and Codex use. */
 export function toolIcon(name: string): string {
@@ -180,3 +180,21 @@ export function filesOf(locations: ToolLocation[] | undefined, cwd?: string) {
 	}
 	return [...files].map(([path, line]) => ({ path, line }));
 }
+
+export type ChangedFiles = {
+	/** Their paths, in the worktree. */
+	readonly paths: ReadonlySet<string>;
+	/** Where the worktree is, for absolute paths. */
+	readonly root?: string;
+	openSource: (path: string, line?: number) => void;
+	open: (path: string) => void;
+};
+
+export type ToolEntry = ToolInfo & {
+	id: string;
+	name: string;
+	input: string;
+	output: string | null;
+	isError: boolean;
+	diff?: ToolDiff;
+};

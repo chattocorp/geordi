@@ -5,6 +5,11 @@
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
+	import UserMessage from '@geordi/ui/UserMessage.svelte';
+	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
+	import AgentText from '@geordi/ui/AgentText.svelte';
+	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
+	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { actionsFor, standingOf, type WorkspaceAction } from '@geordi/ui/actions';
 
@@ -12,6 +17,18 @@
 	let step = $state(last);
 	let typed = $state(0);
 	let playing = $state(false);
+	const replyStart = 'People now return to the page they asked for. The sign-in form carries it as';
+	const replyEnd = ', and only paths on this site are accepted. Tests pass.';
+	let activityOpen = $state(false);
+	const calls = $derived(
+		tools
+			.filter((tool) => step >= tool.step)
+			.map((tool) => ({
+				...tool,
+				isError: false,
+				output: step === tool.step ? null : tool.output
+			}))
+	);
 	let visible = false;
 	let timer: ReturnType<typeof setTimeout>;
 	let frame: HTMLElement;
@@ -71,7 +88,7 @@
 
 	function schedule() {
 		clearTimeout(timer);
-		if (!playing || !visible || pullInfo?.open) return;
+		if (!playing || !visible || activityOpen || pullInfo?.open) return;
 		if (step === 0 && typed < message.length) {
 			timer = setTimeout(
 				() => {
@@ -84,6 +101,7 @@
 	}
 	function go(next: number) {
 		step = next;
+		activityOpen = false;
 		if (step === 0) {
 			typed = 0;
 			selected = null;
@@ -216,41 +234,41 @@
 					Claude
 				</p>
 			</div>
-			<div class="flex min-h-0 flex-1 flex-col justify-end gap-4 overflow-hidden px-5 pb-4">
-				<p class="m-auto max-w-xs text-center text-sm text-balance text-muted" {...at(0, 1)}>
-					Say what you want done.
-				</p>
-				<p class="ml-auto message bg-bubble" {...at(1)}>
-					{message}
-				</p>
-				<div class="flex gap-3.5" {...at(1)}>
-					<span
-						class="grid size-8 shrink-0 place-items-center rounded-control bg-claude/15 text-claude"
-					>
-						<span class="icon-[lucide--sparkles] size-4.5"></span>
-					</span>
-					<div class="min-w-0 flex-1 pt-0.5">
-						{#each tools as tool (tool.step)}
-							<p class="flex h-7 items-center gap-2 text-sm text-muted" {...at(tool.step)}>
-								<span class={['size-3.5 shrink-0', tool.icon]}></span>
-								<span class="shrink-0 font-medium">{tool.name}</span>
-								<span class="min-w-0 truncate code-dense">{tool.what}</span>
-							</p>
-						{/each}
-						<p class="flex h-7 items-center gap-2 text-xs text-muted" {...at(1, 7)}>
-							<Spinner /> Working
-						</p>
-						<p class="mt-2 max-w-prose" {...at(7)}>
-							People now return to the page they asked for. The sign-in form carries it as
-							<code class="code text-(--inline-code)">returnTo</code>, and only paths on this site
-							are accepted. Tests pass.
-						</p>
-						<p class="mt-3 flex items-center gap-2 text-sm text-muted" {...at(8)}>
-							<span class="icon-[lucide--git-pull-request] size-3.5"></span>
-							Opened pull request #412
-						</p>
-					</div>
-				</div>
+			<div class="scroller flex min-h-0 flex-1 flex-col gap-4 px-5 pb-4">
+				{#if step === 0}<p class="m-auto max-w-xs text-center text-sm text-balance text-muted">
+						Say what you want done.
+					</p>
+				{:else}
+					<div class="mt-auto pt-4"><UserMessage text={message} /></div>
+					<AgentMessage agent="claude">
+						{#if step >= 7}
+							<TurnActivity
+								summary={`${calls.length} tool calls`}
+								expanded={activityOpen}
+								ontoggle={() => {
+									activityOpen = !activityOpen;
+									schedule();
+								}}
+							/>
+						{/if}
+						{#if calls.length && (step < 7 || activityOpen)}<ToolGroup
+								tools={calls}
+								live={step < 7}
+							/>{/if}
+						{#if step === 1}<p class="flex h-7 items-center gap-2 text-xs text-muted">
+								<Spinner /> Working
+							</p>{/if}
+						{#if step >= 7}
+							<AgentText text={`${replyStart} \`returnTo\`${replyEnd}`}>
+								<div class="prose"><p>{replyStart} <code>returnTo</code>{replyEnd}</p></div>
+							</AgentText>
+						{/if}
+						{#if step >= 8}<p class="flex items-center gap-2 text-sm text-muted">
+								<span class="icon-[lucide--git-pull-request] size-3.5"></span>Opened pull request
+								#412
+							</p>{/if}
+					</AgentMessage>
+				{/if}
 			</div>
 			<!-- the reply box: a light goes round its edge while the agent works -->
 			<div

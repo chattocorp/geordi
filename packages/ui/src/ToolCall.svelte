@@ -1,25 +1,30 @@
 <script lang="ts">
-	import type { ToolDiff, ToolInfo } from '@geordi/protocol';
-	import { changedFiles } from '#lib/changedFiles.ts';
-	import Disclosure from '#lib/ui/Disclosure.svelte';
-	import { filesOf, iconOf, relativeTo, titleOf } from '#lib/tools.ts';
-	import Spinner from '@geordi/ui/Spinner.svelte';
-	import PatchView from './PatchView.svelte';
+	import type { ToolDiff } from '@geordi/protocol';
+	import type { Component } from 'svelte';
+	import type { ChangedFiles, ToolEntry } from './tools.ts';
+	import Disclosure from './Disclosure.svelte';
+	import { filesOf, iconOf, relativeTo, titleOf } from './tools.ts';
+	import Spinner from './Spinner.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 
-	type Props = ToolInfo & {
-		name: string;
-		input: string;
-		output: string | null;
-		isError: boolean;
-		/** What it changed in files, if the agent said: shown instead of its input and output. */
-		diff?: ToolDiff;
+	type Props = Omit<ToolEntry, 'id'> & {
+		workspace?: ChangedFiles;
+		PatchView?: Component<{ diff: ToolDiff; cwd?: string }>;
 		/** The session's worktree, so paths inside it can be shown relative to it. */
 		cwd?: string;
 		/** Whether it is running right now. One without output in a turn that is over never finished. */
 		running?: boolean;
 	};
-	let { output, isError, diff, cwd, running = false, ...tool }: Props = $props();
+	let {
+		output,
+		isError,
+		diff,
+		cwd,
+		workspace,
+		PatchView,
+		running = false,
+		...tool
+	}: Props = $props();
 
 	let open = $state(false);
 
@@ -34,7 +39,6 @@
 
 	// The files it names lead to them, in the workspace: to the changes made to a file it
 	// changed, else to the file.
-	const workspace = changedFiles();
 	const files = $derived(workspace ? filesOf(tool.locations, cwd ?? workspace.root) : []);
 	const changes = $derived(
 		tool.toolKind === 'edit' || tool.toolKind === 'delete' || tool.toolKind === 'move'
@@ -72,7 +76,7 @@
 			{/each}
 		</p>
 	{/if}
-	{#if diff}
+	{#if diff && PatchView}
 		<!-- drawn only once opened: the viewer is loaded on first use -->
 		<div class="mx-3.5 mb-3">
 			{#if open}<PatchView {diff} {cwd} />{/if}

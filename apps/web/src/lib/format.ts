@@ -1,6 +1,4 @@
-import type { Agent } from '@geordi/protocol';
-
-export const agentName: Record<Agent, string> = { claude: 'Claude Code', codex: 'Codex' };
+export { agentName } from '@geordi/ui/agents';
 
 /** "just now", "5 min ago", "3 h ago", or a date. */
 export function timeAgo(iso: string, now = Date.now()): string {

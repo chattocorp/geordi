@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import Button from '@geordi/ui/Button.svelte';
+	import Button from './Button.svelte';
 
 	let { text, label = 'Copy message' }: { text: string; label?: string } = $props();
 	let status = $state<'idle' | 'copied' | 'failed'>('idle');

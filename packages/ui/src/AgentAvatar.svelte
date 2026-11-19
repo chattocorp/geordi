@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Agent } from '@geordi/protocol';
-	import { agentName } from '#lib/format.ts';
+	import { agentName } from './agents.ts';
 
 	type Props = {
 		agent: Agent;

@@ -1,20 +1,29 @@
 <script lang="ts">
-	import Disclosure from '#lib/ui/Disclosure.svelte';
-	import { iconOf, sortOf, titleOf } from '#lib/tools.ts';
-	import type { Part } from '#lib/transcript.ts';
-	import Spinner from '@geordi/ui/Spinner.svelte';
+	import Disclosure from './Disclosure.svelte';
+	import { iconOf, sortOf, titleOf } from './tools.ts';
+	import type { ToolEntry } from './tools.ts';
+	import type { ComponentProps } from 'svelte';
+	import Spinner from './Spinner.svelte';
 	import ToolCall from './ToolCall.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 
-	type Props = {
-		tools: Extract<Part, { kind: 'tools' }>['tools'];
+	type Props = Pick<ComponentProps<typeof ToolCall>, 'workspace' | 'PatchView'> & {
+		tools: ToolEntry[];
 		cwd?: string;
 		/** Whether the agent is at work on this very group: its last tool may still be running. */
 		live?: boolean;
 		backgroundIds?: string[];
 		reveal?: { id: string; done: () => void };
 	};
-	let { tools, cwd, live = false, backgroundIds = [], reveal }: Props = $props();
+	let {
+		tools,
+		cwd,
+		workspace,
+		PatchView,
+		live = false,
+		backgroundIds = [],
+		reveal
+	}: Props = $props();
 
 	/** The tool that is running right now, if one is: the only one worth watching. */
 	const active = $derived(live ? tools.findLast((tool) => tool.output === null) : undefined);
@@ -79,6 +88,8 @@
 			>
 				<ToolCall
 					{...tool}
+					{workspace}
+					{PatchView}
 					{cwd}
 					running={backgroundIds.includes(tool.id) || (live && tool === active)}
 				/>
