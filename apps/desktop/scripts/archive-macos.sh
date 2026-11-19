@@ -27,9 +27,19 @@ unset password MACOS_SIGNING_CERTIFICATE_P12_BASE64 MACOS_SIGNING_CERTIFICATE_PA
 
 app=dist/Geordi-darwin-arm64/Geordi.app
 install -m 644 app-update.yml "$app/Contents/Resources/app-update.yml"
-node scripts/sign-macos.js "$app" "$keychain" "$work/notary.p8"
+node scripts/sign-macos.js "$app" "$keychain"
 
 version=$(node -p "require('./package.json').version")
+bash scripts/dmg-macos.sh
+image="dist/Geordi-v${version}-macOS-arm64.dmg"
+codesign --sign 'Developer ID Application: ChattoCorp GmbH (59ZZ2V8BY7)' --keychain "$keychain" --timestamp "$image"
+xcrun notarytool submit "$image" --key "$work/notary.p8" --key-id "$MACOS_NOTARY_API_KEY_ID" --issuer "$MACOS_NOTARY_API_ISSUER_ID" --wait
+xcrun stapler staple "$image"
+xcrun stapler validate "$image"
+spctl --assess --type open --context context:primary-signature --verbose=2 "$image"
+
+# The DMG submission also covers this signed app. Staple it before generating the updater files.
+xcrun stapler staple "$app"
 archive="dist/Geordi-v${version}-macOS-arm64.zip"
 node scripts/update-archive.js
 ditto -x -k "$archive" "$work/extracted"
@@ -41,11 +51,3 @@ spctl --assess --type execute --verbose=2 "$app"
   cd "$app/Contents/Resources/app"
   ELECTRON_RUN_AS_NODE=1 ../../MacOS/Geordi -e "require('@lydell/node-pty')"
 )
-
-bash scripts/dmg-macos.sh
-image="dist/Geordi-v${version}-macOS-arm64.dmg"
-codesign --sign 'Developer ID Application: ChattoCorp GmbH (59ZZ2V8BY7)' --keychain "$keychain" --timestamp "$image"
-xcrun notarytool submit "$image" --key "$work/notary.p8" --key-id "$MACOS_NOTARY_API_KEY_ID" --issuer "$MACOS_NOTARY_API_ISSUER_ID" --wait
-xcrun stapler staple "$image"
-xcrun stapler validate "$image"
-spctl --assess --type open --context context:primary-signature --verbose=2 "$image"

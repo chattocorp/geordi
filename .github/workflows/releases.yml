@@ -26,7 +26,8 @@ jobs:
       contents: write
     uses: chattocorp/sweet-release/.github/workflows/tag.yml@11dc11d022585610ad9d751c3f0262f6ef754179
     secrets:
-      release-token: ${{ secrets.RELEASE_PR_TOKEN }}
+      # This workflow builds the returned tags. A GITHUB_TOKEN push avoids a second beta build.
+      release-token: ${{ secrets.GITHUB_TOKEN }}
 
   desktop:
     needs: tag
