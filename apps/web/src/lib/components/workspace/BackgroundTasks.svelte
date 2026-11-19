@@ -107,11 +107,11 @@
 								variant="ghost"
 								size="sm"
 								class="ml-1 self-center"
-								aria-label={'Stop ' + row.label}
+								icon="icon-[lucide--square]"
 								label={'Stop ' + row.label}
 								busy={row.task.stopping}
-								onclick={() => stop(row.task.stopId!)}>Stop</Button
-							>
+								onclick={() => stop(row.task.stopId!)}
+							/>
 						{/if}
 					</li>
 					{#if row.task.stopError || errors.get(row.task.stopId ?? '')}

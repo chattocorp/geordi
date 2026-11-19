@@ -630,7 +630,9 @@
 		const heading = await canvas.findByText('Background tasks');
 		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
 		await userEvent.click(heading);
-		await userEvent.click(await canvas.findByRole('button', { name: 'Stop pnpm test' }));
+		const stop = await canvas.findByRole('button', { name: 'Stop pnpm test' });
+		await expect(stop).toHaveTextContent(/^$/);
+		await userEvent.click(stop);
 		await expect(stopBackground).toHaveBeenCalledWith('stop-tests');
 		await userEvent.click(await canvas.findByRole('button', { name: /^pnpm test/ }));
 		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
