@@ -86,11 +86,12 @@ describe('workspaces', () => {
 				state: 'done',
 				items: [{ output: 'ui' }, { title: 'design', items: [{ output: 'ui/design' }] }]
 			},
+			{ kind: 'turn' },
 			{ kind: 'user' }
 		]);
 	});
 
-	it('records what a turn used with its end, and keeps it across a restart', () => {
+	it('records when a turn began and what it used with its end, and keeps it across a restart', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Count');
 		const usage = { totalTokens: 361, inputTokens: 8, outputTokens: 353 };
@@ -102,16 +103,23 @@ describe('workspaces', () => {
 		// as recorded before turns said what they used
 		workspaces.record(id, { kind: 'turn.completed' });
 		const replay = createWorkspaces(store, repos, dispatch);
-		expect(replay.get(id).transcript.map((item) => item.kind)).toEqual([
+		const transcript = replay.get(id).transcript;
+		expect(transcript.map((item) => item.kind)).toEqual([
 			'user',
 			'text',
-			'usage',
+			'turn',
 			'user',
 			'error',
-			'usage',
-			'user'
+			'turn',
+			'user',
+			'turn'
 		]);
-		expect(replay.get(id).transcript[2]).toMatchObject({ kind: 'usage', usage });
+		expect(transcript[2]).toMatchObject({ kind: 'turn', usage, startedAt: transcript[0].at });
+		expect(transcript[7]).toEqual({
+			kind: 'turn',
+			startedAt: transcript[6].at,
+			at: expect.any(String)
+		});
 	});
 
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
@@ -143,12 +151,18 @@ describe('workspaces', () => {
 		restarted.record(id, { kind: 'plan', id: 'review', plan: null });
 		restarted.record(id, { kind: 'turn.completed' });
 		const next = createWorkspaces(store, repos, dispatch);
-		expect(next.get(id).transcript).toMatchObject([{ kind: 'user' }, { kind: 'text' }, checklist]);
+		expect(next.get(id).transcript).toMatchObject([
+			{ kind: 'user' },
+			{ kind: 'text' },
+			checklist,
+			{ kind: 'turn' }
+		]);
 		next.send(id, 'Continue the plan');
 		next.record(id, checklist);
 		expect(next.get(id).transcript.map((item) => item.kind)).toEqual([
 			'user',
 			'text',
+			'turn',
 			'user',
 			'plan'
 		]);
@@ -222,7 +236,7 @@ describe('workspaces', () => {
 		const workspace = workspaces.get(id);
 		expect(workspace.worktree).toEqual({ path: '/wt/abc', branch: 'geordi/abc-2' });
 		// the conversation is as it was, with a word about what happened
-		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'note']);
+		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'turn', 'note']);
 		// a daemon asked to bring the worktree back would bring back this branch
 		expect(workspaces.ref(id)).toMatchObject({ branch: 'geordi/abc-2' });
 
@@ -313,7 +327,7 @@ describe('workspaces', () => {
 			resumeId: 'cli-session',
 			worktree: { path: '/wt', branch: 'geordi/x' }
 		});
-		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text']);
+		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text', 'turn']);
 		expect(workspace.transcript[1]).toMatchObject({ output: 'contents', isError: false });
 	});
 
@@ -379,7 +393,8 @@ describe('workspaces', () => {
 			transcript: [
 				{ kind: 'user' },
 				{ ...tool, output: '', isError: true },
-				{ kind: 'text', text: 'WAITING' }
+				{ kind: 'text', text: 'WAITING' },
+				{ kind: 'turn' }
 			]
 		});
 	});
@@ -542,7 +557,7 @@ describe('workspaces', () => {
 		store.append({ type: 'workspace.message', stream, data: { id, text: 'Two', steered: true } });
 		const replayed = createWorkspaces(store, repos, dispatch).get(id);
 		// being stopped for it is not shown as a failure
-		expect(replayed.transcript.map((item) => item.kind)).toEqual(['user', 'user']);
+		expect(replayed.transcript.map((item) => item.kind)).toEqual(['user', 'turn', 'user']);
 		expect(replayed.status).toBe('running');
 	});
 
@@ -559,7 +574,10 @@ describe('workspaces', () => {
 		workspaces.record(id, { kind: 'text', text: 'The build is green.' });
 		workspaces.record(id, { kind: 'turn.completed' });
 		expect(workspaces.get(id)).toMatchObject({ status: 'idle', lastTurn: 'completed' });
-		expect(workspaces.get(id).transcript.at(-1)).toMatchObject({ text: 'The build is green.' });
+		expect(workspaces.get(id).transcript.slice(-2)).toMatchObject([
+			{ text: 'The build is green.' },
+			{ kind: 'turn', startedAt: expect.any(String) }
+		]);
 		expect(sent).toHaveLength(messages); // nothing was asked of the daemon for it
 	});
 
@@ -744,7 +762,7 @@ describe('workspaces', () => {
 		const { workspaces, create } = setup({ connected: false });
 		const workspace = workspaces.get(create('One'));
 		expect(workspace.status).toBe('idle');
-		expect(workspace.transcript.at(-1)).toMatchObject({
+		expect(workspace.transcript.at(-2)).toMatchObject({
 			kind: 'error',
 			error: 'No daemon connected'
 		});
@@ -907,7 +925,7 @@ describe('archiving', () => {
 		expect(workspaces.all()).toEqual([]);
 		expect(workspaces.get(id)).toMatchObject({
 			archivedAt: expect.any(String),
-			transcript: [{ kind: 'user' }, { kind: 'text', text: 'Done.' }]
+			transcript: [{ kind: 'user' }, { kind: 'text', text: 'Done.' }, { kind: 'turn' }]
 		});
 		expect(() => workspaces.send(id, 'More')).toThrow();
 		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
@@ -1346,6 +1364,7 @@ describe('messages with images', () => {
 			transcript: [
 				{ kind: 'user', images: [first] },
 				{ kind: 'user', images: [first, second] },
+				{ kind: 'turn' },
 				{ kind: 'user', images: [second] }
 			]
 		});

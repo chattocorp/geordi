@@ -214,8 +214,11 @@ export type TranscriptItem =
 			at: string;
 	  } & ToolInfo)
 	| { kind: 'error'; error: string; at: string }
-	/** What the turn that ends here used, where its agent said. */
-	| { kind: 'usage'; usage: TurnUsage; at: string }
+	/**
+	 * A turn ends here (`at`): when it began, where that is known, and what it used, where
+	 * its agent said.
+	 */
+	| { kind: 'turn'; startedAt?: string; usage?: TurnUsage; at: string }
 	/**
 	 * Something the agent asked the person, which it waits to hear about. `answers` once it
 	 * was answered; no longer `open` once it was, or the turn ended without.
@@ -269,6 +272,8 @@ type Status = 'running' | 'idle';
 export type Workspace = {
 	outputCursor?: string;
 	pendingSteers?: { deliveryId: string; text: string; images: string[] }[];
+	/** When the turn that is running began, for the `turn` item that ends it. */
+	turnStartedAt?: string;
 	id: string;
 	repoId: string;
 	title: string;
@@ -544,6 +549,7 @@ export function createWorkspaces(
 				sender = steering.get(workspace.id) ?? null;
 				steering.delete(workspace.id);
 			}
+			if (workspace.status !== 'running') workspace.turnStartedAt = at;
 			workspace.status = 'running';
 			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
@@ -642,6 +648,7 @@ export function createWorkspaces(
 				if (output.blocking !== false) workspace.asking = true;
 				break;
 			case 'turn.started':
+				if (workspace.status !== 'running') workspace.turnStartedAt = at;
 				workspace.status = 'running';
 				workspace.lastTurn = null;
 				break;
@@ -658,7 +665,13 @@ export function createWorkspaces(
 					if (!(output.error === 'Stopped' && steering.has(workspace.id)))
 						append({ kind: 'error', error: output.error, at });
 				} else workspace.lastTurn = 'completed';
-				if (output.usage) append({ kind: 'usage', usage: output.usage, at });
+				append({
+					kind: 'turn',
+					...(workspace.turnStartedAt && { startedAt: workspace.turnStartedAt }),
+					...(output.usage && { usage: output.usage }),
+					at
+				});
+				delete workspace.turnStartedAt;
 				break;
 		}
 	}

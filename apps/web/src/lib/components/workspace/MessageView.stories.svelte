@@ -161,17 +161,22 @@
 	</div>
 </Story>
 
-<!-- What a reply used, where it ends: beside its last words, or on its own after a tool call. -->
+<!--
+	Where a reply ends, how long it took, with what it used on hover: beside its last words, or
+	on its own after a tool call. Earlier replies say it when the pointer is on them.
+-->
 <Story
-	name="Token usage"
+	name="Byline"
 	asChild
 	play={async ({ canvas }) => {
-		const figure = await canvas.findByText('150k tokens');
-		expect(figure).toHaveAttribute(
-			'title',
-			'8 input · 353 output · 120,465 cache read · 29,504 cache write'
-		);
-		await waitFor(() => expect(canvas.getByText('79k tokens')).toBeVisible());
+		await waitFor(() => expect(canvas.getByText('48s')).toBeVisible());
+		expect(canvas.getByText('2m 14s')).toBeInTheDocument();
+		const tokens = canvas.getByText('79k tokens');
+		expect(tokens).not.toBeVisible();
+		// the tip shows on hover, and on focus for keyboards
+		canvas.getByText('48s').focus();
+		await waitFor(() => expect(tokens).toBeVisible());
+		expect(canvas.getByText('20,224 input · 116 output · 59,136 cache read')).toBeInTheDocument();
 	}}
 >
 	<div class="flex h-120 max-w-3xl flex-col sheet overflow-hidden">
@@ -181,6 +186,7 @@
 				{
 					kind: 'agent',
 					parts: [{ kind: 'text', text: reply }],
+					took: 134_000,
 					usage: {
 						totalTokens: 150330,
 						inputTokens: 8,
@@ -208,6 +214,7 @@
 							]
 						}
 					],
+					took: 48_000,
 					usage: {
 						totalTokens: 79476,
 						inputTokens: 20224,

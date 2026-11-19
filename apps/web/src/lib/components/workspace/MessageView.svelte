@@ -5,6 +5,7 @@
 	import { toolSummary } from '#lib/tools.ts';
 	import type { Agent, BackgroundTask, TurnUsage } from '@geordi/protocol';
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
+	import { duration } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Block, Part } from '#lib/transcript.ts';
 	import AgentAvatar from '#lib/components/AgentAvatar.svelte';
@@ -17,6 +18,7 @@
 	import ToolGroup from '#lib/components/ToolGroup.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
+	import Tooltip from '#lib/ui/Tooltip.svelte';
 
 	let {
 		blocks,
@@ -145,6 +147,16 @@
 		parentAgent ? blocks.findIndex((block) => block.kind === 'user' && block.delegated) : -1
 	);
 
+	type AgentBlock = Extract<Block, { kind: 'agent' }>;
+	/** The latest reply says where it ends at all times; earlier ones when the pointer is on them. */
+	const latestReply = $derived(blocks.findLastIndex((block) => block.kind === 'agent'));
+	const fade = 'transition-opacity pointer-fine:opacity-0 pointer-fine:focus-within:opacity-100';
+	const quiet = {
+		reply: `${fade} pointer-fine:group-hover/reply:opacity-100`,
+		part: `${fade} pointer-fine:group-hover/part:opacity-100`,
+		message: `${fade} pointer-fine:group-hover/message:opacity-100`
+	};
+
 	const rows = $derived([
 		...blocks.map((block) => ({ kind: 'block' as const, block })),
 		...queue.map((text, index) => ({
@@ -193,15 +205,10 @@
 	});
 </script>
 
-{#snippet tokens(usage: TurnUsage)}
-	<!-- what the reply used: in short, and in full on hover -->
-	<span class="px-1 text-xs text-muted" title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
-{/snippet}
-
-{#snippet messageActions(text: string, outgoing = false, remove?: () => void, usage?: TurnUsage)}
-	<div class={['mt-1 flex items-center gap-1', outgoing && 'justify-end']}>
+<!-- Said of a message, and there when the pointer is (always, where nothing points). -->
+{#snippet messageActions(text: string, outgoing = false, remove?: () => void, quiet = '')}
+	<div class={['mt-1 flex items-center gap-1', outgoing && 'justify-end', quiet]}>
 		{#if text}<MessageCopy {text} />{/if}
-		{#if usage}{@render tokens(usage)}{/if}
 		{#if remove}
 			<Button
 				variant="ghost"
@@ -214,18 +221,48 @@
 	</div>
 {/snippet}
 
+{#snippet tokens(usage: TurnUsage)}
+	<p>{tokenSummary(usage)}</p>
+	<p class="text-muted">{tokenBreakdown(usage)}</p>
+{/snippet}
+
+<!-- Where a reply ends: its last words to copy, and how long it took, with what it used on hover. -->
+{#snippet byline(reply: AgentBlock, text: string, latest: boolean)}
+	{@const usage = reply.usage}
+	<div class={['flex items-center gap-2 text-xs text-muted', !latest && quiet.reply]}>
+		{#if text}<MessageCopy {text} />{/if}
+		{#if reply.took !== undefined}
+			{#if usage}
+				<Tooltip>
+					{duration(reply.took)}
+					{#snippet tip()}{@render tokens(usage)}{/snippet}
+				</Tooltip>
+			{:else}
+				<span>{duration(reply.took)}</span>
+			{/if}
+		{:else if usage}
+			<!-- from before turns said when they began: what it used is all there is to say -->
+			<span title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
+		{/if}
+	</div>
+{/snippet}
+
 {#snippet agentPart(
 	part: Part,
 	dimmed: boolean,
 	live: boolean,
 	at: string,
-	usage: TurnUsage | undefined
+	ending: { reply: AgentBlock; latest: boolean } | undefined
 )}
 	{@const pictures = picturesAt(at)}
 	{#if part.kind === 'text'}
-		<div>
+		<div class="group/part">
 			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
-			{#if part.text || usage}{@render messageActions(part.text, false, undefined, usage)}{/if}
+			{#if ending}
+				<div class="mt-1">{@render byline(ending.reply, part.text, ending.latest)}</div>
+			{:else if part.text}
+				{@render messageActions(part.text, false, undefined, quiet.part)}
+			{/if}
 		</div>
 	{:else if part.kind === 'subagent'}
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
@@ -296,11 +333,15 @@
 											: 'From another agent'}
 								</p>
 							{/if}
-							<div class="ml-auto message bg-bubble">
-								{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
-								<MessageImages images={block.images} />
+							<div class="group/message">
+								<div class="ml-auto message bg-bubble">
+									{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
+									<MessageImages images={block.images} />
+								</div>
+								{#if block.text}
+									{@render messageActions(block.text, true, undefined, quiet.message)}
+								{/if}
 							</div>
-							{#if block.text}{@render messageActions(block.text, true)}{/if}
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">
@@ -319,8 +360,8 @@
 								.slice(0, hiddenCount)
 								.filter((part) => part.kind !== 'subagent')}
 							<!-- said where the reply ends: beside its last words, else on its own -->
-							{@const usage = live ? undefined : block.usage}
-							<div class="flex gap-3.5">
+							{@const ending = live ? undefined : { reply: block, latest: i === latestReply }}
+							<div class="group/reply flex gap-3.5">
 								<AgentAvatar {agent} />
 								<div class="min-w-0 flex-1 space-y-3 pt-0.5">
 									{#if hidden.length}
@@ -347,12 +388,12 @@
 												j !== lastText,
 												live && j === block.parts.length - 1,
 												`${i}.${j}`,
-												j === block.parts.length - 1 ? usage : undefined
+												j === block.parts.length - 1 ? ending : undefined
 											)}
 										{/if}
 									{/each}
-									{#if usage && last?.kind !== 'text'}
-										<div class="-mt-2">{@render tokens(usage)}</div>
+									{#if ending && last?.kind !== 'text'}
+										<div class="-mt-2">{@render byline(ending.reply, '', ending.latest)}</div>
 									{/if}
 								</div>
 							</div>
