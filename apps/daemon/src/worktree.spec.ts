@@ -755,6 +755,36 @@ describe('Continue checkout', () => {
 	});
 });
 
+it('carries uncommitted changes onto the new branch, or moves nothing where they do not fit', async () => {
+	const repoPath = repo();
+	const run = (cwd: string, ...args: string[]) =>
+		execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+			encoding: 'utf8'
+		}).trim();
+	writeFileSync(join(repoPath, 'shared.txt'), 'as it started\n');
+	run(repoPath, 'add', '.');
+	run(repoPath, 'commit', '-qm', 'a file to change');
+	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+
+	// work begun after the branch landed: an edit, and a new file
+	writeFileSync(join(worktree.path, 'shared.txt'), 'edited since\n');
+	writeFileSync(join(worktree.path, 'new.txt'), 'new\n');
+	const branch = await continueOn(worktree, repoPath);
+	expect(branchOf(worktree)).toBe(branch);
+	expect(readFileSync(join(worktree.path, 'shared.txt'), 'utf8')).toBe('edited since\n');
+	expect(readFileSync(join(worktree.path, 'new.txt'), 'utf8')).toBe('new\n');
+	expect((await uncommittedFiles(worktree)).sort()).toEqual(['new.txt', 'shared.txt']);
+
+	// the same file changed where work starts, too: the edit has no place there
+	writeFileSync(join(repoPath, 'shared.txt'), 'changed on main\n');
+	run(repoPath, 'commit', '-qam', 'change it on main');
+	await expect(continueOn(worktree, repoPath)).rejects.toThrow('shared.txt');
+	expect(branchOf(worktree)).toBe(branch);
+	expect(readFileSync(join(worktree.path, 'shared.txt'), 'utf8')).toBe('edited since\n');
+	expect(run(repoPath, 'branch', '--list', worktree.branch + '-3')).toBe('');
+});
+
 it('abandons a continuation if a turn starts while the branch is being made', async () => {
 	const repoPath = repo();
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
