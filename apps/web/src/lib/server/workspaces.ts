@@ -1,19 +1,25 @@
+import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { error } from '@sveltejs/kit';
 import {
+	AGENTS,
 	SETTING,
 	sameAgentSettings,
 	type Agent,
 	type AgentEvent,
 	type AgentPlan,
 	type AgentSettings,
+	type ContextUsage,
 	type SubagentState,
 	type SubagentUpdate,
 	type ForgeMessage,
 	type Harness,
 	type Question,
 	type PullEvidence,
+	type ToolDiff,
+	type ToolInfo,
+	type TurnUsage,
 	type WorktreeMode,
 	type WorktreeRef
 } from '@geordi/protocol';
@@ -62,6 +68,7 @@ export type WorkspacesEvent =
 				id: string;
 				text: string;
 				images?: string[];
+				senderName?: string;
 				queued?: boolean;
 				deliveryId?: string;
 				steered?: boolean;
@@ -118,6 +125,11 @@ export type WorkspacesEvent =
 			/** Historical answers have no pending flag and were final when recorded. */
 			data: { id: string; question: string; answers: string[]; pending?: true };
 	  }
+	/**
+	 * How full the agent's context was at the end of a turn (or when it said so between
+	 * turns). What it says during a turn is only kept in memory: it says it after every step.
+	 */
+	| { type: 'workspace.usage'; stream: WorkspaceStream; data: { id: string; usage: ContextUsage } }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
 	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
 	/** Whatever the daemon reports, stored verbatim. */
@@ -186,19 +198,30 @@ function subagentEdit(
 export type TranscriptItem =
 	| SubagentItem
 	/** `from`: the workspace whose agent said it, where it was not a person. */
-	| { kind: 'user'; text: string; images?: string[]; at: string; from?: string }
+	| {
+			kind: 'user';
+			text: string;
+			images?: string[];
+			at: string;
+			from?: string;
+			senderName?: string;
+	  }
 	| { kind: 'text'; text: string; at: string }
 	| { kind: 'plan'; id: string; plan: AgentPlan; at: string }
-	| {
+	| ({
 			kind: 'tool';
 			id: string;
 			name: string;
 			input: string;
 			output: string | null;
 			isError: boolean;
+			/** What it changed in files, once it succeeded; absent in events from before diffs were kept. */
+			diff?: ToolDiff;
 			at: string;
-	  }
+	  } & ToolInfo)
 	| { kind: 'error'; error: string; at: string }
+	/** What the turn that ends here used, where its agent said. */
+	| { kind: 'usage'; usage: TurnUsage; at: string }
 	/**
 	 * Something the agent asked the person, which it waits to hear about. `answers` once it
 	 * was answered; no longer `open` once it was, or the turn ended without.
@@ -265,8 +288,12 @@ export type Workspace = {
 	asking: boolean;
 	/** How its latest turn ended; `null` while one is running, and before the first. */
 	lastTurn: TurnEnd | null;
+	/** How full its agent's context is, as it last said; `null` before it has. */
+	usage: ContextUsage | null;
 	/** The workspace whose agent started this one; `null` if a person did. */
 	parentId: string | null;
+	/** The external client (its grant) that started it, if one did: it may supervise it. */
+	startedBy: string | null;
 	/** The workspace whose worktree this one works in: its own ID, unless it shares another's. */
 	worktreeId: string;
 	/** The branch the worktree started from, if not the repository's checked-out one. */
@@ -293,7 +320,8 @@ export type Workspace = {
 
 function initialWorkspace(
 	created: Extract<CurrentEvent, { type: 'workspace.created' }>['data'],
-	at: string
+	at: string,
+	actor: string | null = null
 ): Workspace {
 	const { parentId = null, worktreeId = created.id, base = null, settings = {}, ...data } = created;
 	return {
@@ -303,7 +331,9 @@ function initialWorkspace(
 		status: 'idle',
 		asking: false,
 		lastTurn: null,
+		usage: null,
 		parentId,
+		startedBy: actor && isExternal(actor) ? actor : null,
 		worktreeId,
 		base,
 		worktree: null,
@@ -372,16 +402,14 @@ export function createWorkspaces(
 	dispatch: Dispatch,
 	{
 		limits = { depth: 3, children: 5 },
-		secret = randomBytes(32).toString('base64url'),
-		onCreated
+		secret = randomBytes(32).toString('base64url')
 	}: {
 		limits?: Limits;
 		/** Signs agent API tokens. Must be the same after a restart, or running agents lose access. */
 		secret?: string;
-		/** Called with every new workspace and the message that started it, e.g. to name it. */
-		onCreated?: (id: string, prompt: string) => void;
 	} = {}
 ) {
+	const access = createAgentAccess(store, repos.get);
 	const imageStore = createImages(store);
 	/**
 	 * Who steered a workspace's agent in the way of before ADR-010 (`workspace.steered`), until
@@ -410,12 +438,18 @@ export function createWorkspaces(
 		restoring = false
 	) {
 		if (event.type === 'workspace.created') {
-			workspaces.set(event.data.id, initialWorkspace(event.data, at));
+			workspaces.set(event.data.id, initialWorkspace(event.data, at, actor));
 			return;
 		}
 
 		if (event.type === 'workspace.moved') {
 			move(workspaces, event.data.id, event.data.before);
+			return;
+		}
+		// not something that happened in it: it leaves its place in the lists alone
+		if (event.type === 'workspace.usage') {
+			const measured = workspaces.get(event.data.id);
+			if (measured) measured.usage = event.data.usage;
 			return;
 		}
 
@@ -459,7 +493,7 @@ export function createWorkspaces(
 
 		if (event.type === 'workspace.titled') {
 			workspace.title = event.data.title;
-			// a title someone chose, as opposed to one a model made of the first message unasked
+			// a title someone chose, as opposed to one its agent's session goes by
 			if (actor) workspace.named = true;
 			return;
 		}
@@ -543,13 +577,17 @@ export function createWorkspaces(
 			workspace.lastTurn = null;
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
-			const from = sender && (born.get(sender) ?? Infinity) <= seq ? sender : undefined;
+			const from =
+				sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq)
+					? sender
+					: undefined;
 			append({
 				kind: 'user',
 				text: event.data.text,
 				...(event.data.images?.length && { images: event.data.images }),
 				at,
-				...(from && { from })
+				...(from && { from }),
+				...(event.data.senderName && { senderName: event.data.senderName })
 			});
 			return;
 		}
@@ -596,6 +634,11 @@ export function createWorkspaces(
 			case 'tool':
 				append({ ...output, output: null, isError: false, at });
 				break;
+			case 'tool.update': {
+				const tool = toolById(workspace, output.id);
+				if (tool) replace(tool, { ...tool, ...output, kind: 'tool' });
+				break;
+			}
 			case 'tool.result': {
 				if (!restoring && !output.isError) {
 					// Creation CLIs print the new URL on the final line. Verify the repository
@@ -608,7 +651,13 @@ export function createWorkspaces(
 					}
 				}
 				const tool = toolById(workspace, output.id);
-				if (tool) replace(tool, { ...tool, output: output.output, isError: output.isError });
+				if (tool)
+					replace(tool, {
+						...tool,
+						output: output.output,
+						isError: output.isError,
+						...(output.diff && { diff: output.diff })
+					});
 				break;
 			}
 			case 'answer.received': {
@@ -641,15 +690,14 @@ export function createWorkspaces(
 				// a turn that is over waits for no answer
 				workspace.asking = false;
 				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
-				if (output.kind === 'turn.failed') workspace.pendingSteers = [];
-				if (output.kind === 'turn.completed') {
-					workspace.lastTurn = 'completed';
-					break;
-				}
-				workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
-				// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
-				if (!(output.error === 'Stopped' && steering.has(workspace.id)))
-					append({ kind: 'error', error: output.error, at });
+				if (output.kind === 'turn.failed') {
+					workspace.pendingSteers = [];
+					workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
+					// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
+					if (!(output.error === 'Stopped' && steering.has(workspace.id)))
+						append({ kind: 'error', error: output.error, at });
+				} else workspace.lastTurn = 'completed';
+				if (output.usage) append({ kind: 'usage', usage: output.usage, at });
 				break;
 		}
 	}
@@ -718,10 +766,30 @@ export function createWorkspaces(
 		return restored.transcript;
 	}
 
+	/**
+	 * How full each working agent's context is, as it said since its turn began: it says so
+	 * after every step, too often for the event log. Recorded when the turn ends (`keepUsage`);
+	 * after a restart, the daemon says it again.
+	 */
+	const usages = new Map<string, ContextUsage>();
+	const usageListeners = new Set<(id: string) => void>();
+	const sameUsage = (a: ContextUsage | null, b: ContextUsage) =>
+		a?.used === b.used &&
+		a.size === b.size &&
+		a.cost?.amount === b.cost?.amount &&
+		a.cost?.currency === b.cost?.currency;
+	function keepUsage(workspace: Workspace, usage: ContextUsage) {
+		usages.delete(workspace.id);
+		if (sameUsage(workspace.usage, usage)) return;
+		const { id } = workspace;
+		store.append({ type: 'workspace.usage', stream: `workspace:${id}`, data: { id, usage } });
+	}
+
 	const summarise = ({ transcript, ...workspace }: Workspace): WorkspaceSummary => {
 		void transcript;
 		return structuredClone({
 			...workspace,
+			usage: usages.get(workspace.id) ?? workspace.usage,
 			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
 		});
 	};
@@ -785,14 +853,17 @@ export function createWorkspaces(
 		const workspace = projection.get().get(id);
 		if (!workspace || workspace.archivedAt) return;
 		if (cursor && workspace.outputCursor === cursor) return;
+		// what the agent calls its session may come at any time, even after its turn
+		if (event.kind === 'title') return titleFromAgent(workspace, event.title);
 		const running = workspace.status === 'running';
 		// how to resume it is news at any time, and so is where its worktree is
 		if (event.kind === 'resume') {
 			if (event.id === workspace.resumeId) return;
 		} else if (event.kind === 'turn.started') {
 			if (running) return;
-		} else if (!running && event.kind === 'tool.result') {
-			// A background command can finish after its turn. Complete its existing entry once.
+		} else if (!running && (event.kind === 'tool.result' || event.kind === 'tool.update')) {
+			// A background command can finish after its turn (its input held until then, see
+			// `ToolInfos`). Complete its existing entry once.
 			if (toolById(workspace, event.id)?.output !== null) return;
 		} else if (
 			event.kind !== 'subagent' &&
@@ -807,6 +878,8 @@ export function createWorkspaces(
 			stream: `workspace:${id}`,
 			data: { id, event, ...(cursor && { cursor }) }
 		});
+		const measured = usages.get(id);
+		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
 		if (event.kind === 'turn.completed' && workspace.queue.length > 0)
 			say(workspace, workspace.queue[0], null, 'queued');
 	}
@@ -823,6 +896,7 @@ export function createWorkspaces(
 
 	/** The workspace a valid agent API token belongs to, or `null`. */
 	function authenticate(token: string): string | null {
+		if (isExternal(token)) return access.authenticate(token);
 		const workspace = projection.get().get(token.split('.')[0]);
 		if (workspace?.status !== 'running') return null;
 		const expected = Buffer.from(tokenFor(workspace));
@@ -869,6 +943,10 @@ export function createWorkspaces(
 		images: string[] = []
 	) {
 		const { id } = workspace;
+		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
+		const senderName = sender
+			? (access.name(sender) ?? projection.get().get(sender)?.title)
+			: undefined;
 		const steers = workspace.status === 'running';
 		if (from === 'queued') images = workspace.attachments.queue[0];
 		const deliveryId = steers ? randomUUID() : undefined;
@@ -884,7 +962,8 @@ export function createWorkspaces(
 					text,
 					...(deliveryId && { deliveryId }),
 					...(images.length && { images }),
-					...(from && { [from]: true })
+					...(from && { [from]: true }),
+					...(senderName && { senderName })
 				}
 			},
 			{ actor }
@@ -900,12 +979,12 @@ export function createWorkspaces(
 	 */
 	function settingsFor(
 		agent: Agent,
-		parent: Workspace,
+		parent: Workspace | null,
 		asked: AgentSettings,
 		harness: Harness | undefined
 	): AgentSettings {
 		// Model names and effort levels belong to a provider. Permission modes span providers.
-		const inherited = agent === parent.agent ? parent.settings : {};
+		const inherited = parent && agent === parent.agent ? parent.settings : {};
 		const model = asked.model ?? inherited.model;
 		const efforts = harness
 			? (harness.models.find((offer) => offer.id === model)?.efforts ?? harness.efforts)
@@ -919,7 +998,7 @@ export function createWorkspaces(
 			);
 		const keeps = !asked.model || !efforts || efforts.includes(inherited.effort ?? '');
 		const effort = asked.effort ?? (keeps ? inherited.effort : undefined);
-		return { model, effort, permissionMode: parent.settings.permissionMode };
+		return { model, effort, permissionMode: parent?.settings.permissionMode };
 	}
 
 	/** Only what was chosen, and only what can safely be handed to a CLI. */
@@ -955,12 +1034,28 @@ export function createWorkspaces(
 
 	/**
 	 * Names a workspace that was started without a word after the first thing it is told, as
-	 * one started with a prompt is: the first line, and whatever `onCreated` makes of it.
+	 * one started with a prompt is: its first line.
 	 */
 	function nameAfter(workspace: Workspace, text: string) {
 		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
 		retitle(workspace.id, text.split('\n')[0].slice(0, 300));
-		onCreated?.(workspace.id, text);
+	}
+
+	/**
+	 * The title the agent gives its session (FDR-001). It names the workspace until someone
+	 * names it on purpose, a person or the agent itself (`name_workspace`). A later one
+	 * replaces it: agents title a session once, and again only when it is renamed. A
+	 * title that merely repeats the start of something the agent was told is none: Codex
+	 * says the prompt back until it has made one, and Claude does where it could not.
+	 */
+	function titleFromAgent(workspace: Workspace, title: string) {
+		if (workspace.named) return;
+		const flat = (text: string) => text.replace(/\s+/g, ' ').trim();
+		const said = flat(title).replace(/…$/, '').trimEnd();
+		const echo = workspace.transcript.some(
+			(item) => item.kind === 'user' && flat(item.text).startsWith(said)
+		);
+		if (!echo) retitle(workspace.id, title);
 	}
 
 	/**
@@ -997,12 +1092,11 @@ export function createWorkspaces(
 			},
 			{ actor }
 		);
-		// whoever starts it may name it; otherwise that is left to others (`onCreated`, its agent)
+		// whoever starts it may name it; otherwise its agent does (`titleFromAgent`, `name_workspace`)
 		if (given && actor) retitle(id, given, actor);
 		// started with nothing to do, it waits to be told: its first turn is its first message
 		if (!prompt && !images.length) return id;
 		say(find(id), prompt, actor, undefined, images);
-		if (!find(id).named) onCreated?.(id, prompt);
 		return id;
 	}
 
@@ -1020,13 +1114,35 @@ export function createWorkspaces(
 		return parent ? depthOf(parent) + 1 : 0;
 	}
 
-	/** The workspaces a workspace's agent started that are still in use. */
+	/**
+	 * Whether the caller may see a repository's workspaces: an external client, those it was
+	 * granted, and so may the agents it started (directly or not), or they would be its way
+	 * around that.
+	 */
+	function reaches(callerId: string, repoId: string): boolean {
+		const workspace = projection.get().get(callerId);
+		const starter = workspace && starterOf(workspace);
+		if (starter) return reaches(starter, repoId);
+		return !isExternal(callerId) || access.reaches(callerId, repoId);
+	}
+
+	/** A workspace the caller may see. One in a repository it may not doesn't exist for it. */
+	function findFor(callerId: string, id: string): Workspace {
+		const workspace = projection.get().get(id);
+		if (!workspace || !reaches(callerId, workspace.repoId)) error(404, `Workspace ${id} not found`);
+		return workspace;
+	}
+
+	/** Who may supervise a workspace: the workspace or external client that started it. */
+	const starterOf = (workspace: Workspace) => workspace.parentId ?? workspace.startedBy;
+
+	/** The workspaces a workspace's agent (or an external client) started that are still in use. */
 	const childrenOf = (id: string) =>
 		[...projection.get().values()].filter(
-			(workspace) => workspace.parentId === id && !workspace.archivedAt
+			(workspace) => starterOf(workspace) === id && !workspace.archivedAt
 		);
 
-	/** Every workspace the given one's agent started, directly or through the agents it started. */
+	/** Every workspace the caller started, directly or through the agents it started. */
 	const descendantsOf = (id: string): Workspace[] =>
 		childrenOf(id).flatMap((child) => [child, ...descendantsOf(child.id)]);
 
@@ -1061,12 +1177,60 @@ export function createWorkspaces(
 		};
 	}
 
+	function entry(workspace: Workspace) {
+		const { id, title, repoId, status, archivedAt, asking } = workspace;
+		return {
+			id,
+			title,
+			repoId,
+			status,
+			archivedAt,
+			asking,
+			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
+			url: `/workspaces/${id}`
+		};
+	}
+
 	/**
-	 * What agents can do through the agent API (ADR-004). Every function takes the calling
-	 * workspace, which is also recorded as the actor of what it causes.
+	 * What agents can do through the agent API (ADR-004, FDR-002). Every function takes the
+	 * caller: a workspace, or an external client's grant. It is recorded as the actor of what
+	 * it causes. A workspace's agent can read any workspace, an external client those in the
+	 * repositories it was granted; supervising (messaging, interrupting, stopping, archiving)
+	 * is for whoever started it, directly or not.
 	 */
 	const agents = {
 		authenticate,
+		reportWorkspace: (callerId: string, id: string) => report(findFor(callerId, id)),
+		listRepositories: (callerId: string) =>
+			repos
+				.list()
+				.filter((repo) => reaches(callerId, repo.id))
+				.map(({ id, name, path }) => ({ id, name, path })),
+		listWorkspaces(callerId: string, archived: boolean) {
+			return [...projection.get().values()]
+				.reverse()
+				.filter((w) => (archived || !w.archivedAt) && reaches(callerId, w.repoId))
+				.map(entry);
+		},
+		readWorkspace(callerId: string, id: string, before?: number) {
+			const workspace = findFor(callerId, id);
+			const transcript = transcriptOf(workspace);
+			const messages = transcript.filter(
+				(item) =>
+					item.kind === 'user' ||
+					item.kind === 'text' ||
+					item.kind === 'question' ||
+					item.kind === 'error'
+			);
+			const end = Math.min(before ?? messages.length, messages.length);
+			const start = Math.max(0, end - 50);
+			return {
+				...entry(workspace),
+				messages: messages.slice(start, end),
+				before: start || null,
+				pendingQuestions: transcript.filter((item) => item.kind === 'question' && item.open)
+			};
+		},
 
 		/**
 		 * Names the caller's own workspace, so that people can tell it from the others. A few
@@ -1083,14 +1247,16 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Starts an agent on the caller's behalf, as a workspace of its own: in a new worktree
-		 * branched from the caller's (`own`), or working in the caller's worktree (`shared`).
-		 * An agent of the caller's kind runs as the caller does, but for the `model` and
-		 * `effort` asked for. An effort is checked against what is `offered`, when that is known.
+		 * Starts an agent on the caller's behalf, as a workspace of its own. A workspace's agent
+		 * starts it in a new worktree branched from its own (`own`), or in its own worktree
+		 * (`shared`); an external client starts it in a `repository`, as a person would. An
+		 * agent of the caller's kind runs as the caller does, but for the `model` and `effort`
+		 * asked for. An effort is checked against what is `offered`, when that is known.
 		 */
 		start(
 			callerId: string,
 			{
+				repository,
 				worktree,
 				agent,
 				model,
@@ -1098,6 +1264,7 @@ export function createWorkspaces(
 				prompt,
 				title
 			}: {
+				repository?: string;
 				worktree: WorktreeMode;
 				agent?: Agent;
 				model?: string;
@@ -1107,35 +1274,46 @@ export function createWorkspaces(
 			},
 			offered: Harness[] | null = null
 		): AgentReport {
-			const caller = find(callerId);
-			if (depthOf(caller) + 1 > limits.depth)
+			const external = isExternal(callerId);
+			const caller = external ? null : find(callerId);
+			if (caller && depthOf(caller) + 1 > limits.depth)
 				error(403, `Agents can only be nested ${limits.depth} deep`);
 			ensureCapacity(callerId);
 
-			const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
-			if (!branch) error(409, 'Your workspace has no worktree yet');
+			let where: Pick<Workspace, 'repoId'> & {
+				parentId?: string;
+				worktreeId?: string;
+				base?: string;
+			};
+			if (!caller) {
+				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
+				if (worktree === 'shared')
+					error(400, 'Only an agent in a workspace can share its worktree');
+				if (!reaches(callerId, repository))
+					error(404, `There is no repository ${repository} you have access to`);
+				where = { repoId: repos.get(repository).id };
+			} else {
+				if (repository && repository !== caller.repoId)
+					error(403, 'Agents start agents in their own repository');
+				const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
+				if (!branch) error(409, 'Your workspace has no worktree yet');
+				where = {
+					repoId: caller.repoId,
+					parentId: callerId,
+					...(worktree === 'shared'
+						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
+						: { base: branch })
+				};
+			}
 
-			const kind = agent ?? caller.agent;
+			const kind = agent ?? caller?.agent ?? AGENTS[0];
 			const settings = settingsFor(
 				kind,
 				caller,
 				{ model, effort },
 				offered?.find((harness) => harness.agent === kind)
 			);
-			const id = create(
-				{
-					repoId: caller.repoId,
-					agent: kind,
-					settings,
-					prompt,
-					title,
-					parentId: callerId,
-					...(worktree === 'shared'
-						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
-						: { base: branch })
-				},
-				callerId
-			);
+			const id = create({ ...where, agent: kind, settings, prompt, title }, callerId);
 			return report(find(id));
 		},
 
@@ -1143,22 +1321,38 @@ export function createWorkspaces(
 
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
-		/** The caller's own workspace, or (`id`) one it started. */
+		/** Any workspace (`id`), or the caller's own. */
 		workspace(callerId: string, id?: string): Workspace {
-			const workspace = id === undefined ? find(callerId) : findControlled(callerId, id);
+			if (id === undefined && isExternal(callerId)) error(400, 'Say which workspace (agent_id)');
+			const workspace = findFor(callerId, id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
 		/**
-		 * Says something to an agent the caller started: at once if it is idle; otherwise once
-		 * it has finished what it is doing, or (`interrupt`) now, steering what it is doing.
+		 * Says something to an agent: at once if it is idle; otherwise once it has finished what
+		 * it is doing, or (`interrupt`) now, steering what it is doing. A workspace's agent
+		 * messages the agents it started; an external client, any agent, but it interrupts only
+		 * those it started: a person's agent is not turned around in the middle of its work.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
-			const workspace = findControlled(callerId, id);
+			const external = isExternal(callerId);
+			const workspace = external ? findFor(callerId, id) : findControlled(callerId, id);
+			if (workspace.archivedAt) error(409, 'Workspace is archived');
+			if (
+				external &&
+				interrupt &&
+				workspace.status === 'running' &&
+				!descendantsOf(callerId).some((other) => other.id === workspace.id)
+			)
+				error(
+					403,
+					'You can only interrupt agents you started; without interrupt, it gets the message when its turn ends'
+				);
 			const stream = `workspace:${workspace.id}` as const;
 			const data = { id: workspace.id, text };
 			if (workspace.status === 'idle') {
-				if (workspace.parentId) ensureCapacity(workspace.parentId);
+				const starter = starterOf(workspace);
+				if (starter) ensureCapacity(starter);
 				if (workspace.queue.length === 0) return say(workspace, text, callerId);
 				// messages are waiting (its last turn failed): this one joins them, and sets them off
 				store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
@@ -1173,9 +1367,9 @@ export function createWorkspaces(
 			stop(findControlled(callerId, id).id);
 		},
 
-		/** Resolves once the agent is idle, or after `timeoutMs` at the latest. */
+		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
 		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
-			const workspace = findControlled(callerId, id);
+			const workspace = findFor(callerId, id);
 			if (workspace.status === 'running')
 				await new Promise<void>((resolve) => {
 					const done = () => {
@@ -1190,7 +1384,21 @@ export function createWorkspaces(
 		}
 	};
 
+	/**
+	 * How full a workspace agent's context is, as its daemon says (ACP `usage_update`): kept
+	 * in memory while it works, recorded at once while it does not.
+	 */
+	function measure(id: string, usage: ContextUsage) {
+		const workspace = projection.get().get(id);
+		if (!workspace || workspace.archivedAt) return;
+		if (workspace.status !== 'running') return keepUsage(workspace, usage);
+		if (sameUsage(usages.get(id) ?? workspace.usage, usage)) return;
+		usages.set(id, usage);
+		for (const listener of usageListeners) listener(id);
+	}
+
 	return {
+		access,
 		agents,
 		pullEvidence: (id: string) => structuredClone(pulls(id)),
 		linkPull(id: string, url: string, number: string) {
@@ -1201,6 +1409,12 @@ export function createWorkspaces(
 			);
 		},
 		followTranscript,
+		measure,
+		/** Told which workspace's usage changed between events. */
+		followUsage(listener: (id: string) => void) {
+			usageListeners.add(listener);
+			return () => usageListeners.delete(listener);
+		},
 
 		/**
 		 * All workspaces in use (not archived), newest first or as people moved them, without
@@ -1464,14 +1678,6 @@ export function createWorkspaces(
 		},
 
 		retitle,
-
-		/**
-		 * A title a model made of the workspace's first message. Only until someone has named
-		 * it on purpose: its agent knows better what the work is about.
-		 */
-		suggestTitle(id: string, title: string) {
-			if (!find(id).named) retitle(id, title);
-		},
 
 		/**
 		 * Moves a workspace in the list: right above `before`, another of its repository's,

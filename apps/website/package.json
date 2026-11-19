@@ -1,0 +1,22 @@
+{
+	"name": "@geordi/website",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview",
+		"check": "astro check",
+		"deploy": "astro build && wrangler deploy"
+	},
+	"devDependencies": {
+		"@astrojs/check": "^0.9.4",
+		"@iconify-json/lucide": "^1.2.154",
+		"@iconify/tailwind4": "^1.2.3",
+		"@tailwindcss/vite": "^4.3.0",
+		"astro": "7.4.12",
+		"tailwindcss": "^4.3.0",
+		"typescript": "catalog:",
+		"wrangler": "4.157.0"
+	}
+}

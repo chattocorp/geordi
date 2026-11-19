@@ -6,6 +6,9 @@ engineStrict: true
 allowBuilds:
   esbuild: true
   electron: true
+  electron-winstaller: false
+  # Wrangler only deploys the website; its local runtime is never started.
+  workerd: false
 
 catalog:
   '@types/node': ^24

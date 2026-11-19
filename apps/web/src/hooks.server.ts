@@ -2,10 +2,15 @@ import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { GEORDI_ALLOWED_HOSTS } from '$app/env/private';
 import { hub, liveServer } from '#lib/server/app.ts';
 
-/** Start accepting daemon connections, and browsers' for what is live, as soon as the server starts. */
+/**
+ * Start accepting daemon connections, and browsers' for what is live, as soon as the server
+ * starts. On SIGINT or SIGTERM the adapter stops serving pages, and then says so: those
+ * servers would keep the process alive, so that is when it ends.
+ */
 export const init: ServerInit = () => {
 	hub();
 	liveServer();
+	process.once('sveltekit:shutdown', () => process.exit(0));
 };
 
 /**

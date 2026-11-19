@@ -44,12 +44,16 @@ Download the desktop app for macOS (Apple silicon) or Windows from the
 disk image and drag Geordi to Applications. On Windows, extract the ZIP and open Geordi.
 The app runs everything Geordi needs and keeps its data in `~/.geordi`.
 
+On macOS, open **Settings → About** to check for updates, choose the Stable or Beta channel,
+and restart to install a downloaded update. Geordi also checks on startup and hourly.
+
 Geordi runs the agent CLIs you already use: sign in to
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or
 [Codex](https://github.com/openai/codex) first. For GitHub, Geordi uses the GitHub CLI's
 login.
 
-To run Geordi without the desktop app, see [Self-hosting](docs/self-hosting.md).
+To run Geordi without the desktop app (Node.js 24 or newer), run `npx geordi` and open
+http://localhost:7717. See [Self-hosting](docs/self-hosting.md).
 
 ## Getting started
 
@@ -88,6 +92,7 @@ See [Configuration](docs/configuration.md) for everything it can say.
 ## Learn more
 
 - [Configuration](docs/configuration.md): the `.geordi.yml` reference
+- [Connect an external agent](docs/self-hosting.md#connect-an-external-agent) with Codex CLI, Claude Code, or another HTTP MCP client.
 - [Self-hosting](docs/self-hosting.md): running forge and daemon yourself, and their
   settings
 - [Contributing](CONTRIBUTING.md): developing Geordi

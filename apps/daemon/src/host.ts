@@ -31,11 +31,24 @@ import {
 import { createRequire } from 'node:module';
 import { delimiter, dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
-import type { Agent, AgentEvent, BackgroundTask, MessageImage } from '@geordi/protocol';
+import type {
+	Agent,
+	AgentCommand,
+	AgentEvent,
+	BackgroundTask,
+	ContextUsage,
+	MessageImage
+} from '@geordi/protocol';
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
 
-export type HostEvent = AgentEvent | { kind: 'background'; tasks: BackgroundTask[] };
+/** What the host writes down: the agent's events, and what it says that is live (`AgentLive`). */
+export type HostEvent = AgentEvent | LiveEvent;
+export type LiveEvent =
+	| { kind: 'background'; tasks: BackgroundTask[] }
+	| { kind: 'usage'; usage: ContextUsage }
+	| { kind: 'commands'; commands: AgentCommand[] }
+	| { kind: 'suggestion'; text: string | null };
 
 export type Meta = {
 	agent: Agent;
@@ -68,11 +81,17 @@ const dir = process.argv[2];
 const file = (name: string) => join(dir, name);
 const { agent, options, apiToken } = JSON.parse(readFileSync(file('meta.json'), 'utf8')) as Meta;
 const cmd = agent === 'codex' ? 'codex-acp' : 'claude-agent-acp';
-const resolve = createRequire(import.meta.url).resolve;
-// The optional argument lets the session tests exercise this same host with a fixture.
+// Staged (a release), the wrapper is bundled next to this file; in the repository, it is the
+// package's. The optional argument lets the session tests exercise this same host with a fixture.
+const bundled = join(import.meta.dirname, `${cmd}.js`);
 const entry =
 	process.argv[3] ??
-	join(dirname(resolve('@agentclientprotocol/' + cmd + '/package.json')), 'dist/index.js');
+	(existsSync(bundled)
+		? bundled
+		: join(
+				dirname(createRequire(import.meta.url).resolve(`@agentclientprotocol/${cmd}/package.json`)),
+				'dist/index.js'
+			));
 
 // A signal meant to end the session reaches the whole process group, the CLI with it. We
 // stay, to note how it ended.
@@ -143,8 +162,7 @@ function emit(event: HostEvent) {
 		open = true;
 	} else if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
 		if (!open) return;
-		if (event.kind === 'turn.failed' && stopped())
-			event = { kind: 'turn.failed', error: 'Stopped' };
+		if (event.kind === 'turn.failed' && stopped()) event = { ...event, error: 'Stopped' };
 		open = stopping = false;
 		clearTimeout(unstoppable);
 	}

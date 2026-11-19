@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { expect } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Button from './Button.svelte';
 	import Composer from './Composer.svelte';
@@ -7,6 +8,21 @@
 	const { Story } = defineMeta({ title: 'UI/Composer', component: Composer });
 
 	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
+
+	const commands = [
+		{ text: '/review', description: 'Review uncommitted changes', hint: 'optional instructions' },
+		{ text: '/compact', description: 'Summarize the conversation to free up context' },
+		{ text: '/context', description: 'Show how much of the context is in use' },
+		{ text: '/code-review', description: 'Review a pull request', hint: '[level] [target]' },
+		{ text: '/status', description: 'Show the session’s configuration and token usage' },
+		{ text: '/$skill-creator', description: 'Create or update a skill' }
+	];
+	// as many as an agent with a few plugins offers
+	const many = Array.from({ length: 100 }, (_, i) => ({
+		text: `/skill-${String(i + 1).padStart(3, '0')}`,
+		description: `What skill number ${i + 1} is for, in a sentence that may well run long`,
+		hint: i % 3 ? undefined : '<topic>'
+	}));
 </script>
 
 <Story name="Prompt" asChild>
@@ -122,6 +138,138 @@
 					/>
 				</div>
 			{/snippet}
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<!-- A slash at the start offers what the text can begin with; choosing one puts it in. -->
+<Story
+	name="With commands"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const text = canvas.getByRole('combobox');
+		await userEvent.type(text, 'hello');
+		await expect(canvas.queryByRole('listbox')).toBeNull();
+		await userEvent.clear(text);
+		await userEvent.type(text, '/rev');
+		const options = canvas.getAllByRole('option');
+		await expect(options.map((option) => option.textContent?.trim().split(/\s/)[0])).toEqual([
+			'/review',
+			'/code-review'
+		]);
+		await userEvent.keyboard('{ArrowDown}{Enter}');
+		await expect(text).toHaveValue('/code-review ');
+		await expect(canvas.queryByRole('listbox')).toBeNull();
+		await userEvent.clear(text);
+		await userEvent.type(text, '/c');
+		await userEvent.keyboard('{Escape}');
+		await expect(canvas.queryByRole('listbox')).toBeNull();
+		await userEvent.type(text, 'o');
+		await expect(canvas.getAllByRole('option')).toHaveLength(3);
+	}}
+>
+	<div class="max-w-2xl pt-80">
+		<Composer {form} rows={2} completions={commands} placeholder="Reply to the agent">
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<!-- A hundred of them: the list scrolls, and the one chosen with the arrow keys stays in view. -->
+<Story
+	name="With many commands"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.type(canvas.getByRole('combobox'), '/');
+		await expect(canvas.getAllByRole('option')).toHaveLength(100);
+		await userEvent.keyboard('{ArrowUp}');
+		await expect(canvas.getByRole('option', { selected: true })).toHaveTextContent('/skill-100');
+	}}
+>
+	<div class="max-w-2xl pt-80">
+		<Composer {form} rows={2} completions={many} placeholder="Reply to the agent">
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<!-- What the agent suggests saying next, in the empty box: Tab or a click puts it in. -->
+<Story name="With a suggestion" asChild>
+	<div class="max-w-2xl">
+		<Composer
+			{form}
+			focused
+			rows={2}
+			placeholder="Reply to the agent"
+			suggestion="Run the tests again and fix whatever still fails."
+		>
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<!--
+	Tab puts the suggestion into the box, where it is the person's to edit and send. A `/`
+	puts it away for the commands: the two are never offered together.
+-->
+<Story
+	name="Taking a suggestion"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const text = canvas.getByRole('combobox');
+		const offer = () => canvas.queryByRole('button', { name: 'Run the tests again.' });
+		await userEvent.click(text);
+		await userEvent.keyboard('{Tab}');
+		await expect(text).toHaveValue('Run the tests again.');
+		await expect(offer()).toBeNull();
+		await userEvent.clear(text);
+		await expect(offer()).not.toBeNull();
+		await userEvent.type(text, '/rev');
+		await expect(offer()).toBeNull();
+		await expect(canvas.getAllByRole('option')).toHaveLength(2);
+	}}
+>
+	<div class="max-w-2xl pt-80">
+		<Composer
+			{form}
+			rows={2}
+			completions={commands}
+			placeholder="Reply to the agent"
+			suggestion="Run the tests again."
+		>
 			{#snippet footer()}
 				<Button
 					type="submit"

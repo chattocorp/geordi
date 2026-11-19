@@ -3,7 +3,7 @@
 	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
-	import { openSettings } from '#lib/components/settings.svelte.ts';
+	import { settingsPath } from '#lib/components/settings.svelte.ts';
 	import StandingIcon from '#lib/components/StandingIcon.svelte';
 	import {
 		actFromAfar,
@@ -12,7 +12,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
-	import { byRepository } from '#lib/family.ts';
+	import { byRepository, unfolded } from '#lib/family.ts';
 	import { modifierKey } from '#lib/keys.ts';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes } from '#lib/overview.ts';
@@ -152,16 +152,20 @@
 		dropBefore = undefined;
 	}
 
-	/** The repositories whose workspaces are folded away under their name. */
+	/**
+	 * What is folded away: the workspaces of a repository under its name, and those its
+	 * agents started under a workspace.
+	 */
 	const folded = persisted<string[]>('geordi:folded', []);
 	const toggleFolded = (id: string) =>
 		(folded.current = folded.current.includes(id)
 			? folded.current.filter((other) => other !== id)
 			: [...folded.current, id]);
 	const settingsHint = `${modifierKey()},`;
+	const inSettings = $derived(path.startsWith('/settings'));
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col sheet-quiet">
+<div class="flex min-h-0 flex-1 flex-col sheet-quiet select-none">
 	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
 		<div class="space-y-0.5">
 			{@render link(
@@ -176,7 +180,8 @@
 
 		<div class="space-y-4">
 			{#each sidebarRepos as repo (repo.id)}
-				{@const rows = listed.get(repo.id) ?? []}
+				{@const all = listed.get(repo.id) ?? []}
+				{@const rows = unfolded(all, folded.current)}
 				{@const isFolded = folded.current.includes(repo.id)}
 				<div>
 					<!--
@@ -194,7 +199,7 @@
 							<RepoIcon id={repo.id} />
 							<span class="truncate">{repo.name}</span>
 							{#if isFolded}
-								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{rows.length}</span>
+								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{all.length}</span>
 							{/if}
 						</button>
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
@@ -216,8 +221,8 @@
 									dropBefore = undefined;
 							}}
 						>
-							{#each rows as { workspace, parent, depth }, index (workspace.id)}
-								{@render row(workspace, parent, depth, rows, index)}
+							{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
+								{@render row(workspace, parent, depth, under, rows, index)}
 							{/each}
 						</ul>
 					{/if}
@@ -228,19 +233,27 @@
 
 	<div class="p-2">
 		<ConnectionIndicator {lost} class="px-2.5 py-1" />
-		<button
-			type="button"
-			class="item w-full gap-2.5 px-2.5 py-1.5 text-base"
-			onclick={() => openSettings()}
+		<a
+			href={settingsPath()}
+			class={['item gap-2.5 px-2.5 py-1.5 text-base', inSettings && 'item-active font-medium']}
+			aria-current={inSettings ? 'page' : undefined}
 		>
 			<span class="icon-[lucide--settings] size-4 shrink-0"></span>
 			Settings
 			<kbd class="ml-auto font-sans text-xs text-muted">{settingsHint}</kbd>
-		</button>
+		</a>
 	</div>
 </div>
 
-{#snippet row(workspace: Item, parent: Item | null, depth: number, rows: Row[], index: number)}
+{#snippet row(
+	workspace: Item,
+	parent: Item | null,
+	depth: number,
+	under: number,
+	rows: Row[],
+	index: number
+)}
+	{@const isFolded = under > 0 && folded.current.includes(workspace.id)}
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
@@ -271,7 +284,7 @@
 		<!-- the whole row is the item: the link, and what appears beside it on hover -->
 		<div
 			class={[
-				'group item pr-1 text-base',
+				'group relative item pr-1 text-base',
 				// on its way out: it shows, and there is nothing more to do with it
 				(leaving || dragged?.id === workspace.id) && 'opacity-60',
 				leaving && 'pointer-events-none',
@@ -295,14 +308,19 @@
 			>
 				<!-- what it is, or is doing, in one place: every title starts on the same edge -->
 				<!-- as wide as the repository's picture above, and right under it -->
-				<span class="grid size-5 shrink-0 place-items-center text-muted/80">
+				<span
+					class={[
+						'grid size-5 shrink-0 place-items-center text-muted/80',
+						under > 0 && !leaving && 'group-hover:invisible group-has-focus-visible:invisible'
+					]}
+				>
 					{#if leaving}
 						<Spinner label="Archiving" />
 					{:else if workspace.outcome === 'asking'}
 						<!-- an agent there waits for the person's answer -->
 						<span class="icon-[lucide--message-circle-question] size-4 text-accent-ink"></span>
-					{:else if workspace.working}
-						<!-- its agent, or one working alongside it -->
+					{:else if workspace.working || (isFolded && busy)}
+						<!-- its agent, one working alongside it, or one folded away under it -->
 						<Spinner />
 					{:else if workspace.parentId}
 						<!-- started by an agent: the one above it, where that is still around -->
@@ -311,8 +329,29 @@
 						<span class="icon-[lucide--git-branch] size-4"></span>
 					{/if}
 				</span>
-				<span class="min-w-0 flex-1 truncate">{workspace.title}</span>
+				<span class="min-w-0 truncate">{workspace.title}</span>
+				{#if isFolded}
+					<span class="shrink-0 font-normal text-muted/60 tabular-nums">{under}</span>
+				{/if}
 			</a>
+			<!-- with workspaces under it: pointed at, its icon becomes the way to fold them -->
+			{#if under > 0 && !leaving}
+				<button
+					type="button"
+					class="invisible absolute top-1/2 left-1.5 grid size-5 -translate-y-1/2 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:text-ink"
+					aria-expanded={!isFolded}
+					aria-label="{isFolded ? 'Unfold' : 'Fold'} {workspace.title}"
+					title={isFolded ? `Show the ${under} under it` : `Fold the ${under} under it`}
+					onclick={() => toggleFolded(workspace.id)}
+				>
+					<span
+						class={[
+							'size-4',
+							isFolded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'
+						]}
+					></span>
+				</button>
+			{/if}
 			<!--
 				At its end: how its work stands, at a glance. Pointed at, that makes way for what
 				can be done with it; the two share one place, so that nothing moves.

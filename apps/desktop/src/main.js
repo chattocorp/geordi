@@ -1,6 +1,8 @@
+import { desktopUpdates } from './updates.js';
 import { desktopRuntime } from './runtime.js';
+import { forgeReady, services } from './services.js';
 import { execFileSync } from 'node:child_process';
-import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	app,
@@ -17,7 +19,7 @@ import {
 /**
  * Geordi as a desktop app (ADR-008): a window onto a forge and a daemon that this process
  * starts, both exactly as they run on their own. Next to this file, `forge/` holds the web
- * app's production build and `daemon/` the daemon; see `scripts/stage.js`.
+ * app's production build and `daemon/` the daemon; see `@geordi/launch`.
  *
  * Quitting leaves agents working (ADR-007): the next launch picks their turns up again.
  * Only "Stop Daemon" ends them, as Ctrl+C does for a daemon in a terminal.
@@ -36,6 +38,7 @@ if (runtime.directory) {
 	process.on('SIGTERM', () => app.quit());
 }
 const url = `http://127.0.0.1:${WEB_PORT}`;
+const service = services({ web: WEB_PORT, daemon: DAEMON_PORT, live: runtime.live });
 
 const here = import.meta.dirname;
 
@@ -70,7 +73,8 @@ function shellEnv() {
 }
 
 /** Starts one of our two services as a process of its own, logging what it says. */
-function start(/** @type {string} */ name, /** @type {string} */ entry, env = {}) {
+function start(/** @type {'forge' | 'daemon'} */ name) {
+	const { entry, env } = service[name];
 	const child = utilityProcess.fork(join(here, entry), [], {
 		serviceName: `Geordi ${name}`,
 		stdio: 'pipe',
@@ -87,14 +91,7 @@ function start(/** @type {string} */ name, /** @type {string} */ entry, env = {}
 let quitting = false;
 
 function startForge() {
-	const forge = start('forge', 'forge/index.js', {
-		HOST: '127.0.0.1',
-		BODY_SIZE_LIMIT: String(5 * 1024 * 1024),
-		PORT: String(WEB_PORT),
-		ORIGIN: url,
-		GEORDI_DAEMON_PORT: String(DAEMON_PORT),
-		GEORDI_LIVE_PORT: String(runtime.live)
-	});
+	const forge = start('forge');
 	forge.on('exit', (code) => {
 		if (quitting) return;
 		dialog.showErrorBox(
@@ -106,18 +103,6 @@ function startForge() {
 	return forge;
 }
 
-/** Resolves once the forge answers. */
-async function forgeReady() {
-	for (;;) {
-		try {
-			await fetch(url, { method: 'HEAD' });
-			return;
-		} catch {
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		}
-	}
-}
-
 // --- The daemon ------------------------------------------------------------------------------
 
 /** @type {Electron.UtilityProcess | null} */
@@ -125,10 +110,7 @@ let daemon = null;
 
 function startDaemon() {
 	if (daemon) return;
-	const child = start('daemon', 'daemon/main.js', {
-		GEORDI_FORGE_URL: `ws://127.0.0.1:${DAEMON_PORT}`,
-		GEORDI_FORGE_HTTP_URL: url
-	});
+	const child = start('daemon');
 	daemon = child;
 	child.on('exit', (code) => {
 		note(`the daemon exited with code ${code}`);
@@ -261,6 +243,8 @@ function contextMenu(window, { mediaType, srcURL, selectionText, isEditable, edi
 	if (items.length) Menu.buildFromTemplate(items).popup({ window });
 }
 
+let updates;
+
 function menu() {
 	Menu.setApplicationMenu(
 		Menu.buildFromTemplate([
@@ -367,11 +351,55 @@ else {
 		notified.delete(id);
 	});
 
+	ipcMain.on('geordi:updates', (event, action, value) => {
+		const frame = event.senderFrame;
+		if (!frame || frame !== event.sender.mainFrame || URL.parse(frame.url)?.origin !== url) return;
+		switch (action) {
+			case 'read':
+				event.reply('geordi:update-state', updates?.state() ?? null);
+				break;
+			case 'beta':
+				updates?.setBeta(value);
+				break;
+			case 'check':
+				void updates?.check();
+				break;
+			case 'restart':
+				updates?.restart();
+				break;
+		}
+	});
+
 	app.whenReady().then(async () => {
 		menu();
 		startForge();
-		await forgeReady();
+		await forgeReady(WEB_PORT);
 		startDaemon();
 		open();
+		// Only the signed release workflow adds the update feed before signing.
+		if (
+			process.platform === 'darwin' &&
+			app.isPackaged &&
+			!runtime.directory &&
+			existsSync(join(process.resourcesPath, 'app-update.yml'))
+		) {
+			const { default: updater } = await import('./release-updater.cjs');
+			const file = join(app.getPath('userData'), 'update-channel');
+			updates = desktopUpdates({
+				updater,
+				preferences: {
+					read: () => (existsSync(file) ? readFileSync(file, 'utf8') : 'latest'),
+					write: (channel) => writeFileSync(file, channel)
+				},
+				refresh() {
+					for (const window of BrowserWindow.getAllWindows()) {
+						window.webContents.send('geordi:update-state', updates.state());
+					}
+				},
+				note
+			});
+			void updates.check();
+			setInterval(updates.check, 60 * 60 * 1000).unref();
+		}
 	});
 }

@@ -8,6 +8,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import { follow } from '#lib/live.svelte.ts';
+	import type { AgentCommand } from '@geordi/protocol';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
 		configureWorkspace,
@@ -17,6 +18,7 @@
 		stopAgent
 	} from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
+	import ContextMeter from './ContextMeter.svelte';
 
 	/**
 	 * A workspace's conversation with its agent, and the box to reply in. `senders` names
@@ -27,7 +29,7 @@
 		senders,
 		onopensubagent
 	}: {
-		workspace: Workspace & Pick<WorkspaceUpdate, 'background'>;
+		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
 	} = $props();
@@ -64,6 +66,16 @@
 		const { effort } = resolveChoice(harnesses, next);
 		return configureWorkspace({ workspaceId: workspace.id, model, effort, permissionMode });
 	};
+
+	// The agent's own commands and skills, offered as one types `/`: once it has said which.
+	const commands = follow<AgentCommand[] | null>('commands', () => workspace.id);
+	const completions = $derived(
+		(commands.current ?? []).map(({ name, description, hint }) => ({
+			text: '/' + name,
+			description,
+			hint
+		}))
+	);
 
 	let messages = $state<MessageView>();
 	const toLatest = () => messages?.toLatest();
@@ -122,6 +134,9 @@
 							? 'What should the agent do?'
 							: 'Reply to the agent'}
 					onkeydown={keys}
+					{completions}
+					completionsLabel="Commands"
+					suggestion={workspace.status === 'idle' ? workspace.suggestion : null}
 					field={form.fields.text.as('text')}
 					problems={[
 						...(form.fields.text.issues() ?? []),
@@ -140,6 +155,10 @@
 						>
 							{#if harnesses?.length}
 								<HarnessPicker {harnesses} {choice} onchange={configure} />
+							{/if}
+							<!-- how full the conversation is: nothing until the agent first says -->
+							{#if workspace.usage}
+								<ContextMeter usage={workspace.usage} />
 							{/if}
 						</div>
 						<!-- At the far end, together, however narrow the box: what does not fit there goes

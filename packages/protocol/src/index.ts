@@ -15,7 +15,7 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 34;
+export const PROTOCOL_VERSION = 35;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -490,8 +490,6 @@ export type DaemonRequest =
 	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
 	 */
 	| ({ kind: 'updateWorktree' } & WorktreeRef)
-	/** A short title for a piece of work, from the request that starts it. */
-	| { kind: 'title'; text: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
@@ -508,7 +506,6 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
-	title: string;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
@@ -556,7 +553,62 @@ export type SubagentState = 'running' | 'waiting' | 'done' | 'stopped' | 'failed
 export type SubagentUpdate =
 	| { kind: 'info'; title?: string | null; description?: string | null; state?: SubagentState }
 	| { kind: 'message'; id: string; text: string; incoming: boolean }
-	| { kind: 'tool'; id: string; name?: string; input?: string; output?: string; isError?: boolean };
+	| ({
+			kind: 'tool';
+			id: string;
+			name?: string;
+			input?: string;
+			output?: string;
+			isError?: boolean;
+			diff?: ToolDiff;
+	  } & ToolInfo);
+
+/** What ACP kinds of tool call there are: how a client may show one. */
+export const TOOL_KINDS = [
+	'read',
+	'edit',
+	'delete',
+	'move',
+	'search',
+	'execute',
+	'think',
+	'fetch',
+	'switch_mode',
+	'other'
+] as const;
+export type ToolKind = (typeof TOOL_KINDS)[number];
+
+/** A file a tool call works on, as the agent names it (absolute, mostly). */
+export type ToolLocation = { path: string; line?: number };
+
+/**
+ * What an agent says about a tool call, for people: its kind, a readable title, the files
+ * it touches. Absent in events from before Geordi knew them, and where an agent says none.
+ */
+export type ToolInfo = { toolKind?: ToolKind; title?: string; locations?: ToolLocation[] };
+
+/**
+ * What a tool call changed in files, as the agent reports it (ACP `diff` content), kept
+ * with its result once it succeeded. Untrusted text: whoever shows it must parse it safely.
+ */
+export type ToolDiff = {
+	/** Each file changed, by absolute path; `operation` is ACP's (`add`, `delete`, `modify`, `move`, `copy`, or newer). */
+	files: { operation: string; path: string; oldPath?: string; fileType?: string }[];
+	/** The changes as a git patch, with absolute paths; absent if the agent sent none, or `tooLarge`. */
+	patch?: string;
+	/** The patch was left out: it was larger than the event log keeps. */
+	tooLarge?: boolean;
+};
+
+/**
+ * How full the agent's context is, as its root session last said (ACP `usage_update`):
+ * `used` of `size` tokens, and what the session has cost so far, where the agent says.
+ */
+export type ContextUsage = {
+	used: number;
+	size: number;
+	cost?: { amount: number; currency: string };
+};
 
 export type BackgroundTask = {
 	type: 'terminal' | 'tool_call' | 'subagent';
@@ -565,6 +617,34 @@ export type BackgroundTask = {
 	session?: string;
 	label?: string;
 	toolCallId?: string;
+};
+
+/**
+ * One of the agent's own commands (a slash command or a skill), as its CLI offers them: the
+ * person invokes one by beginning a message with `/name`. The agent's live data (ADR-003),
+ * never stored.
+ */
+export type AgentCommand = {
+	/** Without the leading `/`. */
+	name: string;
+	description?: string;
+	/** What it takes after its name, if anything. */
+	hint?: string;
+};
+
+/**
+ * What an agent says of its session that is live data, not history (ADR-003): never an
+ * event, said again by a reconnecting daemon. Each is there only once the agent has said it.
+ */
+export type AgentLive = {
+	/** What it has running in the background. */
+	background?: BackgroundTask[];
+	/** How full its context is, said after every model step. */
+	usage?: ContextUsage;
+	/** Its own commands, all of them, whenever they change. */
+	commands?: AgentCommand[];
+	/** What it suggests the person say next, now that its turn is over; `null` once withdrawn. */
+	suggestion?: string | null;
 };
 
 export type AgentEvent =
@@ -577,8 +657,12 @@ export type AgentEvent =
 	| { kind: 'text'; text: string }
 	/** A complete snapshot, or null when the wrapper withdraws this plan. */
 	| { kind: 'plan'; id: string; plan: AgentPlan | null }
-	| { kind: 'tool'; id: string; name: string; input: string }
-	| { kind: 'tool.result'; id: string; output: string; isError: boolean }
+	| ({ kind: 'tool'; id: string; name: string; input: string } & ToolInfo)
+	/** What an agent said of a tool call after it began: only what changed. */
+	| ({ kind: 'tool.update'; id: string; input?: string } & ToolInfo)
+	| { kind: 'tool.result'; id: string; output: string; isError: boolean; diff?: ToolDiff }
+	/** What the agent calls its session (ACP `session_info_update`), at any time. */
+	| { kind: 'title'; title: string }
 	/** A form stays open until answered, withdrawn, or its turn ends. Older forms block. */
 	| { kind: 'question'; id: string; questions: Question[]; blocking?: boolean }
 	/** The host accepted the answer for this outstanding ACP request. */
@@ -589,9 +673,19 @@ export type AgentEvent =
 	 * ran in the background has finished). Said once per turn, before anything else of it.
 	 */
 	| { kind: 'turn.started' }
-	/** Every turn ends with exactly one of these two. */
-	| { kind: 'turn.completed' }
-	| { kind: 'turn.failed'; error: string };
+	/** Every turn ends with exactly one of these two, with what it used where the agent says. */
+	| { kind: 'turn.completed'; usage?: TurnUsage }
+	| { kind: 'turn.failed'; error: string; usage?: TurnUsage };
+
+/** The tokens one turn used, as ACP's (unstable) `Usage` reports them. */
+export type TurnUsage = {
+	totalTokens: number;
+	inputTokens: number;
+	outputTokens: number;
+	thoughtTokens?: number;
+	cachedReadTokens?: number;
+	cachedWriteTokens?: number;
+};
 
 /** Forge → daemon. */
 export type ForgeMessage =
@@ -652,7 +746,11 @@ export type ForgeMessage =
 
 /** Daemon → forge. */
 export type DaemonMessage =
-	| { type: 'workspace.background'; workspaceId: string; tasks: BackgroundTask[] }
+	/**
+	 * What changed in what the workspace's agent says of its session (`AgentLive`). Live,
+	 * unacknowledged: said as it changes, and all of it again on reconnecting.
+	 */
+	| { type: 'workspace.live'; workspaceId: string; live: AgentLive }
 	| {
 			type: 'hello';
 			protocol: number;

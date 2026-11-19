@@ -1,27 +1,33 @@
 <script lang="ts">
 	import { version } from '../../../package.json';
+	import { onMount } from 'svelte';
+	import AgentAccess from './AgentAccess.svelte';
+	import DesktopUpdates, { type UpdateBridge, type UpdateState } from './DesktopUpdates.svelte';
 	import Logo from './Logo.svelte';
 	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '#lib/ui/Button.svelte';
-	import Dialog from '#lib/ui/Dialog.svelte';
+	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Segmented from '#lib/ui/Segmented.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { registerRepo, removeRepo } from '../../routes/repos.remote';
-	import { settings, type Section } from './settings.svelte.ts';
+	import { issueAccess, revokeAccess } from '../../routes/access.remote';
+	import { sections, settingsPath, type Section } from './settings.svelte.ts';
+
+	let { section }: { section: Section } = $props();
+
+	let updates = $state<UpdateBridge>();
+	let updateState = $state<UpdateState | null>(null);
+	onMount(() => {
+		updates = (window as { geordiDesktop?: { updates?: UpdateBridge } }).geordiDesktop?.updates;
+		return updates?.subscribe((state) => (updateState = state));
+	});
 
 	const nav = follow<Navigation>('navigation');
 	const repos = $derived(nav.current?.repos ?? []);
-
-	const sections: { id: Section; label: string; icon: string }[] = [
-		{ id: 'general', label: 'General', icon: 'icon-[lucide--sliders-horizontal]' },
-		{ id: 'notifications', label: 'Notifications', icon: 'icon-[lucide--bell]' },
-		{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' },
-		{ id: 'about', label: 'About', icon: 'icon-[lucide--info]' }
-	];
 
 	/** What came of the last test notification, if one was sent. */
 	let tested = $state<Awaited<ReturnType<typeof test>>>();
@@ -46,53 +52,40 @@
 		if (await attempt(() => registerRepo(path), 'Could not add the repository')) path = '';
 	}
 
-	// what went wrong belongs to the visit it happened in
-	$effect(() => {
-		if (!settings.open) problem = tested = undefined;
+	// what went wrong belongs to the section it happened in
+	$effect.pre(() => {
+		void section;
+		problem = tested = undefined;
 	});
 </script>
 
-<!-- Geordi's settings (FDR-005): how it looks, what it tells of, and the repositories it knows. -->
-<Dialog bind:open={settings.open} label="Settings" wide class="h-144">
-	<div class="flex h-full">
-		<div
-			class="w-14 shrink-0 space-y-3 overflow-y-auto border-r border-line bg-sidebar p-2.5 sm:w-50"
-		>
-			<p class="hidden px-2.5 pt-2 heading sm:block">Settings</p>
-			<div role="tablist" aria-orientation="vertical" aria-label="Settings" class="space-y-0.5">
-				{#each sections as section (section.id)}
-					<button
-						type="button"
-						role="tab"
-						title={section.label}
-						id="settings-tab-{section.id}"
-						aria-selected={settings.section === section.id}
-						aria-controls="settings-panel"
-						onclick={() => (settings.section = section.id)}
-						class={['item w-full px-2.5 py-1.5', settings.section === section.id && 'item-active']}
-					>
-						<span class={[section.icon, 'size-4 shrink-0']}></span>
-						<span class="sr-only sm:not-sr-only">{section.label}</span>
-					</button>
-				{/each}
-			</div>
-		</div>
+<!-- Geordi's settings (FDR-005): how it looks, what it tells of, the repositories it knows. -->
+<svelte:head><title>Settings · Geordi</title></svelte:head>
 
-		<div
-			role="tabpanel"
-			id="settings-panel"
-			aria-labelledby="settings-tab-{settings.section}"
-			class="scroller relative min-w-0 flex-1 p-6"
-		>
-			<Button
-				variant="ghost"
-				icon="icon-[lucide--x]"
-				label="Close"
-				class="absolute top-3 right-3"
-				onclick={() => (settings.open = false)}
-			/>
+<TitleBar class="hidden md:flex"><h1 class="truncate heading">Settings</h1></TitleBar>
 
-			{#if settings.section === 'general'}
+<!-- two sheets, like the frame around them: the sections, quiet, beside the one on screen -->
+<div class="mx-2 mb-2 flex flex-1 gap-2">
+	<nav aria-label="Settings" class="w-14 shrink-0 space-y-0.5 sheet-quiet p-2 sm:w-52">
+		{#each sections as { id, label, icon } (id)}
+			<a
+				href={settingsPath(id)}
+				title={label}
+				aria-current={section === id ? 'page' : undefined}
+				class={['item px-2.5 py-1.5', section === id && 'item-active font-medium']}
+			>
+				<span class={[icon, 'size-4 shrink-0']}></span>
+				<span class="sr-only truncate sm:not-sr-only">{label}</span>
+			</a>
+		{/each}
+	</nav>
+
+	<section
+		aria-label={sections.find(({ id }) => id === section)?.label}
+		class="min-w-0 flex-1 sheet px-8 py-6"
+	>
+		<div class="max-w-2xl">
+			{#if section === 'general'}
 				<h2 class="pb-4 heading">General</h2>
 				<div class="flex items-center justify-between gap-4">
 					<div>
@@ -109,7 +102,7 @@
 						]}
 					/>
 				</div>
-			{:else if settings.section === 'notifications'}
+			{:else if section === 'notifications'}
 				<h2 class="heading">Notifications</h2>
 				<p class="pb-4 text-sm text-muted">
 					Geordi tells you when an agent is done, or ran into a problem, in a workspace you are not
@@ -153,7 +146,7 @@
 						Send a test
 					</Button>
 				</div>
-			{:else if settings.section === 'repositories'}
+			{:else if section === 'repositories'}
 				<h2 class="heading">Repositories</h2>
 				<p class="pb-4 text-sm text-muted">The Git repositories agents can work in.</p>
 
@@ -202,6 +195,13 @@
 						Removing a repository only makes Geordi forget it. Nothing on disk changes.
 					</p>
 				</div>
+			{:else if section === 'access'}
+				<AgentAccess
+					{repos}
+					grants={nav.current?.access ?? []}
+					issue={issueAccess}
+					revoke={revokeAccess}
+				/>
 			{:else}
 				<h2 class="heading">About</h2>
 				<div class="mt-6 space-y-2">
@@ -212,7 +212,8 @@
 					<p class="text-sm text-muted">Version {version}</p>
 					<p>A self-hostable code forge and agent orchestrator.</p>
 				</div>
+				{#if updates && updateState}<DesktopUpdates state={updateState} controls={updates} />{/if}
 			{/if}
 		</div>
-	</div>
-</Dialog>
+	</section>
+</div>

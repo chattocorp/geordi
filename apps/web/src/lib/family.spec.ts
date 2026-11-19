@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byRepository, withAides } from './family.ts';
+import { byRepository, unfolded, withAides } from './family.ts';
 
 const workspace = (id: string, repoId: string, parentId: string | null = null) => ({
 	id,
@@ -60,5 +60,28 @@ describe('withAides', () => {
 	it('lets an agent stand for itself once the workspace it worked in is gone', () => {
 		const sorted = withAides([at('left', 'archived')]);
 		expect(sorted.map(({ workspace }) => workspace.id)).toEqual(['left']);
+	});
+});
+
+describe('unfolded', () => {
+	const rows = byRepository([
+		workspace('parent', 'one'),
+		workspace('child', 'one', 'parent'),
+		workspace('grandchild', 'one', 'child'),
+		workspace('sibling', 'one', 'parent'),
+		workspace('other', 'one')
+	]).get('one')!;
+
+	it('counts what is under each row', () => {
+		expect(unfolded(rows, []).map(({ under }) => under)).toEqual([3, 1, 0, 0, 0]);
+	});
+
+	it('hides what is under a folded workspace, however deep', () => {
+		expect(ids(unfolded(rows, ['parent']))).toEqual(['parent', 'other']);
+		expect(ids(unfolded(rows, ['child']))).toEqual(['parent', 'child', 'sibling', 'other']);
+	});
+
+	it('ignores a folded workspace with nothing under it', () => {
+		expect(ids(unfolded(rows, ['other', 'grandchild']))).toEqual(ids(rows));
 	});
 });

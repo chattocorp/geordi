@@ -9,7 +9,6 @@
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import HistoryButtons from '#lib/components/HistoryButtons.svelte';
 	import Logo from '#lib/components/Logo.svelte';
-	import Settings from '#lib/components/Settings.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import {
@@ -197,5 +196,4 @@
 </div>
 
 <ContextMenu />
-<Settings />
 <ArchiveConfirm asking={archiving.asking} />

@@ -73,6 +73,7 @@ export const navigation = () =>
 						};
 					}),
 				workspaces: listed,
+				access: workspaces().access.list(),
 				/**
 				 * What each agent can be asked to run: its models and their effort levels, as the
 				 * connected daemon reports them. `null` while no daemon is connected.
@@ -144,6 +145,7 @@ export const workspace = (id: string) => {
 			return {
 				...workspace,
 				background: hub().background(id),
+				suggestion: hub().suggestion(id),
 				transcript: readTranscript(id),
 				// who but the person may have written in its conversation: the agents above it
 				senders: Object.fromEntries(parents.map(({ id, title }) => [id, title])),
@@ -151,6 +153,7 @@ export const workspace = (id: string) => {
 				aides: aides.map((aide) => ({
 					...aide,
 					background: hub().background(aide.id),
+					suggestion: hub().suggestion(aide.id),
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
@@ -162,15 +165,18 @@ export const workspace = (id: string) => {
 			};
 		},
 		also: (changed) => {
-			const stopTasks = hub().followBackground((source) => {
+			const relevant = (source: string) => {
 				if (source === id || transcripts.has(source)) changed();
-			});
+			};
+			const stopTasks = hub().followBackground(relevant);
+			const stopUsage = workspaces().followUsage(relevant);
 			const unwatch = watchers().watch(workspaces().summary(id).worktreeId, changed);
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();
 				transcripts.clear();
 				stopTasks();
+				stopUsage();
 				unwatch();
 				unsubscribe();
 			};
@@ -178,10 +184,21 @@ export const workspace = (id: string) => {
 	} satisfies View<unknown>;
 };
 
+/**
+ * The commands a workspace's agent offers (its slash commands and skills), for its reply box.
+ * A view of its own, apart from the workspace's: some hundred of them, which change seldom,
+ * and are sent only when they do. `null` until the agent has said.
+ */
+export const commands = (id: string) =>
+	({
+		read: () => hub().commands(id),
+		also: (changed) => hub().followCommands((source) => source === id && changed())
+	}) satisfies View<unknown>;
+
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace };
+export const views = { navigation, workspace, commands };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
 export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
-	Workspace & { aides: (Workspace & Pick<WorkspaceUpdate, 'background'>)[] };
+	Workspace & { aides: (Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>)[] };

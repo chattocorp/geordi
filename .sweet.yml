@@ -1,7 +1,10 @@
 # Sweet package configuration: Geordi is released as one product.
 name: Geordi
-version: 0.4.0
+version: 0.5.0
 version-files:
+  - path: apps/cli/package.json
+    format: json
+    key: version
   - path: apps/desktop/package.json
     format: json
     key: version

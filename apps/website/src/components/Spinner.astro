@@ -1,0 +1,20 @@
+---
+/** Something is working: the app's spinner. `label` says what, for those who can't see it turn. */
+type Props = { label?: string };
+const { label = 'Working' } = Astro.props;
+// each dot's place (column, row), in the order the light passes them
+const dots = [
+	[1, 1],
+	[2, 1],
+	[2, 2],
+	[2, 3],
+	[1, 3],
+	[1, 2]
+];
+---
+
+<span role="img" aria-label={label} class="spinner shrink-0">
+	{dots.map(([column, row], index) => (
+		<span style={`grid-area:${row}/${column};--i:${index}`} />
+	))}
+</span>

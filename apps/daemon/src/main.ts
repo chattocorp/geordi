@@ -39,7 +39,6 @@ import {
 import { releasePlan } from './releases.ts';
 import { emptyTrash, removable, removeWorktree } from './remove.ts';
 import { setupNote } from './scripts.ts';
-import { titleFor } from './titles.ts';
 import {
 	endLegacyTurns,
 	resumeSessions,
@@ -317,8 +316,8 @@ function begin(workspaceId: string, meta: Meta, [first, ...rest]: Said[]) {
  */
 function attend(workspaceId: string, session: Session) {
 	void session.done.then((unheard) => {
-		if (sessions.get(workspaceId) === session && session.background().length)
-			sendLive({ type: 'workspace.background', workspaceId, tasks: [] });
+		if (sessions.get(workspaceId) === session && session.live().background?.length)
+			sendLive({ type: 'workspace.live', workspaceId, live: { background: [] } });
 		if (unheard.length === 0 || retired.has(session)) {
 			if (sessions.get(workspaceId) === session) sessions.delete(workspaceId);
 			return;
@@ -438,8 +437,8 @@ function connect(delay = 500) {
 			socket = ws;
 			for (const [workspaceId, session] of sessions) {
 				if (session.over()) continue;
-				const tasks = session.background();
-				if (tasks.length) sendLive({ type: 'workspace.background', workspaceId, tasks });
+				const live = session.live();
+				if (Object.keys(live).length) sendLive({ type: 'workspace.live', workspaceId, live });
 			}
 			delay = 500;
 			for (const queued of outbox.splice(0)) ws.send(JSON.stringify(queued));
@@ -480,7 +479,6 @@ function answer(request: DaemonRequest) {
 async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
-	if (request.kind === 'title') return titleFor(request.text);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;

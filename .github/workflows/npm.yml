@@ -1,0 +1,26 @@
+name: npm package
+on:
+  workflow_call:
+    inputs:
+      commit:
+        type: string
+        required: true
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm's trusted publishing, configured for `geordi` on npmjs.com. npm trusts the
+      # calling workflow (`releases.yml`), and only one: betas are not published to npm.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit }}
+      - uses: ./.github/actions/install
+      - run: pnpm --filter @geordi/cli bundle
+      - run: npm publish --access public
+        working-directory: apps/cli/stage

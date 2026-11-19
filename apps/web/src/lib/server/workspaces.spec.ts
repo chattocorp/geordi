@@ -113,6 +113,30 @@ describe('workspaces', () => {
 		]);
 	});
 
+	it('records what a turn used with its end, and keeps it across a restart', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Count');
+		const usage = { totalTokens: 361, inputTokens: 8, outputTokens: 353 };
+		workspaces.record(id, { kind: 'text', text: 'Counted.' });
+		workspaces.record(id, { kind: 'turn.completed', usage });
+		workspaces.send(id, 'Again');
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped', usage });
+		workspaces.send(id, 'Once more');
+		// as recorded before turns said what they used
+		workspaces.record(id, { kind: 'turn.completed' });
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).transcript.map((item) => item.kind)).toEqual([
+			'user',
+			'text',
+			'usage',
+			'user',
+			'error',
+			'usage',
+			'user'
+		]);
+		expect(replay.get(id).transcript[2]).toMatchObject({ kind: 'usage', usage });
+	});
+
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Plan the change');
@@ -314,6 +338,41 @@ describe('workspaces', () => {
 		});
 		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text']);
 		expect(workspace.transcript[1]).toMatchObject({ output: 'contents', isError: false });
+	});
+
+	it('completes a tool call with what later updates say of it', () => {
+		const { workspaces, create } = setup();
+		const id = create('Read a file');
+		workspaces.record(id, {
+			kind: 'tool',
+			id: 't1',
+			name: 'Read',
+			input: '{}',
+			title: 'Read File'
+		});
+		workspaces.record(id, {
+			kind: 'tool.update',
+			id: 't1',
+			input: '{"file_path":"/wt/a.txt"}',
+			title: 'Read a.txt',
+			toolKind: 'read',
+			locations: [{ path: '/wt/a.txt', line: 1 }]
+		});
+		workspaces.record(id, { kind: 'tool.update', id: 'unknown', title: 'Nothing' });
+		expect(workspaces.get(id).transcript.filter((item) => item.kind === 'tool')).toEqual([
+			{
+				kind: 'tool',
+				id: 't1',
+				name: 'Read',
+				input: '{"file_path":"/wt/a.txt"}',
+				title: 'Read a.txt',
+				toolKind: 'read',
+				locations: [{ path: '/wt/a.txt', line: 1 }],
+				output: null,
+				isError: false,
+				at: expect.any(String)
+			}
+		]);
 	});
 
 	it('records a late result once on its original tool after a forge restart', () => {
@@ -668,6 +727,35 @@ describe('workspaces', () => {
 		expect(() => workspaces.answer(id, 'q1', ['Yes'])).toThrow();
 	});
 
+	it('keeps how full the context is in memory during a turn, and records it once at its end', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('Count');
+		workspaces.record(id, { kind: 'turn.started' });
+		const changed = vi.fn();
+		const unfollow = workspaces.followUsage(changed);
+		const recorded = () => store.readAll().filter((event) => event.type === 'workspace.usage');
+		expect(workspaces.summary(id).usage).toBeNull();
+		for (const used of [1000, 2000, 3000]) workspaces.measure(id, { used, size: 10_000 });
+		workspaces.measure(id, { used: 3000, size: 10_000 });
+		expect(changed).toHaveBeenCalledTimes(3);
+		expect(workspaces.summary(id).usage).toEqual({ used: 3000, size: 10_000 });
+		expect(recorded()).toHaveLength(0);
+
+		const cost = { amount: 0.27, currency: 'USD' };
+		workspaces.measure(id, { used: 3500, size: 10_000, cost });
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(recorded()).toHaveLength(1);
+		// after a restart, as it was; a daemon that says it again records nothing new
+		const restarted = createWorkspaces(store, repos, dispatch);
+		expect(restarted.summary(id).usage).toEqual({ used: 3500, size: 10_000, cost });
+		restarted.measure(id, { used: 3500, size: 10_000, cost });
+		expect(recorded()).toHaveLength(1);
+		// said between turns, it is recorded at once
+		restarted.measure(id, { used: 3600, size: 10_000, cost });
+		expect(recorded()).toHaveLength(2);
+		unfollow();
+	});
+
 	it('keeps the queue across a restart', () => {
 		const { store, repos, workspaces, dispatch, create } = setup();
 		const id = create('One');
@@ -755,31 +843,37 @@ describe('titles', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).title).toHaveLength(80);
 	});
 
-	it('prefers the name someone chose to one a model made of the first message', () => {
-		const { workspaces, create } = setup();
-		const id = create('Fix the bug in the login flow, it fails on Safari');
-		workspaces.suggestTitle(id, 'Fix Safari login');
-		expect(workspaces.get(id)).toMatchObject({ title: 'Fix Safari login', named: false });
+	it('takes the title its agent gives its session, until someone names it', () => {
+		const { store, repos, dispatch, workspaces, create } = setup();
+		const id = create('Fix the bug in the login flow,\nit fails on Safari');
+		// Codex says the prompt back first, whitespace collapsed and maybe cut short
+		workspaces.record(id, {
+			kind: 'title',
+			title: 'Fix the bug in the login flow, it fails on Safari'
+		});
+		workspaces.record(id, { kind: 'title', title: 'Fix the bug in the login…' });
+		expect(workspaces.get(id).title).toBe('Fix the bug in the login flow,');
 
-		// its agent names it: that holds, whatever a model comes up with later
+		workspaces.record(id, { kind: 'title', title: 'Fix Safari login' });
+		expect(workspaces.get(id)).toMatchObject({ title: 'Fix Safari login', named: false });
+		// a later one replaces it, even between turns
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.record(id, { kind: 'title', title: 'Safari login cookies' });
+		expect(workspaces.get(id).title).toBe('Safari login cookies');
+
+		// its agent names it: that holds, whatever its session is called later
 		workspaces.agents.name(id, 'Safari login cookie fix');
-		workspaces.suggestTitle(id, 'Login bug');
+		workspaces.record(id, { kind: 'title', title: 'Login bug' });
 		expect(workspaces.get(id)).toMatchObject({ title: 'Safari login cookie fix', named: true });
+		expect(createWorkspaces(store, repos, dispatch).get(id).title).toBe('Safari login cookie fix');
 	});
 
-	it('announces new workspaces, including ones agents start, with what started them', () => {
-		const { store, repos, repo, dispatch } = setup();
-		const created: [string, string][] = [];
-		const workspaces = createWorkspaces(store, repos, dispatch, {
-			onCreated: (id, prompt) => created.push([id, prompt])
-		});
-		const lead = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' });
-		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
-		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Build the thing' });
-		expect(created).toEqual([
-			[lead, 'Lead'],
-			[child.id, 'Build the thing']
-		]);
+	it('keeps a name someone gave it over its agent’s title', () => {
+		const { workspaces, create } = setup();
+		const id = create('Do the thing');
+		workspaces.retitle(id, 'My name for it', 'person');
+		workspaces.record(id, { kind: 'title', title: 'Thing doing' });
+		expect(workspaces.get(id).title).toBe('My name for it');
 	});
 });
 
@@ -1107,7 +1201,7 @@ describe('agents starting agents', () => {
 		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
 		workspaces.record(id, { kind: 'text', text: 'Looking.' });
 
-		const waiting = agents.wait(caller, id, 5000);
+		const waiting = agents.wait(id, id, 5000);
 		workspaces.record(id, { kind: 'text', text: 'Done.' });
 		workspaces.record(id, { kind: 'turn.completed' });
 		expect(await waiting).toMatchObject({
@@ -1120,7 +1214,7 @@ describe('agents starting agents', () => {
 		workspaces.record(id, { kind: 'turn.failed', error: 'boom' });
 		expect(agents.get(caller, id)).toMatchObject({ reply: '', error: 'boom' });
 		agents.send(caller, id, 'Finish');
-		const final = agents.wait(caller, id, 5000);
+		const final = agents.wait(id, id, 5000);
 		workspaces.record(id, { kind: 'text', text: 'Archived reply' });
 		workspaces.record(id, { kind: 'turn.completed' });
 		workspaces.archive(id); // the waiting report resumes after eviction
@@ -1130,7 +1224,7 @@ describe('agents starting agents', () => {
 	it('gives up waiting after the timeout', async () => {
 		const { agents, lead: caller } = lead();
 		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
-		expect(await agents.wait(caller, id, 10)).toMatchObject({ status: 'running' });
+		expect(await agents.wait(id, id, 10)).toMatchObject({ status: 'running' });
 	});
 
 	it('only lets an agent control the agents it started', () => {

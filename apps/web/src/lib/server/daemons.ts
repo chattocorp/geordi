@@ -3,7 +3,9 @@ import type { IncomingMessage } from 'node:http';
 import {
 	PROTOCOL_VERSION,
 	type DaemonMessage,
+	type AgentCommand,
 	type BackgroundTask,
+	type ContextUsage,
 	type DaemonRequest,
 	type DaemonResults,
 	type ForgeMessage,
@@ -21,6 +23,8 @@ type Handlers = {
 		ended: Record<string, number>
 	): void;
 	onMessage(message: DaemonMessage): void;
+	/** How full a workspace's agent's context is, as it just said. */
+	onUsage(workspaceId: string, usage: ContextUsage): void;
 };
 
 const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
@@ -60,6 +64,24 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	function setTasks(socket: WebSocket, id: string, tasks: BackgroundTask[]) {
 		if (tasks.length) background.set(id, { socket, tasks });
 		else background.delete(id);
+		for (const listener of taskListeners) listener(id);
+	}
+	/**
+	 * Each workspace's agent's commands, as its daemon last said (ADR-003: live data, never
+	 * stored). They stay when the daemon goes away, or the agent's CLI rests: they are still
+	 * what it offers when it is next started. A reconnecting daemon says them again.
+	 */
+	const commands = new Map<string, AgentCommand[]>();
+	const commandListeners = new Set<(workspaceId: string) => void>();
+	/**
+	 * What each workspace's agent suggests saying next. It outlives its daemon's connection
+	 * (the agent said it, whoever relays it); a reconnecting daemon says it again anyway.
+	 */
+	const suggestions = new Map<string, string>();
+	function setSuggestion(id: string, text: string | null) {
+		if ((suggestions.get(id) ?? null) === text) return;
+		if (text) suggestions.set(id, text);
+		else suggestions.delete(id);
 		for (const listener of taskListeners) listener(id);
 	}
 	/** What each connected daemon's agent CLIs offer, as it said when it connected. */
@@ -125,9 +147,16 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				return;
 			}
 
-			if (message.type === 'workspace.background') {
-				if (assigned.get(message.workspaceId) === daemonId)
-					setTasks(socket, message.workspaceId, message.tasks);
+			if (message.type === 'workspace.live') {
+				const { workspaceId: id, live } = message;
+				if (assigned.get(id) !== daemonId) return;
+				if (live.background) setTasks(socket, id, live.background);
+				if (live.suggestion !== undefined) setSuggestion(id, live.suggestion);
+				if (live.commands) {
+					commands.set(id, live.commands);
+					for (const listener of commandListeners) listener(id);
+				}
+				if (live.usage) handlers.onUsage(id, live.usage);
 				return;
 			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
@@ -135,6 +164,9 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				message.type !== 'workspace.event' ||
 				assigned.get(message.workspaceId) === daemonId
 			) {
+				// what was suggested was for the turn that ended, not for the next
+				if (message.type === 'workspace.event' && message.event.kind === 'turn.started')
+					setSuggestion(message.workspaceId, null);
 				handlers.onMessage(message);
 				if (message.type === 'workspace.event' && message.cursor) {
 					const ack: ForgeMessage = {
@@ -166,9 +198,18 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	return {
 		send,
 		background: (id: string) => background.get(id)?.tasks ?? [],
+		suggestion: (id: string) => suggestions.get(id) ?? null,
+		/** Calls `listener` when a workspace's background tasks or suggestion change. */
 		followBackground(listener: (workspaceId: string) => void) {
 			taskListeners.add(listener);
 			return () => taskListeners.delete(listener);
+		},
+
+		/** The commands the workspace's agent offers; `null` until it has said. */
+		commands: (id: string) => commands.get(id) ?? null,
+		followCommands(listener: (workspaceId: string) => void) {
+			commandListeners.add(listener);
+			return () => commandListeners.delete(listener);
 		},
 
 		/** Asks a daemon a question about a workspace. Rejects if none answers in time. */

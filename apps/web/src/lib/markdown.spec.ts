@@ -24,6 +24,9 @@ describe('renderMarkdown', () => {
 		expect(renderMarkdown('![x](/tmp/a.png)', { pictures: '/p' })).toContain(
 			'src="/p?path=%2Ftmp%2Fa.png"'
 		);
+		expect(renderMarkdown('![x](a.png)', { pictures: '/p?at=3.1' })).toContain(
+			'src="/p?at=3.1&amp;path=a.png"'
+		);
 	});
 
 	it('never loads a picture from elsewhere, nor any without a workspace to ask', () => {

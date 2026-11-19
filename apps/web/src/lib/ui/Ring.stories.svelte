@@ -25,3 +25,22 @@
 		<Ring label="Nothing yet" parts={[]} />
 	</div>
 </Story>
+
+<Story name="Part of a whole" asChild>
+	<div class="flex items-center gap-4">
+		<Ring
+			label="A third used"
+			parts={[
+				{ size: 1, tone: 'muted' },
+				{ size: 2, tone: 'empty' }
+			]}
+		/>
+		<Ring
+			label="Nearly full"
+			parts={[
+				{ size: 19, tone: 'danger' },
+				{ size: 1, tone: 'empty' }
+			]}
+		/>
+	</div>
+</Story>

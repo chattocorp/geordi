@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,9 +17,14 @@ import { handleMcp } from './mcp.ts';
 import { createRepos } from './repos.ts';
 import { createWorkspaces } from './workspaces.ts';
 
-function setup() {
+function gitRepository() {
 	const repoPath = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
 	execFileSync('git', ['init', '-q', repoPath]);
+	return repoPath;
+}
+
+function setup() {
+	const repoPath = gitRepository();
 	const store = new EventStore<GeordiEvent>(':memory:');
 	const repos = createRepos(store);
 	const workspaces = createWorkspaces(store, repos, () => true);
@@ -80,26 +86,43 @@ function setup() {
 	};
 
 	let next = 0;
-	const rpc = async (method: string, params?: unknown) =>
-		(await handleMcp(agents, caller, {
+	const rpcAs = (actor: string) => async (method: string, params?: unknown) =>
+		(await handleMcp(agents, actor, {
 			jsonrpc: '2.0',
 			id: ++next,
 			method,
 			params
 		})) as { result?: unknown; error?: { code: number } };
-	/** Calls a tool; returns its parsed result, or its error text. */
-	const call = async (name: string, args: unknown = {}) => {
-		const { content, isError } = (await rpc('tools/call', { name, arguments: args })).result as {
-			content: { text: string }[];
-			isError: boolean;
+	/** Calls a tool as `actor`; returns its parsed result, or its error text. */
+	const callAs =
+		(actor: string) =>
+		async (name: string, args: unknown = {}) => {
+			const { content, isError } = (await rpcAs(actor)('tools/call', { name, arguments: args }))
+				.result as { content: { text: string }[]; isError: boolean };
+			return isError ? { error: content[0].text } : JSON.parse(content[0].text);
 		};
-		return isError ? { error: content[0].text } : JSON.parse(content[0].text);
-	};
+	const rpc = rpcAs(caller);
+	const call = callAs(caller);
 	/** Calls a tool whose result is text to read. */
 	const read = async (name: string) =>
 		((await rpc('tools/call', { name, arguments: {} })).result as { content: { text: string }[] })
 			.content[0].text;
-	return { workspaces, agents, archived, caller, rpc, call, read, config, offered, standings };
+	return {
+		store,
+		repos,
+		workspaces,
+		agents,
+		archived,
+		caller,
+		rpc,
+		rpcAs,
+		call,
+		callAs,
+		read,
+		config,
+		offered,
+		standings
+	};
 }
 
 describe('naming workspaces', () => {
@@ -276,6 +299,9 @@ describe('the agent API as an MCP server', () => {
 			'name_workspace',
 			'wait_for_agent',
 			'list_agents',
+			'list_repositories',
+			'list_workspaces',
+			'read_workspace',
 			'send_message',
 			'archive_agent',
 			'configuration_reference',
@@ -335,7 +361,10 @@ describe('the agent API as an MCP server', () => {
 			error: 'Your workspace has no worktree yet'
 		});
 		expect((await call('start_agent', {})).error).toMatch(/Invalid input/);
-		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not started/);
+		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not found/);
+		expect((await call('send_message', { agent_id: 'nope', message: 'Hi' })).error).toMatch(
+			/not started/
+		);
 		expect((await call('launch_missiles')).error).toMatch(/Unknown tool/);
 	});
 });
@@ -400,7 +429,7 @@ describe('workspace status', () => {
 		expect((await call('workspace_status')).next[0]).not.toHaveProperty('prompt');
 	});
 
-	it('says how an agent the caller started stands, and nobody else', async () => {
+	it('reports standings across the repository', async () => {
 		const { workspaces, caller, call, standings } = setup();
 		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
 		const child = await call('start_agent', { prompt: 'Review', worktree: 'shared' });
@@ -419,13 +448,218 @@ describe('workspace status', () => {
 			settings: {},
 			prompt: 'Unrelated'
 		});
-		expect((await call('workspace_status', { agent_id: stranger })).error).toMatch(
-			/not started an agent/
-		);
+		standings.set(stranger, { changes: changes({ uncommitted: 1 }), upstream: null });
+		expect(await call('workspace_status', { agent_id: stranger })).toMatchObject({ id: stranger });
 	});
 
 	it('says so when no daemon can tell', async () => {
 		const { call } = setup();
 		expect((await call('workspace_status')).error).toMatch(/No daemon/);
 	});
+});
+
+describe('installation-wide workspace access', () => {
+	it('lets workspace agents read and wait on any workspace, but message only their own', async () => {
+		const { repos, workspaces, caller, call } = setup();
+		const repoId = repos.register(gitRepository()).id;
+		const peer = workspaces.create({ repoId, agent: 'codex', prompt: 'Review the change' });
+		expect(await call('list_workspaces')).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: peer, repoId })])
+		);
+		expect((await call('read_workspace', { workspace_id: peer })).messages.at(-1)).toMatchObject({
+			kind: 'user',
+			text: 'Review the change'
+		});
+		workspaces.record(peer, { kind: 'turn.completed' });
+		expect(await call('wait_for_agent', { agent_id: peer })).toMatchObject({ status: 'idle' });
+
+		for (const id of [peer, caller])
+			expect((await call('send_message', { agent_id: id, message: 'Hi' })).error).toMatch(
+				/not started/
+			);
+		expect((await call('stop_agent', { agent_id: peer })).error).toBeTruthy();
+		expect((await call('archive_agent', { agent_id: peer })).error).toBeTruthy();
+		expect((await call('start_agent', { prompt: 'Elsewhere', repository: repoId })).error).toMatch(
+			/own repository/
+		);
+	});
+
+	it('reads archived pages without restarting the agent', async () => {
+		const { workspaces, caller, call } = setup();
+		const peer = workspaces.create({
+			repoId: workspaces.get(caller).repoId,
+			agent: 'claude',
+			prompt: 'First'
+		});
+		for (let i = 0; i < 51; i++) workspaces.record(peer, { kind: 'text', text: String(i) });
+		workspaces.record(peer, { kind: 'turn.completed' });
+		workspaces.archive(peer);
+		expect((await call('list_workspaces')).map((w: { id: string }) => w.id)).not.toContain(peer);
+		expect(await call('list_workspaces', { include_archived: true })).toContainEqual(
+			expect.objectContaining({ id: peer, archivedAt: expect.any(String) })
+		);
+		const latest = await call('read_workspace', { workspace_id: peer });
+		expect(latest.messages).toHaveLength(50);
+		expect(
+			(await call('read_workspace', { workspace_id: peer, before: latest.before })).messages[0]
+		).toMatchObject({ kind: 'user', text: 'First' });
+	});
+
+	it('uses one external token across the repositories it was granted, retains it on replay, and honors revocation', async () => {
+		const { store, repos, workspaces, agents, rpcAs, callAs, caller } = setup();
+		const otherRepo = repos.register(gitRepository()).id;
+		const hiddenRepo = repos.register(gitRepository()).id;
+		const token = workspaces.access.issue('Release assistant', [
+			workspaces.get(caller).repoId,
+			otherRepo
+		]);
+		const other = workspaces.create({ repoId: otherRepo, agent: 'codex', prompt: 'Test it' });
+		const hidden = workspaces.create({ repoId: hiddenRepo, agent: 'codex', prompt: 'Secret' });
+		const later = repos.register(gitRepository()).id;
+		const actor = agents.authenticate(token)!;
+		expect(actor).toBeTruthy();
+		const call = callAs(actor);
+		const { result } = (await rpcAs(actor)('tools/list')) as {
+			result: { tools: { name: string }[] };
+		};
+		expect(result.tools.map((tool) => tool.name)).not.toEqual(
+			expect.arrayContaining(['name_workspace'])
+		);
+		const listed = JSON.stringify(await call('list_workspaces'));
+		for (const id of [caller, other]) {
+			expect(listed).toContain(id);
+			expect(await call('read_workspace', { workspace_id: id })).not.toHaveProperty('error');
+		}
+
+		// a repository it was not granted, or that was added later, doesn't exist for it
+		expect(listed).not.toContain(hidden);
+		const repoIds = (await call('list_repositories')).map((repo: { id: string }) => repo.id);
+		expect(repoIds).toEqual(expect.arrayContaining([otherRepo]));
+		expect(repoIds).not.toEqual(expect.arrayContaining([hiddenRepo]));
+		expect(repoIds).not.toEqual(expect.arrayContaining([later]));
+		for (const [tool, input] of [
+			['read_workspace', { workspace_id: hidden }],
+			['workspace_status', { agent_id: hidden }],
+			['wait_for_agent', { agent_id: hidden, timeout_seconds: 0 }],
+			['send_message', { agent_id: hidden, message: 'Hi' }],
+			['start_agent', { prompt: 'Fix it', repository: later }]
+		] as const)
+			expect((await call(tool, input)).error).toMatch(/not found|access to/);
+		expect(workspaces.get(hidden).queue).toEqual([]);
+
+		expect((await call('workspace_status')).error).toMatch(/Say which workspace/);
+		expect((await call('stop_agent', { agent_id: other })).error).toBeTruthy();
+
+		// a person's agent at work is not turned around; the message waits for its turn to end
+		expect(
+			(await call('send_message', { agent_id: other, message: 'Now', interrupt: true })).error
+		).toMatch(/only interrupt agents you started/);
+		await call('send_message', { agent_id: other, message: 'Check the build' });
+		expect(workspaces.get(other).queue).toEqual(['Check the build']);
+		workspaces.record(other, { kind: 'turn.completed' });
+
+		const replay = createWorkspaces(store, repos, () => true);
+		expect(replay.agents.authenticate(token)).toBe(actor);
+		expect(replay.get(other).transcript.at(-1)).toMatchObject({
+			from: actor,
+			senderName: 'Release assistant'
+		});
+		expect(JSON.stringify(store.readAll())).not.toContain(token);
+		replay.access.revoke(actor);
+		expect(replay.agents.authenticate(token)).toBeNull();
+		expect(() => replay.access.revoke(actor)).toThrow();
+	});
+
+	it('lets an external client start agents in a repository, and supervise those', async () => {
+		const { repos, workspaces, agents, archived, callAs } = setup();
+		const repoId = repos.register(gitRepository()).id;
+		const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
+		const call = callAs(actor);
+
+		expect(await call('list_repositories')).toContainEqual(expect.objectContaining({ id: repoId }));
+		expect((await call('start_agent', { prompt: 'Fix it' })).error).toMatch(/which repository/);
+		expect(
+			(await call('start_agent', { prompt: 'Fix it', repository: repoId, worktree: 'shared' }))
+				.error
+		).toMatch(/share/);
+
+		const started = await call('start_agent', {
+			prompt: 'Fix the flaky test',
+			repository: repoId,
+			agent: 'claude',
+			model: 'haiku',
+			title: 'Flaky test'
+		});
+		expect(started).toMatchObject({ parentId: null, status: 'running', title: 'Flaky test' });
+		expect(workspaces.get(started.id)).toMatchObject({
+			repoId,
+			startedBy: actor,
+			settings: { model: 'haiku' }
+		});
+		expect(workspaces.get(started.id).transcript[0]).toMatchObject({ senderName: 'Desktop' });
+		expect((await call('list_agents')).map((agent: { id: string }) => agent.id)).toEqual([
+			started.id
+		]);
+
+		await call('send_message', { agent_id: started.id, message: 'Also the docs', interrupt: true });
+		expect(workspaces.get(started.id).transcript.at(-1)).toMatchObject({ text: 'Also the docs' });
+		await call('stop_agent', { agent_id: started.id });
+		workspaces.record(started.id, { kind: 'turn.failed', error: 'Stopped' });
+		expect(await call('archive_agent', { agent_id: started.id })).toEqual({ archived: started.id });
+		expect(archived).toEqual([started.id]);
+	});
+});
+
+it('requires a fresh token for an older client, for one repository or all of them', () => {
+	const { store, workspaces, caller } = setup();
+	for (const repoId of [workspaces.get(caller).repoId, undefined]) {
+		const id = `external:old-${repoId}`;
+		const token = id + '.test';
+		store.append({
+			type: 'access.granted',
+			stream: `access:${id}`,
+			data: {
+				id,
+				name: 'Old client',
+				...(repoId && { repoId }),
+				digest: createHash('sha256').update(token).digest('hex')
+			}
+		});
+		expect(workspaces.agents.authenticate(token)).toBeNull();
+	}
+	expect(workspaces.access.list()).toEqual([]);
+});
+
+it('issues tokens only for repositories that exist', () => {
+	const { workspaces, caller } = setup();
+	expect(() => workspaces.access.issue('None', [])).toThrow(
+		expect.objectContaining({ status: 400 })
+	);
+	expect(() => workspaces.access.issue('Unknown', ['made-up'])).toThrow();
+	const repoId = workspaces.get(caller).repoId;
+	workspaces.access.issue('Twice', [repoId, repoId]);
+	expect(workspaces.access.list()).toEqual([
+		expect.objectContaining({ name: 'Twice', repoIds: [repoId] })
+	]);
+});
+
+it('keeps the agents an external client started to its repositories', async () => {
+	const { repos, workspaces, agents, callAs, caller } = setup();
+	const repoId = repos.register(gitRepository()).id;
+	const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
+	const started = await callAs(actor)('start_agent', { prompt: 'Look around', repository: repoId });
+	const child = callAs(started.id);
+	expect(JSON.stringify(await child('list_workspaces'))).not.toContain(caller);
+	expect((await child('read_workspace', { workspace_id: caller })).error).toMatch(/not found/);
+	expect(await child('read_workspace', { workspace_id: started.id })).not.toHaveProperty('error');
+});
+
+it('forgets a removed repository for good, though its ID is used again', () => {
+	const { repos, workspaces, agents } = setup();
+	const path = gitRepository();
+	const repoId = repos.register(path).id;
+	const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
+	repos.remove(repoId);
+	expect(repos.register(path).id).toBe(repoId);
+	expect(workspaces.access.reaches(actor, repoId)).toBe(false);
 });

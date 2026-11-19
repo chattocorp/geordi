@@ -41,16 +41,7 @@ export const repos = lazy(() => createRepos(store()));
 export const workspaces = lazy(() =>
 	createWorkspaces(store(), repos(), (message) => hub().send(message), {
 		limits: { depth: GEORDI_AGENT_MAX_DEPTH, children: GEORDI_AGENT_MAX_CHILDREN },
-		secret: loadSecret(join(GEORDI_DATA_DIR, 'agent-api-secret')),
-		// A workspace starts out named after the first line of its first message. A daemon
-		// can do better (it asks a model); if it can't, the name simply stays.
-		onCreated: (id, prompt) =>
-			hub()
-				.request({ kind: 'title', text: prompt }, 60_000)
-				.then(
-					(title) => workspaces().suggestTitle(id, title),
-					(problem) => console.warn(`[titles] ${reason(problem)}`)
-				)
+		secret: loadSecret(join(GEORDI_DATA_DIR, 'agent-api-secret'))
 	})
 );
 export const terminals = lazy(() =>
@@ -311,6 +302,7 @@ export const hub = lazy(() =>
 			// a daemon is there to ask: how the workspaces stand is wanted right away
 			void standings().tick(true);
 		},
+		onUsage: (workspaceId, usage) => workspaces().measure(workspaceId, usage),
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.cursor);

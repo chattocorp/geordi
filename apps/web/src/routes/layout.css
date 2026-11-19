@@ -253,12 +253,17 @@
 	@apply font-mono text-xs;
 }
 
+/* A file named in what an agent said or did that opens it (or its diff) in the workspace. */
+@utility file-link {
+	@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
+}
+
 /* A row you can pick: navigation links, tabs. Add `item-active` to the current one. */
 @utility item {
 	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-surface/60 hover:text-ink;
 	/* the fonts are variable: a row that turns bold (unread, current) gets there smoothly */
 	@media (prefers-reduced-motion: no-preference) {
-		transition: font-weight 250ms ease;
+		transition: font-weight 150ms ease;
 	}
 }
 @utility item-active {
@@ -355,6 +360,15 @@
 		cursor: not-allowed;
 	}
 
+	/* What is used is not text to select: a drag across controls selects nothing. Links in
+	   what is read (`prose`) stay selectable with the text around them. */
+	:where(a[href]:not(.prose *), button, summary, select, label, [role='button'], [role='tab']) {
+		user-select: none;
+	}
+	:where(input, textarea) {
+		user-select: text;
+	}
+
 	/* Summaries bring their own marker, if any (older Safari ignores `list-none`). */
 	summary::-webkit-details-marker {
 		display: none;
@@ -429,7 +443,7 @@
 	/* A file the workspace has changed, named in code (see markdown.ts): opens its diff. */
 	[data-file],
 	[data-source] {
-		@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
+		@apply file-link;
 	}
 
 	/* A picture the agent shows (see markdown.ts): no taller than leaves the words around it in view. */

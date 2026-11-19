@@ -1,0 +1,60 @@
+---
+/**
+ * The app's button (`#lib/ui/Button.svelte`), as a link where it leads somewhere:
+ * `primary` for the one main action, `secondary` for others, `ghost` for quiet ones.
+ */
+type Props = {
+	variant?: 'primary' | 'secondary' | 'ghost';
+	tone?: 'accent' | 'merged' | 'ok';
+	size?: 'lg' | 'md' | 'sm';
+	/** An Iconify class, e.g. `icon-[lucide--download]`. */
+	icon?: string;
+	href?: string;
+	class?: string;
+	[attribute: `data-${string}`]: string | undefined;
+};
+const {
+	variant = 'secondary',
+	tone = 'accent',
+	size = 'md',
+	icon,
+	href,
+	class: extra,
+	...rest
+} = Astro.props;
+
+const tones = {
+	primary: [
+		'rounded-full font-semibold shadow-soft hover:brightness-105',
+		{
+			accent: 'bg-accent text-on-accent',
+			merged: 'bg-merged text-on-merged',
+			ok: 'bg-ok text-on-ok'
+		}[tone]
+	],
+	secondary: 'rounded-full bg-sunken font-medium inset-ring-1 inset-ring-line hover:bg-line/50',
+	ghost: 'rounded-control font-medium text-muted hover:bg-sunken hover:text-ink'
+};
+const shapes = {
+	lg: 'h-11 gap-2 text-base',
+	md: 'h-9 gap-2 text-sm',
+	sm: 'h-7 gap-1.5 text-xs'
+};
+const Tag = href ? 'a' : 'button';
+---
+
+<Tag
+	href={href}
+	type={href ? undefined : 'button'}
+	class:list={[
+		'inline-flex shrink-0 items-center justify-center whitespace-nowrap select-none',
+		tones[variant],
+		shapes[size],
+		size === 'lg' ? (icon ? 'pr-6 pl-5' : 'px-6') : icon ? 'pr-4 pl-3' : 'px-4',
+		extra
+	]}
+	{...rest}
+>
+	{icon && <span class:list={[icon, size === 'sm' ? 'size-3.5' : 'size-4']} />}
+	<slot />
+</Tag>
