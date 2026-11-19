@@ -1137,10 +1137,14 @@ export function createWorkspaces(
 
 	/**
 	 * A workspace the caller started (directly or not). Anything else doesn't exist for it,
-	 * unless the caller is a project, which may supervise any.
+	 * unless the caller is a project, which may supervise any in a repository. Not another
+	 * project: archiving one removes its folder, which no agent is to do to another's work.
 	 */
 	function findControlled(callerId: string, id: string): Workspace {
-		if (isProject(callerId)) return find(id);
+		if (isProject(callerId)) {
+			const workspace = find(id);
+			if (workspace.repoId !== null) return workspace;
+		}
 		const workspace = descendantsOf(callerId).find((candidate) => candidate.id === id);
 		if (!workspace) error(404, `You have not started an agent with ID ${id}`);
 		return workspace;

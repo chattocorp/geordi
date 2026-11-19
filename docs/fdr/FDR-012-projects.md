@@ -14,7 +14,7 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 - A project is a conversation with one agent, chosen with its model and effort as anywhere else (FDR-004), and nothing else.
 - Its agent works in a folder of its own that Geordi makes for the project: empty, not a Git repository, there for notes and anything it fetches. The folder is removed when the project is archived.
 - Its agent is told where it is: in a project, with no repository, there to orchestrate rather than to write code itself.
-- The project's agent can do in Geordi what the person can (FDR-002): see every repository and workspace, start agents in any repository, and message, steer and stop any agent, whoever started it.
+- The project's agent can do in Geordi what the person can (FDR-002): see every repository and workspace, start agents in any repository, and message, steer and stop any agent in a repository, whoever started it. Other projects are not its to touch.
 - What it starts begins in a worktree of its own, from the repository's main branch, and appears under that repository in the sidebar as usual, marked as started by the project.
 - A project has none of what follows from a repository: no changes, diffs, changeset, jobs, links or ports, no pull request actions, no setup or teardown.
 - Archiving a project leaves the agents it started alone; they keep working and stay where they are, without a parent.
@@ -43,7 +43,7 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 
 **Decision:** A project's agent may do in Geordi whatever the person may: across all repositories, and on any agent, not only those it started. The limits on nesting and on how many agents run at once still apply.
 **Why:** The person works with it, and it acts for them. Rules about whose agent is whose would only stand between them and their own work.
-**Tradeoff:** A project can interrupt or stop work it didn't start. Agents in repository workspaces stay limited to their own repository and their own children.
+**Tradeoff:** A project can interrupt or stop work it didn't start. Not another project, though: archiving one removes its folder, and no agent is to do that to another's work. Agents in repository workspaces stay limited to their own repository and their own children.
 
 ### 5. What a project starts lives with its repository
 

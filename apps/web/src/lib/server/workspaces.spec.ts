@@ -1437,6 +1437,14 @@ describe('projects (FDR-012)', () => {
 		expect(workspaces.agents.listWorkspaces(project, false).map((w) => w.id)).toContain(project);
 	});
 
+	it('leave other projects alone', () => {
+		const { workspaces, project } = setupProject();
+		const other = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Other' });
+		expect(() => workspaces.agents.get(project, other)).toThrow();
+		expect(() => workspaces.agents.stop(project, other)).toThrow();
+		expect(() => workspaces.agents.send(project, other, 'Hi')).toThrow();
+	});
+
 	it('supervise any agent, whoever started it', () => {
 		const { workspaces, sent, create, project } = setupProject();
 		const other = create('Someone else’s work');

@@ -65,7 +65,7 @@ function projectInstructions(): string {
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi project: a workspace that belongs to no repository, in which the person has you orchestrate their agents: across repositories, or for work that belongs to no branch.',
 		'Your working directory is an empty folder of this project’s own, not a Git repository: for notes, and for anything you fetch to look at. It is removed when the project is archived.',
 		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply, `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. Bring what they report together, and tell the person where things stand.',
-		'You act for the person: you may look at, message, steer and stop any agent in Geordi, whoever started it. Interrupt or stop agents you did not start only when the person asks you to.',
+		'You act for the person: you may look at any workspace, and message, steer and stop any agent in a repository, whoever started it (other projects are not yours to touch). Interrupt or stop agents you did not start only when the person asks you to.',
 		ASKING,
 		DIAGRAMS,
 		LINKS,
