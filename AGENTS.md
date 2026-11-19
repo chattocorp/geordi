@@ -172,7 +172,7 @@ it, perhaps you.
   for agents in `CONFIG_SETTINGS`; a new one goes there and into `parseConfig`.
 - **Changesets (FDR-007).** In a repository that uses a release tool, a workspace shows the
   change notes it adds and the versions they lead to. One adapter per tool in the daemon
-  (`releases.ts`; Sweet Release so far) says whether a repository uses it and asks the tool
+  (`releases.ts`; Sweet Release and Changesets) says whether a repository uses it and asks the tool
   what is pending; everything else deals in packages, versions and notes (`ReleasePlan`).
   A tool is run with `gitEnv`, like our own git: never trusting the worktree's Git metadata.
 - **Standings.** The sidebar shows how each workspace's work stands (its pull request, its

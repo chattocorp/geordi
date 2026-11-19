@@ -48,7 +48,6 @@
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import {
-		mergePull,
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
@@ -62,6 +61,8 @@
 		stopJob,
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
+	import { addedNoteCount } from '#lib/release-notes.ts';
+	import { mergeWithReview } from './release-review.svelte.ts';
 	import { pendingPullAction, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import PullRequestTab from './PullRequestTab.svelte';
@@ -573,7 +574,7 @@
 		mergeProblem = null;
 		merging = true;
 		try {
-			if ((await mergePull(id)) === 'merged') mergedPull = number;
+			if ((await mergeWithReview(id)) === 'merged') mergedPull = number;
 		} catch (error) {
 			mergeProblem = problemOf(error, 'Could not merge the pull request');
 		} finally {
@@ -690,9 +691,7 @@
 	{:else if tab === PR && pull}
 		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}
-		{@const added = (git?.release?.packages ?? [])
-			.flatMap((pkg) => pkg.notes)
-			.filter((note) => note.added).length}
+		{@const added = addedNoteCount(git?.release?.packages ?? [])}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
 		<span class="truncate">Changeset</span>
 		{#if added > 0}{@render count(added)}{/if}
