@@ -280,7 +280,7 @@
 			{#if hidden > 0}
 				<button
 					type="button"
-					class="mb-4 flex h-7 w-full items-center gap-2 pr-2 pl-1.5 text-left text-sm text-muted hover:text-ink"
+					class="mb-4 flex h-7 w-full items-center gap-2 pr-2 pl-1.5 text-left text-sm text-muted/60 hover:text-ink"
 					transition:slide={motion()}
 					onclick={() => (focus.current = null)}
 				>
