@@ -288,11 +288,12 @@
 		const lastLine = Array.from(send.getClientRects()).at(-1)!;
 		const pen = canvas
 			.getByRole('button', { name: 'Edit suggested reply' })
+			.querySelector('span')!
 			.getBoundingClientRect();
 		await expect(pen.left).toBeGreaterThanOrEqual(lastLine.right);
-		await expect(
-			Math.abs(pen.top + pen.height / 2 - (lastLine.top + lastLine.height / 2))
-		).toBeLessThan(1);
+		const lift = lastLine.top + lastLine.height / 2 - (pen.top + pen.height / 2);
+		await expect(lift).toBeGreaterThan(2);
+		await expect(lift).toBeLessThan(4);
 		const text = canvas.getByRole('textbox');
 		await expect(text).toHaveAttribute('placeholder', '');
 		await expect(send.getBoundingClientRect().top).toBeGreaterThanOrEqual(
