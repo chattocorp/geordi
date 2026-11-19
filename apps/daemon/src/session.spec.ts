@@ -714,51 +714,46 @@ describe('a launched daemon', () => {
 		? ['node', 'electron']
 		: ['node'];
 	it.each(launchers)('leaves the session running after its %s launcher exits', async (runtime) => {
+		const sessions = root();
+		const dir = join(sessions, 'w');
 		const scripts = mkdtempSync(join(tmpdir(), 'geordi-launch-'));
 		const daemon = join(scripts, 'daemon.mjs');
 		const launcher = join(scripts, 'launcher.cjs');
 		writeFileSync(
 			daemon,
-			`const [, , session, dir, wrapper, launch] = process.argv;
+			`const dir = ${JSON.stringify(dir)};
 const { readFileSync } = await import('node:fs');
-const { startSession } = await import(session);
+const { startSession } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'session.ts')).href)});
 // nobody to report to: what the host writes waits in its files for the next daemon
-startSession(JSON.parse(launch), { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, wrapper);
+startSession(${JSON.stringify(meta())}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
 const out = dir + '/out.jsonl';
 setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);
 setTimeout(() => { console.error(readFileSync(dir + '/host.log', 'utf8')); process.exit(1); }, 20000);`
 		);
 		writeFileSync(
 			launcher,
-			`const [daemon, ...args] = process.argv.slice(2);
+			`const daemon = ${JSON.stringify(daemon)};
 if (process.versions.electron) {
 	const { app, utilityProcess } = require('electron');
 	app.setPath('userData', __dirname);
-	app.whenReady().then(() => utilityProcess.fork(daemon, args, { stdio: 'inherit' })
-		.on('exit', (code) => app.exit(code ?? 1)));
+	app.whenReady().then(() => {
+		const child = utilityProcess.fork(daemon, [], { stdio: 'pipe' });
+		child.stderr.pipe(process.stderr);
+		child.on('exit', (code) => app.exit(code ?? 1));
+	});
 } else {
-	require('node:child_process').spawn(process.execPath, [daemon, ...args], { stdio: 'inherit' })
+	require('node:child_process').spawn(process.execPath, [daemon], { stdio: 'inherit' })
 		.on('exit', (code) => process.exit(code ?? 1));
 }`
 		);
-		const sessions = root();
-		const dir = join(sessions, 'w');
 		const executable =
 			runtime === 'electron'
 				? createRequire(new URL('../../desktop/package.json', import.meta.url))('electron')
 				: process.execPath;
-		const launched = spawn(
-			executable,
-			[
-				launcher,
-				daemon,
-				pathToFileURL(join(import.meta.dirname, 'session.ts')).href,
-				dir,
-				fixture,
-				JSON.stringify(meta())
-			],
-			{ stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined } }
-		);
+		const launched = spawn(executable, [launcher], {
+			stdio: 'inherit',
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined }
+		});
 		expect((await once(launched, 'exit'))[0]).toBe(0);
 		await sleep(500); // for a job object to have ended its members
 
