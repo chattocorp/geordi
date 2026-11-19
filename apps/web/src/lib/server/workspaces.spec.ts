@@ -904,6 +904,21 @@ describe('titles', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).title).toHaveLength(80);
 	});
 
+	it('uses the same short title for an initial prompt and a first message sent later', () => {
+		const { workspaces, create } = setup();
+		const prefix = 'Please update the workspace header so it shows a shorter';
+		const prompt = prefix + ' description while the agent is working.';
+		const initial = create(prompt);
+		const later = create('');
+		workspaces.send(later, prompt);
+		for (const id of [initial, later]) {
+			expect(workspaces.get(id).title).toBe(prefix + '…');
+			expect(workspaces.get(id).transcript).toContainEqual(
+				expect.objectContaining({ kind: 'user', text: prompt })
+			);
+		}
+	});
+
 	it('takes the title its agent gives its session, until someone names it', () => {
 		const { store, repos, dispatch, workspaces, create } = setup();
 		const id = create('Fix the bug in the login flow,\nit fails on Safari');

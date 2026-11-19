@@ -394,6 +394,18 @@ const continuedBriefing = (branch: string) =>
 /** What a workspace is called until it is told what to do, or named. */
 export const UNTITLED = 'New workspace';
 
+const promptTitleLimit = 60;
+const graphemes = new Intl.Segmenter();
+
+function promptTitle(text: string) {
+	const line = text.split('\n', 1)[0].trim();
+	if (line.length <= promptTitleLimit) return line;
+	const cut = graphemes.segment(line).containing(promptTitleLimit - 1)!.index;
+	const prefix = line.slice(0, cut);
+	const words = /\s/u.test(line[cut]) ? prefix : prefix.replace(/\s+\S*$/u, '');
+	return words.trimEnd() + '…';
+}
+
 /** How often an agent may name its own workspace. */
 const MAX_NAMES = 3;
 
@@ -441,7 +453,10 @@ export function createWorkspaces(
 		restoring = false
 	) {
 		if (event.type === 'workspace.created') {
-			workspaces.set(event.data.id, initialWorkspace(event.data, at, actor));
+			workspaces.set(
+				event.data.id,
+				initialWorkspace({ ...event.data, title: promptTitle(event.data.title) }, at, actor)
+			);
 			return;
 		}
 
@@ -1057,7 +1072,7 @@ export function createWorkspaces(
 	 */
 	function nameAfter(workspace: Workspace, text: string) {
 		if (workspace.named || workspace.transcript.length > 0 || workspace.title !== UNTITLED) return;
-		retitle(workspace.id, text.split('\n')[0].slice(0, 300));
+		retitle(workspace.id, promptTitle(text));
 	}
 
 	/**
@@ -1095,9 +1110,7 @@ export function createWorkspaces(
 		repos.get(workspace.repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
-		// The first line; the UI clamps long titles visually. One started without a word is
-		// named when it is first told something (`nameAfter`).
-		const title = prompt.split('\n')[0].trim().slice(0, 300) || UNTITLED;
+		const title = promptTitle(prompt) || UNTITLED;
 		store.append(
 			{
 				type: 'workspace.created',
