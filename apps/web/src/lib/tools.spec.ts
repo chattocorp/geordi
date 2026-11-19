@@ -81,6 +81,18 @@ describe('paths', () => {
 			filesOf([{ path: '/w/a.ts', line: 3 }, { path: '/w' }, { path: '/tmp/b' }], '/w')
 		).toEqual([{ path: 'a.ts', line: 3 }]);
 	});
+
+	it('names each file once, where it is first named', () => {
+		expect(
+			filesOf(
+				[
+					{ path: '/w/a.ts', line: 1 },
+					{ path: '/w/a.ts', line: 163 }
+				],
+				'/w'
+			)
+		).toEqual([{ path: 'a.ts', line: 1 }]);
+	});
 });
 
 describe('iconOf', () => {
