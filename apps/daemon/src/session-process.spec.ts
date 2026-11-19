@@ -48,7 +48,7 @@ describe('the sessions directory', () => {
 		['what is made in it is passed modify', ['/grant', '*S-1-5-11:(OI)(CI)(IO)M'], false],
 		['it passes on GENERIC_WRITE', ['/grant', '*S-1-5-11:(OI)(CI)(IO)(GW)'], false],
 		['users have GENERIC_ALL', ['/grant', '*S-1-5-32-545:(GA)'], false],
-		['CREATOR OWNER may change it itself', ['/grant', '*S-1-3-0:F'], false],
+		['a direct CREATOR OWNER grant applies to the trusted owner', ['/grant', '*S-1-3-0:F'], true],
 		['others may list the directory', ['/grant', '*S-1-5-11:RX'], true],
 		['others may read journal files', ['/grant', '*S-1-5-11:(OI)(CI)RX'], false],
 		['everyone is denied writing', ['/deny', '*S-1-1-0:(W)'], true],

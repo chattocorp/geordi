@@ -111,17 +111,16 @@ export function startTimes(pids: number[]): Map<number, string> {
 	};
 	if (!valid.length) return times;
 	if (windows) {
-		try {
-			parse(
-				powershell(
-					`foreach ($id in @(${valid.join(',')})) {
-						try { "$id $([System.Diagnostics.Process]::GetProcessById($id).StartTime.ToUniversalTime().Ticks)" } catch {}
-					}`
-				)
-			);
-		} catch {
-			// none to be found
-		}
+		parse(
+			powershell(
+				`foreach ($id in @(${valid.join(',')})) {
+				try {
+					$process = [System.Diagnostics.Process]::GetProcessById($id)
+					[string]::Concat($id, ' ', $process.StartTime.ToUniversalTime().Ticks)
+				} catch [System.ArgumentException] { continue }
+			}`
+			)
+		);
 		return times;
 	}
 	const ps = (ids: number[]) =>
