@@ -65,7 +65,7 @@ export function createUpcaster() {
 	/** Old workspaces still waiting for their first session, to learn their agent. */
 	const waiting = new Map<string, LegacyCreated>();
 	/** What later sessions of an old workspace need to know about it. */
-	const known = new Map<string, { repoId: string; base?: string }>();
+	const known = new Map<string, { repoId?: string; base?: string }>();
 	/**
 	 * Workspaces that are no more: Home workspaces, and the agents in their checkout. Their
 	 * other events need no filtering: the projection ignores events of unknown workspaces.
@@ -141,6 +141,7 @@ export function createUpcaster() {
 				return isSkillText(event) ? [] : [event as CurrentEvent];
 
 			case 'workspace.message':
+			case 'workspace.undeliverable':
 			case 'workspace.queued':
 			case 'workspace.dequeued':
 			case 'workspace.titled':
@@ -150,6 +151,7 @@ export function createUpcaster() {
 			case 'workspace.switched':
 			case 'workspace.steered':
 			case 'workspace.answered':
+			case 'workspace.restored':
 			case 'workspace.archived':
 			case 'workspace.moved':
 			case 'workspace.usage':

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { reviewRelease } from './release-review.ts';
 import { quietGit } from './git.ts';
 import {
 	CI_REFRESH_MS,
@@ -138,11 +139,12 @@ async function checksFor(
 			return {
 				counts: count(page.items.map((check) => check.state)),
 				items: includeChecks
-					? page.items.map(({ ref, name, state, stateRaw, conclusionRaw, url }) => ({
+					? page.items.map(({ ref, name, state, stateRaw, conclusionRaw, startedAt, url }) => ({
 							id: ref.type + '/' + ref.id,
 							name,
 							state,
 							status: (conclusionRaw || stateRaw).toLowerCase(),
+							startedAt: startedAt?.getTime(),
 							url
 						}))
 					: undefined
@@ -315,6 +317,36 @@ async function findPull(
 		if (++searched >= SEARCH_LIMIT) break;
 	}
 	return closed ? get(closed.ref) : null;
+}
+
+/**
+ * The host a remote URL points to: `https://host/…`, `ssh://user@host:22/…` or scp-like
+ * `user@host:path`. `null` for a local path or `file://` URL, which no forge is behind.
+ */
+export function hostOf(url: string): string | null {
+	const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(url);
+	if (scheme) {
+		if (scheme[1].toLowerCase() === 'file') return null;
+		try {
+			return new URL(url).hostname || null;
+		} catch {
+			return null;
+		}
+	}
+	// scp-like: a colon before any slash
+	const scp = /^(?:[^@/:]+@)?([^/:]+):/.exec(url);
+	return scp ? scp[1] : null;
+}
+
+/**
+ * The host of the repository's `origin` remote, if it is one we have no provider for:
+ * then there is no pull request to be had until one is configured (`FORGES_*`).
+ */
+export async function unknownForge(repoPath: string): Promise<string | null> {
+	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
+	const host = remote && hostOf(remote);
+	if (!host) return null;
+	return (await forges()).parseUrl(remote) ? null : host;
 }
 
 /**
@@ -595,6 +627,19 @@ export async function upstream(
 	}
 }
 
+async function selectedPull(provider: ForgeProvider, repo: Repo, branch: string, number: string) {
+	const pull = await readThread(provider, {
+		forge: provider.forge,
+		instance: provider.instance,
+		repo,
+		kind: 'pull_request',
+		number
+	});
+	if (pull?.state !== 'open' || !isFor(pull, repo, branch))
+		throw new Error(`Pull request #${number} is no longer open for ${branch}`);
+	return pull;
+}
+
 /** Set GitHub's native auto-merge on the pull request selected in the workspace. */
 export async function setAutoMerge(
 	worktree: Worktree,
@@ -602,8 +647,16 @@ export async function setAutoMerge(
 		repoPath,
 		worktreeId,
 		pullNumber,
-		enabled
-	}: { repoPath: string; worktreeId: string; pullNumber: string; enabled: boolean }
+		enabled,
+		confirmation
+	}: {
+		repoPath: string;
+		worktreeId: string;
+		pullNumber: string;
+		enabled: boolean;
+		confirmation?: string;
+	},
+	approved: (command: string) => boolean
 ) {
 	const found = await locate(worktree, repoPath);
 	if (!found) throw new Error('This workspace has no upstream branch');
@@ -614,15 +667,7 @@ export async function setAutoMerge(
 		typeof provider.graphql !== 'function'
 	)
 		throw new Error('This forge does not support auto-merge');
-	const pull = await readPull(provider, {
-		forge: provider.forge,
-		instance: provider.instance,
-		repo,
-		kind: 'pull_request',
-		number: pullNumber
-	});
-	if (pull?.state !== 'open' || !isFor(pull, repo, branch))
-		throw new Error(`Pull request #${pullNumber} is no longer open for ${branch}`);
+	const pull = await selectedPull(provider, repo, branch, pullNumber);
 	const id = pull.ref.externalId;
 	if (!id) throw new Error('The forge did not return a pull request ID');
 	const raw = pull.raw as GitHubPull;
@@ -633,6 +678,19 @@ export async function setAutoMerge(
 				throw new Error('Push the workspace commit before enabling auto-merge');
 			if (pull.isDraft || !raw.viewerCanEnableAutoMerge)
 				throw new Error('Auto-merge is unavailable for this pull request');
+			const review = await reviewRelease(
+				worktree,
+				{
+					number: pullNumber,
+					head: sha,
+					branch: pull.branches.base.ref,
+					base: pull.branches.base.sha
+				},
+				approved,
+				true,
+				confirmation
+			);
+			if (review) return review;
 			const methods = raw.repository;
 			const method = methods?.squashMergeAllowed
 				? 'SQUASH'
@@ -737,20 +795,38 @@ export async function merge(
  */
 export async function mergePull(
 	worktree: Worktree,
-	{ repoPath, worktreeId }: { repoPath: string; worktreeId: string }
-): Promise<'merged' | 'queued'> {
+	{
+		repoPath,
+		worktreeId,
+		pullNumber,
+		confirmation
+	}: { repoPath: string; worktreeId: string; pullNumber: string; confirmation?: string },
+	approved: (command: string) => boolean
+) {
 	const found = await locate(worktree, repoPath);
 	if (!found) throw new Error('This workspace has no branch on a forge Geordi knows');
 	const { provider, repo, branch, head } = found;
 	if (!provider.can('threads.merge'))
 		throw new Error(`Geordi cannot merge pull requests on ${provider.forge}`);
 
-	const pull = await findPull(provider, repo, branch);
-	if (pull?.state !== 'open') throw new Error(`There is no open pull request for ${branch}`);
+	const pull = await selectedPull(provider, repo, branch, pullNumber);
 	const commit = (await gitIn(worktree, 'rev-parse', '--verify', head)).trim();
 	if (pull.branches?.head.sha !== commit)
 		throw new Error('The pull request is not at the commit this workspace is at; push first');
 
+	const review = await reviewRelease(
+		worktree,
+		{
+			number: pull.ref.number,
+			head: commit,
+			branch: pull.branches.base.ref,
+			base: pull.branches.base.sha
+		},
+		approved,
+		false,
+		confirmation
+	);
+	if (review) return review;
 	const { status } = await merge(provider.threads, pull.ref, commit);
 	invalidate(worktreeId);
 	return status;

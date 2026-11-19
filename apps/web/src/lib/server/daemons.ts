@@ -6,15 +6,38 @@ import {
 	type AgentCommand,
 	type BackgroundTask,
 	type ContextUsage,
+	type UsageLimit,
 	type DaemonRequest,
 	type DaemonResults,
 	type ForgeMessage,
 	type Harness
 } from '@geordi/protocol';
-import { WebSocketServer, type WebSocket } from 'ws';
+import type { EventStore, GeordiEvent } from './events/index.ts';
+import { WebSocketServer, WebSocket } from 'ws';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 
+export type DaemonEvent = { type: 'daemon.selected'; stream: 'daemon'; data: { id: string } };
+
+/** A different session directory can take over once the previous owner's turns have ended. */
+export function daemonAdmission(store: EventStore<GeordiEvent>, hasRunningTurn: () => boolean) {
+	const owner = store.project(
+		'selected-daemon',
+		(): string | null => null,
+		(id, event) => (event.type === 'daemon.selected' ? event.data.id : id),
+		['daemon']
+	);
+	return (id: string) => {
+		if (owner.get() === id) return true;
+		if (owner.get() && hasRunningTurn()) return false;
+		store.append({ type: 'daemon.selected', stream: 'daemon', data: { id } });
+		return true;
+	};
+}
+
+type ActiveDaemon = { socket: WebSocket; id: string; harnesses: Harness[]; assigned: Set<string> };
+
 type Handlers = {
+	admit(id: string): boolean;
 	/** A daemon (re)connected, running these workspaces' turns and these terminals. */
 	onHello(
 		daemonId: string,
@@ -25,6 +48,8 @@ type Handlers = {
 	onMessage(message: DaemonMessage): void;
 	/** How full a workspace's agent's context is, as it just said. */
 	onUsage(workspaceId: string, usage: ContextUsage): void;
+	/** The usage limits of a workspace's agent's subscription, as it just said. */
+	onLimits(workspaceId: string, limits: UsageLimit[]): void;
 };
 
 const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
@@ -57,12 +82,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	globals.__geordiDaemonServer = server;
 	server.on('error', (error) => console.error('[daemons]', error.message));
 
-	/** Authenticated daemons, by socket. */
-	const daemons = new Map<WebSocket, string>();
-	const background = new Map<string, { socket: WebSocket; tasks: BackgroundTask[] }>();
+	let active: ActiveDaemon | null = null;
+	const background = new Map<string, BackgroundTask[]>();
 	const taskListeners = new Set<(workspaceId: string) => void>();
-	function setTasks(socket: WebSocket, id: string, tasks: BackgroundTask[]) {
-		if (tasks.length) background.set(id, { socket, tasks });
+	function setTasks(id: string, tasks: BackgroundTask[]) {
+		if (tasks.length) background.set(id, tasks);
 		else background.delete(id);
 		for (const listener of taskListeners) listener(id);
 	}
@@ -84,23 +108,17 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		else suggestions.delete(id);
 		for (const listener of taskListeners) listener(id);
 	}
-	/** What each connected daemon's agent CLIs offer, as it said when it connected. */
-	const offers = new Map<WebSocket, Harness[]>();
 	/** Told when a daemon connects or goes away. */
 	const watching = new Set<() => void>();
 	const changed = () => watching.forEach((tell) => tell());
-	/** Which daemon each workspace's agent was last sent a message through; only it may report on the workspace. */
-	const assigned = new Map<string, string>();
 	/** Requests awaiting a daemon's answer, by request ID. */
 	const pending = new Map<string, (response: { result?: unknown; error?: string }) => void>();
 
-	/** Sends to a connected daemon (the first one, for now). Returns false if there is none. */
+	/** Sends to the active daemon. Returns false if there is none. */
 	function send(message: ForgeMessage): boolean {
-		const entry = [...daemons].find(([socket]) => socket.readyState === socket.OPEN);
-		if (!entry) return false;
-		const [socket, daemonId] = entry;
-		if (message.type === 'agent.message') assigned.set(message.workspaceId, daemonId);
-		socket.send(JSON.stringify(message));
+		if (!active || active.socket.readyState !== WebSocket.OPEN) return false;
+		if (message.type === 'agent.message') active.assigned.add(message.workspaceId);
+		active.socket.send(JSON.stringify(message));
 		return true;
 	}
 
@@ -121,14 +139,26 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				return socket.close(1003, 'Invalid JSON');
 			}
 
-			const daemonId = daemons.get(socket);
+			try {
+				receive(message);
+			} catch (error) {
+				console.error('[daemons] could not process message', error);
+				socket.close(1011, 'Could not process daemon message');
+			}
+		});
+		socket.on('error', () => socket.terminate());
 
-			if (!daemonId) {
+		function receive(message: DaemonMessage) {
+			if (socket.readyState !== WebSocket.OPEN) return;
+			if (active?.socket !== socket) {
 				if (message.type !== 'hello' || !verify(token, 'daemon', nonce, message.proof))
 					return socket.close(1008, 'Unauthorized');
 				if (message.protocol !== PROTOCOL_VERSION)
 					return socket.close(1002, `Protocol ${message.protocol} not supported`);
 
+				if (active) return socket.close(1008, 'Another daemon is already connected');
+				if (!handlers.admit(message.daemonId))
+					return socket.close(1008, 'Waiting for the daemon that owns the running turns');
 				clearTimeout(timeout);
 				const welcome: ForgeMessage = {
 					type: 'welcome',
@@ -136,34 +166,44 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				};
 				socket.send(JSON.stringify(welcome));
 
-				daemons.set(socket, message.daemonId);
-				offers.set(socket, message.harnesses);
+				active = {
+					socket,
+					id: message.daemonId,
+					harnesses: message.harnesses,
+					assigned: new Set([...message.running, ...(message.sessions ?? [])])
+				};
+				let alive = true;
+				socket.on('pong', () => {
+					alive = true;
+				});
+				const heartbeat = setInterval(() => {
+					if (!alive) return socket.terminate();
+					alive = false;
+					socket.ping();
+				}, 15_000).unref();
+				socket.once('close', () => clearInterval(heartbeat));
 				changed();
-				// After a forge restart we don't know assignments; trust what the daemon is running.
-				for (const id of [...message.running, ...(message.sessions ?? [])])
-					if (!assigned.has(id)) assigned.set(id, message.daemonId);
 				console.log(`[daemons] ${message.daemonId} connected`);
 				handlers.onHello(message.daemonId, message.running, message.terminals, message.ended ?? {});
 				return;
 			}
 
+			const daemonId = active.id;
 			if (message.type === 'workspace.live') {
 				const { workspaceId: id, live } = message;
-				if (assigned.get(id) !== daemonId) return;
-				if (live.background) setTasks(socket, id, live.background);
+				if (!active.assigned.has(id)) return;
+				if (live.background) setTasks(id, live.background);
 				if (live.suggestion !== undefined) setSuggestion(id, live.suggestion);
 				if (live.commands) {
 					commands.set(id, live.commands);
 					for (const listener of commandListeners) listener(id);
 				}
 				if (live.usage) handlers.onUsage(id, live.usage);
+				if (live.limits) handlers.onLimits(id, live.limits);
 				return;
 			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
-			else if (
-				message.type !== 'workspace.event' ||
-				assigned.get(message.workspaceId) === daemonId
-			) {
+			else if (message.type !== 'workspace.event' || active.assigned.has(message.workspaceId)) {
 				// what was suggested was for the turn that ended, not for the next
 				if (message.type === 'workspace.event' && message.event.kind === 'turn.started')
 					setSuggestion(message.workspaceId, null);
@@ -182,22 +222,31 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				console.warn(
 					`[daemons] dropped ${message.event.kind} from ${daemonId} for workspace ${message.workspaceId}, which it was not given`
 				);
-		});
+		}
 
 		socket.on('close', () => {
 			clearTimeout(timeout);
-			const daemonId = daemons.get(socket);
-			if (daemonId) console.log(`[daemons] ${daemonId} disconnected`);
-			for (const [id, entry] of background) if (entry.socket === socket) setTasks(socket, id, []);
-			daemons.delete(socket);
-			offers.delete(socket);
+			if (active?.socket !== socket) return;
+			console.log(`[daemons] ${active.id} disconnected`);
+			active = null;
+			for (const id of background.keys()) setTasks(id, []);
+			for (const settle of pending.values()) settle({ error: 'Daemon disconnected' });
 			changed();
 		});
 	});
 
 	return {
+		port: () => (server.address() as { port: number } | null)?.port,
+		close() {
+			for (const client of server.clients) client.terminate();
+			server.close();
+		},
 		send,
-		background: (id: string) => background.get(id)?.tasks ?? [],
+		stopTask(workspaceId: string, stopId: string) {
+			if (!background.get(workspaceId)?.some((task) => task.stopId === stopId)) return false;
+			return send({ type: 'agent.stopTask', workspaceId, stopId });
+		},
+		background: (id: string) => background.get(id) ?? [],
 		suggestion: (id: string) => suggestions.get(id) ?? null,
 		/** Calls `listener` when a workspace's background tasks or suggestion change. */
 		followBackground(listener: (workspaceId: string) => void) {
@@ -235,8 +284,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		 * The models and effort levels on offer: those of the daemon that turns are sent to.
 		 * `null` while no daemon is connected.
 		 */
-		harnesses: (): Harness[] | null =>
-			[...offers].find(([socket]) => socket.readyState === socket.OPEN)?.[1] ?? null,
+		harnesses: () => (active?.socket.readyState === WebSocket.OPEN ? active.harnesses : null),
 
 		/** Calls `tell` whenever a daemon connects or goes away. Returns a function that ends it. */
 		subscribe(tell: () => void): () => void {
@@ -244,6 +292,6 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			return () => watching.delete(tell);
 		},
 
-		connected: () => [...daemons.values()]
+		connected: () => (active ? [active.id] : [])
 	};
 }

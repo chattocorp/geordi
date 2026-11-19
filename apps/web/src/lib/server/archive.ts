@@ -11,6 +11,8 @@ type Parts = {
 	 * losing. `teardown` runs the repository's teardown script first.
 	 */
 	removeWorktree(ref: WorktreeRef, discard: boolean, teardown: boolean): Promise<unknown>;
+	/** Has a daemon end the agents in a project's folder, which stays (FDR-012). */
+	closeProject(projectId: string): Promise<unknown>;
 };
 
 /**
@@ -25,8 +27,16 @@ type Parts = {
  * or untracked files stops the archiving there (422), unless `discard` is set; what was
  * archived before stays archived, and trying again carries on. Shells are only ended once
  * the worktree is gone: a refusal costs nobody their terminals.
+ *
+ * A project (FDR-012) goes with the agents working in its folder, which end; the folder
+ * stays, for when it is restored. What it started in a repository carries on without it.
  */
-export function createArchiver({ workspaces, closeTerminals, removeWorktree }: Parts) {
+export function createArchiver({
+	workspaces,
+	closeTerminals,
+	removeWorktree,
+	closeProject
+}: Parts) {
 	return async function archive(id: string, discard: boolean, actor: string | null = null) {
 		// children before their parents, so a shared worktree goes with its last user
 		const family = [id, ...workspaces.descendants(id)].reverse().map(workspaces.summary);
@@ -34,10 +44,23 @@ export function createArchiver({ workspaces, closeTerminals, removeWorktree }: P
 		const busy = family.find((workspace) => workspace.status === 'running');
 		if (busy) error(409, `Stop the agent in “${busy.title}” before archiving`);
 
-		const release = workspaces.hold(family.map((workspace) => workspace.id));
+		const release = workspaces.hold(
+			family.flatMap((workspace) => [workspace.id, workspace.worktreeId])
+		);
 		try {
 			for (const workspace of family) {
 				if (workspace.archivedAt) continue;
+				// a project's agents end with it, once nothing else works in its folder; the folder stays
+				if (
+					workspace.repoId === null &&
+					workspace.worktreeId === workspace.id &&
+					!workspaces.worktreeInUse(workspace.id)
+				)
+					try {
+						await closeProject(workspace.id);
+					} catch (problem) {
+						error(422, problem instanceof Error ? problem.message : String(problem));
+					}
 				if (workspace.worktree && !workspaces.worktreeInUse(workspace.id)) {
 					try {
 						// The teardown runs what is in the worktree, as the person: only when they archive.

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Question } from '@geordi/protocol';
-	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 
 	/**
 	 * Something the agent asks the person: each question with the

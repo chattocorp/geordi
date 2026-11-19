@@ -7,6 +7,7 @@ import {
 	CONFIG_NAME,
 	JOB_TERMINAL,
 	MAX_IMAGES,
+	FILE_SEARCH_TIMEOUT_MS,
 	type FileVersions
 } from '@geordi/protocol';
 import {
@@ -15,6 +16,7 @@ import {
 	continueWorkspace as carryOn,
 	hub,
 	jobs,
+	repos,
 	prepareWorktree,
 	terminals,
 	updateWorkspace as update,
@@ -55,6 +57,7 @@ export const configureWorkspace = command(
 
 export const createWorkspace = form(
 	v.object({
+		/** Empty for a project, which belongs to no repository (FDR-012). */
 		repoId: v.string(),
 		images: imageIds,
 		agent: v.picklist(AGENTS),
@@ -67,7 +70,7 @@ export const createWorkspace = form(
 		 */
 		alongside: v.optional(v.string())
 	}),
-	({ model, effort, permissionMode, alongside, ...data }) => {
+	({ model, effort, permissionMode, alongside, repoId, ...data }) => {
 		const settings = { model, effort, permissionMode };
 		if (alongside) {
 			const id = workspaces().join(alongside, { ...data, settings });
@@ -75,7 +78,9 @@ export const createWorkspace = form(
 			const owner = workspaces().summary(id).worktreeId;
 			redirect(303, `/workspaces/${owner}?agent=${id}`);
 		}
-		const id = workspaces().create({ ...data, settings });
+		const id = workspaces().create({ ...data, repoId: repoId || null, settings });
+		// a project has no worktree to make
+		if (!repoId) redirect(303, `/workspaces/${id}`);
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
 		if (!data.prompt && !data.images.length)
@@ -115,6 +120,33 @@ export const say = command(v.object({ workspaceId: v.string(), text }), ({ works
 	workspaces().send(workspaceId, text)
 );
 
+export const restoreWorkspace = command(v.string(), async (id) => {
+	const domain = workspaces();
+	const workspace = domain.summary(id);
+	if (!workspace.archivedAt) return;
+	// a project has no worktree to bring back: its folder is made again, empty, when it next works
+	if (workspace.repoId === null) return domain.restore(id);
+	const ref = domain.ref(id);
+	const release = domain.hold([id, ref.worktreeId]);
+	try {
+		const tree = await hub().request(
+			{
+				kind: 'prepareWorktree',
+				...ref,
+				requireBranch: !!ref.branch
+			},
+			90_000
+		);
+		domain.restore(id);
+		domain.record(id, { kind: 'worktree', ...tree });
+		watchers().changed(ref.worktreeId);
+	} catch (cause) {
+		error(422, cause instanceof Error ? cause.message : 'Could not restore the workspace');
+	} finally {
+		release();
+	}
+});
+
 /** Check for unfinished work without changing the workspace. */
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 
@@ -129,27 +161,44 @@ export const archiveWorkspace = command(
  * Merges the workspace's pull request on the forge it is hosted on. Geordi does this
  * itself, through the daemon (ADR-006), rather than asking the agent to.
  */
-export const mergePull = command(v.string(), async (workspaceId) => {
-	const ref = workspaces().ref(workspaceId);
-	try {
-		const status = await hub().request({ kind: 'mergePull', ...ref }, 60_000);
-		watchers().changed(ref.worktreeId);
-		return status;
-	} catch (cause) {
-		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+export const mergePull = command(
+	v.object({
+		workspaceId: v.string(),
+		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
+		confirmation: v.optional(v.string())
+	}),
+	async ({ workspaceId, pullNumber, confirmation }) => {
+		const ref = workspaces().ref(workspaceId);
+		try {
+			const status = await hub().request(
+				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
+				60_000
+			);
+			if (typeof status === 'string') watchers().changed(ref.worktreeId);
+			return status;
+		} catch (cause) {
+			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+		}
 	}
-});
+);
 
 export const setAutoMerge = command(
 	v.object({
 		workspaceId: v.string(),
 		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
-		enabled: v.boolean()
+		enabled: v.boolean(),
+		confirmation: v.optional(v.string())
 	}),
-	async ({ workspaceId, pullNumber, enabled }) => {
+	async ({ workspaceId, pullNumber, enabled, confirmation }) => {
 		try {
-			await hub().request(
-				{ kind: 'setAutoMerge', ...workspaces().ref(workspaceId), pullNumber, enabled },
+			return await hub().request(
+				{
+					kind: 'setAutoMerge',
+					...workspaces().ref(workspaceId),
+					pullNumber,
+					enabled,
+					confirmation
+				},
 				60_000
 			);
 		} catch (cause) {
@@ -205,6 +254,17 @@ export const approveRun = command(
 			await hub().request({ kind: 'approveRun', commands, ...ref });
 		} catch (cause) {
 			error(502, `Could not note that: ${cause instanceof Error ? cause.message : String(cause)}`);
+		}
+	}
+);
+
+export const editReleaseNote = command(
+	v.object({ workspaceId: v.string(), path: v.string(), original: v.string(), body: v.string() }),
+	async ({ workspaceId, ...edit }) => {
+		try {
+			await hub().request({ kind: 'editReleaseNote', ...workspaces().ref(workspaceId), ...edit });
+		} catch (cause) {
+			error(409, message(cause));
 		}
 	}
 );
@@ -290,9 +350,36 @@ export const moveWorkspace = command(
 	({ workspaceId, before }) => workspaces().move(workspaceId, before)
 );
 
+export const stopTask = command(
+	v.object({ workspaceId: v.string(), stopId: v.string() }),
+	({ workspaceId, stopId }) => {
+		if (!hub().stopTask(workspaceId, stopId))
+			error(409, 'This background task is no longer available.');
+	}
+);
+
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+// A worktree can change between keystrokes. Each search needs a fresh daemon response.
+export const findFiles = command(
+	v.union([
+		v.object({ workspaceId: v.string(), query: v.string() }),
+		v.object({ repoId: v.string(), query: v.string() })
+	]),
+	(scope) =>
+		hub().request(
+			{
+				kind: 'findFiles',
+				query: scope.query,
+				...('workspaceId' in scope
+					? workspaces().ref(scope.workspaceId)
+					: { repoPath: repos().get(scope.repoId).path })
+			},
+			FILE_SEARCH_TIMEOUT_MS
+		)
+);
 
 /** Both versions of a changed file, for the diff viewer. */
 export const getDiff = query(

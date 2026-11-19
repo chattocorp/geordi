@@ -13,6 +13,9 @@ pnpm monorepo:
 - `packages/launch`: how both stage and start forge and daemon (`stage.js`, `services.js`).
 - `apps/website`: the website (Astro, static). Drawn with the forge's design system: it
   imports `apps/web/src/routes/layout.css`, so a change to tokens or utilities shows there too.
+  Its Open Graph image is a photograph of `src/og/card.astro`: after a change that shows in
+  it, make it anew with `pnpm --filter @geordi/website og`.
+- `packages/ui`: Svelte components and action rules shared by the forge and website demo (ADR-011).
 - `packages/protocol`: message types shared by forge and daemon.
 - `planning/`: the backlog (means collection).
 - `docs/adr/`, `docs/fdr/`: architecture and feature decision records.
@@ -37,7 +40,7 @@ Run from the repository root:
 - `pnpm --filter @geordi/web storybook`: the design system, on http://localhost:6006
 - `pnpm cli`: build the npm package into `apps/cli/stage` and run it
 - `pnpm desktop`: build the desktop app and run it from `apps/desktop/stage`
-- `pnpm desktop:install`: build it, replace `/Applications/Geordi.app` and open it
+- `pnpm desktop:dev`: run an isolated Electron app on the workspace ports
 
 Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 
@@ -46,11 +49,10 @@ Before finishing a task: `pnpm check && pnpm lint && pnpm test && sweet doctor`.
 The person runs the installed app (`/Applications/Geordi.app`) all day, and agents work in
 it, perhaps you.
 
-- `pnpm desktop:install` quits and replaces that app. Agents' turns go on (ADR-007), but
-  open terminals and running jobs end, and an agent waiting on another one sees a
-  connection error for a moment. Do it when a change is ready to be used, not to try
-  something out: for that, run a second instance on other ports with its own data
-  (`GEORDI_DATA_DIR`, `PORT`, `GEORDI_DAEMON_PORT`, and a daemon pointed at it).
+- Test desktop changes with the **Electron dev app** workspace job. For web and daemon
+  changes, use the `web` and `daemon` jobs. Their data is the worktree's `.data/`,
+  seeded with two sample repositories (`scripts/seed-dev-data.mjs`), each with a local bare
+  `origin`. The `reset` job starts that data over.
 - When something misbehaves there, look before you change anything: the page's console
   (clicks that do nothing were six connections used up, and it said so), the forge's and
   daemon's log (`~/Library/Logs/Geordi/geordi.log`), and for macOS's own prompts
@@ -100,6 +102,11 @@ it, perhaps you.
     another's worktree (`worktreeId`): such an agent is shown in that workspace, as a
     conversation tab (`agent:<id>`), and not in the sidebar (`withAides` in `#lib/family.ts`). The daemon derives a worktree from that ID
     (`worktree.ts`). Events from before this model are translated on replay (`legacy.ts`).
+  - A **project** (FDR-012) is a workspace in no repository (`repoId: null`), for
+    orchestrating: its agent works in a folder of its own (`ProjectRef`, `projects.ts` in the
+    daemon; kept when archived), with no worktree, so `ref()` refuses it and `locate()` says
+    where it works. Projects are started from the repository chooser and listed above the
+    repositories. Code that assumes a repository must leave projects out.
   - Turns are the agent's to begin and end (ADR-010): the daemon says `turn.started` (an
     agent may start one unasked, when something it ran in the background ends) and how it
     ended. The forge drops what a daemon says of a workspace that is not working, as far as
@@ -112,7 +119,7 @@ it, perhaps you.
     its agent gives its root session (ACP `session_info_update`, the `title` event;
     `titleFromAgent` drops Codex's echo of the prompt), until someone names it on purpose
     (an `actor` on `workspace.titled`: a caller's `title`, or the agent's `name_workspace`).
-  - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
+  - **Workspace actions** (FDR-003) are derived from state by `@geordi/ui/actions` (pure, and
     tested); most just `say` something to the agent.
   - Agents run without permission prompts by default (they must commit, push and use `gh`).
   - Every turn tells the agent that it works in Geordi, and how (`instructions.ts` in the
@@ -135,7 +142,10 @@ it, perhaps you.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per workspace; the
   daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`) for chosen repositories (`repoIds`; never later ones), see only those, start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
-  and the `actor` of the events. The operations live in `workspaces().agents`; add a tool by
+  and the `actor` of the events. A project's agents act for the person: they start agents
+  in any repository, or alongside any workspace's agent there (`workspace`), and supervise
+  and archive any agent in a repository or in their own project; they never see another
+  project (`sees`). The operations live in `workspaces().agents`; add a tool by
   adding an entry to `tools` in `mcp.ts`.
 - **Desktop app (ADR-008).** `apps/desktop/src/main.js` starts the forge's production build and
   the daemon as they are, on ports of its own (7717, 7718, and 7719 for browsers' WebSocket), with data in `~/.geordi`; `pnpm dev`
@@ -148,13 +158,11 @@ it, perhaps you.
   no title bar: every page starts with a `TitleBar`, which in the app (`desktop:` variant) makes
   room for the window's buttons and is what the window is dragged by (`window-drag`, on
   the bar itself; what can be used in it is exempt). The
-  layout puts the sidebar toggle and back/forward into it (`setTitleBarLead`).
+  layout puts the sidebar toggle into it (`setTitleBarLead`).
   What the page can ask of the app is in `preload.cjs` (`window.geordiDesktop`: the Dock
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that
-  are files in the bundle and that the system plays (FDR-008). Installing signs the bundle
-  (ad hoc), without which macOS shows none of its notifications; macOS may ask for
-  permissions again after an install.
+  are files in the bundle and that the system plays (FDR-008).
 - **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names jobs to run
   (with what they need), links to open, and how many ports a workspace gets. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
@@ -169,7 +177,7 @@ it, perhaps you.
   for agents in `CONFIG_SETTINGS`; a new one goes there and into `parseConfig`.
 - **Changesets (FDR-007).** In a repository that uses a release tool, a workspace shows the
   change notes it adds and the versions they lead to. One adapter per tool in the daemon
-  (`releases.ts`; Sweet Release so far) says whether a repository uses it and asks the tool
+  (`releases.ts`; Sweet Release and Changesets) says whether a repository uses it and asks the tool
   what is pending; everything else deals in packages, versions and notes (`ReleasePlan`).
   A tool is run with `gitEnv`, like our own git: never trusting the worktree's Git metadata.
 - **Standings.** The sidebar shows how each workspace's work stands (its pull request, its
@@ -212,15 +220,16 @@ it, perhaps you.
 - **Design system (ADR-005).** Three layers; use them in this order before writing raw
   Tailwind:
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `frame`, `sidebar`,
-    `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`, `accent-soft`,
+    `surface`, `sunken`, `bubble`, `ink`, `prose` (long text), `muted`, `line`, `accent`, `accent-soft`,
     `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
-    mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
+    mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
+    it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `#lib/ui/` (`Button`, `ButtonGroup`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `Disclosure`, `ImageViewer`, `Notice`, `Page`, `Panes`,
-    `Ring`, `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
-    `#lib/components/`.
+  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `TitleBar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+    `Segmented`, `Select`, `Split`): generic, no domain knowledge. Domain components live in
+    `#lib/components/` or, when both apps use them, in `@geordi/ui`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary
     values or raw colours.
@@ -253,13 +262,13 @@ it, perhaps you.
   pure functions); only the main area can be split, the two beside it are one row of tabs
   each (`splits={false}`). Windows are tabs named after what they show: `chat` (pinned to
   the main area), `agent:<id>` (an agent working alongside), `draft` (a conversation not
-  begun yet), `changes`, `changeset`, `diff:<path>` and `terminal:<name>`. All but `chat`
+  begun yet), `changes`, `changeset`, `diff` (one tab titled with the selected filename) and `terminal:<name>`. All but `chat`
   can be dragged to any area, and into another order (`Panes` props `accepts`/`onreceive`,
   shared drag state in `drag.svelte.ts`). Which windows exist follows from the workspace's
   state; only their arrangement is a per-browser preference (`persisted`), not an event.
   The ribbon at the top (`WorkspaceActions`) says where the work stands and what to do
-  next, from `#lib/actions.ts`.
-- **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
+  next, from `@geordi/ui/actions`.
+- **Diffs** are rendered by `@geordi/ui/DiffView.svelte` with `@pierre/diffs`
   (https://diffs.com) from both whole file versions, which is what makes context
   expandable. It renders into a shadow root; style it through its `--diffs-*` properties.
 - **Agent output** is rendered as Markdown with `markdown-it` (raw HTML disabled), via
@@ -281,6 +290,7 @@ desktop and web apps' `package.json`.
   `printf 'Describe the change.\n' | sweet change . --type <type> --stdin`
 - Types are configured in `.sweet.config.yml`. Add `breaking: true` to a note's frontmatter
   for breaking changes.
-- Write notes for the people who use Geordi, not for its maintainers.
+- Address the person who uses Geordi directly. Use “you” or “your” where natural.
+  Describe what they can now do or what now works as expected for them.
 - Run `sweet doctor` before finishing; it must pass (CI checks it on every pull request).
 - Do not edit versions or changelogs by hand: `sweet bump` does that.

@@ -2,7 +2,8 @@
  * Workspaces as the sidebar lists them (FDR-002): by repository, as a plain list in which
  * a workspace started by an agent comes right after the one whose agent started it.
  */
-type Member = { id: string; repoId: string; parentId: string | null };
+/** `repoId` is `null` for a project (FDR-012): projects are listed together, as if theirs were one. */
+type Member = { id: string; repoId: string | null; parentId: string | null };
 
 export type Listed<T> = {
 	workspace: T;
@@ -13,13 +14,13 @@ export type Listed<T> = {
 };
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */
-export function byRepository<T extends Member>(all: T[]): Map<string, Listed<T>[]> {
+export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
 	const parentOf = (workspace: T) => byId.get(workspace.parentId ?? '') ?? null;
 	// a workspace follows its parent only where the parent is listed: in the same repository
 	const follows = (workspace: T) => parentOf(workspace)?.repoId === workspace.repoId;
 
-	const repos = new Map<string, Listed<T>[]>();
+	const repos = new Map<string | null, Listed<T>[]>();
 	const visited = new Set<string>();
 	const list = (workspace: T, depth: number) => {
 		if (visited.has(workspace.id)) return; // a cycle: list it once
@@ -74,4 +75,40 @@ export function unfolded<T extends { id: string }>(
 		if (under > 0 && folded.includes(row.workspace.id)) hiddenBelow = row.depth;
 	});
 	return shown;
+}
+
+/**
+ * The workspaces the sidebar shows, top to bottom: by repository (in `repoIds`' order),
+ * leaving out what is folded away. What the previous and next workspace are.
+ */
+export function inSidebarOrder<T extends Member>(
+	all: T[],
+	repoIds: readonly string[],
+	folded: readonly string[]
+): T[] {
+	const listed = byRepository(all);
+	return repoIds
+		.filter((repoId) => !folded.includes(repoId))
+		.flatMap((repoId) => unfolded(listed.get(repoId) ?? [], folded))
+		.map(({ workspace }) => workspace);
+}
+
+/**
+ * The repositories the sidebar lists: only `focus`, when that is one of them; else all.
+ * A focus on a repository that is gone (or has nothing to show) shows everything again.
+ */
+export function inFocus<T extends { id: string }>(repos: T[], focus: string | null): T[] {
+	const focused = repos.filter(({ id }) => id === focus);
+	return focused.length > 0 ? focused : repos;
+}
+
+/** The workspace `step` places from `current` in `order`, round at the ends; from outside it, the first or last. */
+export function stepThrough<T extends { id: string }>(
+	order: T[],
+	current: string | null,
+	step: 1 | -1
+): T | undefined {
+	const at = order.findIndex(({ id }) => id === current);
+	if (at === -1) return step === 1 ? order[0] : order.at(-1);
+	return order[(at + step + order.length) % order.length];
 }

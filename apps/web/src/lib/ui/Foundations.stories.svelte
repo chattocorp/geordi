@@ -11,6 +11,7 @@
 		['sunken', 'Wells: code, counts, secondary buttons.'],
 		['bubble', 'What the user said.'],
 		['line', 'Dividers and outlines.'],
+		['hover', 'Under what the pointer is on. See-through: shows on any background.'],
 		['ink', 'Text.'],
 		['muted', 'Secondary text and icons.'],
 		['accent', 'The primary action, and things that are live. Nothing else.'],
@@ -95,5 +96,16 @@
 		</a>
 		<a href="#top" class="item px-2.5 py-1"><span class="dot"></span> item, idle</a>
 		<a href="#top" class="item px-2.5 py-1"><span class="dot"></span> another item</a>
+	</div>
+</Story>
+
+<Story name="Running job" asChild>
+	<div class="inline-flex items-center gap-1.5 rounded-control bg-sunken px-2.5 py-1 text-sm">
+		<span
+			class="bar-running icon-[lucide--play] size-3.5 shrink-0 text-accent"
+			role="img"
+			aria-label="Running"
+		></span>
+		run
 	</div>
 </Story>

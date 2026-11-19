@@ -22,6 +22,8 @@ function setup() {
 	const closed: string[] = [];
 	/** The worktrees whose teardown script was to run. */
 	const tornDown: string[] = [];
+	/** The projects whose folders were to go. */
+	const projectsClosed: string[] = [];
 	const archive = createArchiver({
 		workspaces,
 		closeTerminals: (id) => closed.push(id),
@@ -30,7 +32,8 @@ function setup() {
 				throw new Error('The worktree has uncommitted or untracked files.');
 			removed.push(worktreeId);
 			if (teardown) tornDown.push(worktreeId);
-		}
+		},
+		closeProject: async (id) => void projectsClosed.push(id)
 	});
 
 	/** A workspace whose agent has a worktree and is idle. */
@@ -46,7 +49,18 @@ function setup() {
 		workspaces.record(parent, { kind: 'turn.completed' });
 		return settle(id);
 	};
-	return { workspaces, repo, archive, removed, dirty, closed, tornDown, lead, start };
+	return {
+		workspaces,
+		repo,
+		archive,
+		removed,
+		dirty,
+		closed,
+		tornDown,
+		projectsClosed,
+		lead,
+		start
+	};
 }
 
 /** Matches the error a refused request throws, by its message. */
@@ -111,6 +125,31 @@ describe('archiving', () => {
 		expect(workspaces.list(repo.id)).toEqual([]);
 	});
 
+	it('archives a project with the agents in it, ending its agents: what it started in a repository carries on', async () => {
+		const { workspaces, repo, archive, removed, projectsClosed } = setup();
+		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Orchestrate' });
+		workspaces.record(project, { kind: 'turn.started' });
+		const { id: child } = workspaces.agents.start(project, {
+			repository: repo.id,
+			worktree: 'own',
+			prompt: 'Build'
+		});
+		const { id: helper } = workspaces.agents.start(project, { worktree: 'shared', prompt: 'Help' });
+		workspaces.record(helper, { kind: 'turn.completed' });
+		workspaces.record(project, { kind: 'turn.completed' });
+
+		await archive(helper, false);
+		expect(projectsClosed).toEqual([]); // the project still works in its folder
+		const again = workspaces.join(project);
+		await archive(project, false);
+
+		expect(projectsClosed).toEqual([project]);
+		expect(workspaces.get(again).archivedAt).not.toBeNull();
+		expect(removed).toEqual([]);
+		expect(workspaces.get(project).archivedAt).not.toBeNull();
+		expect(workspaces.get(child)).toMatchObject({ archivedAt: null, status: 'running' });
+	});
+
 	it('leaves the shells alone when it is refused', async () => {
 		const { archive, dirty, closed, lead } = setup();
 		dirty.add(lead);
@@ -125,6 +164,7 @@ describe('archiving', () => {
 			workspaces,
 			closeTerminals: () => {},
 			// while the daemon is at it, someone says something
+			closeProject: async () => {},
 			removeWorktree: async () => {
 				try {
 					workspaces.send(lead, 'One more thing');

@@ -15,7 +15,9 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 35;
+export const PROTOCOL_VERSION = 38;
+/** A first search can include a cold scan of a large checkout. */
+export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -83,6 +85,12 @@ export type WorktreeRef = {
 	branch?: string;
 };
 
+/**
+ * Where a project's agent works (FDR-012): a project belongs to no repository, and works in an
+ * empty folder of its own that the daemon makes for it, derived from its ID.
+ */
+export type ProjectRef = { worktreeId: string; project: true };
+
 /** Where an agent started by another agent works: in a worktree of its `own`, or `shared` with its parent. */
 export const WORKTREE_MODES = ['own', 'shared'] as const;
 export type WorktreeMode = (typeof WORKTREE_MODES)[number];
@@ -127,6 +135,11 @@ export type Changes = {
 	unmerged?: boolean;
 	/** Known commits in the base branch that this workspace does not contain. */
 	incoming?: { branch: string; commits: number } | null;
+	/**
+	 * The host of the `origin` remote, where it is on a forge Geordi has no provider for (a
+	 * self-hosted Gitea without `FORGES_*` variables, say): no pull requests from here.
+	 */
+	unknownForge?: string;
 };
 
 /**
@@ -144,6 +157,8 @@ export type PullCheck = {
 	state: 'pending' | 'success' | 'failure' | 'neutral' | 'unknown';
 	/** More precise upstream status, such as queued or timed_out. */
 	status: string;
+	/** Check start time in milliseconds since the Unix epoch, when the forge supplies it. */
+	startedAt?: number;
 	url?: string;
 };
 
@@ -389,6 +404,23 @@ export type ReleaseNote = {
 	added: boolean;
 };
 
+/** A package whose release level rises when the PR merges. */
+export type ReleaseIncrease = {
+	path: string;
+	name: string;
+	before: string;
+	from: string;
+	after: string;
+	to: string;
+};
+
+/** Returned instead of merging when the person needs to make a choice. */
+export type ReleaseReview = {
+	token: string;
+	increases: ReleaseIncrease[];
+	problem: string | null;
+};
+
 /** One of a repository's packages, as its release tool sees it: where it stands, and where its pending notes take it. */
 export type ReleasePackage = {
 	/** Its directory, from the top of the repository. */
@@ -437,6 +469,11 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
+	/**
+	 * Ends the agents working in a project's folder (FDR-012), which is archived. The folder
+	 * stays, with whatever they left there: restored, the project finds it again.
+	 */
+	| ({ kind: 'closeProject' } & ProjectRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -455,9 +492,10 @@ export type DaemonRequest =
 	 * workspace started without anything to do yet, or one whose worktree was removed
 	 * behind Geordi's back (which comes back from its branch). Answers where it is.
 	 */
-	| ({ kind: 'prepareWorktree' } & WorktreeRef)
+	| ({ kind: 'prepareWorktree'; requireBranch?: boolean } & WorktreeRef)
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	| ({ kind: 'release' } & WorktreeRef)
+	| ({ kind: 'editReleaseNote'; path: string; original: string; body: string } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Current text of a worktree-relative file, including files with no changes. */
@@ -470,6 +508,8 @@ export type DaemonRequest =
 	 * if there is no such file, or it is not a picture.
 	 */
 	| ({ kind: 'picture'; path: string } & WorktreeRef)
+	/** As `picture`, for a picture where a project's agent works: in its folder (FDR-012). */
+	| ({ kind: 'projectPicture'; path: string } & ProjectRef)
 	/** The workspace's branch on the repository's upstream forge. */
 	| ({
 			kind: 'upstream';
@@ -482,30 +522,44 @@ export type DaemonRequest =
 	 * Merges the pull request for the workspace's branch on the upstream forge. Refused
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
-	| ({ kind: 'mergePull' } & WorktreeRef)
-	| ({ kind: 'setAutoMerge'; pullNumber: string; enabled: boolean } & WorktreeRef)
+	| ({ kind: 'mergePull'; pullNumber: string; confirmation?: string } & WorktreeRef)
+	| ({
+			kind: 'setAutoMerge';
+			pullNumber: string;
+			enabled: boolean;
+			confirmation?: string;
+	  } & WorktreeRef)
 	| ({ kind: 'markReady'; pullNumber: string } & WorktreeRef)
 	/**
 	 * Brings the latest of the branch the workspace's work is based on into its branch, where
 	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
 	 */
 	| ({ kind: 'updateWorktree' } & WorktreeRef)
+	/** Up to forty ranked paths with highlight positions for the composer. */
+	| { kind: 'findFiles'; query: string; repoPath: string; worktreeId?: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
 
+/** Highlight positions are UTF-16 offsets into the repository-relative path. */
+export type FileMatch = { path: string; indices: number[] };
+
 export type DaemonResults = {
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
+	closeProject: null;
+	projectPicture: Picture | null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
+	findFiles: FileMatch[];
+	editReleaseNote: null;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;
@@ -513,10 +567,10 @@ export type DaemonResults = {
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
+	mergePull: 'merged' | 'queued' | ReleaseReview;
 	pullHistory: PullRequest[];
-	mergePull: 'merged' | 'queued';
 	markReady: null;
-	setAutoMerge: null;
+	setAutoMerge: null | ReleaseReview;
 	/** `false` if it was left alone: bringing it up to date takes an agent's judgement. */
 	updateWorktree: boolean;
 	/**
@@ -610,7 +664,26 @@ export type ContextUsage = {
 	cost?: { amount: number; currency: string };
 };
 
+/**
+ * One of the usage limits of the subscription an agent runs on (a five-hour window, a
+ * week), as its provider last said. Live data: account-wide, never stored.
+ */
+export type UsageLimit = {
+	/** Which window it is, for people: `5h`, `Week`, `Week (Opus)`. */
+	name: string;
+	/** How much of it is used, 0 to 100, where the provider says. */
+	usedPercent?: number;
+	/** When it starts over (milliseconds since the epoch), where the provider says. */
+	resetsAt?: number;
+	/** `limited` once used up, `warning` when close to it. */
+	status: 'ok' | 'warning' | 'limited';
+};
+
 export type BackgroundTask = {
+	/** Identifies this live task for as long as its host can stop it. */
+	stopId?: string;
+	stopping?: boolean;
+	stopError?: string;
 	type: 'terminal' | 'tool_call' | 'subagent';
 	id: string;
 	/** Absent for work owned by the root ACP session. */
@@ -643,6 +716,8 @@ export type AgentLive = {
 	usage?: ContextUsage;
 	/** Its own commands, all of them, whenever they change. */
 	commands?: AgentCommand[];
+	/** The usage limits of the subscription it runs on, all of them, as it last said. */
+	limits?: UsageLimit[];
 	/** What it suggests the person say next, now that its turn is over; `null` once withdrawn. */
 	suggestion?: string | null;
 };
@@ -713,8 +788,9 @@ export type ForgeMessage =
 			prompt: string;
 			deliveryId?: string;
 			images?: MessageImage[];
-	  } & WorktreeRef)
+	  } & (WorktreeRef | ProjectRef))
 	/** Stops what the agent is doing. Its CLI goes on running, to be told what to do instead. */
+	| { type: 'agent.stopTask'; workspaceId: string; stopId: string }
 	| { type: 'agent.stop'; workspaceId: string }
 	/** Answers a `question` the agent asked: one answer per question, in their order. */
 	| { type: 'agent.answer'; workspaceId: string; questionId: string; answers: string[] }
@@ -754,6 +830,7 @@ export type DaemonMessage =
 	| {
 			type: 'hello';
 			protocol: number;
+			/** Stable identity of the daemon's exclusively held session directory. */
 			daemonId: string;
 			/** The daemon's challenge for the forge. */
 			nonce: string;

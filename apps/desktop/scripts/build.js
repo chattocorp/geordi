@@ -1,14 +1,4 @@
-import { spawn } from 'node:child_process';
-import {
-	cpSync,
-	mkdirSync,
-	readFileSync,
-	rmSync,
-	renameSync,
-	writeFileSync,
-	openSync,
-	closeSync
-} from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { packager } from '@electron/packager';
@@ -20,7 +10,6 @@ import { pnpm, stageServices } from '@geordi/launch/stage.js';
  *
  *   node scripts/build.js             stages the app in `stage/`, to run with `electron stage`
  *   node scripts/build.js --package   also packages it as `dist/…/Geordi.app`
- *   node scripts/build.js --install   also puts that into /Applications, and opens it
  */
 
 const root = join(import.meta.dirname, '..');
@@ -28,6 +17,7 @@ const repo = join(root, '../..');
 const stage = process.argv.includes('--dev')
 	? join(repo, '.data/desktop/stage')
 	: join(root, 'stage');
+const { license, author } = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 // --- Stage: everything the app consists of, in one directory ---------------------------------
@@ -40,6 +30,8 @@ writeFileSync(
 		name: 'geordi',
 		productName: 'Geordi',
 		version,
+		license,
+		author,
 		type: 'module',
 		main: 'main.js'
 	})
@@ -71,7 +63,7 @@ const sounds = ['done', 'failed'].map((name) => {
 // The forge and the daemon, as the `geordi` command has them too.
 await stageServices(stage);
 
-// The daemon's native terminal library, resolved relative to its package. Deploy the
+// The daemon loads its native terminal and file-watcher libraries here. Deploy the
 // production dependency tree with the same lockfile as the daemon.
 pnpm([
 	...(process.platform === 'win32' ? ['--config.node-linker=hoisted'] : []),
@@ -87,13 +79,14 @@ rmSync(join(stage, 'runtime'), { recursive: true });
 
 // --- Package ----------------------------------------------------------------------------------
 
-const install = process.argv.includes('--install');
-if (install || process.argv.includes('--package')) {
+if (process.argv.includes('--package')) {
 	const electron = join(root, 'node_modules/electron/package.json');
 	const [built] = await packager({
 		dir: stage,
 		out: join(root, 'dist'),
 		name: 'Geordi',
+		// the command people type on Linux, as its packages install it
+		...(process.platform === 'linux' ? { executableName: 'geordi' } : {}),
 		appBundleId: 'com.github.chattocorp.geordi',
 		icon: process.platform === 'darwin' ? join(root, 'icon.icns') : undefined,
 		electronVersion: JSON.parse(readFileSync(electron, 'utf8')).version,
@@ -123,22 +116,4 @@ if (install || process.argv.includes('--package')) {
 	});
 	const packaged = process.platform === 'darwin' ? join(built, 'Geordi.app') : built;
 	console.log(`packaged ${packaged}`);
-
-	if (install) {
-		// The app owns this terminal. The replacement must survive its shutdown.
-		const logFile = join(root, 'dist', 'install.log');
-		const log = openSync(logFile, 'w');
-		console.log(`Installing and restarting Geordi. Installer log: ${logFile}`);
-		const installer = spawn(process.execPath, [join(root, 'scripts/install.js'), packaged], {
-			detached: true,
-			stdio: ['ignore', log, log]
-		});
-		closeSync(log);
-		await new Promise((resolve, reject) => {
-			installer.once('error', reject);
-			installer.once('exit', (code) =>
-				code === 0 ? resolve() : reject(new Error(`Installation failed; see ${logFile}`))
-			);
-		});
-	}
 }

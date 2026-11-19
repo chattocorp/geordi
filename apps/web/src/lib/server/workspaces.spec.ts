@@ -24,6 +24,14 @@ function setup({ connected = true, database = ':memory:' } = {}) {
 	return { store, repos, workspaces, sent, repo, create, dispatch };
 }
 
+function acknowledgePrompt(
+	workspaces: ReturnType<typeof createWorkspaces>,
+	command: ForgeMessage | undefined
+) {
+	if (command?.type !== 'agent.message' || !command.deliveryId) throw new Error('Missing delivery');
+	workspaces.record(command.workspaceId, { kind: 'message.received', id: command.deliveryId });
+}
+
 const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
@@ -109,11 +117,12 @@ describe('workspaces', () => {
 				state: 'done',
 				items: [{ output: 'ui' }, { title: 'design', items: [{ output: 'ui/design' }] }]
 			},
+			{ kind: 'turn' },
 			{ kind: 'user' }
 		]);
 	});
 
-	it('records what a turn used with its end, and keeps it across a restart', () => {
+	it('records when a turn began and what it used with its end, and keeps it across a restart', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Count');
 		const usage = { totalTokens: 361, inputTokens: 8, outputTokens: 353 };
@@ -125,16 +134,23 @@ describe('workspaces', () => {
 		// as recorded before turns said what they used
 		workspaces.record(id, { kind: 'turn.completed' });
 		const replay = createWorkspaces(store, repos, dispatch);
-		expect(replay.get(id).transcript.map((item) => item.kind)).toEqual([
+		const transcript = replay.get(id).transcript;
+		expect(transcript.map((item) => item.kind)).toEqual([
 			'user',
 			'text',
-			'usage',
+			'turn',
 			'user',
 			'error',
-			'usage',
-			'user'
+			'turn',
+			'user',
+			'turn'
 		]);
-		expect(replay.get(id).transcript[2]).toMatchObject({ kind: 'usage', usage });
+		expect(transcript[2]).toMatchObject({ kind: 'turn', usage, startedAt: transcript[0].at });
+		expect(transcript[7]).toEqual({
+			kind: 'turn',
+			startedAt: transcript[6].at,
+			at: expect.any(String)
+		});
 	});
 
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
@@ -166,12 +182,18 @@ describe('workspaces', () => {
 		restarted.record(id, { kind: 'plan', id: 'review', plan: null });
 		restarted.record(id, { kind: 'turn.completed' });
 		const next = createWorkspaces(store, repos, dispatch);
-		expect(next.get(id).transcript).toMatchObject([{ kind: 'user' }, { kind: 'text' }, checklist]);
+		expect(next.get(id).transcript).toMatchObject([
+			{ kind: 'user' },
+			{ kind: 'text' },
+			checklist,
+			{ kind: 'turn' }
+		]);
 		next.send(id, 'Continue the plan');
 		next.record(id, checklist);
 		expect(next.get(id).transcript.map((item) => item.kind)).toEqual([
 			'user',
 			'text',
+			'turn',
 			'user',
 			'plan'
 		]);
@@ -180,6 +202,7 @@ describe('workspaces', () => {
 	it('replays a steer after reconnect until the host receives it, and stores replayed output once', () => {
 		const { workspaces, sent, create, store, repos, dispatch } = setup();
 		const id = create('First');
+		acknowledgePrompt(workspaces, sent.at(-1));
 		workspaces.steer(id, 'Adjust');
 		const message = sent.at(-1);
 		if (message?.type !== 'agent.message' || !message.deliveryId) throw new Error('Missing steer');
@@ -245,7 +268,7 @@ describe('workspaces', () => {
 		const workspace = workspaces.get(id);
 		expect(workspace.worktree).toEqual({ path: '/wt/abc', branch: 'geordi/abc-2' });
 		// the conversation is as it was, with a word about what happened
-		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'note']);
+		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'turn', 'note']);
 		// a daemon asked to bring the worktree back would bring back this branch
 		expect(workspaces.ref(id)).toMatchObject({ branch: 'geordi/abc-2' });
 
@@ -313,7 +336,8 @@ describe('workspaces', () => {
 				apiToken: expect.any(String),
 				resumeId: null,
 				instructions: expect.stringContaining('inside Geordi'),
-				prompt: 'Fix the bug\nplease'
+				prompt: 'Fix the bug\nplease',
+				deliveryId: expect.any(String)
 			}
 		]);
 		expect(workspaces.get(id)).toMatchObject({
@@ -336,7 +360,7 @@ describe('workspaces', () => {
 			resumeId: 'cli-session',
 			worktree: { path: '/wt', branch: 'geordi/x' }
 		});
-		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text']);
+		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'tool', 'text', 'turn']);
 		expect(workspace.transcript[1]).toMatchObject({ output: 'contents', isError: false });
 	});
 
@@ -402,7 +426,8 @@ describe('workspaces', () => {
 			transcript: [
 				{ kind: 'user' },
 				{ ...tool, output: '', isError: true },
-				{ kind: 'text', text: 'WAITING' }
+				{ kind: 'text', text: 'WAITING' },
+				{ kind: 'turn' }
 			]
 		});
 	});
@@ -541,15 +566,16 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).status).toBe('running');
 	});
 
-	it('does not take a steering message that no daemon is there to pass on', () => {
-		const { create, store } = setup();
+	it('delivers pending prompts in order after the daemon returns', () => {
+		const { create, store, repos } = setup({ connected: false });
 		const id = create('One');
-		const events = store.readAll().length;
-		const unreachable = createWorkspaces(store, createRepos(store), () => false);
-		expect(() => unreachable.steer(id, 'Two')).toThrow();
-		// the turn goes on, wherever it runs: nothing was said, and nothing given up
-		expect(store.readAll()).toHaveLength(events);
-		expect(unreachable.get(id).status).toBe('running');
+		createWorkspaces(store, repos, () => false).steer(id, 'Two');
+		const sent: string[] = [];
+		createWorkspaces(store, repos, (message) => {
+			if (message.type === 'agent.message') sent.push(message.prompt);
+			return true;
+		}).reconcile([]);
+		expect(sent).toEqual(['One', 'Two']);
 	});
 
 	it('replays steering from before it reached a working agent: stopped, then said', () => {
@@ -565,7 +591,7 @@ describe('workspaces', () => {
 		store.append({ type: 'workspace.message', stream, data: { id, text: 'Two', steered: true } });
 		const replayed = createWorkspaces(store, repos, dispatch).get(id);
 		// being stopped for it is not shown as a failure
-		expect(replayed.transcript.map((item) => item.kind)).toEqual(['user', 'user']);
+		expect(replayed.transcript.map((item) => item.kind)).toEqual(['user', 'turn', 'user']);
 		expect(replayed.status).toBe('running');
 	});
 
@@ -582,7 +608,10 @@ describe('workspaces', () => {
 		workspaces.record(id, { kind: 'text', text: 'The build is green.' });
 		workspaces.record(id, { kind: 'turn.completed' });
 		expect(workspaces.get(id)).toMatchObject({ status: 'idle', lastTurn: 'completed' });
-		expect(workspaces.get(id).transcript.at(-1)).toMatchObject({ text: 'The build is green.' });
+		expect(workspaces.get(id).transcript.slice(-2)).toMatchObject([
+			{ text: 'The build is green.' },
+			{ kind: 'turn', startedAt: expect.any(String) }
+		]);
 		expect(sent).toHaveLength(messages); // nothing was asked of the daemon for it
 	});
 
@@ -618,8 +647,9 @@ describe('workspaces', () => {
 
 	it('reopens the forge database and retries only answers without a host receipt', () => {
 		const database = join(mkdtempSync(join(tmpdir(), 'geordi-answers-')), 'events.db');
-		const { create, workspaces, store, repos } = setup({ database });
+		const { create, workspaces, store, repos, sent: commands } = setup({ database });
 		const id = create('One');
+		acknowledgePrompt(workspaces, commands.at(-1));
 		const questions = [{ question: 'Go on?', options: [], multiSelect: false }];
 		for (const key of ['old', 'pending', 'withdrawn'])
 			workspaces.record(id, { kind: 'question', id: key, questions });
@@ -669,6 +699,7 @@ describe('workspaces', () => {
 		const { workspaces, create, sent } = setup();
 		const id = create('One');
 		const questions = [{ question: 'Go on?', options: [], multiSelect: false }];
+		acknowledgePrompt(workspaces, sent.at(-1));
 		const asyncQuestion = {
 			kind: 'question',
 			id: 'async',
@@ -763,19 +794,69 @@ describe('workspaces', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).queue).toEqual(['Two']);
 	});
 
-	it('fails the turn when no daemon is connected', () => {
-		const { workspaces, create } = setup({ connected: false });
-		const workspace = workspaces.get(create('One'));
-		expect(workspace.status).toBe('idle');
-		expect(workspace.transcript.at(-1)).toMatchObject({
-			kind: 'error',
-			error: 'No daemon connected'
+	it('records a first prompt before dispatch and retries the same delivery after restart', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-prompts-')), 'events.db');
+		const { store, repos, create } = setup({ database });
+		const id = create('');
+		const verify = vi.fn((command: ForgeMessage) => {
+			if (command.type !== 'agent.message') throw new Error('Expected a prompt');
+			expect(store.readStream(`workspace:${id}`).at(-1)).toMatchObject({
+				type: 'workspace.message',
+				data: { deliveryId: command.deliveryId, text: 'One' }
+			});
+			return false;
 		});
+		createWorkspaces(store, repos, verify, { secret: 'test' }).send(id, 'One');
+		store.close();
+		const reopened = new EventStore<GeordiEvent>(database);
+		const retry = vi.fn(() => true);
+		const restarted = createWorkspaces(reopened, createRepos(reopened), retry, { secret: 'test' });
+		restarted.reconcile([]);
+		expect(retry).toHaveBeenCalledExactlyOnceWith(verify.mock.calls[0][0]);
+		acknowledgePrompt(restarted, verify.mock.calls[0][0]);
+		restarted.reconcile([id]);
+		expect(retry).toHaveBeenCalledTimes(1);
+		reopened.close();
+	});
+
+	it('keeps a prompt local if the event store cannot record it', () => {
+		const { store, workspaces, create, sent } = setup();
+		const id = create('');
+		vi.spyOn(store, 'append').mockImplementationOnce(() => {
+			throw new Error('Disk full');
+		});
+		expect(() => workspaces.send(id, 'Run the job')).toThrow('Disk full');
+		expect(sent).toEqual([]);
+	});
+
+	it('resumes a queue if the forge stopped after recording completion', () => {
+		const { store, repos, create, workspaces, sent, dispatch } = setup();
+		const id = create('One');
+		acknowledgePrompt(workspaces, sent.at(-1));
+		workspaces.send(id, 'Two');
+		store.append({
+			type: 'workspace.output',
+			stream: `workspace:${id}`,
+			data: { id, event: { kind: 'turn.completed' } }
+		});
+		const restored = createWorkspaces(store, repos, dispatch);
+		restored.reconcile([]);
+		const next = sent.at(-1);
+		expect(next).toMatchObject({
+			type: 'agent.message',
+			prompt: 'Two',
+			deliveryId: expect.any(String)
+		});
+		expect(restored.get(id).queue).toEqual([]);
+		acknowledgePrompt(restored, next);
+		restored.reconcile([id]);
+		expect(sent).toHaveLength(2);
 	});
 
 	it('fails turns a reconnecting daemon no longer knows about', () => {
-		const { workspaces, repo, create } = setup();
+		const { workspaces, repo, create, sent } = setup();
 		const lost = create('One');
+		acknowledgePrompt(workspaces, sent.at(-1));
 		const alive = create('Two');
 
 		workspaces.reconcile([alive]);
@@ -787,7 +868,8 @@ describe('workspaces', () => {
 
 	it('stops turns a reconnecting daemon still runs but that were given up here', () => {
 		const { workspaces, sent, create } = setup({ connected: false });
-		const id = create('One'); // fails at once: no daemon
+		const id = create('One');
+		workspaces.stop(id);
 		expect(workspaces.get(id).status).toBe('idle');
 
 		workspaces.reconcile([id]);
@@ -799,6 +881,7 @@ describe('workspaces', () => {
 		const id = create('One');
 		workspaces.send(id, 'Two');
 		workspaces.send(id, 'Three');
+		acknowledgePrompt(workspaces, sent[0]);
 		const starts = () => sent.filter((message) => message.type === 'agent.message').length;
 
 		// said twice, as a daemon that was killed mid-report does
@@ -808,6 +891,7 @@ describe('workspaces', () => {
 		expect(starts()).toBe(2);
 		expect(workspaces.get(id).queue).toEqual(['Three']);
 
+		acknowledgePrompt(workspaces, sent.at(-1));
 		// given up while the daemon was away: what it then still says of it is not taken
 		workspaces.reconcile([]);
 		expect(workspaces.get(id).status).toBe('idle');
@@ -841,6 +925,21 @@ describe('titles', () => {
 		workspaces.retitle(id, 'x'.repeat(200));
 		expect(workspaces.get(id).title).toHaveLength(80);
 		expect(createWorkspaces(store, repos, dispatch).get(id).title).toHaveLength(80);
+	});
+
+	it('uses the same short title for an initial prompt and a first message sent later', () => {
+		const { workspaces, create } = setup();
+		const prefix = '“Please update the workspace header so it shows a shorter';
+		const prompt = prefix + ' description while the agent is working.';
+		const initial = create(prompt);
+		const later = create('');
+		workspaces.send(later, prompt);
+		for (const id of [initial, later]) {
+			expect(workspaces.get(id).title).toBe(prefix + '…');
+			expect(workspaces.get(id).transcript).toContainEqual(
+				expect.objectContaining({ kind: 'user', text: prompt })
+			);
+		}
 	});
 
 	it('takes the title its agent gives its session, until someone names it', () => {
@@ -930,10 +1029,37 @@ describe('archiving', () => {
 		expect(workspaces.all()).toEqual([]);
 		expect(workspaces.get(id)).toMatchObject({
 			archivedAt: expect.any(String),
-			transcript: [{ kind: 'user' }, { kind: 'text', text: 'Done.' }]
+			transcript: [{ kind: 'user' }, { kind: 'text', text: 'Done.' }, { kind: 'turn' }]
 		});
 		expect(() => workspaces.send(id, 'More')).toThrow();
 		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
+	});
+
+	it('continues the saved session and replays each restored transcript exactly once', () => {
+		const { store, repos, workspaces, create, dispatch, sent } = setup();
+		const id = create('First');
+		workspaces.record(id, { kind: 'resume', id: 'saved-session' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		for (const message of ['Second', 'Third']) {
+			const history = workspaces.get(id).transcript;
+			workspaces.archive(id);
+			expect(workspaces.archived().map((entry) => entry.id)).toEqual([id]);
+			workspaces.restore(id);
+			workspaces.restore(id);
+			expect(workspaces.archived()).toEqual([]);
+			expect(workspaces.get(id).transcript).toEqual(history);
+			workspaces.send(id, message);
+			expect(sent.at(-1)).toMatchObject({ resumeId: 'saved-session' });
+			workspaces.record(id, { kind: 'turn.completed' });
+		}
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id)).toEqual(workspaces.get(id));
+		expect(
+			replay
+				.get(id)
+				.transcript.filter((item) => item.kind === 'user')
+				.map((item) => item.text)
+		).toEqual(['First', 'Second', 'Third']);
 	});
 
 	it("adds an agent to a workspace at a person's word: in its worktree, and going when it goes", () => {
@@ -1369,6 +1495,7 @@ describe('messages with images', () => {
 			transcript: [
 				{ kind: 'user', images: [first] },
 				{ kind: 'user', images: [first, second] },
+				{ kind: 'turn' },
 				{ kind: 'user', images: [second] }
 			]
 		});
@@ -1387,6 +1514,29 @@ describe('messages with images', () => {
 		expect(workspaces.get(id).attachments.queue).toEqual([[second]]);
 	});
 
+	it('isolates missing attachments during reconnect and keeps a live turn working', () => {
+		const { store, repos, workspaces, create, sent, dispatch } = setup();
+		const absent = create('');
+		const working = create('Already working');
+		acknowledgePrompt(workspaces, sent.at(-1));
+		for (const id of [absent, working])
+			store.append({
+				type: 'workspace.message',
+				stream: `workspace:${id}`,
+				data: { id, text: 'Look', images: ['missing'], deliveryId: 'missing-picture' }
+			});
+		const healthy = create('Run');
+		const resumed = createWorkspaces(store, repos, dispatch);
+		resumed.reconcile([working]);
+		expect(resumed.get(absent).lastTurn).toBe('failed');
+		expect(resumed.get(working).status).toBe('running');
+		expect(resumed.get(working).transcript.at(-1)).toMatchObject({ kind: 'error' });
+		expect(sent.at(-1)).toMatchObject({ workspaceId: healthy, prompt: 'Run' });
+		expect(
+			createWorkspaces(store, repos, dispatch).summary(working).pendingDelivery
+		).toBeUndefined();
+	});
+
 	it('validates image references before recording a message or workspace', () => {
 		const { store, workspaces, repo, create } = setup();
 		const id = create('Go');
@@ -1397,5 +1547,115 @@ describe('messages with images', () => {
 			workspaces.create({ repoId: repo.id, agent: 'codex', prompt: '', images: ['missing'] })
 		).toThrow();
 		expect(store.readAll()).toHaveLength(count);
+	});
+});
+
+describe('projects (FDR-012)', () => {
+	const setupProject = () => {
+		const context = setup();
+		const project = context.workspaces.create({ repoId: null, agent: 'claude', prompt: 'Lead' });
+		return { ...context, project };
+	};
+	const messageTo = (sent: ForgeMessage[], id: string) =>
+		sent.findLast(
+			(message): message is Extract<ForgeMessage, { type: 'agent.message' }> =>
+				message.type === 'agent.message' && message.workspaceId === id
+		);
+
+	it('belong to no repository, and are told to work in a folder of their own', () => {
+		const { workspaces, sent, project } = setupProject();
+		expect(workspaces.get(project).repoId).toBeNull();
+		const message = messageTo(sent, project)!;
+		expect(message).toMatchObject({ worktreeId: project, project: true });
+		expect(message).not.toHaveProperty('repoPath');
+		expect(message.instructions).toContain('Geordi project');
+		expect(() => workspaces.ref(project)).toThrow();
+		expect(workspaces.locate(project)).toEqual({ worktreeId: project, project: true });
+	});
+
+	it('start agents in any repository they name, as their parent', () => {
+		const { workspaces, repo, project } = setupProject();
+		const refusal = (start: () => unknown) => {
+			try {
+				start();
+			} catch (error) {
+				return (error as { body: { message: string } }).body.message;
+			}
+		};
+		expect(
+			refusal(() => workspaces.agents.start(project, { worktree: 'own', prompt: 'Build' }))
+		).toMatch(/Say which repository/);
+		const { id } = workspaces.agents.start(project, {
+			repository: repo.id,
+			worktree: 'own',
+			prompt: 'Build'
+		});
+		expect(workspaces.get(id)).toMatchObject({ repoId: repo.id, parentId: project, base: null });
+	});
+
+	it('is out of reach of a token for chosen repositories, as it is in none', () => {
+		const { workspaces, repo, project } = setupProject();
+		const token = workspaces.access.issue('Scoped', [repo.id]);
+		const client = workspaces.agents.authenticate(token)!;
+		expect(workspaces.agents.listWorkspaces(client, false).map((w) => w.id)).not.toContain(project);
+		expect(workspaces.agents.listWorkspaces(project, false).map((w) => w.id)).toContain(project);
+	});
+
+	it('start agents alongside the agent of a workspace in a repository, or in themselves', () => {
+		const { workspaces, sent, create, repo, project } = setupProject();
+		const target = create('Someone else’s work');
+		const { id: reviewer } = workspaces.agents.start(project, {
+			worktree: 'own',
+			workspace: target,
+			prompt: 'Review'
+		});
+		expect(workspaces.get(reviewer)).toMatchObject({
+			repoId: repo.id,
+			worktreeId: target,
+			parentId: project
+		});
+		const { id: helper } = workspaces.agents.start(project, { worktree: 'shared', prompt: 'Help' });
+		expect(workspaces.get(helper)).toMatchObject({ repoId: null, worktreeId: project });
+		expect(messageTo(sent, helper)).toMatchObject({ worktreeId: project, project: true });
+		// a person can add a conversation to a project too
+		expect(workspaces.get(workspaces.join(project)).worktreeId).toBe(project);
+		// what works in it goes with it; what it started in a repository stays
+		expect(workspaces.descendants(project).sort()).toEqual(
+			workspaces
+				.sharing(project)
+				.map((w) => w.id)
+				.filter((id) => id !== project)
+				.sort()
+		);
+		// only a project starts agents in other workspaces
+		const lead = create('Lead in a repository');
+		expect(() =>
+			workspaces.agents.start(lead, { worktree: 'own', workspace: target, prompt: 'No' })
+		).toThrow();
+	});
+
+	it('leave other projects alone, and are left alone by them', () => {
+		const { workspaces, project } = setupProject();
+		const other = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Other' });
+		expect(() => workspaces.agents.get(project, other)).toThrow();
+		expect(() => workspaces.agents.stop(project, other)).toThrow();
+		expect(() => workspaces.agents.send(project, other, 'Hi')).toThrow();
+		expect(() => workspaces.agents.readWorkspace(project, other)).toThrow();
+		expect(() =>
+			workspaces.agents.start(project, { worktree: 'own', workspace: other, prompt: 'No' })
+		).toThrow();
+		const seen = workspaces.agents.listWorkspaces(project, false).map((w) => w.id);
+		expect(seen).toContain(project);
+		expect(seen).not.toContain(other);
+	});
+
+	it('supervise any agent, whoever started it', () => {
+		const { workspaces, sent, create, project } = setupProject();
+		const other = create('Someone else’s work');
+		expect(workspaces.agents.get(project, other).id).toBe(other);
+		workspaces.agents.send(project, other, 'Change of plan', true);
+		expect(messageTo(sent, other)?.prompt).toBe('Change of plan');
+		workspaces.agents.stop(project, other);
+		expect(sent.at(-1)).toEqual({ type: 'agent.stop', workspaceId: other });
 	});
 });

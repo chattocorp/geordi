@@ -13,6 +13,8 @@
 	font-display: swap;
 }
 
+@source '../../../../packages/ui/src';
+
 @plugin '@tailwindcss/typography';
 @plugin '@iconify/tailwind4';
 
@@ -20,6 +22,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 /* In the desktop app's window, which has no title bar of its own (ADR-008). */
 @custom-variant desktop (&:where([data-desktop], [data-desktop] *));
+/* In the desktop app on macOS, whose window's buttons sit at the top left. */
+@custom-variant mac (&:where([data-desktop='mac'], [data-desktop='mac'] *));
 
 /*
  * Geordi's design system starts here: colour tokens, type and shape (in `@theme`), and
@@ -39,6 +43,8 @@
 	--surface: #ffffff;
 	--sunken: #dcdce5;
 	--ink: #1b1c24;
+	/* long text (agent replies, messages): a little softer than ink, kinder to read at length */
+	--prose: #33353f;
 	--inline-code: #982664;
 	--muted: #585a69;
 	--line: #e2e2ea;
@@ -68,6 +74,7 @@
 	--surface: #2c2f3b;
 	--sunken: #262833;
 	--ink: #eceef4;
+	--prose: #d4d6de;
 	--inline-code: #f0bbd2;
 	--muted: #a0a3b4;
 	--line: #3a3d4b;
@@ -128,6 +135,7 @@
 	--color-surface: var(--surface);
 	--color-sunken: var(--sunken);
 	--color-ink: var(--ink);
+	--color-prose: var(--prose);
 	--color-muted: var(--muted);
 	--color-line: var(--line);
 	--color-accent: var(--accent);
@@ -143,6 +151,12 @@
 	--color-on-ok: var(--on-ok);
 	--color-claude: var(--claude);
 	--color-codex: var(--codex);
+	/*
+	 * Relative colours: tints of the ink, see-through, so that they show on whatever is
+	 * behind them (a sheet, a card, a row that is itself hovered) in both modes. `hover` is
+	 * the wash under something the pointer is on.
+	 */
+	--color-hover: color-mix(in oklab, var(--ink) 9%, transparent);
 
 	--shadow-soft: var(--shadow);
 	--shadow-float: var(--shadow-lg);
@@ -194,7 +208,7 @@
  */
 @utility sheet {
 	--pane: var(--bg);
-	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line/60;
+	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line;
 }
 /*
  * A sheet for what is beside the one that is read (the sidebar, a workspace's changes and
@@ -202,7 +216,7 @@
  */
 @utility sheet-quiet {
 	--pane: var(--sidebar);
-	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/60;
+	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/30;
 }
 
 @utility dialog-actions {
@@ -261,10 +275,6 @@
 /* A row you can pick: navigation links, tabs. Add `item-active` to the current one. */
 @utility item {
 	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-surface/60 hover:text-ink;
-	/* the fonts are variable: a row that turns bold (unread, current) gets there smoothly */
-	@media (prefers-reduced-motion: no-preference) {
-		transition: font-weight 150ms ease;
-	}
 }
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
@@ -292,6 +302,13 @@
  * page, which may be right under the bar, and exempting it there would punch a hole into
  * the bar that moves as one scrolls.
  */
+/* Room for the window's buttons, where the desktop app draws them over the page's top right
+ * (not on macOS): what the Window Controls Overlay leaves of the width, else nothing. */
+@utility window-controls-room {
+	flex-shrink: 0;
+	width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}
+
 @utility window-drag {
 	-webkit-app-region: drag;
 }
@@ -409,7 +426,7 @@
 		font-size: var(--text-sm);
 	}
 
-	--tw-prose-body: var(--ink);
+	--tw-prose-body: var(--prose);
 	--tw-prose-headings: var(--ink);
 	--tw-prose-lead: var(--muted);
 	--tw-prose-links: var(--ink);

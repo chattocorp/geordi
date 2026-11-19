@@ -1,11 +1,13 @@
 <script lang="ts">
 	import SubagentRow from './SubagentRow.svelte';
 	import type { SubagentItem } from '#lib/server/workspaces.ts';
-	import Disclosure from '#lib/ui/Disclosure.svelte';
-	import Button from '#lib/ui/Button.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Disclosure from '@geordi/ui/Disclosure.svelte';
+	import Button from '@geordi/ui/Button.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Markdown from './Markdown.svelte';
-	import ToolCall from './ToolCall.svelte';
+	import PatchView from './PatchView.svelte';
+	import { changedFiles } from '#lib/changedFiles.ts';
+	import ToolCall from '@geordi/ui/ToolCall.svelte';
 	let {
 		child,
 		cwd,
@@ -17,6 +19,7 @@
 		pictures?: string;
 		onopen?: (id: string) => void;
 	} = $props();
+	const workspaceFiles = changedFiles();
 	let open = $state(false);
 	const labels = {
 		running: 'Running',
@@ -61,7 +64,13 @@
 						</div>
 					{/if}
 				{:else}
-					<ToolCall {...entry} {cwd} running={child.state === 'running'} />
+					<ToolCall
+						{...entry}
+						{PatchView}
+						workspace={workspaceFiles}
+						{cwd}
+						running={child.state === 'running'}
+					/>
 				{/if}
 			{/each}
 			{#if !child.items.length && !child.description}<p class="text-xs text-muted">

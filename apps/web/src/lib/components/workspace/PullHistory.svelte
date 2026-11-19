@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PullRequest } from '@geordi/protocol';
-	import PullRequestPane from './PullRequestPane.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
 
 	let {
 		pulls,
@@ -23,7 +24,9 @@
 			<span class="icon-[lucide--arrow-left] size-4"></span>Pull requests
 		</button>
 	{/if}
-	<PullRequestPane pull={detail} />
+	<PullRequestPane pull={detail}
+		>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+	>
 {:else}
 	<section class="scroller p-2" aria-label="Workspace pull requests">
 		{#each pulls as pull (pull.url ?? pull.number)}

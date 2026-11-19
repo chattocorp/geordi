@@ -1,13 +1,18 @@
 <script module lang="ts">
-	import { expect, fireEvent, within } from 'storybook/test';
+	import { expect, fireEvent, waitFor, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
 	import Sidebar from './Sidebar.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Sidebar', component: Sidebar });
 
 	type Item = Navigation['workspaces'][number];
+
+	/** What is folded away: in the app, remembered in the browser. */
+	const folded = $state({ current: [] as string[] });
+	/** The repository shown alone: in the app, remembered in the browser too. */
+	const focus = $state({ current: null as string | null });
 
 	const ready: WorkspaceStanding = {
 		label: 'Ready to merge',
@@ -53,7 +58,7 @@
 	/** One of each state a row can be in: what is at work, what waits, how the work stands. */
 	const nav: Navigation = {
 		repos: [
-			repo('geordi', 'geordi', 7),
+			repo('geordi', 'geordi', 8),
 			repo('sample', 'sample-project', 2),
 			repo('idle', 'no-workspaces', 0)
 		],
@@ -70,13 +75,44 @@
 				working: true,
 				outcome: null
 			}),
-			workspace('ready', 'Raise light mode text contrast', { standing: ready }),
+			workspace('ready', 'Raise light mode text contrast', {
+				standing: ready,
+				actions: [{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]
+			}),
 			workspace('tokens', 'Check every token in dark mode', { parentId: 'ready' }),
 			workspace('failing', 'Guard shared worktrees from update and continue', {
-				standing: failing
+				standing: failing,
+				actions: [{ id: 'fix-checks', label: 'Fix errors', icon: 'icon-[lucide--wrench]' }]
 			}),
-			workspace('merged', 'Run checks, lint and tests in CI', { standing: merged }),
-			workspace('plain', 'Try out the new parser', { repoId: 'sample' }),
+			workspace('conflict', 'Update the daemon protocol', {
+				standing: { label: 'Conflicts', tone: 'danger', icon: 'icon-[lucide--git-merge-conflict]' },
+				actions: [
+					{
+						id: 'resolve-conflicts',
+						label: 'Resolve conflicts',
+						icon: 'icon-[lucide--git-merge-conflict]'
+					}
+				]
+			}),
+			workspace('merged', 'Run checks, lint and tests in CI', {
+				standing: merged,
+				actions: [
+					{
+						id: 'continue',
+						label: 'Continue',
+						icon: 'icon-[lucide--git-branch-plus]',
+						aside: true
+					},
+					{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }
+				]
+			}),
+			workspace('plain', 'Try out the new parser', {
+				repoId: 'sample',
+				waiting: true,
+				working: true,
+				status: 'running',
+				outcome: null
+			}),
 			workspace(
 				'long',
 				'A title that is far too long to fit into the sidebar at any sensible width',
@@ -89,12 +125,34 @@
 		access: [],
 		harnesses: null
 	};
+
+	/** Projects (FDR-012) above the repositories; what one started is listed with its repository. */
+	const withProjects: Navigation = {
+		...nav,
+		workspaces: [
+			workspace('project', 'Ship the protocol bump everywhere', {
+				repoId: null,
+				branch: null,
+				status: 'running',
+				working: true,
+				outcome: null
+			}),
+			workspace('project-quiet', 'Triage this week’s issues', { repoId: null, branch: null }),
+			workspace('bump', 'Bump the protocol in the daemon', {
+				parentId: 'project',
+				status: 'running',
+				working: true,
+				outcome: null
+			}),
+			...nav.workspaces
+		]
+	};
 </script>
 
 {#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh w-64 bg-frame p-2">
-		<Sidebar {nav} {path} {lost} />
+		<Sidebar {nav} {path} {folded} {focus} {lost} />
 	</div>
 {/snippet}
 
@@ -110,6 +168,24 @@
 		// a repository without workspaces has no place here
 		await expect(canvas.queryByText('no-workspaces')).toBeNull();
 		await expect(canvas.queryByText('Reconnecting')).toBeNull();
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Workspace action pills"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
+			const pill = canvas.getByText(label, { selector: 'button' });
+			const row = within(pill.closest('li')!);
+			row.getByRole('link').focus();
+			await waitFor(() => expect(pill).toHaveStyle({ opacity: '1' }));
+			pill.focus();
+			await expect(pill).toHaveFocus();
+		}
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
@@ -166,4 +242,38 @@
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Focus a repository"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// shown on hover only, where it is not in the accessibility tree
+		const only = canvasElement.querySelector('[aria-label="Show only sample-project"]');
+		await fireEvent.click(only!);
+		// the others slide away
+		await waitFor(() => expect(canvas.queryByText('Raise light mode text contrast')).toBeNull());
+		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show 1 other repository' }));
+		await waitFor(() => expect(canvas.getByText('Raise light mode text contrast')).toBeVisible());
+	}}
+>
+	{@render frame(nav, '/workspaces/plain')}
+</Story>
+
+<Story
+	name="With projects"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Projects')).toBeVisible();
+		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
+		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
+			'title',
+			'Started by the agent in "Ship the protocol bump everywhere"'
+		);
+	}}
+>
+	{@render frame(withProjects, '/workspaces/project')}
 </Story>

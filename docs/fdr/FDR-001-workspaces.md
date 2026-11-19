@@ -1,7 +1,7 @@
 # FDR-001: Workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-18
+**Last reviewed:** 2026-11-19
 
 ## Overview
 
@@ -11,11 +11,13 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 - A workspace is started with an agent and a repository, and usually with a first prompt (without one, it is there with its worktree, waiting to be told what to do): from "New workspace" in the sidebar, where the repository worked in last is preselected, or from the + beside a repository's name. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first. Its agent then gives it a short name that says what the work is about, once it knows (the agent API's `name_workspace`), and may change it a couple of times if the work turns out to be about something else. Until then, the title its agent gives the conversation (Claude makes one from the prompt within seconds; Codex once its first turn ends) bridges the moments, and replaces the first line; a name the agent or whoever started the workspace chose is never replaced by it.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
+- Geordi saves each prompt before sending it. While a saved prompt waits for an offline daemon, the conversation shows **Waiting for daemon**. Delivery resumes when it reconnects.
 - During a turn, the conversation shows progress as it happens. When the turn ends, the final reply or failure stays visible. Open **Turn activity** to inspect earlier messages and tool calls in order.
 - An agent’s plan updates in place as its steps change. If the agent continues the plan in a later exchange, the card moves into that reply. The current step stands out. When all steps are complete, the plan folds into a summary that can be reopened. Agents can also share a written plan or withdraw a plan.
 - While the agent is working, Enter steers it: the message reaches the agent in the middle of its turn, which goes on, and is the next thing it reads (ADR-010). Stop stops the turn, and with it what was said and not read yet. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
 - An agent can start something in the background and come to rest; when it has finished, the agent takes up work again by itself, and the workspace shows as working.
 - An agent can ask the person something: the question shows in the conversation with the answers it offers, any of which can be given, or one in the person's own words. The ribbon and sidebar show when the agent is waiting. Codex can also ask a question while it continues to work. Geordi saves a submitted answer and retries after a reconnect until the host accepts it or the question closes. If the agent withdraws the request or its turn ends, the form closes. A submitted answer stays visible with a notice if delivery was unconfirmed.
+- In a first prompt or reply, type `@` followed by letters from a file name or path in order. The letters can be apart. The picker shows up to 40 matches. Each row shows the file name beside its folder and highlights the matching letters. Choose a repository file with the mouse, Enter or Tab. The message includes its repository-relative path so the agent can locate the file. First prompts search the starting revision. Conversations in an existing worktree also offer new, unignored files.
 - Messages can include images, with or without text. Drop image files onto the composer or paste an image from the clipboard. The composer shows previews above the text in one horizontally scrolling row. Previews keep the full image visible at its original aspect ratio and open the full image when clicked. A small remove button appears on hover or keyboard focus; touch screens always show it. Each message accepts up to four PNG, JPEG, WebP or GIF files, at most 5 MB each. Sending waits until uploads finish; an upload error leaves the draft in place.
 - Images work in first prompts, replies, queued messages and steering messages, with both Claude and Codex. Sent and queued messages show thumbnails that open the full image. Images remain available after a restart and after the workspace is archived.
 - An agent shows a picture (a screenshot, a chart) by writing a Markdown image with the path of its file: it appears in its reply, and opens in full when clicked. The file is read where the agent works, when the reply is shown: PNG, JPEG, WebP or GIF, at most 5 MB, from the worktree or anywhere else on that machine. A file that is gone, or is no picture, leaves its path. Images from the web are never loaded, only linked.
@@ -28,13 +30,14 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - Windows are tabs. Within the main area and within the dock, a tab can be dragged onto another group of tabs to move it there, or towards an edge of a group to split it and place the window beside, above or below.
 - Diffs and terminals can also be dragged between the two: a terminal out of the dock to sit beside the conversation, a diff into the dock. The conversation cannot leave the main area, and the changes are not a window at all.
 - The top bar shows what could happen next (FDR-003).
-- **Changes** names the comparison branch and lists the files the workspace would contribute to it, including committed, uncommitted and untracked work. Selecting a file opens its diff as a window next to the conversation. The list updates as files change.
+- **Changes** names the comparison branch and lists the files the workspace would contribute to it, including committed, uncommitted and untracked work. Selecting a file opens a single diff tab next to the conversation. Selecting another file reuses that tab wherever you placed it. The tab shows the filename, with the full path available on hover. The list updates as files change.
   - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
-- The workspace remembers each pull request found on its branches. With several, **Pull requests** lists them by number, marks the current branch, and shows how many are open when all states are known. Selecting a row opens its details. The ribbon acts on the current branch. With one pull request, a tab labeled with its number (for example, **#1234**) appears in the upper right pane. While checks run, the sidebar’s checks ring takes the place of the pull request icon on the tab. The pane shows the title, description, state, target branch, review status and checks. The checks section opens when checks are active or failed. It shows failures first, then active jobs with their status. Other checks expand on demand. Each check opens its run when the forge supplies a link. The title opens the pull request on the upstream forge.
+- The workspace remembers each pull request found on its branches. With several, **Pull requests** lists them by number, marks the current branch, and shows how many are open when all states are known. Selecting a row opens its details. The ribbon acts on the current branch. With one pull request, a tab labeled with its number (for example, **#1234**) appears in the upper right pane. When checks are available, a ring beside the number shows their status. The pane shows the title, description, state, target branch, review status and checks. The checks section opens when checks are active or failed. It shows failures first, then active jobs with their status. Other checks expand on demand. Each check opens its run when the forge supplies a link. The title opens the pull request on the upstream forge.
 - **Terminals** are shells in the workspace's directory. "+" in the dock opens one. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
 - A worktree that was removed outside Geordi (tidied away while it wasn't running, say) doesn't break its workspace: the workspace says so where it says how it stands ("Worktree removed"), with "Restore" as the next step. Restoring, or simply the next message to its agent, brings the worktree back from the workspace's branch, with everything that was committed. What wasn't committed is gone, and the workspace says that too. If the branch is gone as well, the worktree starts afresh.
 - A workspace whose pull request was merged (or closed) can carry on with new work instead of being archived: **Continue** fetches, and moves its worktree to a new branch off the upstream's main branch as it stands then. The conversation stays as it is, with a line saying what happened, and its agent is told with the next message that it is on a new branch and should look at the files afresh. The branch it was on is kept. Not while it has uncommitted changes, nor while an agent is at work in that worktree.
 - A workspace can be archived when it is done with. That ends its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. The workspaces its agent started (FDR-002) are archived along with it. Nothing is archived while any of them is still working. The archive dialog appears only when an affected workspace has a running agent, a running terminal process, uncommitted changes, unmerged commits, or an unmerged pull request. It names the workspace and explains what needs attention. Agents archiving the workspaces they started are never asked, and never lose uncommitted work: for them, archiving stops there.
+- Open **Archive** in the sidebar to find a conversation by title or repository. Open it to read it, then select **Restore workspace** to return it to active work and send another message. Restoration applies to the selected conversation and reuses its shared worktree or checks out its retained branch.
 - The window arrangement and pane sizes are remembered per browser.
 
 ## Design Decisions
@@ -91,7 +94,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 **Decision:** Archiving removes the worktree and hides the workspace, and nothing else.
 **Why:** The worktree is the part that costs disk space and clutters; the branch may still be wanted, and the conversation is the record of what was done.
-**Tradeoff:** Branches accumulate until someone deletes them. There is no way yet to bring an archived workspace back.
+**Tradeoff:** Branches accumulate until someone deletes them.
 
 ### 10. Changes and terminals are live, not recorded
 
@@ -111,7 +114,7 @@ After two seconds without a connection, the window shows “Reconnecting” abov
 
 ### 13. Background tasks stay within reach after a reply
 
-While an agent reports background work, a tray above the composer shows its commands and subagents. The tray opens expanded. Collapse it to keep the count and first task name in view. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
+While an agent reports background work, a tray above the composer shows its commands and subagents. Expand the tray to see each task. Select Stop beside a task to end it. Its row stays visible until the agent reports that it ended. A task with a known source opens its tool call or subagent conversation. The composer stays ready for the next message. The list follows the live session and disappears when the agent clears it or the daemon disconnects.
 
 ### 14. Titles come from the agent's own session
 
@@ -128,4 +131,4 @@ A workspace takes the title its agent's session goes by (ACP `session_info_updat
 ## Open Questions
 
 - Preview windows.
-- Restoring an archived workspace, and deleting its branch along with it.
+- Deleting the branch when archiving a workspace.

@@ -7,15 +7,15 @@
 </script>
 
 <script lang="ts">
-	import { submitOnEnter } from '#lib/keys.ts';
+	import { submitOnEnter } from '@geordi/ui/keys';
 	import { draft } from '#lib/drafts.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
-	import RepoPicker from './RepoPicker.svelte';
+	import RepoPicker, { PROJECT } from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { createWorkspace } from '../../../routes/workspaces.remote';
+	import { createWorkspace, findFiles } from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
 
 	type Props = {
@@ -50,13 +50,15 @@
 		if (await submit()) written.clear();
 	});
 
-	/** The repository picked here, if one was; otherwise the preferred one, or the first. */
+	/**
+	 * Where it begins, as picked here, else as preferred: a repository's ID, or `PROJECT` for
+	 * a new project (FDR-012).
+	 */
 	let picked = $state<string>();
-	const repo = $derived(
-		repos.find((repo) => repo.id === picked) ??
-			repos.find((repo) => repo.id === preferred) ??
-			repos[0]
-	);
+	const target = $derived(picked ?? preferred);
+	const project = $derived(!alongside && target === PROJECT);
+	/** The repository picked, or the first one. */
+	const repo = $derived(repos.find((repo) => repo.id === target) ?? repos[0]);
 
 	// `undefined` until loaded, `null` while no daemon is connected: nothing to choose from
 	const offered = follow<Navigation>('navigation');
@@ -65,17 +67,23 @@
 	const choice = persisted<HarnessChoice>('geordi:harness', { agent: 'claude', settings: {} });
 	const chosen = $derived(harnesses?.length ? resolveChoice(harnesses, choice.current) : null);
 
+	const searchFiles = $derived.by(() => {
+		if (!repo) return undefined;
+		const scope = alongside ? { workspaceId: alongside } : { repoId: repo.id };
+		return (query: string) => findFiles({ ...scope, query });
+	});
 	let pickingRepo = $state(false);
 	// only where repositories are to be chosen from: on the page for a new workspace
 	$effect(() => {
 		if (!focused || alongside || !asked.repo) return;
 		asked.repo = false;
-		pickingRepo = repos.length > 1;
+		pickingRepo = true;
 	});
 </script>
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
 <MessageComposer
+	files={searchFiles}
 	bind:images={written.images}
 	imageField={images.as('hidden', '[]')}
 	{form}
@@ -83,7 +91,7 @@
 	{label}
 	{focused}
 	rows={alongside ? undefined : 5}
-	placeholder="What should the agent do?"
+	placeholder={project ? 'What should be done, and where?' : 'What should the agent do?'}
 	field={prompt.as('text')}
 	onkeydown={(event) => {
 		// Enter starts the workspace, but not while there is no daemon to run it
@@ -95,7 +103,7 @@
 	)}
 >
 	{#snippet header()}
-		<input {...fields.repoId.as('hidden', repo?.id ?? '')} />
+		<input {...fields.repoId.as('hidden', project ? '' : (repo?.id ?? ''))} />
 		{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />{/if}
 		{#if chosen}
 			<input {...fields.agent.as('hidden', chosen.harness.agent)} />
@@ -106,11 +114,12 @@
 	{/snippet}
 	{#snippet footer()}
 		<div class="flex min-w-0 flex-wrap items-center gap-1">
-			{#if repos.length > 1}
+			<!-- a repository to work in, or a new project (FDR-012), which is in none -->
+			{#if !alongside}
 				<RepoPicker
 					{repos}
 					bind:open={pickingRepo}
-					bind:value={() => repo.id, (id) => (picked = id)}
+					bind:value={() => (project ? PROJECT : repo.id), (id) => (picked = id)}
 				/>
 			{/if}
 			{#if harnesses?.length}
@@ -145,7 +154,7 @@
 				class="ml-auto"
 				disabled={!chosen}
 			>
-				Start workspace
+				{prompt.value()?.trim() ? 'Get to work' : project ? 'Start project' : 'Start workspace'}
 			</Button>
 		{/if}
 	{/snippet}

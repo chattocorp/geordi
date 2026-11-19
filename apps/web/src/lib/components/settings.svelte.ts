@@ -5,6 +5,7 @@ import { resolve } from '$app/paths';
 export const sections = [
 	{ id: 'general', label: 'General', icon: 'icon-[lucide--sliders-horizontal]' },
 	{ id: 'notifications', label: 'Notifications', icon: 'icon-[lucide--bell]' },
+	{ id: 'keyboard', label: 'Keyboard', icon: 'icon-[lucide--keyboard]' },
 	{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' },
 	{ id: 'access', label: 'Agent access', icon: 'icon-[lucide--key-round]' },
 	{ id: 'about', label: 'About', icon: 'icon-[lucide--info]' }

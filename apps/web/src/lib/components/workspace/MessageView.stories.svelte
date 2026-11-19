@@ -3,12 +3,13 @@
 	import { expect, fn, userEvent, waitFor } from 'storybook/test';
 	import { subagentBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
-	import Button from '#lib/ui/Button.svelte';
-	import Composer from '#lib/ui/Composer.svelte';
+	import Button from '@geordi/ui/Button.svelte';
+	import Composer from '@geordi/ui/Composer.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
 	const openParent = fn();
+	const stopBackground = fn<(id: string) => Promise<void>>().mockResolvedValue(undefined);
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const reply =
 		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
@@ -161,17 +162,22 @@
 	</div>
 </Story>
 
-<!-- What a reply used, where it ends: beside its last words, or on its own after a tool call. -->
+<!--
+	Where a reply ends, how long it took, with what it used on hover: beside its last words, or
+	on its own after a tool call. Earlier replies say it when the pointer is on them.
+-->
 <Story
-	name="Token usage"
+	name="Byline"
 	asChild
 	play={async ({ canvas }) => {
-		const figure = await canvas.findByText('150k tokens');
-		expect(figure).toHaveAttribute(
-			'title',
-			'8 input · 353 output · 120,465 cache read · 29,504 cache write'
-		);
-		await waitFor(() => expect(canvas.getByText('79k tokens')).toBeVisible());
+		await waitFor(() => expect(canvas.getByText('48s')).toBeVisible());
+		expect(canvas.getByText('2m 14s')).toBeInTheDocument();
+		const tokens = canvas.getByText('79k tokens');
+		expect(tokens).not.toBeVisible();
+		// the tip shows on hover, and on focus for keyboards
+		canvas.getByText('48s').focus();
+		await waitFor(() => expect(tokens).toBeVisible());
+		expect(canvas.getByText('20,224 input · 116 output · 59,136 cache read')).toBeInTheDocument();
 	}}
 >
 	<div class="flex h-120 max-w-3xl flex-col sheet overflow-hidden">
@@ -181,6 +187,7 @@
 				{
 					kind: 'agent',
 					parts: [{ kind: 'text', text: reply }],
+					took: 134_000,
 					usage: {
 						totalTokens: 150330,
 						inputTokens: 8,
@@ -208,6 +215,7 @@
 							]
 						}
 					],
+					took: 48_000,
 					usage: {
 						totalTokens: 79476,
 						inputTokens: 20224,
@@ -622,7 +630,11 @@
 		const heading = await canvas.findByText('Background tasks');
 		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
 		await userEvent.click(heading);
-		await userEvent.click(await canvas.findByRole('button', { name: /pnpm test/ }));
+		const stop = await canvas.findByRole('button', { name: 'Stop pnpm test' });
+		await expect(stop).toHaveTextContent(/^$/);
+		await userEvent.click(stop);
+		await expect(stopBackground).toHaveBeenCalledWith('stop-tests');
+		await userEvent.click(await canvas.findByRole('button', { name: /^pnpm test/ }));
 		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
 			'aria-expanded',
 			'true'
@@ -630,7 +642,7 @@
 		await waitFor(() =>
 			expect(
 				canvas
-					.getByRole('button', { name: /pnpm test/ })
+					.getByRole('button', { name: /^pnpm test/ })
 					.ownerDocument.activeElement?.closest('details')
 			).toHaveAttribute('open')
 		);
@@ -641,9 +653,10 @@
 			agent="codex"
 			withComposer
 			onopensubagent={openReviewer}
+			onstoptask={stopBackground}
 			background={[
-				{ type: 'tool_call', id: 'tests', toolCallId: 'tests' },
-				{ type: 'subagent', id: 'review' }
+				{ type: 'tool_call', id: 'tests', toolCallId: 'tests', stopId: 'stop-tests' },
+				{ type: 'subagent', id: 'review', stopId: 'stop-review' }
 			]}
 			blocks={[
 				{ kind: 'user', text: 'Run the tests and review the changes.' },

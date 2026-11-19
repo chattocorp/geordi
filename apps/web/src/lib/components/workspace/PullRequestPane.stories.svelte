@@ -2,9 +2,10 @@
 	import { expect } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest } from '@geordi/protocol';
-	import PullRequestPane from './PullRequestPane.svelte';
 	import PullHistory from './PullHistory.svelte';
-	import PullRequestTab from './PullRequestTab.svelte';
+	import PullHistoryTab from './PullHistoryTab.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Pull request', component: PullRequestPane });
 
@@ -32,10 +33,12 @@
 	<div class="w-96 sheet">
 		<div class="pane-bar px-2">
 			<span class="flex items-center gap-2 tab-active px-2 py-1"
-				><PullRequestTab pulls={[pull]} /></span
+				><PullHistoryTab pulls={[pull]} /></span
 			>
 		</div>
-		<PullRequestPane {pull} />
+		<PullRequestPane {pull}
+			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	</div>
 {/snippet}
 
@@ -78,8 +81,6 @@
 		const browser = canvas.getByRole('link', { name: 'Browser tests Running' });
 		await expect(browser).toBeVisible();
 		await expect(canvas.getAllByRole('listitem')[0]).toHaveTextContent('Unit tests');
-		await expect(canvas.getByText('Lint')).not.toBeVisible();
-		await userEvent.click(canvas.getByText('Other checks (3)'));
 		await expect(canvas.getByText('Lint')).toBeVisible();
 		await userEvent.click(summary);
 		await expect(browser).not.toBeVisible();
@@ -121,6 +122,38 @@
 	)}
 </Story>
 
+<Story
+	name="Many running checks"
+	asChild
+	play={async ({ canvas }) => {
+		const list = canvas.getByRole('region', { name: 'Checks' }).querySelector('ul')!;
+		await expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+		await expect(list.firstElementChild).toHaveTextContent(/\d+[smh]$/);
+		list.scrollTop = list.scrollHeight;
+		await expect(list.scrollTop).toBeGreaterThan(0);
+		list.scrollTop = 0;
+	}}
+>
+	{@render pane(
+		withPull({
+			checks: {
+				state: 'pending',
+				total: 37,
+				failed: 0,
+				url: pull.checks!.url,
+				counts: { passed: 4, failed: 0, pending: 33, skipped: 0 },
+				items: Array.from({ length: 37 }, (_, index) => ({
+					id: String(index),
+					name: `Integration tests (${index + 1}/37)`,
+					state: index < 33 ? 'pending' : 'success',
+					status: index < 33 ? 'in_progress' : 'success',
+					startedAt: Date.now() - (134 + index) * 1000
+				}))
+			}
+		})
+	)}
+</Story>
+
 <Story name="Draft, checks running" asChild>
 	{@render pane(
 		withPull({
@@ -149,8 +182,8 @@
 				body: 'Build report: https://example.test/' + 'a'.repeat(180),
 				checks: null,
 				review: null
-			})}
-		/>
+			})}>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	</div>
 </Story>
 
@@ -177,7 +210,7 @@
 	]}
 	<div class="w-96 sheet">
 		<div class="pane-bar px-2">
-			<span class="flex items-center gap-2 tab-active px-2 py-1"><PullRequestTab {pulls} /></span>
+			<span class="flex items-center gap-2 tab-active px-2 py-1"><PullHistoryTab {pulls} /></span>
 		</div>
 		<PullHistory {pulls} current={pull.url} />
 	</div>

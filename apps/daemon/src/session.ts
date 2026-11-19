@@ -1,6 +1,14 @@
+import {
+	gentleSignals,
+	prepareSessionsDirectory,
+	privateDirectory,
+	signalTree,
+	startedAt,
+	startTimes
+} from './session-process.ts';
 import { linesFrom } from './journal.ts';
 import { randomUUID } from 'node:crypto';
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
 	appendFileSync,
 	chmodSync,
@@ -12,7 +20,6 @@ import {
 	readFileSync,
 	renameSync,
 	rmSync,
-	statSync,
 	writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
@@ -46,6 +53,7 @@ export type Session = Meta & {
 	read(): void;
 	/** Stops the turn under way. The session goes on. */
 	stop(): void;
+	stopTask(stopId: string): void;
 	answer(id: string, answers: string[]): void;
 	/** Ends the session's CLI, to be started anew with the next thing said. */
 	close(): void;
@@ -78,18 +86,8 @@ const HOST = fileURLToPath(
 	new URL(import.meta.url.endsWith('.ts') ? './host.ts' : './host.js', import.meta.url)
 );
 
-/** When a process started, as `ps` puts it; `null` if there is no such process. */
-function startedAt(pid: number): string | null {
-	try {
-		const started = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore']
-		}).trim();
-		return started || null;
-	} catch {
-		return null;
-	}
-}
+const hostOf = (dir: string) =>
+	JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')) as { pid: number; started?: string };
 
 const alive = (pid: number) => {
 	try {
@@ -109,20 +107,24 @@ const alive = (pid: number) => {
  * and an event only counts as passed on (`offset`) once it could be sent. So a daemon that
  * goes away while the forge is away too loses nothing either.
  */
-function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
+function follow(
+	dir: string,
+	emit: Deliver,
+	ready: () => boolean,
+	/** When the host's process started, as asked once for all sessions; see `startTimes`. */
+	startOf: (pid: number) => string | null = startedAt
+): Session {
 	const file = (name: string) => join(dir, name);
 	const meta = JSON.parse(readFileSync(file('meta.json'), 'utf8')) as Meta & { generation: string };
-	const { pid, started } = JSON.parse(readFileSync(file('host.json'), 'utf8')) as {
-		pid: number;
-		started?: string;
-	};
+	const { pid, started } = hostOf(dir);
 	// Process IDs are reused, after a reboot at the latest: the process is only ours if it
 	// also started when ours did. Never signal, or wait for, somebody else's.
-	const ours = pid > 1 && startedAt(pid) === started;
+	const ours = !!started && startOf(pid) === started;
 	const running = () => ours && alive(pid);
 	const signal = (name: NodeJS.Signals) => {
 		try {
-			if (running()) process.kill(-pid, name); // the whole group: the host, the CLI and what it started
+			// asked again: the ID may have been someone else's since
+			if (running() && startedAt(pid) === started) signalTree(pid, name); // the whole group: the host, the CLI and what it started
 		} catch {
 			// already gone
 		}
@@ -244,15 +246,18 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 			expecting = true;
 			writeFileSync(file('expecting'), '');
 		},
+		stopTask: (stopId) => tell({ type: 'stopTask', stopId }),
 		stop: () => tell({ type: 'interrupt' }),
 		close: () => tell({ type: 'close' }),
 		answer: (id, answers) => tell({ type: 'answer', id, answers }),
 		kill() {
 			if (finished) return;
 			writeFileSync(file('stopped'), '');
+			// On Windows this is forced at once: the host notes nothing, `poll` reports the turn
+			// as stopped, and what it had not read yet goes with it, as stopping means.
 			signal('SIGTERM');
 			// what won't end is ended
-			setTimeout(() => !finished && signal('SIGKILL'), KILL_AFTER_MS).unref();
+			if (gentleSignals) setTimeout(() => !finished && signal('SIGKILL'), KILL_AFTER_MS).unref();
 		},
 		detach: () => finish(),
 		live: () => live,
@@ -309,8 +314,9 @@ export function startSession(
 		throw new Error(`Failed to start ${meta.agent}`);
 	}
 	child.unref();
-	writeFileSync(file('host.json'), JSON.stringify({ pid, started: startedAt(pid) ?? undefined }));
-	return follow(dir, emit, ready);
+	const started = startedAt(pid);
+	writeFileSync(file('host.json'), JSON.stringify({ pid, started: started ?? undefined }));
+	return follow(dir, emit, ready, () => started);
 }
 
 /**
@@ -326,14 +332,28 @@ export function resumeSessions(
 	if (!existsSync(sessionsDir)) return sessions;
 	// Session directories name processes to signal and hold output we pass on as the agent's:
 	// only trust a directory that nobody else could have written to.
-	const { uid, mode } = statSync(sessionsDir);
-	if (uid !== process.getuid?.() || mode & 0o022)
-		throw new Error(`${sessionsDir} must belong to you and not be writable by others`);
+	prepareSessionsDirectory(sessionsDir);
 
-	for (const workspaceId of readdirSync(sessionsDir)) {
+	// only directories are sessions: the daemon keeps files of its own here (`.daemon.sqlite`)
+	const dirs = readdirSync(sessionsDir, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+		.map((entry) => entry.name);
+	const pids = dirs.flatMap((workspaceId) => {
+		try {
+			return [hostOf(join(sessionsDir, workspaceId)).pid];
+		} catch {
+			return [];
+		}
+	});
+	// one question for all of them: on Windows, each costs a PowerShell
+	const times = startTimes(pids);
+	for (const workspaceId of dirs) {
 		const dir = join(sessionsDir, workspaceId);
 		try {
-			sessions.set(workspaceId, follow(dir, emitFor(workspaceId), ready));
+			sessions.set(
+				workspaceId,
+				follow(dir, emitFor(workspaceId), ready, (pid) => times.get(pid) ?? null)
+			);
 		} catch {
 			rmSync(dir, { recursive: true, force: true }); // not a session we can make sense of
 		}
@@ -348,13 +368,12 @@ export function resumeSessions(
 export function endLegacyTurns(turnsDir: string) {
 	if (!existsSync(turnsDir)) return;
 	// It names processes to signal: only one that nobody else could have written to is trusted.
-	const { uid, mode } = statSync(turnsDir);
-	if (uid !== process.getuid?.() || mode & 0o022) return;
+	if (!privateDirectory(turnsDir)) return;
 	for (const name of readdirSync(turnsDir)) {
 		try {
 			const meta = JSON.parse(readFileSync(join(turnsDir, name, 'meta.json'), 'utf8'));
 			const { pid, started } = meta as { pid: number; started?: string };
-			if (pid > 1 && startedAt(pid) === started) process.kill(-pid, 'SIGTERM');
+			if (started && startedAt(pid) === started) signalTree(pid, 'SIGTERM');
 		} catch {
 			// nothing there to end
 		}

@@ -5,16 +5,24 @@
 	"scripts": {
 		"dev": "astro dev",
 		"build": "astro build",
+		"test": "astro build && node --test tests/demo.test.mjs",
 		"preview": "astro preview",
-		"check": "astro check",
+		"og": "node scripts/og.mjs",
+		"check": "astro check && svelte-check --tsconfig ./tsconfig.json",
 		"deploy": "astro build && wrangler deploy"
 	},
 	"devDependencies": {
 		"@astrojs/check": "^0.9.4",
+		"@astrojs/svelte": "^9.1.6",
+		"@geordi/protocol": "workspace:*",
+		"@geordi/ui": "workspace:*",
 		"@iconify-json/lucide": "^1.2.154",
 		"@iconify/tailwind4": "^1.2.3",
 		"@tailwindcss/vite": "^4.3.0",
 		"astro": "7.4.12",
+		"playwright": "catalog:",
+		"svelte": "^5.57.2",
+		"svelte-check": "^4.6.0",
 		"tailwindcss": "^4.3.0",
 		"typescript": "catalog:",
 		"wrangler": "4.157.0"

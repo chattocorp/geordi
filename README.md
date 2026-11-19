@@ -39,9 +39,12 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
 
 ## Install
 
-Download the desktop app for macOS (Apple silicon) or Windows from the
+Download the desktop app for macOS (Apple silicon), Windows or Linux (x64) from the
 [latest release](https://github.com/chattocorp/geordi/releases/latest). On macOS, open the
-disk image and drag Geordi to Applications. On Windows, extract the ZIP and open Geordi.
+disk image and drag Geordi to Applications. On Windows, extract the ZIP and open Geordi. On
+Debian or Ubuntu, install the `.deb` (`sudo apt install ./Geordi-….deb`) and run `geordi`.
+For a portable Linux download, make the AppImage executable (`chmod +x Geordi-*.AppImage`)
+and run it, or extract the tarball and run `geordi` in it.
 The app runs everything Geordi needs and keeps its data in `~/.geordi`.
 
 On macOS, open **Settings → About** to check for updates, choose the Stable or Beta channel,
@@ -98,3 +101,7 @@ See [Configuration](docs/configuration.md) for everything it can say.
 - [Contributing](CONTRIBUTING.md): developing Geordi
 - [Architecture decisions](docs/adr/INDEX.md) and [feature decisions](docs/fdr/INDEX.md)
 - [Backlog](planning/), managed with [means](https://github.com/hmans/means)
+
+## License
+
+Copyright 2026 ChattoCorp GmbH. Geordi is licensed under the [Apache License, Version 2.0](LICENSE).

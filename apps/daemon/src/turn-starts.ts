@@ -7,14 +7,17 @@ import {
 	verifyLinks,
 	worktreePath
 } from './worktree.ts';
+import { projectPath, ensureProject } from './projects.ts';
 import type { Meta } from './host.ts';
 import type { Session, Said } from './session.ts';
 
 type Message = Extract<ForgeMessage, { type: 'agent.message' }>;
+type WorktreeMessage = Exclude<Message, { project: true }>;
 type Worktree = Awaited<ReturnType<typeof ensureWorktree>>;
 
 export function turnStarts({
 	worktreesDir,
+	projectsDir,
 	sessions,
 	setups,
 	apiUrl,
@@ -24,17 +27,19 @@ export function turnStarts({
 	emitFor
 }: {
 	worktreesDir: string;
+	/** Where projects' folders are (FDR-012). */
+	projectsDir: string;
 	sessions: ReadonlyMap<string, Session>;
 	setups: Map<string, Promise<string | null>>;
 	apiUrl: string;
-	prepared(worktree: Worktree, message: Message): void;
-	configFor(worktree: Worktree, message: Message): Promise<{ env: Record<string, string> }>;
+	prepared(worktree: Worktree, message: WorktreeMessage): void;
+	configFor(worktree: Worktree, message: WorktreeMessage): Promise<{ env: Record<string, string> }>;
 	begin(id: string, meta: Meta, heard: Said[]): void;
 	emitFor(id: string): (event: AgentEvent) => void;
 }) {
 	const beginning = new Map<string, { cwd: string; heard: Said[]; stop(): void }>();
 	async function startMessage(message: Message) {
-		const { workspaceId, worktreeId, agent, repoPath, base, settings } = message;
+		const { workspaceId, worktreeId, agent, settings } = message;
 		const emit = emitFor(workspaceId);
 		const said: Said = {
 			prompt: message.prompt,
@@ -50,7 +55,10 @@ export function turnStarts({
 		}
 		const heard = [said];
 		const stopped = Promise.withResolvers<never>();
-		const cwd = worktreePath(worktreesDir, repoPath, worktreeId);
+		const cwd =
+			'project' in message
+				? projectPath(projectsDir, worktreeId)
+				: worktreePath(worktreesDir, message.repoPath, worktreeId);
 		let canceled = false;
 		function checkStop() {
 			if (canceled) throw new Error('Stopped');
@@ -95,8 +103,13 @@ export function turnStarts({
 					return null;
 				}
 
+				// A project works in a folder of its own, which is all there is to make for it.
+				if ('project' in message)
+					return { path: ensureProject(projectsDir, worktreeId), project: true as const };
+
 				// A workspace of its own starts from where its upstream stands now. (One started
 				// by an agent starts from that agent's branch, which is here already.)
+				const { repoPath, base } = message;
 				if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
 					const problem = await Promise.race([stopped.promise, fetchUpstream(repoPath)]);
 					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
@@ -117,6 +130,7 @@ export function turnStarts({
 			});
 			const worktree = await Promise.race([stopped.promise, prepare]);
 			if (!worktree) return;
+			const project = 'project' in worktree;
 
 			// The agent starts once the directory is set up, and hears how that went. Stopped
 			// meanwhile, the turn ends; the setup goes on, for the next one to wait for.
@@ -134,14 +148,18 @@ export function turnStarts({
 					dir: '', // `begin` knows where
 					resumeId: message.resumeId,
 					settings,
-					env: (await configFor(worktree, message)).env,
+					// a project has no repository, and so no ports or jobs of one
+					env:
+						'project' in worktree || 'project' in message
+							? {}
+							: (await configFor(worktree, message)).env,
 					instructions: message.instructions,
 					cwd: worktree.path,
-					writableRoots: worktree.writableRoots,
+					writableRoots: project ? [] : worktree.writableRoots,
 					api: { url: apiUrl }
 				};
 				checkStop();
-				verifyLinks(worktree);
+				if (!project) verifyLinks(worktree);
 				begin(workspaceId, { agent, options, apiToken: message.apiToken }, heard);
 			});
 			await Promise.race([stopped.promise, launch]);

@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Select from './Select.svelte';
-	import { repoShortcut } from '#lib/keys.ts';
+	import { pressed } from '@geordi/ui/keys';
 
 	const { Story } = defineMeta({ title: 'UI/Select', component: Select });
 
@@ -53,5 +53,10 @@
 </Story>
 
 <Story name="Opened with Ctrl or Cmd Shift N" asChild>
-	<Select label="Size" options={sizes} bind:value={size} shortcut={repoShortcut} />
+	<Select
+		label="Size"
+		options={sizes}
+		bind:value={size}
+		shortcut={(event) => pressed(event, 'newWorkspaceIn')}
+	/>
 </Story>

@@ -6,6 +6,7 @@ export const isLive = (event: HostEvent): event is LiveEvent =>
 	event.kind === 'background' ||
 	event.kind === 'usage' ||
 	event.kind === 'commands' ||
+	event.kind === 'limits' ||
 	event.kind === 'suggestion';
 
 /** What a live event says, as the part of the session's live state that it changes. */
@@ -17,6 +18,8 @@ export function liveOf(event: LiveEvent): AgentLive {
 			return { usage: event.usage };
 		case 'commands':
 			return { commands: event.commands };
+		case 'limits':
+			return { limits: event.limits };
 		case 'suggestion':
 			return { suggestion: event.text };
 	}

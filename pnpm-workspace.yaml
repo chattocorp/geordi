@@ -4,6 +4,7 @@ packages:
 
 engineStrict: true
 allowBuilds:
+  '@parcel/watcher': true
   esbuild: true
   electron: true
   electron-winstaller: false
@@ -11,11 +12,14 @@ allowBuilds:
   workerd: false
 
 catalog:
+  '@pierre/diffs': ^1.6.4
   '@types/node': ^24
+  playwright: ^1.65.0
   typescript: ^6.0.3
   vitest: ^4.1.8
   '@vitest/browser-playwright': ^4.1.8
 patchedDependencies:
+  '@agentclientprotocol/codex-acp@2.7.0': patches/@agentclientprotocol__codex-acp@2.7.0.patch
   forges@0.3.2: patches/forges@0.3.2.patch
 # The agents' own programs (some 300 MB each): Geordi runs the ones people have installed.
 ignoredOptionalDependencies:
