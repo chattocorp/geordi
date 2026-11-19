@@ -283,7 +283,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const repo = canvas.getByRole('link', { name: 'sample-project', exact: true });
+		const repo = canvas.getByRole('link', { name: 'sample-project' });
 		await expect(repo).toHaveAttribute('href', '/repos/sample');
 		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse sample-project' }));
 		await expect(repo).toBeVisible();

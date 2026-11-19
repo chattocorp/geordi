@@ -422,7 +422,15 @@ async function readRepositoryThreads(
 		const url = thread.url || provider.urlFor({ thread: thread.ref });
 		if (!url || !/^https?:\/\//i.test(url))
 			throw new Error('The forge returned an invalid thread URL.');
-		return { number, title, draft, review, url };
+		return {
+			number,
+			title,
+			draft,
+			review,
+			url,
+			author: thread.author?.login,
+			updatedAt: listed.updatedAt?.toISOString()
+		};
 	});
 	let next: string | undefined;
 	if (page.cursor) {

@@ -10,6 +10,8 @@
 		number: '42',
 		title: 'Keep the last terminal row visible',
 		url: 'https://github.com/acme/forge/issues/42',
+		author: 'alex',
+		updatedAt: '2026-11-19T08:00:00Z',
 		draft: false,
 		review: null
 	};
@@ -48,3 +50,22 @@
 	}}
 />
 <Story name="No open issues" args={{ repo: 'forge', issues: true, items: [], workspaces: [] }} />
+
+<Story
+	name="Issue cards"
+	args={{
+		repo: 'forge',
+		issues: true,
+		workspaces: [],
+		items: [
+			issue,
+			{
+				...issue,
+				number: '51',
+				title: 'Restore the focused terminal when returning to a workspace',
+				url: 'https://github.com/acme/forge/issues/51',
+				author: 'sam'
+			}
+		]
+	}}
+/>

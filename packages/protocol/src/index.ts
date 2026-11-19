@@ -541,6 +541,8 @@ export type FileMatch = { path: string; indices: number[] };
 
 export type RepositoryThread = Pick<PullRequest, 'number' | 'title' | 'review' | 'draft'> & {
 	url: string;
+	author?: string;
+	updatedAt?: string;
 };
 
 export type DaemonResults = {

@@ -22,18 +22,21 @@
 	const issuesHref = $derived(base + '?tab=issues');
 </script>
 
-<Page title={data.name}>
-	<nav aria-label="Repository" class="flex items-center gap-1">
+<Page title={data.name} wide>
+	<nav
+		aria-label="Repository"
+		class="inline-flex items-center gap-1 self-start rounded-control bg-sunken p-1"
+	>
 		<a
 			href={resolve('/repos/[id]', { id: data.id })}
 			aria-current={!issues ? 'page' : undefined}
-			class={['item px-3 py-1.5', !issues && 'tab-active']}>Pull requests</a
+			class={['item px-3 py-1.5 font-medium', !issues && 'item-active']}>Pull requests</a
 		>
 		<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved repository route plus the tab -->
 		<a
 			href={issuesHref}
 			aria-current={issues ? 'page' : undefined}
-			class={['item px-3 py-1.5', issues && 'tab-active']}>Issues</a
+			class={['item px-3 py-1.5 font-medium', issues && 'item-active']}>Issues</a
 		>
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	</nav>
