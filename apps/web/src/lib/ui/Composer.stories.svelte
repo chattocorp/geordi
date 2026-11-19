@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { tick } from 'svelte';
 	import { expect } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Button from './Button.svelte';
@@ -8,6 +9,16 @@
 	const { Story } = defineMeta({ title: 'UI/Composer', component: Composer });
 
 	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
+
+	let pending = $state(false);
+	const replyForm = {
+		async onsubmit(event: SubmitEvent) {
+			event.preventDefault();
+			pending = true;
+			await tick();
+			pending = false;
+		}
+	};
 
 	const commands = [
 		{ text: '/review', description: 'Review uncommitted changes', hint: 'optional instructions' },
@@ -58,9 +69,20 @@
 	</div>
 </Story>
 
-<Story name="Reply" asChild>
+<Story
+	name="Reply"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const text = canvas.getByRole('textbox');
+		await expect(text).toHaveFocus();
+		await userEvent.keyboard('First reply{Enter}');
+		await expect(text).toHaveFocus();
+		await userEvent.click(canvas.getByRole('button', { name: 'Send' }));
+		await expect(text).toHaveFocus();
+	}}
+>
 	<div class="max-w-2xl">
-		<Composer {form} rows={2} placeholder="Reply to the agent">
+		<Composer form={replyForm} focused disabled={pending} rows={2} placeholder="Reply to the agent">
 			{#snippet footer()}
 				<p class="pl-1 text-xs text-muted">Enter to send, Shift+Enter for a new line</p>
 				<Button

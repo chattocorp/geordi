@@ -127,6 +127,7 @@
 				<MessageComposer
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
+					focused
 					disabled={form.pending > 0}
 					{form}
 					live={running && !waiting}
