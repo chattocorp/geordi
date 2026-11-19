@@ -630,6 +630,8 @@
 		const heading = await canvas.findByText('Background tasks');
 		await expect(canvas.queryByRole('img', { name: 'Running' })).toBeNull();
 		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
+		await userEvent.hover(heading);
+		await expect(heading.closest('summary')).toHaveStyle('background-color: rgba(0, 0, 0, 0)');
 		await userEvent.click(heading);
 		await expect(await canvas.findByText('pnpm dev', { exact: true })).toBeVisible();
 		const testTask = await canvas.findByRole('button', { name: 'pnpm test Terminal' });

@@ -58,7 +58,7 @@
 		class="@container mx-1 rounded-card bg-sidebar px-2 pt-1 ring-1 ring-line/60 {withComposer
 			? 'pb-4'
 			: 'pb-1'}"
-		summaryClass="min-h-9 w-full px-2 text-sm hover:bg-hover focus-visible:outline-offset-0"
+		summaryClass="min-h-9 w-full px-2 text-sm focus-visible:outline-offset-0"
 	>
 		{#snippet heading()}
 			<span class="shrink-0 font-semibold">Background tasks</span>
