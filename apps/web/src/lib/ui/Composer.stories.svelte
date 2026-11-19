@@ -515,13 +515,19 @@
 		const text = canvas.getByRole('combobox');
 		const pending = Promise.withResolvers<{ path: string; indices: number[] }[]>();
 		sentSuggestion.mockClear();
-		await userEvent.type(text, '@a');
+		slowFiles.mockClear();
+		await userEvent.type(text, '@');
+		await new Promise((resolve) => setTimeout(resolve, 550));
+		await expect(slowFiles).not.toHaveBeenCalled();
+		await expect(text).toHaveAttribute('aria-expanded', 'false');
+		await userEvent.type(text, 'a', { skipClick: true });
 		const first = await canvas.findByRole('option', { name: 'a.ts' });
 		slowFiles.mockImplementationOnce(() => pending.promise);
 		try {
 			await userEvent.type(text, 'b');
 			await expect(first).toBeVisible();
 			await expect(first).toHaveAttribute('aria-disabled', 'true');
+			await expect(first.querySelector('.icon-\\[lucide--corner-down-left\\]')).toBeVisible();
 			await userEvent.click(first);
 			await expect(text).toHaveValue('@ab');
 			await userEvent.keyboard('{Enter}');
