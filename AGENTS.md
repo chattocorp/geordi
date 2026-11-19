@@ -214,7 +214,8 @@ it, perhaps you.
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `frame`, `sidebar`,
     `surface`, `sunken`, `bubble`, `ink`, `muted`, `line`, `accent`, `accent-soft`,
     `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
-    mode, four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
+    mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
+    it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.

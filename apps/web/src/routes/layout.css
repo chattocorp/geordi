@@ -143,6 +143,12 @@
 	--color-on-ok: var(--on-ok);
 	--color-claude: var(--claude);
 	--color-codex: var(--codex);
+	/*
+	 * Relative colours: tints of the ink, see-through, so that they show on whatever is
+	 * behind them (a sheet, a card, a row that is itself hovered) in both modes. `hover` is
+	 * the wash under something the pointer is on.
+	 */
+	--color-hover: color-mix(in oklab, var(--ink) 9%, transparent);
 
 	--shadow-soft: var(--shadow);
 	--shadow-float: var(--shadow-lg);

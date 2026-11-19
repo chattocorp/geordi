@@ -61,7 +61,7 @@
 					rel={check.url ? 'noreferrer' : undefined}
 					class={[
 						'group/row flex items-center gap-2 rounded-control px-2 py-1.5',
-						check.url && 'hover:bg-sunken'
+						check.url && 'hover:bg-hover'
 					]}
 				>
 					<span aria-hidden="true" class={['size-4 shrink-0', states[check.state].icon]}></span>
@@ -85,7 +85,7 @@
 				type="button"
 				aria-expanded={show}
 				onclick={() => (expanded = !show)}
-				class="flex min-w-0 flex-1 items-center gap-2 rounded-control px-2 py-1 text-left hover:bg-sunken"
+				class="flex min-w-0 flex-1 items-center gap-2 rounded-control px-2 py-1 text-left hover:bg-hover"
 			>
 				<span
 					aria-hidden="true"
@@ -105,7 +105,7 @@
 				rel="noreferrer"
 				aria-label="Open checks on forge"
 				title="Open checks on forge"
-				class="flex rounded-control p-1.5 text-muted hover:bg-sunken hover:text-ink"
+				class="flex rounded-control p-1.5 text-muted hover:bg-hover hover:text-ink"
 				><span class="icon-[lucide--external-link] size-4"></span></a
 			>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
@@ -127,7 +127,7 @@
 		{#if active.length}
 			{@render rows(active)}
 			{#if remaining.length}
-				<Disclosure summaryClass="px-2 py-1.5 text-xs text-muted hover:bg-sunken">
+				<Disclosure summaryClass="px-2 py-1.5 text-xs text-muted hover:bg-hover">
 					{#snippet heading()}Other checks ({remaining.length}){/snippet}
 					{@render rows(remaining)}
 				</Disclosure>

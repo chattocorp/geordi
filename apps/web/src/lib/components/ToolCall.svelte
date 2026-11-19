@@ -45,7 +45,7 @@
 	}
 </script>
 
-<Disclosure bind:open summaryClass="px-3.5 py-2 text-sm hover:bg-sunken/70">
+<Disclosure bind:open summaryClass="px-3.5 py-2 text-sm hover:bg-hover">
 	{#snippet heading()}
 		<span
 			class={[
