@@ -261,10 +261,6 @@
 /* A row you can pick: navigation links, tabs. Add `item-active` to the current one. */
 @utility item {
 	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-surface/60 hover:text-ink;
-	/* the fonts are variable: a row that turns bold (unread, current) gets there smoothly */
-	@media (prefers-reduced-motion: no-preference) {
-		transition: font-weight 150ms ease;
-	}
 }
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
