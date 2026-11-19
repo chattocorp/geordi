@@ -11,7 +11,7 @@
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import { inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
-	import { hint, pressed } from '#lib/keys.ts';
+	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';

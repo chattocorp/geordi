@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Select from './Select.svelte';
-	import { pressed } from '#lib/keys.ts';
+	import { pressed } from '@geordi/ui/keys';
 
 	const { Story } = defineMeta({ title: 'UI/Select', component: Select });
 

@@ -3,7 +3,8 @@
 	import { expect, fn } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Button from '@geordi/ui/Button.svelte';
-	import Composer from './Composer.svelte';
+	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
+	import Composer from '@geordi/ui/Composer.svelte';
 	import Select from './Select.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Composer', component: Composer });
@@ -20,6 +21,14 @@
 		}
 	};
 
+	const sentMode = fn<(mode: string) => void>();
+	const stop = fn();
+	const workingForm = {
+		onsubmit(event: SubmitEvent) {
+			event.preventDefault();
+			sentMode((event.submitter as HTMLButtonElement).value);
+		}
+	};
 	const sentSuggestion = fn<(message: string) => void>();
 	const suggestionForm = {
 		onsubmit(event: SubmitEvent) {
@@ -94,36 +103,29 @@
 	}}
 >
 	<div class="max-w-2xl">
-		<Composer form={replyForm} focused disabled={pending} rows={2} placeholder="Reply to the agent">
-			{#snippet footer()}
-				<p class="pl-1 text-xs text-muted">Enter to send, Shift+Enter for a new line</p>
-				<Button
-					type="submit"
-					variant="primary"
-					icon="icon-[lucide--arrow-up]"
-					label="Send"
-					class="ml-auto"
-				/>
-			{/snippet}
-		</Composer>
+		<ReplyComposer form={replyForm} focused disabled={pending} onstop={() => {}} />
 	</div>
 </Story>
 
-<Story name="While the agent works" asChild>
-	<div class="max-w-2xl">
-		<Composer {form} live rows={2} placeholder="Steer the agent, or queue a message">
-			{#snippet footer()}
-				<p class="pl-1 text-xs text-muted">Enter to steer, ⌘Enter to queue</p>
-				<div class="ml-auto flex items-center gap-2">
-					<Button icon="icon-[lucide--square]" label="Stop the agent" />
-					<Button type="submit" icon="icon-[lucide--list-plus]">Queue</Button>
-					<Button type="submit" variant="primary" icon="icon-[lucide--corner-down-right]">
-						Steer
-					</Button>
-				</div>
-			{/snippet}
-		</Composer>
-	</div>
+<Story
+	name="While the agent works"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		sentMode.mockClear();
+		const text = canvas.getByRole('textbox');
+		await userEvent.type(text, 'Check the tests{Enter}');
+		await expect(sentMode).toHaveBeenLastCalledWith('steer');
+		await userEvent.keyboard(
+			/Mac|iPhone|iPad/.test(navigator.platform)
+				? '{Meta>}{Enter}{/Meta}'
+				: '{Control>}{Enter}{/Control}'
+		);
+		await expect(sentMode).toHaveBeenLastCalledWith('queue');
+		await userEvent.click(canvas.getByRole('button', { name: 'Stop the agent' }));
+		await expect(stop).toHaveBeenCalled();
+	}}
+>
+	<div class="max-w-2xl"><ReplyComposer running form={workingForm} onstop={stop} /></div>
 </Story>
 
 <Story name="While the agent works, tall prompt" args={{ live: true }}>

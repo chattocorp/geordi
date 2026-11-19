@@ -49,15 +49,3 @@ html {
 		transform: translateY(4px);
 	}
 }
-
-/* The text cursor of the demo's reply box, while it is being written in. */
-[data-typing]::after {
-	content: '';
-	@apply ml-px inline-block h-4 w-0.5 translate-y-0.5 bg-ink;
-	animation: blink 1s steps(1) infinite;
-}
-@keyframes blink {
-	50% {
-		opacity: 0;
-	}
-}

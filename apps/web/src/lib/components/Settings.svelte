@@ -6,7 +6,7 @@
 	import Logo from './Logo.svelte';
 	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
-	import { hint, shortcutGroups } from '#lib/keys.ts';
+	import { hint, shortcutGroups } from '@geordi/ui/keys';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';

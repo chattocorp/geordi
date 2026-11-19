@@ -13,7 +13,7 @@
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
 	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
-	import { hint } from '#lib/keys.ts';
+	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';

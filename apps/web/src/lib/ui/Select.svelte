@@ -10,7 +10,7 @@
 <script lang="ts" generics="T extends string">
 	import { tick, type Snippet } from 'svelte';
 	import { fuzzyFilter, fuzzySegments } from '#lib/fuzzy.ts';
-	import { composerText } from './Composer.svelte';
+	import { composerText } from '@geordi/ui/Composer.svelte';
 
 	type Option = SelectOption<T>;
 	type Props = {

@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import type { Changes, Upstream } from '@geordi/protocol';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
+	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
+	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import AgentText from '@geordi/ui/AgentText.svelte';
@@ -15,7 +17,45 @@
 
 	import { files, hold, last, message, others, tools } from './demo.ts';
 	let step = $state(last);
-	let typed = $state(0);
+	let draft = $state('');
+	let editing = false;
+	let hydrated = $state(false);
+	let stopped = $state(false);
+	const running = $derived(step >= 1 && step < 7 && !stopped);
+	let firstMessage = $state(message);
+	let replies = $state<string[]>([]);
+	let queue = $state<string[]>([]);
+	let transcript: HTMLDivElement;
+	function submitReply(event: SubmitEvent) {
+		event.preventDefault();
+		const text = draft.trim();
+		if (!text) return;
+		if (step === 0) {
+			firstMessage = text;
+			go(1);
+		} else {
+			const queued = running && (event.submitter as HTMLButtonElement | null)?.value === 'queue';
+			if (queued) queue.push(text);
+			else replies.push(text);
+			stopped = false;
+		}
+		draft = '';
+		editing = false;
+		schedule();
+		void tick().then(() => {
+			transcript.scrollTop = transcript.scrollHeight;
+		});
+	}
+	function deliverQueued() {
+		replies.push(...queue);
+		queue = [];
+	}
+	function stopDemo() {
+		deliverQueued();
+		stopped = true;
+		clearTimeout(timer);
+	}
+
 	let playing = $state(false);
 	const replyStart = 'People now return to the page they asked for. The sign-in form carries it as';
 	const replyEnd = ', and only paths on this site are accepted. Tests pass.';
@@ -88,22 +128,38 @@
 
 	function schedule() {
 		clearTimeout(timer);
-		if (!playing || !visible || activityOpen || pullInfo?.open) return;
-		if (step === 0 && typed < message.length) {
+		if (
+			!playing ||
+			!visible ||
+			editing ||
+			stopped ||
+			activityOpen ||
+			pullInfo?.open ||
+			(step === last && replies.length)
+		)
+			return;
+		if (step === 0 && draft.length < message.length) {
 			timer = setTimeout(
 				() => {
-					typed++;
+					draft = message.slice(0, draft.length + 1);
 					schedule();
 				},
-				typed === 0 ? 700 : 24
+				draft.length === 0 ? 700 : 24
 			);
 		} else timer = setTimeout(() => go(step === last ? 0 : step + 1), hold[step]);
 	}
 	function go(next: number) {
+		if (running && next >= 7) deliverQueued();
+		if (step === 0) draft = '';
 		step = next;
 		activityOpen = false;
 		if (step === 0) {
-			typed = 0;
+			draft = '';
+			editing = false;
+			stopped = false;
+			replies = [];
+			queue = [];
+			firstMessage = message;
 			selected = null;
 		}
 		schedule();
@@ -115,11 +171,15 @@
 	}
 
 	onMount(() => {
+		hydrated = true;
 		const motion = matchMedia('(prefers-reduced-motion: reduce)');
 		function updateMotion() {
 			if (pullInfo.open) pullInfo.close();
 			playing = !motion.matches;
 			selected = null;
+			editing = false;
+			draft = '';
+			stopped = false;
 			go(playing ? 0 : last);
 		}
 		updateMotion();
@@ -199,7 +259,7 @@
 								<WorkspaceRow
 									title="Return people after sign-in"
 									current
-									working={step < 7}
+									working={running}
 									{standing}
 									{actions}
 									onaction={playing && step >= 7 ? act : undefined}
@@ -234,12 +294,12 @@
 					Claude
 				</p>
 			</div>
-			<div class="scroller flex min-h-0 flex-1 flex-col gap-4 px-5 pb-4">
+			<div bind:this={transcript} class="scroller flex min-h-0 flex-1 flex-col gap-4 px-5 pb-4">
 				{#if step === 0}<p class="m-auto max-w-xs text-center text-sm text-balance text-muted">
 						Say what you want done.
 					</p>
 				{:else}
-					<div class="mt-auto pt-4"><UserMessage text={message} /></div>
+					<div class="mt-auto pt-4"><UserMessage text={firstMessage} /></div>
 					<AgentMessage agent="claude">
 						{#if step >= 7}
 							<TurnActivity
@@ -253,9 +313,9 @@
 						{/if}
 						{#if calls.length && (step < 7 || activityOpen)}<ToolGroup
 								tools={calls}
-								live={step < 7}
+								live={running}
 							/>{/if}
-						{#if step === 1}<p class="flex h-7 items-center gap-2 text-xs text-muted">
+						{#if step === 1 && running}<p class="flex h-7 items-center gap-2 text-xs text-muted">
 								<Spinner /> Working
 							</p>{/if}
 						{#if step >= 7}
@@ -268,37 +328,50 @@
 								#412
 							</p>{/if}
 					</AgentMessage>
+					{#if stopped}<p class="text-xs text-muted" role="status">Agent stopped</p>{/if}
+					{#each replies as text, index (index)}<UserMessage {text} />{/each}
+					{#each queue as text, index (index)}
+						<div class="ml-auto message ring-1 ring-line">
+							<p class="label">Queued</p>
+							<p class="whitespace-pre-wrap">{text}</p>
+						</div>
+					{/each}
 				{/if}
 			</div>
-			<!-- the reply box: a light goes round its edge while the agent works -->
-			<div
-				class="edge-live m-3 mt-0 card-float pt-2"
-				data-live={step >= 1 && step < 7 ? true : undefined}
-			>
-				<p
-					class="min-h-13 px-4 py-1"
-					data-typing={step === 0 && typed < message.length ? true : undefined}
-					aria-hidden="true"
-					hidden={step !== 0}
+			<div class="mx-3 mb-3">
+				<ReplyComposer
+					bind:value={draft}
+					disabled={!hydrated}
+					{running}
+					empty={step === 0}
+					form={{
+						onsubmit: submitReply,
+						onfocusin: () => {
+							if (step === 0) {
+								editing = true;
+								clearTimeout(timer);
+							}
+						},
+						oninput: () => {
+							editing = true;
+							clearTimeout(timer);
+						},
+						onfocusout: (event) => {
+							if (
+								!event.currentTarget.contains(event.relatedTarget as Node | null) &&
+								(step === 0 ? message.startsWith(draft) : !draft)
+							) {
+								editing = false;
+								schedule();
+							}
+						}
+					}}
+					onstop={stopDemo}
 				>
-					{message.slice(0, typed)}
-				</p>
-				<p class="min-h-13 px-4 py-1 text-muted/70" hidden={step === 0}>Reply to Claude</p>
-				<div class="flex items-center gap-1 px-3 pb-3 text-sm text-muted">
-					<span class="flex h-7 items-center gap-1.5 px-1.5">
-						<span class="icon-[lucide--sparkles] size-3.5 text-claude"></span>
-						Claude
-					</span>
-					<span class="hidden h-7 items-center gap-1.5 px-1.5 sm:flex">
-						<span class="icon-[lucide--shield] size-3.5"></span>
-						Auto Mode
-					</span>
-					<span
-						class="ml-auto grid size-8 place-items-center rounded-full bg-accent text-on-accent"
-					>
-						<span class="icon-[lucide--arrow-up] size-4"></span>
-					</span>
-				</div>
+					{#snippet options()}<span class="inline-flex items-center gap-1.5 text-sm text-muted"
+							><AgentAvatar agent="claude" bare />Claude</span
+						>{/snippet}
+				</ReplyComposer>
 			</div>
 		</section>
 
@@ -350,7 +423,9 @@
 </figure>
 
 <p class="mt-3 flex items-center gap-3 px-1 text-sm text-muted">
-	<span class="mr-auto"> Follow a fix from the first message to a merged pull request. </span>
+	<span class="mr-auto">
+		Follow a fix from the first message to a merged pull request. Replies stay in this demo.
+	</span>
 	<button
 		type="button"
 		hidden={!playing}

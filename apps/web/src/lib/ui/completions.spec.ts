@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { completionQuery, matching } from './completions.ts';
+import { completionQuery, matching } from '@geordi/ui/completions';
 
 describe('completions', () => {
 	it('are asked for by a slash and a word at the start, and nothing else', () => {

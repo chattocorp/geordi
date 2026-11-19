@@ -10,7 +10,7 @@
 		type WorkspaceAction,
 		type WorkspaceStanding
 	} from '@geordi/ui/actions';
-	import { hint, pressed } from '#lib/keys.ts';
+	import { hint, pressed } from '@geordi/ui/keys';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks } from '#lib/transcript.ts';

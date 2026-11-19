@@ -4,7 +4,7 @@
 	import { subagentBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '@geordi/ui/Button.svelte';
-	import Composer from '#lib/ui/Composer.svelte';
+	import Composer from '@geordi/ui/Composer.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
