@@ -196,15 +196,10 @@
 		onopen: fn()
 	}}
 	play={async ({ canvas, userEvent, args }) => {
-		const group = canvas.getByTitle('apps/frontend/messages/');
-		await expect(group).toHaveAttribute('aria-expanded', 'false');
-		await expect(canvas.getAllByRole('button')).toHaveLength(4);
-		await userEvent.click(group);
-		await expect(canvas.getAllByRole('button')).toHaveLength(12);
+		await expect(canvas.getByTitle('apps/frontend/messages/')).toBeVisible();
+		await expect(canvas.getAllByRole('button')).toHaveLength(10);
 		const path = 'apps/frontend/messages/ar/admin.json';
 		await userEvent.click(canvas.getByTitle(`Modified: ${path}`));
 		await expect(args.onopen).toHaveBeenCalledWith(path);
-		await userEvent.click(group);
-		await expect(canvas.getAllByRole('button')).toHaveLength(4);
 	}}
 />

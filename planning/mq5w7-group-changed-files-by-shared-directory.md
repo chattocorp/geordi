@@ -6,4 +6,4 @@ data:
 id: mq5w7
 title: Group changed files by shared directory
 ---
-Changes groups shared directories, folds large groups, and keeps single-file paths on one clickable row. Verified folder toggles and opening a locale file by its full path in the browser story.
+Changes shows every changed file under its shared directory. Single-file paths take one clickable row. The browser story checks a large directory and opens a locale file by its full path.

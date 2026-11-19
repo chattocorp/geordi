@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { SvelteMap } from 'svelte/reactivity';
 	import { groupChanges, type ChangeRow } from './changeGroups.ts';
 	import Spinner from './Spinner.svelte';
 	import DiffStat from './DiffStat.svelte';
@@ -21,7 +20,6 @@
 	const files = $derived(git?.changes?.files ?? []);
 
 	const groups = $derived(groupChanges(files));
-	const expanded = new SvelteMap<string, boolean>();
 
 	type File = (typeof files)[number];
 	const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1);
@@ -108,27 +106,14 @@
 						<DiffStat added={file.added} removed={file.removed} />
 					</button>
 				{:else}
-					{@const open = expanded.get(row.path) ?? row.children.length < 8}
-					<button
-						type="button"
-						aria-expanded={open}
-						title={row.path}
-						onclick={() => expanded.set(row.path, !open)}
-						class="flex w-full items-center gap-2.5 px-3.5 py-1 text-left text-xs text-muted hover:bg-hover"
-					>
-						<span
-							aria-hidden="true"
-							class={['icon-[lucide--chevron-right] size-3 shrink-0', open && 'rotate-90']}
-						></span>
+					<div title={row.path} class="flex items-center gap-2.5 px-3.5 py-1 text-xs text-muted">
 						<span class="min-w-0 flex-1 truncate code-dense">{row.path.slice(prefix.length)}</span>
 						<span class="shrink-0">{row.count} files</span>
 						{#if row.added || row.removed}
 							<DiffStat added={row.added} removed={row.removed} />
 						{/if}
-					</button>
-					{#if open}
-						{@render rows(row.children, row.path)}
-					{/if}
+					</div>
+					{@render rows(row.children, row.path)}
 				{/if}
 			</li>
 		{/each}

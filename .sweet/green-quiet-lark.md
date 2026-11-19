@@ -2,4 +2,4 @@
 type: feature
 ---
 
-You can fold shared directories in Changes and open a lone changed file directly from its path.
+Changes groups files by shared directory. Each file opens its diff in one click.
