@@ -11,7 +11,6 @@
 	import type { Attachment } from 'svelte/attachments';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
 	import Button from './Button.svelte';
-	import ButtonGroup from './ButtonGroup.svelte';
 	import { submitOnEnter } from '#lib/keys.ts';
 	import { completionQuery, matching, type Completion } from './completions.ts';
 
@@ -227,20 +226,29 @@
 </script>
 
 {#if offered}
-	<div class="mb-2 flex *:max-w-full">
-		<ButtonGroup label="Suggested reply">
-			<Button
-				label="Send suggested reply"
-				class="h-auto min-h-9 min-w-0 shrink py-1.5 text-left wrap-anywhere"
-				onclick={() => takeSuggestion(offered, true)}>{offered}</Button
-			>
-			<Button
-				icon="icon-[lucide--pencil]"
-				label="Edit suggested reply"
-				class="h-auto w-9"
-				onclick={() => takeSuggestion(offered, false)}
-			/>
-		</ButtonGroup>
+	<div
+		role="group"
+		aria-label="Suggested reply"
+		class="mb-2 flex w-fit max-w-full items-start gap-1 rounded-control bg-sunken p-1"
+	>
+		<button
+			type="button"
+			title={offered}
+			class="flex min-w-0 items-baseline gap-2 rounded-control px-2 py-1 text-left text-sm text-prose hover:bg-hover"
+			onclick={() => takeSuggestion(offered, true)}
+		>
+			<span
+				aria-hidden="true"
+				class="mt-1 icon-[lucide--corner-down-right] size-3.5 shrink-0 self-start text-muted"
+			></span>
+			<span class="line-clamp-2 wrap-anywhere">{offered}</span>
+		</button>
+		<Button
+			variant="ghost"
+			icon="icon-[lucide--pencil]"
+			label="Edit suggested reply"
+			onclick={() => takeSuggestion(offered, false)}
+		/>
 	</div>
 {/if}
 

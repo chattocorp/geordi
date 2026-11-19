@@ -29,6 +29,9 @@
 		}
 	};
 
+	const longSuggestion =
+		'Review the failing tests and find out why the workspace loses its draft after a restart.\n\nFix the cause, add a regression test, and summarize what changed.';
+
 	const commands = [
 		{ text: '/review', description: 'Review uncommitted changes', hint: 'optional instructions' },
 		{ text: '/compact', description: 'Summarize the conversation to free up context' },
@@ -258,6 +261,22 @@
 			placeholder="Reply to the agent"
 			suggestion="Run the tests again and fix whatever still fails."
 		>
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<Story name="Long suggestion" asChild>
+	<div class="max-w-sm">
+		<Composer {form} rows={2} placeholder="Reply to the agent" suggestion={longSuggestion}>
 			{#snippet footer()}
 				<Button
 					type="submit"
