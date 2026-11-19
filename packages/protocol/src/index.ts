@@ -127,6 +127,11 @@ export type Changes = {
 	unmerged?: boolean;
 	/** Known commits in the base branch that this workspace does not contain. */
 	incoming?: { branch: string; commits: number } | null;
+	/**
+	 * The host of the `origin` remote, where it is on a forge Geordi has no provider for (a
+	 * self-hosted Gitea without `FORGES_*` variables, say): no pull requests from here.
+	 */
+	unknownForge?: string;
 };
 
 /**

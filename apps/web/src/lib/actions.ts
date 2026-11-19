@@ -40,7 +40,7 @@ export type WorkspaceAction = {
 type State = {
 	/** `null` while unknown (no daemon, or not asked yet). */
 	changes:
-		| (Pick<Changes, 'files' | 'uncommitted' | 'unpushed'> & {
+		| (Pick<Changes, 'files' | 'uncommitted' | 'unpushed' | 'unknownForge'> & {
 				landed?: boolean;
 				incoming?: Changes['incoming'];
 		  })
@@ -267,7 +267,13 @@ export type WorkspaceStanding = {
 	icon: string;
 	/** While checks run: how many of them stand how, where the forge says. */
 	checks?: CheckCounts;
+	/** More on what it means, and where to read what to do about it. */
+	hint?: { text: string; href: string };
 };
+
+/** How to set up a forge Geordi does not know out of the box. */
+export const FORGE_SETUP_URL =
+	'https://github.com/chattocorp/geordi/blob/main/docs/self-hosting.md#self-hosted-forges';
 
 /**
  * The state the actions follow from, put into words: what the workspace's top bar says
@@ -296,6 +302,17 @@ export function standingOf(state: State): WorkspaceStanding | null {
 	if (!pull || pull.state === 'unknown') {
 		if (uncommitted) return todo('Uncommitted changes');
 		if (upstream && unpushed) return todo('Changes to publish');
+		// committed, with nowhere Geordi can take it: say why there is no pull request to make
+		if (!upstream && unpushed && changes.unknownForge)
+			return {
+				label: 'Forge not set up',
+				tone: 'neutral',
+				icon: 'icon-[lucide--unplug]',
+				hint: {
+					text: `Geordi needs credentials for ${changes.unknownForge} to open pull requests there. Shows how to set them up.`,
+					href: FORGE_SETUP_URL
+				}
+			};
 		if (awaitsPull(state)) return todo('Branch pushed');
 		if (changes.incoming && changes.incoming.commits > 0) return todo('Behind base branch');
 		return null;

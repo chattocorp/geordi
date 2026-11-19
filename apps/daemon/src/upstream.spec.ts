@@ -5,7 +5,15 @@ import { join } from 'node:path';
 import type { Thread } from 'forges';
 import { describe, expect, it, vi } from 'vitest';
 import { github, MergeMethodRequiredError, type MergeOptions } from 'forges';
-import { conflictsOf, count, markDraftReady, merge, summarise, upstream } from './upstream.ts';
+import {
+	conflictsOf,
+	count,
+	hostOf,
+	markDraftReady,
+	merge,
+	summarise,
+	upstream
+} from './upstream.ts';
 import { readPull, rollupCounts } from './pull-batch.ts';
 import { ensureWorktree } from './worktree.ts';
 
@@ -23,6 +31,18 @@ const pull = (overrides: Partial<Thread> = {}) =>
 	}) as Thread;
 
 const reviewer = (state: string) => ({ state }) as Thread['reviewers'][number];
+
+describe('hostOf', () => {
+	it('finds the host of remote URLs, and none for local ones', () => {
+		expect(hostOf('https://gitea.example.com/acme/widgets.git')).toBe('gitea.example.com');
+		expect(hostOf('ssh://git@gitea.example.com:2222/acme/widgets.git')).toBe('gitea.example.com');
+		expect(hostOf('git@gitea.example.com:acme/widgets.git')).toBe('gitea.example.com');
+		expect(hostOf('gitea.example.com:acme/widgets.git')).toBe('gitea.example.com');
+		expect(hostOf('/srv/git/widgets.git')).toBeNull();
+		expect(hostOf('../widgets.git')).toBeNull();
+		expect(hostOf('file:///srv/git/widgets.git')).toBeNull();
+	});
+});
 
 describe('summarise', () => {
 	it('reports state, target branch and checks', () => {

@@ -254,6 +254,29 @@ describe('standingOf', () => {
 		expect(label({ changes: ahead, upstream: upstream({}) })).toBe('Unpublished changes');
 	});
 
+	it('says when the work has nowhere to go because its forge is not set up', () => {
+		const ahead = {
+			files: [file],
+			uncommitted: 0,
+			unpushed: null,
+			unknownForge: 'git.example.com'
+		};
+		expect(standingOf({ changes: ahead, upstream: null })).toMatchObject({
+			label: 'Forge not set up',
+			hint: { text: expect.stringContaining('git.example.com') }
+		});
+		expect(ids({ changes: ahead, upstream: null })).toEqual([]);
+		// uncommitted work comes first: committing still works
+		expect(label({ changes: { ...ahead, uncommitted: 1 }, upstream: null })).toBe(
+			'Uncommitted changes'
+		);
+		// a local origin, or no work: nothing to say
+		expect(label({ changes: { ...ahead, unknownForge: undefined }, upstream: null })).toBeNull();
+		expect(
+			label({ changes: { ...clean, unknownForge: 'git.example.com' }, upstream: null })
+		).toBeNull();
+	});
+
 	it('puts what is wrong before what is merely unfinished', () => {
 		const failing = { state: 'failure', total: 3, failed: 1, url: null } as const;
 		const pending = { state: 'pending', total: 3, failed: 0, url: null } as const;

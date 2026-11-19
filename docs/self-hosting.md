@@ -69,6 +69,22 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
 
+## Self-hosted forges
+
+Geordi knows github.com out of the box. To open and follow pull requests on another forge
+(GitLab, Gitea, Forgejo), give the daemon its address and a token:
+
+```sh
+export FORGES_GITEA_BASE_URL=https://gitea.example.com
+export FORGES_GITEA_TOKEN=<token>
+```
+
+Use `FORGES_GITLAB_*` or `FORGES_FORGEJO_*` for those. A suffix adds another instance of
+the same forge (`FORGES_GITEA_TOKEN_WORK`). The desktop app reads these from your login
+shell when it starts, so set them in your shell's profile and restart the app. Until then,
+a workspace whose `origin` is on such a forge says **Forge not set up**. See
+[forges.link](https://forges.link/guides/environment-variables) for every variable.
+
 ## Connect an external agent
 
 In **Settings → Agent access**, name the external agent, choose the repositories it may work in,

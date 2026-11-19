@@ -316,6 +316,36 @@ async function findPull(
 }
 
 /**
+ * The host a remote URL points to: `https://host/…`, `ssh://user@host:22/…` or scp-like
+ * `user@host:path`. `null` for a local path or `file://` URL, which no forge is behind.
+ */
+export function hostOf(url: string): string | null {
+	const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(url);
+	if (scheme) {
+		if (scheme[1].toLowerCase() === 'file') return null;
+		try {
+			return new URL(url).hostname || null;
+		} catch {
+			return null;
+		}
+	}
+	// scp-like: a colon before any slash
+	const scp = /^(?:[^@/:]+@)?([^/:]+):/.exec(url);
+	return scp ? scp[1] : null;
+}
+
+/**
+ * The host of the repository's `origin` remote, if it is one we have no provider for:
+ * then there is no pull request to be had until one is configured (`FORGES_*`).
+ */
+export async function unknownForge(repoPath: string): Promise<string | null> {
+	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
+	const host = remote && hostOf(remote);
+	if (!host) return null;
+	return (await forges()).parseUrl(remote) ? null : host;
+}
+
+/**
  * Where a worktree's branch lives upstream. `null` if the repository has no `origin` remote
  * on a forge we know, or the worktree is on no branch.
  */
