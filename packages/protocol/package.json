@@ -4,6 +4,7 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./fuzzy": "./src/fuzzy.ts",
 		"./auth": "./src/auth.ts"
 	},
 	"scripts": {

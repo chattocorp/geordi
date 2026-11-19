@@ -17,6 +17,7 @@
 		"@geordi/protocol": "workspace:*",
 		"@lydell/node-pty": "1.2.0-beta.18",
 		"@manypkg/get-packages": "^3.1.0",
+		"@parcel/watcher": "2.6.0",
 		"forges": "^0.3.2",
 		"smol-toml": "1.9.1",
 		"yaml": "2.9.1"

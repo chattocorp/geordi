@@ -4,9 +4,13 @@ import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
+import { pruneFileCheckpoints } from './file-index-cache.ts';
+import { createFileSearch } from './file-search.ts';
+import { git } from './git.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
 import { existsSync, readFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -62,6 +66,7 @@ import {
 } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
+	startOf,
 	branchOf,
 	continueOn,
 	ensureWorktree,
@@ -265,10 +270,16 @@ async function tearDown(worktree: Worktree, ref: WorktreeRef) {
 	}
 }
 
+const fileCache = join(sessionsDir, '.file-index-cache');
+// The session lock excludes other daemons. Discard interrupted writes from the last run.
+await rm(join(fileCache, 'pending'), { recursive: true, force: true }).catch(() => {});
+await pruneFileCheckpoints(fileCache).catch(() => {});
+const fileSearch = createFileSearch(fileCache);
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
-	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
+	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId }),
+	(worktreeId, changes) => fileSearch.invalidate(worktreeId, changes)
 );
 
 function comparisonOrigin(worktree: Worktree, ref: WorktreeRef) {
@@ -489,6 +500,19 @@ function answer(request: DaemonRequest) {
 async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
+	if (request.kind === 'findFiles') {
+		const { repoPath, worktreeId, query } = request;
+		if (worktreeId) {
+			const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
+			return fileSearch.search(worktreeId, { worktree }, query, () =>
+				watches.hold({ repoPath, worktreeId }, worktree)
+			);
+		}
+		const revision = (
+			await git(repoPath, ['rev-parse', '--verify', await startOf(repoPath)])
+		).trim();
+		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
+	}
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
@@ -522,6 +546,7 @@ async function readRequest(request: DaemonRequest) {
 				session.kill();
 			}
 		});
+		await fileSearch.discard(worktreeId, worktreePath(worktreesDir, repoPath, worktreeId));
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return { branch };

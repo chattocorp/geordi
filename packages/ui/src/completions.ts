@@ -1,3 +1,6 @@
+import type { FileMatch } from '@geordi/protocol';
+import { fuzzySegments } from '@geordi/protocol/fuzzy';
+
 /** Something the text can begin with, offered as one types: `/review`, say. */
 export type Completion = {
 	/** What goes into the text, a space after it: it begins with `/`. */
@@ -5,6 +8,7 @@ export type Completion = {
 	description?: string;
 	/** What is to follow it, if anything. */
 	hint?: string;
+	file?: { name: ReturnType<typeof fuzzySegments>; directory: ReturnType<typeof fuzzySegments> };
 };
 
 /**
@@ -33,4 +37,30 @@ export function matching<T extends Completion>(completions: T[], query: string):
 		else if (name.includes(wanted)) tiers[2].push(completion);
 	}
 	return tiers.flat();
+}
+
+/** The @ token under a collapsed caret, including the part after the caret. */
+export function fileMention(text: string, caret: number) {
+	const match = /(?:^|\s)@([^\s@]*)$/.exec(text.slice(0, caret));
+	if (!match) return null;
+	const query = match[1];
+	return {
+		query,
+		start: caret - query.length - 1,
+		end: caret + /^\S*/.exec(text.slice(caret))![0].length
+	};
+}
+
+export function fileCompletion({ path, indices }: FileMatch): Completion {
+	const split = path.lastIndexOf('/') + 1;
+	return {
+		text: path,
+		file: {
+			name: fuzzySegments(
+				path.slice(split),
+				indices.map((i) => i - split)
+			),
+			directory: fuzzySegments(path.slice(0, Math.max(0, split - 1)), indices)
+		}
+	};
 }

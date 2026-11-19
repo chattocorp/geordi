@@ -63,7 +63,7 @@ const sounds = ['done', 'failed'].map((name) => {
 // The forge and the daemon, as the `geordi` command has them too.
 await stageServices(stage);
 
-// The daemon's native terminal library, resolved relative to its package. Deploy the
+// The daemon loads its native terminal and file-watcher libraries here. Deploy the
 // production dependency tree with the same lockfile as the daemon.
 pnpm([
 	...(process.platform === 'win32' ? ['--config.node-linker=hoisted'] : []),

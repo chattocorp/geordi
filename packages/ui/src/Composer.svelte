@@ -8,11 +8,18 @@
 </script>
 
 <script lang="ts">
+	import type { FileMatch } from '@geordi/protocol';
 	import type { Attachment } from 'svelte/attachments';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
 	import Button from './Button.svelte';
 	import { submitOnEnter } from './keys.ts';
-	import { completionQuery, matching, type Completion } from './completions.ts';
+	import {
+		completionQuery,
+		fileMention,
+		fileCompletion,
+		matching,
+		type Completion
+	} from './completions.ts';
 
 	type Props = {
 		/** Whether to put the cursor in the text when it appears: where writing is what one came for. */
@@ -39,6 +46,7 @@
 		 * word. Arrow keys and Enter (or Tab) choose one, Escape puts them away.
 		 */
 		completions?: Completion[];
+		files?: (query: string) => PromiseLike<FileMatch[]>;
 		/** What the completions are, for those who can't see them: "Commands". */
 		completionsLabel?: string;
 		/** What is wrong with the input, if anything. */
@@ -61,6 +69,7 @@
 		disabled = false,
 		onkeydown = submitOnEnter,
 		completions = [],
+		files,
 		completionsLabel = 'Completions',
 		problems = [],
 		attachments,
@@ -76,6 +85,7 @@
 	let text: HTMLTextAreaElement | undefined;
 	/** The text as it was last written, and whether it is being written in. */
 	let typed = $state('');
+	let caret = $state(-1);
 	let writing = $state(false);
 	const focus: Attachment<HTMLTextAreaElement> = (node) => {
 		text = node;
@@ -83,6 +93,7 @@
 		// (listened to, not set as props: a remote form field has handlers of its own)
 		const read = () => {
 			typed = node.value;
+			caret = node.selectionStart === node.selectionEnd ? node.selectionStart : -1;
 			writing = document.activeElement === node;
 		};
 		const away = () => (writing = false);
@@ -101,12 +112,14 @@
 				node.focus({ preventScroll: true });
 			}
 		});
+		node.addEventListener('selectionchange', read);
 		node.addEventListener('input', read);
 		node.addEventListener('focus', read);
 		node.addEventListener('blur', away);
 		form?.addEventListener('submit', sent);
 		form?.addEventListener('reset', clearTyped);
 		return () => {
+			node.removeEventListener('selectionchange', read);
 			node.removeEventListener('input', read);
 			node.removeEventListener('focus', read);
 			node.removeEventListener('blur', away);
@@ -121,10 +134,71 @@
 	const query = $derived(
 		completions.length && writing && typed !== dismissed ? completionQuery(typed) : null
 	);
-	const shown = $derived(query === null ? [] : matching(completions, query));
+	const mention = $derived(
+		files && writing && typed !== dismissed && caret >= 0 ? fileMention(typed, caret) : null
+	);
+	let fileResults = $state.raw<Completion[]>([]);
+	let resultsFrom: typeof files;
+	let loadingFiles = $state(false);
+	let showFileProgress = $state(false);
+	let fileError = $state(false);
+	let previous = Promise.resolve();
+	const fileQuery = $derived(mention?.query);
+	$effect(() => {
+		const search = files;
+		const wanted = fileQuery;
+		if (wanted === undefined || resultsFrom !== search) {
+			fileResults = [];
+			active = 0;
+		}
+		resultsFrom = search;
+		fileError = false;
+		showFileProgress = false;
+		loadingFiles = wanted !== undefined && !!search;
+		if (wanted === undefined || !search) return;
+		let current = true;
+		const slow = setTimeout(() => {
+			showFileProgress = true;
+		}, 200);
+		// Coalesce typing, including edits made while a cold index is still building.
+		const timer = setTimeout(() => {
+			previous = previous.then(async () => {
+				if (!current) return;
+				try {
+					const matches = await search(wanted);
+					if (current) {
+						const selected = active > 0 ? fileResults[active]?.text : undefined;
+						fileResults = matches.map(fileCompletion);
+						active = selected
+							? Math.max(
+									0,
+									fileResults.findIndex((row) => row.text === selected)
+								)
+							: 0;
+					}
+				} catch {
+					if (current) {
+						fileResults = [];
+						fileError = true;
+					}
+				} finally {
+					clearTimeout(slow);
+					if (current) loadingFiles = false;
+				}
+			});
+		}, 35);
+		return () => {
+			current = false;
+			clearTimeout(slow);
+			clearTimeout(timer);
+		};
+	});
+	const shown = $derived(
+		mention ? fileResults : query === null ? [] : matching(completions, query)
+	);
 	$effect.pre(() => {
 		void query;
-		active = 0;
+		if (!mention) active = 0;
 	});
 	const listId = `${id}-completions`;
 	$effect(() => {
@@ -141,7 +215,15 @@
 		text.focus();
 		text.setSelectionRange(words.length, words.length);
 	}
-	const complete = (completion: Completion) => write(completion.text + ' ');
+	function complete(completion: Completion) {
+		if (!mention || !text) return write(completion.text + ' ');
+		const path = /\s/.test(completion.text) ? JSON.stringify(completion.text) : completion.text;
+		const suffix = typed.slice(mention.end);
+		const insert = '@' + path + (/^\s/.test(suffix) ? '' : ' ');
+		text.setRangeText(insert, mention.start, mention.end, 'end');
+		if (/^\s/.test(suffix)) text.setSelectionRange(text.selectionEnd + 1, text.selectionEnd + 1);
+		text.dispatchEvent(new Event('input', { bubbles: true }));
+	}
 
 	let available = $derived(suggestion);
 	const offered = $derived(!disabled && !(field ? field.value : value) ? available : null);
@@ -159,7 +241,13 @@
 			takeSuggestion(offered, false);
 			return;
 		}
-		if (shown.length && plainKey) {
+		if (mention && plainKey && event.key === 'Escape') {
+			event.preventDefault();
+			event.stopPropagation();
+			dismissed = typed;
+			return;
+		}
+		if (shown.length && plainKey && !loadingFiles) {
 			const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
 			if (step) {
 				event.preventDefault();
@@ -212,30 +300,37 @@
 		onkeydown: keydown,
 		// with completions, the text is a combobox: what it offers is a list beside it
 		get role() {
-			return completions.length ? 'combobox' : undefined;
+			return files || completions.length ? 'combobox' : undefined;
 		},
 		get 'aria-autocomplete'() {
-			return completions.length ? ('list' as const) : undefined;
+			return files || completions.length ? ('list' as const) : undefined;
 		},
 		get 'aria-expanded'() {
-			return completions.length ? shown.length > 0 : undefined;
+			return files || completions.length ? shown.length > 0 : undefined;
 		},
 		get 'aria-controls'() {
 			return shown.length ? listId : undefined;
 		},
 		get 'aria-activedescendant'() {
-			return shown.length ? `${listId}-${active}` : undefined;
+			return shown.length && !loadingFiles ? `${listId}-${active}` : undefined;
 		},
 		class:
 			'block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
 	};
 </script>
 
+{#snippet highlighted(parts: NonNullable<Completion['file']>['name'])}
+	{#each parts as part, index (index)}
+		{#if part.hit}<mark class="bg-transparent font-semibold text-accent-ink">{part.text}</mark
+			>{:else}{part.text}{/if}
+	{/each}
+{/snippet}
+
 <!-- Where people write to agents: a prompt, a reply, an issue. Enter submits. -->
 <form
 	{...form}
 	data-live={live || undefined}
-	class="group/composer @container edge-live flex min-h-0 flex-col card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
+	class="group/composer @container edge-live relative flex min-h-0 flex-col card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
 >
 	{#if offered}
 		<div
@@ -264,15 +359,27 @@
 			/>
 		</div>
 	{/if}
+	{#if mention && !shown.length && ((loadingFiles && showFileProgress) || fileError)}
+		<div
+			role="status"
+			class="absolute inset-x-0 bottom-full z-10 mb-2 max-w-lg card-float px-4 py-2 text-sm text-muted"
+		>
+			{loadingFiles ? 'Finding files…' : 'Could not search repository files'}
+		</div>
+	{/if}
 	{#if shown.length}
 		<!-- Above the text, which is at the bottom of the page: what fits, and the rest scrolls.
 		     Pressing anything in it leaves the cursor in the text. -->
 		<div
 			id={listId}
 			role="listbox"
+			aria-busy={loadingFiles || undefined}
 			tabindex="-1"
-			aria-label={completionsLabel}
-			class="absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto card-float p-2"
+			aria-label={mention ? 'Repository files' : completionsLabel}
+			class={[
+				'absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto card-float p-2',
+				mention && 'max-w-lg'
+			]}
 			onmousedown={(event) => event.preventDefault()}
 		>
 			{#each shown as completion, index (completion.text)}
@@ -281,17 +388,50 @@
 					id="{listId}-{index}"
 					role="option"
 					tabindex="-1"
-					aria-selected={index === active}
+					aria-selected={!loadingFiles && index === active}
+					aria-disabled={loadingFiles || undefined}
+					aria-label={mention ? completion.text : undefined}
+					title={mention ? completion.text : undefined}
 					class={['menu-item cursor-pointer', index === active && 'menu-item-active']}
-					onmousedown={() => complete(completion)}
-					onmousemove={() => (active = index)}
+					onmousedown={() => !loadingFiles && complete(completion)}
+					onmousemove={() => !loadingFiles && (active = index)}
 				>
-					<span class="shrink-0 code text-ink">{completion.text}</span>
-					{#if completion.hint}
-						<span class="max-w-1/3 shrink-0 truncate code-dense text-muted">{completion.hint}</span>
-					{/if}
-					{#if completion.description}
-						<span class="min-w-0 truncate">{completion.description}</span>
+					{#if completion.file}
+						<span
+							aria-hidden="true"
+							class={[
+								'mx-1 icon-[lucide--file] size-4 shrink-0',
+								index === active && 'text-accent-ink'
+							]}
+						></span>
+						<span class="flex min-w-0 flex-1 items-baseline gap-2">
+							<span class="max-w-full shrink-0 truncate code font-medium text-ink"
+								>{@render highlighted(completion.file.name)}</span
+							>
+							{#if completion.file.directory.length}
+								<span class="min-w-0 truncate text-left code-dense text-muted" dir="rtl"
+									><bdi>{@render highlighted(completion.file.directory)}</bdi></span
+								>
+							{/if}
+						</span>
+						{#if index === active && !loadingFiles}
+							<span
+								aria-hidden="true"
+								class="mr-1 icon-[lucide--corner-down-left] size-3.5 shrink-0 text-muted"
+							></span>
+						{/if}
+					{:else}
+						<span title={completion.text} class="min-w-0 truncate code text-ink"
+							>{completion.text}</span
+						>
+						{#if completion.hint}
+							<span class="max-w-1/3 shrink-0 truncate code-dense text-muted"
+								>{completion.hint}</span
+							>
+						{/if}
+						{#if completion.description}
+							<span class="min-w-0 truncate">{completion.description}</span>
+						{/if}
 					{/if}
 				</div>
 			{/each}

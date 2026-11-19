@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from 'node:fs';
-import { join, sep } from 'node:path';
+import { basename, isAbsolute, join, sep } from 'node:path';
 import type { WatchScope, WorktreeRef } from '@geordi/protocol';
+import { addFileScope, type FileChanges } from './file-index.ts';
 import { branchOf, type Worktree } from './worktree.ts';
 
 /** Changes come in bursts (a save, a checkout, an install); report each burst once. */
@@ -17,9 +18,31 @@ const SETTLE_MS = 250;
  * `GIT_OPTIONAL_LOCKS`). And of the branches, which every worktree of the repository shares,
  * only its own, here and on the remotes: a fetch or a commit elsewhere is none of its business.
  */
-export function watchWorktree(worktree: Worktree, onChange: () => void, files = true): () => void {
+export function watchWorktree(
+	worktree: Worktree,
+	onChange: () => void,
+	files = true,
+	onNames?: (changes?: FileChanges) => void
+): () => void {
 	let settle: NodeJS.Timeout | undefined;
-	const report = () => {
+	// Name updates have their own short batch so ongoing writes cannot delay the picker.
+	let namesTimer: NodeJS.Timeout | undefined;
+	let paths: Set<string> | undefined = new Set();
+	let gitIndex = false;
+	const names = (path?: string, staged = false) => {
+		if (!onNames) return;
+		if (staged) gitIndex = true;
+		else if (path === undefined) paths = undefined;
+		else if (paths && !addFileScope(paths, path)) paths = undefined;
+		namesTimer ??= setTimeout(() => {
+			onNames(paths && { paths: [...paths], gitIndex });
+			gitIndex = false;
+			paths = new Set();
+			namesTimer = undefined;
+		}, 25);
+	};
+	const report = (allNames = false) => {
+		if (allNames) names();
 		clearTimeout(settle);
 		settle = setTimeout(onChange, SETTLE_MS);
 	};
@@ -32,7 +55,8 @@ export function watchWorktree(worktree: Worktree, onChange: () => void, files = 
 		if (!quiet(file) && (files || !file || concerns(worktree, file.toString()))) report();
 	};
 	const repoChanged = (_event: string, file: string | Buffer | null) => {
-		if (!quiet(file) && (files || !file || file.toString() === 'packed-refs')) report();
+		if (!quiet(file) && (files || !file || file.toString() === 'packed-refs'))
+			report(!file || file.toString() === 'config');
 	};
 
 	const watchers: FSWatcher[] = [];
@@ -43,18 +67,47 @@ export function watchWorktree(worktree: Worktree, onChange: () => void, files = 
 	) => {
 		try {
 			// a vanished directory is not our problem; the next change elsewhere still reports
-			watchers.push(watch(path, { recursive }, listener).on('error', () => {}));
+			watchers.push(watch(path, { recursive }, listener).on('error', () => report(true)));
 		} catch {
 			// not there (yet): nothing to watch
 		}
 	};
-	if (files) add(worktree.path, changed, true);
-	add(worktree.adminDir, changed);
+	if (files) {
+		add(
+			worktree.path,
+			(event, file) => {
+				const path = file?.toString().split(sep).join('/');
+				if (
+					!path ||
+					isAbsolute(path) ||
+					path.split('/').some((part) => part === '..' || part === '.' || part === '')
+				)
+					names();
+				else if (basename(path) === '.gitignore') {
+					const slash = path.lastIndexOf('/');
+					names(slash < 0 ? undefined : path.slice(0, slash));
+				} else if (event === 'rename') names(path);
+				report();
+			},
+			true
+		);
+		add(join(worktree.commonDir, 'info'), (_event, file) => {
+			if (!file || file.toString() === 'exclude') report(true);
+		});
+	}
+	add(worktree.adminDir, (event, file) => {
+		if (!file) report(true);
+		else if (file.toString() === 'index') {
+			names(undefined, true);
+			report();
+		} else changed(event, file);
+	});
 	add(worktree.commonDir, repoChanged);
 	add(join(worktree.commonDir, 'refs'), refChanged, true);
 
 	return () => {
 		clearTimeout(settle);
+		clearTimeout(namesTimer);
 		for (const watcher of watchers) watcher.close();
 	};
 }
@@ -85,14 +138,17 @@ export function concerns(worktree: Worktree, ref: string): boolean {
  */
 export function createWatches(
 	locate: (ref: WorktreeRef) => Promise<Worktree>,
-	onChange: (worktreeId: string) => void
+	onChange: (worktreeId: string) => void,
+	onNames?: (worktreeId: string, changes?: FileChanges) => void
 ) {
 	const wanted: Record<WatchScope, WorktreeRef[]> = { open: [], background: [] };
+	const held = new Map<string, WorktreeRef & { worktree: Worktree }>();
 	const watching = new Map<string, { stop: () => void; files: boolean }>();
 
 	function apply() {
-		const all = [...wanted.open, ...wanted.background];
-		const open = new Set(wanted.open.map((ref) => ref.worktreeId));
+		const foreground = [...wanted.open, ...held.values()];
+		const all = [...foreground, ...wanted.background];
+		const open = new Set(foreground.map((ref) => ref.worktreeId));
 		const ids = new Set(all.map((ref) => ref.worktreeId));
 		for (const [id, { stop, files }] of watching)
 			if (!ids.has(id) || files !== open.has(id)) {
@@ -105,19 +161,39 @@ export function createWatches(
 			const files = open.has(id);
 			const entry = { files, stop: () => {} };
 			watching.set(id, entry);
-			void locate(ref)
-				.then((worktree) => {
-					// The scope, worktree or connection may have changed while locating it.
-					if (watching.get(id) === entry)
-						entry.stop = watchWorktree(worktree, () => onChange(id), files);
-				})
-				.catch(() => {
-					if (watching.get(id) === entry) watching.delete(id);
-				});
+			const install = (worktree: Worktree) => {
+				if (watching.get(id) !== entry) return;
+				entry.stop = watchWorktree(
+					worktree,
+					() => onChange(id),
+					files,
+					(changes) => onNames?.(id, changes)
+				);
+			};
+			const retained = held.get(id);
+			if (retained) install(retained.worktree);
+			else
+				void locate(ref)
+					.then((worktree) => {
+						install(worktree);
+						if (held.has(id)) onNames?.(id);
+					})
+					.catch(() => {
+						if (watching.get(id) === entry) watching.delete(id);
+					});
 		}
 	}
 
 	return {
+		/** Keep file changes observable for as long as the daemon retains this index. */
+		hold(ref: WorktreeRef, worktree: Worktree) {
+			held.set(ref.worktreeId, { ...ref, worktree });
+			apply();
+			return () => {
+				held.delete(ref.worktreeId);
+				apply();
+			};
+		},
 		/** A discovered or retargeted pull changes this comparison and its descendants. */
 		targetChanged(id: string) {
 			for (const ref of wanted.open)
@@ -134,11 +210,13 @@ export function createWatches(
 		 * waiting for it, or still be watching a directory that is no longer the one there.
 		 */
 		restart(worktreeId: string) {
+			onNames?.(worktreeId);
 			watching.get(worktreeId)?.stop();
 			watching.delete(worktreeId);
 			apply();
 		},
 		stop: () => {
+			held.clear();
 			wanted.open = [];
 			wanted.background = [];
 			apply();

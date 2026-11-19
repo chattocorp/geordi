@@ -4,6 +4,7 @@ packages:
 
 engineStrict: true
 allowBuilds:
+  '@parcel/watcher': true
   esbuild: true
   electron: true
   electron-winstaller: false

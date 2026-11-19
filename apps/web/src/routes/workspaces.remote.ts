@@ -7,6 +7,7 @@ import {
 	CONFIG_NAME,
 	JOB_TERMINAL,
 	MAX_IMAGES,
+	FILE_SEARCH_TIMEOUT_MS,
 	type FileVersions
 } from '@geordi/protocol';
 import {
@@ -15,6 +16,7 @@ import {
 	continueWorkspace as carryOn,
 	hub,
 	jobs,
+	repos,
 	prepareWorktree,
 	terminals,
 	updateWorkspace as update,
@@ -359,6 +361,25 @@ export const stopTask = command(
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+// A worktree can change between keystrokes. Each search needs a fresh daemon response.
+export const findFiles = command(
+	v.union([
+		v.object({ workspaceId: v.string(), query: v.string() }),
+		v.object({ repoId: v.string(), query: v.string() })
+	]),
+	(scope) =>
+		hub().request(
+			{
+				kind: 'findFiles',
+				query: scope.query,
+				...('workspaceId' in scope
+					? workspaces().ref(scope.workspaceId)
+					: { repoPath: repos().get(scope.repoId).path })
+			},
+			FILE_SEARCH_TIMEOUT_MS
+		)
+);
 
 /** Both versions of a changed file, for the diff viewer. */
 export const getDiff = query(

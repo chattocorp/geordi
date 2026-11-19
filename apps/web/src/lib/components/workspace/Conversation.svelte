@@ -11,6 +11,7 @@
 	import type { Limits } from '#lib/server/limits.ts';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
+		findFiles,
 		configureWorkspace,
 		answerQuestion,
 		removeQueued,
@@ -37,6 +38,10 @@
 		senders?: Record<string, string>;
 	} = $props();
 
+	const searchFiles = $derived.by(() => {
+		const workspaceId = workspace.id;
+		return (query: string) => findFiles({ workspaceId, query });
+	});
 	const cwd = $derived(workspace.worktree?.path);
 
 	const running = $derived(workspace.status === 'running');
@@ -122,6 +127,7 @@
 				>
 					{#snippet children(imageProps, hasImages)}
 						<ReplyComposer
+							files={searchFiles}
 							{...imageProps}
 							focused
 							disabled={form.pending > 0}
