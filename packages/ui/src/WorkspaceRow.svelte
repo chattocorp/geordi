@@ -118,7 +118,7 @@
 					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
 					(pillColor || onarchive) &&
 						(pillColor
-							? 'group-hover:opacity-0 group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
+							? 'group-hover:pointer-events-none group-hover:opacity-0 group-has-focus-visible:pointer-events-none group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
 							: 'group-hover:invisible group-has-focus-visible:invisible')
 				]}
 			>
@@ -135,7 +135,15 @@
 				]}
 				style:interpolate-size="allow-keywords"
 				aria-label="{primary.label} — {title}"
-				onclick={() => onaction?.(primary)}
+				onclick={(event) => {
+					if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+						event.currentTarget.animate([{ scale: '1' }, { scale: '0.94' }, { scale: '1' }], {
+							duration: 180,
+							easing: 'ease-out'
+						});
+					}
+					onaction?.(primary);
+				}}
 			>
 				{primary.label}
 				<span class={[primary.icon, 'size-3.5']}></span>

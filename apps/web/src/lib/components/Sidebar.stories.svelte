@@ -185,6 +185,11 @@
 			await waitFor(() => expect(pill).toHaveStyle({ opacity: '1' }));
 			pill.focus();
 			await expect(pill).toHaveFocus();
+			const { left, right, top, height } = pill.getBoundingClientRect();
+			for (const x of [left + 3, (left + right) / 2, right - 3]) {
+				const target = document.elementFromPoint(x, top + height / 2);
+				await expect(target?.closest('button')).toBe(pill);
+			}
 		}
 	}}
 >
