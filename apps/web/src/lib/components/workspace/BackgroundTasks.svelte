@@ -1,11 +1,26 @@
 <script lang="ts">
 	import type { BackgroundTask } from '@geordi/protocol';
 	import { toolIcon } from '#lib/tools.ts';
+	import Button from '#lib/ui/Button.svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import Disclosure from '#lib/ui/Disclosure.svelte';
 	import Spinner from '#lib/ui/Spinner.svelte';
 
 	type Row = { task: BackgroundTask; label: string; kind: string; open?: () => void };
-	let { rows, withComposer }: { rows: Row[]; withComposer: boolean } = $props();
+	let {
+		rows,
+		withComposer,
+		onstoptask
+	}: { onstoptask?: (id: string) => Promise<void>; rows: Row[]; withComposer: boolean } = $props();
+	const errors = new SvelteMap<string, string>();
+	async function stop(id: string) {
+		errors.delete(id);
+		try {
+			await onstoptask?.(id);
+		} catch {
+			errors.set(id, 'Could not reach this task. Try again.');
+		}
+	}
 	let open = $state(false);
 </script>
 
@@ -87,7 +102,23 @@
 								{@render contents(row)}
 							</div>
 						{/if}
+						{#if row.task.stopId && onstoptask}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="ml-1 self-center"
+								aria-label={'Stop ' + row.label}
+								label={'Stop ' + row.label}
+								busy={row.task.stopping}
+								onclick={() => stop(row.task.stopId!)}>Stop</Button
+							>
+						{/if}
 					</li>
+					{#if row.task.stopError || errors.get(row.task.stopId ?? '')}
+						<li role="alert" class="pl-8 text-xs text-danger">
+							{row.task.stopError || errors.get(row.task.stopId ?? '')}
+						</li>
+					{/if}
 				{/each}
 			</ul>
 		{/if}

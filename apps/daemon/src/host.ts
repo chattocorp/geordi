@@ -63,6 +63,7 @@ export type Command =
 	| { type: 'message'; deliveryId?: string; prompt: string; images?: MessageImage[] }
 	/** Stops the turn under way; the CLI goes on running. */
 	| { type: 'interrupt' }
+	| { type: 'stopTask'; stopId: string }
 	| { type: 'answer'; id: string; answers: string[] }
 	/** Ends the CLI now, whatever it is doing. */
 	| { type: 'close' };
@@ -201,6 +202,9 @@ function obey(command: Command) {
 			emit({ kind: 'turn.started' }); // told now, rather than when the CLI gets round to it
 			if (missing) return failed(missing);
 			void ready.then(() => dialogue.message(command.prompt, command.images ?? [])).catch(failed);
+			return;
+		case 'stopTask':
+			void dialogue.stopTask(command.stopId);
 			return;
 		case 'interrupt':
 			if (!open || stopping) return;

@@ -19,6 +19,7 @@ import {
 import type {
 	Agent,
 	AgentCommand,
+	BackgroundTask,
 	ContextUsage,
 	MessageImage,
 	PermissionMode,
@@ -113,7 +114,24 @@ export function connectAgent(
 ) {
 	let id = '';
 	let running = false;
-	const background = new BackgroundTasks((tasks) => emit({ kind: 'background', tasks }));
+	let tasks: BackgroundTask[] = [];
+	const publishTasks = () => emit({ kind: 'background', tasks });
+	const background = new BackgroundTasks((snapshot) => {
+		tasks = snapshot.map((task) => {
+			const previous = tasks.find(
+				(t) => t.session === task.session && t.type === task.type && t.id === task.id
+			);
+			if (previous)
+				return {
+					...task,
+					stopId: previous.stopId,
+					stopping: previous.stopping,
+					stopError: previous.stopError
+				};
+			return { ...task, stopId: randomUUID() };
+		});
+		publishTasks();
+	});
 	let steering = false;
 	const messages = new Map<string, string>();
 	// ACP tool IDs belong to the session. A command can span several foreground turns.
@@ -490,6 +508,40 @@ export function connectAgent(
 				if (r.outcome !== 'promptRequired') throw new Error('Steering failed: ' + r.outcome);
 			}
 			await agent.request(methods.agent.session.prompt, { sessionId: id, prompt });
+		},
+		async stopTask(stopId: string) {
+			const task = tasks.find((t) => t.stopId === stopId);
+			if (!task || task.stopping) return;
+			task.stopping = true;
+			delete task.stopError;
+			publishTasks();
+			const sessionId = task.session ?? id;
+			try {
+				if (task.type === 'subagent') {
+					await agent.notify(methods.agent.session.cancel, { sessionId: task.id });
+				} else if (provider === 'codex') {
+					const result = await agent.request<{ stopped: boolean }>('_session/async_task/stop', {
+						sessionId,
+						asyncTaskId: task.id
+					});
+					if (!result.stopped) throw new Error('The agent could not stop this task.');
+				} else if (task.type === 'terminal') {
+					await agent.request(methods.agent.terminal.cancel, { sessionId, terminalId: task.id });
+				} else {
+					await agent.request(methods.agent.toolCall.cancel, { sessionId, toolCallId: task.id });
+				}
+			} catch (error) {
+				const current = tasks.find((t) => t.stopId === stopId);
+				if (current) {
+					current.stopError = error instanceof Error ? error.message : 'Could not stop this task.';
+				}
+			} finally {
+				const current = tasks.find((t) => t.stopId === stopId);
+				if (current) {
+					delete current.stopping;
+					publishTasks();
+				}
+			}
 		},
 		interrupt: () => agent.notify(methods.agent.session.cancel, { sessionId: id }),
 		answer: (key: string, answers: string[]) => questions.get(key)?.(answers),

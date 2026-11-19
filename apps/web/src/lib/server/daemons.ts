@@ -197,6 +197,18 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 	return {
 		send,
+		stopTask(workspaceId: string, stopId: string) {
+			const entry = background.get(workspaceId);
+			if (
+				!entry?.tasks.some((task) => task.stopId === stopId) ||
+				entry.socket.readyState !== entry.socket.OPEN
+			)
+				return false;
+			entry.socket.send(
+				JSON.stringify({ type: 'agent.stopTask', workspaceId, stopId } satisfies ForgeMessage)
+			);
+			return true;
+		},
 		background: (id: string) => background.get(id)?.tasks ?? [],
 		suggestion: (id: string) => suggestions.get(id) ?? null,
 		/** Calls `listener` when a workspace's background tasks or suggestion change. */

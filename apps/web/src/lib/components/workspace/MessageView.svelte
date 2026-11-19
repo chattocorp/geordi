@@ -23,6 +23,7 @@
 	let {
 		blocks,
 		background = [],
+		onstoptask,
 		withComposer = false,
 		showJump = false,
 		agent,
@@ -39,6 +40,7 @@
 		following = $bindable(true)
 	}: {
 		blocks: Block[];
+		onstoptask?: (stopId: string) => Promise<void>;
 		background?: BackgroundTask[];
 		withComposer?: boolean;
 		showJump?: boolean;
@@ -423,5 +425,5 @@
 	</div>
 {/if}
 {#if backgroundRows.length}
-	<BackgroundTasks rows={backgroundRows} {withComposer} />
+	<BackgroundTasks rows={backgroundRows} {onstoptask} {withComposer} />
 {/if}
