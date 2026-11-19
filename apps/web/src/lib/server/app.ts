@@ -357,8 +357,8 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 			);
 			workspaces().onBranch(ref.worktreeId, branch);
 		},
-		removeProject: async (projectId) => {
-			await hub().request({ kind: 'removeProject', worktreeId: projectId, project: true });
+		closeProject: async (projectId) => {
+			await hub().request({ kind: 'closeProject', worktreeId: projectId, project: true });
 		}
 	})(id, discard, actor);
 

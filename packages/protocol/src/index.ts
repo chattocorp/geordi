@@ -455,8 +455,11 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
-	/** Removes a project's folder (FDR-012), with whatever its agent left there. */
-	| ({ kind: 'removeProject' } & ProjectRef)
+	/**
+	 * Ends the agents working in a project's folder (FDR-012), which is archived. The folder
+	 * stays, with whatever they left there: restored, the project finds it again.
+	 */
+	| ({ kind: 'closeProject' } & ProjectRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -491,6 +494,8 @@ export type DaemonRequest =
 	 * if there is no such file, or it is not a picture.
 	 */
 	| ({ kind: 'picture'; path: string } & WorktreeRef)
+	/** As `picture`, for a picture where a project's agent works: in its folder (FDR-012). */
+	| ({ kind: 'projectPicture'; path: string } & ProjectRef)
 	/** The workspace's branch on the repository's upstream forge. */
 	| ({
 			kind: 'upstream';
@@ -525,7 +530,8 @@ export type DaemonResults = {
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
-	removeProject: null;
+	closeProject: null;
+	projectPicture: Picture | null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;

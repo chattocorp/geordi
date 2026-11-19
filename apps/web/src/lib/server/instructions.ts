@@ -32,7 +32,7 @@ export function instructionsFor(workspace: {
 
 		ASKING,
 
-		'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](/tmp/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too.',
+		PICTURES,
 
 		DIAGRAMS,
 
@@ -54,6 +54,8 @@ export function instructionsFor(workspace: {
 
 const ASKING =
 	'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.';
+const PICTURES =
+	'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](/tmp/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too.';
 const DIAGRAMS =
 	'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Keep the outer corners of generated SVGs square. Geordi rounds them in the UI. Diagrams cannot load images or follow links.';
 const LINKS =
@@ -63,10 +65,11 @@ const LINKS =
 function projectInstructions(): string {
 	return [
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi project: a workspace that belongs to no repository, in which the person has you orchestrate their agents: across repositories, or for work that belongs to no branch.',
-		'Your working directory is an empty folder of this project’s own, not a Git repository: for notes, and for anything you fetch to look at. It is removed when the project is archived.',
+		'Your working directory is an empty folder of this project’s own, not a Git repository: for notes, and for anything you fetch to look at. It stays when the project is archived, and is there again when it is restored: keep notes there that are worth having later.',
 		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply, `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. Bring what they report together, and tell the person where things stand.',
 		'You act for the person: you may look at any workspace in a repository, start agents alongside an existing one’s agent (`start_agent` with `workspace`) or alongside you in this project (`worktree: "shared"`), and message, steer, stop and archive any agent in a repository or in this project, whoever started it. Other projects are not yours to see or touch. Interrupt or stop agents you did not start only when the person asks you to.',
 		ASKING,
+		PICTURES,
 		DIAGRAMS,
 		LINKS,
 		'Once you know what the work is about, give this project a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name.'

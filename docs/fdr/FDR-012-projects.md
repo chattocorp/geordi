@@ -12,13 +12,13 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 - A project is started from the page for a new workspace: **New project** is the last choice where the repository is chosen. Projects have a section of their own in the sidebar, above the repositories, whose **+** opens that page with it chosen. Each shows what every workspace shows there: when its agent is at work, when it asks something, when it has come to rest unseen.
 - There can be many projects, one per effort. A project is archived when its work is done, like any workspace.
 - A project is a conversation with one agent, chosen with its model and effort as anywhere else (FDR-004). Further conversations can be started beside it, by the person or by its agent; they work in the project's folder too. Nothing else is there.
-- Its agent works in a folder of its own that Geordi makes for the project: empty, not a Git repository, there for notes and anything it fetches. The folder is removed when the project is archived.
+- Its agent works in a folder of its own that Geordi makes for the project: empty, not a Git repository, there for notes and anything it fetches. Pictures its agent writes there show in its replies, as anywhere. The folder stays when the project is archived, and is there again when it is restored.
 - Its agent is told where it is: in a project, with no repository, there to orchestrate rather than to write code itself.
 - The project's agent can do in Geordi what the person can (FDR-002): see every repository and workspace, start agents in any repository, start agents alongside the agent of any workspace in a repository, and message, steer, stop and archive any agent in a repository or in the project itself, whoever started it.
 - Projects don't interact: a project's agents can't see, start agents in, message or archive another project.
 - What it starts in a repository begins in a worktree of its own, from the repository's main branch, and appears under that repository in the sidebar as usual, marked as started by the project.
 - A project has none of what follows from a repository: no changes, diffs, changeset, jobs, links or ports, no pull request actions, no setup or teardown.
-- Archiving a project archives the conversations in it and removes its folder. The agents it started in repositories carry on where they are, without a parent.
+- Archiving a project archives the conversations in it and ends their agents; its folder stays. The agents it started in repositories carry on where they are, without a parent.
 
 ## Design Decisions
 
@@ -36,9 +36,9 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 
 ### 3. A folder of its own, never "no directory"
 
-**Decision:** Every project gets an empty folder owned by Geordi, and removed with the project.
-**Why:** Agents need a working directory. One per project keeps projects from touching each other or anything of the person's, with nothing to set up.
-**Tradeoff:** A project's agent can't work on files the person has elsewhere, short of being told where they are.
+**Decision:** Every project gets an empty folder owned by Geordi, which outlives its archiving.
+**Why:** Agents need a working directory. One per project keeps projects from touching each other or anything of the person's, with nothing to set up. Kept when archived, a restored project finds its notes again; they take next to no room.
+**Tradeoff:** A project's agent can't work on files the person has elsewhere, short of being told where they are. Folders of archived projects stay on disk.
 
 ### 4. The person's reach
 
@@ -49,7 +49,7 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 ### 5. Projects keep to themselves
 
 **Decision:** A project's agents see and touch no other project.
-**Why:** Each project is its own effort. Archiving one removes its folder; no agent is to do that, or anything else, to another effort's work.
+**Why:** Each project is its own effort. No agent is to stop, archive or otherwise touch another effort's work.
 **Tradeoff:** Two projects can't hand work to each other; the person carries it over.
 
 ### 6. What a project starts lives with its repository

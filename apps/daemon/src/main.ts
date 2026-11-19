@@ -1,4 +1,4 @@
-import { projectPath, removeProject } from './projects.ts';
+import { projectPath } from './projects.ts';
 import { claimDaemon } from './daemon-owner.ts';
 import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
@@ -483,15 +483,16 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
-	if (request.kind === 'removeProject') {
-		// its agent, whose CLI may still be running there with nothing to do, goes with it
+	if (request.kind === 'projectPicture')
+		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
+	if (request.kind === 'closeProject') {
+		// its agents, whose CLIs may still be running there with nothing to do, end; the folder stays
 		const path = projectPath(projectsDir, request.worktreeId);
 		for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
 		for (const session of sessionsIn(path)) {
 			retired.add(session);
 			session.kill();
 		}
-		removeProject(projectsDir, request.worktreeId);
 		return null;
 	}
 	if (request.kind === 'removeWorktree') {

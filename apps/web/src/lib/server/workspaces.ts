@@ -844,6 +844,12 @@ export function createWorkspaces(
 		};
 	}
 
+	/** Where a workspace's agent works: its worktree, or a project's folder (FDR-012). */
+	function locate(id: string): WorktreeRef | ProjectRef {
+		const { repoId, worktreeId } = find(id);
+		return repoId === null ? { worktreeId, project: true } : ref(id);
+	}
+
 	/** What a daemon needs to find the worktree a workspace works in. A project has none. */
 	function ref(id: string): WorktreeRef {
 		const { repoId, worktreeId, base } = find(id);
@@ -941,11 +947,7 @@ export function createWorkspaces(
 		let target: WorktreeRef | ProjectRef;
 		let attachments;
 		try {
-			// a project works in its folder, not a worktree (FDR-012)
-			target =
-				workspace.repoId === null
-					? { worktreeId: workspace.worktreeId, project: true }
-					: ref(workspace.id);
+			target = locate(workspace.id);
 			attachments = images.map(imageStore.get);
 		} catch (error) {
 			const reason =
@@ -1610,6 +1612,7 @@ export function createWorkspaces(
 		worktreeOf: (id: string) => projection.get().get(id)?.worktreeId,
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
+		locate,
 
 		/** Starts a workspace with a first message to its agent. Returns the workspace's ID. */
 		create: (workspace: NewWorkspace, actor: string | null = null) => create(workspace, actor),

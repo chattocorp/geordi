@@ -1547,6 +1547,7 @@ describe('projects (FDR-012)', () => {
 		expect(message).not.toHaveProperty('repoPath');
 		expect(message.instructions).toContain('Geordi project');
 		expect(() => workspaces.ref(project)).toThrow();
+		expect(workspaces.locate(project)).toEqual({ worktreeId: project, project: true });
 	});
 
 	it('start agents in any repository they name, as their parent', () => {
