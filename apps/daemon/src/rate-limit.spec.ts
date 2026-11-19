@@ -39,14 +39,43 @@ describe('createRateLimits', () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		vi.stubGlobal('fetch', async () => response(429, { 'retry-after': '10' }));
 		const limits = createRateLimits(() => now);
-		expect(limits.paused()).toBeNull();
+		expect(limits.paused('api.github.com')).toBeNull();
 		await limits.fetch('https://api.github.com/search/issues');
 		await limits.fetch('https://api.github.com/search/issues');
-		expect(limits.paused()).toBe(now + 10_000);
+		expect(limits.paused('api.github.com')).toBe(now + 10_000);
 		expect(warn).toHaveBeenCalledTimes(1);
 		expect(warn.mock.calls[0][0]).toContain('api.github.com');
 		now += 10_000;
-		expect(limits.paused()).toBeNull();
+		expect(limits.paused('api.github.com')).toBeNull();
 		warn.mockRestore();
+	});
+
+	it('pauses only the host that refused us', async () => {
+		const now = 1_000_000;
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		vi.stubGlobal('fetch', async () => response(429, { 'retry-after': '10' }));
+		const limits = createRateLimits(() => now);
+		await limits.fetch('https://gitlab.com/api/v4/projects');
+		expect(limits.paused('gitlab.com')).toBe(now + 10_000);
+		expect(limits.paused('api.github.com')).toBeNull();
+		vi.restoreAllMocks();
+	});
+
+	it('does not pause reads for a used-up search budget, but does for the budget they use', async () => {
+		const now = 1_000_000;
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const limits = createRateLimits(() => now);
+		const used = (resource: string) => ({
+			'x-ratelimit-remaining': '0',
+			'x-ratelimit-reset': '2000',
+			'x-ratelimit-resource': resource
+		});
+		vi.stubGlobal('fetch', async () => response(200, used('search')));
+		await limits.fetch('https://api.github.com/search/issues');
+		expect(limits.paused('api.github.com')).toBeNull();
+		vi.stubGlobal('fetch', async () => response(200, used('graphql')));
+		await limits.fetch('https://api.github.com/graphql');
+		expect(limits.paused('api.github.com')).toBe(2_000_000);
+		vi.restoreAllMocks();
 	});
 });

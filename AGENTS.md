@@ -180,10 +180,14 @@ it, perhaps you.
   (`releases.ts`; Sweet Release and Changesets) says whether a repository uses it and asks the tool
   what is pending; everything else deals in packages, versions and notes (`ReleasePlan`).
   A tool is run with `gitEnv`, like our own git: never trusting the worktree's Git metadata.
-- **Standings.** The sidebar shows how each workspace's work stands (its pull request, its
-  checks): `standings.ts` in the forge asks a daemon about the worktrees nobody has open,
-  the stalest first, and takes what open ones learn. In memory only; `standingOf` puts it
-  into an icon and words.
+- **Standings.** How each worktree's work stands (its changes, its pull request, its checks)
+  is kept in one place in the forge, `standings.ts`, for the sidebar and for whoever has a
+  workspace open: both show the same answer. Local Git and the upstream forge are asked
+  separately, so that neither waits for the other; local Git when the daemon says a
+  worktree changed, upstream now and then (the stalest first) and at once when something
+  may show there: a push, another branch, the end of a turn, a merge (`look`). A lookup
+  that fails keeps what was known and says so (`upstreamProblem`). In memory only;
+  `standingOf` puts it into an icon and words.
 - **Repository icons.** The sidebar shows the picture a repository has of itself (a tracked
   favicon or logo): the daemon finds it (`icon.ts`), the forge keeps it a while and serves
   it at `/repos/[id]/icon`. Live data, like everything derived: never stored.
@@ -199,8 +203,9 @@ it, perhaps you.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees
-  someone has open (`watch.ts`), the forge then loads their state once for everyone
-  (`watchers.ts`) and sends it with the workspace live query (`git`). Browsers don't query
+  in use (`watch.ts`; their files too where someone has one open), the forge then loads
+  their state once for everyone (`standings.ts`; `watchers.ts` adds what only a viewer
+  needs) and sends it with the workspace's view (`git`). Browsers don't query
   for it. Also,
   terminal I/O is relayed with an in-memory scrollback (`terminals.ts`; browsers follow it
   over the page's WebSocket (ADR-009), every piece of it, where a view only ever has its latest value). Shells and scrollback

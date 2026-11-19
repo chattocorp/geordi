@@ -18,10 +18,10 @@ import {
 	jobs,
 	repos,
 	prepareWorktree,
+	standings,
 	terminals,
 	updateWorkspace as update,
 	upstreamMayHaveChanged,
-	watchers,
 	workspaces
 } from '#lib/server/app.ts';
 
@@ -139,7 +139,7 @@ export const restoreWorkspace = command(v.string(), async (id) => {
 		);
 		domain.restore(id);
 		domain.record(id, { kind: 'worktree', ...tree });
-		watchers().changed(ref.worktreeId);
+		void standings().look(ref.worktreeId);
 	} catch (cause) {
 		error(422, cause instanceof Error ? cause.message : 'Could not restore the workspace');
 	} finally {
@@ -174,7 +174,8 @@ export const mergePull = command(
 				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
 				60_000
 			);
-			if (typeof status === 'string') watchers().changed(ref.worktreeId);
+			// merged (or queued to be): the sidebar and the ribbon say so at once
+			if (typeof status === 'string') upstreamMayHaveChanged(workspaceId);
 			return status;
 		} catch (cause) {
 			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);

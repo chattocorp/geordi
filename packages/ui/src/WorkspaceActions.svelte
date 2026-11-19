@@ -13,6 +13,11 @@
 		pull?: { number: string; url: string | null } | null;
 		/** What could happen next, the most pressing first. */
 		actions: WorkspaceAction[];
+		/**
+		 * Why the forge could not be asked how the pull request stands, if it could not: what
+		 * is shown is then what was last known.
+		 */
+		unreachable?: string | null;
 		/** The displayed actions belong to a branch that is no longer checked out. */
 		disabled?: boolean;
 		/** The actions already under way: asked of the agent and not done yet. */
@@ -28,6 +33,7 @@
 		standing,
 		pull = null,
 		actions,
+		unreachable = null,
 		disabled = false,
 		pending = [],
 		asking = false,
@@ -74,6 +80,16 @@
 	question appears at its head while an agent waits for an answer.
 -->
 <div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
+	{#if unreachable && !compact}
+		{@const label = `The forge cannot be reached, so this is how things stood when it last could. (${unreachable})`}
+		<span
+			class="icon-[lucide--cloud-off] size-4 shrink-0 text-muted"
+			role="img"
+			aria-label={label}
+			title={label}
+			in:fly={arrive()}
+		></span>
+	{/if}
 	{#if pull}
 		<div
 			class="inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted"
