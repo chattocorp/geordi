@@ -1,39 +1,128 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import {
+	RateLimitedError,
 	threadKey,
 	type ForgeProvider,
-	type GetManyResult,
+	type GitHubProvider,
 	type ResolvedThreadRef,
 	type Thread
 } from 'forges';
 import type { PullRequest } from '@geordi/protocol';
 
-/** Requests that arrive together over the daemon socket share one provider call. */
-type Batch = { refs: Map<string, ResolvedThreadRef>; results: Promise<Map<string, GetManyResult>> };
-const queues = new WeakMap<ForgeProvider, Batch>();
+/**
+ * Calls that arrive together (over the daemon socket, within 20ms) share one call of `run`
+ * per provider, which answers for each of their items in order. Calls with the same key
+ * share an item.
+ */
+function batched<T, R>(run: (provider: ForgeProvider, items: T[]) => Promise<R[]>) {
+	type Batch = { items: Map<string, T>; results: Promise<Map<string, R>> };
+	const queues = new WeakMap<ForgeProvider, Batch>();
+	return async (provider: ForgeProvider, key: string, item: T): Promise<R> => {
+		let batch = queues.get(provider);
+		if (!batch) {
+			const items = new Map<string, T>();
+			const results = delay(20).then(async () => {
+				queues.delete(provider);
+				const results = await run(provider, [...items.values()]);
+				return new Map([...items.keys()].map((key, i) => [key, results[i]]));
+			});
+			batch = { items, results };
+			queues.set(provider, batch);
+		}
+		batch.items.set(key, item);
+		return (await batch.results).get(key)!;
+	};
+}
+
+const getMany = batched((provider, refs: ResolvedThreadRef[]) => provider.threads.getMany(refs));
 
 export async function readPull(
 	provider: ForgeProvider,
 	ref: ResolvedThreadRef
 ): Promise<Thread | null> {
-	let batch = queues.get(provider);
-	if (!batch) {
-		const refs = new Map<string, ResolvedThreadRef>();
-		const results = delay(20).then(async () => {
-			queues.delete(provider);
-			const results = await provider.threads.getMany([...refs.values()]);
-			return new Map([...refs.keys()].map((key, i) => [key, results[i]]));
-		});
-		batch = { refs, results };
-		queues.set(provider, batch);
-	}
-
-	const key = threadKey(ref);
-	batch.refs.set(key, ref);
-	const result = (await batch.results).get(key)!;
+	const result = await getMany(provider, threadKey(ref), ref);
 	if (result.ok) return result.thread;
 	if (result.warning.code === 'thread_unreadable') return null;
 	throw new Error(result.warning.message);
+}
+
+/** GitHub's GraphQL API, where we may use it: signed in. */
+export function graphqlOf(provider: ForgeProvider): GitHubProvider['graphql'] | null {
+	return provider.forge === 'github' &&
+		provider.authKind !== 'anonymous' &&
+		'graphql' in provider &&
+		typeof provider.graphql === 'function'
+		? (provider as GitHubProvider).graphql
+		: null;
+}
+
+/** A pull request for a branch, as GitHub names it: from any repository, a fork's too. */
+export type BranchPull = {
+	number: number;
+	state: 'OPEN' | 'CLOSED' | 'MERGED';
+	headRepositoryOwner: { login: string } | null;
+	headRepository: { name: string } | null;
+};
+type Branch = { owner: string; name: string; branch: string };
+
+/** One request for the pull requests of several branches, the most recently updated first. */
+async function queryBranches(provider: ForgeProvider, branches: Branch[]) {
+	const params = branches.map((_, i) => `$o${i}: String!, $n${i}: String!, $b${i}: String!`);
+	const fields = branches.map(
+		(_, i) => `r${i}: repository(owner: $o${i}, name: $n${i}) {
+			pullRequests(headRefName: $b${i}, first: 5, orderBy: { field: UPDATED_AT, direction: DESC }) {
+				nodes { number state headRepositoryOwner { login } headRepository { name } }
+			}
+		}`
+	);
+	const variables = Object.fromEntries(
+		branches.flatMap(({ owner, name, branch }, i) => [
+			[`o${i}`, owner],
+			[`n${i}`, name],
+			[`b${i}`, branch]
+		])
+	);
+	type Data = Record<string, { pullRequests: { nodes: BranchPull[] } } | null>;
+	const data = await graphqlOf(provider)!<Data>(
+		`query BranchPulls(${params.join(', ')}) { ${fields.join('\n')} }`,
+		variables
+	);
+	return branches.map((_, i) => data[`r${i}`]?.pullRequests.nodes ?? []);
+}
+
+const findMany = batched(
+	async (provider, branches: Branch[]): Promise<(BranchPull[] | Error)[]> => {
+		try {
+			return await queryBranches(provider, branches);
+		} catch (error) {
+			// One repository that cannot be read fails the whole request: then each is asked
+			// alone. Not when refused for asking too much, which asking more would not help.
+			if (branches.length === 1 || error instanceof RateLimitedError)
+				return branches.map(() => error as Error);
+			return Promise.all(
+				branches.map((branch) =>
+					queryBranches(provider, [branch]).then(
+						([pulls]) => pulls,
+						(error: Error) => error
+					)
+				)
+			);
+		}
+	}
+);
+
+/**
+ * A branch's pull requests on GitHub, the most recently updated first: one GraphQL request
+ * for every branch asked about at once. The GraphQL API has a budget of its own, much
+ * larger than search's (30 a minute).
+ */
+export async function findBranchPulls(
+	provider: ForgeProvider,
+	branch: Branch
+): Promise<BranchPull[]> {
+	const result = await findMany(provider, JSON.stringify(branch), branch);
+	if (result instanceof Error) throw result;
+	return result;
 }
 
 type Count = { state: string; count: number };
