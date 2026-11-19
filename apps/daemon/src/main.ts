@@ -569,10 +569,16 @@ async function readRequest(request: DaemonRequest) {
 		// from where the upstream stands now, as a new workspace would
 		const problem = await fetchUpstream(repoPath);
 		if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
-		if ((await uncommittedFiles(worktree)).length > 0)
-			throw new Error('It has uncommitted changes: commit or discard them first');
+		// what is uncommitted comes along, where the new branch has the same files underneath
+		const carried = (await uncommittedFiles(worktree)).length > 0;
 		requireIdle();
-		const branch = await continueOn(worktree, repoPath, requireIdle);
+		const branch = await continueOn(worktree, repoPath, requireIdle).catch((error) => {
+			if (!carried || workingIn(worktree.path)) throw error;
+			throw new Error(
+				'Its uncommitted changes do not fit onto the latest main branch: commit or discard them first',
+				{ cause: error }
+			);
+		});
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { branch };
 	}

@@ -235,8 +235,9 @@ export async function ensureWorktree(
  *
  * Without running git inside the worktree, whose own Git metadata is the agent's to write:
  * the branch is made in the repository, the worktree's files and index are set to it from
- * outside, and its HEAD is pointed there by hand. The caller makes sure there is nothing
- * uncommitted to lose.
+ * outside, and its HEAD is pointed there by hand. Uncommitted changes come along (work
+ * begun after the old branch landed belongs to the new one); where they are to files that
+ * differ between the two branches, nothing is moved and this throws.
  */
 export async function continueOn(
 	worktree: Worktree,
