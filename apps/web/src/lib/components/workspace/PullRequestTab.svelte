@@ -1,13 +1,14 @@
 <script lang="ts">
 	import type { PullRequest } from '@geordi/protocol';
-	import ChecksRing from '#lib/components/ChecksRing.svelte';
+	import { describeChecks } from '#lib/checks.ts';
+	import Ring from '#lib/ui/Ring.svelte';
 
 	let { pull }: { pull: PullRequest } = $props();
+	const summary = $derived(pull.checks && describeChecks(pull.checks));
 </script>
 
-{#if pull.checks?.state === 'pending' || pull.checks?.counts?.pending}
-	<ChecksRing counts={pull.checks.counts} />
-{:else}
-	<span class="icon-[lucide--git-pull-request] size-4 shrink-0"></span>
-{/if}
+<span class="icon-[lucide--git-pull-request] size-4 shrink-0"></span>
 <span>#{pull.number}</span>
+{#if summary}
+	<Ring label="Checks: {summary.text}" parts={summary.parts} />
+{/if}
