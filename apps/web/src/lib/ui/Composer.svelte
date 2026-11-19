@@ -88,19 +88,32 @@
 			writing = document.activeElement === node;
 		};
 		const away = () => (writing = false);
-		const sent = () => (typed = '');
+		let submitted = $state(false);
+		const clearTyped = () => (typed = '');
+		const sent = () => {
+			clearTyped();
+			submitted = true;
+		};
 		const form = node.form;
+		// A pending submission disables the field and the browser drops focus.
+		$effect(() => {
+			if (!submitted || disabled) return;
+			submitted = false;
+			if (document.activeElement === document.body || form?.contains(document.activeElement)) {
+				node.focus({ preventScroll: true });
+			}
+		});
 		node.addEventListener('input', read);
 		node.addEventListener('focus', read);
 		node.addEventListener('blur', away);
 		form?.addEventListener('submit', sent);
-		form?.addEventListener('reset', sent);
+		form?.addEventListener('reset', clearTyped);
 		return () => {
 			node.removeEventListener('input', read);
 			node.removeEventListener('focus', read);
 			node.removeEventListener('blur', away);
 			form?.removeEventListener('submit', sent);
-			form?.removeEventListener('reset', sent);
+			form?.removeEventListener('reset', clearTyped);
 		};
 	};
 
