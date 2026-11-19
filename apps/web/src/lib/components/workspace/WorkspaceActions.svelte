@@ -163,20 +163,20 @@
 					<ButtonGroup label="Actions">
 						{#each ordered as action (action.id)}
 							<!--
-							The next step stands out; what else is possible, and what is beside it, doesn't.
-							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
-							colour. On a ribbon that says something is wrong, it takes the ribbon's colour too.
-							Other soft next steps use ink.
+							The next step is filled where the way is clear (`ok`) or the work has landed
+							(`merged`), in that colour. Every other button takes the ribbon's colour; on a
+							quiet ribbon, ink, so that all read alike.
 						-->
 							{@const busy = pending.includes(action.id)}
 							{@const next = action === primary}
-							{@const ribbonColor = standing?.tone === 'danger'}
+							{@const quiet =
+								!standing || standing.tone === 'neutral' || standing.tone === 'accent'}
 							{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
 							<Button
 								size="sm"
 								variant={next && filled ? 'primary' : 'soft'}
 								tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
-								class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
+								class={quiet ? 'text-ink' : undefined}
 								icon={action.icon}
 								{disabled}
 								{busy}
