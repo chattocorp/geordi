@@ -33,7 +33,7 @@ export function releaseIncreases(before: Package[], after: Package[]): ReleaseIn
 			after: pkg.nextVersion!
 		});
 	}
-	return increases;
+	return increases.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 async function adapterAt(worktree: Worktree, revision: string) {
@@ -68,8 +68,7 @@ export async function reviewRelease(
 			await gitIn(worktree, 'fetch', '--no-tags', '--no-write-fetch-head', 'origin', base);
 		}
 		const before = await adapterAt(worktree, base);
-		const headAdapter = await adapterAt(worktree, target.head);
-		if (!before && !headAdapter) return null;
+		if (!before && !(await adapterAt(worktree, target.head))) return null;
 		const tree = (await gitIn(worktree, 'merge-tree', '--write-tree', base, target.head)).trim();
 		if (!oid.test(tree)) throw new Error('Could not prepare the proposed merge');
 		const after = await adapterAt(worktree, tree);

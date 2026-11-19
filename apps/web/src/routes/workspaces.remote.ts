@@ -130,12 +130,19 @@ export const archiveWorkspace = command(
  * itself, through the daemon (ADR-006), rather than asking the agent to.
  */
 export const mergePull = command(
-	v.object({ workspaceId: v.string(), confirmation: v.optional(v.string()) }),
-	async ({ workspaceId, confirmation }) => {
+	v.object({
+		workspaceId: v.string(),
+		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
+		confirmation: v.optional(v.string())
+	}),
+	async ({ workspaceId, pullNumber, confirmation }) => {
 		const ref = workspaces().ref(workspaceId);
 		try {
-			const status = await hub().request({ kind: 'mergePull', ...ref, confirmation }, 60_000);
-			watchers().changed(ref.worktreeId);
+			const status = await hub().request(
+				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
+				60_000
+			);
+			if (typeof status === 'string') watchers().changed(ref.worktreeId);
 			return status;
 		} catch (cause) {
 			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);

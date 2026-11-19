@@ -11,12 +11,16 @@ it('drops a canceled review and ignores repeat clicks on the pending merge', asy
 		increases: [],
 		problem: 'Unavailable'
 	});
-	const merge = mergeWithReview('w');
+	const merge = mergeWithReview('w', '42');
 	await vi.waitFor(() => expect(releaseReview.asking?.token).toBe('base-head'));
-	expect(await mergeWithReview('w')).toBeNull();
+	expect(await mergeWithReview('w', '42')).toBeNull();
 	releaseReview.asking!.answer('cancel');
 	expect(await merge).toBeNull();
-	expect(mergePull).toHaveBeenCalledTimes(1);
+	expect(mergePull).toHaveBeenCalledExactlyOnceWith({
+		workspaceId: 'w',
+		pullNumber: '42',
+		confirmation: undefined
+	});
 });
 
 it('retries an auto-merge check and submits the choice for the displayed revisions', async () => {

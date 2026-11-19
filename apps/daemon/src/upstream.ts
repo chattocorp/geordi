@@ -555,6 +555,19 @@ export async function upstream(
 	}
 }
 
+async function selectedPull(provider: ForgeProvider, repo: Repo, branch: string, number: string) {
+	const pull = await readThread(provider, {
+		forge: provider.forge,
+		instance: provider.instance,
+		repo,
+		kind: 'pull_request',
+		number
+	});
+	if (pull?.state !== 'open' || !isFor(pull, repo, branch))
+		throw new Error(`Pull request #${number} is no longer open for ${branch}`);
+	return pull;
+}
+
 /** Set GitHub's native auto-merge on the pull request selected in the workspace. */
 export async function setAutoMerge(
 	worktree: Worktree,
@@ -582,15 +595,7 @@ export async function setAutoMerge(
 		typeof provider.graphql !== 'function'
 	)
 		throw new Error('This forge does not support auto-merge');
-	const pull = await readPull(provider, {
-		forge: provider.forge,
-		instance: provider.instance,
-		repo,
-		kind: 'pull_request',
-		number: pullNumber
-	});
-	if (pull?.state !== 'open' || !isFor(pull, repo, branch))
-		throw new Error(`Pull request #${pullNumber} is no longer open for ${branch}`);
+	const pull = await selectedPull(provider, repo, branch, pullNumber);
 	const id = pull.ref.externalId;
 	if (!id) throw new Error('The forge did not return a pull request ID');
 	const raw = pull.raw as GitHubPull;
@@ -721,8 +726,9 @@ export async function mergePull(
 	{
 		repoPath,
 		worktreeId,
+		pullNumber,
 		confirmation
-	}: { repoPath: string; worktreeId: string; confirmation?: string },
+	}: { repoPath: string; worktreeId: string; pullNumber: string; confirmation?: string },
 	approved: (command: string) => boolean
 ) {
 	const found = await locate(worktree, repoPath);
@@ -731,8 +737,7 @@ export async function mergePull(
 	if (!provider.can('threads.merge'))
 		throw new Error(`Geordi cannot merge pull requests on ${provider.forge}`);
 
-	const pull = await findPull(provider, repo, branch);
-	if (pull?.state !== 'open') throw new Error(`There is no open pull request for ${branch}`);
+	const pull = await selectedPull(provider, repo, branch, pullNumber);
 	const commit = (await gitIn(worktree, 'rev-parse', '--verify', head)).trim();
 	if (pull.branches?.head.sha !== commit)
 		throw new Error('The pull request is not at the commit this workspace is at; push first');

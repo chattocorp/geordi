@@ -491,7 +491,7 @@ export type DaemonRequest =
 	 * Merges the pull request for the workspace's branch on the upstream forge. Refused
 	 * unless it is open and at the very commit the workspace has checked out.
 	 */
-	| ({ kind: 'mergePull'; confirmation?: string } & WorktreeRef)
+	| ({ kind: 'mergePull'; pullNumber: string; confirmation?: string } & WorktreeRef)
 	| ({
 			kind: 'setAutoMerge';
 			pullNumber: string;

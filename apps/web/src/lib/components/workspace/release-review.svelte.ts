@@ -12,18 +12,18 @@ export const releaseReview = {
 	}
 };
 
-async function run(workspaceId: string, pullNumber?: string) {
+async function run(workspaceId: string, pullNumber: string, auto: boolean) {
 	if (busy.has(workspaceId)) return null;
 	busy.add(workspaceId);
 	try {
 		let confirmation: string | undefined;
 		for (;;) {
-			const result = pullNumber
+			const result = auto
 				? await setAutoMerge({ workspaceId, pullNumber, enabled: true, confirmation })
-				: await mergePull({ workspaceId, confirmation });
+				: await mergePull({ workspaceId, pullNumber, confirmation });
 			if (!result || typeof result === 'string') return result;
 			const decision = Promise.withResolvers<Choice>();
-			questions.push({ ...result, auto: !!pullNumber, answer: decision.resolve });
+			questions.push({ ...result, auto, answer: decision.resolve });
 			const choice = await decision.promise;
 			questions.shift();
 			if (choice === 'cancel') return null;
@@ -34,6 +34,7 @@ async function run(workspaceId: string, pullNumber?: string) {
 	}
 }
 
-export const mergeWithReview = (workspaceId: string) => run(workspaceId);
+export const mergeWithReview = (workspaceId: string, pullNumber: string) =>
+	run(workspaceId, pullNumber, false);
 export const enableWithReview = (workspaceId: string, pullNumber: string) =>
-	run(workspaceId, pullNumber);
+	run(workspaceId, pullNumber, true);

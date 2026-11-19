@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { expect, it } from 'vitest';
-import { reviewRelease } from './release-review.ts';
+import { releaseIncreases, reviewRelease } from './release-review.ts';
 import { ensureWorktree } from './worktree.ts';
 
 for (const tool of ['Changesets', 'Sweet Release']) {
@@ -111,3 +111,18 @@ for (const tool of ['Changesets', 'Sweet Release']) {
 		}
 	);
 }
+
+it.each(['none', 'patch', 'minor', 'major'])('checks a major release with %s pending', (from) => {
+	const previous = {
+		name: 'api',
+		path: '.',
+		version: '1.4.2',
+		bump: from,
+		nextVersion: { none: null, patch: '1.4.3', minor: '1.5.0', major: '2.0.0' }[from] ?? null,
+		problems: []
+	};
+	const next = { ...previous, bump: 'major', nextVersion: '2.0.0' };
+	const increases = releaseIncreases([previous], [next]);
+	if (from === 'major') expect(increases).toEqual([]);
+	else expect(increases).toMatchObject([{ from, to: 'major', after: '2.0.0' }]);
+});
