@@ -438,8 +438,11 @@
 				{#if standing}
 					<span
 						class={[
-							'col-start-1 row-start-1',
-							archivable && 'group-hover:invisible group-has-focus-visible:invisible'
+							'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
+							archivable &&
+								(pillColor
+									? 'group-hover:opacity-0 group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
+									: 'group-hover:invisible group-has-focus-visible:invisible')
 						]}
 					>
 						<StandingIcon {standing} />
@@ -449,10 +452,11 @@
 					<button
 						type="button"
 						class={[
-							'pointer-events-none col-start-1 row-start-1 inline-flex h-6 w-0 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap opacity-0',
-							'group-hover:pointer-events-auto group-hover:w-auto group-hover:px-2 group-hover:opacity-100 group-has-focus-visible:pointer-events-auto group-has-focus-visible:w-auto group-has-focus-visible:px-2 group-has-focus-visible:opacity-100',
+							'pointer-events-none col-start-1 row-start-1 inline-flex h-6 w-0 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap opacity-0 motion-safe:transition-all motion-safe:duration-150 motion-safe:ease-out',
+							'group-hover:pointer-events-auto group-hover:w-max group-hover:px-2 group-hover:opacity-100 group-has-focus-visible:pointer-events-auto group-has-focus-visible:w-max group-has-focus-visible:px-2 group-has-focus-visible:opacity-100',
 							pillColor
 						]}
+						style:interpolate-size="allow-keywords"
 						aria-label="{primary.label} — {workspace.title}"
 						onclick={() => actFromAfar(workspace, primary)}
 					>

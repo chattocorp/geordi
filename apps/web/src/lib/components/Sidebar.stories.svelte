@@ -160,7 +160,7 @@
 			const pill = canvas.getByText(label, { selector: 'button' });
 			const row = within(pill.closest('li')!);
 			row.getByRole('link').focus();
-			await expect(pill).toBeVisible();
+			await waitFor(() => expect(pill).toHaveStyle({ opacity: '1' }));
 			pill.focus();
 			await expect(pill).toHaveFocus();
 		}
