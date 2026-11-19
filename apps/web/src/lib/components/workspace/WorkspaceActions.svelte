@@ -2,6 +2,9 @@
 	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
 	import Button from '#lib/ui/Button.svelte';
 	import ButtonGroup from '#lib/ui/ButtonGroup.svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { fly } from 'svelte/transition';
 
 	type Props = {
 		/** Where the workspace stands, in a few words. */
@@ -47,6 +50,13 @@
 	const showQuestionLabel = $derived(!compact || ordered.length === 0);
 	const linked = $derived(!compact && !!pull?.url);
 
+	// What changes in the ribbon arrives: it fades in, rising a little. Not on first render.
+	const arrive = () => ({
+		y: 4,
+		duration: prefersReducedMotion.current ? 0 : 320,
+		easing: cubicOut
+	});
+
 	const tones = {
 		ok: 'bg-ok/12 text-ok',
 		danger: 'bg-danger-soft text-danger',
@@ -65,7 +75,10 @@
 -->
 <div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
 	{#if pull}
-		<div class={['inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted']}>
+		<div
+			class="inline-flex h-9 shrink-0 items-stretch rounded-full bg-sunken text-muted"
+			in:fly={arrive()}
+		>
 			<button
 				type="button"
 				class={[
@@ -98,81 +111,89 @@
 		</div>
 	{/if}
 	{#if standing || ordered.length > 0 || asking}
-		<div
-			role="group"
-			aria-label="Next steps"
-			class={[
-				// as tall when small: the pill frames its buttons (`h-7`) all round
-				'inline-flex h-9 items-center gap-1 rounded-full',
-				// never narrower than what is in it: on a card it moves to a line of its own
-				'shrink-0',
-				compact ? 'pl-2.5' : 'pl-3',
-				// buttons reach the end of the pill; text keeps its distance
-				ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
-				tones[standing?.tone ?? 'neutral']
-			]}
-		>
-			{#if asking}
-				<span class={['flex items-center gap-2 font-medium whitespace-nowrap', text]} role="status">
+		<!-- a new standing or next step is a new ribbon -->
+		{#key `${standing?.label}|${primary?.id}`}
+			<div
+				in:fly={arrive()}
+				role="group"
+				aria-label="Next steps"
+				class={[
+					// as tall when small: the pill frames its buttons (`h-7`) all round
+					'inline-flex h-9 items-center gap-1 rounded-full',
+					// never narrower than what is in it: on a card it moves to a line of its own
+					'shrink-0',
+					compact ? 'pl-2.5' : 'pl-3',
+					// buttons reach the end of the pill; text keeps its distance
+					ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
+					tones[standing?.tone ?? 'neutral']
+				]}
+			>
+				{#if asking}
 					<span
-						class={['icon-[lucide--message-circle-question]', icon]}
-						title={showQuestionLabel ? undefined : 'Waiting for your answer'}
-						role={showQuestionLabel ? undefined : 'img'}
-						aria-label={showQuestionLabel ? undefined : 'Waiting for your answer'}
-					></span>
-					{#if showQuestionLabel}Waiting for your answer{/if}
-				</span>
-				{#if standing || ordered.length > 0}
-					<span class={['w-px shrink-0 bg-current opacity-25', compact ? 'mx-1 h-3' : 'mx-2 h-4']}
-					></span>
+						class={['flex items-center gap-2 font-medium whitespace-nowrap', text]}
+						role="status"
+					>
+						<span
+							class={['icon-[lucide--message-circle-question]', icon]}
+							title={showQuestionLabel ? undefined : 'Waiting for your answer'}
+							role={showQuestionLabel ? undefined : 'img'}
+							aria-label={showQuestionLabel ? undefined : 'Waiting for your answer'}
+						></span>
+						{#if showQuestionLabel}Waiting for your answer{/if}
+					</span>
+					{#if standing || ordered.length > 0}
+						<span class={['w-px shrink-0 bg-current opacity-25', compact ? 'mx-1 h-3' : 'mx-2 h-4']}
+						></span>
+					{/if}
 				{/if}
-			{/if}
-			{#if standing}
-				<span
-					class={['shrink-0', icon, standing.icon, !worded && 'mr-1.5']}
-					title={worded ? undefined : standing.label}
-					role={worded ? undefined : 'img'}
-					aria-label={worded ? undefined : standing.label}
-				></span>
-				{#if worded}
-					<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span>
+				{#if standing}
+					<span
+						class={['shrink-0', icon, standing.icon, !worded && 'mr-1.5']}
+						title={worded ? undefined : standing.label}
+						role={worded ? undefined : 'img'}
+						aria-label={worded ? undefined : standing.label}
+					></span>
+					{#if worded}
+						<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span
+						>
+					{/if}
 				{/if}
-			{/if}
-			{#if ordered.length > 0}
-				<!-- several ways to go are one pill, not several -->
-				<ButtonGroup label="Actions">
-					{#each ordered as action (action.id)}
-						<!--
+				{#if ordered.length > 0}
+					<!-- several ways to go are one pill, not several -->
+					<ButtonGroup label="Actions">
+						{#each ordered as action (action.id)}
+							<!--
 							The next step stands out; what else is possible, and what is beside it, doesn't.
 							Filled where the way is clear (`ok`) or the work has landed (`merged`), in that
 							colour. On a ribbon that says something is wrong, it takes the ribbon's colour too.
 							Other soft next steps use ink.
 						-->
-						{@const busy = pending.includes(action.id)}
-						{@const next = action === primary}
-						{@const ribbonColor = standing?.tone === 'danger'}
-						{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
-						<Button
-							size="sm"
-							variant={next && filled ? 'primary' : 'soft'}
-							tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
-							class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
-							icon={action.icon}
-							{disabled}
-							{busy}
-							onclick={() => onaction(action)}
-						>
-							{action.label}
-							{#if action.incomingCommits !== undefined}
-								<span class="font-normal tabular-nums opacity-60">{action.incomingCommits}</span>
-								<span class="sr-only"
-									>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
-								>
-							{/if}
-						</Button>
-					{/each}
-				</ButtonGroup>
-			{/if}
-		</div>
+							{@const busy = pending.includes(action.id)}
+							{@const next = action === primary}
+							{@const ribbonColor = standing?.tone === 'danger'}
+							{@const filled = standing?.tone === 'ok' || standing?.tone === 'merged'}
+							<Button
+								size="sm"
+								variant={next && filled ? 'primary' : 'soft'}
+								tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
+								class={next && !filled && !ribbonColor ? 'text-ink' : undefined}
+								icon={action.icon}
+								{disabled}
+								{busy}
+								onclick={() => onaction(action)}
+							>
+								{action.label}
+								{#if action.incomingCommits !== undefined}
+									<span class="font-normal tabular-nums opacity-60">{action.incomingCommits}</span>
+									<span class="sr-only"
+										>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
+									>
+								{/if}
+							</Button>
+						{/each}
+					</ButtonGroup>
+				{/if}
+			</div>
+		{/key}
 	{/if}
 </div>
