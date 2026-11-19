@@ -344,28 +344,7 @@
 	</div>
 </Story>
 
-<Story
-	name="Editing a suggestion"
-	asChild
-	play={async ({ canvas, userEvent }) => {
-		sentSuggestion.mockClear();
-		const text = canvas.getByRole('combobox');
-		const offer = () => canvas.queryByRole('button', { name: 'Run the tests again.' });
-		await userEvent.click(text);
-		await userEvent.keyboard('{Tab}');
-		await expect(text).toHaveValue('');
-		await userEvent.click(canvas.getByRole('button', { name: 'Edit suggested reply' }));
-		await expect(text).toHaveFocus();
-		await expect(text).toHaveValue('Run the tests again.');
-		await expect(sentSuggestion).not.toHaveBeenCalled();
-		await expect(offer()).toBeNull();
-		await userEvent.clear(text);
-		await expect(offer()).toBeNull();
-		await userEvent.type(text, '/rev');
-		await expect(offer()).toBeNull();
-		await expect(canvas.getAllByRole('option')).toHaveLength(2);
-	}}
->
+{#snippet editableSuggestion()}
 	<div class="max-w-2xl pt-80">
 		<Composer
 			form={suggestionForm}
@@ -385,6 +364,49 @@
 			{/snippet}
 		</Composer>
 	</div>
+{/snippet}
+
+<Story
+	name="Editing a suggestion with Tab"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		sentSuggestion.mockClear();
+		const text = canvas.getByRole('combobox');
+		const offer = () => canvas.queryByRole('button', { name: 'Run the tests again.' });
+		await userEvent.click(text);
+		await userEvent.tab({ shift: true });
+		await expect(canvas.getByRole('button', { name: 'Edit suggested reply' })).toHaveFocus();
+		await userEvent.tab();
+		await expect(text).toHaveFocus();
+		await userEvent.tab();
+		await expect(text).toHaveFocus();
+		await expect(text).toHaveValue('Run the tests again.');
+		await expect(sentSuggestion).not.toHaveBeenCalled();
+		await expect(offer()).toBeNull();
+		await userEvent.clear(text);
+		await expect(offer()).toBeNull();
+		await userEvent.type(text, '/rev');
+		await expect(offer()).toBeNull();
+		await expect(canvas.getAllByRole('option')).toHaveLength(2);
+	}}
+>
+	{@render editableSuggestion()}
+</Story>
+
+<Story
+	name="Editing a suggestion with the pencil"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		sentSuggestion.mockClear();
+		await userEvent.click(canvas.getByRole('button', { name: 'Edit suggested reply' }));
+		const text = canvas.getByRole('combobox');
+		await expect(text).toHaveFocus();
+		await expect(text).toHaveValue('Run the tests again.');
+		await expect(sentSuggestion).not.toHaveBeenCalled();
+		await expect(canvas.queryByRole('group', { name: 'Suggested reply' })).toBeNull();
+	}}
+>
+	{@render editableSuggestion()}
 </Story>
 
 <Story
