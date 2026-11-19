@@ -318,7 +318,10 @@
 			role="listbox"
 			tabindex="-1"
 			aria-label={mention ? 'Repository files' : completionsLabel}
-			class="absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto card-float p-2"
+			class={[
+				'absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto card-float p-2',
+				mention && 'max-w-lg'
+			]}
 			onmousedown={(event) => event.preventDefault()}
 		>
 			{#each shown as completion, index (completion.text)}
@@ -328,18 +331,49 @@
 					role="option"
 					tabindex="-1"
 					aria-selected={index === active}
+					aria-label={mention ? completion.text : undefined}
+					title={mention ? completion.text : undefined}
 					class={['menu-item cursor-pointer', index === active && 'menu-item-active']}
 					onmousedown={() => complete(completion)}
 					onmousemove={() => (active = index)}
 				>
-					<span title={completion.text} class="min-w-0 truncate code text-ink"
-						>{completion.text}</span
-					>
-					{#if completion.hint}
-						<span class="max-w-1/3 shrink-0 truncate code-dense text-muted">{completion.hint}</span>
-					{/if}
-					{#if completion.description}
-						<span class="min-w-0 truncate">{completion.description}</span>
+					{#if mention}
+						{@const split = completion.text.lastIndexOf('/') + 1}
+						<span
+							aria-hidden="true"
+							class={[
+								'mx-1 icon-[lucide--file] size-4 shrink-0',
+								index === active && 'text-accent-ink'
+							]}
+						></span>
+						<span class="min-w-0 flex-1">
+							<span class="block truncate code font-medium text-ink"
+								>{completion.text.slice(split)}</span
+							>
+							{#if split}
+								<span class="block truncate text-left code-dense text-muted" dir="rtl"
+									><bdi>{completion.text.slice(0, split - 1)}</bdi></span
+								>
+							{/if}
+						</span>
+						{#if index === active}
+							<span
+								aria-hidden="true"
+								class="mr-1 icon-[lucide--corner-down-left] size-3.5 shrink-0 text-muted"
+							></span>
+						{/if}
+					{:else}
+						<span title={completion.text} class="min-w-0 truncate code text-ink"
+							>{completion.text}</span
+						>
+						{#if completion.hint}
+							<span class="max-w-1/3 shrink-0 truncate code-dense text-muted"
+								>{completion.hint}</span
+							>
+						{/if}
+						{#if completion.description}
+							<span class="min-w-0 truncate">{completion.description}</span>
+						{/if}
 					{/if}
 				</div>
 			{/each}

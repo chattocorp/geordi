@@ -436,6 +436,9 @@
 		const text = canvas.getByRole('combobox');
 		await userEvent.type(text, 'Review @compose');
 		await canvas.findByRole('option', { name: 'src/ui/Composer.svelte' });
+		await expect(
+			canvas.getByRole('option', { name: 'src/workspace/components/Composer.svelte' })
+		).toBeVisible();
 		await userEvent.keyboard('{Enter}');
 		await expect(text).toHaveValue('Review @src/ui/Composer.svelte ');
 		await userEvent.clear(text);
@@ -446,14 +449,15 @@
 		await expect(text).toHaveValue('Check @src/ui/Composer.svelte next');
 	}}
 >
-	<div class="mx-auto mt-48 max-w-2xl">
+	<div class="mx-auto mt-64 max-w-2xl">
 		<Composer
 			{form}
 			placeholder="Reply to the agent"
 			files={async () => [
 				'src/ui/Composer.svelte',
 				'src/ui/Composer.stories.svelte',
-				'src/components/MessageComposer.svelte'
+				'src/components/MessageComposer.svelte',
+				'src/workspace/components/Composer.svelte'
 			]}
 		>
 			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
