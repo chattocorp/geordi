@@ -284,11 +284,14 @@
 	asChild
 	play={async ({ canvas }) => {
 		const send = canvas.getByRole('button', { name: /Review the failing tests/ });
-		const words = canvas.getByText(longSuggestion.replace(/\s+/g, ' '));
-		await expect(words.textContent).toBe(longSuggestion);
-		await expect(words.scrollHeight).toBeLessThanOrEqual(words.clientHeight + 1);
-		await expect(words.getBoundingClientRect().right).toBeLessThanOrEqual(
-			send.getBoundingClientRect().right
+		await expect(send.textContent).toBe(longSuggestion);
+		const text = canvas.getByRole('textbox');
+		await expect(text).toHaveAttribute('placeholder', '');
+		await expect(send.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+			text.getBoundingClientRect().top
+		);
+		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			text.getBoundingClientRect().bottom
 		);
 	}}
 >
