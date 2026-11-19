@@ -47,6 +47,15 @@ jobs:
       MACOS_NOTARY_API_KEY_ID: ${{ secrets.MACOS_NOTARY_API_KEY_ID }}
       MACOS_NOTARY_API_ISSUER_ID: ${{ secrets.MACOS_NOTARY_API_ISSUER_ID }}
 
+  website:
+    needs: desktop
+    permissions:
+      contents: read
+    uses: ./.github/workflows/website.yml
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
   npm:
     needs: tag
     if: needs.tag.outputs.tags != '[]'
