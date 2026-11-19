@@ -75,7 +75,7 @@
 							type="button"
 							onclick={() => onopen(file.path)}
 							title="{means}: {file.path}"
-							class="flex w-full items-center gap-2.5 overflow-hidden px-3.5 py-1 text-left code-dense whitespace-nowrap hover:bg-sunken"
+							class="flex w-full items-center gap-2.5 overflow-hidden px-3.5 py-1 text-left code-dense whitespace-nowrap hover:bg-hover"
 						>
 							<span class={['w-2 shrink-0 text-center font-semibold', tone]} aria-label={means}>
 								{letter}

@@ -11,6 +11,7 @@
 		['sunken', 'Wells: code, counts, secondary buttons.'],
 		['bubble', 'What the user said.'],
 		['line', 'Dividers and outlines.'],
+		['hover', 'Under what the pointer is on. See-through: shows on any background.'],
 		['ink', 'Text.'],
 		['muted', 'Secondary text and icons.'],
 		['accent', 'The primary action, and things that are live. Nothing else.'],

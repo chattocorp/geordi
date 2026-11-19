@@ -206,7 +206,7 @@
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 						<a
 							href="{resolve('/')}?repo={repo.id}"
-							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink"
+							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-hover hover:text-ink"
 							title="New workspace in {repo.name}"
 							aria-label="New workspace in {repo.name}"
 						>
@@ -372,7 +372,7 @@
 					<button
 						type="button"
 						class={[
-							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken',
+							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-hover',
 							standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
 						]}
 						title="Archive workspace"
