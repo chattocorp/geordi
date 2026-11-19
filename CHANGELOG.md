@@ -1,5 +1,17 @@
 # Geordi Changelog
 
+## 0.6.1
+
+### Fixes
+
+- Running jobs show a gold sweep across the play icon in their terminal tab. ([#228](https://github.com/chattocorp/geordi/pull/228))
+- The reply box receives focus when you start a workspace and after you send, steer, or queue a message. ([#230](https://github.com/chattocorp/geordi/pull/230))
+- Until the agent names your workspace, the header shows as much of your first prompt as fits the conversation column. ([#231](https://github.com/chattocorp/geordi/pull/231))
+- You can find Geordi’s license and copyright notice in the repository, npm package, and desktop app bundle. ([#232](https://github.com/chattocorp/geordi/pull/232))
+- Agents now receive instructions to leave SVG corners square so Geordi can round them when displayed. ([#225](https://github.com/chattocorp/geordi/pull/225))
+- The website updates its download version when a stable desktop release is published. ([#224](https://github.com/chattocorp/geordi/pull/224))
+- Removed the back and forward buttons from the desktop title bar. ([#226](https://github.com/chattocorp/geordi/pull/226))
+
 ## 0.6.0
 
 ### Fixes

@@ -1,5 +1,6 @@
 <script module lang="ts">
-	import { expect } from 'storybook/test';
+	import { tick } from 'svelte';
+	import { expect, fn } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Button from './Button.svelte';
 	import Composer from './Composer.svelte';
@@ -8,6 +9,28 @@
 	const { Story } = defineMeta({ title: 'UI/Composer', component: Composer });
 
 	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
+
+	let pending = $state(false);
+	const replyForm = {
+		async onsubmit(event: SubmitEvent) {
+			event.preventDefault();
+			pending = true;
+			await tick();
+			pending = false;
+		}
+	};
+
+	const sentSuggestion = fn<(message: string) => void>();
+	const suggestionForm = {
+		onsubmit(event: SubmitEvent) {
+			event.preventDefault();
+			const textarea = (event.currentTarget as HTMLFormElement).querySelector('textarea')!;
+			sentSuggestion(textarea.value);
+		}
+	};
+
+	const longSuggestion =
+		'Review the failing tests and find out why the workspace loses its draft after a restart.\n\nFix the cause, add a regression test, and summarize what changed.';
 
 	const commands = [
 		{ text: '/review', description: 'Review uncommitted changes', hint: 'optional instructions' },
@@ -58,9 +81,20 @@
 	</div>
 </Story>
 
-<Story name="Reply" asChild>
+<Story
+	name="Reply"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const text = canvas.getByRole('textbox');
+		await expect(text).toHaveFocus();
+		await userEvent.keyboard('First reply{Enter}');
+		await expect(text).toHaveFocus();
+		await userEvent.click(canvas.getByRole('button', { name: 'Send' }));
+		await expect(text).toHaveFocus();
+	}}
+>
 	<div class="max-w-2xl">
-		<Composer {form} rows={2} placeholder="Reply to the agent">
+		<Composer form={replyForm} focused disabled={pending} rows={2} placeholder="Reply to the agent">
 			{#snippet footer()}
 				<p class="pl-1 text-xs text-muted">Enter to send, Shift+Enter for a new line</p>
 				<Button
@@ -218,7 +252,6 @@
 	</div>
 </Story>
 
-<!-- What the agent suggests saying next, in the empty box: Tab or a click puts it in. -->
 <Story name="With a suggestion" asChild>
 	<div class="max-w-2xl">
 		<Composer
@@ -241,30 +274,80 @@
 	</div>
 </Story>
 
-<!--
-	Tab puts the suggestion into the box, where it is the person's to edit and send. A `/`
-	puts it away for the commands: the two are never offered together.
--->
 <Story
-	name="Taking a suggestion"
+	name="Long suggestion"
 	asChild
-	play={async ({ canvas, userEvent }) => {
-		const text = canvas.getByRole('combobox');
-		const offer = () => canvas.queryByRole('button', { name: 'Run the tests again.' });
-		await userEvent.click(text);
-		await userEvent.keyboard('{Tab}');
-		await expect(text).toHaveValue('Run the tests again.');
-		await expect(offer()).toBeNull();
-		await userEvent.clear(text);
-		await expect(offer()).not.toBeNull();
-		await userEvent.type(text, '/rev');
-		await expect(offer()).toBeNull();
-		await expect(canvas.getAllByRole('option')).toHaveLength(2);
+	play={async ({ canvas }) => {
+		const send = canvas.getByRole('button', { name: /Review the failing tests/ });
+		const words = canvas.getByText(longSuggestion.replace(/\s+/g, ' '));
+		await expect(words.textContent).toBe(longSuggestion);
+		await expect(words.scrollHeight).toBeLessThanOrEqual(words.clientHeight + 1);
+		await expect(words.getBoundingClientRect().right).toBeLessThanOrEqual(
+			send.getBoundingClientRect().right
+		);
 	}}
 >
-	<div class="max-w-2xl pt-80">
+	<div class="max-w-sm">
+		<Composer {form} rows={2} placeholder="Reply to the agent" suggestion={longSuggestion}>
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+<Story
+	name="Scrollable suggestion"
+	asChild
+	play={async ({ canvas }) => {
+		const prompt = canvas.getByRole('button', { name: /Review the failing tests/ });
+		const send = canvas.getByRole('button', { name: 'Send' });
+		const pane = canvas.getByTestId('conversation-pane');
+		await expect(canvas.getByRole('textbox').closest('form')).toContainElement(prompt);
+		await expect(prompt.scrollHeight).toBeGreaterThan(prompt.clientHeight);
+		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			pane.getBoundingClientRect().bottom
+		);
+		const edit = canvas.getByRole('button', { name: 'Edit suggested reply' });
+		const editTop = edit.getBoundingClientRect().top;
+		prompt.scrollTop = prompt.scrollHeight;
+		await expect(edit.getBoundingClientRect().top).toBe(editTop);
+		await expect(prompt.scrollTop + prompt.clientHeight).toBeGreaterThanOrEqual(
+			prompt.scrollHeight - 1
+		);
+		prompt.scrollTop = 0;
+	}}
+>
+	<div data-testid="conversation-pane" class="flex h-64 max-w-sm flex-col">
 		<Composer
 			{form}
+			rows={2}
+			placeholder="Reply to the agent"
+			suggestion={Array(12).fill(longSuggestion).join('\n\n')}
+		>
+			{#snippet footer()}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+				/>
+			{/snippet}
+		</Composer>
+	</div>
+</Story>
+
+{#snippet editableSuggestion()}
+	<div class="max-w-2xl pt-80">
+		<Composer
+			form={suggestionForm}
 			rows={2}
 			completions={commands}
 			placeholder="Reply to the agent"
@@ -281,4 +364,67 @@
 			{/snippet}
 		</Composer>
 	</div>
+{/snippet}
+
+<Story
+	name="Editing a suggestion with Tab"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		sentSuggestion.mockClear();
+		const text = canvas.getByRole('combobox');
+		const offer = () => canvas.queryByRole('button', { name: 'Run the tests again.' });
+		await userEvent.click(text);
+		await userEvent.tab({ shift: true });
+		await expect(canvas.getByRole('button', { name: 'Edit suggested reply' })).toHaveFocus();
+		await userEvent.tab();
+		await expect(text).toHaveFocus();
+		await userEvent.tab();
+		await expect(text).toHaveFocus();
+		await expect(text).toHaveValue('Run the tests again.');
+		await expect(sentSuggestion).not.toHaveBeenCalled();
+		await expect(offer()).toBeNull();
+		await userEvent.clear(text);
+		await expect(offer()).toBeNull();
+		await userEvent.type(text, '/rev');
+		await expect(offer()).toBeNull();
+		await expect(canvas.getAllByRole('option')).toHaveLength(2);
+	}}
+>
+	{@render editableSuggestion()}
+</Story>
+
+<Story
+	name="Editing a suggestion with the pencil"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		sentSuggestion.mockClear();
+		await userEvent.click(canvas.getByRole('button', { name: 'Edit suggested reply' }));
+		const text = canvas.getByRole('combobox');
+		await expect(text).toHaveFocus();
+		await expect(text).toHaveValue('Run the tests again.');
+		await expect(sentSuggestion).not.toHaveBeenCalled();
+		await expect(canvas.queryByRole('group', { name: 'Suggested reply' })).toBeNull();
+	}}
+>
+	{@render editableSuggestion()}
+</Story>
+
+<Story
+	name="Sending a suggestion"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		sentSuggestion.mockClear();
+		await userEvent.click(canvas.getByRole('button', { name: 'Run the tests again.' }));
+		await expect(sentSuggestion).toHaveBeenCalledTimes(1);
+		await expect(sentSuggestion).toHaveBeenCalledWith('Run the tests again.');
+		await expect(canvas.queryByRole('group', { name: 'Suggested reply' })).toBeNull();
+	}}
+>
+	<Composer
+		form={suggestionForm}
+		placeholder="Reply to the agent"
+		suggestion="Run the tests again."
+	>
+		{#snippet footer()}<Button type="submit">Send</Button>{/snippet}
+	</Composer>
 </Story>

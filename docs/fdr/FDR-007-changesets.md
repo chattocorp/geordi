@@ -16,7 +16,10 @@ Many repositories keep notes on their changes with a release tool, which later t
 - It follows the files: a note the agent writes, or one that comes in from the main branch, shows at once.
 - The first time in a repository, the tab asks: it shows the command it would run to ask the tool, and runs it only once that was allowed. That holds for the repository from then on.
 - If the tool can't be asked (it is not installed where the daemon runs, say), the tab says so. What the tool finds wrong with a package or a note is shown with that package.
-- The first tool Geordi knows is Sweet Release.
+- Geordi supports Sweet Release and Changesets. The daemon includes the Changesets plan reader. Sweet Release uses the installed `sweet` command.
+- When you select **Merge PR**, Geordi compares the current target with the proposed merge. A first minor or major release, or an increase from patch to minor or major, or minor to major, needs confirmation. The dialog lists every affected package with both versions. The release tool determines the level, including for packages below 1.0 and dependent packages.
+- If the plan is unavailable, you can retry, cancel, or explicitly merge without the check. Repositories without a supported release tool keep their one-click merge.
+- **Enable auto-merge** checks the release impact at enablement. If the plan is unavailable, you can retry or cancel. The target can change before the upstream forge merges the PR.
 
 ## Design Decisions
 
@@ -24,7 +27,7 @@ Many repositories keep notes on their changes with a release tool, which later t
 
 **Decision:** The daemon asks the release tool itself (Sweet Release: `sweet status --json`, which it offers for automation) rather than read the notes and work out versions on its own.
 **Why:** Which bump a note causes is the tool's business, and has rules of its own (per-repository change types, breaking changes before 1.0, prereleases). A second implementation would be wrong in the details, and stay wrong as the tool moves on.
-**Tradeoff:** The tool has to be installed where the daemon runs, in a version that understands the repository; without it the tab only says that it is missing.
+**Tradeoff:** The reader must understand the repository’s configuration. The workspace shows any error from the tool.
 
 ### 2. The tool runs like our own git does
 
@@ -36,16 +39,13 @@ Many repositories keep notes on their changes with a release tool, which later t
 ### 3. One adapter per tool
 
 **Decision:** Everything about a tool is in one adapter in the daemon (`releases.ts`): whether a repository uses it, and how its pending notes are read. The rest of Geordi knows packages, versions and notes, not tools.
-**Why:** Release tools differ in where they keep notes and how they are asked, and agree on what they are about. Another tool (changesets, say) is another adapter, with nothing to change in the forge or the UI.
+**Why:** Release tools differ in where they keep notes and how they are asked, and agree on what they are about. Another tool is another adapter, with nothing to change in the forge or the UI.
 **Tradeoff:** What a tool has beyond packages, versions and notes (linked packages, release channels) has no place to show yet.
 
-### 4. What merging leads to, not what it changes
+### 4. Compare committed release plans at merge time
 
-**Decision:** The tab shows each package's next version as the worktree has it: with the workspace's notes and everything that was pending already.
-**Why:** That is the version the next release will have once the workspace is merged, which is what one wants to know. Telling apart what the workspace alone would change needs the tool to run on the main branch's files too, which are not checked out anywhere.
-**Tradeoff:** A workspace whose notes don't move the version any further than pending ones already did looks the same as one that does.
+The Changeset tab follows edits in the worktree. A merge uses only published changes, so its confirmation compares the target commit with the proposed merge result. Geordi reads these files in a temporary checkout and repeats the comparison when you confirm. This costs an extra read at merge time and keeps unpublished notes out of the decision.
 
 ## Out of Scope
 
 - Creating notes, or preparing releases, from Geordi: agents and people do that with the tool.
-- Tools other than Sweet Release, for now.

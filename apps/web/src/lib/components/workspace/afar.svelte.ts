@@ -5,12 +5,7 @@ import type { WorkspaceAction } from '#lib/actions.ts';
 import { problemOf } from '#lib/problem.ts';
 import { archive, archiveProblems } from './archive.svelte.ts';
 import { reviewProblems, runPullAction } from './review.svelte.ts';
-import {
-	continueWorkspace,
-	mergePull,
-	say,
-	updateWorkspace
-} from '../../../routes/workspaces.remote';
+import { continueWorkspace, say, updateWorkspace } from '../../../routes/workspaces.remote';
 
 /**
  * Doing what a workspace's actions say from outside it: the sidebar, the overview. Where
@@ -63,11 +58,5 @@ export async function actFromAfar(workspace: Target, action: WorkspaceAction) {
 		return updateWorkspace({ workspaceId: workspace.id, prompt: action.prompt });
 	if (action.prompt) return say({ workspaceId: workspace.id, text: action.prompt });
 	// restoring a worktree, say: that is done in the workspace
-	if (action.id !== 'merge-pull') return open(workspace.id);
-	try {
-		await mergePull(workspace.id);
-	} catch {
-		// its page offers it again, and says why it didn't work
-		await open(workspace.id);
-	}
+	return open(workspace.id);
 }

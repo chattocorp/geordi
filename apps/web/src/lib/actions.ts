@@ -242,6 +242,7 @@ function nextActions(state: State): WorkspaceAction[] {
 	} else if (!pull.draft && actions.length === 0 && checksPass && !pull.blocked)
 		actions.push({
 			id: 'merge-pull',
+			pullNumber: pull.number,
 			label: 'Merge PR',
 			icon: 'icon-[lucide--git-merge]'
 		});

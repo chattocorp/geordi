@@ -581,11 +581,13 @@ async function readRequest(request: DaemonRequest) {
 			return result;
 		}
 		case 'setAutoMerge':
-			return setAutoMerge(worktree, request);
+			return setAutoMerge(worktree, request, (cmd) => approvals.has(request.repoPath, cmd));
 		case 'markReady':
 			return markReady(worktree, request);
 		case 'mergePull': {
-			const status = await mergePull(worktree, request);
+			const status = await mergePull(worktree, request, (cmd) =>
+				approvals.has(request.repoPath, cmd)
+			);
 			// The merge is a new commit upstream: fetching it lets every workspace of the
 			// repository see it (their watchers notice the refs change). Not waited for.
 			if (status === 'merged')

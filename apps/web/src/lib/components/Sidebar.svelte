@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
@@ -81,6 +81,15 @@
 	/** The colour of what to do next, from how the workspace stands: as in its ribbon. */
 	const actionTone = (standing: WorkspaceStanding | null): MenuTone =>
 		standing?.tone === 'ok' || standing?.tone === 'merged' ? standing.tone : 'accent';
+
+	// Only promote the main action. Routine publishing stays inside the workspace.
+	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
+		'merge-pull': 'bg-ok/12 text-ok hover:bg-ok/20',
+		'resolve-conflicts': 'bg-danger-soft text-danger hover:bg-danger/20',
+		'fix-checks': 'bg-danger-soft text-danger hover:bg-danger/20',
+		'address-review': 'bg-danger-soft text-danger hover:bg-danger/20',
+		archive: 'bg-merged/15 text-merged hover:bg-merged/25'
+	};
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
@@ -324,6 +333,8 @@
 	<!-- Routine publishing steps only need to appear inside the workspace. -->
 	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
 	{@const archivable = !busy && !leaving}
+	{@const primary = workspace.actions.find((action) => !action.aside)}
+	{@const pillColor = primary && pillColors[primary.id]}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
 	<li
@@ -421,20 +432,38 @@
 			{/if}
 			<!--
 				At its end: how its work stands, at a glance. Pointed at, that makes way for what
-				can be done with it; the two share one place, so that nothing moves.
+				can be done with it. The title yields space only while a pill is visible.
 			-->
-			<span class="grid size-6 shrink-0 place-items-center">
+			<span class="grid h-6 min-w-6 shrink-0 place-items-center">
 				{#if standing}
 					<span
 						class={[
-							'col-start-1 row-start-1',
-							archivable && 'group-hover:invisible group-has-focus-visible:invisible'
+							'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
+							archivable &&
+								(pillColor
+									? 'group-hover:opacity-0 group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
+									: 'group-hover:invisible group-has-focus-visible:invisible')
 						]}
 					>
 						<StandingIcon {standing} />
 					</span>
 				{/if}
-				{#if archivable}
+				{#if archivable && primary && pillColor}
+					<button
+						type="button"
+						class={[
+							'pointer-events-none col-start-1 row-start-1 inline-flex h-6 w-0 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap opacity-0 motion-safe:transition-all motion-safe:duration-150 motion-safe:ease-out',
+							'group-hover:pointer-events-auto group-hover:w-max group-hover:px-2 group-hover:opacity-100 group-has-focus-visible:pointer-events-auto group-has-focus-visible:w-max group-has-focus-visible:px-2 group-has-focus-visible:opacity-100',
+							pillColor
+						]}
+						style:interpolate-size="allow-keywords"
+						aria-label="{primary.label} — {workspace.title}"
+						onclick={() => actFromAfar(workspace, primary)}
+					>
+						{primary.label}
+						<span class={[primary.icon, 'size-3.5']}></span>
+					</button>
+				{:else if archivable}
 					<button
 						type="button"
 						class={[

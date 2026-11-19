@@ -129,27 +129,44 @@ export const archiveWorkspace = command(
  * Merges the workspace's pull request on the forge it is hosted on. Geordi does this
  * itself, through the daemon (ADR-006), rather than asking the agent to.
  */
-export const mergePull = command(v.string(), async (workspaceId) => {
-	const ref = workspaces().ref(workspaceId);
-	try {
-		const status = await hub().request({ kind: 'mergePull', ...ref }, 60_000);
-		watchers().changed(ref.worktreeId);
-		return status;
-	} catch (cause) {
-		error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+export const mergePull = command(
+	v.object({
+		workspaceId: v.string(),
+		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
+		confirmation: v.optional(v.string())
+	}),
+	async ({ workspaceId, pullNumber, confirmation }) => {
+		const ref = workspaces().ref(workspaceId);
+		try {
+			const status = await hub().request(
+				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
+				60_000
+			);
+			if (typeof status === 'string') watchers().changed(ref.worktreeId);
+			return status;
+		} catch (cause) {
+			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
+		}
 	}
-});
+);
 
 export const setAutoMerge = command(
 	v.object({
 		workspaceId: v.string(),
 		pullNumber: v.pipe(v.string(), v.regex(/^[1-9]\d*$/)),
-		enabled: v.boolean()
+		enabled: v.boolean(),
+		confirmation: v.optional(v.string())
 	}),
-	async ({ workspaceId, pullNumber, enabled }) => {
+	async ({ workspaceId, pullNumber, enabled, confirmation }) => {
 		try {
-			await hub().request(
-				{ kind: 'setAutoMerge', ...workspaces().ref(workspaceId), pullNumber, enabled },
+			return await hub().request(
+				{
+					kind: 'setAutoMerge',
+					...workspaces().ref(workspaceId),
+					pullNumber,
+					enabled,
+					confirmation
+				},
 				60_000
 			);
 		} catch (cause) {

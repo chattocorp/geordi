@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
 	import { problemOf } from '#lib/problem.ts';
+	import { addedNoteCount } from '#lib/release-notes.ts';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -16,13 +17,13 @@
 	};
 	let { plan, onopen, onallow, onsave }: Props = $props();
 
-	let editing = $state<string | null>(null);
+	let editing = $state<{ path: string; pkg: string } | null>(null);
 	let original = $state('');
 	let draft = $state('');
 	let saving = $state(false);
 	let problem = $state('');
-	function edit(path: string, body: string) {
-		editing = path;
+	function edit(pkg: string, path: string, body: string) {
+		editing = { pkg, path };
 		original = draft = body;
 		problem = '';
 	}
@@ -42,7 +43,12 @@
 	const mine = (pkg: ReleasePackage) => pkg.notes.filter((note) => note.added);
 	// only what this workspace changes about the next releases: that is what it is about
 	const touched = $derived(plan.packages.filter((pkg) => mine(pkg).length > 0));
-	const added = $derived(touched.reduce((count, pkg) => count + mine(pkg).length, 0));
+	const editorVisible = $derived(
+		touched.some(
+			(pkg) => pkg.path === editing?.pkg && mine(pkg).some((note) => note.path === editing?.path)
+		)
+	);
+	const added = $derived(addedNoteCount(touched));
 	const troubled = $derived(plan.packages.filter((pkg) => pkg.problems.length > 0));
 </script>
 
@@ -101,17 +107,17 @@
 								class="icon-[lucide--chevron-right] size-3 shrink-0 text-muted group-hover:text-ink"
 							></span>
 						</button>
-						{#if !touched.some((pkg) => mine(pkg).some((n) => n.path === editing))}
+						{#if !editorVisible}
 							<Button
 								label="Edit {note.path.split('/').at(-1)}"
 								size="sm"
 								variant="ghost"
 								icon="icon-[lucide--pencil]"
-								onclick={() => edit(note.path, note.body)}
+								onclick={() => edit(pkg.path, note.path, note.body)}
 							/>
 						{/if}
 					</div>
-					{#if editing === note.path}
+					{#if editing?.pkg === pkg.path && editing.path === note.path}
 						<textarea
 							class="w-full input"
 							aria-label="Change note text"
@@ -172,10 +178,9 @@
 			<!-- asked once per repository: the tool runs as the person, where the agent can write -->
 			<div class="space-y-3 px-3.5 py-2 text-sm">
 				<p class="text-muted">
-					This repository uses {plan.name}. To show what this workspace means for its next releases,
-					Geordi runs this in the workspace's directory, as you:
+					Allow Geordi to read the {plan.name} release plan for this repository.
 				</p>
-				<pre class="rounded-control bg-sunken p-3 code-dense">{ask}</pre>
+				<pre class="rounded-control bg-sunken p-3 code-dense whitespace-pre-wrap">{ask}</pre>
 				<Button size="sm" onclick={() => onallow(ask)}>Allow in this repository</Button>
 			</div>
 		{:else if plan.problem}

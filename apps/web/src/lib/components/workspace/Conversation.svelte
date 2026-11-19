@@ -120,13 +120,14 @@
 		/>
 	{/key}
 
-	<div class="relative mx-auto w-full max-w-5xl shrink-0">
+	<div class="relative mx-auto flex max-h-full min-h-0 w-full max-w-5xl flex-col">
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
-			<div class="px-5 pb-5" onsubmit={toLatest}>
+			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest}>
 				<MessageComposer
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
+					focused
 					disabled={form.pending > 0}
 					{form}
 					live={running && !waiting}

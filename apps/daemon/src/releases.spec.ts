@@ -75,6 +75,7 @@ describe('reading Sweet Release', () => {
 			}
 		]);
 		expect(() => fromSweet('{"not":"a list"}')).toThrow();
+		expect(() => fromSweet('[{"path":".","version":"1.0.0"}]')).toThrow();
 	});
 });
 
@@ -188,7 +189,12 @@ it('saves a note body with its original metadata and refuses a stale draft', asy
 				read: async () =>
 					fromSweet(
 						JSON.stringify([
-							{ path: '.', changes: [{ path, type: 'fix', body: 'Long original body' }] }
+							{
+								path: '.',
+								version: '1.0.0',
+								bump: 'patch',
+								changes: [{ path, type: 'fix', body: 'Long original body' }]
+							}
 						])
 					)
 			}
@@ -200,4 +206,38 @@ it('saves a note body with its original metadata and refuses a stale draft', asy
 	expect(() => editReleaseNote(tree, plan, edit)).toThrow('note changed');
 	expect(() => editReleaseNote(tree, null, edit)).toThrow('no longer available');
 	expect(readFileSync(file, 'utf8')).toBe(header + 'A\r\nB\r\n');
+});
+
+it('edits one Changesets note shared by two packages', async () => {
+	const tree = await worktree();
+	const path = '.changeset/shared.md';
+	const file = (path: string) => join(tree.path, path);
+	mkdirSync(file('.changeset'));
+	writeFileSync(file('.changeset/config.json'), '{}');
+	writeFileSync(
+		file('package.json'),
+		JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] })
+	);
+	writeFileSync(file('pnpm-workspace.yaml'), 'packages: ["packages/*"]\n');
+	for (const name of ['api', 'client']) {
+		mkdirSync(file('packages/' + name), { recursive: true });
+		writeFileSync(
+			file('packages/' + name + '/package.json'),
+			JSON.stringify({ name, version: '1.0.0' })
+		);
+	}
+	const header = '---\n"api": minor\n"client": patch\n---\n\n';
+	writeFileSync(file(path), header + 'Old summary\n');
+	const read = () =>
+		releasePlan(
+			tree,
+			() => new Set([path]),
+			() => true
+		);
+	editReleaseNote(tree, await read(), { path, original: 'Old summary', body: 'Updated summary' });
+	expect(readFileSync(file(path), 'utf8')).toBe(header + 'Updated summary\n');
+	expect((await read())?.packages.map((pkg) => pkg.notes[0].body)).toEqual([
+		'Updated summary',
+		'Updated summary'
+	]);
 });
