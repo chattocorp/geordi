@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from 'node:fs';
-import { basename, join, sep } from 'node:path';
+import { basename, isAbsolute, join, sep } from 'node:path';
 import type { WatchScope, WorktreeRef } from '@geordi/protocol';
+import { MAX_FILE_CHANGES, type FileChanges } from './file-index.ts';
 import { branchOf, type Worktree } from './worktree.ts';
 
 /** Changes come in bursts (a save, a checkout, an install); report each burst once. */
@@ -21,18 +22,32 @@ export function watchWorktree(
 	worktree: Worktree,
 	onChange: () => void,
 	files = true,
-	onNames?: () => void
+	onNames?: (changes?: FileChanges) => void
 ): () => void {
 	let settle: NodeJS.Timeout | undefined;
-	let namesChanged = false;
-	const report = (names = false) => {
-		namesChanged ||= names;
+	// Name updates have their own short batch so ongoing writes cannot delay the picker.
+	let namesTimer: NodeJS.Timeout | undefined;
+	let paths: Set<string> | undefined = new Set();
+	let gitIndex = false;
+	const names = (path?: string, staged = false) => {
+		if (!onNames) return;
+		if (staged) gitIndex = true;
+		else if (path === undefined) paths = undefined;
+		else if (paths) {
+			paths.add(path);
+			if (paths.size > MAX_FILE_CHANGES) paths = undefined;
+		}
+		namesTimer ??= setTimeout(() => {
+			onNames(paths && { paths: [...paths], gitIndex });
+			gitIndex = false;
+			paths = new Set();
+			namesTimer = undefined;
+		}, 25);
+	};
+	const report = (allNames = false) => {
+		if (allNames) names();
 		clearTimeout(settle);
-		settle = setTimeout(() => {
-			if (namesChanged) onNames?.();
-			namesChanged = false;
-			onChange();
-		}, SETTLE_MS);
+		settle = setTimeout(onChange, SETTLE_MS);
 	};
 	// lock files come and go around every git command, including ones that change nothing
 	const quiet = (file: string | Buffer | null) => !!file?.toString().endsWith('.lock');
@@ -55,7 +70,7 @@ export function watchWorktree(
 	) => {
 		try {
 			// a vanished directory is not our problem; the next change elsewhere still reports
-			watchers.push(watch(path, { recursive }, listener).on('error', () => {}));
+			watchers.push(watch(path, { recursive }, listener).on('error', () => report(true)));
 		} catch {
 			// not there (yet): nothing to watch
 		}
@@ -64,7 +79,18 @@ export function watchWorktree(
 		add(
 			worktree.path,
 			(event, file) => {
-				report(event === 'rename' || !file || basename(file.toString()) === '.gitignore');
+				const path = file?.toString().split(sep).join('/');
+				if (
+					!path ||
+					isAbsolute(path) ||
+					path.split('/').some((part) => part === '..' || part === '.' || part === '')
+				)
+					names();
+				else if (basename(path) === '.gitignore') {
+					const slash = path.lastIndexOf('/');
+					names(slash < 0 ? undefined : path.slice(0, slash));
+				} else if (event === 'rename') names(path);
+				report();
 			},
 			true
 		);
@@ -73,14 +99,18 @@ export function watchWorktree(
 		});
 	}
 	add(worktree.adminDir, (event, file) => {
-		if (!file || file.toString() === 'index') report(true);
-		else changed(event, file);
+		if (!file) report(true);
+		else if (file.toString() === 'index') {
+			names(undefined, true);
+			report();
+		} else changed(event, file);
 	});
 	add(worktree.commonDir, repoChanged);
 	add(join(worktree.commonDir, 'refs'), refChanged, true);
 
 	return () => {
 		clearTimeout(settle);
+		clearTimeout(namesTimer);
 		for (const watcher of watchers) watcher.close();
 	};
 }
@@ -112,7 +142,7 @@ export function concerns(worktree: Worktree, ref: string): boolean {
 export function createWatches(
 	locate: (ref: WorktreeRef) => Promise<Worktree>,
 	onChange: (worktreeId: string) => void,
-	onNames?: (worktreeId: string) => void
+	onNames?: (worktreeId: string, changes?: FileChanges) => void
 ) {
 	const wanted: Record<WatchScope, WorktreeRef[]> = { open: [], background: [] };
 	const held = new Map<string, WorktreeRef & { worktree: Worktree }>();
@@ -140,7 +170,7 @@ export function createWatches(
 					worktree,
 					() => onChange(id),
 					files,
-					() => onNames?.(id)
+					(changes) => onNames?.(id, changes)
 				);
 			};
 			const retained = held.get(id);

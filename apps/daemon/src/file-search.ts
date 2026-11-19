@@ -1,6 +1,6 @@
 import { Worker } from 'node:worker_threads';
 import type { FileMatch } from '@geordi/protocol';
-import type { FileSource } from './file-index.ts';
+import type { FileChanges, FileSource } from './file-index.ts';
 
 const program = new URL(
 	import.meta.url.endsWith('.ts') ? './file-index-worker.ts' : './file-index-worker.js',
@@ -78,8 +78,8 @@ export function createFileSearch() {
 			entries.set(key, entry);
 			return entry.search(query);
 		},
-		invalidate(key: string) {
-			entries.get(key)?.worker.postMessage('invalidate');
+		invalidate(key: string, changes?: FileChanges) {
+			entries.get(key)?.worker.postMessage({ changes });
 		},
 		close() {
 			closed = true;

@@ -263,7 +263,7 @@ const fileSearch = createFileSearch();
 const watches = createWatches(
 	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
 	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId }),
-	(worktreeId) => fileSearch.invalidate(worktreeId)
+	(worktreeId, changes) => fileSearch.invalidate(worktreeId, changes)
 );
 
 function comparisonOrigin(worktree: Worktree, ref: WorktreeRef) {
