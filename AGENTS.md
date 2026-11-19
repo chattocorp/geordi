@@ -285,6 +285,7 @@ desktop and web apps' `package.json`.
   `printf 'Describe the change.\n' | sweet change . --type <type> --stdin`
 - Types are configured in `.sweet.config.yml`. Add `breaking: true` to a note's frontmatter
   for breaking changes.
-- Write notes for the people who use Geordi, not for its maintainers.
+- Address the person who uses Geordi directly. Use “you” or “your” where natural.
+  Describe what they can now do or what now works as expected for them.
 - Run `sweet doctor` before finishing; it must pass (CI checks it on every pull request).
 - Do not edit versions or changelogs by hand: `sweet bump` does that.
