@@ -10,6 +10,7 @@
 	let {
 		form,
 		imageField,
+		suggestion,
 		disabled = false,
 		images = $bindable([]),
 		...props
@@ -128,6 +129,7 @@
 
 <Composer
 	{...props}
+	suggestion={uploading || images.length ? null : suggestion}
 	form={{ ...form, 'data-dropping': dropping || undefined, [imageKey]: manageImages }}
 	{disabled}
 	onpaste={paste}
