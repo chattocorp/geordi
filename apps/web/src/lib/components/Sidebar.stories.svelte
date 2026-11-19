@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, fireEvent, within } from 'storybook/test';
+	import { expect, fireEvent, waitFor, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '#lib/actions.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -11,6 +11,8 @@
 
 	/** What is folded away: in the app, remembered in the browser. */
 	const folded = $state({ current: [] as string[] });
+	/** The repository shown alone: in the app, remembered in the browser too. */
+	const focus = $state({ current: null as string | null });
 
 	const ready: WorkspaceStanding = {
 		label: 'Ready to merge',
@@ -103,7 +105,7 @@
 {#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh w-64 bg-frame p-2">
-		<Sidebar {nav} {path} {folded} {lost} />
+		<Sidebar {nav} {path} {folded} {focus} {lost} />
 	</div>
 {/snippet}
 
@@ -175,4 +177,22 @@
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Focus a repository"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// shown on hover only, where it is not in the accessibility tree
+		const only = canvasElement.querySelector('[aria-label="Show only sample-project"]');
+		await fireEvent.click(only!);
+		// the others slide away
+		await waitFor(() => expect(canvas.queryByText('Raise light mode text contrast')).toBeNull());
+		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show 1 other repository' }));
+		await waitFor(() => expect(canvas.getByText('Raise light mode text contrast')).toBeVisible());
+	}}
+>
+	{@render frame(nav, '/workspaces/plain')}
 </Story>

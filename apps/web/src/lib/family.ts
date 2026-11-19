@@ -92,6 +92,15 @@ export function inSidebarOrder<T extends Member>(
 		.map(({ workspace }) => workspace);
 }
 
+/**
+ * The repositories the sidebar lists: only `focus`, when that is one of them; else all.
+ * A focus on a repository that is gone (or has nothing to show) shows everything again.
+ */
+export function inFocus<T extends { id: string }>(repos: T[], focus: string | null): T[] {
+	const focused = repos.filter(({ id }) => id === focus);
+	return focused.length > 0 ? focused : repos;
+}
+
 /** The workspace `step` places from `current` in `order`, round at the ends; from outside it, the first or last. */
 export function stepThrough<T extends { id: string }>(
 	order: T[],
