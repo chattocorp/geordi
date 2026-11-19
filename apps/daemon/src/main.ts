@@ -1,3 +1,4 @@
+import { projectPath, removeProject } from './projects.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
@@ -68,8 +69,8 @@ const forgeUrl = new URL(process.env.GEORDI_FORGE_URL || 'ws://127.0.0.1:7700');
 const apiUrl = new URL('/mcp', process.env.GEORDI_FORGE_HTTP_URL || 'http://127.0.0.1:3000').href;
 const worktreesDir = process.env.GEORDI_WORKTREES_DIR || join(homedir(), '.geordi', 'worktrees');
 /** Where agents' sessions keep what they are told and what they do, so that they outlive this process (ADR-007). */
-/** The Desk's folder (FDR-012). */
-const deskDir = process.env.GEORDI_DESK_DIR || join(homedir(), '.geordi', 'desk');
+/** Where projects' folders are (FDR-012). */
+const projectsDir = process.env.GEORDI_PROJECTS_DIR || join(homedir(), '.geordi', 'projects');
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
@@ -349,7 +350,7 @@ function attend(workspaceId: string, session: Session) {
  */
 const { beginning, startMessage } = turnStarts({
 	worktreesDir,
-	deskDir,
+	projectsDir,
 	sessions,
 	setups,
 	apiUrl,
@@ -480,14 +481,15 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
-	if (request.kind === 'endSession') {
-		// a CLI still running with nothing to do: its conversation is over, and it goes
-		beginning.get(request.workspaceId)?.stop();
-		const session = sessions.get(request.workspaceId);
-		if (session) {
+	if (request.kind === 'removeProject') {
+		// its agent, whose CLI may still be running there with nothing to do, goes with it
+		const path = projectPath(projectsDir, request.worktreeId);
+		for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
+		for (const session of sessionsIn(path)) {
 			retired.add(session);
 			session.kill();
 		}
+		removeProject(projectsDir, request.worktreeId);
 		return null;
 	}
 	if (request.kind === 'removeWorktree') {

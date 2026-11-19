@@ -90,19 +90,20 @@
 		harnesses: null
 	};
 
-	/** The Desk (FDR-012) at work, beside the overview; what it started is with its repository. */
-	const withDesk: Navigation = {
+	/** Projects (FDR-012) above the repositories; what one started is listed with its repository. */
+	const withProjects: Navigation = {
 		...nav,
 		workspaces: [
-			workspace('desk', 'Ship the protocol bump everywhere', {
+			workspace('project', 'Ship the protocol bump everywhere', {
 				repoId: null,
 				branch: null,
 				status: 'running',
 				working: true,
 				outcome: null
 			}),
+			workspace('project-quiet', 'Triage this week’s issues', { repoId: null, branch: null }),
 			workspace('bump', 'Bump the protocol in the daemon', {
-				parentId: 'desk',
+				parentId: 'project',
 				status: 'running',
 				working: true,
 				outcome: null
@@ -190,19 +191,17 @@
 </Story>
 
 <Story
-	name="With the Desk at work"
+	name="With projects"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('link', { name: /The Desk/ })).toHaveAttribute(
-			'aria-current',
-			'page'
-		);
+		await expect(canvas.getByText('Projects')).toBeVisible();
+		await expect(canvas.getByRole('link', { name: 'New project' })).toBeVisible();
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',
 			'Started by the agent in "Ship the protocol bump everywhere"'
 		);
 	}}
 >
-	{@render frame(withDesk, '/workspaces/desk')}
+	{@render frame(withProjects, '/workspaces/project')}
 </Story>

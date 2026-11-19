@@ -22,8 +22,8 @@ function setup() {
 	const closed: string[] = [];
 	/** The worktrees whose teardown script was to run. */
 	const tornDown: string[] = [];
-	/** The workspaces whose agent CLI was to end. */
-	const ended: string[] = [];
+	/** The projects whose folders were to go. */
+	const projectsRemoved: string[] = [];
 	const archive = createArchiver({
 		workspaces,
 		closeTerminals: (id) => closed.push(id),
@@ -33,7 +33,7 @@ function setup() {
 			removed.push(worktreeId);
 			if (teardown) tornDown.push(worktreeId);
 		},
-		endSession: async (id) => void ended.push(id)
+		removeProject: async (id) => void projectsRemoved.push(id)
 	});
 
 	/** A workspace whose agent has a worktree and is idle. */
@@ -57,7 +57,7 @@ function setup() {
 		dirty,
 		closed,
 		tornDown,
-		ended,
+		projectsRemoved,
 		lead,
 		start
 	};
@@ -125,22 +125,22 @@ describe('archiving', () => {
 		expect(workspaces.list(repo.id)).toEqual([]);
 	});
 
-	it('archives the Desk alone, ending its agent: what it started carries on', async () => {
-		const { workspaces, repo, archive, removed, ended } = setup();
-		const desk = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Orchestrate' });
-		workspaces.record(desk, { kind: 'turn.started' });
-		const { id: child } = workspaces.agents.start(desk, {
+	it('archives a project alone, with its folder: what it started carries on', async () => {
+		const { workspaces, repo, archive, removed, projectsRemoved } = setup();
+		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Orchestrate' });
+		workspaces.record(project, { kind: 'turn.started' });
+		const { id: child } = workspaces.agents.start(project, {
 			repository: repo.id,
 			worktree: 'own',
 			prompt: 'Build'
 		});
-		workspaces.record(desk, { kind: 'turn.completed' });
+		workspaces.record(project, { kind: 'turn.completed' });
 
-		await archive(desk, false);
+		await archive(project, false);
 
-		expect(ended).toEqual([desk]);
+		expect(projectsRemoved).toEqual([project]);
 		expect(removed).toEqual([]);
-		expect(workspaces.get(desk).archivedAt).not.toBeNull();
+		expect(workspaces.get(project).archivedAt).not.toBeNull();
 		expect(workspaces.get(child)).toMatchObject({ archivedAt: null, status: 'running' });
 	});
 
@@ -158,7 +158,7 @@ describe('archiving', () => {
 			workspaces,
 			closeTerminals: () => {},
 			// while the daemon is at it, someone says something
-			endSession: async () => {},
+			removeProject: async () => {},
 			removeWorktree: async () => {
 				try {
 					workspaces.send(lead, 'One more thing');

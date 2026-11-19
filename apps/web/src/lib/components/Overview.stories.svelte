@@ -118,9 +118,9 @@
 				{ changes: dirty, upstream: upstream(null) },
 				{ ...working, repoId: 'site', minutes: 4 }
 			),
-			// the Desk (FDR-012): no repository, no changes
+			// a project (FDR-012): no repository, no changes
 			workspace(
-				'desk',
+				'project',
 				'Ship the protocol bump everywhere',
 				{ changes: null, upstream: null },
 				{ ...working, repoId: null, branch: null, minutes: 2 }

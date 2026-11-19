@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { archiveAndNavigate } from './afar.svelte.ts';
-	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -84,14 +83,14 @@
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
 
-	/** The Desk (FDR-012) is a conversation and nothing else: no repository, no changes, no terminals. */
-	const desk = $derived(workspace.repoId === null);
+	/** A project (FDR-012) is a conversation and nothing else: no repository, no changes, no terminals. */
+	const project = $derived(workspace.repoId === null);
 	// its repository, as everyone knows it; by its ID until that has come
 	const everything = follow<Navigation>('navigation');
 	const repo = $derived(
 		everything.current?.repos.find((repo) => repo.id === workspace.repoId) ?? {
 			id: workspace.repoId ?? '',
-			name: workspace.repoId ?? 'The Desk'
+			name: workspace.repoId ?? 'Project'
 		}
 	);
 	const git = $derived(workspace.git);
@@ -628,14 +627,6 @@
 		)
 	);
 
-	/**
-	 * Starts the Desk afresh: its conversation is archived (and stays readable), its agent
-	 * ends, and the next thing said there begins a new one. Its folder stays.
-	 */
-	async function startAfresh() {
-		if (await archiveWorkspace(id, workspace.title)) await goto(resolve('/desk'));
-	}
-
 	function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
@@ -841,7 +832,10 @@
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
 				<span class="flex shrink-0 items-center gap-1">
 					<span
-						class={[desk ? 'icon-[lucide--lamp-desk]' : 'icon-[lucide--folder-git-2]', 'size-3.5']}
+						class={[
+							project ? 'icon-[lucide--folder-kanban]' : 'icon-[lucide--folder-git-2]',
+							'size-3.5'
+						]}
 					></span>
 					{repo.name}
 				</span>
@@ -865,16 +859,7 @@
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
-		{:else if desk}
-			<Button
-				variant="ghost"
-				icon="icon-[lucide--rotate-ccw]"
-				disabled={working || leaving}
-				onclick={startAfresh}
-			>
-				Start afresh
-			</Button>
-		{:else}
+		{:else if !project}
 			<Button
 				variant="ghost"
 				icon={frame.current.open
@@ -925,7 +910,7 @@
 		bare
 		min={[320, 260]}
 		minRatio={0.5}
-		collapsed={!frame.current.open || desk}
+		collapsed={!frame.current.open || project}
 		bind:ratio={
 			() => 1 - frame.current.side,
 			(ratio) => (frame.current = { ...frame.current, side: 1 - ratio })
@@ -937,7 +922,7 @@
 			<div
 				class={[
 					'mb-2 ml-2 flex min-h-0 flex-1 flex-col sheet',
-					frame.current.open && !desk ? 'mr-1' : 'mr-2'
+					frame.current.open && !project ? 'mr-1' : 'mr-2'
 				]}
 			>
 				<Panes
@@ -948,7 +933,7 @@
 					{closable}
 					accepts={movable}
 					onreceive={receive('main')}
-					newTab={workspace.archivedAt || desk ? undefined : newConversation}
+					newTab={workspace.archivedAt || project ? undefined : newConversation}
 					newLabel="New conversation"
 				/>
 			</div>

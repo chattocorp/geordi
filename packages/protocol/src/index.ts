@@ -84,10 +84,10 @@ export type WorktreeRef = {
 };
 
 /**
- * Where the Desk's agent works (FDR-012): the Desk belongs to no repository, and works in
- * a folder of its own that the daemon keeps for it, the same one for every conversation.
+ * Where a project's agent works (FDR-012): a project belongs to no repository, and works in an
+ * empty folder of its own that the daemon makes for it, derived from its ID.
  */
-export type DeskRef = { worktreeId: string; desk: true };
+export type ProjectRef = { worktreeId: string; project: true };
 
 /** Where an agent started by another agent works: in a worktree of its `own`, or `shared` with its parent. */
 export const WORKTREE_MODES = ['own', 'shared'] as const;
@@ -436,8 +436,8 @@ export type DaemonRequest =
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
 	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
-	/** Ends the workspace's agent CLI, if it runs: its conversation is over (the Desk's, FDR-012). */
-	| { kind: 'endSession'; workspaceId: string }
+	/** Removes a project's folder (FDR-012), with whatever its agent left there. */
+	| ({ kind: 'removeProject' } & ProjectRef)
 	/** A person has seen these commands of the repository's jobs and agreed to run them; the daemon notes that. */
 	| ({ kind: 'approveRun'; commands: string[] } & WorktreeRef)
 	/**
@@ -500,7 +500,7 @@ export type DaemonResults = {
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
-	endSession: null;
+	removeProject: null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
@@ -698,7 +698,7 @@ export type ForgeMessage =
 			prompt: string;
 			deliveryId?: string;
 			images?: MessageImage[];
-	  } & (WorktreeRef | DeskRef))
+	  } & (WorktreeRef | ProjectRef))
 	/** Stops what the agent is doing. Its CLI goes on running, to be told what to do instead. */
 	| { type: 'agent.stop'; workspaceId: string }
 	/** Answers a `question` the agent asked: one answer per question, in their order. */

@@ -7,17 +7,17 @@ import {
 	verifyLinks,
 	worktreePath
 } from './worktree.ts';
-import { mkdirSync } from 'node:fs';
+import { projectPath, ensureProject } from './projects.ts';
 import type { Meta } from './host.ts';
 import type { Session, Said } from './session.ts';
 
 type Message = Extract<ForgeMessage, { type: 'agent.message' }>;
-type WorktreeMessage = Exclude<Message, { desk: true }>;
+type WorktreeMessage = Exclude<Message, { project: true }>;
 type Worktree = Awaited<ReturnType<typeof ensureWorktree>>;
 
 export function turnStarts({
 	worktreesDir,
-	deskDir,
+	projectsDir,
 	sessions,
 	setups,
 	apiUrl,
@@ -27,8 +27,8 @@ export function turnStarts({
 	emitFor
 }: {
 	worktreesDir: string;
-	/** The Desk's folder (FDR-012). */
-	deskDir: string;
+	/** Where projects' folders are (FDR-012). */
+	projectsDir: string;
 	sessions: ReadonlyMap<string, Session>;
 	setups: Map<string, Promise<string | null>>;
 	apiUrl: string;
@@ -56,7 +56,9 @@ export function turnStarts({
 		const heard = [said];
 		const stopped = Promise.withResolvers<never>();
 		const cwd =
-			'desk' in message ? deskDir : worktreePath(worktreesDir, message.repoPath, worktreeId);
+			'project' in message
+				? projectPath(projectsDir, worktreeId)
+				: worktreePath(worktreesDir, message.repoPath, worktreeId);
 		let canceled = false;
 		function checkStop() {
 			if (canceled) throw new Error('Stopped');
@@ -101,11 +103,9 @@ export function turnStarts({
 					return null;
 				}
 
-				// The Desk works in a folder of its own, which is all there is to make for it.
-				if ('desk' in message) {
-					mkdirSync(deskDir, { recursive: true });
-					return { path: deskDir, desk: true as const };
-				}
+				// A project works in a folder of its own, which is all there is to make for it.
+				if ('project' in message)
+					return { path: ensureProject(projectsDir, worktreeId), project: true as const };
 
 				// A workspace of its own starts from where its upstream stands now. (One started
 				// by an agent starts from that agent's branch, which is here already.)
@@ -130,7 +130,7 @@ export function turnStarts({
 			});
 			const worktree = await Promise.race([stopped.promise, prepare]);
 			if (!worktree) return;
-			const desk = 'desk' in worktree;
+			const project = 'project' in worktree;
 
 			// The agent starts once the directory is set up, and hears how that went. Stopped
 			// meanwhile, the turn ends; the setup goes on, for the next one to wait for.
@@ -148,16 +148,18 @@ export function turnStarts({
 					dir: '', // `begin` knows where
 					resumeId: message.resumeId,
 					settings,
-					// the Desk has no repository, and so no ports or jobs of one
+					// a project has no repository, and so no ports or jobs of one
 					env:
-						'desk' in worktree || 'desk' in message ? {} : (await configFor(worktree, message)).env,
+						'project' in worktree || 'project' in message
+							? {}
+							: (await configFor(worktree, message)).env,
 					instructions: message.instructions,
 					cwd: worktree.path,
-					writableRoots: desk ? [] : worktree.writableRoots,
+					writableRoots: project ? [] : worktree.writableRoots,
 					api: { url: apiUrl }
 				};
 				checkStop();
-				if (!desk) verifyLinks(worktree);
+				if (!project) verifyLinks(worktree);
 				begin(workspaceId, { agent, options, apiToken: message.apiToken }, heard);
 			});
 			await Promise.race([stopped.promise, launch]);

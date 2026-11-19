@@ -111,8 +111,8 @@
 	<li class="relative flex flex-col gap-3 card p-4 card-link">
 		<span class="flex items-center gap-2 text-xs text-muted">
 			{#if workspace.repoId === null}
-				<span class="icon-[lucide--lamp-desk] size-3.5 shrink-0"></span>
-				<span class="truncate">The Desk</span>
+				<span class="icon-[lucide--folder-kanban] size-3.5 shrink-0"></span>
+				<span class="truncate">Project</span>
 			{:else}
 				<span class="scale-80"><RepoIcon id={workspace.repoId} /></span>
 				<span class="truncate">{repoNames.get(workspace.repoId)}</span>
