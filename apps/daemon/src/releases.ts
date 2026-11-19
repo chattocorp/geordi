@@ -1,9 +1,19 @@
 import { git } from './git.ts';
 import { execFile } from 'node:child_process';
-import { lstatSync } from 'node:fs';
+import {
+	closeSync,
+	constants,
+	fstatSync,
+	ftruncateSync,
+	lstatSync,
+	openSync,
+	readFileSync,
+	realpathSync,
+	writeSync
+} from 'node:fs';
+import { isAbsolute, join, relative } from 'node:path';
 import { getReleasePlan } from '@changesets/get-release-plan';
 import { getPackages } from '@manypkg/get-packages';
-import { join, relative } from 'node:path';
 import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
 import { gitEnv, verifyLinks, type Worktree } from './worktree.ts';
 
@@ -223,5 +233,67 @@ export async function releasePlan(
 		};
 	} catch (error) {
 		return { ...nothing, problem: error instanceof Error ? error.message : String(error) };
+	}
+}
+
+/** Edit only the body of a current, workspace-added release note. */
+export function editReleaseNote(
+	worktree: Worktree,
+	plan: ReleasePlan | null,
+	{ path, original, body }: { path: string; original: string; body: string }
+) {
+	const parts = path.split('/');
+	if (
+		!plan ||
+		!(
+			(plan.tool === sweet.tool && parts.at(-2) === '.sweet') ||
+			(plan.tool === changesets.tool && parts.length === 2 && parts[0] === '.changeset')
+		) ||
+		!plan.packages.some((pkg) => pkg.notes.some((note) => note.added && note.path === path)) ||
+		isAbsolute(path) ||
+		parts.some(
+			(part) =>
+				!part ||
+				part === '.' ||
+				part === '..' ||
+				part.toLowerCase() === '.git' ||
+				part.includes('\\')
+		) ||
+		!path.endsWith('.md')
+	)
+		throw new Error('This change note is no longer available to edit.');
+	if (!body.trim()) throw new Error('Enter a change note before saving.');
+	const file = join(realpathSync(worktree.path), path);
+	if (realpathSync(file) !== file) throw new Error('Cannot edit a linked note.');
+	const fd = openSync(file, constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+	try {
+		const stat = fstatSync(fd);
+		const named = lstatSync(file);
+		if (
+			!stat.isFile() ||
+			stat.nlink !== 1 ||
+			stat.ino !== named.ino ||
+			stat.dev !== named.dev ||
+			realpathSync(file) !== file
+		)
+			throw new Error('Cannot edit a linked or replaced note.');
+		const source = readFileSync(fd, 'utf8');
+		const header = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(source)?.[0];
+		if (
+			!header ||
+			source.slice(header.length).trim().replaceAll('\r\n', '\n') !==
+				original.replaceAll('\r\n', '\n')
+		)
+			throw new Error('The note changed. Cancel and reopen it to edit the latest text.');
+		const newline = header.includes('\r\n') ? '\r\n' : '\n';
+		const content = Buffer.from(
+			header.trimEnd() + newline + newline + body.trim().replace(/\r?\n/g, newline) + newline
+		);
+		let offset = 0;
+		while (offset < content.length)
+			offset += writeSync(fd, content, offset, content.length - offset, offset);
+		ftruncateSync(fd, content.length);
+	} finally {
+		closeSync(fd);
 	}
 }

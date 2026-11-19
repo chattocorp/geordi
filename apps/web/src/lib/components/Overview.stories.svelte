@@ -2,7 +2,7 @@
 	import { expect, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest, Upstream } from '@geordi/protocol';
-	import { actionsFor, standingOf } from '#lib/actions.ts';
+	import { actionsFor, standingOf } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
 	import Overview from './Overview.svelte';
 

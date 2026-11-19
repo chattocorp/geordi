@@ -2,7 +2,7 @@
 	import type { Agent, ContextUsage, UsageLimit } from '@geordi/protocol';
 	import { agentName } from '#lib/format.ts';
 	import { describeUsage, fullness, NEARLY_FULL } from '#lib/tokens.ts';
-	import Ring from '#lib/ui/Ring.svelte';
+	import Ring from '@geordi/ui/Ring.svelte';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 
 	/**

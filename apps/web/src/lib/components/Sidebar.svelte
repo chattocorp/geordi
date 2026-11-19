@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { WorkspaceAction, WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
-	import StandingIcon from '#lib/components/StandingIcon.svelte';
+	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import {
 		actFromAfar,
 		archiveAndNavigate,
@@ -13,13 +13,12 @@
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
 	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
-	import { hint } from '#lib/keys.ts';
+	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import Badge from '#lib/ui/Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
-	import Spinner from '#lib/ui/Spinner.svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
@@ -81,15 +80,6 @@
 	/** The colour of what to do next, from how the workspace stands: as in its ribbon. */
 	const actionTone = (standing: WorkspaceStanding | null): MenuTone =>
 		standing?.tone === 'ok' || standing?.tone === 'merged' ? standing.tone : 'accent';
-
-	// Only promote the main action. Routine publishing stays inside the workspace.
-	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
-		'merge-pull': 'bg-ok/12 text-ok hover:bg-ok/20',
-		'resolve-conflicts': 'bg-danger-soft text-danger hover:bg-danger/20',
-		'fix-checks': 'bg-danger-soft text-danger hover:bg-danger/20',
-		'address-review': 'bg-danger-soft text-danger hover:bg-danger/20',
-		archive: 'bg-merged/15 text-merged hover:bg-merged/25'
-	};
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
@@ -212,6 +202,7 @@
 				path === '/overview',
 				needYou
 			)}
+			{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
 			{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 		</div>
 
@@ -330,11 +321,6 @@
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
-	<!-- Routine publishing steps only need to appear inside the workspace. -->
-	{@const standing = leaving || workspace.standing?.tone === 'accent' ? null : workspace.standing}
-	{@const archivable = !busy && !leaving}
-	{@const primary = workspace.actions.find((action) => !action.aside)}
-	{@const pillColor = primary && pillColors[primary.id]}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
 	<li
@@ -346,6 +332,7 @@
 				index === rows.length - 1 &&
 				'row-drop-after'
 		]}
+		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
 		draggable={depth === 0 && !leaving}
 		ondragstart={(event) => {
 			dragged = workspace;
@@ -356,129 +343,28 @@
 		ondragover={(event) => overRow(event, rows, index)}
 		ondrop={(event) => drop(event, workspace.repoId)}
 	>
-		<!-- the whole row is the item: the link, and what appears beside it on hover -->
-		<div
-			class={[
-				'group relative item pr-1 text-base',
-				// on its way out: it shows, and there is nothing more to do with it
-				(leaving || dragged?.id === workspace.id) && 'opacity-60',
-				leaving && 'pointer-events-none',
-				current && 'item-active',
-				// it came to rest out of sight, and they haven't looked since
-				unread.has(workspace.id) && 'font-semibold text-ink',
-				pointedAt === workspace.id && 'bg-surface/60 text-ink'
-			]}
-			{@attach contextMenu(() => workspaceMenu(workspace))}
-		>
-			<a
-				href={resolve('/workspaces/[id]', { id: workspace.id })}
-				class="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1.5 pl-1.5"
-				draggable="false"
-				aria-current={current ? 'page' : undefined}
-				title={parent ? `Started by the agent in "${parent.title}"` : undefined}
-				onpointerenter={() => (pointedAt = parent?.id ?? null)}
-				onpointerleave={() => (pointedAt = null)}
-				onfocus={() => (pointedAt = parent?.id ?? null)}
-				onblur={() => (pointedAt = null)}
-			>
-				<!-- what it is, or is doing, in one place: every title starts on the same edge -->
-				<!-- as wide as the repository's picture above, and right under it -->
-				<span
-					class={[
-						'grid size-5 shrink-0 place-items-center text-muted/80',
-						under > 0 && !leaving && 'group-hover:invisible group-has-focus-visible:invisible'
-					]}
-				>
-					{#if leaving}
-						<Spinner label="Archiving" />
-					{:else if workspace.outcome === 'asking'}
-						<!-- an agent there waits for the person's answer -->
-						<span class="icon-[lucide--message-circle-question] size-4 text-accent-ink"></span>
-					{:else if workspace.waiting}
-						<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"
-						></span>
-					{:else if workspace.working || (isFolded && busy)}
-						<!-- its agent, one working alongside it, or one folded away under it -->
-						<Spinner />
-					{:else if workspace.parentId}
-						<!-- started by an agent: the one above it, where that is still around -->
-						<span class="icon-[lucide--corner-down-right] size-4"></span>
-					{:else}
-						<span class="icon-[lucide--git-branch] size-4"></span>
-					{/if}
-				</span>
-				<span class="min-w-0 truncate">{workspace.title}</span>
-				{#if isFolded}
-					<span class="shrink-0 font-normal text-muted/60 tabular-nums">{under}</span>
-				{/if}
-			</a>
-			<!-- with workspaces under it: pointed at, its icon becomes the way to fold them -->
-			{#if under > 0 && !leaving}
-				<button
-					type="button"
-					class="invisible absolute top-1/2 left-1.5 grid size-5 -translate-y-1/2 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:text-ink"
-					aria-expanded={!isFolded}
-					aria-label="{isFolded ? 'Unfold' : 'Fold'} {workspace.title}"
-					title={isFolded ? `Show the ${under} under it` : `Fold the ${under} under it`}
-					onclick={() => toggleFolded(workspace.id)}
-				>
-					<span
-						class={[
-							'size-4',
-							isFolded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'
-						]}
-					></span>
-				</button>
-			{/if}
-			<!--
-				At its end: how its work stands, at a glance. Pointed at, that makes way for what
-				can be done with it. The title yields space only while a pill is visible.
-			-->
-			<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-				{#if standing}
-					<span
-						class={[
-							'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
-							archivable &&
-								(pillColor
-									? 'group-hover:opacity-0 group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
-									: 'group-hover:invisible group-has-focus-visible:invisible')
-						]}
-					>
-						<StandingIcon {standing} />
-					</span>
-				{/if}
-				{#if archivable && primary && pillColor}
-					<button
-						type="button"
-						class={[
-							'pointer-events-none col-start-1 row-start-1 inline-flex h-6 w-0 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap opacity-0 motion-safe:transition-all motion-safe:duration-150 motion-safe:ease-out',
-							'group-hover:pointer-events-auto group-hover:w-max group-hover:px-2 group-hover:opacity-100 group-has-focus-visible:pointer-events-auto group-has-focus-visible:w-max group-has-focus-visible:px-2 group-has-focus-visible:opacity-100',
-							pillColor
-						]}
-						style:interpolate-size="allow-keywords"
-						aria-label="{primary.label} — {workspace.title}"
-						onclick={() => actFromAfar(workspace, primary)}
-					>
-						{primary.label}
-						<span class={[primary.icon, 'size-3.5']}></span>
-					</button>
-				{:else if archivable}
-					<button
-						type="button"
-						class={[
-							'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-hover',
-							standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
-						]}
-						title="Archive workspace"
-						aria-label="Archive {workspace.title}"
-						onclick={() => archiveAndNavigate(workspace)}
-					>
-						<span class="icon-[lucide--archive] size-3.5"></span>
-					</button>
-				{/if}
-			</span>
-		</div>
+		<WorkspaceRow
+			title={workspace.title}
+			href={resolve('/workspaces/[id]', { id: workspace.id })}
+			parentTitle={parent?.title}
+			child={!!workspace.parentId}
+			{current}
+			{leaving}
+			dragging={dragged?.id === workspace.id}
+			highlighted={pointedAt === workspace.id}
+			unread={unread.has(workspace.id)}
+			asking={workspace.outcome === 'asking'}
+			waiting={workspace.waiting}
+			working={workspace.working || (isFolded && busy)}
+			standing={workspace.standing}
+			actions={workspace.actions}
+			fold={under > 0
+				? { count: under, folded: isFolded, toggle: () => toggleFolded(workspace.id) }
+				: undefined}
+			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
+			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
+			onarchive={busy || leaving ? undefined : () => archiveAndNavigate(workspace)}
+		/>
 	</li>
 {/snippet}
 

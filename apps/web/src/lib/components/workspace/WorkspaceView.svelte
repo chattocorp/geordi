@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -10,8 +11,8 @@
 		standingOf,
 		type WorkspaceAction,
 		type WorkspaceStanding
-	} from '#lib/actions.ts';
-	import { hint, pressed } from '#lib/keys.ts';
+	} from '@geordi/ui/actions';
+	import { hint, pressed } from '@geordi/ui/keys';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks } from '#lib/transcript.ts';
@@ -40,21 +41,23 @@
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
-	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import Spinner from '#lib/ui/Spinner.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Split from '#lib/ui/Split.svelte';
-	import TitleBar from '#lib/ui/TitleBar.svelte';
+	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
+		editReleaseNote,
 		jobsReady,
 		openLink,
 		restoreWorktree,
+		restoreWorkspace,
 		runSetup,
 		say,
 		startJobs,
@@ -65,17 +68,18 @@
 	import { addedNoteCount } from '#lib/release-notes.ts';
 	import { pendingPullAction, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
-	import PullRequestTab from './PullRequestTab.svelte';
-	import PullRequestPane from './PullRequestPane.svelte';
-	import Changes from './Changes.svelte';
-	import DiffStat from '#lib/components/DiffStat.svelte';
+	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
+	import Changes from '@geordi/ui/Changes.svelte';
+	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
-	import WorkspaceActions from './WorkspaceActions.svelte';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 
 	type Props = {
 		/** The workspace as it is now: it comes live, over the page's one connection. */
@@ -564,6 +568,20 @@
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
+	let restoringWorkspace = $state(false);
+	async function reopen() {
+		restoringWorkspace = true;
+		mergeProblem = null;
+		try {
+			await restoreWorkspace(id);
+			if (page.params.id === id && workspace.worktreeId !== id) await invalidateAll();
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not restore the workspace');
+		} finally {
+			restoringWorkspace = false;
+		}
+	}
+
 	async function restore() {
 		mergeProblem = null;
 		try {
@@ -753,11 +771,15 @@
 			onopen={openDiff}
 		/>
 	{:else if tab === PR && pull}
-		<PullRequestPane {pull} />
+		<PullRequestPane {pull}
+			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
 				plan={git.release}
+				onsave={(path, original, body) =>
+					editReleaseNote({ workspaceId: id, path, original, body })}
 				onopen={openDiff}
 				onallow={(command) =>
 					approveRun({ workspaceId: id, commands: [command] }).catch(
@@ -859,6 +881,9 @@
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
+			<Button onclick={reopen} disabled={restoringWorkspace}
+				>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
+			>
 		{:else}
 			<Button
 				variant="ghost"

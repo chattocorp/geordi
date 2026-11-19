@@ -1,7 +1,7 @@
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { navigating, page } from '$app/state';
-import type { WorkspaceAction } from '#lib/actions.ts';
+import type { WorkspaceAction } from '@geordi/ui/actions';
 import { problemOf } from '#lib/problem.ts';
 import { archive, archiveProblems } from './archive.svelte.ts';
 import { reviewProblems, runPullAction } from './review.svelte.ts';

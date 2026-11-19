@@ -127,6 +127,11 @@ export type Changes = {
 	unmerged?: boolean;
 	/** Known commits in the base branch that this workspace does not contain. */
 	incoming?: { branch: string; commits: number } | null;
+	/**
+	 * The host of the `origin` remote, where it is on a forge Geordi has no provider for (a
+	 * self-hosted Gitea without `FORGES_*` variables, say): no pull requests from here.
+	 */
+	unknownForge?: string;
 };
 
 /**
@@ -467,9 +472,10 @@ export type DaemonRequest =
 	 * workspace started without anything to do yet, or one whose worktree was removed
 	 * behind Geordi's back (which comes back from its branch). Answers where it is.
 	 */
-	| ({ kind: 'prepareWorktree' } & WorktreeRef)
+	| ({ kind: 'prepareWorktree'; requireBranch?: boolean } & WorktreeRef)
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	| ({ kind: 'release' } & WorktreeRef)
+	| ({ kind: 'editReleaseNote'; path: string; original: string; body: string } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
 	/** Current text of a worktree-relative file, including files with no changes. */
@@ -522,6 +528,7 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
+	editReleaseNote: null;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;

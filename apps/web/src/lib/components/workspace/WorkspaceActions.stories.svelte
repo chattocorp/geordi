@@ -3,8 +3,8 @@
 	import { expect, fn, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest, Upstream } from '@geordi/protocol';
-	import { actionsFor, standingOf } from '#lib/actions.ts';
-	import WorkspaceActions from './WorkspaceActions.svelte';
+	import { actionsFor, standingOf } from '@geordi/ui/actions';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace actions', component: WorkspaceActions });
 
@@ -63,6 +63,22 @@
 	}}
 >
 	{@render bar({ changes: dirty, upstream: upstream(null) }, { pending: ['create-pull'] })}
+</Story>
+
+<Story
+	name="Committed work on a forge that is not set up"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = canvas.getByRole('link', { name: 'Forge not set up' });
+		await expect(link).toHaveAttribute('title', expect.stringContaining('git.example.com'));
+		await expect(canvas.queryByRole('button')).not.toBeInTheDocument();
+	}}
+>
+	{@render bar({
+		changes: { ...pushed, unpushed: null, unknownForge: 'git.example.com' },
+		upstream: null
+	})}
 </Story>
 
 <Story

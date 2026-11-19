@@ -16,7 +16,7 @@
 </script>
 
 <script lang="ts">
-	import Button from '#lib/ui/Button.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import Segmented from '#lib/ui/Segmented.svelte';
 	let { state, controls }: { state: UpdateState; controls: UpdateControls } = $props();
 	const messages = {

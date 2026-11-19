@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Job, Link, RepoConfig } from '@geordi/protocol';
-	import ButtonGroup from '#lib/ui/ButtonGroup.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import ButtonGroup from '@geordi/ui/ButtonGroup.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import { openMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 
 	let {

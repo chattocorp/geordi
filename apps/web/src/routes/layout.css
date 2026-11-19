@@ -13,6 +13,8 @@
 	font-display: swap;
 }
 
+@source '../../../../packages/ui/src';
+
 @plugin '@tailwindcss/typography';
 @plugin '@iconify/tailwind4';
 

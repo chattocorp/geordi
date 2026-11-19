@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkspaceStanding } from './actions.ts';
+import type { WorkspaceStanding } from '@geordi/ui/actions';
 import { laneOf, lanes, type Sortable } from './overview.ts';
 
 const standing = (tone: WorkspaceStanding['tone'], label = 'Something'): WorkspaceStanding => ({

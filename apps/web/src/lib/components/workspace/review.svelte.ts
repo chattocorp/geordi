@@ -1,6 +1,6 @@
 import { SvelteSet } from 'svelte/reactivity';
 import { problemOf } from '#lib/problem.ts';
-import type { WorkspaceAction } from '#lib/actions.ts';
+import type { WorkspaceAction } from '@geordi/ui/actions';
 import { enableWithReview, mergeWithReview } from './release-review.svelte.ts';
 import { markReady, setAutoMerge } from '../../../routes/workspaces.remote';
 

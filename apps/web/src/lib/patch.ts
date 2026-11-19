@@ -1,6 +1,6 @@
 import type { FileDiffMetadata, ParsedPatch } from '@pierre/diffs';
 import type { ToolDiff } from '@geordi/protocol';
-import { displayPath } from './tools.ts';
+import { displayPath } from '@geordi/ui/tools';
 
 /** One file a tool call changed, as shown: its diff if the patch has one that can be drawn. */
 export type PatchFile = {

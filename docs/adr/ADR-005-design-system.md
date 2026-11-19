@@ -8,7 +8,7 @@ The UI grew feature by feature, each view styling itself with raw Tailwind class
 
 ## Decision
 
-The design system has three layers, each built on the one before, and all of it lives in the web app:
+The design system has three layers, each built on the one before, and originally lived in the web app. ADR-011 moves the components shared with the website to `packages/ui`.
 
 1. **Tokens** in `apps/web/src/routes/layout.css`: semantic colours for light and dark mode, one text and one code typeface (IBM Plex Sans and JetBrains Mono, 16px base), four font sizes, and two radii plus the pill.
 2. **Utilities** in the same file, declared with Tailwind's `@utility` and named for what a thing is (`card`, `item`, `pane-bar`, `title`, `code`, `dot`, …). They cover patterns that are only styling.

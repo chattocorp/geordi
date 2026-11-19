@@ -1,4 +1,4 @@
-import type { WorkspaceStanding } from './actions.ts';
+import type { WorkspaceStanding } from '@geordi/ui/actions';
 import type { Rest } from './attention.ts';
 
 /**

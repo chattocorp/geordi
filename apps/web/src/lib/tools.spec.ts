@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { displayPath, filesOf, iconOf, sortOf, titleOf, toolIcon, toolSummary } from './tools.ts';
+import {
+	displayPath,
+	filesOf,
+	iconOf,
+	sortOf,
+	titleOf,
+	toolIcon,
+	toolSummary
+} from '@geordi/ui/tools';
 
 describe('toolSummary', () => {
 	it('picks the meaningful field from JSON input, relative to the worktree', () => {
