@@ -115,6 +115,31 @@ export const say = command(v.object({ workspaceId: v.string(), text }), ({ works
 	workspaces().send(workspaceId, text)
 );
 
+export const restoreWorkspace = command(v.string(), async (id) => {
+	const domain = workspaces();
+	const workspace = domain.summary(id);
+	if (!workspace.archivedAt) return;
+	const ref = domain.ref(id);
+	const release = domain.hold([id, ref.worktreeId]);
+	try {
+		const tree = await hub().request(
+			{
+				kind: 'prepareWorktree',
+				...ref,
+				requireBranch: !!ref.branch
+			},
+			90_000
+		);
+		domain.restore(id);
+		domain.record(id, { kind: 'worktree', ...tree });
+		watchers().changed(ref.worktreeId);
+	} catch (cause) {
+		error(422, cause instanceof Error ? cause.message : 'Could not restore the workspace');
+	} finally {
+		release();
+	}
+});
+
 /** Check for unfinished work without changing the workspace. */
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 

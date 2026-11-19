@@ -212,6 +212,7 @@
 				path === '/overview',
 				needYou
 			)}
+			{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
 			{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 		</div>
 

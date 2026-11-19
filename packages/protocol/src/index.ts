@@ -467,7 +467,7 @@ export type DaemonRequest =
 	 * workspace started without anything to do yet, or one whose worktree was removed
 	 * behind Geordi's back (which comes back from its branch). Answers where it is.
 	 */
-	| ({ kind: 'prepareWorktree' } & WorktreeRef)
+	| ({ kind: 'prepareWorktree'; requireBranch?: boolean } & WorktreeRef)
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	| ({ kind: 'release' } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */

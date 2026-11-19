@@ -530,15 +530,22 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'prepareWorktree') {
 		const { repoPath, worktreeId, base, branch } = request;
 		// a new one starts from where its upstream stands now, as with a first turn
-		if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+		if (!request.requireBranch && !base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
-		const worktree = await ensureWorktree(worktreesDir, repoPath, worktreeId, base, branch);
+		const worktree = await ensureWorktree(
+			worktreesDir,
+			repoPath,
+			worktreeId,
+			base,
+			branch,
+			request.requireBranch
+		);
 		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
-		return { path: worktree.path, branch: worktree.branch };
+		return { path: worktree.path, branch: branchOf(worktree) ?? worktree.branch };
 	}
 
 	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
