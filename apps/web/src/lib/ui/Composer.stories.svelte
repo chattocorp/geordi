@@ -443,6 +443,19 @@
 		await userEvent.keyboard('{Enter}');
 		await expect(text).toHaveValue('Review @src/ui/Composer.svelte ');
 		await userEvent.clear(text);
+		await userEvent.type(text, '@msgcomp');
+		const fuzzy = await canvas.findByRole('option', {
+			name: 'src/components/MessageComposer.svelte'
+		});
+		await expect(Array.from(fuzzy.querySelectorAll('mark'), (mark) => mark.textContent)).toEqual([
+			'M',
+			's',
+			'g',
+			'Comp'
+		]);
+		await userEvent.keyboard('{Tab}');
+		await expect(text).toHaveValue('@src/components/MessageComposer.svelte ');
+		await userEvent.clear(text);
 		await userEvent.type(text, '@ui/Composer.');
 		await expect(
 			Array.from(

@@ -1,3 +1,5 @@
+import { fuzzyMatch, fuzzySegments } from '../fuzzy.ts';
+
 /** Something the text can begin with, offered as one types: `/review`, say. */
 export type Completion = {
 	/** What goes into the text, a space after it: it begins with `/`. */
@@ -5,6 +7,7 @@ export type Completion = {
 	description?: string;
 	/** What is to follow it, if anything. */
 	hint?: string;
+	file?: { name: ReturnType<typeof fuzzySegments>; directory: ReturnType<typeof fuzzySegments> };
 };
 
 /**
@@ -47,38 +50,42 @@ export function fileMention(text: string, caret: number) {
 	};
 }
 
+/** Prefer file names over matches that need the folder, then rank by how closely the letters fit. */
 export function matchingFiles(paths: string[], query: string): Completion[] {
 	const wanted = query.toLowerCase();
-	const tiers: string[][] = [[], [], []];
+	const ranked = [];
 	for (const path of paths) {
-		const lower = path.toLowerCase();
-		if (!lower.includes(wanted)) continue;
-		const name = lower.slice(lower.lastIndexOf('/') + 1);
-		const tier = tiers[name === wanted ? 0 : name.startsWith(wanted) ? 1 : 2];
-		if (tier.length < 40) tier.push(path);
+		const split = path.lastIndexOf('/') + 1;
+		const name = path.slice(split);
+		const inName = fuzzyMatch(query, name);
+		const match = inName ?? fuzzyMatch(query, path);
+		if (!match) continue;
+		const lower = name.toLowerCase();
+		const tier = lower === wanted ? 0 : lower.startsWith(wanted) ? 1 : inName ? 2 : 3;
+		ranked.push({
+			path,
+			split,
+			tier,
+			score: match.score,
+			indices: match.indices,
+			offset: inName ? split : 0
+		});
+		if (!wanted && ranked.length === 40) break;
 	}
-	return tiers
-		.flat()
+	return ranked
+		.sort((a, b) => a.tier - b.tier || b.score - a.score)
 		.slice(0, 40)
-		.map((text) => ({ text }));
-}
-
-/** Split the visible part of a path into plain text and literal query matches. A match
- * can cross the slash between the directory and the file name. */
-export function fileSegments(path: string, query: string, start = 0, end = path.length) {
-	const parts: { text: string; hit: boolean }[] = [];
-	let cursor = start;
-	if (query) {
-		const literal = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		for (const match of path.matchAll(new RegExp(literal, 'gi'))) {
-			const from = Math.max(start, match.index);
-			const to = Math.min(end, match.index + match[0].length);
-			if (from >= to) continue;
-			if (cursor < from) parts.push({ text: path.slice(cursor, from), hit: false });
-			parts.push({ text: path.slice(from, to), hit: true });
-			cursor = to;
-		}
-	}
-	if (cursor < end) parts.push({ text: path.slice(cursor, end), hit: false });
-	return parts;
+		.map(({ path, split, indices, offset }) => ({
+			text: path,
+			file: {
+				name: fuzzySegments(
+					path.slice(split),
+					indices.map((i) => i + offset - split)
+				),
+				directory: fuzzySegments(
+					path.slice(0, Math.max(0, split - 1)),
+					indices.map((i) => i + offset)
+				)
+			}
+		}));
 }

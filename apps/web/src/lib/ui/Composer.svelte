@@ -15,7 +15,6 @@
 	import {
 		completionQuery,
 		fileMention,
-		fileSegments,
 		matchingFiles,
 		matching,
 		type Completion
@@ -278,7 +277,7 @@
 	};
 </script>
 
-{#snippet highlighted(parts: ReturnType<typeof fileSegments>)}
+{#snippet highlighted(parts: NonNullable<Completion['file']>['name'])}
 	{#each parts as part, index (index)}
 		{#if part.hit}<mark class="bg-transparent font-semibold text-accent-ink">{part.text}</mark
 			>{:else}{part.text}{/if}
@@ -345,8 +344,7 @@
 					onmousedown={() => complete(completion)}
 					onmousemove={() => (active = index)}
 				>
-					{#if mention}
-						{@const split = completion.text.lastIndexOf('/') + 1}
+					{#if completion.file}
 						<span
 							aria-hidden="true"
 							class={[
@@ -354,17 +352,13 @@
 								index === active && 'text-accent-ink'
 							]}
 						></span>
-						<span class="min-w-0 flex-1">
-							<span class="block truncate code font-medium text-ink"
-								>{@render highlighted(fileSegments(completion.text, mention.query, split))}</span
+						<span class="flex min-w-0 flex-1 items-baseline gap-2">
+							<span class="max-w-full shrink-0 truncate code font-medium text-ink"
+								>{@render highlighted(completion.file.name)}</span
 							>
-							{#if split}
-								<span class="block truncate text-left code-dense text-muted" dir="rtl"
-									><bdi
-										>{@render highlighted(
-											fileSegments(completion.text, mention.query, 0, split - 1)
-										)}</bdi
-									></span
+							{#if completion.file.directory.length}
+								<span class="min-w-0 truncate text-left code-dense text-muted" dir="rtl"
+									><bdi>{@render highlighted(completion.file.directory)}</bdi></span
 								>
 							{/if}
 						</span>
