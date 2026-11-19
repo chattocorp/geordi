@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PullRequest } from '@geordi/protocol';
-	import { describeChecks } from '@geordi/ui/checks';
-	import Ring from '@geordi/ui/Ring.svelte';
+	import { describeChecks } from './checks.ts';
+	import Ring from './Ring.svelte';
 
 	let { pull }: { pull: PullRequest } = $props();
 	const summary = $derived(pull.checks && describeChecks(pull.checks));

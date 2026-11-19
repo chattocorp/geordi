@@ -17,7 +17,7 @@
 	import { unread } from '#lib/notifications.svelte.ts';
 	import { lanes } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import Badge from '#lib/ui/Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';

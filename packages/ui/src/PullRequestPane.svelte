@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { PullRequest } from '@geordi/protocol';
 	import PullChecks from './PullChecks.svelte';
-	import Badge from '#lib/ui/Badge.svelte';
-	import Markdown from '#lib/components/Markdown.svelte';
+	import Badge from './Badge.svelte';
+	import type { Snippet } from 'svelte';
 
-	let { pull }: { pull: PullRequest } = $props();
+	let { pull, description }: { pull: PullRequest; description?: Snippet<[string]> } = $props();
 
 	const states = { open: 'Open', closed: 'Closed', merged: 'Merged', unknown: 'Unknown' };
 
@@ -55,6 +55,10 @@
 		{#key pull.number}<PullChecks checks={pull.checks} />{/key}
 	{/if}
 	{#if pull.body?.trim()}
-		<div class="wrap-anywhere"><Markdown text={pull.body} /></div>
+		<div class="wrap-anywhere">
+			{#if description}{@render description(pull.body)}{:else}<p class="whitespace-pre-wrap">
+					{pull.body}
+				</p>{/if}
+		</div>
 	{/if}
 </section>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Question } from '@geordi/protocol';
-	import Badge from '#lib/ui/Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 
 	/**

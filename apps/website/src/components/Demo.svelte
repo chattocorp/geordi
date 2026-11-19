@@ -5,6 +5,8 @@
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
+	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
 	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
@@ -75,7 +77,22 @@
 	let visible = false;
 	let timer: ReturnType<typeof setTimeout>;
 	let frame: HTMLElement;
-	let pullInfo: HTMLDialogElement;
+	let pullTab = $state<'closed' | 'background' | 'active'>('closed');
+	function selectMainTab(id: string) {
+		if (id === 'pull') pullTab = 'active';
+		else if (pullTab !== 'closed') pullTab = 'background';
+		schedule();
+	}
+	async function openPull() {
+		selectMainTab('pull');
+		await tick();
+		document.getElementById(uid + '-chat-tab-1')?.focus();
+	}
+	function closePull() {
+		pullTab = 'closed';
+		document.getElementById(uid + '-chat-tab-0')?.focus();
+		schedule();
+	}
 	const narrow = new MediaQuery('(max-width: 40rem)', true);
 	const uid = $props.id();
 	let opened = $state<string[]>([]);
@@ -118,10 +135,19 @@
 						state: step === last ? 'merged' : 'open',
 						draft: false,
 						base: 'main',
-						review: null,
+						review: step === 8 ? 'pending' : 'approved',
+						body: 'Return people to the page they requested after sign-in. Validate the destination so redirects stay on this site.',
 						checks: {
 							state: step === 8 ? 'pending' : 'success',
 							total: 1,
+							items: [
+								{
+									id: 'tests',
+									name: 'Sign-in redirect tests',
+									state: step === 8 ? 'pending' : 'success',
+									status: step === 8 ? 'in_progress' : 'success'
+								}
+							],
 							failed: 0,
 							url: null,
 							counts: {
@@ -149,7 +175,7 @@
 			editing ||
 			stopped ||
 			activityOpen ||
-			pullInfo?.open ||
+			pullTab === 'active' ||
 			(step === last && (replies.length || selected))
 		)
 			return;
@@ -175,6 +201,7 @@
 			replies = [];
 			queue = [];
 			firstMessage = message;
+			pullTab = 'closed';
 			selected = null;
 			opened = [];
 		}
@@ -190,7 +217,7 @@
 		hydrated = true;
 		const motion = matchMedia('(prefers-reduced-motion: reduce)');
 		function updateMotion() {
-			if (pullInfo.open) pullInfo.close();
+			pullTab = 'closed';
 			playing = !motion.matches;
 			selected = null;
 			opened = [];
@@ -243,10 +270,7 @@
 					disabled={!playing}
 					pull={upstream.pull}
 					compact={narrow.current}
-					onopenpull={() => {
-						clearTimeout(timer);
-						pullInfo.showModal();
-					}}
+					onopenpull={openPull}
 					onaction={act}
 				/>
 			</div>
@@ -305,12 +329,22 @@
 
 		<!-- the conversation -->
 		<section class="flex min-w-0 flex-1 flex-col sheet">
-			<PaneTabs prefix="{uid}-chat" tabs={['Claude']} current="Claude">
-				{#snippet tab(id: string)}<span class="icon-[lucide--sparkles] size-3.5 text-claude"
-					></span>{id}{/snippet}
+			<PaneTabs
+				prefix="{uid}-chat"
+				tabs={pullTab === 'closed' ? ['chat'] : ['chat', 'pull']}
+				current={pullTab === 'active' ? 'pull' : 'chat'}
+				onselect={selectMainTab}
+				closable={(id) => id === 'pull'}
+				onclose={closePull}
+			>
+				{#snippet tab(id: string)}
+					{#if id === 'pull' && upstream.pull}<PullRequestTab pull={upstream.pull} />
+					{:else}<span class="icon-[lucide--sparkles] size-3.5 text-claude"></span>Claude{/if}
+				{/snippet}
 			</PaneTabs>
 			<div
 				role="tabpanel"
+				hidden={pullTab === 'active'}
 				id="{uid}-chat-panel-0"
 				aria-labelledby="{uid}-chat-tab-0"
 				class="flex min-h-0 flex-1 flex-col"
@@ -344,10 +378,16 @@
 									<div class="prose"><p>{replyStart} <code>returnTo</code>{replyEnd}</p></div>
 								</AgentText>
 							{/if}
-							{#if step >= 8}<p class="flex items-center gap-2 text-sm text-muted">
+							{#if step >= 8}
+								<button
+									type="button"
+									class="flex items-center gap-2 text-sm text-muted hover:text-ink"
+									onclick={openPull}
+								>
 									<span class="icon-[lucide--git-pull-request] size-3.5"></span>Opened pull request
 									#412
-								</p>{/if}
+								</button>
+							{/if}
 						</AgentMessage>
 						{#if stopped}<p class="text-xs text-muted" role="status">Agent stopped</p>{/if}
 						{#each replies as text, index (index)}<UserMessage {text} />{/each}
@@ -395,6 +435,17 @@
 					</ReplyComposer>
 				</div>
 			</div>
+			{#if pullTab !== 'closed' && upstream.pull}
+				<div
+					role="tabpanel"
+					id="{uid}-chat-panel-1"
+					aria-labelledby="{uid}-chat-tab-1"
+					hidden={pullTab !== 'active'}
+					class="flex min-h-0 flex-1 flex-col"
+				>
+					<PullRequestPane pull={upstream.pull} />
+				</div>
+			{/if}
 		</section>
 
 		<!-- beside it: what has changed, and one of the diffs -->
@@ -475,16 +526,6 @@
 			</section>
 		</div>
 	</div>
-	<dialog
-		aria-labelledby="demo-pull-title"
-		bind:this={pullInfo}
-		onclose={schedule}
-		class="m-auto card-float p-5 text-ink"
-	>
-		<p id="demo-pull-title" class="heading">#412 · {upstream.pull?.title}</p>
-		<p class="my-3 text-sm text-muted">{standing?.label}</p>
-		<form method="dialog"><button class="item px-3 py-1">Close</button></form>
-	</dialog>
 </figure>
 
 <p class="mt-3 flex items-center gap-3 px-1 text-sm text-muted">

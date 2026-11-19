@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
 	import Markdown from '#lib/components/Markdown.svelte';
-	import Badge from '#lib/ui/Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 
 	type Props = {

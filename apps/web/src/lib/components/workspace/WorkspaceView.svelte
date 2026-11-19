@@ -39,7 +39,7 @@
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
-	import Badge from '#lib/ui/Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
@@ -64,8 +64,9 @@
 	} from '../../../routes/workspaces.remote';
 	import { pendingPullAction, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
-	import PullRequestTab from './PullRequestTab.svelte';
-	import PullRequestPane from './PullRequestPane.svelte';
+	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
@@ -770,7 +771,9 @@
 			onopen={openDiff}
 		/>
 	{:else if tab === PR && pull}
-		<PullRequestPane {pull} />
+		<PullRequestPane {pull}
+			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset

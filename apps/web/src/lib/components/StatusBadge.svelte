@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Badge from '#lib/ui/Badge.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
 
 	/** Whether an agent (or anything in a workspace) is working right now. */

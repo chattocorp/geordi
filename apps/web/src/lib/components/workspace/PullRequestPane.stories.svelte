@@ -2,8 +2,9 @@
 	import { expect } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { PullRequest } from '@geordi/protocol';
-	import PullRequestPane from './PullRequestPane.svelte';
-	import PullRequestTab from './PullRequestTab.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
+	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
+	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Pull request', component: PullRequestPane });
 
@@ -32,7 +33,9 @@
 		<div class="pane-bar px-2">
 			<span class="flex items-center gap-2 tab-active px-2 py-1"><PullRequestTab {pull} /></span>
 		</div>
-		<PullRequestPane {pull} />
+		<PullRequestPane {pull}
+			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	</div>
 {/snippet}
 
@@ -144,7 +147,7 @@
 				body: 'Build report: https://example.test/' + 'a'.repeat(180),
 				checks: null,
 				review: null
-			})}
-		/>
+			})}>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+		>
 	</div>
 </Story>
