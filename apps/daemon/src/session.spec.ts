@@ -91,6 +91,16 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    const finished={sessionUpdate:'tool_call_update',toolCallId:'bg',status:'completed'};
    update(finished);update(finished);return done();
   }
+  if(said==='interleaved reply'){
+   const tool={sessionUpdate:'tool_call_update',toolCallId:'build',name:'shell'};
+   const chunk=(text)=>update({sessionUpdate:'agent_message_chunk',messageId:'final',content:{type:'text',text}});
+   text('Starting the build.');
+   update({...tool,status:'in_progress'});
+   chunk('A Svelte');
+   update({...tool,status:'completed'});
+   chunk('Kit website.');
+   return done();
+  }
   if(said==='terminal'){
    const tool={sessionUpdate:'tool_call_update',toolCallId:'sh',name:'shell'};
    update({...tool,status:'in_progress'});
@@ -381,6 +391,18 @@ describe('a session', () => {
 		session.stop();
 		await until(() => kinds().includes('turn.failed'));
 		expect(kinds()).not.toContain('answer.received');
+	});
+
+	it('keeps a reply together when an earlier tool finishes between chunks', async () => {
+		const { events, ended } = begin('interleaved reply');
+		await ended(1);
+		expect(events.slice(2)).toEqual([
+			{ kind: 'text', text: 'Starting the build.' },
+			expect.objectContaining({ kind: 'tool', id: 'build' }),
+			expect.objectContaining({ kind: 'tool.result', id: 'build' }),
+			{ kind: 'text', text: 'A SvelteKit website.' },
+			{ kind: 'turn.completed' }
+		]);
 	});
 
 	it('keeps shell output across ACP byte chunks', async () => {
