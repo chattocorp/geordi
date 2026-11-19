@@ -3,6 +3,7 @@ import { prepareSessionsDirectory } from './session-process.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
+import { git } from './git.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
 import { existsSync, readFileSync } from 'node:fs';
@@ -54,6 +55,8 @@ import { update } from './update.ts';
 import { cachedPullBase, markReady, mergePull, setAutoMerge, upstream } from './upstream.ts';
 import { createWatches } from './watch.ts';
 import {
+	startOf,
+	gitIn,
 	branchOf,
 	continueOn,
 	ensureWorktree,
@@ -477,6 +480,33 @@ function answer(request: DaemonRequest) {
 async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
+	if (request.kind === 'fileNames') {
+		const { repoPath, worktreeId } = request;
+		if (!worktreeId) {
+			const listed = await git(repoPath, [
+				'ls-tree',
+				'-rz',
+				'--name-only',
+				await startOf(repoPath)
+			]);
+			return listed.split('\0').filter(Boolean);
+		}
+		const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
+		const [listed, removed] = await Promise.all([
+			gitIn(
+				worktree,
+				'ls-files',
+				'--cached',
+				'--others',
+				'--exclude-standard',
+				'--deduplicate',
+				'-z'
+			),
+			gitIn(worktree, 'ls-files', '--deleted', '-z')
+		]);
+		const deleted = new Set(removed.split('\0'));
+		return listed.split('\0').filter((path) => path && !deleted.has(path));
+	}
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'removeWorktree') {
 		const { repoPath, worktreeId, force } = request;

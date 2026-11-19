@@ -15,7 +15,7 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 35;
+export const PROTOCOL_VERSION = 36;
 
 export const AGENTS = ['claude', 'codex'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -484,6 +484,8 @@ export type DaemonRequest =
 	 * git can do that by itself: nothing uncommitted, no agent at work, no conflicts.
 	 */
 	| ({ kind: 'updateWorktree' } & WorktreeRef)
+	/** Repository-relative paths available to a new or existing workspace. */
+	| { kind: 'fileNames'; repoPath: string; worktreeId?: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
@@ -500,6 +502,7 @@ export type DaemonResults = {
 	portReady: boolean;
 	config: RepoConfig;
 	release: ReleasePlan | null;
+	fileNames: string[];
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: string | null;

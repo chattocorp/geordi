@@ -12,7 +12,13 @@
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
 	import Button from './Button.svelte';
 	import { submitOnEnter } from '#lib/keys.ts';
-	import { completionQuery, matching, type Completion } from './completions.ts';
+	import {
+		completionQuery,
+		fileMention,
+		matchingFiles,
+		matching,
+		type Completion
+	} from './completions.ts';
 
 	type Props = {
 		/** Whether to put the cursor in the text when it appears: where writing is what one came for. */
@@ -39,6 +45,7 @@
 		 * word. Arrow keys and Enter (or Tab) choose one, Escape puts them away.
 		 */
 		completions?: Completion[];
+		files?: () => PromiseLike<string[]>;
 		/** What the completions are, for those who can't see them: "Commands". */
 		completionsLabel?: string;
 		/** What is wrong with the input, if anything. */
@@ -61,6 +68,7 @@
 		disabled = false,
 		onkeydown = submitOnEnter,
 		completions = [],
+		files,
 		completionsLabel = 'Completions',
 		problems = [],
 		attachments,
@@ -76,6 +84,7 @@
 	let text: HTMLTextAreaElement | undefined;
 	/** The text as it was last written, and whether it is being written in. */
 	let typed = $state('');
+	let caret = $state(-1);
 	let writing = $state(false);
 	const focus: Attachment<HTMLTextAreaElement> = (node) => {
 		text = node;
@@ -83,6 +92,7 @@
 		// (listened to, not set as props: a remote form field has handlers of its own)
 		const read = () => {
 			typed = node.value;
+			caret = node.selectionStart === node.selectionEnd ? node.selectionStart : -1;
 			writing = document.activeElement === node;
 		};
 		const away = () => (writing = false);
@@ -101,12 +111,14 @@
 				node.focus({ preventScroll: true });
 			}
 		});
+		node.addEventListener('selectionchange', read);
 		node.addEventListener('input', read);
 		node.addEventListener('focus', read);
 		node.addEventListener('blur', away);
 		form?.addEventListener('submit', sent);
 		form?.addEventListener('reset', clearTyped);
 		return () => {
+			node.removeEventListener('selectionchange', read);
 			node.removeEventListener('input', read);
 			node.removeEventListener('focus', read);
 			node.removeEventListener('blur', away);
@@ -121,9 +133,35 @@
 	const query = $derived(
 		completions.length && writing && typed !== dismissed ? completionQuery(typed) : null
 	);
-	const shown = $derived(query === null ? [] : matching(completions, query));
+	const mention = $derived(
+		files && writing && typed !== dismissed && caret >= 0 ? fileMention(typed, caret) : null
+	);
+	const needsFiles = $derived(!!mention);
+	let paths = $state.raw<string[]>([]);
+	$effect(() => {
+		paths = [];
+		if (!needsFiles || !files) return;
+		let current = true;
+		Promise.resolve(files()).then(
+			(names) => {
+				if (current) paths = names;
+			},
+			() => {}
+		);
+		return () => {
+			current = false;
+		};
+	});
+	const shown = $derived(
+		mention
+			? matchingFiles(paths, mention.query)
+			: query === null
+				? []
+				: matching(completions, query)
+	);
 	$effect.pre(() => {
 		void query;
+		void mention;
 		active = 0;
 	});
 	const listId = `${id}-completions`;
@@ -141,7 +179,15 @@
 		text.focus();
 		text.setSelectionRange(words.length, words.length);
 	}
-	const complete = (completion: Completion) => write(completion.text + ' ');
+	function complete(completion: Completion) {
+		if (!mention || !text) return write(completion.text + ' ');
+		const path = /\s/.test(completion.text) ? JSON.stringify(completion.text) : completion.text;
+		const suffix = typed.slice(mention.end);
+		const insert = '@' + path + (/^\s/.test(suffix) ? '' : ' ');
+		text.setRangeText(insert, mention.start, mention.end, 'end');
+		if (/^\s/.test(suffix)) text.setSelectionRange(text.selectionEnd + 1, text.selectionEnd + 1);
+		text.dispatchEvent(new Event('input', { bubbles: true }));
+	}
 
 	let available = $derived(suggestion);
 	const offered = $derived(!disabled && !(field ? field.value : value) ? available : null);
@@ -212,13 +258,13 @@
 		onkeydown: keydown,
 		// with completions, the text is a combobox: what it offers is a list beside it
 		get role() {
-			return completions.length ? 'combobox' : undefined;
+			return files || completions.length ? 'combobox' : undefined;
 		},
 		get 'aria-autocomplete'() {
-			return completions.length ? ('list' as const) : undefined;
+			return files || completions.length ? ('list' as const) : undefined;
 		},
 		get 'aria-expanded'() {
-			return completions.length ? shown.length > 0 : undefined;
+			return files || completions.length ? shown.length > 0 : undefined;
 		},
 		get 'aria-controls'() {
 			return shown.length ? listId : undefined;
@@ -235,7 +281,7 @@
 <form
 	{...form}
 	data-live={live || undefined}
-	class="group/composer @container edge-live flex min-h-0 flex-col card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
+	class="group/composer @container edge-live relative flex min-h-0 flex-col card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
 >
 	{#if offered}
 		<div
@@ -271,7 +317,7 @@
 			id={listId}
 			role="listbox"
 			tabindex="-1"
-			aria-label={completionsLabel}
+			aria-label={mention ? 'Repository files' : completionsLabel}
 			class="absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto card-float p-2"
 			onmousedown={(event) => event.preventDefault()}
 		>
@@ -286,7 +332,9 @@
 					onmousedown={() => complete(completion)}
 					onmousemove={() => (active = index)}
 				>
-					<span class="shrink-0 code text-ink">{completion.text}</span>
+					<span title={completion.text} class="min-w-0 truncate code text-ink"
+						>{completion.text}</span
+					>
 					{#if completion.hint}
 						<span class="max-w-1/3 shrink-0 truncate code-dense text-muted">{completion.hint}</span>
 					{/if}

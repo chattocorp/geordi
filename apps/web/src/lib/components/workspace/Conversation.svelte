@@ -11,6 +11,7 @@
 	import type { AgentCommand } from '@geordi/protocol';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
+		getFileNames,
 		configureWorkspace,
 		answerQuestion,
 		removeQueued,
@@ -125,6 +126,7 @@
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest}>
 				<MessageComposer
+					files={() => getFileNames({ workspaceId: workspace.id })}
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
 					focused

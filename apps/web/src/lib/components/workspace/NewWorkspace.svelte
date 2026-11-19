@@ -15,7 +15,7 @@
 	import RepoPicker from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { createWorkspace } from '../../../routes/workspaces.remote';
+	import { createWorkspace, getFileNames } from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
 
 	type Props = {
@@ -76,6 +76,9 @@
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
 <MessageComposer
+	files={repo
+		? () => getFileNames(alongside ? { workspaceId: alongside } : { repoId: repo.id })
+		: undefined}
 	bind:images={written.images}
 	imageField={images.as('hidden', '[]')}
 	{form}

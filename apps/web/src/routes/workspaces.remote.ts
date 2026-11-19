@@ -15,6 +15,7 @@ import {
 	continueWorkspace as carryOn,
 	hub,
 	jobs,
+	repos,
 	prepareWorktree,
 	terminals,
 	updateWorkspace as update,
@@ -301,6 +302,17 @@ export const stopTask = command(
 export const stopAgent = command(v.string(), (id) => workspaces().stop(id));
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+export const getFileNames = query(
+	v.union([v.object({ workspaceId: v.string() }), v.object({ repoId: v.string() })]),
+	(scope) =>
+		hub().request({
+			kind: 'fileNames',
+			...('workspaceId' in scope
+				? workspaces().ref(scope.workspaceId)
+				: { repoPath: repos().get(scope.repoId).path })
+		})
+);
 
 /** Both versions of a changed file, for the diff viewer. */
 export const getDiff = query(

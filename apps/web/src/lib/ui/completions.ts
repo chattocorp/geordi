@@ -34,3 +34,31 @@ export function matching<T extends Completion>(completions: T[], query: string):
 	}
 	return tiers.flat();
 }
+
+/** The @ token under a collapsed caret, including the part after the caret. */
+export function fileMention(text: string, caret: number) {
+	const match = /(?:^|\s)@([^\s@]*)$/.exec(text.slice(0, caret));
+	if (!match) return null;
+	const query = match[1];
+	return {
+		query,
+		start: caret - query.length - 1,
+		end: caret + /^\S*/.exec(text.slice(caret))![0].length
+	};
+}
+
+export function matchingFiles(paths: string[], query: string): Completion[] {
+	const wanted = query.toLowerCase();
+	const tiers: string[][] = [[], [], []];
+	for (const path of paths) {
+		const lower = path.toLowerCase();
+		if (!lower.includes(wanted)) continue;
+		const name = lower.slice(lower.lastIndexOf('/') + 1);
+		const tier = tiers[name === wanted ? 0 : name.startsWith(wanted) ? 1 : 2];
+		if (tier.length < 40) tier.push(path);
+	}
+	return tiers
+		.flat()
+		.slice(0, 40)
+		.map((text) => ({ text }));
+}
