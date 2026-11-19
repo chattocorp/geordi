@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
@@ -111,7 +112,7 @@
 
 	// A workspace has a fixed frame of three areas: the main one, and beside it one above
 	// the other (the side, and the dock). Windows are tabs named after what they show: the
-	// conversation, the workspace's `changes` and its `changeset`, `diff:<path>` and
+	// conversation, the workspace's `changes` and its `changeset`, `diff` and
 	// `terminal:<name>`. The conversation lives in the main area; everything else can be
 	// dragged from any area to any other.
 	const CHAT = 'chat';
@@ -120,8 +121,6 @@
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
 	const DRAFT = 'draft';
-	type Area = 'main' | 'side' | 'dock';
-	const pathOf = (tab: string) => (tab.startsWith('diff:') ? tab.slice(5) : undefined);
 	const sourceOf = (tab: string) => (tab.startsWith('source:') ? tab.slice(7) : undefined);
 	const terminalOf = (tab: string) => (tab.startsWith('terminal:') ? tab.slice(9) : undefined);
 	/** An agent working alongside this workspace's own (`agent:<its workspace's ID>`). */
@@ -165,10 +164,8 @@
 
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
-	const arrangement = persisted<Partial<Record<Area, Layout | null>>>(
-		`geordi:arrangement:${id}`,
-		{}
-	);
+	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
+	const saved = $derived(restoreDiff(arrangement.current));
 	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
@@ -189,7 +186,9 @@
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('subagent:')) return reviewers.has(tab);
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
-		return tab === CHAT || tab === CHANGES || !!pathOf(tab) || !!sourceOf(tab);
+		return (
+			tab === CHAT || tab === CHANGES || (tab === 'diff' && !!saved.diffPath) || !!sourceOf(tab)
+		);
 	};
 	/** The three areas' windows: as they were arranged, and what is new where it belongs. */
 	const layouts = $derived.by((): Record<Area, Layout> => {
@@ -197,7 +196,7 @@
 		// a window is in one place only: where it was put first, going through the areas
 		const arranged = (area: Area) => {
 			const layout = prune(
-				arrangement.current[area] ?? singleGroup([], { id: area }),
+				saved[area] ?? singleGroup([], { id: area }),
 				(tab) =>
 					!placed.includes(tab) &&
 					(exists(tab) || (tab === CHANGESET && (!workspace.git || workspace.git.releasePending)))
@@ -395,7 +394,7 @@
 	});
 
 	/** Remembers a new arrangement. A terminal whose window is gone from it has its shell ended. */
-	function arrange(next: Partial<Record<Area, Layout>>) {
+	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
 		if (!remaining.includes(DRAFT)) drafting = false;
@@ -420,7 +419,7 @@
 				else closeTerminal({ workspaceId: id, terminal }).catch(() => {});
 			}
 		}
-		arrangement.current = after;
+		arrangement.current = { ...after, diffPath: remaining.includes('diff') ? diffPath : undefined };
 	}
 
 	/** A window dragged from one area was dropped in another. */
@@ -444,12 +443,12 @@
 		aideOf(tab)?.status !== 'running';
 
 	/** Focus the tab where it is, or open it next to the conversation. */
-	const showTab = (tab: string) => {
+	const showTab = (tab: string, diffPath = saved.diffPath) => {
 		const area = areaOf(tab) ?? 'main';
 		if (area !== 'main' && !frame.current.open) toggleSide();
-		arrange({ [area]: open(layouts[area], tab, chatGroup) });
+		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath);
 	};
-	const openDiff = (path: string) => showTab(`diff:${path}`);
+	const openDiff = (path: string) => showTab('diff', path);
 
 	// Its conversations link the files it has changed to their diffs. The list is compared as
 	// text: the changes are new with every update, and each new set renders every reply again.
@@ -676,7 +675,7 @@
 
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
-	{@const path = pathOf(tab) ?? sourceOf(tab)}
+	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
 	{#if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -760,7 +759,7 @@
 
 {#snippet window(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
-	{@const path = pathOf(tab)}
+	{@const path = tab === 'diff' ? saved.diffPath : undefined}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
 	{#if tab === CHANGES}
@@ -788,7 +787,9 @@
 		{/if}
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
-		<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+		{#key path}
+			<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+		{/key}
 	{:else if source}
 		<SourceWindow
 			workspaceId={id}
