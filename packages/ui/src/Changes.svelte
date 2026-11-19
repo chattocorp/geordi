@@ -1,15 +1,15 @@
 <script lang="ts">
-	import Spinner from '#lib/ui/Spinner.svelte';
-	import DiffStat from '#lib/components/DiffStat.svelte';
-	import FittedPath from '#lib/components/FittedPath.svelte';
-	import type { WorktreeState } from '#lib/server/watchers.ts';
+	import Spinner from './Spinner.svelte';
+	import DiffStat from './DiffStat.svelte';
+	import FittedPath from './FittedPath.svelte';
+	import type { Changes } from '@geordi/protocol';
 
 	type Props = {
 		/**
 		 * How the workspace's files and its pull request stand, kept up to date by the forge
 		 * (see `getWorkspace`). `null` until first loaded.
 		 */
-		git: WorktreeState | null;
+		git: { changes: Changes | null; unavailable: string | null } | null;
 		/** The branch of a worktree that was removed outside Geordi, if that is what happened. */
 		gone?: string | null;
 		onopen(path: string): void;

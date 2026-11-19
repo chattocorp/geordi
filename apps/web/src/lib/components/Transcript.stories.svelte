@@ -3,7 +3,11 @@
 	import Markdown from './Markdown.svelte';
 	import { expect, fn, userEvent, waitFor } from 'storybook/test';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
-	import ToolGroup from './ToolGroup.svelte';
+	import PatchView from './PatchView.svelte';
+	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
+	import AgentText from '@geordi/ui/AgentText.svelte';
+	import UserMessage from '@geordi/ui/UserMessage.svelte';
+	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Transcript' });
 
@@ -196,7 +200,12 @@
 </script>
 
 <script lang="ts">
-	setChangedFiles({ root: '/work', paths: new Set(['src/git.ts']), open: openDiff, openSource });
+	const workspace = setChangedFiles({
+		root: '/work',
+		paths: new Set(['src/git.ts']),
+		open: openDiff,
+		openSource
+	});
 </script>
 
 <Story
@@ -216,7 +225,12 @@
 </Story>
 
 <Story name="Agent reply" asChild>
-	<div class="max-w-2xl"><Markdown text={reply} /></div>
+	<div class="max-w-2xl space-y-6">
+		<UserMessage text="What changed?" />
+		<AgentMessage agent="claude">
+			<AgentText text={reply}><Markdown text={reply} /></AgentText>
+		</AgentMessage>
+	</div>
 </Story>
 
 <Story name="Inline code" asChild>
@@ -230,7 +244,7 @@
 <Story name="Earlier messages are dimmed" asChild>
 	<div class="max-w-2xl space-y-6">
 		<Markdown text="I’ll check the **changes pane** and its `git diff` command." dimmed />
-		<ToolGroup tools={tools.slice(0, 2)} cwd="/work" />
+		<ToolGroup {workspace} {PatchView} tools={tools.slice(0, 2)} cwd="/work" />
 		<Markdown text="The command includes submodules. I’ll update it and run the checks." dimmed />
 		<Markdown text={reply} />
 	</div>
@@ -240,9 +254,9 @@
 <Story name="Tool calls" asChild>
 	<div class="max-w-2xl space-y-6">
 		<!-- over: what was used; a click shows the calls -->
-		<ToolGroup {tools} cwd="/work" />
+		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" />
 		<!-- under way: the tool that is running -->
-		<ToolGroup {tools} cwd="/work" live />
+		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" live />
 	</div>
 </Story>
 
@@ -267,8 +281,8 @@
 	}}
 >
 	<div class="max-w-2xl space-y-6">
-		<ToolGroup tools={described} cwd="/work" />
-		<ToolGroup tools={described} cwd="/work" live />
+		<ToolGroup {workspace} {PatchView} tools={described} cwd="/work" />
+		<ToolGroup {workspace} {PatchView} tools={described} cwd="/work" live />
 	</div>
 </Story>
 
@@ -293,5 +307,5 @@
 		);
 	}}
 >
-	<div class="max-w-2xl"><ToolGroup tools={edits} cwd="/work" /></div>
+	<div class="max-w-2xl"><ToolGroup {workspace} {PatchView} tools={edits} cwd="/work" /></div>
 </Story>

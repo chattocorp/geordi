@@ -13,6 +13,7 @@ pnpm monorepo:
 - `packages/launch`: how both stage and start forge and daemon (`stage.js`, `services.js`).
 - `apps/website`: the website (Astro, static). Drawn with the forge's design system: it
   imports `apps/web/src/routes/layout.css`, so a change to tokens or utilities shows there too.
+- `packages/ui`: Svelte components and action rules shared by the forge and website demo (ADR-011).
 - `packages/protocol`: message types shared by forge and daemon.
 - `planning/`: the backlog (means collection).
 - `docs/adr/`, `docs/fdr/`: architecture and feature decision records.
@@ -111,7 +112,7 @@ it, perhaps you.
     its agent gives its root session (ACP `session_info_update`, the `title` event;
     `titleFromAgent` drops Codex's echo of the prompt), until someone names it on purpose
     (an `actor` on `workspace.titled`: a caller's `title`, or the agent's `name_workspace`).
-  - **Workspace actions** (FDR-003) are derived from state by `#lib/actions.ts` (pure, and
+  - **Workspace actions** (FDR-003) are derived from state by `@geordi/ui/actions` (pure, and
     tested); most just `say` something to the agent.
   - Agents run without permission prompts by default (they must commit, push and use `gh`).
   - Every turn tells the agent that it works in Geordi, and how (`instructions.ts` in the
@@ -216,9 +217,9 @@ it, perhaps you.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`.
-  - **Components** in `#lib/ui/` (`Button`, `ButtonGroup`, `Badge`, `Composer`, `ContextMenu`, `Dialog`, `Disclosure`, `ImageViewer`, `Notice`, `Page`, `Panes`,
-    `Ring`, `Segmented`, `Select`, `Spinner`, `Split`, `TitleBar`): generic, no domain knowledge. Domain components live in
-    `#lib/components/`.
+  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `TitleBar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+    `Segmented`, `Select`, `Split`): generic, no domain knowledge. Domain components live in
+    `#lib/components/` or, when both apps use them, in `@geordi/ui`.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary
     values or raw colours.
@@ -256,8 +257,8 @@ it, perhaps you.
   shared drag state in `drag.svelte.ts`). Which windows exist follows from the workspace's
   state; only their arrangement is a per-browser preference (`persisted`), not an event.
   The ribbon at the top (`WorkspaceActions`) says where the work stands and what to do
-  next, from `#lib/actions.ts`.
-- **Diffs** are rendered by `#lib/components/DiffView.svelte` with `@pierre/diffs`
+  next, from `@geordi/ui/actions`.
+- **Diffs** are rendered by `@geordi/ui/DiffView.svelte` with `@pierre/diffs`
   (https://diffs.com) from both whole file versions, which is what makes context
   expandable. It renders into a shadow root; style it through its `--diffs-*` properties.
 - **Agent output** is rendered as Markdown with `markdown-it` (raw HTML disabled), via

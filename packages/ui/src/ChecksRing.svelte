@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { CheckCounts } from '@geordi/protocol';
-	import { describeCounts } from '#lib/checks.ts';
-	import Ring from '#lib/ui/Ring.svelte';
+	import { describeCounts } from './checks.ts';
+	import Ring from './Ring.svelte';
 
 	let { counts }: { counts?: CheckCounts } = $props();
 	const summary = $derived(counts && describeCounts(counts));

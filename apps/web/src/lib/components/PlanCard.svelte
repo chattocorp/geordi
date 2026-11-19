@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Disclosure from '#lib/ui/Disclosure.svelte';
+	import Disclosure from '@geordi/ui/Disclosure.svelte';
 	import type { AgentPlan } from '@geordi/protocol';
 	import Markdown from './Markdown.svelte';
 

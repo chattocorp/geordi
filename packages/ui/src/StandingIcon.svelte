@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { WorkspaceStanding } from '#lib/actions.ts';
+	import type { WorkspaceStanding } from './actions.ts';
 	import ChecksRing from './ChecksRing.svelte';
 
 	/** How a workspace's work stands, as one icon in its colour: the checks while they run. */

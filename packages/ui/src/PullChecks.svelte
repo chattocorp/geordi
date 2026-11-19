@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PullCheck, PullRequest } from '@geordi/protocol';
-	import { duration } from '#lib/format.ts';
-	import { describeChecks } from '#lib/checks.ts';
+	import { duration } from './duration.ts';
+	import { describeChecks } from './checks.ts';
 
 	let { checks }: { checks: NonNullable<PullRequest['checks']> } = $props();
 	const summary = $derived(describeChecks(checks));

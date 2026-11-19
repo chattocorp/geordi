@@ -2,8 +2,8 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, fn, userEvent, waitFor } from 'storybook/test';
 	import ImageAttachments from './ImageAttachments.svelte';
-	import Composer from './Composer.svelte';
-	import Button from './Button.svelte';
+	import Composer from '@geordi/ui/Composer.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Image attachments', component: ImageAttachments });
 	const picture = (width: number, height: number) =>

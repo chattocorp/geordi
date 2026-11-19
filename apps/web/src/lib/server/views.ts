@@ -1,4 +1,4 @@
-import { actionsFor, PUBLISHING, standingOf } from '#lib/actions.ts';
+import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';

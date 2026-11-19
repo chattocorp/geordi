@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { TitlePart } from '#lib/tools.ts';
+	import type { TitlePart } from './tools.ts';
 
 	/** A tool call's title on one line: words in the text face, code (paths, commands) in mono. */
 	let { parts, class: extra }: { parts: TitlePart[]; class?: string } = $props();

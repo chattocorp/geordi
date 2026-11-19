@@ -3,10 +3,9 @@
 	import MessageView from './MessageView.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
 	import { draft } from '#lib/drafts.svelte.ts';
-	import { hint, pressed } from '#lib/keys.ts';
+	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
 	import { toBlocks } from '#lib/transcript.ts';
-	import Button from '#lib/ui/Button.svelte';
-	import MessageComposer from '#lib/components/MessageComposer.svelte';
+	import WithMessageImages from '#lib/components/WithMessageImages.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { AgentCommand } from '@geordi/protocol';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
@@ -82,18 +81,6 @@
 
 	let messages = $state<MessageView>();
 	const toLatest = () => messages?.toLatest();
-
-	/**
-	 * Enter says it now (steering the agent if it is working); with Cmd or Ctrl it waits for
-	 * the agent to finish. Each is one of the form's submit buttons, pressed for the user.
-	 */
-	function keys(event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
-		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
-		event.preventDefault();
-		const { form } = event.currentTarget;
-		const mode = running && pressed(event, 'queue') ? 'queue' : 'steer';
-		form?.requestSubmit(form.querySelector<HTMLButtonElement>(`button[value=${mode}]`));
-	}
 </script>
 
 <div class="relative flex min-h-0 flex-1 flex-col">
@@ -124,99 +111,48 @@
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
 			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest}>
-				<MessageComposer
+				<WithMessageImages
+					{form}
 					bind:images={written.images}
 					imageField={form.fields.images.as('hidden', '[]')}
-					focused
 					disabled={form.pending > 0}
-					{form}
-					live={running && !waiting}
-					rows={2}
-					placeholder={running
-						? 'Steer the agent, or queue a message'
-						: workspace.transcript.length === 0
-							? 'What should the agent do?'
-							: 'Reply to the agent'}
-					onkeydown={keys}
-					{completions}
-					completionsLabel="Commands"
-					suggestion={workspace.status === 'idle' ? workspace.suggestion : null}
-					field={form.fields.text.as('text')}
-					problems={[
-						...(form.fields.text.issues() ?? []),
-						...(form.fields.images.issues() ?? [])
-					].map((problem) => problem.message)}
 				>
-					{#snippet header()}
-						<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
-					{/snippet}
-					{#snippet footer()}
-						<!-- who answers next, and how hard it thinks: as where the workspace was started -->
-						<!-- (Not while the agent works in a box too narrow for them and the buttons
-						     both: then it is the buttons that are needed, on one line.) -->
-						<div
-							class={[
-								'min-w-0 flex-wrap items-center gap-1',
-								running && !waiting ? 'hidden @lg:flex' : 'flex'
-							]}
+					{#snippet children(imageProps, hasImages)}
+						<ReplyComposer
+							{...imageProps}
+							focused
+							disabled={form.pending > 0}
+							{running}
+							{waiting}
+							empty={workspace.transcript.length === 0}
+							sendButton={form.fields.mode.as('submit', 'steer')}
+							queueButton={form.fields.mode.as('submit', 'queue')}
+							onstop={() => stopAgent(workspace.id)}
+							{completions}
+							completionsLabel="Commands"
+							suggestion={!hasImages && workspace.status === 'idle' ? workspace.suggestion : null}
+							field={form.fields.text.as('text')}
+							problems={[
+								...(form.fields.text.issues() ?? []),
+								...(form.fields.images.issues() ?? [])
+							].map((problem) => problem.message)}
 						>
-							{#if waiting}
-								<span class="text-xs text-muted" role="status">Waiting for daemon</span>
-							{:else if harnesses?.length}
-								<HarnessPicker {harnesses} {choice} onchange={configure} />
-							{/if}
-							<!-- how full the conversation is: nothing until the agent first says -->
-							{#if workspace.usage}
-								<ContextMeter usage={workspace.usage} />
-							{/if}
-						</div>
-						<!-- At the far end, together, however narrow the box: what does not fit there goes
-						     below as one, and stays on that side. -->
-						<div class="ml-auto flex h-9 items-center gap-2">
-							<!-- how to send: said while writing, and where there is room for it -->
-							<p
-								class="invisible hidden pr-1 text-xs whitespace-nowrap text-muted group-focus-within/composer:visible @4xl:block"
-							>
-								{running
-									? `Enter to steer, ${hint('queue')} to queue`
-									: 'Enter to send, Shift+Enter for a new line'}
-							</p>
-							{#if running}
-								<!--
-									Three things to do, each saying what it is: stop the agent, or say something
-									to it, later or now. (That it works is said by the box's edge, and the ribbon.)
-								-->
-								<Button
-									icon="icon-[lucide--square]"
-									label="Stop the agent"
-									onclick={() => stopAgent(workspace.id)}
-								/>
-								<Button
-									{...form.fields.mode.as('submit', 'queue')}
-									icon="icon-[lucide--list-plus]"
-									label="Queue: send this when the agent is done"
-								>
-									Queue
-								</Button>
-								<Button
-									{...form.fields.mode.as('submit', 'steer')}
-									variant="primary"
-									icon="icon-[lucide--corner-down-right]"
-									label="Steer: send to the working agent"
-								>
-									Steer
-								</Button>
-							{:else}
-								<Button
-									{...form.fields.mode.as('submit', 'steer')}
-									variant="primary"
-									icon="icon-[lucide--arrow-up]"
-									label="Send"
-								/>
-							{/if}
-						</div>
+							{#snippet header()}
+								<input {...form.fields.workspaceId.as('hidden', workspace.id)} />
+							{/snippet}
+							{#snippet options()}
+								{#if harnesses?.length}<HarnessPicker
+										{harnesses}
+										{choice}
+										onchange={configure}
+									/>{/if}
+							{/snippet}
+							{#snippet meter()}{#if workspace.usage}<ContextMeter
+										usage={workspace.usage}
+									/>{/if}{/snippet}
+						</ReplyComposer>
 					{/snippet}
-				</MessageComposer>
+				</WithMessageImages>
 			</div>
 		{/if}
 	</div>

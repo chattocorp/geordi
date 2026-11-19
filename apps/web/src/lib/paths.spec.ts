@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitPath, initial } from './paths.ts';
+import { fitPath, initial } from '@geordi/ui/paths';
 
 const show = ({ dirs, name }: { dirs: string[]; name: string }) => [...dirs, name].join('/');
 

@@ -3,8 +3,8 @@
 	import { problemOf } from '#lib/problem.ts';
 	import { addedNoteCount } from '#lib/release-notes.ts';
 	import Markdown from '#lib/components/Markdown.svelte';
-	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
+	import Badge from '@geordi/ui/Badge.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 
 	type Props = {
 		/** What the worktree holds for the repository's next releases, as its release tool reads it. */
