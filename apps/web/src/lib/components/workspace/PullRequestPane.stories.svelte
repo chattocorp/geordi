@@ -116,6 +116,38 @@
 	)}
 </Story>
 
+<Story
+	name="Many running checks"
+	asChild
+	play={async ({ canvas }) => {
+		const list = canvas.getByRole('region', { name: 'Checks' }).querySelector('ul')!;
+		await expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+		await expect(list.firstElementChild).toHaveTextContent(/\d+[smh]$/);
+		list.scrollTop = list.scrollHeight;
+		await expect(list.scrollTop).toBeGreaterThan(0);
+		list.scrollTop = 0;
+	}}
+>
+	{@render pane(
+		withPull({
+			checks: {
+				state: 'pending',
+				total: 37,
+				failed: 0,
+				url: pull.checks!.url,
+				counts: { passed: 4, failed: 0, pending: 33, skipped: 0 },
+				items: Array.from({ length: 37 }, (_, index) => ({
+					id: String(index),
+					name: `Integration tests (${index + 1}/37)`,
+					state: index < 33 ? 'pending' : 'success',
+					status: index < 33 ? 'in_progress' : 'success',
+					startedAt: Date.now() - (134 + index) * 1000
+				}))
+			}
+		})
+	)}
+</Story>
+
 <Story name="Draft, checks running" asChild>
 	{@render pane(
 		withPull({
