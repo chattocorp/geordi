@@ -230,7 +230,7 @@ export function upstreamMayHaveChanged(workspaceId: string) {
 		// A late turn event can refer to a workspace that is gone.
 		return;
 	}
-	void standings().look(ref.worktreeId, { fresh: true, announce: true });
+	return standings().look(ref.worktreeId, { fresh: true, announce: true });
 }
 
 /** The jobs repositories have run for their workspaces (FDR-006). */

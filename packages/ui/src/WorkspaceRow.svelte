@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
 	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 	import Spinner from './Spinner.svelte';
@@ -19,6 +18,7 @@
 		asking = false,
 		waiting = false,
 		working = false,
+		progress,
 		standing = null,
 		actions = [],
 		fold,
@@ -40,6 +40,7 @@
 		asking?: boolean;
 		waiting?: boolean;
 		working?: boolean;
+		progress?: string;
 		standing?: WorkspaceStanding | null;
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
@@ -61,15 +62,16 @@
 	const pillColor = $derived(primary && onaction && pillColors[primary.id]);
 	const visibleStanding = $derived(leaving || standing?.tone === 'accent' ? null : standing);
 
-	let activated = $state<WorkspaceAction['id']>();
-	let reset: ReturnType<typeof setTimeout>;
-	onDestroy(() => clearTimeout(reset));
+	let submitting = $state<string>();
+	const activity = $derived(progress ?? submitting);
 
-	function activate(action: WorkspaceAction) {
-		activated = action.id;
-		clearTimeout(reset);
-		reset = setTimeout(() => (activated = undefined), 1500);
-		onaction?.(action);
+	async function activate(action: WorkspaceAction) {
+		submitting = action.label + ' in progress';
+		try {
+			await onaction?.(action);
+		} finally {
+			submitting = undefined;
+		}
 	}
 </script>
 
@@ -98,7 +100,11 @@
 	/>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-		{#if visibleStanding}
+		{#if activity && !leaving}
+			<span class="col-start-1 row-start-1 grid w-6 place-items-center text-muted">
+				<Spinner label={activity} />
+			</span>
+		{:else if visibleStanding}
 			<span
 				class={[
 					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
@@ -111,7 +117,7 @@
 				<StandingIcon standing={visibleStanding} />
 			</span>
 		{/if}
-		{#if onaction && primary && pillColor}
+		{#if !activity && onaction && primary && pillColor}
 			<button
 				type="button"
 				class={[
@@ -124,10 +130,9 @@
 				onclick={() => activate(primary)}
 			>
 				{primary.label}
-				<span class={[activated === primary.id ? 'icon-[lucide--check]' : primary.icon, 'size-3.5']}
-				></span>
+				<span class={[primary.icon, 'size-3.5']}></span>
 			</button>
-		{:else if onarchive}
+		{:else if !activity && onarchive}
 			<button
 				type="button"
 				class={[

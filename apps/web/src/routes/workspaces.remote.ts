@@ -174,8 +174,9 @@ export const mergePull = command(
 				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
 				60_000
 			);
-			// merged (or queued to be): the sidebar and the ribbon say so at once
-			if (typeof status === 'string') upstreamMayHaveChanged(workspaceId);
+			// A queue acknowledgment alone doesn't tell us the new standing.
+			if (status === 'queued') await upstreamMayHaveChanged(workspaceId);
+			else if (status === 'merged') void upstreamMayHaveChanged(workspaceId);
 			return status;
 		} catch (cause) {
 			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);

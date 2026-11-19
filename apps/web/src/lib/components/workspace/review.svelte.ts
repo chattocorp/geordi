@@ -1,20 +1,37 @@
-import { SvelteSet } from 'svelte/reactivity';
+import { SvelteMap } from 'svelte/reactivity';
 import { problemOf } from '#lib/problem.ts';
 import type { WorkspaceAction } from '@geordi/ui/actions';
 import { enableWithReview, mergeWithReview } from './release-review.svelte.ts';
 import { markReady, setAutoMerge } from '../../../routes/workspaces.remote';
 
-export const pendingPullAction = new SvelteSet<string>();
+export const pendingPullAction = new SvelteMap<string, string>();
+// The command can confirm the merge before navigation or the workspace view catches up.
+const mergedPull = new SvelteMap<string, string>();
+
+export function pullActionPending(workspaceId: string, action: WorkspaceAction) {
+	return (
+		!!action.pullNumber &&
+		(pendingPullAction.has(workspaceId) ||
+			(action.id === 'merge-pull' && mergedPull.get(workspaceId) === action.pullNumber))
+	);
+}
 export const reviewProblems = $state<Record<string, string | undefined>>({});
 
 export async function runPullAction(workspaceId: string, action: WorkspaceAction) {
 	const { pullNumber } = action;
 	if (!pullNumber) return;
-	if (pendingPullAction.has(workspaceId)) return;
-	pendingPullAction.add(workspaceId);
+	if (pullActionPending(workspaceId, action)) return;
+	pendingPullAction.set(
+		workspaceId,
+		action.id === 'merge-pull' ? 'Merging pull request' : action.label + ' in progress'
+	);
 	delete reviewProblems[workspaceId];
 	try {
-		if (action.id === 'merge-pull') return await mergeWithReview(workspaceId, pullNumber);
+		if (action.id === 'merge-pull') {
+			const result = await mergeWithReview(workspaceId, pullNumber);
+			if (result === 'merged') mergedPull.set(workspaceId, pullNumber);
+			return;
+		}
 		if (action.id === 'ready-for-review') await markReady({ workspaceId, pullNumber });
 		else if (action.id === 'enable-auto-merge') await enableWithReview(workspaceId, pullNumber);
 		else if (action.id === 'cancel-auto-merge')

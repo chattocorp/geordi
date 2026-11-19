@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+	import { expect, fn, within } from 'storybook/test';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace row', component: WorkspaceRow });
@@ -42,22 +42,23 @@
 </Story>
 
 <Story
-	name="Action checkmark"
-	args={{
-		title: 'Update the sidebar',
-		current: true,
-		actions: [{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }],
-		onaction: fn()
+	name="Merging a pull request"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('img', { name: 'Merging pull request' })).toBeVisible();
+		await expect(canvas.queryByRole('img', { name: 'Ready to merge' })).toBeNull();
+		await expect(canvas.queryByRole('button')).toBeNull();
 	}}
-	play={async ({ canvasElement, args }) => {
-		const pill = within(canvasElement).getByRole('button', { name: /Merge PR/ });
-		pill.focus();
-		await userEvent.keyboard('{Enter}');
-		await expect(args.onaction).toHaveBeenCalledOnce();
-		await expect(pill.querySelector('span')).toHaveClass('icon-[lucide--check]');
-		await waitFor(
-			() => expect(pill.querySelector('span')).toHaveClass('icon-[lucide--git-merge]'),
-			{ timeout: 2500 }
-		);
-	}}
-/>
+>
+	<div class="w-64 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Branding cleanup"
+			progress="Merging pull request"
+			standing={{ label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' }}
+			actions={[{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]}
+			onaction={fn()}
+			onarchive={fn()}
+		/>
+	</div>
+</Story>

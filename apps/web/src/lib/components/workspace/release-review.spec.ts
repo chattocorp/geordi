@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { enableWithReview, mergeWithReview, releaseReview } from './release-review.svelte.ts';
+import { pullActionPending, runPullAction } from './review.svelte.ts';
 import { mergePull, setAutoMerge } from '../../../routes/workspaces.remote';
 
 vi.mock('../../../routes/workspaces.remote', () => ({ mergePull: vi.fn(), setAutoMerge: vi.fn() }));
@@ -46,4 +47,24 @@ it('retries an auto-merge check and submits the choice for the displayed revisio
 		enabled: true,
 		confirmation: 'reviewed'
 	});
+});
+
+it('keeps a confirmed merge busy until the live view stops offering it', async () => {
+	const action = { id: 'merge-pull', pullNumber: '42', label: 'Merge PR', icon: '' } as const;
+	vi.mocked(mergePull).mockResolvedValueOnce('merged');
+	const request = runPullAction('sidebar', action);
+	expect(pullActionPending('sidebar', action)).toBe(true);
+	await request;
+	expect(pullActionPending('sidebar', action)).toBe(true);
+	await runPullAction('sidebar', action);
+	expect(mergePull).toHaveBeenCalledTimes(1);
+	expect(pullActionPending('sidebar', { ...action, pullNumber: '43' })).toBe(false);
+	expect(pullActionPending('sidebar', { ...action, id: 'archive' })).toBe(false);
+});
+
+it('offers the merge again when the command fails', async () => {
+	const action = { id: 'merge-pull', pullNumber: '42', label: 'Merge PR', icon: '' } as const;
+	vi.mocked(mergePull).mockRejectedValueOnce(new Error('Merge blocked'));
+	await runPullAction('retry', action);
+	expect(pullActionPending('retry', action)).toBe(false);
 });
