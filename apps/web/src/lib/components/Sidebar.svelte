@@ -4,6 +4,7 @@
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
+	import SidebarRowLabel from '@geordi/ui/SidebarRowLabel.svelte';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import {
 		actFromAfar,
@@ -249,33 +250,24 @@
 				workspaces are what is read here), and the way to start something in it. What is
 				under it lines up with it: icon under picture, title under name.
 			-->
-					<div class="group flex h-7 items-center pr-1.5">
-						{#if repo.id !== null}
-							<a
-								href={resolve('/repos/[id]', { id: repo.id })}
-								aria-current={path === resolve('/repos/[id]', { id: repo.id }) ? 'page' : undefined}
-								class="flex min-w-0 flex-1 items-center gap-2 pl-1.5 text-sm font-semibold text-muted hover:text-ink aria-[current=page]:text-ink"
-								><RepoIcon id={repo.id} /><span class="truncate">{repo.name}</span></a
-							>
-						{/if}
-						<button
-							type="button"
-							aria-expanded={!isFolded}
-							aria-label={`${isFolded ? 'Expand' : 'Collapse'} ${repo.name}`}
-							onclick={() => toggleFolded(repo.id ?? PROJECTS)}
-							class={[
-								'flex h-6 items-center gap-2 rounded-control px-1.5 text-sm text-muted hover:bg-hover',
-								repo.id === null && 'flex-1 font-semibold'
-							]}
+					<div class="group relative flex h-7 items-center pr-1.5">
+						<SidebarRowLabel
+							title={repo.name}
+							href={repo.id !== null ? resolve('/repos/[id]', { id: repo.id }) : undefined}
+							current={repo.id !== null && path === resolve('/repos/[id]', { id: repo.id })}
+							fold={{
+								folded: isFolded,
+								count: all.length,
+								toggle: () => toggleFolded(repo.id ?? PROJECTS)
+							}}
+							class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink aria-[current=page]:text-ink"
 						>
-							{#if repo.id === null}<span class="icon-[lucide--folders] size-5"></span>Projects{/if}
-							{#if isFolded}{all.length}{/if}<span
-								class={[
-									isFolded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]',
-									'size-3.5'
-								]}
-							></span></button
-						>
+							{#snippet icon()}
+								{#if repo.id !== null}<RepoIcon id={repo.id} />{:else}<span
+										class="icon-[lucide--folders] size-5"
+									></span>{/if}
+							{/snippet}
+						</SidebarRowLabel>
 						{#if repo.id !== null}
 							<button
 								type="button"

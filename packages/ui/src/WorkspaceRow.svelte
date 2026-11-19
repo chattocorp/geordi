@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
+	import SidebarRowLabel from './SidebarRowLabel.svelte';
 	import Spinner from './Spinner.svelte';
 	import StandingIcon from './StandingIcon.svelte';
 
@@ -46,7 +47,6 @@
 		onarchive?: () => void;
 	} = $props();
 
-	const bodyClass = 'flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1';
 	// Only promote the main action. Routine publishing stays inside the workspace.
 	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
 		'merge-pull': 'bg-ok/12 text-ok hover:bg-ok/20',
@@ -74,42 +74,16 @@
 		highlighted && 'bg-surface/60 text-ink'
 	]}
 >
-	{#if href}
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the forge passes a resolved workspace URL -->
-		<a
-			{href}
-			class={bodyClass}
-			draggable="false"
-			aria-current={current ? 'page' : undefined}
-			title={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
-			onpointerenter={() => onpoint?.(true)}
-			onpointerleave={() => onpoint?.(false)}
-			onfocus={() => onpoint?.(true)}
-			onblur={() => onpoint?.(false)}
-		>
-			{@render body()}
-		</a>
-	{:else}
-		<span class={bodyClass} aria-current={current ? true : undefined}>{@render body()}</span>
-	{/if}
-	<!-- with workspaces under it: pointed at, its icon becomes the way to fold them -->
-	{#if fold && !leaving}
-		<button
-			type="button"
-			class="invisible absolute top-1/2 left-1.5 grid size-5 -translate-y-1/2 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:text-ink"
-			aria-expanded={!fold.folded}
-			aria-label="{fold.folded ? 'Unfold' : 'Fold'} {title}"
-			title={fold.folded ? `Show the ${fold.count} under it` : `Fold the ${fold.count} under it`}
-			onclick={fold.toggle}
-		>
-			<span
-				class={[
-					'size-4',
-					fold.folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'
-				]}
-			></span>
-		</button>
-	{/if}
+	<SidebarRowLabel
+		{title}
+		{href}
+		{current}
+		{onpoint}
+		icon={statusIcon}
+		hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
+		fold={leaving ? undefined : fold}
+		class="py-1"
+	/>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if visibleStanding}
@@ -156,40 +130,27 @@
 		{/if}
 	</span>
 </div>
-{#snippet body()}
-	<!-- what it is, or is doing, in one place: every title starts on the same edge -->
-	<!-- as wide as the repository's picture above, and right under it -->
-	<span
-		class={[
-			'grid size-5 shrink-0 place-items-center text-muted/80',
-			fold && !leaving && 'group-hover:invisible group-has-focus-visible:invisible'
-		]}
-	>
-		{#if leaving}
-			<Spinner label="Archiving" />
-		{:else if asking}
-			<!-- an agent there waits for the person's answer -->
-			<span
-				class="icon-[lucide--message-circle-question] size-4 text-accent-ink"
-				role="img"
-				aria-label="Waiting for your answer"
-			></span>
-		{:else if waiting}
-			<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
-		{:else if working}
-			<!-- its agent, one working alongside it, or one folded away under it -->
-			<Spinner />
-		{:else if icon}
-			<span class={[icon, 'size-4']}></span>
-		{:else if child}
-			<!-- started by an agent: the one above it, where that is still around -->
-			<span class="icon-[lucide--corner-down-right] size-4"></span>
-		{:else}
-			<span class="icon-[lucide--git-branch] size-4"></span>
-		{/if}
-	</span>
-	<span class="min-w-0 truncate">{title}</span>
-	{#if fold?.folded}
-		<span class="shrink-0 font-normal text-muted/60 tabular-nums">{fold.count}</span>
+{#snippet statusIcon()}
+	{#if leaving}
+		<Spinner label="Archiving" />
+	{:else if asking}
+		<!-- an agent there waits for the person's answer -->
+		<span
+			class="icon-[lucide--message-circle-question] size-4 text-accent-ink"
+			role="img"
+			aria-label="Waiting for your answer"
+		></span>
+	{:else if waiting}
+		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
+	{:else if working}
+		<!-- its agent, one working alongside it, or one folded away under it -->
+		<Spinner />
+	{:else if icon}
+		<span class={[icon, 'size-4']}></span>
+	{:else if child}
+		<!-- started by an agent: the one above it, where that is still around -->
+		<span class="icon-[lucide--corner-down-right] size-4"></span>
+	{:else}
+		<span class="icon-[lucide--git-branch] size-4"></span>
 	{/if}
 {/snippet}
