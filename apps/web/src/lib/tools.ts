@@ -167,11 +167,16 @@ export function displayPath(path: string, cwd?: string): string {
 	return path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : path;
 }
 
-/** The files a tool call names that are in the worktree, as paths in it. */
+/**
+ * The files a tool call names that are in the worktree, as paths in it: each once, at the
+ * first place it names (an edit in several places names its file for each).
+ */
 export function filesOf(locations: ToolLocation[] | undefined, cwd?: string) {
 	if (!cwd) return [];
-	return (locations ?? []).flatMap(({ path, line }) => {
+	const files = new Map<string, number | undefined>();
+	for (const { path, line } of locations ?? []) {
 		const file = displayPath(path, cwd);
-		return file === path || file === '.' ? [] : [{ path: file, line }];
-	});
+		if (file !== path && file !== '.' && !files.has(file)) files.set(file, line);
+	}
+	return [...files].map(([path, line]) => ({ path, line }));
 }
