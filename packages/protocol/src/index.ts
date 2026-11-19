@@ -748,8 +748,11 @@ export type AgentEvent =
 	 */
 	| { kind: 'turn.started' }
 	/** Every turn ends with exactly one of these two, with what it used where the agent says. */
-	| { kind: 'turn.completed'; usage?: TurnUsage }
-	| { kind: 'turn.failed'; error: string; usage?: TurnUsage };
+	| { kind: 'turn.completed'; diff?: TurnDiff; usage?: TurnUsage }
+	| { kind: 'turn.failed'; diff?: TurnDiff; error: string; usage?: TurnUsage };
+
+/** The net worktree diff for a turn, with repository-relative paths. */
+export type TurnDiff = ToolDiff & { added: number; removed: number };
 
 /** The tokens one turn used, as ACP's (unstable) `Usage` reports them. */
 export type TurnUsage = {

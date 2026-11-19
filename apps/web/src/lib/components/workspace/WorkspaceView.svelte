@@ -72,6 +72,8 @@
 	import Markdown from '#lib/components/Markdown.svelte';
 	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
+	import PatchView from '../PatchView.svelte';
+	import type { TurnDiff } from '@geordi/protocol';
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
@@ -123,6 +125,8 @@
 	// dragged from any area to any other.
 	const CHAT = 'chat';
 	const PR = 'pr';
+	const TURN = 'turn-changes';
+	let selectedTurn = $state.raw<TurnDiff>();
 	const CHANGES = 'changes';
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
@@ -187,6 +191,7 @@
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
+		if (tab === TURN) return !!selectedTurn;
 		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
@@ -454,6 +459,10 @@
 		if (area !== 'main' && !frame.current.open) toggleSide();
 		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath);
 	};
+	function openTurn(changes: TurnDiff) {
+		selectedTurn = changes;
+		showTab(TURN);
+	}
 	const openDiff = (path: string) => showTab('diff', path);
 
 	// Its conversations link the files it has changed to their diffs. The list is compared as
@@ -682,7 +691,10 @@
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
-	{#if tab === CHANGES}
+	{#if tab === TURN}
+		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
+		<span>Turn changes</span>
+	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
 		{#if git?.changes?.files.length}
@@ -766,7 +778,14 @@
 	{@const path = tab === 'diff' ? saved.diffPath : undefined}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
-	{#if tab === CHANGES}
+	{#if tab === TURN && selectedTurn}
+		<div class="scroller space-y-3 p-4">
+			<p class="text-xs text-muted">
+				Worktree changes during this turn, including any concurrent edits.
+			</p>
+			<PatchView diff={selectedTurn} showPaths />
+		</div>
+	{:else if tab === CHANGES}
 		<Changes
 			{git}
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
@@ -836,6 +855,7 @@
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
 			workspace={aideOf(tab)!}
+			onopenturn={openTurn}
 			waiting={waiting(aideOf(tab)!)}
 			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
 			senders={{ ...workspace.senders, [workspace.id]: workspace.title }}
@@ -843,6 +863,7 @@
 	{:else}
 		<Conversation
 			{workspace}
+			onopenturn={openTurn}
 			waiting={waiting(workspace)}
 			onopensubagent={(child) => showTab(reviewerTab(id, child))}
 			senders={workspace.senders}

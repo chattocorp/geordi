@@ -8,8 +8,9 @@
 		diff: ToolDiff;
 		/** The session's worktree, so paths inside it are shown relative to it. */
 		cwd?: string;
+		showPaths?: boolean;
 	};
-	let { diff, cwd }: Props = $props();
+	let { diff, cwd, showPaths = false }: Props = $props();
 
 	/** `null` until the parser is loaded (with the viewer, on first use). */
 	let files = $state<PatchFile[] | null>(null);
@@ -38,7 +39,7 @@
 	{#each files ?? [] as file, i (i)}
 		{#if file.diff}
 			<div>
-				{#if (files?.length ?? 0) > 1}
+				{#if showPaths || (files?.length ?? 0) > 1}
 					<p class="mb-1 truncate code-dense text-muted">{file.path}</p>
 				{/if}
 				<div class="overflow-hidden rounded-control">

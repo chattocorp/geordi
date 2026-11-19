@@ -3,7 +3,7 @@
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
 	import BackgroundTasks from './BackgroundTasks.svelte';
 	import { toolSummary } from '@geordi/ui/tools';
-	import type { Agent, BackgroundTask, TurnUsage } from '@geordi/protocol';
+	import type { Agent, BackgroundTask, TurnDiff, TurnUsage } from '@geordi/protocol';
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
 	import { duration } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -12,6 +12,7 @@
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
 	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
+	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import PatchView from '../PatchView.svelte';
 	import { changedFiles } from '#lib/changedFiles.ts';
 	import MessageImages from '#lib/components/MessageImages.svelte';
@@ -39,6 +40,7 @@
 		parentAgent,
 		queue = [],
 		queueImages = [],
+		onopenturn,
 		onopensubagent,
 		onremove,
 		onanswer,
@@ -58,6 +60,7 @@
 		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
+		onopenturn?: (changes: TurnDiff) => void;
 		onopensubagent?: (id: string) => void;
 		onremove?: (index: number, text: string, images: string[]) => void;
 		/** Answers something the agent asked: one answer per question. */
@@ -342,7 +345,7 @@
 							</p>
 						{:else}
 							{@const lastText = block.parts.findLastIndex((part) => part.kind === 'text')}
-							{@const live = running && i === blocks.length - 1}
+							{@const live = running && !block.changes && i === blocks.length - 1}
 							{@const last = block.parts.at(-1)}
 							{@const hiddenCount = live
 								? 0
@@ -373,6 +376,21 @@
 								{/each}
 								{#if ending && last?.kind !== 'text'}
 									<div class="-mt-2">{@render byline(ending.reply, '', ending.latest)}</div>
+								{/if}
+								{#if block.changes && onopenturn}
+									{@const changes = block.changes}
+									<button
+										type="button"
+										class="inline-flex w-fit items-center gap-2 rounded-control bg-sunken px-2 py-1 text-xs text-muted hover:bg-hover hover:text-ink"
+										title="View worktree changes during this turn"
+										onclick={() => onopenturn?.(changes)}
+									>
+										<span class="icon-[lucide--file-diff] size-3.5"></span>
+										{changes.files.length}
+										{changes.files.length === 1 ? 'file' : 'files'} changed
+										<DiffStat added={changes.added} removed={changes.removed} />
+										<span class="icon-[lucide--chevron-right] size-3.5"></span>
+									</button>
 								{/if}
 							</AgentMessage>
 						{/if}
