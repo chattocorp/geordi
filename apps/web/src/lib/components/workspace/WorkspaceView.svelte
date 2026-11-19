@@ -49,7 +49,6 @@
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '#lib/ui/TitleBar.svelte';
 	import {
-		mergePull,
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
@@ -63,6 +62,7 @@
 		stopJob,
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
+	import { addedNoteCount } from '#lib/release-notes.ts';
 	import { pendingPullAction, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import PullRequestTab from './PullRequestTab.svelte';
@@ -544,7 +544,7 @@
 			.filter((action) =>
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
-					: (action.id === 'merge-pull' && (merging || mergeConfirmed)) ||
+					: (action.id === 'merge-pull' && mergeConfirmed) ||
 						(!!action.pullNumber && pendingPullAction.has(id)) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
@@ -558,27 +558,11 @@
 	/** It is being archived right now, which takes a moment. */
 	const leaving = $derived(beingArchived.has(id));
 
-	/** The pull request is being merged right now. */
-	let merging = $state(false);
 	// A successful command can arrive before the live view that offers Archive.
 	let mergedPull = $state<string | null>(null);
 	const mergeConfirmed = $derived(mergedPull !== null && mergedPull === pull?.number);
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
-
-	async function merge() {
-		const number = pull?.number;
-		if (!number || merging || mergeConfirmed) return;
-		mergeProblem = null;
-		merging = true;
-		try {
-			if ((await mergePull(id)) === 'merged') mergedPull = number;
-		} catch (error) {
-			mergeProblem = problemOf(error, 'Could not merge the pull request');
-		} finally {
-			merging = false;
-		}
-	}
 
 	async function restore() {
 		mergeProblem = null;
@@ -631,13 +615,15 @@
 		)
 	);
 
-	function act(action: WorkspaceAction) {
+	async function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
 		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
-		else if (action.pullNumber) runPullAction(id, action);
-		else if (action.id === 'merge-pull') merge();
-		else if (action.id === 'restore-worktree') restore();
+		else if (action.pullNumber) {
+			if (action.id === 'merge-pull' && mergeConfirmed) return;
+			mergeProblem = null;
+			if ((await runPullAction(id, action)) === 'merged') mergedPull = action.pullNumber;
+		} else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
@@ -689,9 +675,7 @@
 	{:else if tab === PR && pull}
 		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}
-		{@const added = (git?.release?.packages ?? [])
-			.flatMap((pkg) => pkg.notes)
-			.filter((note) => note.added).length}
+		{@const added = addedNoteCount(git?.release?.packages ?? [])}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
 		<span class="truncate">Changeset</span>
 		{#if added > 0}{@render count(added)}{/if}

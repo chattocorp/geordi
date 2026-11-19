@@ -75,6 +75,7 @@ describe('reading Sweet Release', () => {
 			}
 		]);
 		expect(() => fromSweet('{"not":"a list"}')).toThrow();
+		expect(() => fromSweet('[{"path":".","version":"1.0.0"}]')).toThrow();
 	});
 });
 
