@@ -292,11 +292,14 @@
 		await expect(repo).toHaveAttribute('href', '/repos/sample');
 		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse sample-project' }));
 		await expect(repo).toBeVisible();
+		await expect(within(repo).getByText('2')).toBeVisible();
+		await expect(canvas.queryByText('Try out the new parser')).toBeNull();
 		await expect(canvas.getByRole('button', { name: 'Expand sample-project' })).toHaveAttribute(
 			'aria-expanded',
 			'false'
 		);
 		await fireEvent.click(canvas.getByRole('button', { name: 'Expand sample-project' }));
+		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
 	}}
 >
 	{@render frame(nav, '/repos/sample')}
