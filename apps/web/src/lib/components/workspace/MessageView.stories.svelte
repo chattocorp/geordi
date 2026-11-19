@@ -628,8 +628,10 @@
 	asChild
 	play={async ({ canvas }) => {
 		const heading = await canvas.findByText('Background tasks');
+		await expect(canvas.queryByRole('img', { name: 'Running' })).toBeNull();
 		await expect(canvas.queryByRole('button', { name: /pnpm test/ })).toBeNull();
 		await userEvent.click(heading);
+		await expect(await canvas.findByText('pnpm dev', { exact: true })).toBeVisible();
 		const stop = await canvas.findByRole('button', { name: 'Stop pnpm test' });
 		await expect(stop).toHaveTextContent(/^$/);
 		await userEvent.click(stop);
@@ -656,7 +658,8 @@
 			onstoptask={stopBackground}
 			background={[
 				{ type: 'tool_call', id: 'tests', toolCallId: 'tests', stopId: 'stop-tests' },
-				{ type: 'subagent', id: 'review', stopId: 'stop-review' }
+				{ type: 'subagent', id: 'review', stopId: 'stop-review' },
+				{ type: 'terminal', id: 'dev', label: 'pnpm dev', stopId: 'stop-dev' }
 			]}
 			blocks={[
 				{ kind: 'user', text: 'Run the tests and review the changes.' },
