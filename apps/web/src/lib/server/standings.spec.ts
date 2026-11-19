@@ -53,7 +53,7 @@ function setup(ids: string[], { busy = [] as string[], open = [] as string[] } =
 		},
 		loadUpstream: async (id, fresh) => {
 			state.asked.push(`${id} upstream${fresh ? '!' : ''}`);
-			const answer = state.upstream && { ...state.upstream, checkedAt: state.now };
+			const answer = state.upstream && { checkedAt: state.now, ...state.upstream };
 			const offline = state.offline;
 			await wait();
 			if (offline) throw new Error(offline);
@@ -352,6 +352,32 @@ describe('standings', () => {
 		state.now = 19_999;
 		await standings.tick();
 		expect(state.asked.filter((asked) => asked.endsWith('upstream'))).toHaveLength(2);
+	});
+
+	it('does not keep asking a daemon that has nothing newer to say', async () => {
+		const { standings, state } = setup(['a'], { open: ['a'] });
+		state.local = { ...state.local, changes: changes({ unpushed: 1 }) };
+		state.upstream = upstream({ refreshAfterMs: 10_000 });
+		await standings.tick();
+		const asked = () => state.asked.filter((entry) => entry.endsWith('upstream')).length;
+
+		// the daemon's earlier answer again, after a push: due when that one was
+		state.upstream = upstream({ refreshAfterMs: 10_000, checkedAt: 0 });
+		state.now = 6000;
+		state.local = { ...state.local, changes: changes({ unpushed: 0 }) };
+		standings.changed('a');
+		await settled();
+		expect(asked()).toBe(2);
+		state.now = 10_000;
+		await standings.tick();
+		expect(asked()).toBe(3);
+		// rate limited: still its old answer, so not again until another interval has passed
+		state.now = 12_000;
+		await standings.tick();
+		expect(asked()).toBe(3);
+		state.now = 20_000;
+		await standings.tick();
+		expect(asked()).toBe(4);
 	});
 
 	it('has the worktrees in use watched, again when they change or a daemon reconnects', async () => {

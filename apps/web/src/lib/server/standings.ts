@@ -149,6 +149,19 @@ export function createStandings(options: {
 		for (const listener of listeners) listener(worktreeId);
 	};
 
+	/** How long after a look upstream the next one is due. */
+	function intervalOf(
+		worktreeId: string,
+		remote: { answered: boolean; upstream: Upstream | null }
+	) {
+		if (!remote.answered) return RETRY_MS;
+		const { upstream } = remote;
+		const said =
+			upstream?.refreshAfterMs ??
+			(upstream?.pull?.checks?.state === 'pending' ? CI_REFRESH_MS : FRESH_MS);
+		return said * (busy(worktreeId) && !open(worktreeId) ? BUSY_FACTOR : 1);
+	}
+
 	/** What is known upstream, unless it is of another branch than the worktree is on. */
 	function upstreamOf(worktreeId: string): Upstream | null {
 		const upstream = remotes.get(worktreeId)?.upstream ?? null;
@@ -233,9 +246,13 @@ export function createStandings(options: {
 				settle(() => {
 					const previous = remotes.get(worktreeId);
 					const same = !!previous?.answered && sameUpstream(previous.upstream, upstream);
-					// the daemon's own earlier answer: it is due again when that one was
+					// The daemon's own earlier answer (asked because of a push, say) is due again when
+					// that one was. Unless it already is: then the daemon is not asking the forge for
+					// now (rate limited), and asking it again at once would not help.
 					const cached =
-						upstream?.checkedAt !== undefined && previous?.stamp === upstream.checkedAt;
+						upstream?.checkedAt !== undefined &&
+						previous?.stamp === upstream.checkedAt &&
+						now() < previous.at + intervalOf(worktreeId, previous);
 					remotes.set(worktreeId, {
 						at: cached ? previous.at : now(),
 						stamp: upstream?.checkedAt,
@@ -388,12 +405,7 @@ export function createStandings(options: {
 					first.push(id);
 					continue;
 				}
-				const upstream = remote.upstream;
-				const interval = !remote.answered
-					? RETRY_MS
-					: (upstream?.refreshAfterMs ??
-							(upstream?.pull?.checks?.state === 'pending' ? CI_REFRESH_MS : FRESH_MS)) *
-						(busy(id) && !open(id) ? BUSY_FACTOR : 1);
+				const interval = intervalOf(id, remote);
 				if (remote.at + interval <= time) due.push({ id, due: remote.at + interval });
 			}
 			await Promise.all([
