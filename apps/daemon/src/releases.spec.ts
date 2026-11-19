@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { fromSweet, releasePlan, type ReleaseAdapter } from './releases.ts';
+import { editReleaseNote, fromSweet, releasePlan, type ReleaseAdapter } from './releases.ts';
 import { ensureWorktree } from './worktree.ts';
 
 async function worktree() {
@@ -167,4 +167,77 @@ describe('releasePlan', () => {
 		writeFileSync(join(nested.path, 'apps/api/.sweet.yml'), 'version: 1.0.0\n');
 		expect((await releasePlan(nested, added, no))?.tool).toBe('sweet-release');
 	});
+});
+
+it('saves a note body with its original metadata and refuses a stale draft', async () => {
+	const tree = await worktree();
+	const path = '.sweet/a-note.md';
+	const file = join(tree.path, path);
+	const header = '---\r\ntype: fix\r\nbreaking: true\r\n# preserve this comment\r\n---\r\n\r\n';
+	mkdirSync(join(tree.path, '.sweet'));
+	writeFileSync(file, header + 'Long original body\r\n');
+	const plan = await releasePlan(
+		tree,
+		() => new Set([path]),
+		() => true,
+		[
+			{
+				tool: 'sweet-release',
+				name: 'Sweet Release',
+				command: 'sweet status --json',
+				detects: () => true,
+				read: async () =>
+					fromSweet(
+						JSON.stringify([
+							{
+								path: '.',
+								version: '1.0.0',
+								bump: 'patch',
+								changes: [{ path, type: 'fix', body: 'Long original body' }]
+							}
+						])
+					)
+			}
+		]
+	);
+	const edit = { path, original: 'Long original body', body: 'A\nB' };
+	editReleaseNote(tree, plan, edit);
+	expect(readFileSync(file, 'utf8')).toBe(header + 'A\r\nB\r\n');
+	expect(() => editReleaseNote(tree, plan, edit)).toThrow('note changed');
+	expect(() => editReleaseNote(tree, null, edit)).toThrow('no longer available');
+	expect(readFileSync(file, 'utf8')).toBe(header + 'A\r\nB\r\n');
+});
+
+it('edits one Changesets note shared by two packages', async () => {
+	const tree = await worktree();
+	const path = '.changeset/shared.md';
+	const file = (path: string) => join(tree.path, path);
+	mkdirSync(file('.changeset'));
+	writeFileSync(file('.changeset/config.json'), '{}');
+	writeFileSync(
+		file('package.json'),
+		JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] })
+	);
+	writeFileSync(file('pnpm-workspace.yaml'), 'packages: ["packages/*"]\n');
+	for (const name of ['api', 'client']) {
+		mkdirSync(file('packages/' + name), { recursive: true });
+		writeFileSync(
+			file('packages/' + name + '/package.json'),
+			JSON.stringify({ name, version: '1.0.0' })
+		);
+	}
+	const header = '---\n"api": minor\n"client": patch\n---\n\n';
+	writeFileSync(file(path), header + 'Old summary\n');
+	const read = () =>
+		releasePlan(
+			tree,
+			() => new Set([path]),
+			() => true
+		);
+	editReleaseNote(tree, await read(), { path, original: 'Old summary', body: 'Updated summary' });
+	expect(readFileSync(file(path), 'utf8')).toBe(header + 'Updated summary\n');
+	expect((await read())?.packages.map((pkg) => pkg.notes[0].body)).toEqual([
+		'Updated summary',
+		'Updated summary'
+	]);
 });
