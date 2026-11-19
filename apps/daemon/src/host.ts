@@ -38,7 +38,8 @@ import type {
 	AgentEvent,
 	BackgroundTask,
 	ContextUsage,
-	MessageImage
+	MessageImage,
+	UsageLimit
 } from '@geordi/protocol';
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
@@ -49,6 +50,7 @@ export type LiveEvent =
 	| { kind: 'background'; tasks: BackgroundTask[] }
 	| { kind: 'usage'; usage: ContextUsage }
 	| { kind: 'commands'; commands: AgentCommand[] }
+	| { kind: 'limits'; limits: UsageLimit[] }
 	| { kind: 'suggestion'; text: string | null };
 
 export type Meta = {

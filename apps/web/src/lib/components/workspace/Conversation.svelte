@@ -8,6 +8,7 @@
 	import WithMessageImages from '#lib/components/WithMessageImages.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { AgentCommand } from '@geordi/protocol';
+	import type { Limits } from '#lib/server/limits.ts';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
 		configureWorkspace,
@@ -71,6 +72,8 @@
 
 	// The agent's own commands and skills, offered as one types `/`: once it has said which.
 	const commands = follow<AgentCommand[] | null>('commands', () => workspace.id);
+	// how much of the subscription's usage limits is used: told on hovering the context meter
+	const limits = follow<Limits>('limits');
 	const completions = $derived(
 		(commands.current ?? []).map(({ name, description, hint }) => ({
 			text: '/' + name,
@@ -149,6 +152,8 @@
 							{/snippet}
 							{#snippet meter()}{#if workspace.usage}<ContextMeter
 										usage={workspace.usage}
+										agent={workspace.agent}
+										limits={limits.current?.[workspace.agent]}
 									/>{/if}{/snippet}
 						</ReplyComposer>
 					{/snippet}

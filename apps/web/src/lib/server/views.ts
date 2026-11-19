@@ -1,7 +1,7 @@
 import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
-import { hub, repos, standings, terminals, watchers, workspaces } from './app.ts';
+import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
@@ -234,8 +234,15 @@ const archive = () => ({
 });
 export type ArchiveEntry = ReturnType<ReturnType<typeof archive>['read']>[number];
 
+/** The usage limits of the agents' subscriptions, for the context meter's tip (`limits.ts`). */
+export const usageLimits = () =>
+	({
+		read: () => limits().read(),
+		also: (changed) => limits().subscribe(changed)
+	}) satisfies View<unknown>;
+
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace, commands, archive };
+export const views = { navigation, workspace, commands, archive, limits: usageLimits };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
