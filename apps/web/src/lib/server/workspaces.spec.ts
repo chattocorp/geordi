@@ -997,6 +997,33 @@ describe('archiving', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
 	});
 
+	it('continues the saved session and replays each restored transcript exactly once', () => {
+		const { store, repos, workspaces, create, dispatch, sent } = setup();
+		const id = create('First');
+		workspaces.record(id, { kind: 'resume', id: 'saved-session' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		for (const message of ['Second', 'Third']) {
+			const history = workspaces.get(id).transcript;
+			workspaces.archive(id);
+			expect(workspaces.archived().map((entry) => entry.id)).toEqual([id]);
+			workspaces.restore(id);
+			workspaces.restore(id);
+			expect(workspaces.archived()).toEqual([]);
+			expect(workspaces.get(id).transcript).toEqual(history);
+			workspaces.send(id, message);
+			expect(sent.at(-1)).toMatchObject({ resumeId: 'saved-session' });
+			workspaces.record(id, { kind: 'turn.completed' });
+		}
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id)).toEqual(workspaces.get(id));
+		expect(
+			replay
+				.get(id)
+				.transcript.filter((item) => item.kind === 'user')
+				.map((item) => item.text)
+		).toEqual(['First', 'Second', 'Third']);
+	});
+
 	it("adds an agent to a workspace at a person's word: in its worktree, and going when it goes", () => {
 		const { workspaces, create, sent } = setup();
 		const lead = create('Lead');

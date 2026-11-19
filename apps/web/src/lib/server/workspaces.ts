@@ -118,6 +118,7 @@ export type WorkspacesEvent =
 	  }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
+	| { type: 'workspace.restored'; stream: WorkspaceStream; data: { id: string } }
 	/** What a person answered to a question the agent asked: one answer per question, in their order. */
 	| {
 			type: 'workspace.answered';
@@ -505,11 +506,17 @@ export function createWorkspaces(
 				workspace.worktree = { ...workspace.worktree, branch: event.data.branch };
 			return;
 		}
+		if (event.type === 'workspace.restored') {
+			if (!restoring) workspace.transcript = transcriptOf(workspace, seq);
+			workspace.archivedAt = null;
+			return;
+		}
 		if (event.type === 'workspace.archived') {
 			workspace.archivedAt = at;
 			if (!restoring) workspace.transcript = [];
 			workspace.queue = [];
 			workspace.attachments.queue = [];
+			workspace.sentBy.queue = [];
 			return;
 		}
 		if (event.type === 'workspace.queued') {
@@ -737,7 +744,7 @@ export function createWorkspaces(
 
 	// Reuse the normal reducer for a private reconstruction. Session mappings were learned
 	// during replay. Never feed creation events back into that stateful upcaster.
-	function transcriptOf(workspace: Workspace): TranscriptItem[] {
+	function transcriptOf(workspace: Workspace, before = Infinity): TranscriptItem[] {
 		if (!workspace.archivedAt) return workspace.transcript;
 		const { id, repoId, agent, title } = workspace;
 		const restored = initialWorkspace({ id, repoId, agent, title }, workspace.createdAt);
@@ -751,6 +758,7 @@ export function createWorkspaces(
 			events.sort((a, b) => a.seq - b.seq);
 		}
 		for (const event of events) {
+			if (event.seq >= before) break;
 			if (event.seq <= createdAtSeq) continue;
 			if (event.type === 'workspace.created' || event.type === 'session.created') continue;
 			for (const current of upcast(event))
@@ -1437,6 +1445,18 @@ export function createWorkspaces(
 				.reverse()
 				.map(summarise),
 
+		archived: () =>
+			[...projection.get().values()]
+				.flatMap(({ id, title, repoId, archivedAt }) =>
+					archivedAt ? [{ id, title, repoId, archivedAt }] : []
+				)
+				.sort((a, b) => b.archivedAt.localeCompare(a.archivedAt)),
+
+		restore(id: string) {
+			if (find(id).archivedAt)
+				store.append({ type: 'workspace.restored', stream: `workspace:${id}`, data: { id } });
+		},
+
 		/** A repository's workspaces in use, newest first, without their transcripts. */
 		list: (repoId: string): WorkspaceSummary[] =>
 			[...projection.get().values()]
@@ -1614,6 +1634,7 @@ export function createWorkspaces(
 		 * it. Not in the event log: it lasts no longer than the request that asked for it.
 		 */
 		hold(ids: string[]): () => void {
+			if (ids.some((id) => held.has(id))) error(409, 'A workspace is being archived or restored');
 			for (const id of ids) held.add(id);
 			return () => ids.forEach((id) => held.delete(id));
 		},

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { archiveAndNavigate } from './afar.svelte.ts';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -54,6 +55,7 @@
 		jobsReady,
 		openLink,
 		restoreWorktree,
+		restoreWorkspace,
 		runSetup,
 		say,
 		startJobs,
@@ -578,6 +580,19 @@
 		}
 	}
 
+	let restoringWorkspace = $state(false);
+	async function reopen() {
+		restoringWorkspace = true;
+		mergeProblem = null;
+		try {
+			await restoreWorkspace(id);
+			if (page.params.id === id && workspace.worktreeId !== id) await invalidateAll();
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not restore the workspace');
+		} finally {
+			restoringWorkspace = false;
+		}
+	}
 	async function restore() {
 		mergeProblem = null;
 		try {
@@ -864,6 +879,9 @@
 		/>
 		{#if workspace.archivedAt}
 			<Badge>Archived</Badge>
+			<Button onclick={reopen} disabled={restoringWorkspace}
+				>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
+			>
 		{:else}
 			<Button
 				variant="ghost"
