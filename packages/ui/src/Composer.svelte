@@ -286,7 +286,7 @@
 			return `min-height: calc(${rows}lh + 1rem)`;
 		},
 		get placeholder() {
-			return placeholder;
+			return offered ? '' : placeholder;
 		},
 		get disabled() {
 			return disabled;
@@ -315,7 +315,7 @@
 			return shown.length && !loadingFiles ? `${listId}-${active}` : undefined;
 		},
 		class:
-			'block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
+			'col-start-1 row-start-1 block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
 	};
 </script>
 
@@ -332,33 +332,6 @@
 	data-live={live || undefined}
 	class="group/composer @container edge-live relative flex min-h-0 flex-col card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
 >
-	{#if offered}
-		<div
-			role="group"
-			aria-label="Suggested reply"
-			class="relative mx-2 mb-1 flex max-h-48 min-h-0 max-w-prose self-start rounded-control bg-bg shadow-soft inset-ring-1 inset-ring-line"
-		>
-			<button
-				type="button"
-				title="Send suggested reply"
-				class="flex min-h-0 min-w-0 items-baseline gap-2 overflow-y-auto overscroll-contain rounded-control py-2 pr-11 pl-3 text-left text-sm font-medium text-ink hover:bg-hover"
-				onclick={() => takeSuggestion(offered, true)}
-			>
-				<span
-					aria-hidden="true"
-					class="mt-1 icon-[lucide--lightbulb] size-4 shrink-0 self-start text-accent-ink"
-				></span>
-				<span class="min-w-0 wrap-anywhere whitespace-pre-wrap">{offered}</span>
-			</button>
-			<Button
-				variant="ghost"
-				icon="icon-[lucide--pencil]"
-				label="Edit suggested reply"
-				class="absolute top-1 right-1"
-				onclick={() => takeSuggestion(offered, false)}
-			/>
-		</div>
-	{/if}
 	{#if mention && !shown.length && ((loadingFiles && showFileProgress) || fileError)}
 		<div
 			role="status"
@@ -441,11 +414,35 @@
 		{#if label}<label for={id} class="block px-4 pt-2 text-sm font-medium">{label}</label>{/if}
 		{@render header?.()}
 		{@render attachments?.()}
-		{#if field}
-			<textarea {...field} {...textarea} {@attach focus}></textarea>
-		{:else}
-			<textarea bind:value {...textarea} {@attach focus}></textarea>
-		{/if}
+		<div class="grid">
+			{#if offered}
+				<div
+					role="group"
+					aria-label="Suggested reply"
+					class="pointer-events-none relative z-1 col-start-1 row-start-1 mx-4 my-2 flex min-w-0 items-start gap-1 self-start text-muted"
+				>
+					<button
+						type="button"
+						title="Send suggested reply"
+						class="pointer-events-auto max-h-40 min-w-0 overflow-y-auto overscroll-contain text-left wrap-anywhere whitespace-pre-wrap hover:text-ink"
+						onclick={() => takeSuggestion(offered, true)}>{offered}</button
+					>
+					<Button
+						variant="ghost"
+						icon="icon-[lucide--pencil]"
+						label="Edit suggested reply"
+						size="sm"
+						class="pointer-events-auto"
+						onclick={() => takeSuggestion(offered, false)}
+					/>
+				</div>
+			{/if}
+			{#if field}
+				<textarea {...field} {...textarea} {@attach focus}></textarea>
+			{:else}
+				<textarea bind:value {...textarea} {@attach focus}></textarea>
+			{/if}
+		</div>
 		{#each problems as problem (problem)}
 			<p class="px-4 text-sm text-danger">{problem}</p>
 		{/each}
