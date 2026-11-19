@@ -3,7 +3,7 @@ import { turnStarts } from './turn-starts.ts';
 import { eventDelivery } from './event-delivery.ts';
 import { repoIcon } from './icon.ts';
 import { readPicture } from './picture.ts';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -290,6 +290,7 @@ const connected = () => socket?.readyState === WebSocket.OPEN;
 endLegacyTurns(join(sessionsDir, '..', 'turns'));
 /** The agents' sessions (ADR-010), by workspace: ones we started, and ones we found running. */
 const retired = new WeakSet<Session>();
+mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });
 const sessions = resumeSessions(sessionsDir, emitFor, connected);
 for (const [workspaceId, session] of sessions) attend(workspaceId, session);
 

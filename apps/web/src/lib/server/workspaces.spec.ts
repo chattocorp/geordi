@@ -24,6 +24,14 @@ function setup({ connected = true, database = ':memory:' } = {}) {
 	return { store, repos, workspaces, sent, repo, create, dispatch };
 }
 
+function acknowledgePrompt(
+	workspaces: ReturnType<typeof createWorkspaces>,
+	command: ForgeMessage | undefined
+) {
+	if (command?.type !== 'agent.message' || !command.deliveryId) throw new Error('Missing delivery');
+	workspaces.record(command.workspaceId, { kind: 'message.received', id: command.deliveryId });
+}
+
 const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
@@ -171,6 +179,7 @@ describe('workspaces', () => {
 	it('replays a steer after reconnect until the host receives it, and stores replayed output once', () => {
 		const { workspaces, sent, create, store, repos, dispatch } = setup();
 		const id = create('First');
+		acknowledgePrompt(workspaces, sent.at(-1));
 		workspaces.steer(id, 'Adjust');
 		const message = sent.at(-1);
 		if (message?.type !== 'agent.message' || !message.deliveryId) throw new Error('Missing steer');
@@ -304,7 +313,8 @@ describe('workspaces', () => {
 				apiToken: expect.any(String),
 				resumeId: null,
 				instructions: expect.stringContaining('inside Geordi'),
-				prompt: 'Fix the bug\nplease'
+				prompt: 'Fix the bug\nplease',
+				deliveryId: expect.any(String)
 			}
 		]);
 		expect(workspaces.get(id)).toMatchObject({
@@ -533,15 +543,15 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).status).toBe('running');
 	});
 
-	it('does not take a steering message that no daemon is there to pass on', () => {
+	it('keeps steering messages while the daemon is offline', () => {
 		const { create, store } = setup();
 		const id = create('One');
-		const events = store.readAll().length;
 		const unreachable = createWorkspaces(store, createRepos(store), () => false);
-		expect(() => unreachable.steer(id, 'Two')).toThrow();
-		// the turn goes on, wherever it runs: nothing was said, and nothing given up
-		expect(store.readAll()).toHaveLength(events);
-		expect(unreachable.get(id).status).toBe('running');
+		unreachable.steer(id, 'Two');
+		expect(unreachable.get(id).pendingMessages?.map((message) => message.text)).toEqual([
+			'One',
+			'Two'
+		]);
 	});
 
 	it('replays steering from before it reached a working agent: stopped, then said', () => {
@@ -613,8 +623,9 @@ describe('workspaces', () => {
 
 	it('reopens the forge database and retries only answers without a host receipt', () => {
 		const database = join(mkdtempSync(join(tmpdir(), 'geordi-answers-')), 'events.db');
-		const { create, workspaces, store, repos } = setup({ database });
+		const { create, workspaces, store, repos, sent: commands } = setup({ database });
 		const id = create('One');
+		acknowledgePrompt(workspaces, commands.at(-1));
 		const questions = [{ question: 'Go on?', options: [], multiSelect: false }];
 		for (const key of ['old', 'pending', 'withdrawn'])
 			workspaces.record(id, { kind: 'question', id: key, questions });
@@ -664,6 +675,7 @@ describe('workspaces', () => {
 		const { workspaces, create, sent } = setup();
 		const id = create('One');
 		const questions = [{ question: 'Go on?', options: [], multiSelect: false }];
+		acknowledgePrompt(workspaces, sent.at(-1));
 		const asyncQuestion = {
 			kind: 'question',
 			id: 'async',
@@ -758,19 +770,30 @@ describe('workspaces', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).queue).toEqual(['Two']);
 	});
 
-	it('fails the turn when no daemon is connected', () => {
-		const { workspaces, create } = setup({ connected: false });
-		const workspace = workspaces.get(create('One'));
-		expect(workspace.status).toBe('idle');
-		expect(workspace.transcript.at(-2)).toMatchObject({
-			kind: 'error',
-			error: 'No daemon connected'
+	it('records a first prompt before dispatch and retries the same delivery after restart', () => {
+		const { store, repos, create } = setup();
+		const id = create('');
+		const verify = vi.fn((command: ForgeMessage) => {
+			if (command.type !== 'agent.message') throw new Error('Expected a prompt');
+			expect(store.readStream(`workspace:${id}`).at(-1)).toMatchObject({
+				type: 'workspace.message',
+				data: { deliveryId: command.deliveryId, text: 'One' }
+			});
+			return false;
 		});
+		createWorkspaces(store, repos, verify, { secret: 'test' }).send(id, 'One');
+		const restarted = createWorkspaces(store, repos, verify, { secret: 'test' });
+		restarted.reconcile([]);
+		expect(verify.mock.calls[1]).toEqual(verify.mock.calls[0]);
+		acknowledgePrompt(restarted, verify.mock.calls[0][0]);
+		restarted.reconcile([id]);
+		expect(verify).toHaveBeenCalledTimes(2);
 	});
 
 	it('fails turns a reconnecting daemon no longer knows about', () => {
-		const { workspaces, repo, create } = setup();
+		const { workspaces, repo, create, sent } = setup();
 		const lost = create('One');
+		acknowledgePrompt(workspaces, sent.at(-1));
 		const alive = create('Two');
 
 		workspaces.reconcile([alive]);
@@ -782,7 +805,8 @@ describe('workspaces', () => {
 
 	it('stops turns a reconnecting daemon still runs but that were given up here', () => {
 		const { workspaces, sent, create } = setup({ connected: false });
-		const id = create('One'); // fails at once: no daemon
+		const id = create('One');
+		workspaces.stop(id);
 		expect(workspaces.get(id).status).toBe('idle');
 
 		workspaces.reconcile([id]);
@@ -794,6 +818,7 @@ describe('workspaces', () => {
 		const id = create('One');
 		workspaces.send(id, 'Two');
 		workspaces.send(id, 'Three');
+		acknowledgePrompt(workspaces, sent[0]);
 		const starts = () => sent.filter((message) => message.type === 'agent.message').length;
 
 		// said twice, as a daemon that was killed mid-report does
@@ -803,6 +828,7 @@ describe('workspaces', () => {
 		expect(starts()).toBe(2);
 		expect(workspaces.get(id).queue).toEqual(['Three']);
 
+		acknowledgePrompt(workspaces, sent.at(-1));
 		// given up while the daemon was away: what it then still says of it is not taken
 		workspaces.reconcile([]);
 		expect(workspaces.get(id).status).toBe('idle');

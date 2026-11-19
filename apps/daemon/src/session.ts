@@ -1,6 +1,7 @@
+import { privateDirectory, signalTree, startedAt } from './session-process.ts';
 import { linesFrom } from './journal.ts';
 import { randomUUID } from 'node:crypto';
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
 	appendFileSync,
 	chmodSync,
@@ -12,7 +13,6 @@ import {
 	readFileSync,
 	renameSync,
 	rmSync,
-	statSync,
 	writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
@@ -78,19 +78,6 @@ const HOST = fileURLToPath(
 	new URL(import.meta.url.endsWith('.ts') ? './host.ts' : './host.js', import.meta.url)
 );
 
-/** When a process started, as `ps` puts it; `null` if there is no such process. */
-function startedAt(pid: number): string | null {
-	try {
-		const started = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore']
-		}).trim();
-		return started || null;
-	} catch {
-		return null;
-	}
-}
-
 const alive = (pid: number) => {
 	try {
 		process.kill(pid, 0);
@@ -118,11 +105,11 @@ function follow(dir: string, emit: Deliver, ready: () => boolean): Session {
 	};
 	// Process IDs are reused, after a reboot at the latest: the process is only ours if it
 	// also started when ours did. Never signal, or wait for, somebody else's.
-	const ours = pid > 1 && startedAt(pid) === started;
+	const ours = !!started && startedAt(pid) === started;
 	const running = () => ours && alive(pid);
 	const signal = (name: NodeJS.Signals) => {
 		try {
-			if (running()) process.kill(-pid, name); // the whole group: the host, the CLI and what it started
+			if (running() && startedAt(pid) === started) signalTree(pid, name); // the whole group: the host, the CLI and what it started
 		} catch {
 			// already gone
 		}
@@ -326,8 +313,7 @@ export function resumeSessions(
 	if (!existsSync(sessionsDir)) return sessions;
 	// Session directories name processes to signal and hold output we pass on as the agent's:
 	// only trust a directory that nobody else could have written to.
-	const { uid, mode } = statSync(sessionsDir);
-	if (uid !== process.getuid?.() || mode & 0o022)
+	if (!privateDirectory(sessionsDir))
 		throw new Error(`${sessionsDir} must belong to you and not be writable by others`);
 
 	for (const workspaceId of readdirSync(sessionsDir)) {
@@ -348,13 +334,12 @@ export function resumeSessions(
 export function endLegacyTurns(turnsDir: string) {
 	if (!existsSync(turnsDir)) return;
 	// It names processes to signal: only one that nobody else could have written to is trusted.
-	const { uid, mode } = statSync(turnsDir);
-	if (uid !== process.getuid?.() || mode & 0o022) return;
+	if (!privateDirectory(turnsDir)) return;
 	for (const name of readdirSync(turnsDir)) {
 		try {
 			const meta = JSON.parse(readFileSync(join(turnsDir, name, 'meta.json'), 'utf8'));
 			const { pid, started } = meta as { pid: number; started?: string };
-			if (pid > 1 && startedAt(pid) === started) process.kill(-pid, 'SIGTERM');
+			if (started && startedAt(pid) === started) signalTree(pid, 'SIGTERM');
 		} catch {
 			// nothing there to end
 		}

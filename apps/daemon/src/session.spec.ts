@@ -1,8 +1,9 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { HostEvent, Meta } from './host.ts';
+import { signalTree } from './session-process.ts';
 import { resumeSessions, startSession, type Session } from './session.ts';
 
 /** A small ACP peer for the detached host's restart and delivery tests. */
@@ -110,7 +111,8 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
 `
 );
 
-const root = () => mkdtempSync(join(tmpdir(), 'geordi-sessions-'));
+const root = () =>
+	mkdtempSync(join(process.platform === 'win32' ? homedir() : tmpdir(), 'geordi-sessions-'));
 const meta = (env: Record<string, string> = {}): Meta => ({
 	agent: 'claude',
 	options: {
@@ -644,6 +646,6 @@ describe('a daemon restart', () => {
 		acknowledged = true;
 		await session.done;
 		expect(events).toEqual([{ kind: 'turn.failed', error: 'Stopped' }]);
-		process.kill(-real.pid, 'SIGKILL'); // the real one, which nobody follows any more
+		signalTree(real.pid, 'SIGKILL'); // the real one, which nobody follows any more
 	});
 });

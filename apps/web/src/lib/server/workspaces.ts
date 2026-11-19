@@ -271,7 +271,7 @@ type Status = 'running' | 'idle';
  */
 export type Workspace = {
 	outputCursor?: string;
-	pendingSteers?: { deliveryId: string; text: string; images: string[] }[];
+	pendingMessages?: { deliveryId: string; text: string; images: string[] }[];
 	/** When the turn that is running began, for the `turn` item that ends it. */
 	turnStartedAt?: string;
 	id: string;
@@ -533,9 +533,11 @@ export function createWorkspaces(
 		}
 		if (event.type === 'workspace.message') {
 			if (event.data.deliveryId)
-				(workspace.pendingSteers ??= []).push({
+				(workspace.pendingMessages ??= []).push({
 					deliveryId: event.data.deliveryId,
-					text: event.data.text,
+					text: workspace.briefing
+						? workspace.briefing + '\n\n' + event.data.text
+						: event.data.text,
 					images: event.data.images ?? []
 				});
 			// said by whoever queued it, or steered with it, or says it now
@@ -576,7 +578,7 @@ export function createWorkspaces(
 				if (output.path.length) edit(...subagentEdit(transcript, output.path, output.update, at));
 				break;
 			case 'message.received':
-				workspace.pendingSteers = workspace.pendingSteers?.filter(
+				workspace.pendingMessages = workspace.pendingMessages?.filter(
 					(s) => s.deliveryId !== output.id
 				);
 				break;
@@ -659,7 +661,7 @@ export function createWorkspaces(
 				workspace.asking = false;
 				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
 				if (output.kind === 'turn.failed') {
-					workspace.pendingSteers = [];
+					workspace.pendingMessages = [];
 					workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
 					// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
 					if (!(output.error === 'Stopped' && steering.has(workspace.id)))
@@ -883,12 +885,8 @@ export function createWorkspaces(
 	/** Workspaces that must not start a turn right now; see `hold`. */
 	const held = new Set<string>();
 
-	/**
-	 * Says something to the workspace's agent, through a daemon: that starts a turn, or, if
-	 * the agent is at work, steers it. An agent at work that cannot be reached is not told
-	 * (and that is an error); one that was to start is noted as having failed to.
-	 */
-	function deliver(workspace: Workspace, text: string, images: string[], deliveryId?: string) {
+	/** Send the recorded prompt. An unacknowledged delivery is retried on reconnect. */
+	function deliver(workspace: Workspace, text: string, images: string[], deliveryId: string) {
 		return dispatch({
 			type: 'agent.message',
 			workspaceId: workspace.id,
@@ -904,7 +902,7 @@ export function createWorkspaces(
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
 			...(images.length && { images: images.map(imageStore.get) }),
-			...(deliveryId && { deliveryId }),
+			deliveryId,
 			prompt: text
 		});
 	}
@@ -921,12 +919,9 @@ export function createWorkspaces(
 		const senderName = sender
 			? (access.name(sender) ?? projection.get().get(sender)?.title)
 			: undefined;
-		const steers = workspace.status === 'running';
 		if (from === 'queued') images = workspace.attachments.queue[0];
-		const deliveryId = steers ? randomUUID() : undefined;
+		const deliveryId = randomUUID();
 		const prompt = workspace.briefing ? workspace.briefing + '\n\n' + text : text;
-		const sent = deliver(workspace, prompt, images, deliveryId);
-		if (!sent && steers) error(503, 'No daemon is connected: the agent cannot be told right now');
 		store.append(
 			{
 				type: 'workspace.message',
@@ -934,7 +929,7 @@ export function createWorkspaces(
 				data: {
 					id,
 					text,
-					...(deliveryId && { deliveryId }),
+					deliveryId,
 					...(images.length && { images }),
 					...(from && { [from]: true }),
 					...(senderName && { senderName })
@@ -942,7 +937,7 @@ export function createWorkspaces(
 			},
 			{ actor }
 		);
-		if (!sent) record(id, { kind: 'turn.failed', error: 'No daemon connected' });
+		deliver(workspace, prompt, images, deliveryId);
 	}
 
 	/**
@@ -1694,8 +1689,11 @@ export function createWorkspaces(
 								questionId: item.id,
 								answers: item.answers
 							});
-				for (const steer of workspace.pendingSteers ?? [])
-					deliver(workspace, steer.text, steer.images, steer.deliveryId);
+				for (const message of workspace.pendingMessages ?? [])
+					deliver(workspace, message.text, message.images, message.deliveryId);
+				// A restart can fall between recording completion and promoting the queue.
+				if (workspace.lastTurn === 'completed' && workspace.queue.length)
+					say(workspace, workspace.queue[0], null, 'queued');
 			}
 			for (const id of running)
 				if (projection.get().get(id)?.status !== 'running')
@@ -1703,7 +1701,7 @@ export function createWorkspaces(
 			for (const workspace of projection.get().values())
 				if (
 					workspace.status === 'running' &&
-					!workspace.pendingSteers?.length &&
+					!workspace.pendingMessages?.length &&
 					!running.includes(workspace.id)
 				)
 					record(workspace.id, {

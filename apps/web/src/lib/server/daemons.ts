@@ -94,7 +94,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	/** Requests awaiting a daemon's answer, by request ID. */
 	const pending = new Map<string, (response: { result?: unknown; error?: string }) => void>();
 
-	/** Sends to a connected daemon (the first one, for now). Returns false if there is none. */
+	/** Sends to the active daemon. Returns false if there is none. */
 	function send(message: ForgeMessage): boolean {
 		const entry = [...daemons].find(([socket]) => socket.readyState === socket.OPEN);
 		if (!entry) return false;
@@ -129,6 +129,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				if (message.protocol !== PROTOCOL_VERSION)
 					return socket.close(1002, `Protocol ${message.protocol} not supported`);
 
+				if (daemons.size) return socket.close(1008, 'Another daemon is already connected');
 				clearTimeout(timeout);
 				const welcome: ForgeMessage = {
 					type: 'welcome',
@@ -196,6 +197,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	});
 
 	return {
+		port: () => (server.address() as { port: number } | null)?.port,
+		close() {
+			for (const client of server.clients) client.terminate();
+			server.close();
+		},
 		send,
 		background: (id: string) => background.get(id)?.tasks ?? [],
 		suggestion: (id: string) => suggestions.get(id) ?? null,
