@@ -6,6 +6,8 @@ export const site = {
 	/** What the picture shown with a link to the site shows (`src/og/card.astro`). */
 	card: 'Geordi. A calmer way to run coding agents. Download at geordi.run. A workspace sidebar shows task status beside an agent conversation.',
 	repo: 'https://github.com/chattocorp/geordi',
+	/** Where people get help: the #geordi channel on Chatto HQ. */
+	support: 'https://chat.chatto.run/chat/-/RHrVQGGG3fvnU0w',
 	download: 'https://github.com/chattocorp/geordi/releases/latest',
 	docs: {
 		selfHosting: 'https://github.com/chattocorp/geordi/blob/main/docs/self-hosting.md',
