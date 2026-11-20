@@ -570,7 +570,6 @@
 					>
 						{#snippet tab(id: string)}
 							{#if id === 'run'}
-								<span class="icon-[lucide--circle-play] size-3.5 shrink-0"></span>
 								<span>Run</span>
 							{:else}
 								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>

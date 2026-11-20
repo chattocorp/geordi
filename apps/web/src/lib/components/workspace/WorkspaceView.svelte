@@ -770,7 +770,7 @@
 		{@const live = runLive(runJob.name)}
 		{@const name = runJob.label ?? 'the project'}
 		<Button
-			variant="ghost"
+			variant="secondary"
 			size="sm"
 			icon={live ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'}
 			working={state === 'starting'}
@@ -783,7 +783,7 @@
 		{@const ready =
 			runLink.needs.length > 0 && runLink.needs.every((job) => jobState(job) === 'running')}
 		<Button
-			variant="ghost"
+			variant="secondary"
 			size="sm"
 			icon="icon-[lucide--external-link]"
 			working={runLink.needs.some((job) => jobState(job) === 'starting')}
@@ -804,7 +804,6 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
 	{:else if tab === RUN}
-		<span class="icon-[lucide--circle-play] size-3.5 shrink-0"></span>
 		<span class="truncate">Run</span>
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>

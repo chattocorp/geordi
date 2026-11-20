@@ -78,13 +78,36 @@
 
 {#snippet run()}
 	<Button
-		variant="ghost"
+		variant="secondary"
 		size="sm"
 		icon={started ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'}
 		label={started ? 'Stop the project' : 'Run the project'}
 		onclick={() => (started = !started)}
 		class={[started && 'hover:text-danger!']}
 	/>
+{/snippet}
+
+{#snippet openLink()}
+	<Button variant="secondary" size="sm" icon="icon-[lucide--external-link]" label="Open preview" />
+{/snippet}
+
+{#snippet dockWith(shortcut: import('svelte').Snippet)}
+	<div class="flex h-48 sheet-quiet overflow-hidden">
+		<Panes
+			layout={dock}
+			onchange={(next) => (dock = next)}
+			{window}
+			closable={(id) => id !== 'Run'}
+			control={(id) => (id === 'Run' ? shortcut : undefined)}
+		>
+			{#snippet tab(id: string)}
+				{#if id !== 'Run'}
+					<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
+				{/if}
+				<span>{id}</span>
+			{/snippet}
+		</Panes>
+	</div>
 {/snippet}
 
 <!-- A tab with a control of its own, beside its label: the Run tab's button. -->
@@ -100,16 +123,11 @@
 		);
 	}}
 >
-	<div class="flex h-48 sheet-quiet overflow-hidden">
-		<Panes
-			layout={dock}
-			onchange={(next) => (dock = next)}
-			{tab}
-			{window}
-			closable={(id) => id !== 'Run'}
-			control={(id) => (id === 'Run' ? run : undefined)}
-		></Panes>
-	</div>
+	{@render dockWith(run)}
+</Story>
+
+<Story name="Default link" asChild>
+	{@render dockWith(openLink)}
 </Story>
 
 <Story name="Split" asChild>
