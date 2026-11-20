@@ -1,3 +1,4 @@
+import { ACTION_IDS } from '@geordi/ui/actions';
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
@@ -18,10 +19,10 @@ import {
 	jobs,
 	repos,
 	prepareWorktree,
+	standings,
 	terminals,
 	updateWorkspace as update,
 	upstreamMayHaveChanged,
-	watchers,
 	workspaces
 } from '#lib/server/app.ts';
 
@@ -116,8 +117,9 @@ export const sendMessage = form(
 );
 
 /** Says something to the workspace's agent without a form: what the workspace's actions do. */
-export const say = command(v.object({ workspaceId: v.string(), text }), ({ workspaceId, text }) =>
-	workspaces().send(workspaceId, text)
+export const say = command(
+	v.object({ workspaceId: v.string(), text, action: v.optional(v.picklist(ACTION_IDS)) }),
+	({ workspaceId, text, action }) => workspaces().send(workspaceId, text, null, [], action)
 );
 
 export const restoreWorkspace = command(v.string(), async (id) => {
@@ -139,7 +141,7 @@ export const restoreWorkspace = command(v.string(), async (id) => {
 		);
 		domain.restore(id);
 		domain.record(id, { kind: 'worktree', ...tree });
-		watchers().changed(ref.worktreeId);
+		void standings().look(ref.worktreeId);
 	} catch (cause) {
 		error(422, cause instanceof Error ? cause.message : 'Could not restore the workspace');
 	} finally {
@@ -174,7 +176,9 @@ export const mergePull = command(
 				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
 				60_000
 			);
-			if (typeof status === 'string') watchers().changed(ref.worktreeId);
+			// A queue acknowledgment alone doesn't tell us the new standing.
+			if (status === 'queued') await upstreamMayHaveChanged(workspaceId);
+			else if (status === 'merged') void upstreamMayHaveChanged(workspaceId);
 			return status;
 		} catch (cause) {
 			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
@@ -397,9 +401,13 @@ export const getSource = query(
 	v.object({ workspaceId: v.string(), path: v.string() }),
 	async ({ workspaceId, path }) => {
 		try {
-			const text = await hub().request({ kind: 'source', path, ...workspaces().ref(workspaceId) });
-			if (text !== null) return { text };
-			return { unavailable: 'This file is missing or cannot be displayed as text.' };
+			const content = await hub().request({
+				kind: 'source',
+				path,
+				...workspaces().ref(workspaceId)
+			});
+			if (content !== null) return { content };
+			return { unavailable: 'This file is missing or cannot be displayed.' };
 		} catch (error) {
 			return { unavailable: `Could not load the file: ${message(error)}` };
 		}

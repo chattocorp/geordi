@@ -1,3 +1,4 @@
+import type { Worktree } from '../worktree.ts';
 import type { Agent, AgentSettings, Harness } from '@geordi/protocol';
 
 /** What an agent's CLI is started with, for one session: until it ends, or has been idle a while. */
@@ -8,6 +9,7 @@ export type SessionOptions = {
 	dir: string;
 	/** The workspace's worktree. */
 	cwd: string;
+	worktree?: Worktree;
 	/**
 	 * Paths outside `cwd` an agent needs write access to so it can commit: the parts of the
 	 * main repository's `.git` that commits touch. Never `hooks/` or `config`, which would

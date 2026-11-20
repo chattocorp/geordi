@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getSource } from '../../../routes/workspaces.remote';
-	import SourceView from './SourceView.svelte';
+	import FileView from './FileView.svelte';
 
 	let {
 		workspaceId,
@@ -17,9 +17,14 @@
 	});
 </script>
 
-{#if file.current?.text !== undefined}
+{#if file.current?.content !== undefined}
 	{#key citation}
-		<SourceView text={file.current.text} line={citation?.line} />
+		<FileView
+			{path}
+			current={file.current.content}
+			pictures={`/workspaces/${workspaceId}/picture?file&v=${version}`}
+			line={citation?.line}
+		/>
 	{/key}
 {:else}
 	<p class="p-5 text-sm text-muted" role="status">

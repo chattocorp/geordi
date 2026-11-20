@@ -29,7 +29,14 @@ import {
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
-import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
+import {
+	changes,
+	readSource,
+	readWorktreePicture,
+	status,
+	uncommittedFiles,
+	versions
+} from './changes.ts';
 import { resolve, settingsOf } from './config.ts';
 import { createPorts, portEnv, waitForPort } from './ports.ts';
 import {
@@ -58,6 +65,7 @@ import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
 import {
 	cachedPullBase,
+	repositoryThreads,
 	markReady,
 	mergePull,
 	pullHistory,
@@ -514,6 +522,8 @@ async function readRequest(request: DaemonRequest) {
 		).trim();
 		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
+	if (request.kind === 'repoThreads')
+		return repositoryThreads(request.repoPath, request.category, request.after);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
@@ -570,10 +580,16 @@ async function readRequest(request: DaemonRequest) {
 		// from where the upstream stands now, as a new workspace would
 		const problem = await fetchUpstream(repoPath);
 		if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
-		if ((await uncommittedFiles(worktree)).length > 0)
-			throw new Error('It has uncommitted changes: commit or discard them first');
+		// what is uncommitted comes along, where the new branch has the same files underneath
+		const carried = (await uncommittedFiles(worktree)).length > 0;
 		requireIdle();
-		const branch = await continueOn(worktree, repoPath, requireIdle);
+		const branch = await continueOn(worktree, repoPath, requireIdle).catch((error) => {
+			if (!carried || workingIn(worktree.path)) throw error;
+			throw new Error(
+				'Its uncommitted changes do not fit onto the latest main branch: commit or discard them first',
+				{ cause: error }
+			);
+		});
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { branch };
 	}
@@ -632,9 +648,11 @@ async function readRequest(request: DaemonRequest) {
 		case 'diff':
 			return versions(worktree, comparisonOrigin(worktree, request), request.path);
 		case 'source':
-			return readText(worktree, request.path);
+			return readSource(worktree, request.path);
 		case 'picture':
-			return readPicture(worktree.path, request.path);
+			return request.worktreeOnly
+				? readWorktreePicture(worktree, request.path)
+				: readPicture(worktree.path, request.path);
 		case 'upstream': {
 			const branch = branchOf(worktree);
 			const before = cachedPullBase(request.worktreeId, branch);

@@ -1,3 +1,4 @@
+import type { WorkspaceAction } from '@geordi/ui/actions';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
@@ -22,6 +23,7 @@ import {
 	type ToolDiff,
 	type ToolInfo,
 	type TurnUsage,
+	type TurnDiff,
 	type WorktreeMode,
 	type WorktreeRef,
 	type ProjectRef
@@ -32,6 +34,7 @@ import { createUpcaster, type CurrentEvent } from './legacy.ts';
 import { instructionsFor } from './instructions.ts';
 import type { createRepos } from './repos.ts';
 
+type ActionId = WorkspaceAction['id'];
 type WorkspaceStream = `workspace:${string}`;
 
 export type WorkspacesEvent =
@@ -69,6 +72,7 @@ export type WorkspacesEvent =
 			type: 'workspace.message';
 			stream: WorkspaceStream;
 			data: {
+				action?: ActionId;
 				id: string;
 				text: string;
 				images?: string[];
@@ -96,7 +100,7 @@ export type WorkspacesEvent =
 	| {
 			type: 'workspace.queued';
 			stream: WorkspaceStream;
-			data: { id: string; text: string; images?: string[] };
+			data: { id: string; text: string; action?: ActionId; images?: string[] };
 	  }
 	/** The workspace got a better name than the first line of its first message. */
 	| { type: 'workspace.titled'; stream: WorkspaceStream; data: { id: string; title: string } }
@@ -234,7 +238,7 @@ export type TranscriptItem =
 	 * A turn ends here (`at`): when it began, where that is known, and what it used, where
 	 * its agent said.
 	 */
-	| { kind: 'turn'; startedAt?: string; usage?: TurnUsage; at: string }
+	| { kind: 'turn'; diff?: TurnDiff; startedAt?: string; usage?: TurnUsage; at: string }
 	/**
 	 * Something the agent asked the person, which it waits to hear about. `answers` once it
 	 * was answered; no longer `open` once it was, or the turn ended without.
@@ -288,6 +292,8 @@ type Status = 'running' | 'idle';
  * worktree instead of its own.
  */
 export type Workspace = {
+	activeAction?: ActionId;
+	queuedActions?: (ActionId | null)[];
 	outputCursor?: string;
 	pendingMessages?: PendingMessage[];
 	/** When the turn that is running began, for the `turn` item that ends it. */
@@ -560,17 +566,24 @@ export function createWorkspaces(
 			workspace.archivedAt = at;
 			if (!restoring) workspace.transcript = [];
 			workspace.queue = [];
+			delete workspace.queuedActions;
 			workspace.attachments.queue = [];
 			workspace.sentBy.queue = [];
 			return;
 		}
 		if (event.type === 'workspace.queued') {
+			if (event.data.action || workspace.queuedActions) {
+				(workspace.queuedActions ??= Array(workspace.queue.length).fill(null)).push(
+					event.data.action ?? null
+				);
+			}
 			workspace.queue.push(event.data.text);
 			workspace.attachments.queue.push(event.data.images ?? []);
 			workspace.sentBy.queue.push(actor);
 			return;
 		}
 		if (event.type === 'workspace.dequeued') {
+			workspace.queuedActions?.splice(event.data.index, 1);
 			workspace.queue.splice(event.data.index, 1);
 			workspace.attachments.queue.splice(event.data.index, 1);
 			workspace.sentBy.queue.splice(event.data.index, 1);
@@ -611,7 +624,9 @@ export function createWorkspaces(
 				});
 			// said by whoever queued it, or steered with it, or says it now
 			let sender = actor;
+			workspace.activeAction = event.data.action;
 			if (event.data.queued) {
+				workspace.activeAction = workspace.queuedActions?.shift() ?? undefined;
 				workspace.queue.shift();
 				workspace.attachments.queue.shift();
 				sender = workspace.sentBy.queue.shift() ?? null;
@@ -735,6 +750,7 @@ export function createWorkspaces(
 				break;
 			case 'turn.completed':
 			case 'turn.failed':
+				delete workspace.activeAction;
 				workspace.status = 'idle';
 				// a turn that is over waits for no answer
 				workspace.asking = false;
@@ -750,6 +766,7 @@ export function createWorkspaces(
 					kind: 'turn',
 					...(workspace.turnStartedAt && { startedAt: workspace.turnStartedAt }),
 					...(output.usage && { usage: output.usage }),
+					...(output.diff && { diff: output.diff }),
 					at
 				});
 				delete workspace.turnStartedAt;
@@ -1029,7 +1046,8 @@ export function createWorkspaces(
 		text: string,
 		actor: string | null,
 		from?: 'queued',
-		images: string[] = []
+		images: string[] = [],
+		action?: ActionId
 	) {
 		const { id } = workspace;
 		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
@@ -1047,6 +1065,7 @@ export function createWorkspaces(
 					id,
 					text,
 					deliveryId,
+					...(action && { action }),
 					...(images.length && { images }),
 					...(from && { [from]: true }),
 					...(senderName && { senderName })
@@ -1668,19 +1687,25 @@ export function createWorkspaces(
 		 * Says something to the workspace's agent: at once if it is idle (and nothing is
 		 * waiting to go first), otherwise once it has finished what it is doing.
 		 */
-		send(id: string, text: string, actor: string | null = null, images: string[] = []) {
+		send(
+			id: string,
+			text: string,
+			actor: string | null = null,
+			images: string[] = [],
+			action?: ActionId
+		) {
 			imageStore.resolve(images);
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (held.has(id)) error(409, 'This workspace is being archived');
 			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
-				return say(workspace, text, actor, undefined, images);
+				return say(workspace, text, actor, undefined, images, action);
 			store.append(
 				{
 					type: 'workspace.queued',
 					stream: `workspace:${id}`,
-					data: { id, text, ...(images.length && { images }) }
+					data: { id, text, ...(action && { action }), ...(images.length && { images }) }
 				},
 				{ actor }
 			);

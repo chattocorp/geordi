@@ -13,6 +13,13 @@ export type Listed<T> = {
 	depth: number;
 };
 
+/** Compare calendar days in the viewer's time zone. */
+export function activeOnDay<T extends { updatedAt: string }>(workspaces: T[], day: string | null) {
+	return day === null
+		? workspaces
+		: workspaces.filter((w) => new Date(w.updatedAt).toDateString() === day);
+}
+
 /** Keeps the order given, but puts each workspace right after the one that started it. */
 export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));

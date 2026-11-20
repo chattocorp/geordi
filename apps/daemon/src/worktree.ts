@@ -235,8 +235,9 @@ export async function ensureWorktree(
  *
  * Without running git inside the worktree, whose own Git metadata is the agent's to write:
  * the branch is made in the repository, the worktree's files and index are set to it from
- * outside, and its HEAD is pointed there by hand. The caller makes sure there is nothing
- * uncommitted to lose.
+ * outside, and its HEAD is pointed there by hand. Uncommitted changes come along (work
+ * begun after the old branch landed belongs to the new one); where they are to files that
+ * differ between the two branches, nothing is moved and this throws.
  */
 export async function continueOn(
 	worktree: Worktree,
@@ -326,4 +327,13 @@ export function gitIn(worktree: Worktree, ...args: string[]): Promise<string> {
 		env: gitEnv(worktree),
 		timeout: ['merge-tree', 'read-tree'].includes(args[0]) ? CHECKOUT_TIMEOUT : undefined
 	});
+}
+
+/** Latin-1 maps each byte to one character so image blobs survive the text-based Git runner. */
+export async function readBlobIn(worktree: Worktree, object: string) {
+	const raw = await git(worktree.path, ['--literal-pathspecs', 'cat-file', 'blob', object], {
+		env: gitEnv(worktree),
+		encoding: 'latin1'
+	});
+	return Buffer.from(raw, 'latin1');
 }

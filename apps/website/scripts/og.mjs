@@ -9,11 +9,9 @@ const server = await dev({
 });
 const browser = await chromium.launch();
 try {
-	// Twice the size it is shown at, so that it stays sharp. Without motion, the demo shows
-	// its last step, and stays there.
+	// Without motion, the demo stays on its last step.
 	const page = await browser.newPage({
 		viewport: { width: 1200, height: 630 },
-		deviceScaleFactor: 2,
 		reducedMotion: 'reduce',
 		colorScheme: 'dark'
 	});

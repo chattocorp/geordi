@@ -1,7 +1,7 @@
 # FDR-007: Changesets: what a workspace means for the next releases
 
 **Status:** Active
-**Last reviewed:** 2026-11-19
+**Last reviewed:** 2026-11-20
 
 ## Overview
 
@@ -17,7 +17,7 @@ Many repositories keep notes on their changes with a release tool, which later t
 - The first time in a repository, the tab asks: it shows the command it would run to ask the tool, and runs it only once that was allowed. That holds for the repository from then on.
 - If the tool can't be asked (it is not installed where the daemon runs, say), the tab says so. What the tool finds wrong with a package or a note is shown with that package.
 - Geordi supports Sweet Release and Changesets. The daemon includes the Changesets plan reader. Sweet Release uses the installed `sweet` command.
-- When you select **Merge PR**, Geordi compares the current target with the proposed merge. A first minor or major release, or an increase from patch to minor or major, or minor to major, needs confirmation. The dialog lists every affected package with both versions. The release tool determines the level, including for packages below 1.0 and dependent packages.
+- When you select **Merge PR**, Geordi compares the current target with the proposed merge. A first minor or major release, or an increase from patch to minor or major, or minor to major, needs confirmation only if it changes the planned version. If both plans produce the same next beta, the merge proceeds. The dialog lists every affected package with both versions. The release tool determines the level, including for packages below 1.0 and dependent packages.
 - If the plan is unavailable, you can retry, cancel, or explicitly merge without the check. Repositories without a supported release tool keep their one-click merge.
 - **Enable auto-merge** checks the release impact at enablement. If the plan is unavailable, you can retry or cancel. The target can change before the upstream forge merges the PR.
 

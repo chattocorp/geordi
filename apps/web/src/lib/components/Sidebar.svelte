@@ -4,6 +4,7 @@
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
+	import SidebarRowLabel from '@geordi/ui/SidebarRowLabel.svelte';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import {
 		actFromAfar,
@@ -11,7 +12,7 @@
 		continueFromAfar
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
-	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
+	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
 	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
@@ -29,26 +30,31 @@
 	 * repository, and the settings below. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
 	 * repository under its name, and those its agents started under a workspace. `focus` is
-	 * the repository shown alone, if any.
+	 * the repository shown alone, if any. `visibleWorkspaces` are those shown, `todayOnly` whether
+	 * they are only those active today.
 	 */
 	let {
 		nav,
+		visibleWorkspaces = nav?.workspaces ?? [],
 		path,
 		folded,
 		focus,
+		todayOnly = false,
 		lost = false
 	}: {
 		nav: Navigation | undefined;
+		visibleWorkspaces?: Navigation['workspaces'];
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
+		todayOnly?: boolean;
 		lost?: boolean;
 	} = $props();
 
 	type Item = Navigation['workspaces'][number];
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(nav?.workspaces ?? []));
+	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
 	/**
@@ -58,22 +64,27 @@
 	 */
 	const groups = $derived([
 		...(listed.get(null)?.length ? [{ id: null, name: 'Projects' }] : []),
-		...sidebarRepos
+		...sidebarRepos.filter((repo) => listed.has(repo.id))
 	]);
 	/** What stands for the projects among the folded: no repository has it as its ID. */
 	const PROJECTS = 'projects';
 	/** How many repositories a focus hides: offered at the end, to show them again. */
-	const hidden = $derived(withWorkspaces.length - sidebarRepos.length);
+	const hidden = $derived(
+		withWorkspaces.filter((repo) => listed.has(repo.id) && !sidebarRepos.includes(repo)).length
+	);
 
 	/**
-	 * Repositories slide away and back when the focus changes, and only then: not when the
-	 * list first arrives, nor when a repository comes or goes on its own.
+	 * Repositories and workspaces slide away and back when what is shown changes (the focus,
+	 * today only), and only then: not when the list first arrives, nor when one comes or goes
+	 * on its own.
 	 */
 	let shifting = $state(false);
-	let lastFocus = focus.current;
+	const shown = $derived(`${focus.current}:${todayOnly}`);
+	let lastShown: string | undefined;
 	$effect.pre(() => {
-		if (focus.current === lastFocus) return;
-		lastFocus = focus.current;
+		const was = lastShown;
+		lastShown = shown;
+		if (was === undefined || was === shown) return;
 		shifting = !prefersReducedMotion.current;
 		const settled = setTimeout(() => (shifting = false), MOTION + 50);
 		return () => clearTimeout(settled);
@@ -110,7 +121,7 @@
 				label: action.label,
 				icon: action.icon,
 				tone: actionTone(workspace.standing),
-				disabled: !!action.pullNumber && pendingPullAction.has(workspace.id),
+				disabled: pullActionPending(workspace.id, action),
 				onselect: () => actFromAfar(workspace, action)
 			})),
 			...(next.length > 0 ? ['separator' as const] : []),
@@ -212,7 +223,7 @@
 			: [...folded.current, id]);
 	const settingsHint = hint('settings');
 	const focusHint = hint('focusRepo');
-	/** How long repositories take to slide away or back, in milliseconds. */
+	/** How long repositories and workspaces take to slide away or back, in milliseconds. */
 	const MOTION = 200;
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
@@ -249,31 +260,29 @@
 				workspaces are what is read here), and the way to start something in it. What is
 				under it lines up with it: icon under picture, title under name.
 			-->
-					<div class="group flex h-7 items-center pr-1.5">
-						<button
-							type="button"
-							class="flex min-w-0 flex-1 items-center gap-2 self-stretch pr-2 pl-1.5 text-left text-sm font-semibold text-muted hover:text-ink"
-							aria-expanded={!isFolded}
-							onclick={() => toggleFolded(repo.id ?? PROJECTS)}
+					<div class="group relative flex h-7 items-center pr-1.5">
+						<SidebarRowLabel
+							title={repo.name}
+							href={repo.id !== null ? resolve('/repos/[id]', { id: repo.id }) : undefined}
+							current={repo.id !== null && path === resolve('/repos/[id]', { id: repo.id })}
+							fold={{
+								folded: isFolded,
+								count: all.length,
+								toggle: () => toggleFolded(repo.id ?? PROJECTS)
+							}}
+							class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink aria-[current=page]:text-ink"
 						>
-							{#if repo.id === null}
-								<!-- as wide as a repository's picture: its projects line up under it -->
-								<span class="grid size-5 shrink-0 place-items-center">
-									<span class="icon-[lucide--folders] size-4.5 text-muted/70"></span>
-								</span>
-							{:else}
-								<RepoIcon id={repo.id} />
-							{/if}
-							<span class="truncate">{repo.name}</span>
-							{#if isFolded}
-								<span class="shrink-0 font-normal text-muted/60 tabular-nums">{all.length}</span>
-							{/if}
-						</button>
+							{#snippet icon()}
+								{#if repo.id !== null}<RepoIcon id={repo.id} />{:else}<span
+										class="icon-[lucide--folders] size-5"
+									></span>{/if}
+							{/snippet}
+						</SidebarRowLabel>
 						{#if repo.id !== null}
 							<button
 								type="button"
 								class={[
-									'invisible grid size-6 shrink-0 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink',
+									'invisible grid size-6 shrink-0 place-items-center rounded-control hover:bg-sunken hover:text-ink reveal:visible',
 									focused ? 'bg-sunken text-ink' : 'text-muted'
 								]}
 								title={focused
@@ -289,7 +298,7 @@
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 						<a
 							href={newHref}
-							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-hover hover:text-ink"
+							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:visible"
 							title={newLabel}
 							aria-label={newLabel}
 						>
@@ -368,6 +377,7 @@
 				index === rows.length - 1 &&
 				'row-drop-after'
 		]}
+		transition:slide={motion()}
 		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
 		draggable={depth === 0 && !leaving}
 		ondragstart={(event) => {
@@ -393,6 +403,10 @@
 			asking={workspace.outcome === 'asking'}
 			waiting={workspace.waiting}
 			working={workspace.working || (isFolded && busy)}
+			progress={pendingPullAction.get(workspace.id) ??
+				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
+					? 'merge-pull'
+					: workspace.activeAction)}
 			standing={workspace.standing}
 			actions={workspace.actions}
 			fold={under > 0
@@ -400,7 +414,6 @@
 				: undefined}
 			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
 			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
-			onarchive={busy || leaving ? undefined : () => archiveAndNavigate(workspace)}
 		/>
 	</li>
 {/snippet}

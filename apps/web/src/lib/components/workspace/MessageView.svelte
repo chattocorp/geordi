@@ -7,11 +7,12 @@
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
 	import { duration } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
-	import type { Block, Part } from '#lib/transcript.ts';
+	import type { Block, Part, TurnChanges } from '#lib/transcript.ts';
 	import AgentText from '@geordi/ui/AgentText.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
 	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
+	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import PatchView from '../PatchView.svelte';
 	import { changedFiles } from '#lib/changedFiles.ts';
 	import MessageImages from '#lib/components/MessageImages.svelte';
@@ -39,6 +40,7 @@
 		parentAgent,
 		queue = [],
 		queueImages = [],
+		onopenturn,
 		onopensubagent,
 		onremove,
 		onanswer,
@@ -58,6 +60,7 @@
 		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
+		onopenturn?: (changes: TurnChanges) => void;
 		onopensubagent?: (id: string) => void;
 		onremove?: (index: number, text: string, images: string[]) => void;
 		/** Answers something the agent asked: one answer per question. */
@@ -217,21 +220,45 @@
 <!-- Where a reply ends: its last words to copy, and how long it took, with what it used on hover. -->
 {#snippet byline(reply: AgentBlock, text: string, latest: boolean)}
 	{@const usage = reply.usage}
-	<div class={['flex items-center gap-2 text-xs text-muted', !latest && quietReply]}>
-		{#if text}<MessageCopy {text} />{/if}
-		{#if reply.took !== undefined}
-			{#if usage}
-				<Tooltip>
-					{duration(reply.took)}
-					{#snippet tip()}{@render tokens(usage)}{/snippet}
-				</Tooltip>
-			{:else}
-				<span>{duration(reply.took)}</span>
-			{/if}
-		{:else if usage}
-			<!-- from before turns said when they began: what it used is all there is to say -->
-			<span title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
+	{@const turn = reply.changes}
+	<div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+		{#if turn && onopenturn}
+			{@const files = turn.diff.files}
+			{@const summary = files.length === 1 ? '1 file changed' : `${files.length} files changed`}
+			<button
+				type="button"
+				class="inline-flex max-w-full items-center gap-2 rounded-control bg-hover px-2.5 py-1 text-ink hover:bg-sunken"
+				title={`Review turn ${turn.number} · ${summary}`}
+				aria-label={`Review turn ${turn.number}, ${files.length === 1 ? files[0].path + ', ' : ''}${summary}, ${turn.diff.added} lines added, ${turn.diff.removed} removed`}
+				onclick={() => onopenturn?.(turn)}
+			>
+				<span class="icon-[lucide--file-diff] size-3.5 shrink-0 text-muted"></span>
+				{#if files.length === 1}
+					<span class="truncate code-dense" title={files[0].path}
+						>{files[0].path.split('/').at(-1)}</span
+					>
+				{:else}
+					<span class="font-medium">{summary}</span>
+				{/if}
+				<DiffStat added={turn.diff.added} removed={turn.diff.removed} />
+			</button>
 		{/if}
+		<div class={['flex items-center gap-2', !latest && quietReply]}>
+			{#if text}<MessageCopy {text} />{/if}
+			{#if reply.took !== undefined}
+				{#if usage}
+					<Tooltip>
+						{duration(reply.took)}
+						{#snippet tip()}{@render tokens(usage)}{/snippet}
+					</Tooltip>
+				{:else}
+					<span>{duration(reply.took)}</span>
+				{/if}
+			{:else if usage}
+				<!-- from before turns said when they began: what it used is all there is to say -->
+				<span title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
+			{/if}
+		</div>
 	</div>
 {/snippet}
 
@@ -342,7 +369,7 @@
 							</p>
 						{:else}
 							{@const lastText = block.parts.findLastIndex((part) => part.kind === 'text')}
-							{@const live = running && i === blocks.length - 1}
+							{@const live = running && !block.changes && i === blocks.length - 1}
 							{@const last = block.parts.at(-1)}
 							{@const hiddenCount = live
 								? 0
@@ -372,7 +399,7 @@
 									{/if}
 								{/each}
 								{#if ending && last?.kind !== 'text'}
-									<div class="-mt-2">{@render byline(ending.reply, '', ending.latest)}</div>
+									<div>{@render byline(ending.reply, '', ending.latest)}</div>
 								{/if}
 							</AgentMessage>
 						{/if}

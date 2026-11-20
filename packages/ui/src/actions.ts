@@ -1,27 +1,30 @@
 import type { Changes, CheckCounts, Upstream } from '@geordi/protocol';
 
+export const ACTION_IDS = [
+	'merge-upstream',
+	'commit',
+	'create-pull',
+	'update-pull',
+	'resolve-conflicts',
+	'fix-checks',
+	'address-review',
+	'enable-auto-merge',
+	'cancel-auto-merge',
+	'ready-for-review',
+	'merge-pull',
+	'restore-worktree',
+	'retry',
+	'continue',
+	'archive'
+] as const;
+
 /**
  * What could or should happen next in a workspace (FDR-003), worked out from where its
  * changes and its pull request stand. Most actions are a message to the workspace's agent;
  * merging and archiving are things Geordi does itself.
  */
 export type WorkspaceAction = {
-	id:
-		| 'merge-upstream'
-		| 'commit'
-		| 'create-pull'
-		| 'update-pull'
-		| 'resolve-conflicts'
-		| 'fix-checks'
-		| 'address-review'
-		| 'enable-auto-merge'
-		| 'cancel-auto-merge'
-		| 'ready-for-review'
-		| 'merge-pull'
-		| 'restore-worktree'
-		| 'retry'
-		| 'continue'
-		| 'archive';
+	id: (typeof ACTION_IDS)[number];
 	label: string;
 	incomingCommits?: number;
 	/** An Iconify class. */
@@ -36,6 +39,12 @@ export type WorkspaceAction = {
 	/** An alternative to the next step rather than the next step itself: offered beside it, quietly. */
 	aside?: boolean;
 };
+
+/**
+ * What a workspace is busy with, as its sidebar row shows it: an action under way, its agent
+ * at work, or a pull request that its forge merges by itself once nothing stands in its way.
+ */
+export type ActivityId = WorkspaceAction['id'] | 'working' | 'auto-merge';
 
 type State = {
 	/** `null` while unknown (no daemon, or not asked yet). */
@@ -159,12 +168,16 @@ function nextActions(state: State): WorkspaceAction[] {
 		icon: 'icon-[lucide--archive]'
 	};
 	// Its work has landed (or was given up): the workspace is done with, unless there is
-	// more to do in it. Then it carries on, on a fresh branch.
-	if (pull.state === 'merged' || pull.state === 'closed')
-		return [
-			{ id: 'continue', label: 'Continue', icon: 'icon-[lucide--git-branch-plus]', aside: true },
-			archive
-		];
+	// more to do in it. Then it carries on, on a fresh branch. Work begun since (an agent
+	// may start a turn unasked) has only that way to go: it comes along.
+	if (pull.state === 'merged' || pull.state === 'closed') {
+		const carryOn: WorkspaceAction = {
+			id: 'continue',
+			label: 'Continue',
+			icon: 'icon-[lucide--git-branch-plus]'
+		};
+		return uncommitted ? [carryOn] : [{ ...carryOn, aside: true }, archive];
+	}
 
 	const number = `pull request #${pull.number}`;
 	const actions: WorkspaceAction[] = [];
@@ -319,6 +332,9 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		return null;
 	}
 
+	// new work on a branch that is done with: that, not where the old work went, is the news
+	if (uncommitted && (pull.state === 'merged' || pull.state === 'closed'))
+		return todo('Uncommitted changes');
 	if (pull.state === 'merged')
 		return { label: 'Merged', tone: 'merged', icon: 'icon-[lucide--git-merge]' };
 	if (pull.state === 'closed')

@@ -4,7 +4,7 @@
 	import type { Workspace } from '#lib/server/workspaces.ts';
 	import { draft } from '#lib/drafts.svelte.ts';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
-	import { toBlocks } from '#lib/transcript.ts';
+	import { toBlocks, type TurnChanges } from '#lib/transcript.ts';
 	import WithMessageImages from '#lib/components/WithMessageImages.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { AgentCommand } from '@geordi/protocol';
@@ -30,10 +30,12 @@
 		workspace,
 		waiting = false,
 		senders,
+		onopenturn,
 		onopensubagent
 	}: {
 		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>;
 		waiting?: boolean;
+		onopenturn?: (changes: TurnChanges) => void;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
 	} = $props();
@@ -106,6 +108,7 @@
 			pictures={resolve('/workspaces/[id]/picture', { id: workspace.id })}
 			{senders}
 			{onopensubagent}
+			{onopenturn}
 			queue={workspace.queue}
 			queueImages={workspace.attachments.queue}
 			onremove={(index, text, images) =>

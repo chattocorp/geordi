@@ -9,12 +9,14 @@ import {
 	realpathSync,
 	rmSync,
 	symlinkSync,
+	utimesSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
+import { startTurnDiff } from './turn-diff.ts';
 import { removeWorktree } from './remove.ts';
 import {
 	branchOf,
@@ -283,6 +285,9 @@ describe('ensureWorktree', () => {
 describe('changes', () => {
 	it('reports committed, uncommitted and untracked changes against the fork point', async () => {
 		const repoPath = repo();
+		const pixels = Buffer.from('524946460000000057454250ff', 'hex');
+		const picture = { mediaType: 'image/webp', data: pixels.toString('base64') };
+		writeFileSync(join(repoPath, 'original.webp'), pixels);
 		writeFileSync(join(repoPath, 'kept.txt'), 'one\ntwo\n');
 		execFileSync('git', ['-C', repoPath, 'add', '.']);
 		execFileSync('git', [
@@ -322,6 +327,11 @@ describe('changes', () => {
 		});
 		expect(await versions(worktree, origin, 'new.txt')).toEqual({ old: null, new: 'x\ny\n' });
 		expect(await versions(worktree, origin, 'committed.txt')).toEqual({ old: null, new: 'a\n' });
+
+		writeFileSync(join(worktree.path, 'sample.webp'), pixels);
+		expect(await versions(worktree, origin, 'sample.webp')).toEqual({ old: null, new: picture });
+		rmSync(join(worktree.path, 'original.webp'));
+		expect(await versions(worktree, origin, 'original.webp')).toEqual({ old: picture, new: null });
 
 		// deleted, and binary
 		rmSync(join(worktree.path, 'kept.txt'));
@@ -618,7 +628,18 @@ describe('status', () => {
 
 		git('add', 'a.txt');
 		git('commit', '-qm', 'a');
-		expect(await status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: null });
+		writeFileSync(join(worktree.path, 'a.txt'), 'staged edit\n');
+		git('add', 'a.txt');
+		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
+		expect(await status(worktree, origin)).toMatchObject({
+			uncommitted: 2,
+			unpushed: null
+		});
+		git('restore', '--staged', 'a.txt');
+		expect(await status(worktree, origin)).toMatchObject({
+			uncommitted: 1,
+			unpushed: null
+		});
 
 		// pushed, as far as this machine knows: the remote-tracking branch is where we are
 		const remote = 'refs/remotes/origin/geordi/abcdefgh';
@@ -755,6 +776,36 @@ describe('Continue checkout', () => {
 	});
 });
 
+it('carries uncommitted changes onto the new branch, or moves nothing where they do not fit', async () => {
+	const repoPath = repo();
+	const run = (cwd: string, ...args: string[]) =>
+		execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+			encoding: 'utf8'
+		}).trim();
+	writeFileSync(join(repoPath, 'shared.txt'), 'as it started\n');
+	run(repoPath, 'add', '.');
+	run(repoPath, 'commit', '-qm', 'a file to change');
+	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+
+	// work begun after the branch landed: an edit, and a new file
+	writeFileSync(join(worktree.path, 'shared.txt'), 'edited since\n');
+	writeFileSync(join(worktree.path, 'new.txt'), 'new\n');
+	const branch = await continueOn(worktree, repoPath);
+	expect(branchOf(worktree)).toBe(branch);
+	expect(readFileSync(join(worktree.path, 'shared.txt'), 'utf8')).toBe('edited since\n');
+	expect(readFileSync(join(worktree.path, 'new.txt'), 'utf8')).toBe('new\n');
+	expect((await uncommittedFiles(worktree)).sort()).toEqual(['new.txt', 'shared.txt']);
+
+	// the same file changed where work starts, too: the edit has no place there
+	writeFileSync(join(repoPath, 'shared.txt'), 'changed on main\n');
+	run(repoPath, 'commit', '-qam', 'change it on main');
+	await expect(continueOn(worktree, repoPath)).rejects.toThrow('shared.txt');
+	expect(branchOf(worktree)).toBe(branch);
+	expect(readFileSync(join(worktree.path, 'shared.txt'), 'utf8')).toBe('edited since\n');
+	expect(run(repoPath, 'branch', '--list', worktree.branch + '-3')).toBe('');
+});
+
 it('abandons a continuation if a turn starts while the branch is being made', async () => {
 	const repoPath = repo();
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
@@ -795,5 +846,65 @@ it('runs Git once for a burst of identical changes requests and reads again afte
 	} finally {
 		if (original === undefined) delete process.env.GIT_TRACE2_EVENT;
 		else process.env.GIT_TRACE2_EVENT = original;
+	}
+});
+
+it('sees an edit of the same size in the same second as the index', async () => {
+	const repoPath = repo();
+	const base = mkdtempSync(join(tmpdir(), 'geordi-turn-'));
+	try {
+		const wt = await ensureWorktree(base, repoPath, '12345678');
+		const file = join(wt.path, 'example');
+		// file and index from the same second: Git can tell the file apart only by reading it
+		const second = new Date('2026-11-19T12:00:00Z');
+		writeFileSync(file, 'before\n');
+		utimesSync(file, second, second);
+		execFileSync('git', ['-C', wt.path, 'add', 'example']);
+		utimesSync(join(wt.adminDir, 'index'), second, second);
+		const finish = startTurnDiff(wt, base);
+		writeFileSync(file, 'during\n');
+		utimesSync(file, second, second);
+		expect(finish()?.patch).toContain('-before\n+during');
+	} finally {
+		rmSync(base, { recursive: true, force: true });
+		rmSync(repoPath, { recursive: true, force: true });
+	}
+});
+
+it('captures net changes across a commit without staging files or including earlier edits', async () => {
+	const repoPath = repo();
+	const base = mkdtempSync(join(tmpdir(), 'geordi-turn-'));
+	try {
+		const wt = await ensureWorktree(base, repoPath, '12345678');
+		const write = (name: string, text: string) => writeFileSync(join(wt.path, name), text);
+		const git = (...args: string[]) =>
+			execFileSync('git', ['-C', wt.path, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8'
+			});
+		write('existing', 'before\n');
+		write('untouched', 'already dirty\n');
+		write('.gitignore', 'ignored\n');
+		git('add', 'existing');
+		const finish = startTurnDiff(wt, base);
+		write('existing', 'after\n');
+		git('add', 'existing');
+		git('commit', '-qm', 'change');
+		write('added', 'one\ntwo\n');
+		write('ignored', 'excluded');
+		const diff = finish();
+		expect(diff).toMatchObject({
+			files: [{ path: 'added' }, { path: 'existing' }],
+			added: 3,
+			removed: 1
+		});
+		expect(diff?.patch).toContain('-before\n+after');
+		expect(git('diff', '--cached', '--name-only')).toBe('');
+		expect(startTurnDiff(wt, base)()).toBeUndefined();
+		const large = startTurnDiff(wt, base);
+		write('large', 'lots of text\n'.repeat(30000));
+		expect(large()).toMatchObject({ files: [{ path: 'large' }], added: 30000, tooLarge: true });
+	} finally {
+		rmSync(base, { recursive: true, force: true });
+		rmSync(repoPath, { recursive: true, force: true });
 	}
 });

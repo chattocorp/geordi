@@ -1,5 +1,49 @@
 # Geordi Changelog
 
+## 0.8.0-beta.0
+
+### Fixes
+
+- Your background task widget uses smaller text and simpler rows. Icons identify terminal and subagent tasks. The header has no spinner or hover highlight. ([#260](https://github.com/chattocorp/geordi/pull/260))
+- You can expand or collapse a repository from its icon in the sidebar. Select its name to open the repository. ([#262](https://github.com/chattocorp/geordi/pull/262))
+- The Run menu shows stopped jobs by name. ([#259](https://github.com/chattocorp/geordi/pull/259))
+- A workspace's branch and pull request state now reaches you sooner and stays in step everywhere. A merge, a push, a new pull request, auto-merge or marking a draft ready shows at once, in the sidebar as in the open workspace, which now always say the same. Changed files keep showing while the forge is slow or cannot be reached, the sidebar fills in faster after a restart, and a quiet sign beside the ribbon tells you when the forge could not be asked and you are looking at what was last known. ([#256](https://github.com/chattocorp/geordi/pull/256))
+- Suggested replies appear as plain text inside your empty composer. Click the text to send it, or click the pencil to edit it first. ([#257](https://github.com/chattocorp/geordi/pull/257))
+- Merging a pull request in a repository whose mise configuration sets environment variables no longer fails its release check with a mise trust error. ([#264](https://github.com/chattocorp/geordi/pull/264))
+- When an agent starts new work after you merged its pull request, the workspace now says "Uncommitted changes" instead of "Merged", and Continue takes those changes along onto the fresh branch. ([#253](https://github.com/chattocorp/geordi/pull/253))
+- You can click the full sidebar action pill, including its padding. A checkmark briefly replaces the action icon when you click. ([#261](https://github.com/chattocorp/geordi/pull/261))
+
+### Features
+
+- Review the files and lines changed during one agent turn from its reply. Open the numbered turn tab to review or fold each file’s diff. ([#265](https://github.com/chattocorp/geordi/pull/265))
+- You can browse cards for open pull requests and issues on a repository page, open a linked workspace, and start a workspace from an issue. ([#254](https://github.com/chattocorp/geordi/pull/254))
+
+## 0.7.0
+
+### Fixes
+
+- A workspace whose repository is on a forge Geordi has no access to yet (a self-hosted Gitea, GitLab or Forgejo) now says **Forge not set up**, and links to how to set it up, instead of showing no way to open a pull request. ([#223](https://github.com/chattocorp/geordi/pull/223))
+- Long paths in the changes list now fit narrow panes: folders shorten to their first letters, the outermost first, so file names stay readable. Their slashes are fainter, so the folder names read as words. ([#237](https://github.com/chattocorp/geordi/pull/237))
+- Repositories without an icon of their own no longer fill the console with failed requests. ([#243](https://github.com/chattocorp/geordi/pull/243))
+- Your agent’s reply stays in one message when an earlier tool finishes while the agent is writing. ([#239](https://github.com/chattocorp/geordi/pull/239))
+
+### Features
+
+- Hover over a workspace or focus it with the keyboard to merge its pull request, resolve conflicts, address review feedback, fix failing checks, or archive finished work directly from the sidebar. The action fades into view and respects your reduced-motion preference. ([#233](https://github.com/chattocorp/geordi/pull/233))
+- You can scroll through long lists of pull request checks and see how long each running check has been active. Yellow check icons now pulse gently. ([#240](https://github.com/chattocorp/geordi/pull/240))
+- Hover tips now fade in and out. ([#249](https://github.com/chattocorp/geordi/pull/249))
+- Selecting another changed file reuses your workspace’s diff tab and updates its title to the filename. ([#242](https://github.com/chattocorp/geordi/pull/242))
+- Hover over the context meter in the reply box to see how much of your Claude or Codex subscription's usage limits you have used, and when each limit resets. ([#249](https://github.com/chattocorp/geordi/pull/249))
+- Edit a change note directly in the Changeset tab. ([#246](https://github.com/chattocorp/geordi/pull/246))
+- Inside the composer, click the suggested reply with the lightbulb to send it, or select the pencil inside the suggestion to edit it. Long suggestions scroll while you keep access to the reply field. ([#235](https://github.com/chattocorp/geordi/pull/235))
+- Press Tab in the composer to copy a suggested reply into the text field for editing. ([#238](https://github.com/chattocorp/geordi/pull/238))
+- When you merge a PR or enable auto-merge, Geordi shows which packages would move to a higher release level and asks you to confirm. The Changeset tab and merge checks support Sweet Release and Changesets. ([#241](https://github.com/chattocorp/geordi/pull/241))
+- Start a project to have an agent orchestrate your other agents: choose **New project** where you pick the repository for a new workspace. A project belongs to no repository; its agent starts agents in whichever repositories the work needs, and keeps track of them for you. ([#201](https://github.com/chattocorp/geordi/pull/201))
+- You can now download Geordi as a Linux x64 AppImage. ([#236](https://github.com/chattocorp/geordi/pull/236))
+- Browse archived conversations in the sidebar and restore a workspace to continue on its branch. ([#247](https://github.com/chattocorp/geordi/pull/247))
+- Type @ and a few letters in a prompt or reply to find a repository file. For example, @msgcomp matches MessageComposer.svelte. Each row highlights the matching letters and shows the file name beside its folder. Choose a file to insert its path. Large repositories are searched on the daemon so the picker receives only the best 40 matches. When you add, rename, or delete a file, the daemon updates the affected paths in its index. On macOS, your first file search after a daemon restart reuses the saved index and picks up changes made while Geordi was closed. Build output in ignored directories can change in bulk while you keep searching. You can keep typing or send your message while file matches load. ([#252](https://github.com/chattocorp/geordi/pull/252))
+- You can try the Geordi workspace on the website. Send a demo reply, expand tool calls, switch between file diffs, and open the pull request to inspect its checks. Replies stay in the demo. ([#248](https://github.com/chattocorp/geordi/pull/248))
+
 ## 0.6.1
 
 ### Fixes

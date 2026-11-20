@@ -11,6 +11,12 @@
 
 	const { Story } = defineMeta({ title: 'Geordi/Transcript' });
 
+	// Wait for the lazy parser before timing assertions about the rendered patch.
+	async function loadDiffParser() {
+		await import('@pierre/diffs');
+		return {};
+	}
+
 	const openDiff = fn();
 	const openSource = fn();
 	const reply = [
@@ -292,6 +298,7 @@
 -->
 <Story
 	name="Edits"
+	loaders={[loadDiffParser]}
 	asChild
 	play={async ({ canvas, canvasElement }) => {
 		await userEvent.click(canvas.getByText('Tools'));
@@ -308,4 +315,26 @@
 	}}
 >
 	<div class="max-w-2xl"><ToolGroup {workspace} {PatchView} tools={edits} cwd="/work" /></div>
+</Story>
+
+<Story
+	name="Turn review files"
+	loaders={[loadDiffParser]}
+	asChild
+	play={async ({ canvasElement }) => {
+		await waitFor(() => expect(canvasElement.querySelectorAll('details[open]')).toHaveLength(2));
+		const [first, second] = canvasElement.querySelectorAll('details');
+		await userEvent.click(first.querySelector('summary')!);
+		await expect(first.open).toBe(false);
+		await expect(second.open).toBe(true);
+	}}
+>
+	<PatchView
+		collapsible
+		cwd="/work"
+		diff={{
+			files: [...edits[0].diff.files, ...edits[1].diff.files],
+			patch: edits[0].diff.patch! + edits[1].diff.patch!
+		}}
+	/>
 </Story>

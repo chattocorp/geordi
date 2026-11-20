@@ -1,7 +1,7 @@
 # FDR-003: Workspace actions
 
 **Status:** Active
-**Last reviewed:** 2026-11-19
+**Last reviewed:** 2026-11-20
 
 ## Overview
 
@@ -22,6 +22,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
   | The pull request is an open GitHub draft                                                                 | Ready for review |
   | The pull request is open, its checks pass (or it has none), it is not a draft, and nothing above applies | Merge PR         |
   | The pull request is merged or closed                                                                     | Archive          |
+  | The pull request is merged or closed, and there are uncommitted changes                                  | Continue         |
 
 - When the base branch has known commits that the workspace does not contain, the ribbon offers **Sync** beside its next step. Detection uses the base branch as last fetched (or the parent branch for a child workspace). The action is not offered for completed work or a failed turn.
 - Sync is done by Geordi itself where git can do it alone: no agent is at work in the workspace, nothing is uncommitted, and the two don't conflict. It fetches, then fast-forwards the branch, or makes a merge commit where the branch has commits of its own; it never rebases. In every other case it asks the agent to fetch, merge the base branch, preserve uncommitted work, resolve conflicts, and run checks; that message can be queued while the agent works.
@@ -33,6 +34,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 - Archive checks the workspace and its descendants. It opens a dialog only for active agents, running processes, or unfinished Git work (FDR-001). It is also always available as a quiet button, not only when it is the obvious next step.
 - Nothing is offered while Geordi doesn't know the workspace's changes (no daemon connected).
 - A workspace whose own commits are all in the branch it started from, with no pull request to say so (an agent's work, merged by the agent that started it), stands as merged, and can be archived.
+- The sidebar uses one activity icon per workspace. A green branch shows a merge, a red wrench shows a repair, and a purple tray shows an archive. The symbol stays visible when you move the pointer away. With reduced motion, the same shapes and labels identify each action. A spinner shows an active agent turn. Background jobs can keep running after the turn ends, so their status appears in the workspace terminal tabs.
 - Every action has a status beside it. A pushed branch awaiting a pull request shows **Branch pushed** beside **Create PR**. When **Sync** is the only action and no pull request is known, the status is **Behind base branch**.
 - An agent's turn that failed comes before everything else: the workspace says so, and offers to have the agent carry on.
 - While an agent is at work in the workspace, committing and opening or updating a pull request are not offered: the work is not done. One that was asked for before stays, shown as under way.

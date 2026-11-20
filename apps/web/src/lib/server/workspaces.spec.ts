@@ -474,6 +474,22 @@ describe('workspaces', () => {
 		expect(sent[1]).toMatchObject({ type: 'agent.message', resumeId: 'thread-1', prompt: 'Two' });
 	});
 
+	it('keeps action identity through a queued repair, a forge restart and the end of the turn', () => {
+		const { workspaces, store, repos, dispatch, create } = setup();
+		const id = create('Investigate');
+		workspaces.send(id, 'Skip this');
+		workspaces.send(id, 'Repair', null, [], 'fix-checks');
+		expect(workspaces.summary(id).activeAction).toBeUndefined();
+		workspaces.dequeue(id, 0, 'Skip this');
+		const restored = createWorkspaces(store, repos, dispatch);
+		restored.record(id, { kind: 'turn.completed' });
+		expect(restored.summary(id).activeAction).toBe('fix-checks');
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.summary(id).activeAction).toBe('fix-checks');
+		replay.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		expect(replay.summary(id).activeAction).toBeUndefined();
+	});
+
 	it('queues messages sent while the agent works, and sends them one turn at a time', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');

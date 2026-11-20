@@ -86,6 +86,18 @@ describe('renderMarkdown', () => {
 		);
 	});
 
+	it('resolves document links and pictures from the Markdown file', () => {
+		const options = { documentPath: 'docs/guide/start.md', pictures: '/picture?file' };
+		expect(renderMarkdown('[Read](../notes.md)', options)).toContain('data-source="docs/notes.md"');
+		expect(renderMarkdown('![Logo](img/logo.png)', options)).toContain(
+			'path=docs%2Fguide%2Fimg%2Flogo.png'
+		);
+		expect(renderMarkdown('![Outside](../../../secret.png)', options)).not.toContain('<img');
+		expect(renderMarkdown('![Remote](https://example.org/logo.png)', options)).not.toContain(
+			'<img'
+		);
+	});
+
 	it('highlights known languages for both themes', () => {
 		const html = renderMarkdown('```ts\nconst a = 1;\n```');
 		expect(html).toContain('--shiki-light');

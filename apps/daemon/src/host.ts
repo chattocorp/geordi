@@ -17,6 +17,7 @@
  * The CLI is ended when it has had nothing to do for a while (it is started again, where it
  * left off, with the next message), but never while it has something running.
  */
+import { startTurnDiff } from './turn-diff.ts';
 import { signalTree } from './session-process.ts';
 import { linesFrom } from './journal.ts';
 import { spawn } from 'node:child_process';
@@ -160,13 +161,28 @@ let unstoppable: NodeJS.Timeout | undefined;
 
 const stopped = () => stopping || existsSync(file('stopped'));
 
+let finishDiff: ReturnType<typeof startTurnDiff> | undefined;
+
 function emit(event: HostEvent) {
 	if (event.kind === 'turn.started') {
 		if (open) return;
 		open = true;
+		if (options.worktree)
+			safely('could not capture turn start', () => {
+				finishDiff = startTurnDiff(options.worktree!, dir);
+			});
 	} else if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
 		if (!open) return;
 		if (event.kind === 'turn.failed' && stopped()) event = { ...event, error: 'Stopped' };
+		const capture = finishDiff;
+		finishDiff = undefined;
+		if (capture) {
+			const ending = event;
+			safely('could not capture turn changes', () => {
+				const diff = capture();
+				if (diff) event = { ...ending, diff };
+			});
+		}
 		open = stopping = false;
 		clearTimeout(unstoppable);
 	}

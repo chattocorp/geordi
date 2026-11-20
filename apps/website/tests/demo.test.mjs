@@ -17,11 +17,11 @@ after(async () => {
 	await Promise.all([browser?.close(), server?.stop()]);
 });
 
-async function openDemo(t, javaScriptEnabled) {
+async function openDemo(t, javaScriptEnabled, width = 1440) {
 	const page = await browser.newPage({
 		javaScriptEnabled,
 		reducedMotion: 'reduce',
-		viewport: { width: 1440, height: 1000 }
+		viewport: { width, height: 1000 }
 	});
 	t.after(() => page.close());
 	await page.goto(`http://127.0.0.1:${server.port}/`);
@@ -59,6 +59,22 @@ test('open changed files, revisit a diff, and inspect pull request #412', async 
 	await expect(pull.getByText('Sign-in redirect tests')).toBeVisible();
 });
 
+test('phone title bars contain the pull request and next action', async (t) => {
+	const demo = await openDemo(t, true, 320);
+	await expect(demo.getByRole('textbox')).toBeEnabled();
+	const header = demo.locator('header');
+	const bounds = await header.boundingBox();
+	for (const name of ['#412', 'Archive']) {
+		const box = await header.getByRole('button', { name, exact: true }).boundingBox();
+		expect(box.y).toBeGreaterThanOrEqual(bounds.y);
+		expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+		expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+		expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+	}
+	await header.getByRole('button', { name: '#412' }).click();
+	await expect(demo.getByRole('tab', { name: /#412/ })).toHaveAttribute('aria-selected', 'true');
+});
+
 test('the conversation, changed files, and diff are readable without JavaScript', async (t) => {
 	const demo = await openDemo(t, false);
 	const chat = demo.getByRole('tabpanel', { name: 'Claude' });
@@ -77,8 +93,9 @@ test('a link to the site is shown with a picture', async (t) => {
 	await page.goto(`http://127.0.0.1:${server.port}/`);
 	const meta = (property) => page.locator(`meta[property="og:${property}"]`);
 	await expect(meta('url')).toHaveAttribute('content', 'https://geordi.run/');
-	await expect(meta('image:width')).toHaveAttribute('content', '2400');
-	await expect(meta('image:height')).toHaveAttribute('content', '1260');
+	await expect(meta('description')).toHaveAttribute('content', /^.{1,125}$/);
+	await expect(meta('image:width')).toHaveAttribute('content', '1200');
+	await expect(meta('image:height')).toHaveAttribute('content', '630');
 	// The address is the public one; the file is asked of the server under test.
 	const image = new URL(await meta('image').getAttribute('content'));
 	expect(image.origin).toBe('https://geordi.run');

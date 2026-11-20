@@ -10,7 +10,7 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
-	import { inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
+	import { activeOnDay, inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
@@ -62,6 +62,24 @@
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
 
+	let todayOnly = $state(false);
+	let day = $state('');
+	$effect(() => {
+		if (!todayOnly) return;
+		let timer: ReturnType<typeof setTimeout>;
+		function refreshDay() {
+			const now = new Date();
+			day = now.toDateString();
+			const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+			timer = setTimeout(refreshDay, midnight.getTime() - now.getTime());
+		}
+		refreshDay();
+		return () => clearTimeout(timer);
+	});
+	const visibleWorkspaces = $derived(
+		activeOnDay(nav.current?.workspaces ?? [], todayOnly ? day : null)
+	);
+
 	/** Shows only the repository of the workspace on screen; with that shown alone already, or none on screen, all again. */
 	function toggleFocus() {
 		const repoId = nav.current?.workspaces.find(({ id }) => id === viewed)?.repoId ?? null;
@@ -73,7 +91,7 @@
 		const all = nav.current;
 		if (!all) return;
 		const order = inSidebarOrder(
-			all.workspaces,
+			visibleWorkspaces,
 			inFocus(
 				all.repos.filter((repo) => repo.workspaceCount > 0),
 				focus.current
@@ -128,6 +146,9 @@
 		} else if (pressed(event, 'settings')) {
 			event.preventDefault();
 			openSettings();
+		} else if (pressed(event, 'todayOnly')) {
+			event.preventDefault();
+			if (!event.repeat) todayOnly = !todayOnly;
 		} else if (pressed(event, 'focusRepo')) {
 			event.preventDefault();
 			toggleFocus();
@@ -184,7 +205,15 @@
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
 			<div class="mb-2 ml-2 flex min-h-0 flex-1">
-				<Sidebar {lost} nav={nav.current} path={page.url.pathname} {folded} {focus} />
+				<Sidebar
+					{lost}
+					nav={nav.current}
+					{visibleWorkspaces}
+					path={page.url.pathname}
+					{folded}
+					{focus}
+					{todayOnly}
+				/>
 			</div>
 
 			<!-- A focusable separator is a widget (a splitter), which the a11y check doesn't know. -->

@@ -31,8 +31,7 @@ import { lazy } from './lazy.ts';
 import { createRepos } from './repos.ts';
 import { createTerminals } from './terminals.ts';
 import { webUrl } from '../url.ts';
-import { createUpstreamRefresh } from './upstream-refresh.ts';
-import { createWatchers, type WorktreeLoad } from './watchers.ts';
+import { createWatchers } from './watchers.ts';
 import { createWorkspaces } from './workspaces.ts';
 
 /** The forge's services, wired together. Everything is created on first use. */
@@ -104,62 +103,38 @@ function upstreamOf(ref: WorktreeRef, fresh = false) {
 		});
 }
 
-/** Independent answers let local files and terminals appear while the upstream forge responds. */
-function loadWorktreeState(worktreeId: string, fresh: boolean): WorktreeLoad {
-	const ref = Promise.resolve().then(() => workspaces().ref(worktreeId));
-	return {
-		local: ref.then(changesOf).then(
-			(changes) => ({ changes, unavailable: null, missing: false }),
-			(error) => {
-				const unavailable = reason(error);
-				return { changes: null, unavailable, missing: unavailable === NO_WORKTREE };
-			}
-		),
-		upstream: () => ref.then((ref) => upstreamOf(ref, fresh)),
-		details: () => ({
-			config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
-			release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
-		})
-	};
-}
-
 /**
- * Asks a daemon how a worktree's work stands: its changes, and its branch and pull request
- * on the forge (`null` where there is none, or no telling). Rejects if no daemon can say.
- * `fresh`: as of now, not from what was learnt a moment ago.
- */
-export async function loadStanding(worktreeId: string, fresh = false, keepKnown = false) {
-	const ref = workspaces().ref(worktreeId);
-	const [changes, upstream] = await Promise.all([
-		changesOf(ref),
-		upstreamOf(ref, fresh).catch((error) => {
-			if (keepKnown) throw error;
-			return null;
-		})
-	]);
-	return { changes, upstream };
-}
-
-/**
- * How every workspace in use stands (see `createStandings`): asked about in the background,
+ * How every worktree in use stands (see `createStandings`): asked about in the background,
  * the stalest first, for as long as the forge runs.
  */
 export const standings = lazy(() => {
 	const standings = createStandings({
 		worktrees: () => [
-			...new Set(
-				workspaces()
+			...new Set([
+				...workspaces()
 					.all()
-					.filter((workspace) => workspace.worktree)
-					.map((workspace) => workspace.worktreeId)
-			)
+					// a project has no worktree (FDR-012)
+					.filter((workspace) => workspace.worktree && workspace.repoId !== null)
+					.map((workspace) => workspace.worktreeId),
+				...watchers().ids()
+			])
 		],
-		load: loadStanding,
-		loadUpstream: (id) => upstreamOf(workspaces().ref(id)),
+		loadLocal: (id) =>
+			Promise.resolve()
+				.then(() => changesOf(workspaces().ref(id)))
+				.then(
+					(changes) => ({ changes, unavailable: null, missing: false }),
+					(error) => {
+						const unavailable = reason(error);
+						return { changes: null, unavailable, missing: unavailable === NO_WORKTREE };
+					}
+				),
+		loadUpstream: async (id, fresh) => upstreamOf(workspaces().ref(id), fresh),
 		busy: (id) =>
 			workspaces()
 				.sharing(id)
 				.some((workspace) => workspace.status === 'running'),
+		open: (id) => watchers().isWatched(id),
 		watch: (ids) =>
 			hub().send({
 				type: 'watch',
@@ -172,10 +147,16 @@ export const standings = lazy(() => {
 					}
 				})
 			}),
-		publishUpstream: (id, upstream, branch) => watchers().noteUpstream(id, upstream, branch)
+		// Not while no daemon is there to ask, nor for a worktree that is yet to be made:
+		// neither is a problem with the forge.
+		warn: (id, problem) => {
+			if (hub().connected().length && problem !== NO_WORKTREE)
+				console.warn(`[upstream] could not ask about worktree ${id}: ${problem}`);
+		}
 	});
 	setInterval(() => void standings.tick(), UPSTREAM_TICK_MS).unref();
-	void standings.tick();
+	// not from in here: what it asks (`watchers`) asks for this in turn
+	setImmediate(() => void standings.tick());
 	return standings;
 });
 
@@ -190,7 +171,7 @@ export async function prepareWorktree(id: string) {
 	);
 	// as a daemon says when it makes one for a turn (it goes to whoever owns the worktree)
 	workspaces().record(id, { kind: 'worktree', path, branch });
-	watchers().changed(workspaces().ref(id).worktreeId);
+	void standings().look(workspaces().ref(id).worktreeId);
 }
 
 /**
@@ -218,7 +199,7 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 		error(422, cause instanceof Error ? cause.message : String(cause));
 	}
 	workspaces().continued(id, branch, actor);
-	watchers().changed(workspace.worktreeId, true);
+	void standings().look(workspace.worktreeId, { fresh: true, announce: true });
 }
 
 /**
@@ -234,23 +215,20 @@ export async function updateWorkspace(id: string, prompt: string) {
 		try {
 			const ref = workspaces().ref(id);
 			if (await hub().request({ kind: 'updateWorktree', ...ref }, 90_000)) {
-				watchers().changed(ref.worktreeId);
-				// nobody looking at it: the sidebar still shows how it stands
-				if (!watchers().state(ref.worktreeId)) void standings().refresh(ref.worktreeId);
+				void standings().look(ref.worktreeId);
 				return;
 			}
 		} catch (cause) {
 			// no daemon, no worktree: the agent's turn says what is wrong
 			console.warn(`[update] ${cause instanceof Error ? cause.message : String(cause)}`);
 		}
-	workspaces().send(id, prompt);
+	workspaces().send(id, prompt, null, [], 'merge-upstream');
 }
 
-const refreshUpstream = createUpstreamRefresh(
-	(id) => watchers().refreshUpstream(id),
-	(id) => standings().refresh(id, true)
-);
-
+/**
+ * Something happened that may show upstream, and nothing in the worktree says so: the end
+ * of a turn (agents push, open pull requests, answer reviews), a merge. Looked at as of now.
+ */
 export function upstreamMayHaveChanged(workspaceId: string) {
 	let ref: WorktreeRef;
 	try {
@@ -259,7 +237,7 @@ export function upstreamMayHaveChanged(workspaceId: string) {
 		// A late turn event can refer to a workspace that is gone.
 		return;
 	}
-	refreshUpstream(ref.worktreeId);
+	return standings().look(ref.worktreeId, { fresh: true, announce: true });
 }
 
 /** The jobs repositories have run for their workspaces (FDR-006). */
@@ -275,9 +253,14 @@ export const watchers = lazy(() =>
 	createWatchers(
 		(message) => hub().send(message),
 		(id) => workspaces().ref(id),
-		loadWorktreeState,
-		(id, state) => standings().note(id, state),
-		(id) => standings().get(id)?.upstream,
+		standings(),
+		(id) => {
+			const ref = Promise.resolve().then(() => workspaces().ref(id));
+			return {
+				config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
+				release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
+			};
+		},
 		(id, currentUrl) => {
 			const evidence = workspaces().pullEvidence(id);
 			evidence.linked = evidence.linked.filter((link) => link.url !== currentUrl);
@@ -309,8 +292,6 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.cursor);
-				// At the end of a turn, how things stand upstream may be different: agents push,
-				// open pull requests, answer reviews. None of that shows in the worktree.
 				if (message.event.kind === 'turn.completed' || message.event.kind === 'turn.failed')
 					upstreamMayHaveChanged(message.workspaceId);
 			} else if (message.type === 'terminal.output')
@@ -320,10 +301,7 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 				terminals().ended(message.terminalId, message.status);
 			else if (message.type === 'terminal.opened')
 				terminals().opened(message.terminalId, message.run);
-			else if (message.type === 'worktree.changed') {
-				if (watchers().isWatched(message.worktreeId)) watchers().changed(message.worktreeId);
-				else standings().changed(message.worktreeId);
-			}
+			else if (message.type === 'worktree.changed') standings().changed(message.worktreeId);
 		}
 	})
 );
@@ -338,32 +316,37 @@ export async function concernsAboutArchiving(id: string) {
 		family.map(async (workspace) => {
 			let standing: Standing = { changes: null };
 			if (workspace.worktree && workspace.worktreeId === workspace.id) {
-				try {
-					standing = await loadStanding(workspace.id, true, true);
-				} catch (error) {
-					if (reason(error) !== NO_WORKTREE) throw error;
+				await standings().look(workspace.id, { fresh: true });
+				const known = standings().state(workspace.id);
+				if (known && !known.missing) {
+					if (!known.changes) throw new Error(known.unavailable ?? 'No daemon could say');
+					// where the forge cannot be asked, what was last known of the pull request
+					standing = { changes: known.changes, upstream: known.upstream };
 				}
 			}
 			const concerns = archiveConcerns(standing);
 			const blocked = workspaces().summary(workspace.id).status === 'running';
-			if (blocked) concerns.push('Stop the running agent before archiving.');
-			if (
-				terminals().running(workspace.id).length &&
-				(await hub()
-					.request({ kind: 'terminalActivity', workspaceId: workspace.id })
-					.catch(() => true))
-			)
-				concerns.push('Archiving will stop running terminal processes.');
+			if (blocked) concerns.push('Stop busy agents before archiving.');
+			const active = terminals().running(workspace.id).length
+				? await hub()
+						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
+						.catch(() => null)
+				: false;
 			return {
-				concerns:
-					workspace.id === id ? concerns : concerns.map((text) => `“${workspace.title}”: ${text}`),
+				concerns,
+				active,
 				discard: !!standing.changes?.uncommitted,
 				blocked
 			};
 		})
 	);
+	const concerns = [...new Set(previews.flatMap((preview) => preview.concerns))];
+	if (previews.some((preview) => preview.active))
+		concerns.push('Running processes will be stopped.');
+	else if (previews.some((preview) => preview.active === null))
+		concerns.push('Any running terminal processes will be stopped.');
 	return {
-		concerns: previews.flatMap((preview) => preview.concerns),
+		concerns,
 		discard: previews.some((preview) => preview.discard),
 		blocked: previews.some((preview) => preview.blocked)
 	};

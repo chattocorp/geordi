@@ -1,4 +1,4 @@
-import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
+import { actionsFor, PUBLISHING, standingOf, type ActivityId } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
@@ -30,6 +30,9 @@ export const navigation = () =>
 			const all = workspaces().all();
 			const harnesses = hub().harnesses();
 			const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
+			const operations = new Map(
+				Array.from(hub().operations(), ({ worktreeId, action }) => [worktreeId, action])
+			);
 			const listed = withAides(all).map(({ workspace, aides }) => {
 				const { id, title, repoId, parentId, status, worktree } = workspace;
 				const busy = [workspace, ...aides].filter((w) => w.status === 'running');
@@ -38,6 +41,14 @@ export const navigation = () =>
 				// how its work stands, as far as is known: asked about in the background
 				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
 				const pull = known.upstream?.pull;
+				const activeAction: ActivityId | undefined =
+					operations.get(workspace.worktreeId) ??
+					busy.find(
+						(member) =>
+							!member.asking && !(member.pendingDelivery && !harnesses) && member.activeAction
+					)?.activeAction ??
+					// the forge merges it by itself once nothing stands in its way: it is being merged
+					(pull?.state === 'open' && pull.autoMerge?.enabled ? 'auto-merge' : undefined);
 				const state = {
 					...known,
 					failed: workspace.lastTurn === 'failed',
@@ -51,6 +62,7 @@ export const navigation = () =>
 					parentId: (parentId && ownerOf.get(parentId)) ?? null,
 					status,
 					working,
+					...(activeAction && { activeAction }),
 					...(waiting && { waiting: true }),
 					outcome: outcome([workspace, ...aides]),
 					standing: standingOf(state),
@@ -87,7 +99,11 @@ export const navigation = () =>
 			};
 		},
 		also: (changed) => {
-			const stops = [standings().subscribe(changed), hub().subscribe(changed)];
+			const stops = [
+				standings().subscribe(changed),
+				hub().subscribe(changed),
+				hub().followOperations(changed)
+			];
 			return () => stops.forEach((stop) => stop());
 		}
 	}) satisfies View<unknown>;

@@ -24,6 +24,17 @@
 @custom-variant desktop (&:where([data-desktop], [data-desktop] *));
 /* In the desktop app on macOS, whose window's buttons sit at the top left. */
 @custom-variant mac (&:where([data-desktop='mac'], [data-desktop='mac'] *));
+/* A row's controls: shown while it is hovered, or keyboard focus is inside it (a `group`). */
+@custom-variant reveal {
+	@media (hover: hover) {
+		&:is(:where(.group):hover *) {
+			@slot;
+		}
+	}
+	&:is(:where(.group):has(:focus-visible) *) {
+		@slot;
+	}
+}
 
 /*
  * Geordi's design system starts here: colour tokens, type and shape (in `@theme`), and
@@ -345,6 +356,23 @@
 /* Where something will be once there is something. */
 @utility empty {
 	@apply rounded-card border border-dashed border-line px-4 py-10 text-center text-muted;
+}
+
+/* Workspace actions and the circles of `StatusCircle` (a workspace's state) share these colours. */
+@utility status-ok {
+	@apply bg-ok/12 text-ok;
+}
+@utility status-danger {
+	@apply bg-danger-soft text-danger;
+}
+@utility status-merged {
+	@apply bg-merged/15 text-merged;
+}
+@utility status-accent {
+	@apply bg-accent-soft text-accent-ink;
+}
+@utility status-neutral {
+	@apply bg-hover text-muted;
 }
 
 /* A status dot. Add `dot-live` while the thing it stands for is working. */

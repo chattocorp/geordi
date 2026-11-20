@@ -284,11 +284,23 @@
 	asChild
 	play={async ({ canvas }) => {
 		const send = canvas.getByRole('button', { name: /Review the failing tests/ });
-		const words = canvas.getByText(longSuggestion.replace(/\s+/g, ' '));
-		await expect(words.textContent).toBe(longSuggestion);
-		await expect(words.scrollHeight).toBeLessThanOrEqual(words.clientHeight + 1);
-		await expect(words.getBoundingClientRect().right).toBeLessThanOrEqual(
-			send.getBoundingClientRect().right
+		await expect(send.textContent).toBe(longSuggestion);
+		const lastLine = Array.from(send.getClientRects()).at(-1)!;
+		const pen = canvas
+			.getByRole('button', { name: 'Edit suggested reply' })
+			.querySelector('span')!
+			.getBoundingClientRect();
+		await expect(pen.left).toBeGreaterThanOrEqual(lastLine.right);
+		const lift = lastLine.top + lastLine.height / 2 - (pen.top + pen.height / 2);
+		await expect(lift).toBeGreaterThan(2);
+		await expect(lift).toBeLessThan(4);
+		const text = canvas.getByRole('textbox');
+		await expect(text).toHaveAttribute('placeholder', '');
+		await expect(send.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+			text.getBoundingClientRect().top
+		);
+		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			text.getBoundingClientRect().bottom
 		);
 	}}
 >
@@ -315,18 +327,17 @@
 		const send = canvas.getByRole('button', { name: 'Send' });
 		const pane = canvas.getByTestId('conversation-pane');
 		await expect(canvas.getByRole('textbox').closest('form')).toContainElement(prompt);
-		await expect(prompt.scrollHeight).toBeGreaterThan(prompt.clientHeight);
+		const group = canvas.getByRole('group', { name: 'Suggested reply' });
+		await expect(group.scrollHeight).toBeGreaterThan(group.clientHeight);
 		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
 			pane.getBoundingClientRect().bottom
 		);
 		const edit = canvas.getByRole('button', { name: 'Edit suggested reply' });
-		const editTop = edit.getBoundingClientRect().top;
-		prompt.scrollTop = prompt.scrollHeight;
-		await expect(edit.getBoundingClientRect().top).toBe(editTop);
-		await expect(prompt.scrollTop + prompt.clientHeight).toBeGreaterThanOrEqual(
-			prompt.scrollHeight - 1
+		group.scrollTop = group.scrollHeight;
+		await expect(edit.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			group.getBoundingClientRect().bottom + 1
 		);
-		prompt.scrollTop = 0;
+		group.scrollTop = 0;
 	}}
 >
 	<div data-testid="conversation-pane" class="flex h-64 max-w-sm flex-col">
@@ -512,13 +523,19 @@
 		const text = canvas.getByRole('combobox');
 		const pending = Promise.withResolvers<{ path: string; indices: number[] }[]>();
 		sentSuggestion.mockClear();
-		await userEvent.type(text, '@a');
+		slowFiles.mockClear();
+		await userEvent.type(text, '@');
+		await new Promise((resolve) => setTimeout(resolve, 550));
+		await expect(slowFiles).not.toHaveBeenCalled();
+		await expect(text).toHaveAttribute('aria-expanded', 'false');
+		await userEvent.type(text, 'a', { skipClick: true });
 		const first = await canvas.findByRole('option', { name: 'a.ts' });
 		slowFiles.mockImplementationOnce(() => pending.promise);
 		try {
 			await userEvent.type(text, 'b');
 			await expect(first).toBeVisible();
 			await expect(first).toHaveAttribute('aria-disabled', 'true');
+			await expect(first.querySelector('.icon-\\[lucide--corner-down-left\\]')).toBeVisible();
 			await userEvent.click(first);
 			await expect(text).toHaveValue('@ab');
 			await userEvent.keyboard('{Enter}');

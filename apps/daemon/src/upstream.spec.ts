@@ -108,15 +108,15 @@ describe('summarise', () => {
 describe('upstream', () => {
 	afterEach(() => vi.unstubAllEnvs());
 
-	async function workspace(remote?: string) {
+	async function workspace(remote?: string, worktreeId = 'abcdefgh-1') {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-up-')));
 		const git = (...args: string[]) => execFileSync('git', ['-C', repoPath, ...args]);
 		git('init', '-q');
 		git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
 		if (remote) git('remote', 'add', 'origin', remote);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
-		return { worktree, ref: { repoPath, worktreeId: 'abcdefgh-1' } };
+		const worktree = await ensureWorktree(base, repoPath, worktreeId);
+		return { worktree, ref: { repoPath, worktreeId } };
 	}
 
 	/**
@@ -188,11 +188,28 @@ describe('upstream', () => {
 
 	/**
 	 * A GitHub with one repository's pull requests: it lists them with a validator, answers
-	 * `304` when they did not change, and reads them in full. `asked` says what it was asked.
+	 * `304` when they did not change, finds them by branch and reads them in full. `asked`
+	 * says what it was asked. `paged`: its pull requests are older than the
+	 * listing's first page, which holds another branch's. `held`: the listing is answered
+	 * once it settles.
 	 */
 	function fakeGitHub() {
-		type Pull = { number: number; state: 'open' | 'closed' | 'merged'; updatedAt: string };
-		const github = { pulls: [] as Pull[], version: 0, limited: false, asked: [] as string[] };
+		type Pull = {
+			number: number;
+			state: 'open' | 'closed' | 'merged';
+			updatedAt: string;
+			branch?: string;
+			mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+		};
+		const github = {
+			pulls: [] as Pull[],
+			version: 0,
+			limited: false,
+			broken: false,
+			paged: false,
+			held: null as Promise<unknown> | null,
+			asked: [] as string[]
+		};
 		const branch = 'geordi/abcdefgh';
 		const rest = (pull: Pull) => ({
 			number: pull.number,
@@ -203,7 +220,11 @@ describe('upstream', () => {
 			updated_at: pull.updatedAt,
 			created_at: pull.updatedAt,
 			user: { login: 'agent' },
-			head: { ref: branch, sha: 'abc', repo: { full_name: 'acme/widgets', name: 'widgets' } },
+			head: {
+				ref: pull.branch ?? branch,
+				sha: 'abc',
+				repo: { full_name: 'acme/widgets', name: 'widgets' }
+			},
 			base: { ref: 'main' }
 		});
 		const respond = async (input: string | URL | Request, init?: RequestInit) => {
@@ -215,6 +236,10 @@ describe('upstream', () => {
 					{ message: 'API rate limit exceeded' },
 					{ status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset } }
 				);
+			}
+			if (github.broken) {
+				github.asked.push('refused');
+				return Response.json({ message: 'Bad credentials' }, { status: 401 });
 			}
 			const single = /\/pulls\/(\d+)$/.exec(url.pathname);
 			const pull =
@@ -238,10 +263,40 @@ describe('upstream', () => {
 					return new Response(null, { status: 304, headers: { etag } });
 				}
 				github.asked.push('list');
-				return Response.json(github.pulls.map(rest), { headers: { etag } });
+				await github.held;
+				const next = '<https://api.github.com/repos/acme/widgets/pulls?page=2>; rel="next"';
+				const other = {
+					number: 1,
+					state: 'closed',
+					updatedAt: '2026-11-19T00:00:00Z',
+					branch: 'other'
+				} as const;
+				return Response.json(github.paged ? [rest(other)] : github.pulls.map(rest), {
+					headers: { etag, ...(github.paged && { link: next }) }
+				});
 			}
 			if (url.pathname === '/graphql') {
-				const { variables } = JSON.parse(String(init?.body));
+				const { operationName, variables } = JSON.parse(String(init?.body));
+				if (operationName === 'BranchPulls') {
+					github.asked.push('find');
+					const data = Object.fromEntries(
+						Object.entries(variables)
+							.filter(([name]) => name.startsWith('b'))
+							.map(([name, wanted]) => {
+								const nodes = github.pulls
+									.filter((pull) => (pull.branch ?? branch) === wanted)
+									.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+									.map((pull) => ({
+										number: pull.number,
+										state: pull.state.toUpperCase(),
+										headRepositoryOwner: { login: 'acme' },
+										headRepository: { name: 'widgets' }
+									}));
+								return [`r${name.slice(1)}`, { pullRequests: { nodes } }];
+							})
+					);
+					return Response.json({ data });
+				}
 				github.asked.push('read');
 				const data = Object.fromEntries(
 					Object.entries(variables)
@@ -256,8 +311,16 @@ describe('upstream', () => {
 								url: `https://github.com/acme/widgets/pull/${pull.number}`,
 								state: pull.state.toUpperCase(),
 								updatedAt: pull.updatedAt,
-								headRefName: branch,
-								baseRefName: 'main'
+								headRefName: pull.branch ?? branch,
+								baseRefName: 'main',
+								...(pull.mergeable && {
+									mergeable: pull.mergeable,
+									mergeStateStatus: {
+										MERGEABLE: 'CLEAN',
+										CONFLICTING: 'DIRTY',
+										UNKNOWN: 'UNKNOWN'
+									}[pull.mergeable]
+								})
 							};
 							return [`t${name.slice(1)}`, { issueOrPullRequest: node ?? null }];
 						})
@@ -307,7 +370,7 @@ describe('upstream', () => {
 			github.pulls.push({ number: 42, state: 'open', updatedAt: '2026-11-18T10:00:00Z' });
 			const opened = await read(worktree, { ...ref, fresh: true }, 22_001);
 			expect(opened?.pull?.number).toBe('42');
-			expect(github.asked.slice(2)).toEqual(['unchanged', 'search', 'read']);
+			expect(github.asked.slice(2)).toEqual(['unchanged', 'find', 'read']);
 			// unchanged since, it is not read again; a minute on, it is
 			const before = github.asked.length;
 			expect((await read(worktree, ref, 42_000))?.pull?.number).toBe('42');
@@ -322,6 +385,206 @@ describe('upstream', () => {
 			expect(merged?.pull?.state).toBe('merged');
 			expect(merged?.refreshAfterMs).toBe(60_000);
 			expect(await read(worktree, ref, 150_000)).toBe(merged);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	/** A commit on the workspace's branch, pushed: its remote-tracking branch moves there. */
+	function push({ repoPath }: { repoPath: string }, branch = 'geordi/abcdefgh') {
+		const git = (...args: string[]) =>
+			execFileSync('git', ['-C', repoPath, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
+		git('commit', '-q', '--allow-empty', '-m', 'push');
+		git('update-ref', `refs/remotes/origin/${branch}`, 'HEAD');
+	}
+
+	/** A GitHub with an open pull request for the workspace's pushed branch, read once already. */
+	async function opened(pull: Parameters<ReturnType<typeof fakeGitHub>['pulls']['push']>[0]) {
+		const module = await configured();
+		const github = fakeGitHub();
+		github.pulls.push(pull);
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
+		push(ref);
+		const first = await module.upstream(worktree, ref, 1000);
+		expect(first?.pull?.state).toBe('open');
+		github.asked.length = 0;
+		return { ...module, github, worktree, ref, first };
+	}
+
+	it('reads a pull request again after changing it here, whatever the listing says', async () => {
+		const {
+			upstream: read,
+			markReady,
+			github,
+			worktree,
+			ref
+		} = await opened({
+			number: 42,
+			state: 'open',
+			updatedAt: '2026-11-18T10:00:00Z'
+		});
+		try {
+			await markReady(worktree, { ...ref, pullNumber: '42' });
+			// merged meanwhile; the listing has not caught up
+			github.pulls[0].state = 'merged';
+			github.asked.length = 0;
+			const merged = await read(worktree, ref, 2000);
+			expect(merged?.pull?.state).toBe('merged');
+			expect(github.asked).toEqual(['unchanged', 'read']);
+			expect(await read(worktree, ref, 3000)).toBe(merged);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('reads an open pull request again after a push, though the listing says it is unchanged', async () => {
+		const {
+			upstream: read,
+			github,
+			worktree,
+			ref
+		} = await opened({
+			number: 42,
+			state: 'open',
+			updatedAt: '2026-11-18T10:00:00Z'
+		});
+		try {
+			push(ref);
+			await read(worktree, ref, 2000);
+			expect(github.asked).toEqual(['read']);
+			// once read at the new head, it is not again
+			await read(worktree, ref, 12_000);
+			expect(github.asked).toEqual(['read', 'unchanged']);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('keeps what it knew of conflicts while GitHub works it out, and asks again a few times', async () => {
+		const {
+			upstream: read,
+			github,
+			worktree,
+			ref,
+			first
+		} = await opened({
+			number: 42,
+			state: 'open',
+			updatedAt: '2026-11-18T10:00:00Z',
+			mergeable: 'CONFLICTING'
+		});
+		try {
+			expect(first?.pull?.conflicts).toBe(true);
+			// the base moved: GitHub works it out again
+			Object.assign(github.pulls[0], { mergeable: 'UNKNOWN', updatedAt: '2026-11-18T11:00:00Z' });
+			github.version++;
+			const reads = (at: number) => read(worktree, ref, at);
+			expect((await reads(12_000))?.pull?.conflicts).toBe(true);
+			for (const at of [23_000, 34_000, 45_000, 56_000, 67_000]) await reads(at);
+			// read at 12s (a listing in full reads its open pull requests' checks too), and again
+			// at the next three looks; then as usual, a minute on
+			expect(github.asked).toEqual([
+				...['list', 'read', 'read'],
+				...['unchanged', 'read'],
+				...['unchanged', 'read'],
+				...['unchanged', 'read'],
+				...['unchanged', 'unchanged']
+			]);
+			github.pulls[0].mergeable = 'MERGEABLE';
+			expect((await reads(105_000))?.pull?.conflicts).toBe(false);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('finds the pull requests of several branches with one GraphQL request', async () => {
+		// Both look once the listing is in: each asks for it after its own work in Git, which
+		// takes as long as it takes, and only what is asked together goes in one request.
+		let listings = 0;
+		const bothAsked = Promise.withResolvers<void>();
+		vi.doMock('./recent-pulls.ts', async (original) => {
+			const { createRecentPulls } = await original<typeof import('./recent-pulls.ts')>();
+			return {
+				createRecentPulls: () => {
+					const recentPulls = createRecentPulls();
+					return (...args: Parameters<typeof recentPulls>) => {
+						if (++listings === 2) bothAsked.resolve();
+						return recentPulls(...args);
+					};
+				}
+			};
+		});
+		const { upstream: read } = await configured();
+		const github = fakeGitHub();
+		github.paged = true;
+		github.held = bothAsked.promise;
+		github.pulls.push(
+			{ number: 41, state: 'merged', updatedAt: '2026-11-18T09:00:00Z' },
+			{ number: 42, state: 'open', updatedAt: '2026-11-18T08:00:00Z' },
+			{ number: 43, state: 'open', updatedAt: '2026-11-18T10:00:00Z', branch: 'geordi/ijklmnop' }
+		);
+		const one = await workspace('git@github.com:acme/widgets.git');
+		const two = await workspace('git@github.com:acme/widgets.git', 'ijklmnop-1');
+		push(one.ref);
+		push(two.ref, 'geordi/ijklmnop');
+		try {
+			const [a, b] = await Promise.all([
+				read(one.worktree, one.ref, 1000),
+				read(two.worktree, two.ref, 1000)
+			]);
+			// the open one, though another was updated since
+			expect(a?.pull?.number).toBe('42');
+			expect(b?.pull?.number).toBe('43');
+			// a listing in full reads its pull requests' checks; then one look for both branches
+			expect(github.asked).toEqual(['list', 'read', 'find', 'read']);
+		} finally {
+			vi.doUnmock('./recent-pulls.ts');
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('says in the log why a lookup failed, once until it works again', async () => {
+		const { upstream: read } = await configured();
+		const github = fakeGitHub();
+		github.broken = true;
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
+		push(ref);
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			await expect(read(worktree, ref, 1000)).rejects.toThrow();
+			await expect(read(worktree, ref, 2000)).rejects.toThrow();
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(warn.mock.calls[0][0]).toMatch(/^\[upstream\] .*acme\/widgets geordi\/abcdefgh/);
+			github.broken = false;
+			await read(worktree, ref, 3000);
+			github.broken = true;
+			await expect(read(worktree, { ...ref, fresh: true }, 4000)).rejects.toThrow();
+			expect(warn).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+			vi.restoreAllMocks();
+		}
+	});
+
+	it('shares a lookup under way, but not with a call asked to look afresh', async () => {
+		const { upstream: read } = await configured();
+		fakeGitHub();
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
+		push(ref);
+		try {
+			const [a, b, c] = await Promise.all([
+				read(worktree, ref, 1000),
+				read(worktree, ref, 1000),
+				read(worktree, { ...ref, fresh: true }, 1000)
+			]);
+			expect(b).toBe(a);
+			expect(c).not.toBe(a);
 		} finally {
 			vi.unstubAllGlobals();
 			vi.unstubAllEnvs();
@@ -469,6 +732,7 @@ describe('markDraftReady', () => {
 
 	it('rejects a closed pull request or a pull request from another branch before writing', async () => {
 		const provider = github({
+			auth: { type: 'token', token: 'test-token' },
 			fetch: () => {
 				throw new Error('Unexpected request');
 			}

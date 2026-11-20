@@ -10,8 +10,15 @@
 		text,
 		dimmed = false,
 		preserveLineBreaks = false,
-		pictures
-	}: { text: string; dimmed?: boolean; preserveLineBreaks?: boolean; pictures?: string } = $props();
+		pictures,
+		documentPath
+	}: {
+		text: string;
+		dimmed?: boolean;
+		preserveLineBreaks?: boolean;
+		pictures?: string;
+		documentPath?: string;
+	} = $props();
 
 	const files = changedFiles();
 	let content = $state<HTMLElement>();
@@ -19,6 +26,7 @@
 	const html = $derived(
 		renderMarkdown(text, {
 			preserveLineBreaks,
+			documentPath,
 			pictures,
 			root: files?.root,
 			file: files && ((code) => changedFileIn(code, files.paths, files.root))

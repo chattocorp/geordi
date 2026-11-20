@@ -56,7 +56,8 @@ export async function actFromAfar(workspace: Target, action: WorkspaceAction) {
 	}
 	if (action.id === 'merge-upstream' && action.prompt)
 		return updateWorkspace({ workspaceId: workspace.id, prompt: action.prompt });
-	if (action.prompt) return say({ workspaceId: workspace.id, text: action.prompt });
+	if (action.prompt)
+		return say({ workspaceId: workspace.id, text: action.prompt, action: action.id });
 	// restoring a worktree, say: that is done in the workspace
 	return open(workspace.id);
 }

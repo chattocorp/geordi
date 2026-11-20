@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { version } from '../../../package.json';
 	import { onMount } from 'svelte';
 	import AgentAccess from './AgentAccess.svelte';
@@ -175,7 +176,10 @@
 							{#each repos as repo (repo.id)}
 								<li class="flex items-center gap-3 py-2 pr-2 pl-3.5">
 									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-medium">{repo.name}</p>
+										<a
+											href={resolve('/repos/[id]', { id: repo.id })}
+											class="block truncate text-sm font-medium hover:underline">{repo.name}</a
+										>
 										<p class="truncate code-dense text-muted" title={repo.path}>{repo.path}</p>
 									</div>
 									{#if repo.workspaceCount > 0}

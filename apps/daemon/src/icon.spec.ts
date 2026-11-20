@@ -6,10 +6,15 @@ import { describe, expect, it } from 'vitest';
 import { pickIcon, repoIcon } from './icon.ts';
 
 describe('pickIcon', () => {
-	it('prefers the best name, then the file nearest the top', () => {
-		expect(
-			pickIcon(['docs/logo.png', 'apps/web/static/favicon.svg', 'apps/site/public/favicon.ico'])
-		).toEqual({ path: 'apps/web/static/favicon.svg', type: 'image/svg+xml' });
+	it('prefers the file nearest the root, then the best name', () => {
+		expect(pickIcon(['apps/docs-website/public/favicon.svg', 'favicon.png'])).toEqual({
+			path: 'favicon.png',
+			type: 'image/png'
+		});
+		expect(pickIcon(['apps/web/static/favicon.svg', 'apps/site/public/favicon.ico'])).toEqual({
+			path: 'apps/web/static/favicon.svg',
+			type: 'image/svg+xml'
+		});
 		expect(pickIcon(['a/b/c/favicon.png', 'static/Favicon.PNG'])?.path).toBe('static/Favicon.PNG');
 	});
 

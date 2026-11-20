@@ -1,4 +1,14 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, renameSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import {
+	cpSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	renameSync,
+	writeFileSync,
+	openSync,
+	closeSync
+} from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { packager } from '@electron/packager';
@@ -10,7 +20,11 @@ import { pnpm, stageServices } from '@geordi/launch/stage.js';
  *
  *   node scripts/build.js             stages the app in `stage/`, to run with `electron stage`
  *   node scripts/build.js --package   also packages it as `dist/…/Geordi.app`
+ *   node scripts/build.js --install   also puts that into /Applications, and opens it
  */
+
+const install = process.argv.includes('--install');
+if (install && process.platform !== 'darwin') throw new Error('desktop:install requires macOS.');
 
 const root = join(import.meta.dirname, '..');
 const repo = join(root, '../..');
@@ -79,7 +93,7 @@ rmSync(join(stage, 'runtime'), { recursive: true });
 
 // --- Package ----------------------------------------------------------------------------------
 
-if (process.argv.includes('--package')) {
+if (install || process.argv.includes('--package')) {
 	const electron = join(root, 'node_modules/electron/package.json');
 	const [built] = await packager({
 		dir: stage,
@@ -116,4 +130,22 @@ if (process.argv.includes('--package')) {
 	});
 	const packaged = process.platform === 'darwin' ? join(built, 'Geordi.app') : built;
 	console.log(`packaged ${packaged}`);
+
+	if (install) {
+		// The app owns this terminal. The replacement must survive its shutdown.
+		const logFile = join(root, 'dist', 'install.log');
+		const log = openSync(logFile, 'w');
+		console.log(`Installing and restarting Geordi. Installer log: ${logFile}`);
+		const installer = spawn(process.execPath, [join(root, 'scripts/install.js'), packaged], {
+			detached: true,
+			stdio: ['ignore', log, log]
+		});
+		closeSync(log);
+		await new Promise((resolve, reject) => {
+			installer.once('error', reject);
+			installer.once('exit', (code) =>
+				code === 0 ? resolve() : reject(new Error(`Installation failed; see ${logFile}`))
+			);
+		});
+	}
 }
