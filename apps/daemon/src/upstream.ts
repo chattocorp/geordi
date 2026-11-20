@@ -186,18 +186,16 @@ export function conflictsOf(thread: Thread): boolean | undefined {
  * What else keeps an open pull request from being merged, as GitHub says: its GraphQL
  * `mergeStateStatus`, or the REST API's `mergeable_state`. Other forges don't say.
  */
-export function blockedOf(thread: Thread): PullRequest['blocked'] {
+function mergeStateOf(thread: Thread): string | undefined {
 	if (thread.state !== 'open' || !thread.raw || typeof thread.raw !== 'object') return;
 	const raw = thread.raw as { mergeStateStatus?: unknown; mergeable_state?: unknown };
-	const state = String(raw.mergeStateStatus ?? raw.mergeable_state ?? '').toLowerCase();
-	if (state === 'behind') return 'behind';
-	if (state === 'blocked') return 'rules';
+	return String(raw.mergeStateStatus ?? raw.mergeable_state ?? '').toLowerCase();
 }
 
 /**
  * Whether the forge is still working out if an open pull request can be merged: GitHub's
  * `mergeable` (GraphQL) or `mergeable_state` (REST) is `unknown`, and so is the
- * `mergeStateStatus` that `blockedOf` reads. It says on a later ask.
+ * `mergeStateStatus` that `mergeStateOf` reads. It says on a later ask.
  */
 export function mergeUnknown(thread: Thread): boolean {
 	if (thread.state !== 'open' || !thread.raw || typeof thread.raw !== 'object') return false;
@@ -238,7 +236,12 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 	if (decision === 'REVIEW_REQUIRED') reviews.push('pending');
 	const { checks } = thread;
 	const conflicts = conflictsOf(thread);
-	const blocked = blockedOf(thread);
+	const mergeState = mergeStateOf(thread);
+	const blocked =
+		mergeState === 'blocked' ? 'rules' : mergeState === 'behind' ? 'behind' : undefined;
+	const optionalChecksRunning =
+		checks?.state === 'pending' &&
+		(mergeState === 'clean' || mergeState === 'unstable' || mergeState === 'has_hooks');
 	const raw = thread.raw as GitHubPull | null;
 	return {
 		number: thread.ref.number,
@@ -260,6 +263,7 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 			checks && (checks.total !== 0 || checks.state !== 'unknown')
 				? {
 						state: checks.state,
+						...(optionalChecksRunning && { optionalChecksRunning }),
 						total: checks.total ?? null,
 						failed: checks.failed ?? null,
 						...(counts && { counts }),

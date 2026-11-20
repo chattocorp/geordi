@@ -403,6 +403,23 @@
 </Story>
 
 <Story
+	name="Optional checks running"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Optional checks running')).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Merge PR' })).toBeEnabled();
+	}}
+>
+	{@render bar({
+		changes: pushed,
+		upstream: upstream({
+			checks: { state: 'pending', total: 3, failed: 0, url: null, optionalChecksRunning: true }
+		})
+	})}
+</Story>
+
+<Story
 	name="Auto-merge while checks run"
 	asChild
 	play={async ({ canvasElement }) => {

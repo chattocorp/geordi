@@ -37,6 +37,17 @@ describe('hostOf', () => {
 });
 
 describe('summarise', () => {
+	it.each([
+		[{ mergeStateStatus: 'UNSTABLE' }, true],
+		[{ mergeable_state: 'clean' }, true],
+		[{ mergeStateStatus: 'BLOCKED' }, false],
+		[{ mergeStateStatus: 'UNKNOWN' }, false],
+		[{}, false]
+	] as const)('identifies pending optional checks from %j', (raw, optional) => {
+		const checks = { state: 'pending' as const, total: 3 };
+		expect(!!summarise(pull({ raw, checks })).checks?.optionalChecksRunning).toBe(optional);
+	});
+
 	it('reports state, target branch and checks', () => {
 		const checks = { state: 'failure', total: 18, failed: 2, url: 'https://checks' } as const;
 		expect(summarise(pull({ checks, body: 'PR description', isDraft: true }))).toEqual({

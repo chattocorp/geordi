@@ -181,6 +181,8 @@ export type PullRequest = {
 		state: 'pending' | 'success' | 'failure' | 'unknown';
 		total: number | null;
 		failed: number | null;
+		/** The forge allows merging while the remaining checks run. */
+		optionalChecksRunning?: boolean;
 		/**
 		 * How many of them stand how; `skipped` are those that neither passed nor failed.
 		 * Absent where the forge only says how they stand overall.
