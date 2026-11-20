@@ -232,10 +232,11 @@ it, perhaps you.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`,
-    `status-ok`/`-danger`/`-merged`/`-accent`/`-neutral`.
-  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusCircle`, `TitleBar`, `Toolbar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+    `status-ok`/`-danger`/`-merged`.
+  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`, `Toolbar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Segmented`, `Select`, `Split`): generic, no domain knowledge. Domain components live in
     `#lib/components/` or, when both apps use them, in `@geordi/ui`.
+  - Use `StatusIcon` for passive status icons. Show the glyph directly on the surrounding surface. Reserve filled circles for controls.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary
     values or raw colours.

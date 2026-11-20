@@ -4,7 +4,7 @@
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 
 	import StandingIcon from './StandingIcon.svelte';
-	import StatusCircle from './StatusCircle.svelte';
+	import StatusIcon from './StatusIcon.svelte';
 
 	let {
 		title,
@@ -107,9 +107,9 @@
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if asking}
 			<!-- an agent there waits for the person's answer -->
-			<StatusCircle tone="accent" label="Waiting for your answer">
+			<StatusIcon tone="accent" label="Waiting for your answer">
 				<span class="icon-[lucide--message-circle-question] size-4"></span>
-			</StatusCircle>
+			</StatusIcon>
 		{:else if activity}
 			<WorkspaceActivity {activity} />
 		{:else if visibleStanding}
