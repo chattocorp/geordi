@@ -28,6 +28,7 @@
 
 	let {
 		blocks,
+		recap,
 		background = [],
 		onstoptask,
 		withComposer = false,
@@ -47,6 +48,7 @@
 		following = $bindable(true)
 	}: {
 		blocks: Block[];
+		recap?: string;
 		onstoptask?: (stopId: string) => Promise<void>;
 		background?: BackgroundTask[];
 		withComposer?: boolean;
@@ -171,7 +173,8 @@
 			text,
 			index,
 			images: queueImages[index] ?? []
-		}))
+		})),
+		...(recap ? [{ kind: 'recap' as const, text: recap }] : [])
 	]);
 	let list: VirtualizerHandle | undefined = $state();
 	// A fresh view, including a workspace switch, starts at the latest message.
@@ -404,6 +407,11 @@
 							</AgentMessage>
 						{/if}
 					</div>
+				{:else if row.kind === 'recap'}
+					<section aria-label="Workspace recap" class="space-y-1">
+						<h3 class="text-xs font-medium text-muted">Since you last looked</h3>
+						<Markdown text={row.text} />
+					</section>
 				{:else}
 					{@const { text, index, images } = row}
 					<div class="ml-auto message ring-1 ring-line">

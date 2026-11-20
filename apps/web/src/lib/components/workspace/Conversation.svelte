@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import Recap from './Recap.svelte';
 	import { watchReturn } from './return-recap.ts';
 	import { resolve } from '$app/paths';
 	import MessageView from './MessageView.svelte';
@@ -121,12 +120,12 @@
 </script>
 
 <div class="relative flex min-h-0 flex-1 flex-col">
-	{#if recap}<Recap text={recap} />{/if}
 	{#key workspace.id}
 		<MessageView
 			bind:this={messages}
 			showJump
 			{blocks}
+			{recap}
 			withComposer={!workspace.archivedAt}
 			onstoptask={(stopId) => stopTask({ workspaceId: workspace.id, stopId })}
 			background={workspace.background?.filter((task) => !task.session)}

@@ -746,3 +746,28 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Return recap"
+	asChild
+	play={async ({ canvas }) => {
+		const recap = await canvas.findByRole('region', { name: 'Workspace recap' });
+		await expect(recap.closest('li')).toBe(recap.closest('ol')?.lastElementChild);
+		await expect(recap.querySelector('strong')).toHaveTextContent('Both tests passed.');
+		await expect(recap.querySelector('code')).toHaveTextContent('farewell');
+	}}
+>
+	<div class="flex h-96 flex-col sheet">
+		<MessageView
+			agent="codex"
+			blocks={[
+				{ kind: 'user', text: 'Check the greeting tests.' },
+				{
+					kind: 'agent',
+					parts: [{ kind: 'text', text: 'The greeting and farewell tests both pass.' }]
+				}
+			]}
+			recap={'**Both tests passed.** Should `farewell` also be available from the CLI?'}
+		/>
+	</div>
+</Story>
