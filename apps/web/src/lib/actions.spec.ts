@@ -301,7 +301,7 @@ describe('standingOf', () => {
 			'Changes requested'
 		);
 		expect(label({ changes, upstream: upstream({ checks: pending }) })).toBe('Checks running');
-		expect(label({ changes, upstream: upstream({ draft: true }) })).toBe('Draft');
+		expect(standingOf({ changes, upstream: upstream({ draft: true }) })).toBeNull();
 	});
 
 	it('says when a pull request is ready, merged or closed', () => {
