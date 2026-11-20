@@ -34,8 +34,8 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ### Running
 
-- **Run** starts the job or opens the URL named by `default` (for example, `jobs.web` or `urls.app`). When the setting is omitted, Run uses the first URL, or the first job if there are no URLs. A job button becomes **Stop** while its job runs. With multiple choices, the adjacent chevron opens the full menu of links, individual jobs, **Start all** and **Stop all**.
-- Each job runs in a terminal tab named after it, in the user's shell, in the workspace's directory.
+- A workspace whose file names jobs or links (or can't be read) has a **Run** tab, in the dock, in front: it begins with that instead of a terminal. It lists the links and the jobs, one line each. A link opens when chosen. A job shows its port, and a mark for how it is (stopped, starting, running, ended, failed with its status), which turns into start or stop when the row is pointed at; **Start all** and **Stop all** sit by the heading where there are several. A link's icon is gold while every job it needs runs: it opens at once. (Gold means live here as everywhere: no entry is marked as the one to run, and the `default` setting that named one for the Run button is gone; files that still have it are read as before, without it.) A problem with the file shows there too.
+- Each job runs in a terminal tab named after it (its label), in the user's shell, in the workspace's directory. Starting a job leaves the Run tab in front; choosing a job there that has a terminal brings that to the front.
 - A job starts only while its port is free. When another program has it, the job does not start: its tab says that port N is in use, and by what (where `lsof` can tell); starting it, what needs it, or a link that needs it fails with the same words. The job keeps its port; it is the other program that has to go.
 - Starting a job first starts the jobs it needs, each once the ones before it are up. A job is up when something listens on its port. One that never does (a desktop app, a game) is taken to be up after half a minute, if it still runs.
 - Stopping a job stops the jobs that need it too. Closing a job's tab is stopping it.
@@ -48,7 +48,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - The setup tab closes automatically when the script succeeds, including after a manual retry. If setup fails, the tab stays open so the person can read its output.
 - The agent's first turn waits for it. Stopping the agent meanwhile ends that turn; the setup goes on, and the next turn waits for it in turn.
 - However the setup ends, the agent then starts. If it failed, the agent is told so with its first message, with the end of what the script printed; if it was stopped (its tab closed), or nobody has agreed to it yet, the agent is told that too. A failed setup is the agent's to fix, or the person's: it does not stop the work.
-- A setup nobody has agreed to does not run: its tab says so, and where to run it. Until it is agreed to, the workspace says so in a quiet line under its title, with **Review**, which shows the script and asks, and runs it once agreed; after that it runs by itself and nothing more is said. The Run menu lists jobs only. A setup that did not run can be run from its own terminal: a key press in a terminal that has ended starts it again.
+- A setup nobody has agreed to does not run: its tab says so, and where to run it. Until it is agreed to, the workspace says so in a quiet line under its title, with **Review**, which shows the script and asks, and runs it once agreed; after that it runs by itself and nothing more is said. The Run tab lists jobs only. A setup that did not run can be run from its own terminal: a key press in a terminal that has ended starts it again.
 - The teardown script runs when a person archives a workspace (with it, the workspaces its agent started), once it is clear that its worktree goes (it has no uncommitted work, or the person agreed to lose it), and before the worktree is removed: in the workspace's directory, with its ports, in a terminal tab named `teardown`. It has two minutes. Then, however it ended, the worktree is removed. An agent archiving an agent it started removes the worktree without a teardown.
 - A teardown runs only if a person has agreed to it. It has no moment of its own to be asked at, so it is asked about together with the first command a person agrees to run in the workspace: a job, or the setup.
 
@@ -143,3 +143,9 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 **Decision:** The file is YAML (`.geordi.yml`). A `.geordi.toml` is still read where there is no `.geordi.yml`; agents are told to write YAML, and that a TOML file wants moving.
 **Why:** YAML is what the projects Geordi is used on already configure things in, and what their people and agents write without looking anything up. Reading TOML on costs a few lines and breaks nobody's repository.
 **Tradeoff:** Two parsers, and a file that can be there twice: the YAML one counts, and the other is silently not looked at.
+
+### 13. A tab, not a button and a menu
+
+**Decision:** What a workspace runs is shown in a tab of its own in the dock, with every link and job and how each is, instead of a Run button with a menu beside the dock's tabs.
+**Why:** A menu shows how things are only while it is open, and a button says one thing at a time. What runs is ongoing state, worth seeing at a glance, next to the terminals it runs in; and the tab bar stays for tabs.
+**Tradeoff:** Starting what is usually run takes a look at the dock rather than a button that is always there; and one more tab.
