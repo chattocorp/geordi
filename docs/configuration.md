@@ -24,15 +24,17 @@ whenever they change.
 ## Running
 
 Give each entry in `tasks` a `command`, a local HTTP or HTTPS `url`, or both.
-The Run panel shows one row per task, in file order. Select a task to start its
-command and open its URL when the port accepts connections. If the browser blocks
-a new tab, select the ready link in Run. Tasks with commands have terminal output
-and a Stop control while running.
+The Run panel shows one row per task, in file order. Select a task with a URL to
+start what it needs and open the page when its port accepts connections. If the
+browser blocks the tab, select the ready link in Run. For a command-only task,
+select its name to start it or to read its terminal once it has run. The control
+beside the name lets you stop a running command or run it again after it ends.
 
 - Use `needs` to name tasks that must be ready first. A URL can use `{web}` for the
   port assigned to the command named `web`. This also starts that command when needed.
-- Set `default: true` on each task you want **Run defaults** to launch. Press ⌥⌘R
-  on macOS or Ctrl+Alt+R elsewhere to launch them together. Shared dependencies start
+- Set `default: true` on each task you want to launch together. The button at the
+  top of Run names those tasks. Select it or press ⌥⌘R
+  on macOS or Ctrl+Alt+R elsewhere. Shared dependencies start
   once. Geordi opens the URLs of the selected tasks and reuses running commands.
   With no defaults, the shortcut shows the Run panel.
 - Use `label` for a display name. Dependencies and assigned ports use the task key.

@@ -978,10 +978,24 @@
 			{visit}
 		>
 			{#each readyLinks as [name, href] (name)}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
-				<a class="item" {href} target="_blank" rel="noopener"
-					>Open {links.find((link) => link.name === name)?.label ?? name} in browser</a
+				<!-- the task URL belongs to its local server -->
+				<!-- eslint-disable svelte/no-navigation-without-resolve -->
+				<a
+					class="flex h-10 shrink-0 items-center gap-2 card px-2.5 text-sm text-ink card-link"
+					{href}
+					target="_blank"
+					rel="noopener"
+					onclick={() => readyLinks.delete(name)}
 				>
+					<span class="icon-[lucide--external-link] size-4 shrink-0 text-accent"></span>
+					<span class="min-w-0 flex-1 truncate"
+						><span class="text-muted">Open</span>
+						<span class="font-medium"
+							>{links.find((link) => link.name === name)?.label ?? name}</span
+						></span
+					>
+				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/each}
 			{#if config?.problem}
 				<Notice>The repository's configuration can't be read: {config.problem}</Notice>

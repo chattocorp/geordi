@@ -47,6 +47,32 @@
 		test: { ended: 0 },
 		docs: 'stopped'
 	};
+	// the repository's own tasks (`.geordi.yml`)
+	const tasks: NonNullable<RepoConfig['tasks']> = [
+		{ name: 'web', label: 'Web server', needs: [], default: false },
+		{ name: 'daemon', label: 'Agent daemon', needs: ['web'], default: false },
+		{ name: 'app', label: 'Geordi', needs: ['daemon'], default: true },
+		{ name: 'reset', label: 'Reset development data', needs: [], default: false },
+		{ name: 'storybook', label: 'Storybook', needs: [], default: false },
+		{ name: 'desktop', label: 'Electron dev app', needs: [], default: false }
+	];
+	const taskJobs = [
+		job('web', 'Web server', 'node scripts/workspace-dev.mjs web', 20000),
+		job('daemon', 'Agent daemon', 'node scripts/workspace-dev.mjs daemon', 20001),
+		job('reset', 'Reset development data', 'node scripts/workspace-dev.mjs reset', 20002),
+		job('storybook', 'Storybook', 'node scripts/workspace-dev.mjs storybook', 20003),
+		job('desktop', 'Electron dev app', 'pnpm desktop:dev', 20004)
+	];
+	const taskLinks: Link[] = [
+		{ name: 'app', label: 'Geordi', href: 'http://localhost:20000/', needs: ['daemon'] },
+		{ name: 'storybook', label: 'Storybook', href: 'http://localhost:20003/', needs: [] }
+	];
+	const taskStates: Record<string, JobState> = {
+		web: 'running',
+		daemon: 'starting',
+		reset: { ended: 1 },
+		storybook: 'running'
+	};
 </script>
 
 <script lang="ts">
@@ -179,33 +205,82 @@
 	{@render pane(jobs, links, (name) => states[name], null, 'jobs.web')}
 </Story>
 
-<Story
-	name="Unified tasks"
-	asChild
-	play={async ({ canvas, userEvent }) => {
-		await userEvent.click(canvas.getByRole('button', { name: /Run defaults/ }));
-		await expect(canvas.getByText('Run: web, worker')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Open Static server' }));
-		await expect(canvas.getByText('Run: web')).toBeVisible();
-	}}
->
-	<div class="w-96 sheet-quiet">
+{#snippet unified(stateOf: (name: string) => JobState, opened = false)}
+	<div class="flex h-120 w-96 flex-col sheet-quiet">
+		<PaneTabs prefix="run-tasks" tabs={['Terminal 1', 'Run']} current="Run">
+			{#snippet tab(id: string)}
+				{#if id === 'Run'}
+					<RunTab jobs={taskJobs} {stateOf} />
+				{:else}
+					<span class="icon-[lucide--square-terminal] size-3.5"></span>
+					{id}
+				{/if}
+			{/snippet}
+		</PaneTabs>
 		<RunPane
-			tasks={[
-				{ name: 'web', label: web.label, needs: [], default: true },
-				{ name: 'worker', label: 'Worker', needs: ['web'], default: true }
-			]}
-			jobs={[web, job('worker', 'Worker', 'work', 20001)]}
-			links={[{ ...links[0], name: 'web' }]}
-			stateOf={(name) => (name === 'web' ? 'running' : 'stopped')}
-			hasTerminal={(name) => name === 'web'}
+			{tasks}
+			jobs={taskJobs}
+			links={taskLinks}
+			{stateOf}
+			hasTerminal={(name) => stateOf(name) !== 'stopped'}
 			shortcut={hint('runDefault')}
 			launch={(names) => (last = `Run: ${names.join(', ')}`)}
 			start={() => {}}
-			stop={() => {}}
-			show={() => {}}
+			stop={(name) => (last = `Stop: ${name}`)}
+			show={(name) => (last = `Show: ${name}`)}
 			visit={() => {}}
-		/>
+		>
+			{#if opened}
+				<a
+					class="flex h-10 shrink-0 items-center gap-2 card px-2.5 text-sm text-ink card-link"
+					href="#app"
+				>
+					<span class="icon-[lucide--external-link] size-4 shrink-0 text-accent"></span>
+					<span class="min-w-0 flex-1 truncate"
+						><span class="text-muted">Open</span> <span class="font-medium">Geordi</span></span
+					>
+				</a>
+			{/if}
+		</RunPane>
 	</div>
-	<p>{last}</p>
-</Story>
+	<p class="mt-2 text-sm text-muted">{last}</p>
+{/snippet}
+
+<Story
+	name="Tasks"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		// the main action names what it runs
+		await userEvent.click(canvas.getByRole('button', { name: 'Run Geordi' }));
+		await expect(canvas.getByText('Run: app')).toBeVisible();
+		// a URL opens, starting what it needs
+		await userEvent.click(canvas.getByRole('button', { name: 'Open Storybook' }));
+		await expect(canvas.getByText('Run: storybook')).toBeVisible();
+		// a command that ran shows its output; one that never ran runs
+		await userEvent.click(canvas.getByRole('button', { name: 'Open terminal for Web server' }));
+		await expect(canvas.getByText('Show: web')).toBeVisible();
+		// a passive mark is part of its row: its glyph does what the label does
+		const desktop = canvas.getByRole('button', { name: 'Run Electron dev app' });
+		await userEvent.click(desktop.querySelector('[class~="icon-[lucide--play]"]')!);
+		await expect(canvas.getByText('Run: desktop')).toBeVisible();
+		await userEvent.click(canvas.getByText('Storybook'));
+		// (Geordi waits for the daemon, which is starting)
+		await userEvent.click(canvas.getByRole('button', { name: 'Open Geordi' }).firstElementChild!);
+		await expect(canvas.getByText('Run: app')).toBeVisible();
+		// one tab stop per action: an idle command is its row alone
+		canvas.getByRole('button', { name: 'Open terminal for Storybook' }).focus();
+		await userEvent.tab();
+		await expect(canvas.getByRole('button', { name: 'Run Electron dev app' })).toHaveFocus();
+		// a command that ended can run again from its mark
+		await userEvent.click(canvas.getByRole('button', { name: 'Run Reset development data' }));
+		await expect(canvas.getByText('Run: reset')).toBeVisible();
+		// the mark of what runs stops it
+		await userEvent.click(canvas.getByRole('button', { name: 'Stop Agent daemon' }));
+		await expect(canvas.getByText('Stop: daemon')).toBeVisible();
+		await expect(canvas.getByTitle('Ended with status 1')).toBeVisible();
+	}}>{@render unified((name) => taskStates[name] ?? 'stopped')}</Story
+>
+<Story name="Tasks, nothing running" asChild>{@render unified(() => 'stopped')}</Story>
+<Story name="Tasks, link blocked" asChild
+	>{@render unified((name) => (name === 'storybook' ? 'stopped' : 'running'), true)}</Story
+>

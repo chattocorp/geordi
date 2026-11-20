@@ -2,4 +2,4 @@
 type: feature
 ---
 
-You can run commands and open local URLs from one task. Mark multiple tasks as defaults to launch them together with the Run shortcut.
+You can run commands and open local URLs from one task. The Run panel names your default tasks and shows their keyboard shortcut. Use it to launch them together.
