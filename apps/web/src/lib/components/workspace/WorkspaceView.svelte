@@ -36,7 +36,7 @@
 	} from '#lib/layout.ts';
 	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
 	import JobMark, { type JobState } from './JobMark.svelte';
-	import RunPane from './RunPane.svelte';
+	import DockMenus from './DockMenus.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
@@ -132,8 +132,6 @@
 	const TURN = 'turn-changes';
 	let selectedTurn = $state.raw<TurnChanges>();
 	const CHANGES = 'changes';
-	/** The repository's links and jobs, and how they are: in the dock, where their output is. */
-	const RUN = 'run';
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
 	const DRAFT = 'draft';
@@ -203,7 +201,6 @@
 		if (tab === TURN) return !!selectedTurn;
 		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
-		if (tab === RUN) return runnable;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('subagent:')) return reviewers.has(tab);
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
@@ -241,7 +238,6 @@
 			if (!placed.includes(`agent:${aide.id}`)) main = add(main, `agent:${aide.id}`, beside);
 		for (const tab of [CHANGES, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
-		if (exists(RUN) && !placed.includes(RUN)) dock = add(dock, RUN);
 		for (const name of workspace.terminals)
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
 		return { main, side, dock };
@@ -348,6 +344,7 @@
 			mergeProblem = null;
 			try {
 				await startJobs({ workspaceId: id, jobs: names, seen });
+				show(names[names.length - 1]);
 				await jobsReady({ workspaceId: id, jobs: order });
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not start that');
@@ -475,7 +472,6 @@
 		tab !== CHANGES &&
 		tab !== PR &&
 		tab !== CHANGESET &&
-		tab !== RUN &&
 		// not from under an agent at work
 		aideOf(tab)?.status !== 'running';
 
@@ -733,9 +729,6 @@
 	{:else if tab === TURN}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
-	{:else if tab === RUN}
-		<span class="icon-[lucide--circle-play] size-3.5 shrink-0"></span>
-		<span class="truncate">Run</span>
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -765,8 +758,9 @@
 		{@const job = jobOf(terminalOf(tab))}
 		{#if job}
 			<!-- running; or over, and how it went: its output is still there to be read -->
-			<JobMark state={jobState(job)} />
+			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 			<span class="truncate">{labelOf(job)}</span>
+			<JobMark state={jobState(job)} />
 		{:else}
 			{@const terminals = everywhere()
 				.filter((other) => terminalOf(other) && !jobOf(terminalOf(other)))
@@ -834,17 +828,6 @@
 				<PatchView diff={selectedTurn.diff} collapsible />
 			{/key}
 		</div>
-	{:else if tab === RUN}
-		<RunPane
-			{jobs}
-			{links}
-			stateOf={jobState}
-			{start}
-			{stop}
-			{show}
-			{visit}
-			problem={config?.problem}
-		/>
 	{:else if tab === CHANGES}
 		<Changes
 			{git}
@@ -887,6 +870,30 @@
 			version={git?.version ?? 0}
 		/>
 	{:else if terminal}
+		{@const job = jobOf(terminal)}
+		{#if job && jobs.some((entry) => entry.name === job)}
+			{@const link = links.find((entry) => entry.name === job)}
+			<div class="flex items-center justify-end gap-1 px-2">
+				{#if link}
+					<Button
+						variant="ghost"
+						size="sm"
+						icon="icon-[lucide--external-link]"
+						onclick={() => visit(link)}>Open {link.label ?? link.name}</Button
+					>
+				{/if}
+				{#if isUp(job)}
+					<Button variant="ghost" size="sm" onclick={() => stop(job)}>Stop</Button>
+				{:else}
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={launching.has(job)}
+						onclick={() => start([job])}>Start again</Button
+					>
+				{/if}
+			</div>
+		{/if}
 		<Terminal
 			workspaceId={id}
 			{terminal}
@@ -1086,6 +1093,9 @@
 					{/snippet}
 					{#snippet b()}
 						<div class="mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
+							{#if config?.problem}<Notice
+									>The repository's configuration can't be read: {config.problem}</Notice
+								>{/if}
 							<Panes
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
@@ -1097,7 +1107,16 @@
 								splits={false}
 								newTab={workspace.archivedAt ? undefined : newTerminal}
 								newLabel="New terminal"
-							/>
+							>
+								{#snippet actions()}<DockMenus
+										{jobs}
+										{links}
+										stateOf={jobState}
+										{start}
+										{stop}
+										{visit}
+									/>{/snippet}
+							</Panes>
 						</div>
 					{/snippet}
 				</Split>

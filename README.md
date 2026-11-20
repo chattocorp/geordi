@@ -78,7 +78,7 @@ automatically, and Codex runs in its sandbox with automatic review.
 ## Configuring a repository
 
 A `.geordi.yml` at the top of a repository says what to run and where to look at it.
-Workspaces get a **Run** button for it, and ports of their own:
+Workspaces get **Open** and **Start** menus for it, and ports of their own:
 
 ```yaml
 jobs:

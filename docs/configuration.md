@@ -6,7 +6,6 @@ Geordi reads the workspace's own file, or else the one on the branch the work st
 
 ```yaml
 setup: pnpm install
-default: urls.app
 
 jobs:
   db:
@@ -49,9 +48,8 @@ and should keep running until stopped.
 it mentions (and any under its `needs`) and waits for them. Only addresses on this
 machine (`localhost`).
 
-**`default`**: what the **Run** button starts, by key: `urls.app` or `jobs.web`. Without
-it, Run uses the first URL, or the first job if there are no URLs. With several choices,
-the chevron next to Run opens them all.
+Choose a link from **Open** in the workspace dock. Choose a job from **Start** to see its
+terminal. When a link and a job share a key, the terminal also offers a shortcut to open the link.
 
 ## Ports
 

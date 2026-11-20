@@ -13,7 +13,7 @@ if (!['web', 'daemon', 'storybook', 'reset'].includes(job)) {
 function port(name) {
 	const value = Number(process.env[name]);
 	if (!Number.isInteger(value) || value < 1024 || value > 65535) {
-		throw new Error(`Missing or invalid ${name}. Start this job from Geordi's Run menu.`);
+		throw new Error(`Missing or invalid ${name}. Start this job from Geordi's Start menu.`);
 	}
 	return value;
 }

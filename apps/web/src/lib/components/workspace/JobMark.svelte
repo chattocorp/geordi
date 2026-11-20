@@ -4,17 +4,16 @@
 </script>
 
 <script lang="ts">
-	import RunningJob from '@geordi/ui/RunningJob.svelte';
 	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 
-	/** How a job is, as a mark: the same wherever the job shows (its tab, the Run tab). */
+	/** How a job is, as a mark: shown beside its terminal name. */
 	let { state, class: size = 'size-3.5' }: { state: JobState; class?: string } = $props();
 </script>
 
 {#if state === 'starting'}
 	<ProgressIcon label="Starting" class={size} />
 {:else if state === 'running'}
-	<RunningJob class={size} />
+	<span class="dot shrink-0 dot-live" role="img" aria-label="Running" title="Running"></span>
 {:else if state === 'stopped'}
 	<span class={['grid shrink-0 place-items-center', size]} title="Not running">
 		<span class="dot"></span>
