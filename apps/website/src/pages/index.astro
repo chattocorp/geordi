@@ -68,6 +68,26 @@ const away = [
 	}
 ];
 
+/** Ways to read what an agent changed, for the card about reviewing. */
+const review = [
+	{ icon: 'icon-[lucide--list-tree]', text: 'Changed files as a list, or as a tree you can fold' },
+	{ icon: 'icon-[lucide--files]', text: 'Every diff of a workspace in one tab' },
+	{ icon: 'icon-[lucide--file-diff]', text: 'What a single turn changed, opened from its reply' },
+	{
+		icon: 'icon-[lucide--file-code]',
+		text: 'Source files highlighted, images and Markdown previewed'
+	}
+];
+
+/** A few of the keyboard shortcuts, as a Mac writes them. */
+const keys = [
+	{ keys: '⌘N', does: 'New workspace' },
+	{ keys: '⌘[ ⌘]', does: 'Previous and next workspace' },
+	{ keys: '⇧⌘↩', does: 'Next workspace with news for you' },
+	{ keys: '⇧⌘F', does: 'Only the repository you are in' },
+	{ keys: '⌥⌘R', does: 'Start your dev server' }
+];
+
 const opinions = [
 	{
 		title: 'A quiet screen',
@@ -243,10 +263,10 @@ const steps = [
 				<h3 class="text-headline font-semibold text-balance">Five dev servers, no port clashes</h3>
 				<p class="mt-4 text-pretty text-muted">
 					Tell Geordi in a <code class="code text-(--inline-code)">.geordi.yml</code> what your
-					project needs to run. Every workspace then gets a Run tab, terminals, and ports of its own
-					that stay the same for as long as it lives. The same dev server can run in five workspaces
-					at once, and the agents know their ports too, so they can start and check things
-					themselves.
+					project needs to run. Every workspace then gets a terminal, a Run tab with a button for
+					what you start most, and ports of its own that stay the same for as long as it lives. The
+					same dev server can run in five workspaces at once, and the agents know their ports too,
+					so they can start and check things themselves.
 				</p>
 				<p class="mt-4">
 					<a
@@ -260,11 +280,13 @@ const steps = [
 			<div class="mt-auto overflow-hidden rounded-control bg-sunken">
 				<p class="px-4 pt-3 code-dense text-muted">.geordi.yml</p>
 				<pre class="overflow-x-auto p-4 pt-2 code-dense"><span class="text-accent-ink">setup</span>: pnpm install
+<span class="text-accent-ink">default</span>: urls.app
 
 <span class="text-accent-ink">jobs</span>:
   <span class="text-accent-ink">db</span>:
     <span class="text-accent-ink">command</span>: docker compose up db
   <span class="text-accent-ink">web</span>:
+    <span class="text-accent-ink">label</span>: Dev server
     <span class="text-accent-ink">command</span>: pnpm dev --port $PORT
     <span class="text-accent-ink">needs</span>: [db]
 
@@ -272,6 +294,44 @@ const steps = [
   <span class="text-accent-ink">app</span>:
     <span class="text-accent-ink">url</span>: http://localhost:&#123;web&#125;/</pre>
 			</div>
+		</article>
+
+		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
+			<div class="max-w-xl">
+				<h3 class="text-headline font-semibold text-balance">Review the work where it happens</h3>
+				<p class="mt-4 text-pretty text-muted">
+					You don't need another editor to see what an agent did. Every workspace shows its changes
+					beside the conversation, and opens any file or diff next to it.
+				</p>
+			</div>
+			<ul class="mt-auto space-y-3">
+				{review.map((way) => (
+					<li class="flex items-center gap-3">
+						<span class:list={['size-4 shrink-0 text-muted', way.icon]} />
+						{way.text}
+					</li>
+				))}
+			</ul>
+		</article>
+
+		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
+			<div>
+				<h3 class="text-headline font-semibold text-balance">Keys for busy days</h3>
+				<p class="mt-4 text-pretty text-muted">
+					With ten agents at work, the next one that needs you is a key press away. On Windows and
+					Linux, it's Ctrl where a Mac has Cmd.
+				</p>
+			</div>
+			<dl class="mt-auto space-y-2.5 text-sm">
+				{keys.map((key) => (
+					<div class="flex items-center gap-4">
+						<dt class="w-16 shrink-0 text-muted">
+							<kbd class="font-sans">{key.keys}</kbd>
+						</dt>
+						<dd>{key.does}</dd>
+					</div>
+				))}
+			</dl>
 		</article>
 	</div>
 
