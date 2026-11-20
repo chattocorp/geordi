@@ -87,6 +87,8 @@
 	let typed = $state('');
 	let caret = $state(-1);
 	let writing = $state(false);
+	// A remote form can reattach its text field while the submission is pending.
+	let submitted = $state(false);
 	const focus: Attachment<HTMLTextAreaElement> = (node) => {
 		text = node;
 		if (focused) node.focus();
@@ -97,7 +99,6 @@
 			writing = document.activeElement === node;
 		};
 		const away = () => (writing = false);
-		let submitted = $state(false);
 		const clearTyped = () => (typed = '');
 		const sent = () => {
 			clearTyped();
