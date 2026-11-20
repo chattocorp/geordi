@@ -39,70 +39,6 @@ const ribbon = [
 	}
 ];
 
-/** What agents got done while the app was closed, for the card that says they keep going. */
-const away = [
-	{
-		agent: 'Claude',
-		tone: 'text-claude',
-		icon: 'icon-[lucide--circle-check] text-ok',
-		did: 'finished, tests pass',
-		branch: 'return-after-sign-in',
-		at: '18:09'
-	},
-	{
-		agent: 'Codex',
-		tone: 'text-codex',
-		icon: 'icon-[lucide--git-pull-request] text-muted',
-		did: 'opened a pull request',
-		branch: 'audit-log-pages',
-		at: '18:17'
-	},
-	{
-		agent: 'Claude',
-		tone: 'text-claude',
-		icon: 'icon-[lucide--message-circle-question] text-accent-ink',
-		did: 'has a question for you',
-		branch: 'vite-8',
-		at: '18:31'
-	}
-];
-
-/** Ways to read what an agent changed, for the card about reviewing. */
-const review = [
-	{ icon: 'icon-[lucide--list-tree]', text: 'Changed files as a list, or as a tree you can fold' },
-	{ icon: 'icon-[lucide--files]', text: 'Browse workspace diffs in one tab' },
-	{ icon: 'icon-[lucide--file-diff]', text: 'What a single turn changed, opened from its reply' },
-	{
-		icon: 'icon-[lucide--file-code]',
-		text: 'Source files highlighted, images and Markdown previewed'
-	}
-];
-
-/** A few of the keyboard shortcuts, as a Mac writes them. */
-const keys = [
-	{ keys: '⌘N', does: 'New workspace' },
-	{ keys: '⌘[ ⌘]', does: 'Previous and next workspace' },
-	{ keys: '⇧⌘↩', does: 'Next workspace with news for you' },
-	{ keys: '⇧⌘F', does: 'Only the repository you are in' },
-	{ keys: '⌥⌘R', does: 'Run this workspace’s default action' }
-];
-
-/** Why many agents at once stay manageable, for the section before Try it. */
-const parallel = [
-	{
-		title: 'They never get in each other’s way',
-		text: 'Every workspace has its own worktree, branch and ports. Ten agents can change the same project, and run its dev server, without touching each other’s work.'
-	},
-	{
-		title: 'All of them at a glance',
-		text: 'The sidebar shows every workspace and how it stands: working, waiting for your answer, checks failing, ready to merge.'
-	},
-	{
-		title: 'You’re called when you’re needed',
-		text: 'When an agent finishes or has a question, Geordi tells you, and keeps its workspace in bold until you’ve looked. The rest of the time, your attention is yours.'
-	}
-];
-
 const steps = [
 	{
 		title: 'Install Claude Code, Codex, or OpenCode and sign in',
@@ -110,7 +46,7 @@ const steps = [
 	},
 	{
 		title: 'Install the app',
-		text: 'On a Mac, open the disk image and drag Geordi into your Applications folder. On Windows, unzip it and run Geordi. On Linux, install the .deb package, make the AppImage executable and run it, or unpack the tarball.'
+		text: 'Download it for your system and open it.'
 	},
 	{
 		title: 'Start your first workspace',
@@ -124,8 +60,8 @@ const steps = [
 		<div class="max-w-4xl pt-4 pb-10 sm:pt-10 sm:pb-14">
 			<h1 class="text-display font-semibold text-balance">A calmer way to run coding agents.</h1>
 			<p class="mt-6 max-w-2xl text-lede text-pretty text-muted sm:mt-8">
-				Run Claude Code, Codex, and OpenCode side by side. Give a coding task its own branch, bring
-				in another agent to review the changes, and pick up the conversation after you quit Geordi.
+				Run Claude Code, Codex, and OpenCode side by side, each task on a branch of its own. Review
+				what they did, and take it all the way to a merged pull request.
 			</p>
 			<div class="mt-8">
 				<ReleaseDownloads>
@@ -144,50 +80,21 @@ const steps = [
 	<div id="features" class="grid gap-2 lg:grid-cols-12">
 		<h2 class="sr-only">What Geordi does differently</h2>
 
-		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
-			<div class="max-w-xl">
+		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
+			<div>
 				<h3 class="text-headline font-semibold text-balance">Quitting doesn't stop your agents</h3>
 				<p class="mt-4 text-pretty text-muted">
-					Your agents run in a background process of their own, not inside the window. Quit Geordi
-					or install an update in the middle of a task and they carry on. When you open it again,
-					everything they did while you were away is there.
-				</p>
-			</div>
-			<div class="mt-auto space-y-2 text-sm">
-				<p class="flex items-center gap-3 px-4 text-muted">
-					<span class="icon-[lucide--power] size-4 shrink-0"></span>
-					<span class="flex-1">You quit Geordi</span>
-					<span class="tabular-nums">18:02</span>
-				</p>
-				<div class="rounded-control bg-sunken p-4">
-					<p class="label">While Geordi was closed</p>
-					<ul class="mt-3 space-y-2.5">
-						{away.map((event) => (
-							<li class="flex items-center gap-3">
-								<span class:list={['size-4 shrink-0', event.icon]} />
-								<span class="min-w-0 flex-1">
-									<span class:list={['font-medium', event.tone]}>{event.agent}</span> {event.did}
-									<span class="ml-1 code-dense text-muted max-sm:hidden">{event.branch}</span>
-								</span>
-								<span class="text-muted tabular-nums">{event.at}</span>
-							</li>
-						))}
-					</ul>
-				</div>
-				<p class="flex items-center gap-3 px-4">
-					<span class="icon-[lucide--app-window] size-4 shrink-0 text-muted"></span>
-					<span class="flex-1">You open it again, and it's all there</span>
-					<span class="text-muted tabular-nums">18:40</span>
+					Agents run in a background process, not in the window. Quit Geordi or install an update in
+					the middle of a task and they keep working. Open it again and you're caught up.
 				</p>
 			</div>
 		</article>
 
-		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
+		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
 			<div>
 				<h3 class="text-headline font-semibold text-balance">See where your pull request stands</h3>
 				<p class="mt-4 text-pretty text-muted">
-					The sidebar shows which pull requests need your attention. Open a workspace to see what
-					you can do next, from fixing a failed check to merging the pull request.
+					The sidebar shows how every workspace stands. Open one and the next step is a click away.
 				</p>
 			</div>
 			<ol class="mt-auto space-y-2">
@@ -206,6 +113,34 @@ const steps = [
 					</li>
 				))}
 			</ol>
+		</article>
+
+		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
+			<div class="max-w-xl">
+				<h3 class="text-headline font-semibold text-balance">
+					Run the same app in several workspaces
+				</h3>
+				<p class="mt-4 text-pretty text-muted">
+					Every workspace gets ports of its own. Start your dev server on{' '}
+					<code class="code text-(--inline-code)">$PORT</code> and you can open two branches side by
+					side.
+				</p>
+				<p class="mt-4">
+					<a href={site.docs.configuration} class="text-link">
+						Read the configuration docs
+					</a>
+				</p>
+			</div>
+			<div class="mt-auto overflow-hidden rounded-control bg-sunken">
+				<p class="px-4 pt-3 code-dense text-muted">.geordi.yml</p>
+				<pre class="overflow-x-auto p-4 pt-2 code-dense"><span class="text-accent-ink">setup</span>: pnpm install
+
+<span class="text-accent-ink">tasks</span>:
+  <span class="text-accent-ink">web</span>:
+    <span class="text-accent-ink">command</span>: pnpm dev --port $PORT
+    <span class="text-accent-ink">url</span>: http://localhost:&#123;web&#125;/
+    <span class="text-accent-ink">default</span>: true</pre>
+			</div>
 		</article>
 
 		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
@@ -240,107 +175,13 @@ const steps = [
 				</p>
 			</div>
 		</article>
-
-		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
-			<div class="max-w-xl">
-				<h3 class="text-headline font-semibold text-balance">
-					Run the same app in several workspaces
-				</h3>
-				<p class="mt-4 text-pretty text-muted">
-					Set your dev server to use <code class="code text-(--inline-code)">$PORT</code>. Geordi
-					gives the job a separate port in each workspace, so you can open two branches side by
-					side.
-				</p>
-				<p class="mt-4">
-					<a href={site.docs.configuration} class="text-link">
-						Read the configuration docs
-					</a>
-				</p>
-			</div>
-			<div class="mt-auto overflow-hidden rounded-control bg-sunken">
-				<p class="px-4 pt-3 code-dense text-muted">.geordi.yml</p>
-				<pre class="overflow-x-auto p-4 pt-2 code-dense"><span class="text-accent-ink">setup</span>: pnpm install
-<span class="text-accent-ink">default</span>: urls.app
-
-<span class="text-accent-ink">jobs</span>:
-  <span class="text-accent-ink">db</span>:
-    <span class="text-accent-ink">command</span>: docker compose up db
-  <span class="text-accent-ink">web</span>:
-    <span class="text-accent-ink">label</span>: Dev server
-    <span class="text-accent-ink">command</span>: pnpm dev --port $PORT
-    <span class="text-accent-ink">needs</span>: [db]
-
-<span class="text-accent-ink">urls</span>:
-  <span class="text-accent-ink">app</span>:
-    <span class="text-accent-ink">url</span>: http://localhost:&#123;web&#125;/</pre>
-			</div>
-		</article>
-
-		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
-			<div class="max-w-xl">
-				<h3 class="text-headline font-semibold text-balance">Review the work where it happens</h3>
-				<p class="mt-4 text-pretty text-muted">
-					Select a changed file to read its diff beside the conversation.
-				</p>
-			</div>
-			<ul class="mt-auto space-y-3">
-				{review.map((way) => (
-					<li class="flex items-center gap-3">
-						<span class:list={['size-4 shrink-0 text-muted', way.icon]} />
-						{way.text}
-					</li>
-				))}
-			</ul>
-		</article>
-
-		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
-			<div>
-				<h3 class="text-headline font-semibold text-balance">Keys for busy days</h3>
-				<p class="mt-4 text-pretty text-muted">
-					With ten agents at work, the next one that needs you is a key press away. On Windows and
-					Linux, it's Ctrl where a Mac has Cmd.
-				</p>
-			</div>
-			<dl class="mt-auto space-y-2.5 text-sm">
-				{keys.map((key) => (
-					<div class="flex items-center gap-4">
-						<dt class="w-16 shrink-0 text-muted">
-							<kbd class="font-sans">{key.keys}</kbd>
-						</dt>
-						<dd>{key.does}</dd>
-					</div>
-				))}
-			</dl>
-		</article>
 	</div>
-
-	<section class="sheet-quiet sheet-pad">
-		<div class="max-w-2xl">
-			<h2 class="text-headline font-semibold text-balance">
-				Start the next task before the last one is done
-			</h2>
-			<p class="mt-4 text-pretty text-muted">
-				Geordi is made for keeping a lot of agents busy at once. Hand out work as fast as you think
-				of it, to any of your agents, and get on with your day.
-			</p>
-		</div>
-		<dl class="mt-10 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-			{parallel.map((point) => (
-				<div>
-					<dt class="heading">{point.title}</dt>
-					<dd class="mt-1.5 text-pretty text-muted">{point.text}</dd>
-				</div>
-			))}
-		</dl>
-	</section>
 
 	<section id="install" class="grid gap-10 sheet sheet-pad lg:grid-cols-2 lg:gap-16">
 		<div>
 			<h2 class="text-headline font-semibold text-balance">Try it</h2>
 			<p class="mt-4 max-w-xl text-pretty text-muted">
-				The desktop app starts Geordi’s own services for you and keeps its data in{' '}
-				<code class="code text-(--inline-code)">~/.geordi</code>. Geordi is young and changing
-				quickly, so you'll probably run into a rough edge or two. For support, come to the{' '}
+				Expect a rough edge or two. For help, come to the{' '}
 				<a class="text-link" href={site.support}>
 					#geordi channel on Chatto HQ
 				</a>
@@ -356,10 +197,8 @@ const steps = [
 			<div class="mt-10 flex max-w-xl gap-3 rounded-control bg-accent-soft p-4 text-sm text-accent-ink">
 				<span class="mt-0.5 icon-[lucide--shield-alert] size-4 shrink-0"></span>
 				<p class="text-pretty">
-					One thing to know: Geordi doesn't have logins yet, so it only accepts connections from
-					your own computer. Agents run with Full Access by default, which means they can do
-					anything your user account can. For restricted access, choose Configured permissions for
-					OpenCode or Auto Mode for Claude Code and Codex.
+					Agents run with Full Access by default: they can do anything your user account can. To
+					restrict them, choose Auto Mode (Claude Code, Codex) or Configured permissions (OpenCode).
 				</p>
 			</div>
 		</div>
