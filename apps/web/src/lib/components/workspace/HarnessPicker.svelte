@@ -33,7 +33,9 @@
 			harness?.models.find((model) => model.id === wanted.model) ??
 			(wanted.named && wanted.model && MODEL_SETTING.test(wanted.model)
 				? { id: wanted.model, name: wanted.model, efforts: harness.efforts }
-				: harness?.models[0]);
+				: harness?.agent === 'opencode'
+					? undefined
+					: harness?.models[0]);
 		const efforts = model?.efforts ?? harness?.efforts ?? [];
 		const effort = efforts.find((effort) => effort === wanted.effort);
 		return {
@@ -72,13 +74,14 @@
 			// the chosen model is in the list even if it was typed in
 			const all =
 				agent === harness.agent && model && !models.includes(model) ? [...models, model] : models;
-			return all.length === 0
-				? [{ value: agent + SEPARATOR, label: agentName[agent] }]
-				: all.map((model) => ({
-						value: agent + SEPARATOR + model.id,
-						label: model.name,
-						keywords: `${agentName[agent]} ${model.id}`
-					}));
+			const entries = all.map((model) => ({
+				value: agent + SEPARATOR + model.id,
+				label: model.name,
+				keywords: `${agentName[agent]} ${model.id}`
+			}));
+			if (agent === 'opencode' || !entries.length)
+				return [{ value: agent + SEPARATOR, label: agentName[agent] }, ...entries];
+			return entries;
 		})
 	);
 

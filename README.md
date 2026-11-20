@@ -53,8 +53,8 @@ and restart to install a downloaded update. Geordi also checks on startup and ho
 Geordi runs the agent CLIs you already use: sign in to
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
 [Codex](https://github.com/openai/codex), or [OpenCode](https://opencode.ai) first.
-For OpenCode, run `opencode auth login`, then select **OpenCode** in the workspace model picker.
-It uses your configured model. You can also enter a model ID such as `provider/model`.
+For OpenCode, run `opencode auth login`, then open the workspace model picker.
+Select **OpenCode** to use your configured model, or search the models reported by `opencode models`. You can also enter a `provider/model` ID.
 Messages sent during an OpenCode turn wait in the workspace queue. For GitHub, Geordi uses the GitHub CLI's
 login.
 

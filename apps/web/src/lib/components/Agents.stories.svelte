@@ -20,7 +20,11 @@
 		},
 		// a CLI that says nothing about its models: there is nothing to choose
 		{ agent: 'codex', models: [], efforts: [] },
-		{ agent: 'opencode', models: [], efforts: [] }
+		{
+			agent: 'opencode',
+			models: [{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] }],
+			efforts: []
+		}
 	];
 </script>
 
