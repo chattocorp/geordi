@@ -23,5 +23,5 @@
 		});
 	}}
 >
-	<div class="flex h-80 flex-col sheet"><SourceView {text} line={139} /></div>
+	<div class="flex h-80 flex-col sheet"><SourceView path="notes.txt" {text} line={139} /></div>
 </Story>

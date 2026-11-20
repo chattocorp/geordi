@@ -109,7 +109,7 @@
 		{/if}
 	</div>
 {:else if !diff || binaryPair}
-	{#if typeof file === 'string'}<SourceView text={file} {line} />{/if}
+	{#if typeof file === 'string'}<SourceView {path} text={file} {line} />{/if}
 {:else if old === current}
 	<p class="p-5 text-sm text-muted">The file's content is unchanged.</p>
 {:else}
