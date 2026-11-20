@@ -125,6 +125,8 @@
 				<span class={[primary.icon, 'size-4 shrink-0']}></span>
 				{primary.label}
 			</button>
+		{:else if visibleStanding?.activity}
+			<WorkspaceActivity activity={visibleStanding.activity} />
 		{:else if visibleStanding}
 			<StandingIcon standing={visibleStanding} />
 		{/if}
