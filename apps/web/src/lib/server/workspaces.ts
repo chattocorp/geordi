@@ -1178,7 +1178,7 @@ export function createWorkspaces(
 		 * Deletes archived workspaces from the log for good (ADR-012, FDR-014), with everyone
 		 * who worked in their worktrees and every agent they started, who must be archived too;
 		 * and the images sent to them. Their branches and project folders stay. Returns how many
-		 * workspaces went, and how many bytes that freed.
+		 * workspaces went, and how many bytes smaller the log got.
 		 */
 		purge(ids: string[], actor: string | null = null): { purged: number; freed: number } {
 			const all = [...projection.get().values()];
@@ -1212,7 +1212,7 @@ export function createWorkspaces(
 					transcriptOf(workspace).flatMap((item) => (item.kind === 'user' && item.images) || [])
 				)
 			);
-			const { freed } = store.purge(
+			const { freed, copy } = store.purge(
 				[...[...family.keys()].flatMap((id) => projection.streamsOf(id)), ...images.streams],
 				{
 					type: 'workspace.purged',
@@ -1228,7 +1228,7 @@ export function createWorkspaces(
 				},
 				{ actor }
 			);
-			images.release();
+			images.release(copy);
 			return { purged: family.size, freed };
 		},
 

@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { EventStore } from './store';
 
@@ -197,5 +201,124 @@ describe('EventStore', () => {
 		gone.abort();
 		expect((await waiting).done).toBe(true);
 		expect(listening).toBe(false);
+	});
+
+	describe('purging', () => {
+		const purgeOf = (store: EventStore<TestEvent>) => (stream: string) =>
+			store.purge([stream], { type: 'counted', stream: 'purges', data: { by: 0 } });
+		/** The streams in each copy of a purge that went through, oldest first. */
+		const copiesOf = (store: EventStore<TestEvent>) =>
+			readdirSync(store.purgeCopies!)
+				.filter((folder) => /^\d{4}-/.test(folder))
+				.sort()
+				.map((folder) => {
+					const copy = new EventStore<TestEvent>(join(store.purgeCopies!, folder, 'events.db'));
+					const streams = copy.readAll().map((event) => event.stream);
+					copy.close();
+					return streams;
+				});
+
+		it('leaves a private copy of the log as it was, until the next purge goes through', () => {
+			const path = join(mkdtempSync(join(tmpdir(), 'geordi-purge-')), 'events.db');
+			const store = new EventStore<TestEvent>(path);
+			const purge = purgeOf(store);
+			store.append([counted(1, 'counter:gone'), counted(2, 'counter:kept')]);
+
+			const { copy } = purge('counter:gone');
+			expect(store.readAll().map((event) => event.stream)).toEqual(['counter:kept', 'purges']);
+			expect(copiesOf(store)).toEqual([['counter:gone', 'counter:kept']]);
+			expect(statSync(join(copy!, 'events.db')).mode & 0o777).toBe(0o600);
+
+			// a purge that fails leaves the copy before it, and nothing of its own
+			const writer = new DatabaseSync(path);
+			writer.exec('BEGIN IMMEDIATE');
+			expect(() => purge('counter:kept')).toThrow(/locked/);
+			writer.exec('ROLLBACK');
+			writer.close();
+			expect(copiesOf(store)).toEqual([['counter:gone', 'counter:kept']]);
+
+			// one that goes through takes its place
+			purge('counter:kept');
+			expect(copiesOf(store)).toEqual([['counter:kept', 'purges']]);
+			store.close();
+		});
+
+		it('tells the copies of purges that went through by their names, and removes only its own', () => {
+			vi.useFakeTimers({ toFake: ['Date'] });
+			vi.setSystemTime(new Date('2026-11-20T12:00:00.000Z'));
+			try {
+				const path = join(mkdtempSync(join(tmpdir(), 'geordi-purge-')), 'events.db');
+				const store = new EventStore<TestEvent>(path);
+				const purge = purgeOf(store);
+				store.append([counted(1, 'counter:a'), counted(2, 'counter:b'), counted(3, 'counter:c')]);
+				purge('counter:a');
+				// what a purge that never went through leaves (the process ended), and a folder of
+				// someone's own
+				const copies = store.purgeCopies!;
+				mkdirSync(join(copies, 'pending-2026-11-20T11-00-00.000Z-0123abcd'));
+				mkdirSync(join(copies, 'saved'));
+
+				// within the same millisecond
+				purge('counter:b');
+				expect(readdirSync(copies).sort()).toEqual([
+					expect.stringMatching(/^2026-11-20T12-00-00\.000Z-[0-9a-f]{8}$/),
+					'saved'
+				]);
+				expect(copiesOf(store)).toEqual([['counter:b', 'counter:c', 'purges']]);
+				store.close();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it('never fails, nor keeps the projections from hearing, once the deletion went through', () => {
+			const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const store = new EventStore<TestEvent>(
+				join(mkdtempSync(join(tmpdir(), 'geordi-purge-')), 'events.db')
+			);
+			const purges = store.project(
+				'purges',
+				() => 0,
+				(n, event) => (event.stream === 'purges' ? n + 1 : n)
+			);
+			store.append([counted(1, 'counter:a'), counted(2, 'counter:b')]);
+			// the deletion goes through; compacting the log and measuring it afterwards fail
+			let committed = false;
+			const exec = DatabaseSync.prototype.exec;
+			const prepare = DatabaseSync.prototype.prepare;
+			const execSpy = vi.spyOn(DatabaseSync.prototype, 'exec').mockImplementation(function (
+				this: DatabaseSync,
+				sql: string
+			) {
+				if (sql === 'COMMIT') committed = true;
+				if (committed && sql === 'VACUUM') throw new Error('disk full');
+				return exec.call(this, sql);
+			});
+			const prepareSpy = vi.spyOn(DatabaseSync.prototype, 'prepare').mockImplementation(function (
+				this: DatabaseSync,
+				sql: string
+			) {
+				if (committed && sql === 'PRAGMA page_count') throw new Error('disk I/O error');
+				return prepare.call(this, sql);
+			});
+			try {
+				expect(purgeOf(store)('counter:a')).toMatchObject({ freed: 0 });
+				expect(purges.get()).toBe(1);
+				expect(store.readAll().map((event) => event.stream)).toEqual(['counter:b', 'purges']);
+				expect(error).toHaveBeenCalledWith(
+					'[events] after a purge, could not compact the log',
+					expect.anything()
+				);
+				expect(error).toHaveBeenCalledWith(
+					'[events] after a purge, could not measure the log',
+					expect.anything()
+				);
+			} finally {
+				execSpy.mockRestore();
+				prepareSpy.mockRestore();
+				error.mockRestore();
+				store.close();
+			}
+		});
 	});
 });

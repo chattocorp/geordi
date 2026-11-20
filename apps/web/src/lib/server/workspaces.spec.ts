@@ -1,5 +1,13 @@
 import { createImages } from './images.ts';
-import { mkdtempSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	renameSync,
+	statSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -1759,5 +1767,98 @@ describe('purging archived workspaces', () => {
 		workspaces.purge([purged]);
 		expect(() => images.get(gone)).toThrow();
 		expect(images.get(kept).data).toBe(png.toString('base64'));
+	});
+
+	it('keeps the files of the images it deletes with the copy of the log it leaves', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-purge-')), 'events.db');
+		const { store, workspaces, repo } = setup({ database });
+		const images = createImages(store);
+		const image = images.add(png);
+		const id = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'A',
+			images: [image]
+		});
+		done(workspaces, id);
+		workspaces.archive(id);
+		const [blob] = store
+			.readStream(`image:${image}`)
+			.flatMap((event) =>
+				event.type === 'image.added' && 'blob' in event.data ? [event.data.blob] : []
+			);
+		workspaces.purge([id]);
+		const [copy] = readdirSync(store.purgeCopies!);
+		expect(existsSync(join(store.purgeCopies!, copy, 'events.db'))).toBe(true);
+		expect(existsSync(join(store.purgeCopies!, copy, 'blobs', blob))).toBe(true);
+		expect(existsSync(join(store.path, '..', 'blobs', blob))).toBe(false);
+		store.close();
+	});
+
+	it('can be undone by hand, as FDR-014 says, from the copy of the last purge', () => {
+		const directory = mkdtempSync(join(tmpdir(), 'geordi-purge-'));
+		const { store, workspaces, repos, repo, dispatch } = setup({
+			database: join(directory, 'events.db')
+		});
+		const image = createImages(store).add(png);
+		const id = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'A',
+			images: [image]
+		});
+		done(workspaces, id);
+		workspaces.archive(id);
+		const before = workspaces.get(id);
+		workspaces.purge([id]);
+		// work done after the deletion, still in the write-ahead log when Geordi stops
+		const picture = createImages(store).add(png);
+		const later = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'Later',
+			images: [picture]
+		});
+		void repos;
+
+		// the data as a crash leaves it, write-ahead log and all
+		const data = mkdtempSync(join(tmpdir(), 'geordi-undo-'));
+		cpSync(directory, data, { recursive: true });
+		store.close();
+		expect(existsSync(join(data, 'events.db-wal'))).toBe(true);
+
+		// 2. set the current data aside; 3. move the copy in; 4. move the images back
+		const aside = mkdtempSync(join(tmpdir(), 'geordi-aside-'));
+		for (const file of ['events.db', 'events.db-wal', 'events.db-shm'])
+			if (existsSync(join(data, file))) renameSync(join(data, file), join(aside, file));
+		cpSync(join(data, 'blobs'), join(aside, 'blobs'), { recursive: true });
+		// what else may be there: a deletion that never went through, and a folder of someone's own
+		mkdirSync(join(data, 'purge-copies', 'pending-2999-01-01T00-00-00.000Z-0123abcd'));
+		mkdirSync(join(data, 'purge-copies', 'saved'));
+		// 3. the newest folder named by a time alone
+		const copy = join(
+			data,
+			'purge-copies',
+			readdirSync(join(data, 'purge-copies'))
+				.filter((folder) => /^\d{4}-\d{2}-\d{2}T[\d.-]+Z-[0-9a-f]{8}$/.test(folder))
+				.sort()
+				.at(-1)!
+		);
+		renameSync(join(copy, 'events.db'), join(data, 'events.db'));
+		for (const blob of readdirSync(join(copy, 'blobs')))
+			renameSync(join(copy, 'blobs', blob), join(data, 'blobs', blob));
+
+		const restored = new EventStore<GeordiEvent>(join(data, 'events.db'));
+		const back = createWorkspaces(restored, createRepos(restored), dispatch);
+		expect(back.get(id)).toEqual(before);
+		expect(createImages(restored).get(image).data).toBe(png.toString('base64'));
+		// what happened since is not in it, as the warning says, but in what was set aside
+		expect(() => back.get(later)).toThrow();
+		expect(statSync(join(data, 'events.db')).mode & 0o777).toBe(0o600);
+		restored.close();
+		const kept = new EventStore<GeordiEvent>(join(aside, 'events.db'));
+		expect(createWorkspaces(kept, createRepos(kept), dispatch).get(later).title).toBe('Later');
+		expect(createImages(kept).get(picture).data).toBe(png.toString('base64'));
+		kept.close();
 	});
 });
