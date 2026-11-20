@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { WorkspaceAction } from './actions.ts';
 	import Spinner from './Spinner.svelte';
+	import StatusCircle from './StatusCircle.svelte';
 
 	type Activity = WorkspaceAction['id'] | 'working';
 	let { activity }: { activity: Activity } = $props();
@@ -27,20 +28,9 @@
 	const fixing = $derived(['fix-checks', 'resolve-conflicts', 'address-review'].includes(activity));
 </script>
 
-<span
-	role="img"
-	aria-label={labels[activity]}
-	title={labels[activity]}
-	class={[
-		'relative grid size-6 place-items-center rounded-full',
-		merging
-			? 'status-ok'
-			: fixing
-				? 'status-danger'
-				: activity === 'archive'
-					? 'status-merged'
-					: 'bg-hover text-muted'
-	]}
+<StatusCircle
+	label={labels[activity]}
+	tone={merging ? 'ok' : fixing ? 'danger' : activity === 'archive' ? 'merged' : 'neutral'}
 >
 	{#if merging}
 		<span class="icon-[lucide--git-merge] size-4"></span>
@@ -55,7 +45,7 @@
 	{:else}
 		<span class="icon-[lucide--refresh-cw] size-4 motion-safe:animate-checks-spin"></span>
 	{/if}
-</span>
+</StatusCircle>
 
 <style>
 	.merge-trace {
