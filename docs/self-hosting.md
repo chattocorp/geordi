@@ -65,7 +65,7 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 - `GEORDI_PROJECTS_DIR` (default `~/.geordi/projects`): Where projects, workspaces that belong to no repository, keep their folders.
 - `GEORDI_RUN_APPROVALS_FILE` (default `~/.geordi/run-approvals.json`): The commands you have agreed to run, by repository.
 - `GEORDI_PORTS_FILE` (default `~/.geordi/ports.json`): The ports each workspace has been given.
-- `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
+- `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/reference/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
 
@@ -83,7 +83,7 @@ Use `FORGES_GITLAB_*` or `FORGES_FORGEJO_*` for those. A suffix adds another ins
 the same forge (`FORGES_GITEA_TOKEN_WORK`). The desktop app reads these from your login
 shell when it starts, so set them in your shell's profile and restart the app. Until then,
 a workspace whose `origin` is on such a forge says **Forge not set up**. See
-[forges.link](https://forges.link/guides/environment-variables) for every variable.
+[the Forges environment variable reference](https://forges.link/reference/environment-variables) for every variable.
 
 ## Connect an external agent
 

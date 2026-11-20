@@ -84,7 +84,7 @@ const CREDENTIALS_MS = 10 * 60_000;
 
 /**
  * The forges we can talk to: every one configured through `FORGES_*` environment variables
- * (see https://forges.link/guides/environment-variables), plus github.com, signed in as
+ * (see https://forges.link/reference/environment-variables), plus github.com, signed in as
  * the GitHub CLI is, or anonymously (public repositories only).
  */
 function forges() {
