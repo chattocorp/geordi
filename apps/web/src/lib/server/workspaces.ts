@@ -957,8 +957,12 @@ export function createWorkspaces(
 			: null;
 	}
 
-	/** Workspaces that must not start a turn right now; see `hold`. */
-	const held = new Set<string>();
+	/** Workspaces that must not start a turn right now, and what is being done to them; see `hold`. */
+	const held = new Map<string, string>();
+	function refuseHeld(id: string) {
+		const doing = held.get(id);
+		if (doing) error(409, `This workspace is ${doing}`);
+	}
 
 	/** Send the recorded prompt. An unacknowledged delivery is retried on reconnect. */
 	function deliver(workspace: Workspace, message: PendingMessage, working: boolean) {
@@ -1155,6 +1159,8 @@ export function createWorkspaces(
 		actor: string | null = null
 	): string {
 		imageStore.resolve(images);
+		// an agent must not start in a worktree on its way out, or on the move
+		if (workspace.worktreeId) refuseHeld(workspace.worktreeId);
 		const { repoId, ...rest } = workspace;
 		if (repoId !== null) repos.get(repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
@@ -1654,7 +1660,7 @@ export function createWorkspaces(
 			imageStore.resolve(images);
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (held.has(id)) error(409, 'This workspace is being archived');
+			refuseHeld(id);
 			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
 				return say(workspace, text, actor, undefined, images, action);
@@ -1678,7 +1684,7 @@ export function createWorkspaces(
 			imageStore.resolve(images);
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (held.has(id)) error(409, 'This workspace is being archived');
+			refuseHeld(id);
 
 			nameAfter(workspace, text);
 			say(workspace, text, actor, undefined, images);
@@ -1739,13 +1745,14 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Keeps workspaces from being given anything to do while something that takes time
-		 * is done to them (archiving, which waits for a daemon). Returns a function that ends
-		 * it. Not in the event log: it lasts no longer than the request that asked for it.
+		 * Keeps workspaces from being given anything to do, and agents from starting in their
+		 * worktrees, while something that takes time is done to them (`doing`, as in “being
+		 * archived”: what waits for a daemon). Returns a function that ends it. Not in the event
+		 * log: it lasts no longer than the request that asked for it.
 		 */
-		hold(ids: string[]): () => void {
-			if (ids.some((id) => held.has(id))) error(409, 'A workspace is being archived or restored');
-			for (const id of ids) held.add(id);
+		hold(ids: string[], doing: string): () => void {
+			ids.forEach(refuseHeld);
+			for (const id of ids) held.set(id, doing);
 			return () => ids.forEach((id) => held.delete(id));
 		},
 
