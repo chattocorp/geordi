@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('geordiDesktop', {
 	onOpen: (opened) => ipcRenderer.on('geordi:open', (_event, id) => opened(id)),
 	/** The colours of the window's own buttons, where they are drawn over the page. */
 	titleBar: (colours) => ipcRenderer.send('geordi:title-bar', colours),
+	chooseRepository: () => ipcRenderer.invoke('geordi:choose-repository'),
 	updates: {
 		subscribe(callback) {
 			const receive = (_event, state) => callback(state);
