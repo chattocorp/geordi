@@ -1,3 +1,5 @@
+import type { PortConflict } from '@geordi/protocol';
+import { createHmac, randomBytes } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createConnection, createServer } from 'node:net';
@@ -68,16 +70,16 @@ export async function free(port: number): Promise<boolean> {
 }
 
 /** Which program listens on `port`, if `lsof` can tell. */
-async function listener(port: number): Promise<string | null> {
+async function listener(port: number): Promise<PortConflict['listener']> {
 	try {
 		const { stdout } = await promisify(execFile)(
 			'lsof',
 			['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fpc'],
 			{ timeout: 2000 }
 		);
-		const pid = /^p(\d+)$/m.exec(stdout)?.[1];
+		const pids = [...stdout.matchAll(/^p(\d+)$/gm)];
 		const name = /^c(.+)$/m.exec(stdout)?.[1];
-		return name && pid ? `${name} (process ${pid})` : null;
+		return name && pids.length === 1 ? { name, pid: Number(pids[0][1]) } : null;
 	} catch {
 		return null; // no lsof, or nothing it is allowed to see
 	}
@@ -90,7 +92,48 @@ async function listener(port: number): Promise<string | null> {
 export async function portTaken(port: number): Promise<string | null> {
 	if (await free(port)) return null;
 	const program = await listener(port);
-	return `Port ${port} is in use by another program${program ? `: ${program}` : ''}. Stop it, then start this job again.`;
+	return `Port ${port} is in use by another program${program ? `: ${program.name} (process ${program.pid})` : ''}. Stop it, then start this job again.`;
+}
+
+// A confirmation belongs to one daemon lifetime, job, port and process incarnation.
+const confirmationKey = randomBytes(32);
+
+export async function checkJobPort(
+	worktreeId: string,
+	job: string,
+	port: number,
+	confirmation?: string
+): Promise<PortConflict | null> {
+	if (await free(port)) return null;
+	const owner = await listener(port);
+	const conflict: PortConflict = { port, listener: owner };
+	if (!owner || owner.pid <= 1 || owner.pid === process.pid) return conflict;
+	try {
+		const { stdout } = await promisify(execFile)('ps', ['-p', String(owner.pid), '-o', 'lstart='], {
+			timeout: 2000
+		});
+		if (!stdout.trim()) return conflict;
+		conflict.confirmation = createHmac('sha256', confirmationKey)
+			.update(JSON.stringify([worktreeId, job, port, owner.pid, owner.name, stdout.trim()]))
+			.digest('hex');
+	} catch {
+		return conflict;
+	}
+	if (confirmation !== conflict.confirmation) return conflict;
+	try {
+		process.kill(owner.pid, 'SIGTERM');
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
+			return { ...conflict, problem: 'The operating system refused to stop this process.' };
+	}
+	for (let attempt = 0; attempt < 30; attempt++) {
+		if (await free(port)) return null;
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	const current = await checkJobPort(worktreeId, job, port);
+	return current?.confirmation === confirmation
+		? { ...current, problem: 'The process still has this port after the stop request.' }
+		: current;
 }
 
 /** Whether something on this machine answers on `port`. */

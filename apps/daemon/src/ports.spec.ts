@@ -1,9 +1,20 @@
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtempSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createPorts, free, portAt, portEnv, portRange, portTaken, waitForPort } from './ports.ts';
+import {
+	checkJobPort,
+	createPorts,
+	free,
+	portAt,
+	portEnv,
+	portRange,
+	portTaken,
+	waitForPort
+} from './ports.ts';
 
 const file = () => join(mkdtempSync(join(tmpdir(), 'geordi-ports-')), 'ports.json');
 const allFree = { isFree: async () => true };
@@ -129,6 +140,49 @@ describe('whether a port is free', () => {
 		if (said?.includes('process')) expect(said).toContain(`process ${process.pid}`);
 	});
 });
+
+it.skipIf(spawnSync('lsof', ['-v']).error || process.platform === 'win32')(
+	'only stops the confirmed listener on the same workspace job, then waits for the port',
+	async () => {
+		async function listen(port: number) {
+			const child = spawn(
+				process.execPath,
+				[
+					'-e',
+					`
+				const server = require('node:net').createServer().listen(${port}, '127.0.0.1', () => process.send(server.address().port));
+			`
+				],
+				{ stdio: ['ignore', 'ignore', 'ignore', 'ipc'] }
+			);
+			const [bound] = await once(child, 'message');
+			return { child, port: Number(bound) };
+		}
+		const first = await listen(0);
+		try {
+			const conflict = await checkJobPort('workspace', 'web', first.port);
+			expect(conflict?.listener?.pid).toBe(first.child.pid);
+			expect(conflict?.confirmation).toBeTruthy();
+			expect(await checkJobPort('other', 'web', first.port, conflict!.confirmation)).not.toBeNull();
+			const closed = once(first.child, 'exit');
+			first.child.kill();
+			await closed;
+			const next = await listen(first.port);
+			try {
+				const changed = await checkJobPort('workspace', 'web', first.port, conflict!.confirmation);
+				expect(changed?.listener?.pid).toBe(next.child.pid);
+				expect(
+					await checkJobPort('workspace', 'web', first.port, changed!.confirmation)
+				).toBeNull();
+				expect(await free(first.port)).toBe(true);
+			} finally {
+				next.child.kill();
+			}
+		} finally {
+			first.child.kill();
+		}
+	}
+);
 
 describe('the range ports come from', () => {
 	it('is the usual one unless the environment says otherwise', () => {

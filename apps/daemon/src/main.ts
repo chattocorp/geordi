@@ -39,7 +39,15 @@ import {
 	versions
 } from './changes.ts';
 import { resolve, settingsOf } from './config.ts';
-import { createPorts, portEnv, portRange, portTaken, waitForPort } from './ports.ts';
+import {
+	checkJobPort,
+	createPorts,
+	portAt,
+	portEnv,
+	portRange,
+	portTaken,
+	waitForPort
+} from './ports.ts';
 import {
 	closeTerminal,
 	closeTerminals,
@@ -570,7 +578,17 @@ async function readRequest(request: DaemonRequest) {
 	}
 	if (request.kind === 'portReady')
 		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
-	if (request.kind === 'portTaken') return portTaken(request.port);
+	if (request.kind === 'jobPort') {
+		const assigned = ports.of(request.worktreeId);
+		const index = assigned?.jobs[request.job];
+		if (!assigned || typeof index !== 'number') throw new Error('The job has no assigned port');
+		return checkJobPort(
+			request.worktreeId,
+			request.job,
+			portAt(assigned, index),
+			request.confirmation
+		);
+	}
 	if (request.kind === 'continueWorktree') {
 		const { repoPath, worktreeId } = request;
 		const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);

@@ -458,6 +458,14 @@ export type ReleasePlan = {
 /** A small picture, as it is served: its media type, and its bytes in base64. */
 export type RepoIcon = { type: string; data: string };
 
+export type PortConflict = {
+	port: number;
+	listener: { pid: number; name: string } | null;
+	/** Confirms the listener seen on this job's port. */
+	confirmation?: string;
+	problem?: string;
+};
+
 export type DaemonRequest =
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
 	| ({ kind: 'changes' } & WorktreeRef)
@@ -481,10 +489,10 @@ export type DaemonRequest =
 	 */
 	| { kind: 'portReady'; port: number; timeoutMs: number }
 	/**
-	 * Whether a program other than a job of ours has `port`, before the job starts. Answers
-	 * with what to say about it, or `null` while the port is free.
+	 * Checks the job's assigned port before launch. A matching confirmation requests that
+	 * the daemon stop the observed listener. Returns null once the port is free.
 	 */
-	| { kind: 'portTaken'; port: number }
+	| ({ kind: 'jobPort'; job: string; confirmation?: string } & WorktreeRef)
 	/**
 	 * Has the workspace carry on with new work (FDR-001): fetches, and moves its worktree to
 	 * a new branch off where work in the repository starts. Refused while it has uncommitted
@@ -559,7 +567,7 @@ export type DaemonResults = {
 	continueWorktree: { branch: string };
 	approveRun: null;
 	portReady: boolean;
-	portTaken: string | null;
+	jobPort: PortConflict | null;
 	config: RepoConfig;
 	release: ReleasePlan | null;
 	findFiles: FileMatch[];

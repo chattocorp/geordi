@@ -65,6 +65,7 @@ export function createJobs(
 		workspaceId: string,
 		names: string[],
 		seen: Record<string, string>,
+		confirmation?: string,
 		wait = false
 	) {
 		const { jobs } = await configOf(workspaceId);
@@ -73,11 +74,14 @@ export function createJobs(
 			const job = jobs.find((job) => job.name === name)!;
 			const at = terminalOf(workspaceId, name);
 			if (!terminals.isRunning(at)) {
-				// Another program on its port would answer for it: the job doesn't start, its
-				// terminal (the daemon looks again) says why, and so does this.
-				const taken = await ask({ kind: 'portTaken', port: job.port });
+				const taken = await ask({
+					kind: 'jobPort',
+					...ref(workspaceId),
+					job: name,
+					confirmation: job.approved && job.command === seen[name] ? confirmation : undefined
+				});
+				if (taken) return { ...taken, job: job.label ?? name };
 				terminals.start(at, SIZE, { job: name, command: seen[name] ?? '' });
-				if (taken) error(409, `${job.name} did not start. ${taken}`);
 			}
 			// only something that comes after it has to wait for it
 			const needed = order
@@ -85,11 +89,16 @@ export function createJobs(
 				.some((later) => jobs.find((job) => job.name === later)?.needs.includes(name));
 			if (needed || wait) await up(workspaceId, job);
 		}
+		return null;
 	}
 
 	return {
-		start: (workspaceId: string, names: string[], seen: Record<string, string>) =>
-			start(workspaceId, names, seen),
+		start: (
+			workspaceId: string,
+			names: string[],
+			seen: Record<string, string>,
+			confirmation?: string
+		) => start(workspaceId, names, seen, confirmation),
 
 		/** Waits for jobs that were started to be up. */
 		async ready(workspaceId: string, names: string[]) {
@@ -116,11 +125,16 @@ export function createJobs(
 		 * Gets a link ready to be opened: starts the jobs it needs, waits for them to be up,
 		 * and returns where it leads.
 		 */
-		async open(workspaceId: string, name: string, seen: Record<string, string>) {
+		async open(
+			workspaceId: string,
+			name: string,
+			seen: Record<string, string>,
+			confirmation?: string
+		) {
 			const link = (await configOf(workspaceId)).urls.find((link) => link.name === name);
 			if (!link) error(404, `There is no link "${name}" any more`);
-			await start(workspaceId, link.needs, seen, true);
-			return link.href;
+			const conflict = await start(workspaceId, link.needs, seen, confirmation, true);
+			return conflict ?? link.href;
 		}
 	};
 }

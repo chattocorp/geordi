@@ -34,7 +34,14 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { CONFIG_FILE, JOB_TERMINAL, SCRIPTS, startOrder, type Script } from '@geordi/protocol';
+	import {
+		CONFIG_FILE,
+		JOB_TERMINAL,
+		SCRIPTS,
+		startOrder,
+		type PortConflict,
+		type Script
+	} from '@geordi/protocol';
 	import JobMark, { type JobState } from '@geordi/ui/JobMark.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
@@ -45,6 +52,7 @@
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
+	import PortConflictDialog from './PortConflictDialog.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
@@ -369,15 +377,26 @@
 	/** The jobs that were asked for and are on their way up: until they listen on their port. */
 	const launching = new SvelteSet<string>();
 
+	let blocked = $state<{
+		workspaceId: string;
+		conflict: PortConflict & { job: string };
+		retry: () => void;
+	} | null>(null);
+
 	/** Starts jobs and their dependencies. */
-	function start(names: string[]) {
+	function start(names: string[], confirmation?: string) {
+		const workspaceId = id;
 		agreed(names, async (seen) => {
 			const order = startOrder(jobs, names);
 			for (const name of order) launching.add(name);
 			mergeProblem = null;
 			try {
-				await startJobs({ workspaceId: id, jobs: names, seen });
-				await jobsReady({ workspaceId: id, jobs: order });
+				const conflict = await startJobs({ workspaceId, jobs: names, seen, confirmation });
+				if (conflict) {
+					blocked = { workspaceId, conflict, retry: () => start(names, conflict.confirmation) };
+					return;
+				}
+				await jobsReady({ workspaceId, jobs: order });
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not start that');
 			} finally {
@@ -397,7 +416,8 @@
 	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
 
 	/** Opens a link in the browser, once the jobs it needs are up. */
-	function visit(link: (typeof links)[number]) {
+	function visit(link: (typeof links)[number], confirmation?: string) {
+		const workspaceId = id;
 		agreed(link.needs, async (seen) => {
 			// a new tab has to be opened while the click still counts; where to comes later
 			// (`window` is the name of a snippet in here)
@@ -406,7 +426,12 @@
 			for (const name of booting) launching.add(name);
 			mergeProblem = null;
 			try {
-				const href = await openLink({ workspaceId: id, link: link.name, seen });
+				const href = await openLink({ workspaceId, link: link.name, seen, confirmation });
+				if (typeof href !== 'string') {
+					tab?.close();
+					blocked = { workspaceId, conflict: href, retry: () => visit(link, href.confirmation) };
+					return;
+				}
 				if (!tab) return void globalThis.open(href, '_blank', 'noopener');
 				tab.opener = null; // what is served there has no business with this page
 				tab.location.href = href;
@@ -1196,3 +1221,13 @@
 		</div>
 	</div>
 </Dialog>
+
+<PortConflictDialog
+	conflict={blocked?.workspaceId === id ? blocked.conflict : null}
+	cancel={() => (blocked = null)}
+	retry={() => {
+		const request = blocked;
+		blocked = null;
+		if (request?.workspaceId === id) request.retry();
+	}}
+/>

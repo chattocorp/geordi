@@ -289,8 +289,14 @@ export const editReleaseNote = command(
 
 /** Starts jobs, and before each the jobs it needs. */
 export const startJobs = command(
-	v.object({ workspaceId: v.string(), jobs: v.array(jobName), seen }),
-	({ workspaceId, jobs: names, seen }) => jobs().start(workspaceId, names, seen)
+	v.object({
+		workspaceId: v.string(),
+		jobs: v.array(jobName),
+		seen,
+		confirmation: v.optional(v.string())
+	}),
+	({ workspaceId, jobs: names, seen, confirmation }) =>
+		jobs().start(workspaceId, names, seen, confirmation)
 );
 
 /**
@@ -316,8 +322,8 @@ export const stopJob = command(
 
 /** Starts what a link needs, waits for it to be up, and returns where the link leads. */
 export const openLink = command(
-	v.object({ workspaceId: v.string(), link: jobName, seen }),
-	({ workspaceId, link, seen }) => jobs().open(workspaceId, link, seen)
+	v.object({ workspaceId: v.string(), link: jobName, seen, confirmation: v.optional(v.string()) }),
+	({ workspaceId, link, seen, confirmation }) => jobs().open(workspaceId, link, seen, confirmation)
 );
 
 /**
