@@ -29,6 +29,12 @@ export const shortcuts = {
 		label: 'Show only the repository of this workspace, or all again',
 		group: 'General'
 	},
+	todayOnly: {
+		code: 'KeyT',
+		shift: true,
+		label: 'Toggle workspaces active today (experimental)',
+		group: 'General'
+	},
 	toggleSidebar: { code: 'KeyB', label: 'Toggle the sidebar', group: 'General' },
 	settings: { key: ',', label: 'Open the settings', group: 'General' },
 	toggleSide: {

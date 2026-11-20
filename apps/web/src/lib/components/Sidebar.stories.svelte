@@ -3,6 +3,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
+	import { activeOnDay } from '#lib/family.ts';
 	import Sidebar from './Sidebar.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Sidebar', component: Sidebar });
@@ -149,10 +150,17 @@
 	};
 </script>
 
-{#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
+{#snippet frame(nav: Navigation | undefined, path: string, lost = false, day: string | null = null)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh w-64 bg-frame p-2">
-		<Sidebar {nav} {path} {folded} {focus} {lost} />
+		<Sidebar
+			visibleWorkspaces={activeOnDay(nav?.workspaces ?? [], day)}
+			{nav}
+			{path}
+			{folded}
+			{focus}
+			{lost}
+		/>
 	</div>
 {/snippet}
 
@@ -197,6 +205,31 @@
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Active today"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText('Review the daemon')).toBeVisible();
+		await expect(canvas.queryByText('Scale live views and the event log')).toBeNull();
+		await expect(canvas.queryByText('sample-project')).toBeNull();
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: nav.workspaces.map((w) =>
+				w.id === 'aide'
+					? { ...w, updatedAt: new Date(2026, 10, 20).toISOString() }
+					: { ...w, updatedAt: new Date(2026, 10, 19, 23, 59).toISOString() }
+			)
+		},
+		'/',
+		false,
+		new Date(2026, 10, 20).toDateString()
+	)}
 </Story>
 
 <Story name="On the overview" asChild>

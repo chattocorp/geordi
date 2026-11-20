@@ -24,6 +24,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - An agent shows a picture (a screenshot, a chart) by writing a Markdown image with the path of its file: it appears in its reply, and opens in full when clicked. The file is read where the agent works, when the reply is shown: PNG, JPEG, WebP or GIF, at most 5 MB, from the worktree or anywhere else on that machine. A file that is gone, or is no picture, leaves its path. Images from the web are never loaded, only linked.
 - An absolute Markdown link to a file in the worktree opens its current contents in a workspace tab, including files with no changes. A trailing line number such as `:139` scrolls to that line and highlights it. If the file is unavailable, the tab explains why it cannot show the text.
 - The workspace's ID is shown in its header; a click copies it.
+- Cmd/Ctrl+Shift+T toggles an experimental sidebar filter for workspaces with activity today. The day starts at local midnight. Previous and next workspace follow the filtered list.
 - Cmd/Ctrl+B hides and shows the navigation on the left, and with Alt/Option the changes and dock on the right. Both also have a button, and the navigation's edge can be dragged to resize it.
 - A workspace has a fixed frame: the main area, and beside it the changes above the dock. The lines between them can be dragged to resize, and that is all that can be changed about the frame.
 - The main area holds the conversation, which is always there and stays there. Diffs open next to it as further windows.

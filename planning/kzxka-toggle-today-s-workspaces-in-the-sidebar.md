@@ -1,0 +1,11 @@
+---
+data:
+  priority: normal
+  status: done
+  type: feature
+id: kzxka
+title: Toggle today's workspaces in the sidebar
+---
+Cmd/Ctrl+Shift+T toggles workspaces with activity on the current local calendar day. Keyboard navigation follows the visible list.
+
+Verified the toggle and local midnight rollover with both Mac and Linux shortcuts in the running forge.
