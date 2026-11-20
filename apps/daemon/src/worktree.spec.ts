@@ -344,6 +344,19 @@ describe('changes', () => {
 			(await changes(worktree, origin)).filter((file) => /kept/.test(file.path));
 		expect(await kept()).toEqual([{ path: 'kept.txt', status: 'deleted', added: 0, removed: 2 }]);
 
+		// A staged deletion and an untracked replacement share one path.
+		git('rm', 'kept.txt');
+		writeFileSync(join(worktree.path, 'kept.txt'), 'one\nthree\n');
+		expect(await kept()).toEqual([{ path: 'kept.txt', status: 'modified', added: 1, removed: 1 }]);
+		expect(await versions(worktree, origin, 'kept.txt')).toEqual({
+			old: 'one\ntwo\n',
+			new: 'one\nthree\n'
+		});
+		writeFileSync(join(worktree.path, 'kept.txt'), 'one\ntwo\n');
+		expect(await kept()).toEqual([]);
+		expect(git('ls-files', '--', 'kept.txt').toString()).toBe('');
+		git('restore', '--staged', 'kept.txt');
+
 		// moved: one change, not a deletion and an addition, and its old version is the old file's
 		writeFileSync(join(worktree.path, 'kept.txt'), 'one\ntwo\n');
 		git('mv', 'kept.txt', 'kept elsewhere.txt');

@@ -8,6 +8,8 @@ import {
 	readFileSync,
 	realpathSync
 } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, sep } from 'node:path';
 import {
 	MAX_IMAGE_BYTES,
@@ -188,22 +190,50 @@ export async function changes(worktree: Worktree, origin: Origin): Promise<FileC
 	return filesSince(worktree, fork, others);
 }
 
+async function trackedChanges(worktree: Worktree, base: string, options: string[]) {
+	const diff = async (format: string) =>
+		(await gitIn(worktree, 'diff', format, '-z', ...SAFE, base, ...options)).split('\0');
+	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
+	return parseFileChanges(names, fields);
+}
+
 async function filesSince(
 	worktree: Worktree,
 	base: string,
 	others: string[]
 ): Promise<FileChange[]> {
-	// With renames found (`-M`), so that a moved file is one change and not two. Git does
-	// that by comparing contents itself: nothing of the worktree's gets to run.
-	const diff = async (format: string) =>
-		(await gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, base)).split('\0');
-
-	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
-	const tracked = parseFileChanges(names, fields);
+	const tracked = await trackedChanges(worktree, base, ['-M']);
+	const untrackedPaths = new Set(others);
+	const recreated = tracked
+		.filter((file) => untrackedPaths.has(file.path))
+		.map((file) => file.path);
+	let files = tracked;
+	if (recreated.length) {
+		// A path deleted from the index can exist again on disk. Compare its current
+		// contents with the base, using a temporary index that still tracks the path.
+		files = tracked.filter((file) => !untrackedPaths.has(file.path));
+		for (const path of recreated) untrackedPaths.delete(path);
+		const adminDir = await mkdtemp(join(tmpdir(), 'geordi-compare-'));
+		try {
+			const comparison = { ...worktree, adminDir };
+			await gitIn(comparison, 'read-tree', base);
+			for (let i = 0; i < recreated.length; i += 32) {
+				files.push(
+					...(await trackedChanges(comparison, base, [
+						'--no-renames',
+						'--',
+						...recreated.slice(i, i + 32)
+					]))
+				);
+			}
+		} finally {
+			await rm(adminDir, { recursive: true, force: true });
+		}
+	}
 
 	// Reading files to count their lines is only worth it for a workspace's own handful of new
 	// files, not for a `node_modules` nobody ignored: beyond that, they are just listed.
-	const added = others.map((path, index): FileChange => {
+	const added = [...untrackedPaths].map((path, index): FileChange => {
 		const text = index < MAX_COUNTED ? readText(worktree, path) : null;
 		return {
 			path,
@@ -213,7 +243,7 @@ async function filesSince(
 		};
 	});
 
-	return [...tracked, ...added].sort((a, b) => a.path.localeCompare(b.path));
+	return [...files, ...added].sort((a, b) => a.path.localeCompare(b.path));
 }
 
 /**
