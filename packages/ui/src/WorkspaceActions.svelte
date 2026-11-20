@@ -44,11 +44,16 @@
 	}: Props = $props();
 
 	const primary = $derived(actions.find((action) => !action.aside));
-	// Keep priority in the action rules; put the main action at the right edge of the ribbon.
-	const ordered = $derived([
-		...(compact ? [] : actions.filter((action) => action !== primary)),
-		...(primary ? [primary] : [])
-	]);
+	// Compact ribbons show the next step. Full ribbons lead with Sync whenever it is available.
+	const ordered = $derived.by(() => {
+		if (compact) return primary ? [primary] : [];
+		const sync = actions.find((action) => action.id === 'merge-upstream');
+		return [
+			...(sync ? [sync] : []),
+			...actions.filter((action) => action !== sync && action !== primary),
+			...(primary && primary !== sync ? [primary] : [])
+		];
+	});
 	const text = $derived(compact ? 'text-xs' : 'text-sm');
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
 	// small, beside a next step or a question, the colour and icon of how it stands say enough

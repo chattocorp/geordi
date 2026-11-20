@@ -334,13 +334,17 @@
 </Story>
 
 <Story
-	name="Only upstream commits"
+	name="Sync before Archive"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Behind base branch')).toBeVisible();
 		const sync = canvas.getByRole('button', { name: 'Sync 1 incoming commit' });
 		await expect(within(sync).getByText('1')).toHaveClass('opacity-60');
+		await expect(canvas.getAllByRole('button')).toEqual([
+			sync,
+			canvas.getByRole('button', { name: 'Archive' })
+		]);
 	}}
 >
 	{@render bar({
