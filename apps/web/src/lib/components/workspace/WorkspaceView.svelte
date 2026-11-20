@@ -177,6 +177,8 @@
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
 	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
+	/** How the Changes tab shows its files: a preference of this browser, like the frame. */
+	const changesView = persisted<'list' | 'tree'>('geordi:changes-view', 'list');
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
 	/** Terminals asked for just now, whose shells are still starting. */
@@ -799,6 +801,7 @@
 			{git}
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 			onopen={openDiff}
+			bind:view={changesView.current}
 		/>
 	{:else if tab === PR && pull}
 		<PullRequestPane {pull}
