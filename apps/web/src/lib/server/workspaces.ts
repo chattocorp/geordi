@@ -19,6 +19,7 @@ import {
 	type ForgeMessage,
 	type Harness,
 	type Question,
+	type PullEvidence,
 	type ToolDiff,
 	type ToolInfo,
 	type TurnUsage,
@@ -37,6 +38,11 @@ type ActionId = WorkspaceAction['id'];
 type WorkspaceStream = `workspace:${string}`;
 
 export type WorkspacesEvent =
+	| {
+			type: 'workspace.pullLinked';
+			stream: WorkspaceStream;
+			data: { id: string; url: string; number: string };
+	  }
 	| {
 			type: 'workspace.created';
 			stream: WorkspaceStream;
@@ -449,6 +455,12 @@ export function createWorkspaces(
 	const listeners = new Map<string, Set<(edit: TranscriptEdit) => void>>();
 	// The first session of an old workspace could have a different ID.
 	const sessionStreams = new Map<string, string>();
+	const evidence = new Map<string, PullEvidence>();
+	function pulls(id: string): PullEvidence {
+		let found = evidence.get(id);
+		if (!found) evidence.set(id, (found = { linked: [], candidates: [], branches: [] }));
+		return found;
+	}
 	// Sender attribution on a later replay must reflect who existed at the time.
 	const born = new Map<string, number>();
 
@@ -482,6 +494,23 @@ export function createWorkspaces(
 
 		const workspace = workspaces.get(event.data.id);
 		if (!workspace) return;
+		if (event.type === 'workspace.pullLinked') {
+			if (!restoring)
+				pulls(workspace.worktreeId).linked.push({ url: event.data.url, number: event.data.number });
+			return;
+		}
+		if (!restoring) {
+			const branch =
+				event.type === 'workspace.continued' || event.type === 'workspace.switched'
+					? event.data.branch
+					: event.type === 'workspace.output' && event.data.event.kind === 'worktree'
+						? event.data.event.branch
+						: null;
+			if (branch) {
+				const { branches } = pulls(workspace.worktreeId);
+				if (!branches.includes(branch)) branches.push(branch);
+			}
+		}
 		workspace.updatedAt = at;
 		const { id, transcript } = workspace;
 		function edit(index: number, remove: number, ...items: TranscriptItem[]) {
@@ -676,6 +705,16 @@ export function createWorkspaces(
 				break;
 			}
 			case 'tool.result': {
+				if (!restoring && !output.isError) {
+					// Creation CLIs print the new URL on the final line. Verify the repository
+					// and head branch upstream before accepting this as a workspace link.
+					const result = output.output.trimEnd();
+					const url = result.slice(result.lastIndexOf('\n') + 1).trim();
+					if (/^https?:\/\/[^\s]+\/(?:pull|pulls|merge_requests)\/\d+$/.test(url)) {
+						const { candidates } = pulls(workspace.worktreeId);
+						if (!candidates.includes(url)) candidates.push(url);
+					}
+				}
 				const tool = toolById(workspace, output.id);
 				if (tool)
 					replace(tool, {
@@ -1534,6 +1573,14 @@ export function createWorkspaces(
 	return {
 		access,
 		agents,
+		pullEvidence: (id: string) => structuredClone(pulls(id)),
+		linkPull(id: string, url: string, number: string) {
+			if (pulls(id).linked.some((link) => link.url === url)) return;
+			store.append(
+				{ type: 'workspace.pullLinked', stream: `workspace:${id}`, data: { id, url, number } },
+				{ actor: 'daemon' }
+			);
+		},
 		followTranscript,
 		measure,
 		/** Told which workspace's usage changed between events. */

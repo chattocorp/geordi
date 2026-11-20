@@ -35,7 +35,13 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
+	import {
+		CONFIG_FILE,
+		JOB_TERMINAL,
+		startOrder,
+		type PullRequest,
+		type Script
+	} from '@geordi/protocol';
 	import RunControls from './RunControls.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
@@ -69,9 +75,8 @@
 	import { addedNoteCount } from '#lib/release-notes.ts';
 	import { pullActionPending, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
-	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
-	import Markdown from '#lib/components/Markdown.svelte';
-	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
+	import PullHistory from './PullHistory.svelte';
+	import PullHistoryTab from './PullHistoryTab.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
 	import PatchView from '../PatchView.svelte';
 
@@ -114,6 +119,26 @@
 	});
 	const checked = $derived(git?.checking ? lastChecked : git);
 	const pull = $derived(checked?.upstream?.pull);
+	const pulls = $derived.by(() => {
+		const known = new SvelteMap<string, PullRequest>();
+		for (const link of workspace.pullLinks ?? [])
+			known.set(link.url, {
+				...link,
+				title: 'Pull request #' + link.number,
+				state: 'unknown',
+				draft: false,
+				base: null,
+				checks: null,
+				review: null
+			});
+		for (const historical of git?.history ?? []) {
+			if (historical.url) known.set(historical.url, historical);
+		}
+		if (pull) known.set(pull.url ?? pull.number, pull);
+		return [...known.values()].sort((a, b) => Number(b.number) - Number(a.number));
+	});
+	let selectedPull = $state<string | null>(null);
+
 	const running = $derived(workspace.status === 'running');
 	const offline = $derived(everything.current?.harnesses === null);
 	const waiting = (conversation: { pendingDelivery?: boolean }) =>
@@ -195,7 +220,7 @@
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
 		if (tab === TURN) return !!selectedTurn;
-		if (tab === PR) return !!pull;
+		if (tab === PR) return pulls.length > 0;
 		if (tab === CHANGESET) return !!workspace.git?.release;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('subagent:')) return reviewers.has(tab);
@@ -731,8 +756,8 @@
 				removed={files.reduce((sum, file) => sum + (file.removed ?? 0), 0)}
 			/>
 		{/if}
-	{:else if tab === PR && pull}
-		<PullRequestTab {pull} />
+	{:else if tab === PR && pulls.length}
+		<PullHistoryTab {pulls} />
 	{:else if tab === CHANGESET}
 		{@const added = addedNoteCount(git?.release?.packages ?? [])}
 		<span class="icon-[lucide--package] size-3.5 shrink-0"></span>
@@ -823,10 +848,8 @@
 			onopen={openDiff}
 			bind:view={changesView.current}
 		/>
-	{:else if tab === PR && pull}
-		<PullRequestPane {pull}
-			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
-		>
+	{:else if tab === PR && pulls.length}
+		<PullHistory {pulls} current={pull?.url} bind:selected={selectedPull} />
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
@@ -940,7 +963,10 @@
 				disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 				{pending}
 				askingIn={askingAgent ? resolve('/workspaces/[id]', { id }) : undefined}
-				onopenpull={() => showTab(PR)}
+				onopenpull={() => {
+					selectedPull = pull?.url ?? pull?.number ?? null;
+					showTab(PR);
+				}}
 				onaction={act}
 			/>
 			{#if workspace.archivedAt}

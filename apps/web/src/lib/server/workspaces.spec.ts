@@ -42,6 +42,29 @@ const refusal = (message: RegExp) =>
 	});
 
 describe('workspaces', () => {
+	it('replays PR links and successful tool candidates across branch changes', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Review');
+		const url = 'https://github.com/acme/widgets/pull/31';
+		workspaces.record(id, { kind: 'worktree', path: '/workspace', branch: 'first' });
+		workspaces.record(id, { kind: 'text', text: 'https://github.com/acme/widgets/pull/32' });
+		workspaces.record(id, {
+			kind: 'tool.result',
+			id: '1',
+			output: 'pushed\r\n' + url,
+			isError: false
+		});
+		workspaces.record(id, { kind: 'tool.result', id: '2', output: url + '0', isError: true });
+		workspaces.onBranch(id, 'second');
+		workspaces.linkPull(id, url, '31');
+		workspaces.linkPull(id, url, '31');
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.pullEvidence(id)).toEqual({
+			branches: ['first', 'second'],
+			candidates: [url],
+			linked: [{ url, number: '31' }]
+		});
+	});
 	it('publishes nested reviewer edits without changing earlier snapshots', () => {
 		const { workspaces, create } = setup();
 		const id = create('Review');

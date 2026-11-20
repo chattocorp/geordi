@@ -9,6 +9,7 @@ import {
 	REMOVE_TIMEOUT_MS,
 	UPSTREAM_TICK_MS,
 	type RepoIcon,
+	type PullRequest,
 	type WorktreeRef
 } from '@geordi/protocol';
 import {
@@ -65,6 +66,23 @@ const changesOf = (ref: WorktreeRef) =>
 			return changes;
 		});
 
+function rememberPull(id: string, pull: PullRequest): PullRequest {
+	const safe = {
+		...pull,
+		url: webUrl(pull.url),
+		checks: pull.checks && {
+			...pull.checks,
+			url: webUrl(pull.checks.url),
+			items: pull.checks.items?.map((item) => ({
+				...item,
+				url: webUrl(item.url) ?? undefined
+			}))
+		}
+	};
+	if (safe.url) workspaces().linkPull(id, safe.url, safe.number);
+	return safe;
+}
+
 function upstreamOf(ref: WorktreeRef, fresh = false) {
 	return hub()
 		.request({
@@ -80,18 +98,7 @@ function upstreamOf(ref: WorktreeRef, fresh = false) {
 				...upstream,
 				repoUrl: webUrl(upstream.repoUrl),
 				createUrl: webUrl(upstream.createUrl),
-				pull: pull && {
-					...pull,
-					url: webUrl(pull.url),
-					checks: pull.checks && {
-						...pull.checks,
-						url: webUrl(pull.checks.url),
-						items: pull.checks.items?.map((item) => ({
-							...item,
-							url: webUrl(item.url) ?? undefined
-						}))
-					}
-				}
+				pull: pull && rememberPull(ref.worktreeId, pull)
 			};
 		});
 }
@@ -260,6 +267,19 @@ export const watchers = lazy(() =>
 			return {
 				config: ref.then((ref) => hub().request({ kind: 'config', ...ref })).catch(() => null),
 				release: ref.then((ref) => hub().request({ kind: 'release', ...ref })).catch(() => null)
+			};
+		},
+		(id, currentUrl) => {
+			const evidence = workspaces().pullEvidence(id);
+			evidence.linked = evidence.linked.filter((link) => link.url !== currentUrl);
+			evidence.candidates = evidence.candidates.filter((url) => url !== currentUrl);
+			if (!evidence.linked.length && !evidence.candidates.length) return null;
+			return {
+				key: JSON.stringify(evidence),
+				load: async () =>
+					(await hub().request({ kind: 'pullHistory', ...workspaces().ref(id), evidence })).map(
+						(pull) => rememberPull(id, pull)
+					)
 			};
 		}
 	)
