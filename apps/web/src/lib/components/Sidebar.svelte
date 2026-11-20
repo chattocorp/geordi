@@ -396,7 +396,6 @@
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
 					? 'merge-pull'
 					: workspace.activeAction)}
-			jobs={workspace.runningJobs}
 			standing={workspace.standing}
 			actions={workspace.actions}
 			fold={under > 0

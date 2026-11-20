@@ -47,7 +47,7 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole('img', { name: 'Merging pull request' })).toBeVisible();
-		for (const name of ['Fixing checks', 'Archiving', 'Working', 'Running tests']) {
+		for (const name of ['Fixing checks', 'Archiving', 'Working']) {
 			await expect(canvas.getByRole('img', { name })).toBeVisible();
 		}
 		await expect(canvas.queryByRole('img', { name: 'Ready to merge' })).toBeNull();
@@ -66,6 +66,6 @@
 		<WorkspaceRow title="Repair failing CI" working progress="fix-checks" />
 		<WorkspaceRow title="Retire the old importer" leaving />
 		<WorkspaceRow title="Explore the event log" working />
-		<WorkspaceRow title="Verify the new parser" jobs={['tests']} />
+		<WorkspaceRow title="Verify the new parser" />
 	</div>
 </Story>

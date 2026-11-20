@@ -1,10 +1,9 @@
 <script lang="ts">
 	import type { WorkspaceAction } from './actions.ts';
-	import RunningJob from './RunningJob.svelte';
 	import Spinner from './Spinner.svelte';
 
-	type Activity = WorkspaceAction['id'] | 'working' | 'jobs';
-	let { activity, jobs = [] }: { activity: Activity; jobs?: string[] } = $props();
+	type Activity = WorkspaceAction['id'] | 'working';
+	let { activity }: { activity: Activity } = $props();
 
 	const labels: Record<Activity, string> = {
 		'merge-pull': 'Merging pull request',
@@ -22,21 +21,16 @@
 		'restore-worktree': 'Restoring worktree',
 		continue: 'Continuing on a new branch',
 		retry: 'Retrying',
-		working: 'Working',
-		jobs: 'Running jobs'
+		working: 'Working'
 	};
-	const jobLabel = $derived(jobs.length ? 'Running ' + jobs.join(', ') : '');
-	const label = $derived(
-		activity === 'jobs' ? jobLabel : [labels[activity], jobLabel].filter(Boolean).join(' · ')
-	);
 	const merging = $derived(activity === 'merge-pull' || activity === 'enable-auto-merge');
 	const fixing = $derived(['fix-checks', 'resolve-conflicts', 'address-review'].includes(activity));
 </script>
 
 <span
 	role="img"
-	aria-label={label}
-	title={label}
+	aria-label={labels[activity]}
+	title={labels[activity]}
 	class={[
 		'relative grid size-6 place-items-center rounded-full',
 		merging
@@ -58,8 +52,6 @@
 		<span class="archive-arrow absolute icon-[lucide--arrow-down] size-3"></span>
 	{:else if activity === 'working' || activity === 'retry'}
 		<span aria-hidden="true" class="inline-flex"><Spinner /></span>
-	{:else if activity === 'jobs'}
-		<span aria-hidden="true" class="inline-flex"><RunningJob {label} /></span>
 	{:else}
 		<span class="icon-[lucide--refresh-cw] size-4 motion-safe:animate-checks-spin"></span>
 	{/if}
