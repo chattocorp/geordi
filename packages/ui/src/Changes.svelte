@@ -116,6 +116,7 @@
 						{#if row.kind === 'dir'}
 							<button
 								type="button"
+								aria-label={row.name}
 								aria-expanded={row.open}
 								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
 								title={row.path}
@@ -128,7 +129,7 @@
 										row.open && 'rotate-90'
 									]}
 								></span>
-								<span class="min-w-0 truncate">{row.name}</span>
+								<FittedPath path={row.name} class={{ 'text-ink': row.name.includes('/') }} />
 							</button>
 						{:else}
 							{@render file(row.file, row.depth)}
