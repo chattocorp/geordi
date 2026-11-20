@@ -26,6 +26,7 @@
 		actions = [],
 		fold,
 		onpoint,
+		onarchive,
 		onaction
 	}: {
 		title: string;
@@ -47,6 +48,7 @@
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
+		onarchive?: () => void;
 		onaction?: (action: WorkspaceAction) => void;
 	} = $props();
 
@@ -127,6 +129,16 @@
 			<WorkspaceActivity activity={visibleStanding.activity} />
 		{:else if visibleStanding}
 			<StandingIcon standing={visibleStanding} />
+		{:else if onarchive}
+			<button
+				type="button"
+				class="pointer-events-none indicator-action bg-ink/10 text-muted opacity-0 hover:bg-ink/15 reveal:pointer-events-auto reveal:opacity-100"
+				aria-label="Archive — {title}"
+				onclick={onarchive}
+			>
+				<span class="icon-[lucide--archive] size-4 shrink-0"></span>
+				Archive
+			</button>
 		{/if}
 	</span>
 </div>
