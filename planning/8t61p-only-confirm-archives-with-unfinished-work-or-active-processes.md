@@ -10,4 +10,4 @@ Replaces the unconditional confirmation from yj2tv. Archive checks affected work
 
 Idle interactive shells now archive quietly. Tested foreground and background processes, a program that replaces its shell, and configured jobs. Restarted the forge’s daemon connection during a command and verified that the check detected the command until the shell returned to its prompt.
 
-The archive preview now lists file paths, jobs, and terminal processes for each affected workspace. It includes staged edits even when a working file matches HEAD.
+The archive preview now shows each applicable consequence once across all affected workspaces. It includes staged edits even when a working file matches HEAD.

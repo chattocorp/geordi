@@ -5,7 +5,6 @@ import { createStandings } from './standings.ts';
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
 import {
-	JOB_TERMINAL,
 	NO_WORKTREE,
 	REMOVE_TIMEOUT_MS,
 	UPSTREAM_TICK_MS,
@@ -307,45 +306,27 @@ export async function concernsAboutArchiving(id: string) {
 			}
 			const concerns = archiveConcerns(standing);
 			const blocked = workspaces().summary(workspace.id).status === 'running';
-			if (blocked)
-				concerns.push({ label: `Stop the running ${workspace.agent} agent before archiving.` });
-			const names = terminals().running(workspace.id);
-			if (names.length) {
-				const activity = await hub()
-					.request({ kind: 'terminalActivity', workspaceId: workspace.id, details: true })
-					.catch(() => null);
-				if (Array.isArray(activity)) {
-					const shells = names.filter((name) => !name.startsWith(JOB_TERMINAL)).sort();
-					const items = activity.map(({ terminal, processes }) => {
-						if (terminal.startsWith(JOB_TERMINAL))
-							return `Job “${terminal.slice(JOB_TERMINAL.length)}”`;
-						const index = shells.indexOf(terminal);
-						const label = index < 0 ? 'Terminal' : `Terminal ${index + 1}`;
-						return processes.length ? `${label} · ${processes.join(', ')}` : label;
-					});
-					if (items.length) concerns.push({ label: 'Archiving will stop this work', items });
-				} else if (activity !== false) {
-					// A disconnected or older daemon cannot name the processes.
-					concerns.push({
-						label: 'Archiving will close the terminals. Processes still running in them will stop.'
-					});
-				}
-			}
+			if (blocked) concerns.push('Stop busy agents before archiving.');
+			const active = terminals().running(workspace.id).length
+				? await hub()
+						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
+						.catch(() => null)
+				: false;
 			return {
-				concerns:
-					workspace.id === id
-						? concerns
-						: concerns.map((concern) => ({
-								...concern,
-								label: `“${workspace.title}” — ${concern.label}`
-							})),
+				concerns,
+				active,
 				discard: !!standing.changes?.uncommitted,
 				blocked
 			};
 		})
 	);
+	const concerns = [...new Set(previews.flatMap((preview) => preview.concerns))];
+	if (previews.some((preview) => preview.active))
+		concerns.push('Running processes will be stopped.');
+	else if (previews.some((preview) => preview.active === null))
+		concerns.push('Any running terminal processes will be stopped.');
 	return {
-		concerns: previews.flatMap((preview) => preview.concerns),
+		concerns,
 		discard: previews.some((preview) => preview.discard),
 		blocked: previews.some((preview) => preview.blocked)
 	};

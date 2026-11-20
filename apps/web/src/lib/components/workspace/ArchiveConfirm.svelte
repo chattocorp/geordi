@@ -14,18 +14,9 @@
 >
 	<div class="flex min-h-0 flex-col gap-4 p-6">
 		<p class="heading wrap-anywhere">{heading}</p>
-		<ul class="scroller min-h-0 space-y-4 overflow-y-auto text-sm wrap-anywhere">
-			{#each asking?.concerns ?? [] as concern, index (index)}
-				<li>
-					<p>{concern.label}</p>
-					{#if concern.items?.length}
-						<ul class="mt-1 list-disc space-y-0.5 pl-5 text-muted marker:text-muted">
-							{#each concern.items as item, i (i)}
-								<li>{item}</li>
-							{/each}
-						</ul>
-					{/if}
-				</li>
+		<ul class="scroller min-h-0 list-disc space-y-1 overflow-y-auto pl-5 text-sm marker:text-muted">
+			{#each asking?.concerns ?? [] as concern (concern)}
+				<li>{concern}</li>
 			{/each}
 		</ul>
 		<p class="text-sm text-muted">Your conversations and Git branches are kept.</p>

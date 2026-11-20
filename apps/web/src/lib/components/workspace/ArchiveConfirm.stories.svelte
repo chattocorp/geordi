@@ -15,13 +15,7 @@
 	args={{
 		asking: {
 			title: 'Review login changes',
-			concerns: [
-				{
-					label: '2 files have uncommitted changes, which will be discarded.',
-					items: ['src/login.ts', 'tests/login.test.ts']
-				},
-				{ label: 'Archiving will stop this work', items: ['Job “web”', 'Terminal 1 · node'] }
-			],
+			concerns: ['Uncommitted changes will be discarded.', 'Running processes will be stopped.'],
 			blocked: false,
 			busy: false,
 			answer
@@ -31,8 +25,8 @@
 		await waitFor(() =>
 			expect(canvas.getByRole('dialog', { name: 'Archive “Review login changes”?' })).toBeVisible()
 		);
-		await expect(canvas.getByText('tests/login.test.ts')).toBeVisible();
-		await expect(canvas.getByText('Terminal 1 · node')).toBeVisible();
+		await expect(canvas.getByText('Uncommitted changes will be discarded.')).toBeVisible();
+		await expect(canvas.getByText('Running processes will be stopped.')).toBeVisible();
 		await expect(answer).not.toHaveBeenCalled();
 		const cancel = canvas.getByRole('button', { name: 'Cancel' });
 		const archive = canvas.getByRole('button', { name: 'Archive' });

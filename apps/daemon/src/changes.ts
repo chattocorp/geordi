@@ -315,14 +315,13 @@ async function readStatus(worktree: Worktree, origin: Origin): Promise<Changes> 
 		landed(worktree, origin, head),
 		incoming(worktree, origin)
 	]);
-	const uncommittedPaths = [...new Set([...modified, ...others])].sort();
+
 	return {
 		branch: branchOf(worktree),
 		comparisonTarget: name,
 		files,
 		unmerged: tip.trim() !== fork,
-		uncommitted: uncommittedPaths.length,
-		uncommittedPaths,
+		uncommitted: new Set([...modified, ...others]).size,
 		unpushed,
 		landed: isLanded,
 		incoming: behind

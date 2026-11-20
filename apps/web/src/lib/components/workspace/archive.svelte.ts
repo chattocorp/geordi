@@ -1,4 +1,3 @@
-import type { ArchiveConcern } from '#lib/archiving.ts';
 import { SvelteSet } from 'svelte/reactivity';
 import { problemOf } from '#lib/problem.ts';
 import { archiveWorkspace, previewArchive } from '../../../routes/workspaces.remote';
@@ -11,7 +10,7 @@ export const beingArchived = new SvelteSet<string>();
 
 export type ArchiveQuestion = {
 	title: string;
-	concerns: ArchiveConcern[];
+	concerns: string[];
 	blocked: boolean;
 	busy: boolean;
 	answer(go: boolean): void;

@@ -2,4 +2,4 @@
 type: fix
 ---
 
-Before you archive a workspace, you can see which files have uncommitted changes and which jobs and terminal processes will stop.
+Before you archive a workspace, a short list summarizes any unfinished work and running processes across its workspaces.

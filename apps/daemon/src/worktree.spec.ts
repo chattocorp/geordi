@@ -625,13 +625,11 @@ describe('status', () => {
 		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
 		expect(await status(worktree, origin)).toMatchObject({
 			uncommitted: 2,
-			uncommittedPaths: ['a.txt', 'b.txt'],
 			unpushed: null
 		});
 		git('restore', '--staged', 'a.txt');
 		expect(await status(worktree, origin)).toMatchObject({
 			uncommitted: 1,
-			uncommittedPaths: ['b.txt'],
 			unpushed: null
 		});
 

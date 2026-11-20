@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { closeTerminal, terminalActivity, openTerminal, writeTerminal } from './terminals.ts';
+import { closeTerminal, hasTerminalActivity, openTerminal, writeTerminal } from './terminals.ts';
 
 describe('a command in a terminal', () => {
 	/** Runs `command` in a terminal, in a plain shell; resolves when the command has ended. */
@@ -27,7 +27,7 @@ describe('a command in a terminal', () => {
 	it('says when the command has ended, and how, while its output stays to be read', async () => {
 		const { ended, output } = run('t:a', 'echo "hi $WHO"; exit 3', true);
 		expect(await ended).toBe(3);
-		expect(await terminalActivity('t')).toEqual([]);
+		expect(await hasTerminalActivity('t')).toBe(false);
 		expect(output()).toContain('hi geordi');
 		await expect.poll(output).toContain('ended with status 3');
 		closeTerminal('t:a');
@@ -43,7 +43,7 @@ describe('a command in a terminal', () => {
 
 	it('says so when the terminal is closed before the command ends', async () => {
 		const { ended } = run('t:b', 'sleep 30');
-		expect(await terminalActivity('t')).toEqual([{ terminal: 'b', processes: [] }]);
+		expect(await hasTerminalActivity('t')).toBe(true);
 		setTimeout(() => closeTerminal('t:b'), 300);
 		expect(await ended).toBeNull();
 	});
@@ -61,24 +61,18 @@ it('distinguishes an idle shell from foreground and background processes on arch
 		() => {}
 	);
 	try {
-		await expect.poll(() => terminalActivity('workspace')).toEqual([]);
+		await expect.poll(() => hasTerminalActivity('workspace')).toBe(false);
 		writeTerminal(id, 'sleep 30\r');
-		await expect
-			.poll(() => terminalActivity('workspace'))
-			.toEqual([{ terminal: 'shell', processes: ['sleep'] }]);
+		await expect.poll(() => hasTerminalActivity('workspace')).toBe(true);
 		writeTerminal(id, '\x03');
-		await expect.poll(() => terminalActivity('workspace')).toEqual([]);
+		await expect.poll(() => hasTerminalActivity('workspace')).toBe(false);
 		writeTerminal(id, 'sleep 30 &\r');
-		await expect
-			.poll(() => terminalActivity('workspace'))
-			.toEqual([{ terminal: 'shell', processes: ['sleep'] }]);
-		expect(await terminalActivity('other')).toEqual([]);
+		await expect.poll(() => hasTerminalActivity('workspace')).toBe(true);
+		expect(await hasTerminalActivity('other')).toBe(false);
 		writeTerminal(id, 'kill $!\r');
-		await expect.poll(() => terminalActivity('workspace')).toEqual([]);
+		await expect.poll(() => hasTerminalActivity('workspace')).toBe(false);
 		writeTerminal(id, 'exec sleep 30\r');
-		await expect
-			.poll(() => terminalActivity('workspace'))
-			.toEqual([{ terminal: 'shell', processes: ['sleep'] }]);
+		await expect.poll(() => hasTerminalActivity('workspace')).toBe(true);
 	} finally {
 		closeTerminal(id);
 	}

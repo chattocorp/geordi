@@ -110,9 +110,6 @@ export type FileChange = {
 /** Which of the forge's lists of worktrees to watch a `watch` message replaces. */
 export type WatchScope = 'open' | 'background';
 
-/** A terminal with an active command. Configured jobs are identified by their terminal name. */
-export type TerminalActivity = { terminal: string; processes: string[] };
-
 /** What a workspace has changed, and how far that has got. */
 export type Changes = {
 	/**
@@ -126,8 +123,6 @@ export type Changes = {
 	files: FileChange[];
 	/** How many files have changes that are not committed yet. */
 	uncommitted: number;
-	/** Paths with uncommitted work, including untracked files. */
-	uncommittedPaths?: string[];
 	/** How many commits are not on the remote branch yet; `null` if the branch isn't there at all. */
 	unpushed: number | null;
 	/**
@@ -538,7 +533,7 @@ export type DaemonRequest =
 	| { kind: 'repoIcon'; repoPath: string }
 	| { kind: 'repoThreads'; repoPath: string; category: 'issue' | 'pull_request'; after?: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
-	| { kind: 'terminalActivity'; workspaceId: string; details?: boolean }
+	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
 
 /** Highlight positions are UTF-16 offsets into the repository-relative path. */
@@ -581,7 +576,7 @@ export type DaemonResults = {
 	 * `end` is the terminal's output position after `data`: output with a lower `offset` is
 	 * already part of it. `null` if the terminal isn't running.
 	 */
-	terminalActivity: boolean | TerminalActivity[];
+	terminalActivity: boolean;
 	scrollback: { data: string; end: number } | null;
 };
 
