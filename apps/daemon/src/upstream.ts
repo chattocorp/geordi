@@ -5,12 +5,15 @@ import { quietGit } from './git.ts';
 import {
 	CI_REFRESH_MS,
 	type CheckCounts,
+	type ForgeDiagnostic,
 	type PullCheck,
 	type PullRequest,
 	type Upstream
 } from '@geordi/protocol';
 import {
 	createForges,
+	ForgeApiError,
+	RateLimitedError,
 	github,
 	MergeMethodRequiredError,
 	type Check,
@@ -403,6 +406,75 @@ export async function unknownForge(repoPath: string): Promise<string | null> {
 	const host = remote && hostOf(remote);
 	if (!host) return null;
 	return (await forges()).parseUrl(remote) ? null : host;
+}
+
+/**
+ * Whether the daemon can read a repository on its upstream forge, through the same registry
+ * workspaces use. Says only what it found: never credentials, nor the forge's error text.
+ */
+export async function checkForge(repoPath: string): Promise<ForgeDiagnostic> {
+	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin').catch(() => null);
+	if (!remote) {
+		const remotes = await quietGit(repoPath, 'remote').catch(() => null);
+		return remotes !== null && !remotes.split('\n').includes('origin')
+			? { status: 'none', summary: 'No origin remote' }
+			: { status: 'problem', summary: 'Could not read the origin remote' };
+	}
+	const origin = withoutCredentials(remote);
+	const host = hostOf(remote);
+	if (!host) return { status: 'none', summary: 'Origin is not on a forge', origin };
+
+	let found;
+	try {
+		found = (await forges()).parseUrl(remote);
+	} catch {
+		return {
+			status: 'problem',
+			summary: 'Could not load the forge configuration',
+			setup: true,
+			origin
+		};
+	}
+	if (!found)
+		return { status: 'problem', summary: `No forge set up for ${host}`, setup: true, origin };
+
+	const { provider, repo } = found;
+	const known = {
+		origin,
+		forge: provider.forge,
+		access: provider.authKind === 'anonymous' ? 'anonymous' : 'credentials'
+	} as const;
+	try {
+		await provider.repos.get(repo, { signal: AbortSignal.timeout(8000) });
+		const access = known.access === 'anonymous' ? 'anonymous' : 'signed in';
+		return { status: 'ok', summary: `${host} · ${access}`, ...known };
+	} catch (error) {
+		const problem = (summary: string, setup = true): ForgeDiagnostic => ({
+			status: 'problem',
+			summary,
+			setup,
+			...known
+		});
+		if (error instanceof RateLimitedError)
+			return problem(`${host} is rate limiting; try again later`, false);
+		if (!(error instanceof ForgeApiError)) return problem(`Could not reach ${host}`);
+		if (error.status === 401 || error.status === 403) return problem(`${host} denied access`);
+		if (error.status === 404) return problem(`${host} does not show this repository to the daemon`);
+		return problem(`${host} answered HTTP ${error.status}`, false);
+	}
+}
+
+/** A remote URL fit to show: without the user name and password a URL may carry. */
+export function withoutCredentials(remote: string): string {
+	if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(remote)) return remote;
+	try {
+		const url = new URL(remote);
+		url.username = '';
+		url.password = '';
+		return url.toString();
+	} catch {
+		return remote.replace(/\/\/[^/@]*@/, '//');
+	}
 }
 
 /**
