@@ -175,7 +175,7 @@
 					class="ml-auto"
 					disabled={!chosen}
 				>
-					{prompt.value()?.trim() ? 'Get to work' : project ? 'Start project' : 'Start workspace'}
+					{prompt.value()?.trim() ? 'Make it so' : project ? 'Start project' : 'Start workspace'}
 				</Button>
 			{/if}
 		{/snippet}

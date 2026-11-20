@@ -12,6 +12,8 @@
 
 	const slowFiles = fn(async (query: string) => [{ path: query + '.ts', indices: [0] }]);
 
+	let prompt = $state('');
+
 	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
 
 	let pending = $state(false);
@@ -62,10 +64,10 @@
 
 <Story name="Prompt" asChild>
 	<div class="max-w-2xl">
-		<Composer {form} focused rows={5} placeholder="What should the agent do?">
+		<Composer {form} bind:value={prompt} focused rows={5} placeholder="What should the agent do?">
 			{#snippet footer()}
 				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
-					Start workspace
+					{prompt.trim() ? 'Make it so' : 'Start workspace'}
 				</Button>
 			{/snippet}
 		</Composer>
