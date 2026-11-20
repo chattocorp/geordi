@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { WorkspaceAction } from './actions.ts';
+	import RunningJob from './RunningJob.svelte';
 	import Spinner from './Spinner.svelte';
 
 	type Activity = WorkspaceAction['id'] | 'working' | 'jobs';
@@ -39,11 +40,11 @@
 	class={[
 		'relative grid size-6 place-items-center rounded-full',
 		merging
-			? 'bg-ok/12 text-ok'
+			? 'status-ok'
 			: fixing
-				? 'bg-danger-soft text-danger'
+				? 'status-danger'
 				: activity === 'archive'
-					? 'bg-merged/15 text-merged'
+					? 'status-merged'
 					: 'bg-hover text-muted'
 	]}
 >
@@ -57,13 +58,10 @@
 		<span class="archive-arrow absolute icon-[lucide--arrow-down] size-3"></span>
 	{:else if activity === 'working' || activity === 'retry'}
 		<span aria-hidden="true" class="inline-flex"><Spinner /></span>
+	{:else if activity === 'jobs'}
+		<span aria-hidden="true" class="inline-flex"><RunningJob {label} /></span>
 	{:else}
-		<span
-			class={[
-				'cycle size-4',
-				activity === 'jobs' ? 'icon-[lucide--cog]' : 'icon-[lucide--refresh-cw]'
-			]}
-		></span>
+		<span class="icon-[lucide--refresh-cw] size-4 motion-safe:animate-checks-spin"></span>
 	{/if}
 </span>
 
@@ -87,9 +85,6 @@
 		}
 		.archive-arrow {
 			animation: file-away 1.6s ease-in infinite;
-		}
-		.cycle {
-			animation: revolve 3s linear infinite;
 		}
 	}
 	@keyframes converge {
@@ -137,11 +132,6 @@
 		100% {
 			opacity: 0;
 			transform: translateY(0.12rem);
-		}
-	}
-	@keyframes revolve {
-		to {
-			transform: rotate(1turn);
 		}
 	}
 </style>

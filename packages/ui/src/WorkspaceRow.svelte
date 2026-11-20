@@ -53,13 +53,13 @@
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
-	const danger = 'bg-danger-soft text-danger hover:bg-danger/20';
+	const danger = 'status-danger hover:bg-danger/20';
 	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
-		'merge-pull': 'bg-ok/12 text-ok hover:bg-ok/20',
+		'merge-pull': 'status-ok hover:bg-ok/20',
 		'resolve-conflicts': danger,
 		'fix-checks': danger,
 		'address-review': danger,
-		archive: 'bg-merged/15 text-merged hover:bg-merged/25'
+		archive: 'status-merged hover:bg-merged/25'
 	};
 
 	const primary = $derived(actions.find((action) => !action.aside));
@@ -111,7 +111,7 @@
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if activity}
 			<span class="col-start-1 row-start-1 grid w-6 place-items-center text-muted">
-				<WorkspaceActivity {activity} />
+				<WorkspaceActivity {activity} {jobs} />
 			</span>
 		{:else if visibleStanding || showJobs}
 			<span

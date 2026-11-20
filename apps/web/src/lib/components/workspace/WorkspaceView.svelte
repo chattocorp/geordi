@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RunningJob from '@geordi/ui/RunningJob.svelte';
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
 	import { invalidateAll } from '$app/navigation';
@@ -723,12 +724,7 @@
 				<!-- on its way up: until it listens on its port -->
 				<span class="grid size-3.5 shrink-0 place-items-center"><Spinner label="Starting" /></span>
 			{:else if status === undefined}
-				<span
-					class="bar-running icon-[lucide--play] size-3.5 shrink-0 text-accent"
-					role="img"
-					aria-label="Running"
-					title="Running"
-				></span>
+				<RunningJob class="size-3.5" />
 			{:else if status === 0}
 				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
 			{:else}
