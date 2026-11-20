@@ -126,3 +126,15 @@ it.each(['none', 'patch', 'minor', 'major'])('checks a major release with %s pen
 	if (from === 'major') expect(increases).toEqual([]);
 	else expect(increases).toMatchObject([{ from, to: 'major', after: '2.0.0' }]);
 });
+
+it('skips a higher release level when the same next beta is already planned', () => {
+	const pending = {
+		path: '.',
+		name: 'Geordi',
+		version: '0.8.0-beta.0',
+		nextVersion: '0.8.0-beta.1',
+		bump: 'patch',
+		problems: []
+	};
+	expect(releaseIncreases([pending], [{ ...pending, bump: 'minor' }])).toEqual([]);
+});

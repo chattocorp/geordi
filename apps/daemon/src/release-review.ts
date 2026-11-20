@@ -23,6 +23,7 @@ export function releaseIncreases(before: Package[], after: Package[]): ReleaseIn
 	for (const pkg of after) {
 		const previous = prior.get(pkg.path);
 		const from = previous?.bump ?? 'none';
+		if (previous?.nextVersion === pkg.nextVersion) continue;
 		if (levels.indexOf(pkg.bump) <= Math.max(1, levels.indexOf(from))) continue;
 		increases.push({
 			path: pkg.path,

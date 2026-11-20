@@ -10,8 +10,9 @@ When you click **Merge PR**, compare the release planned from changes already me
 
 ## Acceptance criteria
 
-- If the target has a patch pending and the PR raises it to minor, show the affected package and both expected versions. For example, “Merging this PR raises the planned release from 1.4.3 (patch) to 1.5.0 (minor).” Offer **Cancel** and **Merge PR**. Cancel leaves the PR open. Confirm sends the merge request once.
+- If the target has a patch pending and the PR raises it to minor with a different planned version, show the affected package and both expected versions. For example, “Merging this PR raises the planned release from 1.4.3 (patch) to 1.5.0 (minor).” Offer **Cancel** and **Merge PR**. Cancel leaves the PR open. Confirm sends the merge request once.
 - If a minor release is already pending and the PR adds another minor or patch change, merge with one click. Raising a pending release to major requires confirmation.
+- Skip confirmation for a package when both plans produce the same version, including the same next beta.
 - Compare each package separately and group all packages that require confirmation in one dialog, including any that the tool calculates for dependent packages.
 - Use the current target and the proposed merge result. Exclude unpublished workspace changes. Refresh the comparison if either revision changes before confirmation.
 - Verify patch-to-minor and unchanged-level cases with both tools. Preserve repository approval for release-tool commands.
