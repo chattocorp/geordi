@@ -171,7 +171,7 @@
 	day = new Date(2026, 10, 20).toDateString()
 )}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
-	<div class="flex h-dvh w-64 bg-frame p-2">
+	<div class="flex h-dvh max-h-full w-64 bg-frame p-2">
 		<Sidebar
 			visibleWorkspaces={activeOnDay(nav?.workspaces ?? [], filters.todayOnly ? day : null)}
 			{nav}
@@ -267,6 +267,26 @@
 		false,
 		new Date(2026, 10, 20).toDateString()
 	)}
+</Story>
+
+<Story
+	name="Scrollable workspace list"
+	asChild
+	play={async ({ canvasElement }) => {
+		const list = canvasElement.querySelector<HTMLElement>('.scroll-fade')!;
+		await waitFor(() => expect(list).toHaveClass('more-below'));
+		await expect(list).not.toHaveClass('more-above');
+		list.scrollTop = (list.scrollHeight - list.clientHeight) / 2;
+		await waitFor(() => expect(list).toHaveClass('more-above', 'more-below'));
+		list.scrollTop = list.scrollHeight;
+		await waitFor(() => expect(list).not.toHaveClass('more-below'));
+		await expect(list).toHaveClass('more-above');
+		list.scrollTop = 0;
+	}}
+>
+	<div class="h-96">
+		{@render frame(withProjects, '/workspaces/ready')}
+	</div>
 </Story>
 
 <Story name="On the archive" asChild>

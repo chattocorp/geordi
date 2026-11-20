@@ -248,6 +248,26 @@
 		(folded.current = folded.current.includes(id)
 			? folded.current.filter((other) => other !== id)
 			: [...folded.current, id]);
+	/** The two markers stay at the ends as groups expand, fold or move. */
+	function watchScrollEdges(list: HTMLElement) {
+		const top = list.firstElementChild!;
+		const bottom = list.lastElementChild!;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					list.classList.toggle(
+						entry.target === top ? 'more-above' : 'more-below',
+						!entry.isIntersecting
+					);
+				}
+			},
+			{ root: list }
+		);
+		observer.observe(top);
+		observer.observe(bottom);
+		return () => observer.disconnect();
+	}
+
 	const settingsHint = hint('settings');
 	const focusHint = hint('focusRepo');
 	/** How long repositories and workspaces take to slide away or back, in milliseconds. */
@@ -328,7 +348,8 @@
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
 		-->
-		<div class="scroller">
+		<div class="scroller scroll-fade" {@attach watchScrollEdges}>
+			<div aria-hidden="true"></div>
 			{#each groups as repo (repo.id ?? PROJECTS)}
 				{@const all = listed.get(repo.id) ?? []}
 				{@const rows = unfolded(all, folded.current)}
@@ -404,6 +425,7 @@
 			{#if nav && todayOnly && groups.length === 0}
 				<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
 			{/if}
+			<div aria-hidden="true"></div>
 		</div>
 	</nav>
 
