@@ -1,4 +1,4 @@
-import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
+import { actionsFor, PUBLISHING, standingOf, type ActivityId } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
@@ -38,15 +38,17 @@ export const navigation = () =>
 				const busy = [workspace, ...aides].filter((w) => w.status === 'running');
 				const working = busy.length > 0;
 				const waiting = working && !harnesses && busy.every((w) => w.pendingDelivery);
-				const activeAction =
+				// how its work stands, as far as is known: asked about in the background
+				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
+				const pull = known.upstream?.pull;
+				const activeAction: ActivityId | undefined =
 					operations.get(workspace.worktreeId) ??
 					busy.find(
 						(member) =>
 							!member.asking && !(member.pendingDelivery && !harnesses) && member.activeAction
-					)?.activeAction;
-				// how its work stands, as far as is known: asked about in the background
-				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
-				const pull = known.upstream?.pull;
+					)?.activeAction ??
+					// the forge merges it by itself once nothing stands in its way: it is being merged
+					(pull?.state === 'open' && pull.autoMerge?.enabled ? 'auto-merge' : undefined);
 				const state = {
 					...known,
 					failed: workspace.lastTurn === 'failed',

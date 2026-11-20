@@ -9,6 +9,7 @@
 
 <Story name="Agent working" args={{ activity: 'working' }} />
 <Story name="Merging" args={{ activity: 'merge-pull' }} />
+<Story name="Merging when ready" args={{ activity: 'auto-merge' }} />
 <Story name="Fixing" args={{ activity: 'fix-checks' }} />
 <Story name="Archiving" args={{ activity: 'archive' }} />
 <Story name="Syncing" args={{ activity: 'merge-upstream' }} />

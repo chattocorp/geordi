@@ -40,6 +40,12 @@ export type WorkspaceAction = {
 	aside?: boolean;
 };
 
+/**
+ * What a workspace is busy with, as its sidebar row shows it: an action under way, its agent
+ * at work, or a pull request that its forge merges by itself once nothing stands in its way.
+ */
+export type ActivityId = WorkspaceAction['id'] | 'working' | 'auto-merge';
+
 type State = {
 	/** `null` while unknown (no daemon, or not asked yet). */
 	changes:
