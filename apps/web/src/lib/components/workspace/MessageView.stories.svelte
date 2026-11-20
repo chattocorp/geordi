@@ -752,7 +752,13 @@
 	name="Open a question in earlier activity"
 	asChild
 	play={async ({ canvas }) => {
+		// A virtual row can stay hidden for measurement after its controls mount.
+		const conversation = canvas.getByRole('list');
+		conversation.style.visibility = 'hidden';
 		await userEvent.click(canvas.getByRole('button', { name: 'Open question' }));
+		await waitFor(() => expect(canvas.getByText('SQLite')).toBeInTheDocument());
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		conversation.style.removeProperty('visibility');
 		await waitFor(() => expect(canvas.getByRole('button', { name: /SQLite/ })).toHaveFocus());
 	}}
 >
