@@ -64,7 +64,7 @@
 		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-3.5">
 			<p class="min-w-0 flex-1 truncate text-xs text-muted" title={git?.changes?.comparisonTarget}>
 				{#if git?.changes?.comparisonTarget}
-					Compared with <span class="code-dense">{git.changes.comparisonTarget}</span>
+					Compared with <span>{git.changes.comparisonTarget}</span>
 				{/if}
 			</p>
 			<div role="radiogroup" aria-label="Show the changes" class="flex shrink-0">
@@ -94,7 +94,7 @@
 				<p class="font-medium text-ink">The worktree was removed outside Geordi.</p>
 				<p>
 					Restoring it, or simply your next message, brings back everything committed on
-					<span class="code-dense">{gone}</span>. Changes that weren't committed are gone.
+					{gone}. Changes that weren't committed are gone.
 				</p>
 			</div>
 		{:else if !git || (!git.changes && !git.unavailable)}
@@ -120,7 +120,7 @@
 								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
 								title={row.path}
 								style:padding-left="{0.875 + row.depth * 1.25}rem"
-								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left code-dense whitespace-nowrap text-muted hover:bg-hover"
+								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left text-xs whitespace-nowrap text-muted hover:bg-hover"
 							>
 								<span
 									class={[
@@ -156,7 +156,7 @@
 		title="{means}: {entry.path}"
 		style:padding-left={depth === undefined ? undefined : `${0.875 + depth * 1.25}rem`}
 		class={[
-			'flex w-full items-center overflow-hidden py-1 pr-3.5 text-left code-dense whitespace-nowrap hover:bg-hover',
+			'flex w-full items-center overflow-hidden py-1 pr-3.5 text-left text-xs whitespace-nowrap hover:bg-hover',
 			depth === undefined ? 'gap-2.5 pl-3.5' : 'gap-1.5'
 		]}
 	>
@@ -175,6 +175,6 @@
 				{entry.path.slice(entry.path.lastIndexOf('/') + 1)}
 			</span>
 		{/if}
-		<DiffStat added={entry.added} removed={entry.removed} />
+		<DiffStat class="text-xs tabular-nums" added={entry.added} removed={entry.removed} />
 	</button>
 {/snippet}

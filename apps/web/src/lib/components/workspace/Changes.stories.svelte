@@ -145,7 +145,8 @@
 							added: 2,
 							removed: 1
 						},
-						{ path: 'docs/GLOSSARY.md', status: 'modified', added: 3, removed: 1 }
+						{ path: 'docs/GLOSSARY.md', status: 'modified', added: 3, removed: 1 },
+						{ path: 'src/middleware/WindowWidths.ts', status: 'added', added: 18, removed: 0 }
 					]
 				}
 			}}
