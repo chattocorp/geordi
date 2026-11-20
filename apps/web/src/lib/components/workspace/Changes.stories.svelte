@@ -112,12 +112,15 @@
 				files: [{ path: 'message.txt', status: 'modified', added: 1, removed: 1 }]
 			}
 		},
-		onopen: fn()
+		onopen: fn(),
+		onopencombined: fn()
 	}}
 	play={async ({ canvas, userEvent, args }) => {
 		await expect(canvas.getByText('main')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: /message.txt/ }));
 		await expect(args.onopen).toHaveBeenCalledWith('message.txt');
+		await userEvent.click(canvas.getByRole('button', { name: 'Open combined diff' }));
+		await expect(args.onopencombined).toHaveBeenCalledOnce();
 	}}
 />
 

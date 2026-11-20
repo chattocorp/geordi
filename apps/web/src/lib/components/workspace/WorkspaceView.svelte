@@ -73,6 +73,8 @@
 	import Markdown from '#lib/components/Markdown.svelte';
 	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
+	import CombinedDiffFile from './CombinedDiffFile.svelte';
+	import DiffSection from '../DiffSection.svelte';
 	import PatchView from '../PatchView.svelte';
 
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
@@ -126,6 +128,7 @@
 	// dragged from any area to any other.
 	const CHAT = 'chat';
 	const PR = 'pr';
+	const COMBINED = 'combined-diff';
 	const TURN = 'turn-changes';
 	let selectedTurn = $state.raw<TurnChanges>();
 	const CHANGES = 'changes';
@@ -194,6 +197,7 @@
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
+		if (tab === COMBINED) return !project;
 		if (tab === TURN) return !!selectedTurn;
 		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
@@ -718,7 +722,10 @@
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
-	{#if tab === TURN}
+	{#if tab === COMBINED}
+		<span class="icon-[lucide--files] size-3.5 shrink-0"></span>
+		<span>Combined diff</span>
+	{:else if tab === TURN}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
 	{:else if tab === CHANGES}
@@ -800,7 +807,23 @@
 	{@const path = tab === 'diff' ? saved.diffPath : undefined}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
-	{#if tab === TURN && selectedTurn}
+	{#if tab === COMBINED}
+		<div class="scroller space-y-2 p-3">
+			{#if git?.unavailable}
+				<p class="text-sm text-muted">{git.unavailable}</p>
+			{:else if !git?.changes}
+				<p class="text-sm text-muted">Loading the changes…</p>
+			{:else}
+				{#each git.changes.files as file (file.path)}
+					<DiffSection path={file.path} added={file.added} removed={file.removed}>
+						<CombinedDiffFile workspaceId={id} path={file.path} version={git.version} />
+					</DiffSection>
+				{:else}
+					<p class="text-sm text-muted">No changes yet</p>
+				{/each}
+			{/if}
+		</div>
+	{:else if tab === TURN && selectedTurn}
 		<div class="scroller px-3 pb-4">
 			{#key selectedTurn}
 				<header
@@ -821,6 +844,7 @@
 			{git}
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 			onopen={openDiff}
+			onopencombined={() => showTab(COMBINED)}
 			bind:view={changesView.current}
 		/>
 	{:else if tab === PR && pull}
