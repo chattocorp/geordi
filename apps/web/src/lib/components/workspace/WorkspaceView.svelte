@@ -35,8 +35,8 @@
 		type Zone
 	} from '#lib/layout.ts';
 	import { CONFIG_FILE, JOB_TERMINAL, SCRIPTS, startOrder, type Script } from '@geordi/protocol';
-	import JobMark, { type JobState } from './JobMark.svelte';
-	import RunPane from './RunPane.svelte';
+	import JobMark, { type JobState } from '@geordi/ui/JobMark.svelte';
+	import RunPane from '@geordi/ui/RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { getRibbonPosition } from '#lib/components/settings.svelte.ts';
@@ -75,7 +75,7 @@
 	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
 	import CombinedDiffFile from './CombinedDiffFile.svelte';
-	import DiffSection from '../DiffSection.svelte';
+	import DiffSection from '@geordi/ui/DiffSection.svelte';
 	import PatchView from '../PatchView.svelte';
 
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
@@ -914,8 +914,11 @@
 			{stop}
 			{show}
 			{visit}
-			problem={config?.problem}
-		/>
+		>
+			{#if config?.problem}
+				<Notice>The repository's configuration can't be read: {config.problem}</Notice>
+			{/if}
+		</RunPane>
 	{:else if tab === CHANGES}
 		<Changes
 			{git}

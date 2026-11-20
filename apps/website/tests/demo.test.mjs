@@ -30,26 +30,27 @@ async function openDemo(t, javaScriptEnabled, width = 1440) {
 	return demo;
 }
 
-test('open changed files, revisit a diff, and inspect pull request #412', async (t) => {
+test('open changed files and the combined diff, and inspect pull request #412', async (t) => {
 	const demo = await openDemo(t, true);
 	// The island hydrates when it enters the viewport. The composer becomes enabled then.
 	await expect(demo.getByRole('textbox')).toBeEnabled();
 	const changes = demo.getByRole('region', { name: 'Changes' });
-	const auth = demo.getByRole('tabpanel', { name: 'auth.ts', exact: true });
-	const spec = demo.getByRole('tabpanel', { name: 'auth.spec.ts', exact: true });
-	const authLine = auth.getByText('return value && destinations.has(value) ? value : null;', {
-		exact: true
-	});
+	const authLine = 'return value && destinations.has(value) ? value : null;';
+	const specLine = "expect(safePath('//other.test')).toBeNull();";
 
+	// as in the app, a file opens beside the conversation, in the one diff tab
 	await changes.getByRole('button', { name: /auth\.ts/ }).click();
-	await expect(authLine).toBeVisible();
+	const auth = demo.getByRole('tabpanel', { name: 'auth.ts', exact: true });
+	await expect(auth.getByText(authLine, { exact: true })).toBeVisible();
 	await changes.getByRole('button', { name: /auth\.spec\.ts/ }).click();
-	await expect(
-		spec.getByText("expect(safePath('//other.test')).toBeNull();", { exact: true })
-	).toBeVisible();
-	await demo.getByRole('tab', { name: 'auth.ts', exact: true }).click();
-	await expect(authLine).toBeVisible();
-	await expect(spec).toBeHidden();
+	const spec = demo.getByRole('tabpanel', { name: 'auth.spec.ts', exact: true });
+	await expect(spec.getByText(specLine, { exact: true })).toBeVisible();
+	await expect(demo.getByRole('tab', { name: 'auth.ts', exact: true })).toHaveCount(0);
+
+	await changes.getByRole('button', { name: 'Combined diff' }).click();
+	const combined = demo.getByRole('tabpanel', { name: 'Combined diff' });
+	await expect(combined.getByText(authLine, { exact: true })).toBeVisible();
+	await expect(combined.getByText(specLine, { exact: true })).toBeVisible();
 
 	await demo.getByRole('button', { name: '#412', exact: true }).click();
 	await expect(demo.getByRole('tab', { name: /#412/ })).toHaveAttribute('aria-selected', 'true');
@@ -57,6 +58,15 @@ test('open changed files, revisit a diff, and inspect pull request #412', async 
 	await expect(pull.getByRole('heading', { name: 'Return people after sign-in' })).toBeVisible();
 	await pull.getByRole('button', { name: /Checks/ }).click();
 	await expect(pull.getByText('Sign-in redirect tests')).toBeVisible();
+});
+
+test('stop and start a job in the Run tab', async (t) => {
+	const demo = await openDemo(t, true);
+	await expect(demo.getByRole('textbox')).toBeEnabled();
+	const run = demo.getByRole('tabpanel', { name: 'Run' });
+	await run.getByRole('button', { name: 'Stop Dev server' }).click();
+	await run.getByRole('button', { name: 'Start Dev server' }).click();
+	await expect(run.getByRole('button', { name: 'Stop Dev server' })).toBeAttached();
 });
 
 test('phone title bars contain the pull request and next action', async (t) => {
@@ -80,16 +90,16 @@ test('phone title bars contain the pull request and next action', async (t) => {
 	await expect(demo.getByRole('tab', { name: /#412/ })).toHaveAttribute('aria-selected', 'true');
 });
 
-test('the conversation, changed files, and diff are readable without JavaScript', async (t) => {
+test('the conversation, changed files, and what runs are readable without JavaScript', async (t) => {
 	const demo = await openDemo(t, false);
-	const chat = demo.getByRole('tabpanel', { name: 'Claude' });
+	const chat = demo.getByRole('tabpanel', { name: 'Conversation' });
 	await expect(chat.getByText(/After signing in, people land on the home page/)).toBeVisible();
 	await expect(chat.getByText(/People now return to the page they asked for/)).toBeVisible();
 	await expect(
 		demo.getByRole('region', { name: 'Changes' }).getByRole('button', { name: /auth\.ts/ })
 	).toBeVisible();
-	const diff = demo.getByRole('tabpanel', { name: '+page.server.ts' });
-	await expect(diff.getByText("redirect(303, safePath(to) ?? '/');")).toBeVisible();
+	const run = demo.getByRole('tabpanel', { name: 'Run' });
+	await expect(run.getByText('Dev server')).toBeVisible();
 });
 
 test('a link to the site is shown with a picture', async (t) => {

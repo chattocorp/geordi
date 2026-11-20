@@ -9,7 +9,11 @@
 	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
 	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
+	import DiffSection from '@geordi/ui/DiffSection.svelte';
+	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
+	import RunPane from '@geordi/ui/RunPane.svelte';
+	import type { JobState } from '@geordi/ui/JobMark.svelte';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
 	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
@@ -21,7 +25,7 @@
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { actionsFor, standingOf, type WorkspaceAction } from '@geordi/ui/actions';
 
-	import { files, hold, last, loginDiff, message, others, tools } from './demo.ts';
+	import { files, hold, jobs, last, links, message, others, tools } from './demo.ts';
 	let step = $state(last);
 	let draft = $state('');
 	let editing = false;
@@ -31,7 +35,7 @@
 	let firstMessage = $state(message);
 	let replies = $state<string[]>([]);
 	let queue = $state<string[]>([]);
-	let transcript: HTMLDivElement;
+	let transcript = $state<HTMLDivElement>();
 	function submitReply(event: SubmitEvent) {
 		event.preventDefault();
 		const text = draft.trim();
@@ -49,7 +53,7 @@
 		editing = false;
 		schedule();
 		void tick().then(() => {
-			transcript.scrollTop = transcript.scrollHeight;
+			if (transcript) transcript.scrollTop = transcript.scrollHeight;
 		});
 	}
 	function deliverQueued() {
@@ -78,37 +82,54 @@
 	let visible = false;
 	let timer: ReturnType<typeof setTimeout>;
 	let frame: HTMLElement;
-	let pullTab = $state<'closed' | 'background' | 'active'>('closed');
-	function selectMainTab(id: string) {
-		if (id === 'pull') pullTab = 'active';
-		else if (pullTab !== 'closed') pullTab = 'background';
-		schedule();
-	}
-	async function openPull() {
-		selectMainTab('pull');
-		await tick();
-		document.getElementById(uid + '-chat-tab-1')?.focus();
-	}
-	function closePull() {
-		pullTab = 'closed';
-		document.getElementById(uid + '-chat-tab-0')?.focus();
-		schedule();
-	}
-	const narrow = new MediaQuery('(max-width: 40rem)', true);
 	const uid = $props.id();
-	let opened = $state<string[]>([]);
+	const wide = new MediaQuery('(min-width: 48rem)', true);
+	const narrow = new MediaQuery('(max-width: 40rem)', true);
+
+	// The main area, as in the app: the conversation, and beside it what was opened from it
+	// (the pull request, a file's diff, all of them at once). The demo waits while one is read.
+	type MainTab = 'chat' | 'pull' | 'diff' | 'combined';
+	let opened = $state<Exclude<MainTab, 'chat'>[]>([]);
+	let current = $state<MainTab>('chat');
+	const mainTabs = $derived<MainTab[]>(['chat', ...opened]);
+	let mainWidth = $state(0);
+	async function show(id: MainTab) {
+		if (id !== 'chat' && !opened.includes(id)) opened.push(id);
+		current = id;
+		schedule();
+		await tick();
+		document.getElementById(`${uid}-main-tab-${mainTabs.indexOf(id)}`)?.focus();
+	}
+	function close(id: string) {
+		opened = opened.filter((tab) => tab !== id);
+		if (current === id) {
+			current = 'chat';
+			document.getElementById(`${uid}-main-tab-0`)?.focus();
+		}
+		schedule();
+	}
+
 	let selected = $state<string | null>(null);
 	let diffReady = $state(false);
 	function openDiff(path: string) {
-		if (selected === path) return;
-		const tabs = opened.length ? opened : file ? [file.path] : [];
-		opened = tabs.includes(path) ? tabs : [...tabs, path];
-		diffReady = false;
+		if (selected !== path) diffReady = false;
 		selected = path;
-		if (step === last) schedule();
+		void show('diff');
 	}
-	const file = $derived(files.find((f) => f.path === selected) ?? (step >= 4 ? files[1] : null));
-	const diffTabs = $derived(opened.length ? opened : [file?.path ?? 'Diff']);
+	const file = $derived(files.find((f) => f.path === selected));
+
+	// The dock: a terminal, and the Run tab with what the project runs.
+	let dock = $state<'terminal' | 'run'>('run');
+	let jobStates = $state<Record<string, JobState>>({ db: 'running', web: 'running' });
+	function start(names: string[]) {
+		for (const name of names) {
+			jobStates[name] = 'starting';
+			setTimeout(() => {
+				if (jobStates[name] === 'starting') jobStates[name] = 'running';
+			}, 1200);
+		}
+	}
+
 	const branch = 'geordi/return-after-sign-in';
 	const changedFiles = $derived(files.filter((file) => step >= file.step));
 	const changes: Changes = $derived({
@@ -176,8 +197,8 @@
 			editing ||
 			stopped ||
 			activityOpen ||
-			pullTab === 'active' ||
-			(step === last && (replies.length || selected))
+			current !== 'chat' ||
+			(step === last && replies.length)
 		)
 			return;
 		if (step === 0 && draft.length < message.length) {
@@ -202,9 +223,9 @@
 			replies = [];
 			queue = [];
 			firstMessage = message;
-			pullTab = 'closed';
-			selected = null;
 			opened = [];
+			current = 'chat';
+			selected = null;
 		}
 		schedule();
 	}
@@ -218,10 +239,10 @@
 		hydrated = true;
 		const motion = matchMedia('(prefers-reduced-motion: reduce)');
 		function updateMotion() {
-			pullTab = 'closed';
 			playing = !motion.matches;
-			selected = null;
 			opened = [];
+			current = 'chat';
+			selected = null;
 			editing = false;
 			draft = '';
 			stopped = false;
@@ -242,45 +263,28 @@
 	});
 </script>
 
+{#snippet lights()}
+	<span class="flex gap-2" aria-hidden="true">
+		<span class="size-3 rounded-full bg-muted/25"></span>
+		<span class="size-3 rounded-full bg-muted/25"></span>
+		<span class="size-3 rounded-full bg-muted/25"></span>
+	</span>
+{/snippet}
+
 <figure
-	class="overflow-hidden rounded-card bg-frame shadow-float ring-1 ring-line/60"
+	class="flex overflow-hidden rounded-card bg-frame shadow-float ring-1 ring-line/60"
 	data-demo
 	bind:this={frame}
 	data-playing={playing || undefined}
 	aria-label="A Geordi workspace, playing through a piece of work"
 >
-	<!-- the window's title bar: what the workspace is, and the ribbon that says what is next -->
-	<TitleBar>
-		<span class="hidden gap-2 sm:flex" aria-hidden="true">
-			<span class="size-3 rounded-full bg-muted/25"></span>
-			<span class="size-3 rounded-full bg-muted/25"></span>
-			<span class="size-3 rounded-full bg-muted/25"></span>
-		</span>
-		<span class="ml-2 icon-[lucide--panel-left] hidden size-4 shrink-0 text-muted sm:block"></span>
-		<p class="min-w-0 truncate heading text-muted" {...at(0, 1)}>New workspace</p>
-		<p class="min-w-0 truncate heading" {...at(1)}>Return people after sign-in</p>
-		<span class="hidden min-w-0 truncate code-dense text-muted xl:block" {...at(1)}>
-			geordi/return-after-sign-in
-		</span>
-
-		{#snippet actions()}
-			{#if step >= 7}
-				<WorkspaceActions
-					{standing}
-					actions={offered}
-					disabled={!playing}
-					pull={upstream.pull}
-					compact={narrow.current}
-					onopenpull={openPull}
-					onaction={act}
-				/>
-			{/if}
-		{/snippet}
-	</TitleBar>
-
-	<div class="flex h-152 gap-2 px-2 pb-2 sm:h-136">
-		<!-- the sidebar: every workspace, and how its work stands -->
-		<aside class="hidden w-64 shrink-0 flex-col sheet-quiet lg:flex">
+	<!-- the sidebar: every workspace, and how its work stands -->
+	<div class="hidden w-56 shrink-0 flex-col pb-2 pl-2 lg:flex xl:w-64">
+		<div class="flex h-14 shrink-0 items-center gap-4 px-3">
+			{@render lights()}
+			<span class="icon-[lucide--panel-left-close] size-4 text-muted"></span>
+		</div>
+		<aside class="flex min-h-0 flex-1 flex-col sheet-quiet">
 			<div class="flex-1 space-y-5 p-2">
 				<p class="item gap-2.5 px-2.5 py-1.5 text-base">
 					<span class="icon-[lucide--plus] size-4 shrink-0"></span>
@@ -328,210 +332,286 @@
 			</p>
 			<p class="mx-2 mb-2 item gap-2.5 px-2.5 py-1.5 text-base">
 				<span class="icon-[lucide--settings] size-4 shrink-0"></span>
-				Settings
+				<span class="flex-1">Settings</span>
+				<kbd class="font-sans text-xs text-muted">⌘,</kbd>
 			</p>
 		</aside>
+	</div>
 
-		<!-- the conversation -->
-		<section class="flex min-w-0 flex-1 flex-col sheet">
-			<PaneTabs
-				prefix="{uid}-chat"
-				tabs={pullTab === 'closed' ? ['chat'] : ['chat', 'pull']}
-				current={pullTab === 'active' ? 'pull' : 'chat'}
-				onselect={selectMainTab}
-				closable={(id) => id === 'pull'}
-				onclose={closePull}
-			>
-				{#snippet tab(id: string)}
-					{#if id === 'pull' && upstream.pull}<PullRequestTab pull={upstream.pull} />
-					{:else}<span class="icon-[lucide--sparkles] size-3.5 text-claude"></span>Claude{/if}
-				{/snippet}
-			</PaneTabs>
-			<div
-				role="tabpanel"
-				hidden={pullTab === 'active'}
-				id="{uid}-chat-panel-0"
-				aria-labelledby="{uid}-chat-tab-0"
-				class="flex min-h-0 flex-1 flex-col"
-			>
-				<div
-					bind:this={transcript}
-					class="scroller flex min-h-0 flex-1 flex-col gap-4 px-3 pb-4 sm:px-5"
-				>
-					{#if step === 0}<p class="m-auto max-w-xs text-center text-sm text-balance text-muted">
-							Say what you want done.
-						</p>
-					{:else}
-						<div class="mt-auto pt-4"><UserMessage text={firstMessage} /></div>
-						<AgentMessage agent="claude">
-							{#if step >= 7}
-								<TurnActivity
-									summary={`${calls.length} tool calls`}
-									expanded={activityOpen}
-									ontoggle={() => {
-										activityOpen = !activityOpen;
-										schedule();
-									}}
-								/>
-							{/if}
-							{#if calls.length && (step < 7 || activityOpen)}<ToolGroup
-									tools={calls}
-									live={running}
-								/>{/if}
-							{#if step === 1 && running}<p class="flex h-7 items-center gap-2 text-xs text-muted">
-									<Spinner /> Working
-								</p>{/if}
-							{#if step >= 7}
-								<AgentText text={`${replyStart} \`returnTo\`${replyEnd}`}>
-									<div class="prose"><p>{replyStart} <code>returnTo</code>{replyEnd}</p></div>
-								</AgentText>
-							{/if}
-							{#if step >= 8}
-								<button
-									type="button"
-									class="flex items-center gap-2 text-sm text-muted hover:text-ink"
-									onclick={openPull}
-								>
-									<span class="icon-[lucide--git-pull-request] size-3.5"></span>Opened pull request
-									#412
-								</button>
-							{/if}
-						</AgentMessage>
-						{#if stopped}<p class="text-xs text-muted" role="status">Agent stopped</p>{/if}
-						{#each replies as text, index (index)}<UserMessage {text} />{/each}
-						{#each queue as text, index (index)}
-							<div class="ml-auto message ring-1 ring-line">
-								<p class="label">Queued</p>
-								<p class="whitespace-pre-wrap">{text}</p>
-							</div>
-						{/each}
-					{/if}
-				</div>
-				<div class="mx-3 mb-3">
-					<ReplyComposer
-						bind:value={draft}
-						disabled={!hydrated}
-						{running}
-						empty={step === 0}
-						form={{
-							onsubmit: submitReply,
-							onfocusin: () => {
-								if (step === 0) {
-									editing = true;
-									clearTimeout(timer);
-								}
-							},
-							oninput: () => {
-								editing = true;
-								clearTimeout(timer);
-							},
-							onfocusout: (event) => {
-								if (
-									!event.currentTarget.contains(event.relatedTarget as Node | null) &&
-									(step === 0 ? message.startsWith(draft) : !draft)
-								) {
-									editing = false;
-									schedule();
-								}
-							}
-						}}
-						onstop={stopDemo}
-					>
-						{#snippet options()}<span class="inline-flex items-center gap-1.5 text-sm text-muted"
-								><AgentAvatar agent="claude" bare />Claude</span
-							>{/snippet}
-					</ReplyComposer>
+	<div class="flex min-w-0 flex-1 flex-col">
+		<!-- the title bar: what the workspace is, and the ribbon that says what is next -->
+		<TitleBar contentWidth={wide.current ? mainWidth : undefined}>
+			<span class="hidden items-center gap-4 sm:flex lg:hidden">
+				{@render lights()}
+				<span class="icon-[lucide--panel-left-open] size-4 text-muted"></span>
+			</span>
+			<div class="min-w-0 flex-1">
+				<p class="truncate heading text-muted" {...at(0, 1)}>New workspace</p>
+				<p class="truncate heading" {...at(1)}>Return people after sign-in</p>
+				<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
+					<span class="flex shrink-0 items-center gap-1">
+						<span class="icon-[lucide--folder-git-2] size-3.5 shrink-0"></span>
+						<span class="truncate">chatto</span>
+					</span>
+					<span class="flex min-w-0 items-center gap-1" {...at(1)}>
+						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
+						<span class="truncate code-dense">{branch}</span>
+					</span>
 				</div>
 			</div>
-			{#if pullTab !== 'closed' && upstream.pull}
-				<div
-					role="tabpanel"
-					id="{uid}-chat-panel-1"
-					aria-labelledby="{uid}-chat-tab-1"
-					hidden={pullTab !== 'active'}
-					class="flex min-h-0 flex-1 flex-col"
-				>
-					<PullRequestPane pull={upstream.pull} />
-				</div>
-			{/if}
-		</section>
 
-		<!-- beside it: what has changed, and one of the diffs -->
-		<div class="hidden w-80 shrink-0 flex-col gap-2 md:flex xl:w-96">
-			<section class="flex min-h-0 flex-2 flex-col sheet-quiet">
-				<PaneTabs prefix="{uid}-changes" tabs={['Changes']} current="Changes">
-					{#snippet tab(id: string)}{id}{/snippet}
-				</PaneTabs>
-				<div
-					role="tabpanel"
-					id="{uid}-changes-panel-0"
-					aria-labelledby="{uid}-changes-tab-0"
-					class="flex min-h-0 flex-1 flex-col"
-				>
-					<ChangesPane {git} onopen={openDiff} />
-				</div>
-			</section>
-			<section class="flex min-h-0 flex-3 flex-col sheet-quiet">
+			{#snippet actions()}
+				{#if step >= 7}
+					<WorkspaceActions
+						{standing}
+						actions={offered}
+						disabled={!playing}
+						pull={upstream.pull}
+						compact={narrow.current}
+						onopenpull={() => show('pull')}
+						onaction={act}
+					/>
+				{/if}
+			{/snippet}
+			{#snippet trailing()}
+				<span class="icon-[lucide--panel-right-close] hidden size-4 text-muted md:block"></span>
+			{/snippet}
+		</TitleBar>
+
+		<div class="flex h-152 min-h-0 gap-2 px-2 pb-2 sm:h-136">
+			<!-- the main area: the conversation, and what was opened from it -->
+			<section class="flex min-w-0 flex-1 flex-col sheet" bind:clientWidth={mainWidth}>
 				<PaneTabs
-					prefix="{uid}-diff"
-					tabs={diffTabs}
-					current={file?.path ?? 'Diff'}
-					onselect={(id) => {
-						if (id !== 'Diff') openDiff(id);
-					}}
+					prefix="{uid}-main"
+					tabs={mainTabs}
+					{current}
+					onselect={(id) => show(id as MainTab)}
+					closable={(id) => id !== 'chat'}
+					onclose={close}
 				>
-					{#snippet tab(id: string)}<span class={['truncate', file && 'code-dense']}
-							>{id.split('/').at(-1)}</span
-						>{/snippet}
+					{#snippet tab(id: string)}
+						{#if id === 'pull' && upstream.pull}<PullRequestTab pull={upstream.pull} />
+						{:else if id === 'diff'}
+							<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
+							<span class="truncate code-dense">{selected?.split('/').at(-1)}</span>
+						{:else if id === 'combined'}
+							<span class="icon-[lucide--files] size-3.5 shrink-0"></span>
+							<span>Combined diff</span>
+						{:else}
+							<span class="grid size-3.5 shrink-0 place-items-center">
+								{#if running}<Spinner label="Claude working" />
+								{:else}<AgentAvatar agent="claude" bare />{/if}
+							</span>
+							<span>Conversation</span>
+						{/if}
+					{/snippet}
 				</PaneTabs>
-				{#each diffTabs as path, index (path)}
+				{#each mainTabs as id, index (id)}
 					<div
 						role="tabpanel"
-						id="{uid}-diff-panel-{index}"
-						aria-labelledby="{uid}-diff-tab-{index}"
-						hidden={path !== (file?.path ?? 'Diff')}
-						class="min-h-0 overflow-hidden"
+						hidden={id !== current}
+						id="{uid}-main-panel-{index}"
+						aria-labelledby="{uid}-main-tab-{index}"
+						class="flex min-h-0 flex-1 flex-col"
 					>
-						{#if path === (file?.path ?? 'Diff')}
-							<p class="px-3.5 py-2 text-sm text-muted" hidden={!!file}>
-								Diffs fill in as the agent writes.
-							</p>
-							{#if selected && file}
-								{#key file.path}
-									<div class="scroller h-full">
-										{#if !diffReady}<p
-												class="flex items-center gap-2 p-5 text-sm text-muted"
-												role="status"
+						{#if id === 'chat'}
+							<div
+								bind:this={transcript}
+								class="scroller flex min-h-0 flex-1 flex-col gap-4 px-3 pb-4 sm:px-5"
+							>
+								{#if step === 0}<p
+										class="m-auto max-w-xs text-center text-sm text-balance text-muted"
+									>
+										Say what you want done.
+									</p>
+								{:else}
+									<div class="mt-auto pt-4"><UserMessage text={firstMessage} /></div>
+									<AgentMessage agent="claude">
+										{#if step >= 7}
+											<TurnActivity
+												summary={`${calls.length} tool calls`}
+												expanded={activityOpen}
+												ontoggle={() => {
+													activityOpen = !activityOpen;
+													schedule();
+												}}
+											/>
+										{/if}
+										{#if calls.length && (step < 7 || activityOpen)}<ToolGroup
+												tools={calls}
+												live={running}
+											/>{/if}
+										{#if step === 1 && running}<p
+												class="flex h-7 items-center gap-2 text-xs text-muted"
 											>
-												<ProgressIcon label="Loading the diff" /> Loading the diff…
+												<Spinner /> Working
 											</p>{/if}
-										<DiffView
-											path={file.path}
-											old={file.old}
-											new={file.new}
-											bind:ready={diffReady}
-										/>
-									</div>
-								{/key}
-							{:else if file}
-								<pre
-									class="overflow-hidden py-1 code-dense">{#each loginDiff as [sign, line], index (index)}<span
-											class={[
-												'block px-3.5',
-												sign === '+' && 'bg-ok/12',
-												sign === '-' && 'bg-danger-soft'
-											]}
-											><span
-												class={[
-													'inline-block w-4 select-none',
-													sign === '+' ? 'text-ok' : 'text-danger'
-												]}>{sign.trim()}</span
-											>{line}</span
-										>{/each}</pre>
-							{/if}
+										{#if step >= 7}
+											<AgentText text={`${replyStart} \`returnTo\`${replyEnd}`}>
+												<div class="prose"><p>{replyStart} <code>returnTo</code>{replyEnd}</p></div>
+											</AgentText>
+										{/if}
+										{#if step >= 8}
+											<button
+												type="button"
+												class="flex items-center gap-2 text-sm text-muted hover:text-ink"
+												onclick={() => show('pull')}
+											>
+												<span class="icon-[lucide--git-pull-request] size-3.5"></span>Opened pull
+												request #412
+											</button>
+										{/if}
+									</AgentMessage>
+									{#if stopped}<p class="text-xs text-muted" role="status">Agent stopped</p>{/if}
+									{#each replies as text, index (index)}<UserMessage {text} />{/each}
+									{#each queue as text, index (index)}
+										<div class="ml-auto message ring-1 ring-line">
+											<p class="label">Queued</p>
+											<p class="whitespace-pre-wrap">{text}</p>
+										</div>
+									{/each}
+								{/if}
+							</div>
+							<div class="mx-3 mb-3">
+								<ReplyComposer
+									bind:value={draft}
+									disabled={!hydrated}
+									{running}
+									empty={step === 0}
+									form={{
+										onsubmit: submitReply,
+										onfocusin: () => {
+											if (step === 0) {
+												editing = true;
+												clearTimeout(timer);
+											}
+										},
+										oninput: () => {
+											editing = true;
+											clearTimeout(timer);
+										},
+										onfocusout: (event) => {
+											if (
+												!event.currentTarget.contains(event.relatedTarget as Node | null) &&
+												(step === 0 ? message.startsWith(draft) : !draft)
+											) {
+												editing = false;
+												schedule();
+											}
+										}
+									}}
+									onstop={stopDemo}
+								>
+									{#snippet options()}<span
+											class="inline-flex items-center gap-1.5 text-sm text-muted"
+											><AgentAvatar agent="claude" bare />Claude</span
+										>{/snippet}
+								</ReplyComposer>
+							</div>
+						{:else if id === 'pull' && upstream.pull}
+							<PullRequestPane pull={upstream.pull} />
+						{:else if id === 'diff' && file}
+							{#key file.path}
+								<div class="scroller h-full">
+									{#if !diffReady}<p
+											class="flex items-center gap-2 p-5 text-sm text-muted"
+											role="status"
+										>
+											<ProgressIcon label="Loading the diff" /> Loading the diff…
+										</p>{/if}
+									<DiffView path={file.path} old={file.old} new={file.new} bind:ready={diffReady} />
+								</div>
+							{/key}
+						{:else if id === 'combined'}
+							<div class="scroller space-y-2 p-3">
+								{#each changedFiles as file (file.path)}
+									<DiffSection path={file.path} added={file.added} removed={file.removed}>
+										<DiffView path={file.path} old={file.old} new={file.new} />
+									</DiffSection>
+								{:else}
+									<p class="text-sm text-muted">No changes yet</p>
+								{/each}
+							</div>
 						{/if}
-					</div>{/each}
+					</div>
+				{/each}
 			</section>
+
+			<!-- beside it: what has changed, and below that, what the project runs -->
+			<div class="hidden w-64 shrink-0 flex-col gap-2 md:flex xl:w-72">
+				<section class="flex min-h-0 flex-1 flex-col sheet-quiet">
+					<PaneTabs prefix="{uid}-changes" tabs={['changes']} current="changes">
+						{#snippet tab()}
+							<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
+							<span>Changes</span>
+							{#if changedFiles.length}
+								<DiffStat
+									added={changedFiles.reduce((sum, file) => sum + file.added, 0)}
+									removed={changedFiles.reduce((sum, file) => sum + file.removed, 0)}
+								/>
+							{/if}
+						{/snippet}
+					</PaneTabs>
+					<div
+						role="tabpanel"
+						id="{uid}-changes-panel-0"
+						aria-labelledby="{uid}-changes-tab-0"
+						class="flex min-h-0 flex-1 flex-col"
+					>
+						<ChangesPane {git} onopen={openDiff} onopencombined={() => show('combined')} />
+					</div>
+				</section>
+				<section class="flex min-h-0 flex-1 flex-col sheet-quiet">
+					<PaneTabs
+						prefix="{uid}-dock"
+						tabs={['terminal', 'run']}
+						current={dock}
+						onselect={(id) => (dock = id as typeof dock)}
+					>
+						{#snippet tab(id: string)}
+							{#if id === 'run'}
+								<span class="icon-[lucide--circle-play] size-3.5 shrink-0"></span>
+								<span>Run</span>
+							{:else}
+								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
+								<span>Terminal 1</span>
+							{/if}
+						{/snippet}
+					</PaneTabs>
+					<div
+						role="tabpanel"
+						id="{uid}-dock-panel-0"
+						aria-labelledby="{uid}-dock-tab-0"
+						hidden={dock !== 'terminal'}
+						class="min-h-0 flex-1 px-3.5 py-2 code-dense"
+					>
+						<p>
+							<span class="text-accent-ink">return-after-sign-in</span>
+							<span class="text-muted">on</span>
+							<span class="text-merged">{branch}</span>
+						</p>
+						<p class="text-ok">❯</p>
+					</div>
+					<div
+						role="tabpanel"
+						id="{uid}-dock-panel-1"
+						aria-labelledby="{uid}-dock-tab-1"
+						hidden={dock !== 'run'}
+						class="flex min-h-0 flex-1 flex-col"
+					>
+						<RunPane
+							{jobs}
+							{links}
+							stateOf={(name) => jobStates[name] ?? 'stopped'}
+							hasTerminal={() => false}
+							{start}
+							stop={(name) => (jobStates[name] = 'stopped')}
+							show={() => {}}
+							visit={() => {}}
+						/>
+					</div>
+				</section>
+			</div>
 		</div>
 	</div>
 </figure>

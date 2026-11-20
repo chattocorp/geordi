@@ -3,14 +3,26 @@ import Button from './Button.astro';
 import { site } from '../site.ts';
 ---
 
-<Button variant="primary" size="lg" href={site.download} icon="icon-[lucide--download]">
-	<span data-stable-version>Download stable</span>
-</Button>
-<template data-prerelease>
-	<Button size="lg" href={`${site.repo}/releases`}>
-		Download prerelease
-	</Button>
-</template>
+<!--
+	The stable download, with what goes beside it (`beside`); below it, quieter, the next beta
+	if there is one, and the links given as children.
+-->
+<div class="flex flex-col items-start gap-4">
+	<div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+		<Button variant="primary" size="lg" href={site.download} icon="icon-[lucide--download]">
+			<span data-stable-version>Download stable</span>
+		</Button>
+		<slot name="beside" />
+	</div>
+	<p class="hidden flex-wrap gap-x-6 gap-y-2 text-sm has-[a]:flex">
+		<template data-prerelease>
+			<a class="text-link" href={`${site.repo}/releases`}>
+				Download prerelease
+			</a>
+		</template>
+		<slot />
+	</p>
+</div>
 
 <script>
 	import { site } from '../site.ts';
