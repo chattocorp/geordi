@@ -7,7 +7,7 @@
 	import RunningJob from './RunningJob.svelte';
 	import ProgressIcon from './ProgressIcon.svelte';
 
-	/** How a job is, as a mark: the same wherever the job shows (its tab, the Run tab). */
+	/** How a job is, as a mark: the same wherever the job shows (its tab, the Tasks tab). */
 	let { state, class: size = 'size-3.5' }: { state: JobState; class?: string } = $props();
 </script>
 

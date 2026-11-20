@@ -24,19 +24,18 @@ whenever they change.
 ## Running
 
 Give each entry in `tasks` a `command`, a local HTTP or HTTPS `url`, or both.
-The Run panel shows one row per task, in file order. Select a task with a URL to
+The Tasks panel shows one row per task, in file order. Select a task with a URL to
 start what it needs and open the page when its port accepts connections. If the
-browser blocks the tab, select the ready link in Run. For a command-only task,
+browser blocks the tab, select the ready link in Tasks. For a command-only task,
 select its name to start it or to read its terminal once it has run. The control
 beside the name lets you stop a running command or run it again after it ends.
 
 - Use `needs` to name tasks that must be ready first. A URL can use `{web}` for the
   port assigned to the command named `web`. This also starts that command when needed.
-- Set `default: true` on each task you want to launch together. The button at the
-  top of Run names those tasks. Select it or press ⌥⌘R
-  on macOS or Ctrl+Alt+R elsewhere. Shared dependencies start
+- Set `default: true` on each task you want to launch together. The shortcut appears beside
+  each default task. Press ⌥⌘R on macOS or Ctrl+Alt+R elsewhere. Shared dependencies start
   once. Geordi opens the URLs of the selected tasks and reuses running commands.
-  With no defaults, the shortcut shows the Run panel.
+  With no defaults, the shortcut shows the Tasks panel.
 - Use `label` for a display name. Dependencies and assigned ports use the task key.
 
 ### Existing job and URL configurations
@@ -66,7 +65,7 @@ and should keep running until stopped.
 it mentions (and any under its `needs`) and waits for them. Only addresses on this
 machine (`localhost`).
 
-**`default`** selects the first action inside the **Run** tab. Use a URL key such as
+**`default`** selects the first action inside the **Tasks** tab. Use a URL key such as
 `urls.app` or a job key such as `jobs.web`. Press ⌥⌘R on macOS or Ctrl+Alt+R elsewhere
 to use it from the workspace. If you omit `default`, Geordi uses the job named `run`
 when present. Otherwise the pane lists the configured links and jobs in their usual order.

@@ -530,23 +530,6 @@
 		return `terminal:${name}`;
 	}
 
-	// A workspace has a terminal to begin with: opened when it is, if it has none, where
-	// there is a directory to open one in. The Run tab, where there is one, sits beside it.
-	let begun = false;
-	$effect(() => {
-		// what it has to run is known once its configuration has come, after its changes
-		if (begun || !git?.changes || !git.config) return;
-		if (workspace.archivedAt || !workspace.worktree || worktreeGone) return;
-		begun = true;
-		untrack(() => {
-			if (workspace.terminals.length === 0 && starting.size === 0) {
-				// the terminal first, the Run tab after it
-				const withTerminal = open(close(dock, RUN), newTerminal(false));
-				arrange({ dock: exists(RUN) ? add(withTerminal, RUN) : withTerminal });
-			}
-		});
-	});
-
 	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
 	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
@@ -967,7 +950,7 @@
 			tasks={config?.tasks}
 			launch={launchTasks}
 			defaultAction={config?.default}
-			shortcut={hint('runDefault')}
+			shortcut="runDefault"
 			{jobs}
 			{links}
 			stateOf={jobState}
@@ -978,24 +961,10 @@
 			{visit}
 		>
 			{#each readyLinks as [name, href] (name)}
-				<!-- the task URL belongs to its local server -->
-				<!-- eslint-disable svelte/no-navigation-without-resolve -->
-				<a
-					class="flex h-10 shrink-0 items-center gap-2 card px-2.5 text-sm text-ink card-link"
-					{href}
-					target="_blank"
-					rel="noopener"
-					onclick={() => readyLinks.delete(name)}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
+				<a class="item" {href} target="_blank" rel="noopener"
+					>Open {links.find((link) => link.name === name)?.label ?? name} in browser</a
 				>
-					<span class="icon-[lucide--external-link] size-4 shrink-0 text-accent"></span>
-					<span class="min-w-0 flex-1 truncate"
-						><span class="text-muted">Open</span>
-						<span class="font-medium"
-							>{links.find((link) => link.name === name)?.label ?? name}</span
-						></span
-					>
-				</a>
-				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{/each}
 			{#if config?.problem}
 				<Notice>The repository's configuration can't be read: {config.problem}</Notice>

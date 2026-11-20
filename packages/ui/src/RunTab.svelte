@@ -9,4 +9,4 @@
 {#if jobs.some((job) => stateOf(job.name) === 'running')}
 	<RunningJob label="Job running" class="size-3.5" />
 {/if}
-<span class="truncate">Run</span>
+<span class="truncate">Tasks</span>

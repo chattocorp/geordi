@@ -4,7 +4,6 @@
 	import type { Job, Link, RepoConfig } from '@geordi/protocol';
 	import type { JobState } from '@geordi/ui/JobMark.svelte';
 	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
-	import { hint } from '@geordi/ui/keys';
 	import RunPane from '@geordi/ui/RunPane.svelte';
 	import RunTab from '@geordi/ui/RunTab.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
@@ -88,9 +87,9 @@
 )}
 	<div class="flex h-120 w-96 flex-col sheet-quiet">
 		{#if defaultAction}
-			<PaneTabs prefix="run-dock" tabs={['Terminal 1', 'Run']} current="Run">
+			<PaneTabs prefix="run-dock" tabs={['Terminal 1', 'Tasks']} current="Tasks">
 				{#snippet tab(id: string)}
-					{#if id === 'Run'}
+					{#if id === 'Tasks'}
 						<RunTab {jobs} {stateOf} />
 					{:else}
 						<span class="icon-[lucide--square-terminal] size-3.5"></span>
@@ -101,7 +100,7 @@
 		{/if}
 		<RunPane
 			{defaultAction}
-			shortcut={hint('runDefault')}
+			shortcut="runDefault"
 			{jobs}
 			{links}
 			{stateOf}
@@ -168,7 +167,7 @@
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		await expect(
-			within(canvas.getByRole('tab', { name: /Run/ })).getByRole('img', { name: 'Job running' })
+			within(canvas.getByRole('tab', { name: /Tasks/ })).getByRole('img', { name: 'Job running' })
 		).toBeVisible();
 		const first = within(canvas.getByRole('region', { name: 'Default action' })).getByRole(
 			'button',
@@ -207,9 +206,9 @@
 
 {#snippet unified(stateOf: (name: string) => JobState, opened = false)}
 	<div class="flex h-120 w-96 flex-col sheet-quiet">
-		<PaneTabs prefix="run-tasks" tabs={['Terminal 1', 'Run']} current="Run">
+		<PaneTabs prefix="run-tasks" tabs={['Tasks']} current="Tasks">
 			{#snippet tab(id: string)}
-				{#if id === 'Run'}
+				{#if id === 'Tasks'}
 					<RunTab jobs={taskJobs} {stateOf} />
 				{:else}
 					<span class="icon-[lucide--square-terminal] size-3.5"></span>
@@ -223,7 +222,7 @@
 			links={taskLinks}
 			{stateOf}
 			hasTerminal={(name) => stateOf(name) !== 'stopped'}
-			shortcut={hint('runDefault')}
+			shortcut="runDefault"
 			launch={(names) => (last = `Run: ${names.join(', ')}`)}
 			start={() => {}}
 			stop={(name) => (last = `Stop: ${name}`)}
@@ -231,15 +230,7 @@
 			visit={() => {}}
 		>
 			{#if opened}
-				<a
-					class="flex h-10 shrink-0 items-center gap-2 card px-2.5 text-sm text-ink card-link"
-					href="#app"
-				>
-					<span class="icon-[lucide--external-link] size-4 shrink-0 text-accent"></span>
-					<span class="min-w-0 flex-1 truncate"
-						><span class="text-muted">Open</span> <span class="font-medium">Geordi</span></span
-					>
-				</a>
+				<a class="item" href="#app">Open Geordi in browser</a>
 			{/if}
 		</RunPane>
 	</div>
@@ -250,9 +241,24 @@
 	name="Tasks"
 	asChild
 	play={async ({ canvas, userEvent }) => {
-		// the main action names what it runs
-		await userEvent.click(canvas.getByRole('button', { name: 'Run Geordi' }));
-		await expect(canvas.getByText('Run: app')).toBeVisible();
+		// one list in configuration order; the default carries the shortcut
+		const rows = canvas.getAllByRole('button', { name: /^(Open|Run|Open terminal for) / });
+		await expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+			'Open terminal for Web server',
+			'Open terminal for Agent daemon',
+			'Open Geordi',
+			'Run Reset development data',
+			'Open terminal for Reset development data',
+			'Open Storybook',
+			'Open terminal for Storybook',
+			'Run Electron dev app'
+		]);
+		await expect(
+			canvas.getByRole('button', { name: 'Open Geordi' }).querySelector('kbd')
+		).toBeVisible();
+		await expect(
+			canvas.getAllByRole('button', { name: /^Open|^Run/ }).filter((b) => b.querySelector('kbd'))
+		).toHaveLength(1);
 		// a URL opens, starting what it needs
 		await userEvent.click(canvas.getByRole('button', { name: 'Open Storybook' }));
 		await expect(canvas.getByText('Run: storybook')).toBeVisible();

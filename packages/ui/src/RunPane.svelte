@@ -3,6 +3,8 @@
 	import type { Job, Link, RepoConfig } from '@geordi/protocol';
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
+	import Keys from './Keys.svelte';
+	import type { ShortcutId } from './keys.ts';
 
 	/**
 	 * The repository's links and jobs (FDR-006), and how each is: what a workspace runs, in
@@ -28,7 +30,8 @@
 		tasks?: RepoConfig['tasks'];
 		launch?: (names: string[]) => void;
 		defaultAction?: RepoConfig['default'];
-		shortcut?: string;
+		/** Shown on what it runs: the default tasks, or the default action. */
+		shortcut?: ShortcutId;
 		jobs: Job[];
 		links: Link[];
 		stateOf: (job: string) => JobState;
@@ -92,9 +95,7 @@
 			class="hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
 			>{where(link.href)}</span
 		>
-		{#if first && shortcut}<kbd class="shrink-0 text-base font-medium tracking-wide text-prose"
-				>{shortcut}</kbd
-			>{/if}
+		{#if first && shortcut}<Keys id={shortcut} />{/if}
 	</button>
 {/snippet}
 
@@ -147,25 +148,13 @@
 			class="flex h-full min-w-0 flex-1 items-center gap-1 text-left text-sm"
 		>
 			{#if !ownMark}
-				{#if job}
-					<span class="grid size-6 shrink-0 place-items-center text-muted">
-						{#if state === 'stopped'}<span class="icon-[lucide--play] size-3.5"></span>
-						{:else}<JobMark {state} />{/if}
-					</span>
-				{:else}
-					<span class="grid size-6 shrink-0 place-items-center">
-						{#if link?.needs.some((name) => stateOf(name) === 'starting')}
-							<JobMark state="starting" />
-						{:else}
-							<span
-								class={[
-									'icon-[lucide--external-link] size-3.5',
-									link && ready(link) ? 'text-accent' : 'text-muted'
-								]}
-							></span>
-						{/if}
-					</span>
-				{/if}
+				<!-- what it would do: run, or wait for what it needs -->
+				{@const waiting = !job && link?.needs.some((name) => stateOf(name) === 'starting')}
+				<span class="grid size-6 shrink-0 place-items-center text-muted">
+					{#if waiting}<JobMark state="starting" />
+					{:else if state === 'stopped' || !job}<span class="icon-[lucide--play] size-3.5"></span>
+					{:else}<JobMark {state} />{/if}
+				</span>
 			{/if}
 			<span class="min-w-0 flex-1 truncate text-ink">{label}</span>
 			{#if link || job}
@@ -174,7 +163,8 @@
 					>{link ? where(link.href) : `:${job?.port}`}</span
 				>
 			{/if}
-			{#if link && job}
+			{#if task.default && shortcut}<span class="ml-1"><Keys id={shortcut} /></span>{/if}
+			{#if link}
 				<span class="ml-1 icon-[lucide--external-link] size-3.5 shrink-0 text-muted"></span>
 			{:else if terminal}
 				<span class="ml-1 icon-[lucide--square-terminal] size-3.5 shrink-0 text-muted"></span>
@@ -196,32 +186,8 @@
 	{@render children?.()}
 
 	{#if tasks}
-		{@const defaults = tasks.filter((task) => task.default)}
-		{#if defaults.length}
-			{@const names = defaults.map((task) => task.label ?? task.name).join(', ')}
-			{@const booting = defaults.some((task) => stateOf(task.name) === 'starting')}
-			<!-- the one main action: what the shortcut runs, named -->
-			<button
-				type="button"
-				aria-label="Run {names}"
-				title="Run {names}"
-				class="flex h-10 shrink-0 items-center gap-2 card px-2.5 text-left text-sm card-link"
-				onclick={() => launch?.(defaults.map((task) => task.name))}
-			>
-				<span class="grid size-4 shrink-0 place-items-center">
-					{#if booting}<JobMark state="starting" />
-					{:else}<span class="icon-[lucide--play] size-4 text-accent"></span>{/if}
-				</span>
-				<span class="min-w-0 flex-1 truncate text-muted"
-					>Run <span class="font-medium text-ink">{names}</span></span
-				>
-				{#if shortcut}<kbd class="shrink-0 text-base font-medium tracking-wide text-prose"
-						>{shortcut}</kbd
-					>{/if}
-			</button>
-		{/if}
+		<!-- one list, in the order the configuration has them -->
 		<section aria-label="Tasks">
-			{@render heading('Tasks')}
 			{#each tasks as task (task.name)}
 				{@render taskRow(task)}
 			{/each}
@@ -247,9 +213,7 @@
 									></span>{:else}<JobMark {state} />{/if}</span
 							>
 							<span class="flex-1 truncate">{live(state) ? 'Stop' : 'Start'} {name}</span>
-							{#if shortcut}<kbd class="shrink-0 text-base font-medium tracking-wide text-prose"
-									>{shortcut}</kbd
-								>{/if}
+							{#if shortcut}<Keys id={shortcut} />{/if}
 						</button>
 						{#if hasTerminal(job.name)}
 							<Button

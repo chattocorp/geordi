@@ -285,7 +285,7 @@ const tools = {
 		run: () => configurationReference()
 	},
 	check_configuration: {
-		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including task defaults in the Run pane), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
+		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including task defaults in the Tasks panel), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
 			const {

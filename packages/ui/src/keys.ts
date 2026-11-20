@@ -93,6 +93,21 @@ export function hint(id: ShortcutId): string {
 	return ['Ctrl', shortcut.alt && 'Alt', shortcut.shift && 'Shift', key].filter(Boolean).join('+');
 }
 
+/**
+ * A shortcut's keys, one by one, to be drawn as keycaps: on a Mac its modifiers by name
+ * (`alt`, `shift`, `cmd`; drawn as icons, not as characters a font may lack), elsewhere as
+ * they are written on the keys.
+ */
+export function keysOf(id: ShortcutId): string[] {
+	const shortcut: Shortcut = shortcuts[id];
+	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
+	if (isMac())
+		return [shortcut.alt && 'alt', shortcut.shift && 'shift', 'cmd', key].filter(
+			Boolean
+		) as string[];
+	return hint(id).split('+');
+}
+
 /** The shortcuts by group, in the order they are defined, for listing. */
 export const shortcutGroups = () =>
 	Map.groupBy(
