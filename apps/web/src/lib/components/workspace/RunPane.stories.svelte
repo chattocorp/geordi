@@ -2,8 +2,8 @@
 	import { expect, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { Job, Link } from '@geordi/protocol';
-	import type { JobState } from './JobMark.svelte';
-	import RunPane from './RunPane.svelte';
+	import type { JobState } from '@geordi/ui/JobMark.svelte';
+	import RunPane from '@geordi/ui/RunPane.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Run', component: RunPane });
 	const job = (name: string, label: string, command: string, port: number): Job => ({

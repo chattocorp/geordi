@@ -75,7 +75,7 @@ automatically, and Codex runs in its sandbox with automatic review.
 ## Configuring a repository
 
 A `.geordi.yml` at the top of a repository says what to run and where to look at it.
-Workspaces get a **Run** button for it, and ports of their own:
+Workspaces get a **Run** tab for it, and ports of their own:
 
 ```yaml
 jobs:
@@ -87,11 +87,11 @@ urls:
     url: http://localhost:{web}/
 ```
 
-See [Configuration](docs/configuration.md) for everything it can say.
+See [Configuration](docs/configuration.mdx) for everything it can say.
 
 ## Learn more
 
-- [Configuration](docs/configuration.md): the `.geordi.yml` reference
+- [Configuration](docs/configuration.mdx): the `.geordi.yml` reference
 - [Connect an external agent](docs/self-hosting.md#connect-an-external-agent) with Codex CLI, Claude Code, or another HTTP MCP client.
 - [Self-hosting](docs/self-hosting.md): running forge and daemon yourself, and their
   settings

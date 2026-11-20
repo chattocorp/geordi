@@ -1,0 +1,30 @@
+---
+import { Code } from 'astro:components';
+import yaml from '../../../../docs/example.geordi.yml?raw';
+import { parseConfig, resolve } from '../../../daemon/src/config.ts';
+import RunExample from './RunExample.svelte';
+
+const settings = parseConfig(yaml);
+const { jobs, urls } = resolve(
+	{ settings, source: 'workspace', file: '.geordi.yml', problem: null },
+	{
+		blocks: [{ first: 20000, count: settings.ports }],
+		jobs: Object.fromEntries(settings.jobs.map(({ name }, index) => [name, index]))
+	},
+	() => true
+);
+---
+
+<div class="not-prose my-4 space-y-2">
+	<div class="overflow-hidden rounded-control bg-sunken">
+		<p class="px-4 pt-3 code-dense text-muted">.geordi.yml</p>
+		<Code
+			code={yaml.trimEnd()}
+			lang="yaml"
+			themes={{ light: 'github-light', dark: 'github-dark-dimmed' }}
+			defaultColor={false}
+			class="p-4 pt-2 code-dense"
+		/>
+	</div>
+	<RunExample {jobs} links={urls} client:load />
+</div>

@@ -152,3 +152,19 @@ test('copy the guide prompt and inspect its example pull request', async (t) => 
 	await pull.getByRole('button', { name: /Checks/ }).click();
 	await expect(pull.getByText('Check Markdown')).toBeVisible();
 });
+
+test('the configuration example opens the app with both jobs and stops dependent jobs', async (t) => {
+	const page = await browser.newPage({ reducedMotion: 'reduce' });
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/docs/configuration/`);
+	const pane = page.getByRole('figure', { name: 'Run pane preview' });
+	await page.locator('astro-island:not([ssr])').filter({ has: pane }).waitFor();
+	await pane.getByRole('button', { name: /Open the app/ }).click();
+	await expect(pane.getByRole('button', { name: 'Stop Development server' })).toBeVisible();
+	await expect(pane.getByRole('status')).toHaveText('http://localhost:20001/');
+	await pane.getByTitle('Show the output of Development server').click();
+	await expect(pane.getByRole('status')).toHaveText('pnpm dev --port $PORT');
+	await pane.getByRole('button', { name: 'Stop db' }).click();
+	await expect(pane.getByRole('button', { name: 'Start Development server' })).toBeVisible();
+	await expect(pane.getByRole('button', { name: 'Start db' })).toBeVisible();
+});

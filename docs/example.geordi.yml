@@ -1,14 +1,14 @@
-```yaml
 setup: pnpm install
 
 jobs:
   db:
     command: docker compose up db
   web:
+    label: Development server
     command: pnpm dev --port $PORT
     needs: [db]
 
 urls:
   app:
+    label: Open the app
     url: http://localhost:{web}/
-```
