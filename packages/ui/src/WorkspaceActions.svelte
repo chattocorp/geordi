@@ -25,7 +25,7 @@
 		pending?: WorkspaceAction['id'][];
 		/** The workspace with a question waiting for an answer. */
 		askingIn?: string;
-		/** Small, with only the next step: for showing many at once (the overview). */
+		/** Small, with only the next step: for showing many at once. */
 		compact?: boolean;
 		onopenpull(): void;
 		onaction(action: WorkspaceAction): void;

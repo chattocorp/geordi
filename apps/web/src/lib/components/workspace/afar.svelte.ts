@@ -8,7 +8,7 @@ import { reviewProblems, runPullAction } from './review.svelte.ts';
 import { continueWorkspace, say, updateWorkspace } from '../../../routes/workspaces.remote';
 
 /**
- * Doing what a workspace's actions say from outside it: the sidebar, the overview. Where
+ * Doing what a workspace's actions say from outside it: the sidebar. Where
  * something goes wrong, the workspace's page is where it says why, so we go there.
  */
 

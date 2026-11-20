@@ -283,8 +283,8 @@
 		<aside class="hidden w-64 shrink-0 flex-col sheet-quiet lg:flex">
 			<div class="flex-1 space-y-5 p-2">
 				<p class="item gap-2.5 px-2.5 py-1.5 text-base">
-					<span class="icon-[lucide--layout-grid] size-4 shrink-0"></span>
-					Overview
+					<span class="icon-[lucide--plus] size-4 shrink-0"></span>
+					New workspace
 				</p>
 				<div>
 					<p class="flex h-7 items-center gap-2 px-1.5 text-sm font-semibold text-muted">
@@ -322,7 +322,11 @@
 					</ul>
 				</div>
 			</div>
-			<p class="m-2 item gap-2.5 px-2.5 py-1.5 text-base">
+			<p class="mx-2 item gap-2.5 px-2.5 py-1.5 text-base">
+				<span class="icon-[lucide--archive] size-4 shrink-0"></span>
+				Archive
+			</p>
+			<p class="mx-2 mb-2 item gap-2.5 px-2.5 py-1.5 text-base">
 				<span class="icon-[lucide--settings] size-4 shrink-0"></span>
 				Settings
 			</p>
