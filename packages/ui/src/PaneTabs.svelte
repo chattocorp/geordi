@@ -11,6 +11,7 @@
 		tab: Snippet<[string]>;
 		actions?: Snippet;
 		onselect?: (id: string) => void;
+		ondoubleclick?: (id: string) => void;
 		onclose?: (id: string) => void;
 		closable?: (id: string) => boolean;
 		/** Drop marker: a tab ID, null for the end, or undefined to hide it. */
@@ -23,8 +24,19 @@
 			drop(event: DragEvent): void;
 		};
 	};
-	let { prefix, tabs, current, tab, actions, onselect, onclose, closable, before, drag }: Props =
-		$props();
+	let {
+		prefix,
+		tabs,
+		current,
+		tab,
+		actions,
+		onselect,
+		ondoubleclick,
+		onclose,
+		closable,
+		before,
+		drag
+	}: Props = $props();
 </script>
 
 <div
@@ -72,6 +84,7 @@
 				aria-selected={active}
 				aria-controls="{prefix}-panel-{index}"
 				onclick={() => onselect?.(id)}
+				ondblclick={() => ondoubleclick?.(id)}
 				class="flex min-w-0 flex-1 items-center gap-2 self-stretch"
 			>
 				{@render tab(id)}

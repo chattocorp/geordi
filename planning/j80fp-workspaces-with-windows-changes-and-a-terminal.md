@@ -18,3 +18,5 @@ Terminal links follow-up (2026-11-17): added xterm web links support for clickab
 Terminal focus follow-up: terminals opened with + now receive keyboard focus once xterm is ready. The initial terminal leaves focus unchanged. Browser stories verify both cases. Verification: `pnpm check`, `pnpm lint`, `pnpm test`, and `sweet doctor` pass.
 
 Sidebar resize follow-up: navigation can grow to 720 pixels in a wide window. The conversation keeps at least half of the workspace beside it, including when the browser restores a saved layout.
+
+Right-panel tab follow-up: double-clicking a tab in either right panel moves it beside the conversation and selects it. Verified both panels and persistence after reload in the browser.

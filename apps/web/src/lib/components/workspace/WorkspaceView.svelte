@@ -514,7 +514,7 @@
 		arrangement.current = { ...after, diffPath: remaining.includes('diff') ? diffPath : undefined };
 	}
 
-	/** A window dragged from one area was dropped in another. */
+	/** Move a window between areas in one arrangement change. */
 	const receive =
 		(to: Area) => (tab: string, groupId: string, zone: Zone, before?: string | null) => {
 			const from = areaOf(tab);
@@ -524,6 +524,10 @@
 			if (placed === layouts[to]) return;
 			arrange({ [to]: placed, [from]: close(layouts[from], tab) });
 		};
+	function promote(tab: string) {
+		if (chatGroup) receive('main')(tab, chatGroup, 'center');
+	}
+
 	/** The conversation stays where it is, and what a workspace always has can't be closed. */
 	const movable = (tab: string) => tab !== CHAT;
 	const closable = (tab: string) =>
@@ -1157,6 +1161,7 @@
 								{closable}
 								accepts={movable}
 								onreceive={receive('side')}
+								ondoubleclick={promote}
 								splits={false}
 							/>
 						</div>
@@ -1171,6 +1176,7 @@
 								{closable}
 								accepts={movable}
 								onreceive={receive('dock')}
+								ondoubleclick={promote}
 								splits={false}
 								newTab={workspace.archivedAt ? undefined : newTerminal}
 								newLabel="New terminal"
