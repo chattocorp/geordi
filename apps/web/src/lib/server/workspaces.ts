@@ -671,7 +671,7 @@ export function createWorkspaces(
 		/**
 		 * Starts an agent on the caller's behalf, as a workspace of its own. A workspace's agent
 		 * starts it in a new worktree branched from its own (`own`), or in its own worktree
-		 * (`shared`); an external client starts it in a `repository`, as a person would. An
+		 * (`shared`). In another repository it starts from that repository’s base. An
 		 * agent of the caller's kind runs as the caller does, but for the `model` and `effort`
 		 * asked for. An effort is checked against what is `offered`, when that is known.
 		 */
@@ -723,17 +723,14 @@ export function createWorkspaces(
 					worktreeId: owner.id,
 					...(owner.base && { base: owner.base })
 				};
-			} else if (!caller || project) {
-				// a project, like a client outside Geordi, starts agents in whichever repository it names
+			} else if (!caller || project || (repository !== undefined && repository !== caller.repoId)) {
 				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
 				if (worktree === 'shared')
-					error(400, 'Only an agent in a workspace can share its worktree');
+					error(400, 'A shared worktree must be in the calling workspace’s repository');
 				if (!reaches(callerId, repository))
 					error(404, `There is no repository ${repository} you have access to`);
-				where = { repoId: repos.get(repository).id, ...(project && { parentId: callerId }) };
+				where = { repoId: repos.get(repository).id, ...(caller && { parentId: callerId }) };
 			} else {
-				if (repository && repository !== caller.repoId)
-					error(403, 'Agents start agents in their own repository');
 				const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
 				if (!branch) error(409, 'Your workspace has no worktree yet');
 				where = {

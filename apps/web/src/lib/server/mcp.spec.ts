@@ -318,7 +318,7 @@ describe('the agent API as an MCP server', () => {
 		const repoTools = await catalog(caller);
 		const projectTools = await catalog(project);
 		const clientTools = await catalog(external);
-		expect(repoTools.start_agent.inputSchema.properties).not.toHaveProperty('repository');
+		expect(repoTools.start_agent.inputSchema.properties).toHaveProperty('repository');
 		expect(repoTools.start_agent.inputSchema.properties).not.toHaveProperty('workspace');
 		expect(projectTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
 		expect(projectTools.start_agent.description).toContain('regardless of worktree mode');
@@ -502,9 +502,23 @@ describe('installation-wide workspace access', () => {
 			);
 		expect((await call('stop_agent', { agent_id: peer })).error).toBeTruthy();
 		expect((await call('archive_agent', { agent_id: peer })).error).toBeTruthy();
-		expect((await call('start_agent', { prompt: 'Elsewhere', repository: repoId })).error).toMatch(
-			/own repository/
-		);
+	});
+
+	it('starts a child from the target repository base in its own worktree', async () => {
+		const { store, repos, workspaces, caller, call } = setup();
+		const repo = repos.register(gitRepository());
+		const task = { prompt: 'Update the client', repository: repo.id };
+		expect((await call('start_agent', { ...task, worktree: 'shared' })).error).toMatch(/shared/);
+		const child = await call('start_agent', task);
+		expect(workspaces.get(child.id)).toMatchObject({
+			parentId: caller,
+			repoId: repo.id,
+			worktreeId: child.id,
+			base: null
+		});
+		const replay = createWorkspaces(store, repos, () => true);
+		expect(replay.ref(child.id)).toEqual({ repoPath: repo.path, worktreeId: child.id });
+		expect(replay.agents.get(caller, child.id)).toMatchObject({ parentId: caller });
 	});
 
 	it('reads archived pages without restarting the agent', async () => {
@@ -672,6 +686,10 @@ it('keeps the agents an external client started to its repositories', async () =
 	const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
 	const started = await callAs(actor)('start_agent', { prompt: 'Look around', repository: repoId });
 	const child = callAs(started.id);
+	expect(
+		(await child('start_agent', { prompt: 'Build', repository: workspaces.get(caller).repoId }))
+			.error
+	).toMatch(/access to/);
 	expect(JSON.stringify(await child('list_workspaces'))).not.toContain(caller);
 	expect((await child('read_workspace', { workspace_id: caller })).error).toMatch(/not found/);
 	expect(await child('read_workspace', { workspace_id: started.id })).not.toHaveProperty('error');

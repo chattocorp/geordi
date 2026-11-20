@@ -135,12 +135,12 @@ function startCatalogInput(kind: CallerKind) {
 			worktree: v.optional(v.literal('own'), 'own')
 		});
 	if (kind === 'project') return startInput;
-	return v.object({ ...startFields, worktree: worktreeMode });
+	return v.object({ ...startFields, repository: v.optional(repositoryId), worktree: worktreeMode });
 }
 
 const startLocation = {
 	repository:
-		'The default, worktree "own", creates a branch from your current commit. Merge its branch to bring the work back. Use "shared" to work in your directory, including uncommitted files.',
+		'The default, worktree "own", creates a branch from your current commit. Merge its branch to bring the work back. Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". The branch starts from that repository’s base.',
 	project:
 		'Pass repository to start on a new branch from the repository base. Pass workspace to share that workspace’s directory and branch, regardless of worktree mode. With worktree "shared" and no workspace, the agent joins your project folder. The shared forms ignore repository.',
 	external:
