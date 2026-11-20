@@ -23,10 +23,10 @@
 		{
 			agent: 'opencode',
 			models: [
-				{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] },
+				{ id: 'opencode/big-pickle', name: 'Big Pickle', efforts: [] },
 				{
 					id: 'opencode/beam-free',
-					name: 'opencode/beam-free',
+					name: 'Beam Free',
 					efforts: ['low', 'medium', 'high', 'xhigh', 'max']
 				}
 			],
@@ -50,6 +50,7 @@
 		<AgentAvatar agent="opencode" />
 		<AgentAvatar agent="claude" size="sm" />
 		<AgentAvatar agent="codex" size="sm" />
+		<AgentAvatar agent="opencode" size="sm" />
 	</div>
 </Story>
 

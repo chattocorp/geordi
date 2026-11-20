@@ -54,6 +54,7 @@
 			harness,
 			model,
 			reported,
+			resolvedModel,
 			efforts,
 			effort,
 			permissionMode: wanted.permissionMode ?? 'full-access'
@@ -76,7 +77,7 @@
 	};
 	let { harnesses, choice, sessionModel, onchange }: Props = $props();
 
-	const { harness, model, reported, efforts, effort, permissionMode } = $derived(
+	const { harness, model, reported, resolvedModel, efforts, effort, permissionMode } = $derived(
 		resolveChoice(harnesses, choice, sessionModel)
 	);
 
@@ -84,7 +85,9 @@
 		reported?.requested.effort === effort ? reported?.effort : undefined
 	);
 	const defaultModel = $derived(
-		reported?.model && !model ? 'OpenCode default · ' + reported.model : 'OpenCode'
+		reported?.model && !model
+			? 'OpenCode default · ' + (resolvedModel?.name ?? reported.model)
+			: 'OpenCode'
 	);
 	const defaultEffort = $derived(
 		reportedEffort ? 'Default · ' + effortName(reportedEffort) : 'Default effort'
@@ -98,9 +101,10 @@
 			// the chosen model is in the list even if it was typed in
 			const all =
 				agent === harness.agent && model && !models.includes(model) ? [...models, model] : models;
+			const byName = Object.groupBy(all, (item) => item.name);
 			const entries = all.map((model) => ({
 				value: agent + SEPARATOR + model.id,
-				label: model.name,
+				label: (byName[model.name]?.length ?? 0) > 1 ? `${model.name} (${model.id})` : model.name,
 				keywords: `${agentName[agent]} ${model.id}`
 			}));
 			if (agent === 'opencode' || !entries.length)

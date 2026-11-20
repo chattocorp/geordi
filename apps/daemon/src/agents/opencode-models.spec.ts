@@ -19,12 +19,18 @@ it('keeps each model’s enabled variants in CLI order and tolerates missing met
 				2
 			),
 			'p/two',
-			'{"variants":{"high":{}}}',
+			'{"name":"DeepSeek V4.1 Flash Free","variants":{"high":{}}}',
 			'p/three',
-			'{"variants":{}}',
+			'{"name":" Big Pickle ","variants":{}}',
 			'p/four',
 			'{broken}'
 		].join('\r\n')
 	);
+	expect(list.map(({ name }) => name)).toEqual([
+		'p/one',
+		'DeepSeek V4.1 Flash Free',
+		'Big Pickle',
+		'p/four'
+	]);
 	expect(list.map(({ efforts }) => efforts)).toEqual([['low', 'custom'], ['high'], [], []]);
 });
