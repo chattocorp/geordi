@@ -15,3 +15,4 @@
 | [FDR-011](FDR-011-diagrams-and-svg.md)                    | Diagrams and SVG in agent output                                 | Active       | 2026-11-18    |
 | [FDR-012](FDR-012-projects.md)                            | Projects: workspaces for orchestrating, not tied to a repository | Experimental | 2026-11-19    |
 | [FDR-013](FDR-013-repository-issues-and-pull-requests.md) | Repository issues and pull requests                              | Active       | 2026-11-19    |
+| [FDR-014](FDR-014-purging-archived-workspaces.md)         | Deleting archived workspaces for good                            | Active       | 2026-11-20    |
