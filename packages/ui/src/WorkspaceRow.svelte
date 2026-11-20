@@ -61,7 +61,7 @@
 	};
 
 	const primary = $derived(actions.find((action) => !action.aside));
-	const pillColor = $derived(primary && onaction && pillColors[primary.id]);
+	const pillColor = $derived(standing && primary && onaction && pillColors[primary.id]);
 	const visibleStanding = $derived(standing?.tone === 'accent' ? null : standing);
 
 	let submitting = $state<WorkspaceAction['id']>();
