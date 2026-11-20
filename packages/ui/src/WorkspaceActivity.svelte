@@ -34,12 +34,16 @@
 >
 	{#if merging}
 		<span class="icon-[lucide--git-merge] size-4"></span>
-		<span class="merge-trace absolute size-1 rounded-full bg-current"></span>
+		<span class="merge-trace absolute top-0 left-0 size-1.25 rounded-full bg-current"></span>
+		<span class="merge-ripple absolute top-4 left-4 size-2 rounded-full border border-current"
+		></span>
 	{:else if fixing}
 		<span class="repair icon-[lucide--wrench] size-4"></span>
 	{:else if activity === 'archive'}
+		<span class="absolute inset-0 overflow-hidden rounded-full">
+			<span class="archive-arrow absolute top-0 left-1.5 icon-[lucide--arrow-down] size-3"></span>
+		</span>
 		<span class="archive-tray icon-[lucide--inbox] size-4"></span>
-		<span class="archive-arrow absolute icon-[lucide--arrow-down] size-3"></span>
 	{:else if activity === 'working' || activity === 'retry'}
 		<span aria-hidden="true" class="inline-flex"><Spinner /></span>
 	{:else}
@@ -48,43 +52,76 @@
 </StatusIcon>
 
 <style>
+	/*
+	 * Merging: a commit runs down the branch's curve into the merged node, which ripples as
+	 * it lands. Archiving: an arrow drops into the tray, which gives under it. The path is
+	 * the git-merge icon's, in the circle's pixels (the 16px icon sits 4px in).
+	 */
 	.merge-trace {
-		transform: translate(0.23rem, 0.18rem);
+		offset-path: path('M8 8 V10 A6 6 0 0 0 14 16 H16');
+		offset-rotate: 0deg;
+		opacity: 0;
+	}
+	.merge-ripple {
+		translate: -50% -50%;
+		opacity: 0;
 	}
 	.archive-tray {
-		transform: translateY(0.13rem);
+		translate: 0 0.13rem;
 	}
 	.archive-arrow {
-		transform: translateY(-0.25rem);
+		translate: 0 0.125rem;
 	}
 	@media (prefers-reduced-motion: no-preference) {
 		.merge-trace {
-			animation: converge 1.6s ease-in-out infinite;
+			animation: merge-run 1.8s ease-in-out infinite;
+		}
+		.merge-ripple {
+			animation: merge-ripple 1.8s ease-out infinite;
 		}
 		.repair {
 			transform-origin: 28% 72%;
 			animation: tighten 1.4s ease-in-out infinite;
 		}
 		.archive-arrow {
-			animation: file-away 1.6s ease-in infinite;
+			animation: file-away 1.8s infinite;
+		}
+		.archive-tray {
+			animation: take-in 1.8s infinite;
 		}
 	}
-	@keyframes converge {
+	@keyframes merge-run {
 		0% {
+			offset-distance: 0%;
 			opacity: 0;
-			transform: translate(-0.24rem, -0.26rem);
 		}
-		18% {
+		10% {
 			opacity: 1;
-			transform: translate(-0.22rem, -0.18rem);
 		}
-		48% {
-			transform: translate(-0.12rem, 0.09rem);
+		60% {
+			offset-distance: 100%;
+			opacity: 1;
 		}
-		72%,
+		75%,
+		100% {
+			offset-distance: 100%;
+			opacity: 0;
+		}
+	}
+	@keyframes merge-ripple {
+		0%,
+		58% {
+			opacity: 0;
+			scale: 0.6;
+		}
+		62% {
+			opacity: 1;
+			scale: 1;
+		}
+		95%,
 		100% {
 			opacity: 0;
-			transform: translate(0.25rem, 0.25rem);
+			scale: 1.9;
 		}
 	}
 	@keyframes tighten {
@@ -102,18 +139,32 @@
 	}
 	@keyframes file-away {
 		0% {
-			opacity: 0;
-			transform: translateY(-0.5rem);
+			opacity: 1;
+			translate: 0 -0.75rem;
+			animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5);
 		}
-		20%,
 		40% {
 			opacity: 1;
-			transform: translateY(-0.33rem);
+			translate: 0 0.4rem;
 		}
-		78%,
+		50%,
 		100% {
 			opacity: 0;
-			transform: translateY(0.12rem);
+			translate: 0 0.7rem;
+		}
+	}
+	@keyframes take-in {
+		0%,
+		38% {
+			translate: 0 0.13rem;
+		}
+		48% {
+			translate: 0 0.25rem;
+			animation-timing-function: cubic-bezier(0.3, 1.6, 0.6, 1);
+		}
+		75%,
+		100% {
+			translate: 0 0.13rem;
 		}
 	}
 </style>

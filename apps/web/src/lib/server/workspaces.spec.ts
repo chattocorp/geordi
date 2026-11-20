@@ -960,12 +960,17 @@ describe('titles', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).title).toBe('Safari login cookie fix');
 	});
 
-	it('keeps a name someone gave it over its agent’s title', () => {
-		const { workspaces, create } = setup();
+	it('keeps a manually confirmed name through agent updates and replay', () => {
+		const { store, repos, dispatch, workspaces, create } = setup();
 		const id = create('Do the thing');
-		workspaces.retitle(id, 'My name for it', 'person');
-		workspaces.record(id, { kind: 'title', title: 'Thing doing' });
-		expect(workspaces.get(id).title).toBe('My name for it');
+		workspaces.agents.name(id, 'Investigate login');
+		workspaces.rename(id, 'Investigate login');
+		const replayed = createWorkspaces(store, repos, dispatch);
+		expect(() => replayed.agents.name(id, 'Agent rename')).toThrow();
+		replayed.record(id, { kind: 'title', title: 'Session rename' });
+		expect(replayed.get(id).title).toBe('Investigate login');
+		replayed.rename(id, ' Login in v2.0. ');
+		expect(replayed.get(id).title).toBe('Login in v2.0.');
 	});
 });
 
