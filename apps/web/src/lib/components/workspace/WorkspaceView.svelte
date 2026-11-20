@@ -199,6 +199,7 @@
 	const changesView = persisted<'list' | 'tree'>('geordi:changes-view', 'list');
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 
+	const terminalTitles = new SvelteMap<string, string>();
 	/** Terminals asked for just now, whose shells are still starting. */
 	const starting = new SvelteSet<string>();
 	$effect(() => {
@@ -530,6 +531,33 @@
 		return `terminal:${name}`;
 	}
 
+	function terminalShortcut(event: KeyboardEvent) {
+		if (
+			!pressed(event, 'terminal') ||
+			project ||
+			workspace.archivedAt ||
+			!workspace.worktree ||
+			worktreeGone
+		)
+			return;
+		event.preventDefault();
+		event.stopPropagation();
+		if (event.repeat) return;
+
+		const shells = everywhere().filter((tab) => terminalOf(tab) && !jobOf(terminalOf(tab)));
+		const selected = Object.values(layouts)
+			.flatMap(groupsOf)
+			.find((group) => group.active && shells.includes(group.active));
+		const existing = selected?.active ?? shells[0];
+		if (existing && !document.activeElement?.closest('.xterm')) {
+			focusTerminal = terminalOf(existing);
+			showTab(existing);
+		} else {
+			if (!frame.current.open) toggleSide();
+			arrange({ dock: open(dock, newTerminal()) });
+		}
+	}
+
 	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
 	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
@@ -549,6 +577,7 @@
 				return;
 			}
 			if (terminal && !remaining.includes(tab) && !isRunTerminal(terminal)) {
+				terminalTitles.delete(tab);
 				starting.delete(terminal);
 				const job = jobOf(terminal);
 				if (job) stop(job);
@@ -816,6 +845,7 @@
 <svelte:head><title>{workspace.title} · Geordi</title></svelte:head>
 
 <svelte:window
+	onkeydowncapture={terminalShortcut}
 	onkeydown={(event) => {
 		if (pressed(event, 'toggleSide')) {
 			event.preventDefault();
@@ -882,8 +912,9 @@
 			{@const terminals = everywhere()
 				.filter((other) => terminalOf(other) && !jobOf(terminalOf(other)))
 				.sort()}
+			{@const title = terminalTitles.get(tab) || `Terminal ${terminals.indexOf(tab) + 1}`}
 			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
-			<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
+			<span class="truncate" {title}>{title}</span>
 		{/if}
 	{:else if tab === DRAFT}
 		<span class="icon-[lucide--message-square-plus] size-3.5 shrink-0"></span>
@@ -1015,6 +1046,7 @@
 		<Terminal
 			workspaceId={id}
 			{terminal}
+			ontitle={jobOf(terminal) ? undefined : (title) => terminalTitles.set(tab, title)}
 			start={starting.has(terminal)}
 			autofocus={focusTerminal === terminal}
 			onautofocus={() => (focusTerminal = undefined)}

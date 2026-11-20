@@ -105,7 +105,7 @@ const parallel = [
 
 const steps = [
 	{
-		title: 'Install Claude Code or Codex and sign in',
+		title: 'Install Claude Code, Codex, or OpenCode and sign in',
 		text: 'For GitHub, Geordi uses your gh CLI login.'
 	},
 	{
@@ -124,8 +124,8 @@ const steps = [
 		<div class="max-w-4xl pt-4 pb-10 sm:pt-10 sm:pb-14">
 			<h1 class="text-display font-semibold text-balance">A calmer way to run coding agents.</h1>
 			<p class="mt-6 max-w-2xl text-lede text-pretty text-muted sm:mt-8">
-				Run Claude Code and Codex side by side. Give a coding task its own branch, bring in another
-				agent to review the changes, and pick up the conversation after you quit Geordi.
+				Run Claude Code, Codex, and OpenCode side by side. Give a coding task its own branch, bring
+				in another agent to review the changes, and pick up the conversation after you quit Geordi.
 			</p>
 			<div class="mt-8">
 				<ReleaseDownloads>
@@ -321,7 +321,7 @@ const steps = [
 			</h2>
 			<p class="mt-4 text-pretty text-muted">
 				Geordi is made for keeping a lot of agents busy at once. Hand out work as fast as you think
-				of it, to Claude or Codex, and get on with your day.
+				of it, to any of your agents, and get on with your day.
 			</p>
 		</div>
 		<dl class="mt-10 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -340,7 +340,11 @@ const steps = [
 			<p class="mt-4 max-w-xl text-pretty text-muted">
 				The desktop app starts Geordi’s own services for you and keeps its data in{' '}
 				<code class="code text-(--inline-code)">~/.geordi</code>. Geordi is young and changing
-				quickly, so you'll probably run into a rough edge or two.
+				quickly, so you'll probably run into a rough edge or two. For support, come to the{' '}
+				<a class="text-link" href={site.support}>
+					#geordi channel on Chatto HQ
+				</a>
+				.
 			</p>
 			<div class="mt-8">
 				<ReleaseDownloads>
@@ -354,8 +358,8 @@ const steps = [
 				<p class="text-pretty">
 					One thing to know: Geordi doesn't have logins yet, so it only accepts connections from
 					your own computer. Agents run with Full Access by default, which means they can do
-					anything your user account can. Choose Auto Mode if you'd rather keep them on a shorter
-					leash.
+					anything your user account can. For restricted access, choose Configured permissions for
+					OpenCode or Auto Mode for Claude Code and Codex.
 				</p>
 			</div>
 		</div>

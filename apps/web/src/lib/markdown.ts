@@ -1,3 +1,4 @@
+import { codeComment } from './agent-directives.ts';
 import MarkdownIt from 'markdown-it';
 import { highlighter, themes } from './highlighter.ts';
 
@@ -22,6 +23,50 @@ md.renderer.rules.softbreak = (_tokens, _index, _options, env) =>
 	(env as Options).preserveLineBreaks ? '<br>\n' : '\n';
 
 const { escapeHtml } = md.utils;
+
+// A block rule leaves fenced and inline code examples to Markdown.
+md.block.ruler.before(
+	'paragraph',
+	'code_comment',
+	(state, line, _end, silent) => {
+		if (
+			!(state.env as Options).agentDirectives ||
+			state.parentType === 'blockquote' ||
+			state.sCount[line] - state.blkIndent >= 4
+		)
+			return false;
+		const source = state.src.slice(state.bMarks[line] + state.tShift[line], state.eMarks[line]);
+		const finding = codeComment(source);
+		if (!finding) return false;
+		if (!silent) {
+			const token = state.push('code_comment', '', 0);
+			token.meta = finding;
+			state.line = line + 1;
+		}
+		return true;
+	},
+	{ alt: ['paragraph'] }
+);
+
+md.renderer.rules.code_comment = (tokens, index, _options, env) => {
+	const { title, body, file, start, end } = tokens[index].meta as NonNullable<
+		ReturnType<typeof codeComment>
+	>;
+	const root = (env as Options).root;
+	const path =
+		root && file.startsWith(root + '/') ? file.slice(root.length + 1) : file.replace(/^\.\//, '');
+	const location = `<code>${escapeHtml(path)}:${start}${end > start ? '–' + end : ''}</code>`;
+	const inWorkspace =
+		root &&
+		local(path) &&
+		!path.startsWith('/') &&
+		!/[\\\0]/.test(path) &&
+		!path.split('/').includes('..');
+	const link = inWorkspace
+		? `<button type="button" data-source="${escapeHtml(path)}" data-line="${start}">${location}</button>`
+		: location;
+	return `<p><strong>${escapeHtml(title)}</strong> · ${link}<br>${escapeHtml(body)}</p>\n`;
+};
 
 /** Whether a link leads to a file where the agent works, rather than somewhere on the net. */
 const local = (src: string) => src !== '' && !/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src);
@@ -149,6 +194,7 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 };
 
 type Options = {
+	agentDirectives?: boolean;
 	documentPath?: string;
 	preserveLineBreaks?: boolean;
 	root?: string;

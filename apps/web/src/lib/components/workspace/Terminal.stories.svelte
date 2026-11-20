@@ -1,9 +1,13 @@
 <script module lang="ts">
-	import { expect, waitFor } from 'storybook/test';
+	import { expect, fn, mocked, spyOn, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Terminal from './Terminal.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Terminal', component: Terminal });
+</script>
+
+<script lang="ts">
+	let requested = $state(false);
 </script>
 
 <Story
@@ -23,18 +27,28 @@
 </Story>
 
 <Story
-	name="Existing terminal leaves focus alone"
+	name="Existing terminal takes focus on request"
 	asChild
-	play={async ({ canvasElement }) => {
-		await waitFor(() => {
+	play={async ({ canvasElement, canvas, userEvent }) => {
+		const input = await waitFor(() => {
 			const input = canvasElement.querySelector('.xterm-helper-textarea');
 			expect(input).not.toBeNull();
 			expect(input).not.toHaveFocus();
+			return input;
 		});
+		await userEvent.click(canvas.getByRole('button', { name: 'Focus terminal' }));
+		await waitFor(() => expect(input).toHaveFocus());
 	}}
 >
 	<div class="flex h-64 flex-col bg-bg">
-		<Terminal workspaceId="story" terminal="existing" start={false} />
+		<button onclick={() => (requested = true)}>Focus terminal</button>
+		<Terminal
+			workspaceId="story"
+			terminal="existing"
+			start={false}
+			autofocus={requested}
+			onautofocus={() => (requested = false)}
+		/>
 	</div>
 </Story>
 
@@ -58,3 +72,24 @@
 		<Terminal workspaceId="story" terminal="resized" start={false} />
 	</div>
 </Story>
+
+<Story
+	name="Shell sets and clears its title"
+	args={{ workspaceId: 'story', terminal: 'titled', start: false, ontitle: fn() }}
+	beforeEach={async () => {
+		const { Terminal: Xterm } = await import('@xterm/xterm');
+		const opened = spyOn(Xterm.prototype, 'open');
+		return () => opened.mockRestore();
+	}}
+	play={async ({ args }) => {
+		const { Terminal: Xterm } = await import('@xterm/xterm');
+		const opened = mocked(Xterm.prototype.open);
+		await waitFor(() => expect(opened).toHaveBeenCalled());
+		const term = opened.mock.contexts[0] as InstanceType<typeof Xterm>;
+		term.write('\x1b]2;Build');
+		term.write(' output\x07');
+		await waitFor(() => expect(args.ontitle).toHaveBeenLastCalledWith('Build output'));
+		term.write('\x1b]0;\x1b\\');
+		await waitFor(() => expect(args.ontitle).toHaveBeenLastCalledWith(''));
+	}}
+/>

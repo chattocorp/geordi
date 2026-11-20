@@ -133,6 +133,54 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
 `
 );
 
+const openCodeFixture = join(bin, 'opencode.cjs');
+writeFileSync(
+	openCodeFixture,
+	`
+const send = msg => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
+let prompt;
+let model = 'provider/default-model';
+let effort = 'medium';
+const config = () => [
+	{id:'model',category:'model',name:'Model',type:'select',currentValue:model,options:[]},
+	{id:'variant',category:'thought_level',name:'Effort',type:'select',currentValue:effort,options:[]}
+];
+let sessionId;
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+	const req = JSON.parse(line);
+	switch (req.method) {
+	case 'initialize':
+		return send({id:req.id,result:{protocolVersion:1,agentCapabilities:{sessionCapabilities:{resume:{}}},authMethods:[]}});
+	case 'session/new':
+ case 'session/resume':
+		sessionId = req.params.sessionId ?? 'new-session';
+		return send({id:req.id,result:{sessionId,configOptions:config()}});
+	case 'session/set_config_option':
+		if (req.params.configId === 'model') model = req.params.value;
+		else if (req.params.configId === 'variant') effort = req.params.value;
+		return send({id:req.id,result:{configOptions:config()}});
+	case 'session/prompt':
+		prompt = req.id;
+		if (req.params.prompt[0].text === 'Change model') {
+			const update = (sessionId, configOptions) => send({method:'session/update',params:{sessionId,update:{sessionUpdate:'config_option_update',configOptions}}});
+			model = 'provider/other-model';
+			effort = 'default';
+			update(sessionId, config());
+			model = 'provider/child-model';
+			update('child-session', config());
+		}
+		return send({id:'permission',method:'session/request_permission',params:{sessionId,toolCall:{toolCallId:'edit'},options:[
+			{kind:'allow_once',optionId:'allow',name:'Allow'}, {kind:'reject_once',optionId:'deny',name:'Deny'}
+		]}});
+	default:
+		if (req.id !== 'permission') return;
+		send({method:'session/update',params:{sessionId,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:model+' '+effort+' '+req.result.outcome.optionId}}}});
+		send({id:prompt,result:{stopReason:'end_turn'}});
+	}
+});
+`
+);
+
 const root = () =>
 	mkdtempSync(join(process.platform === 'win32' ? homedir() : tmpdir(), 'geordi-sessions-'));
 const meta = (env: Record<string, string> = {}): Meta => ({
@@ -198,7 +246,7 @@ function begin(
 		(event) => events.push(event),
 		dir,
 		ready,
-		env.MISSING ? join(bin, 'absent.cjs') : fixture
+		env.MISSING ? join(bin, 'absent.cjs') : launch.agent === 'opencode' ? openCodeFixture : fixture
 	);
 	delete process.env.GEORDI_SESSION_IDLE_MS;
 	started.push(session);
@@ -262,6 +310,55 @@ describe('a session', () => {
 		}
 	});
 
+	it.each([
+		['auto', 'deny'],
+		['full-access', 'allow']
+	] as const)(
+		'resumes OpenCode with the chosen model and %s permissions',
+		async (permissionMode, outcome) => {
+			const launch = meta({ OPENCODE_PATH: process.execPath });
+			launch.agent = 'opencode';
+			launch.options.resumeId = 'saved-session';
+			launch.options.settings = { model: 'provider/model', effort: 'high', permissionMode };
+			const { events, ended } = begin('Edit', { launch });
+			await ended(1);
+			expect(events).toEqual([
+				{ kind: 'turn.started' },
+				{ kind: 'resume', id: 'saved-session' },
+				{
+					kind: 'session.model',
+					value: {
+						requested: { model: 'provider/model', effort: 'high' },
+						model: 'provider/model',
+						effort: 'high'
+					}
+				},
+				{ kind: 'text', text: 'provider/model high ' + outcome },
+				{ kind: 'turn.completed' }
+			]);
+		}
+	);
+
+	it('reports the OpenCode defaults without selecting a model or effort', async () => {
+		const launch = meta({ OPENCODE_PATH: process.execPath });
+		launch.agent = 'opencode';
+		const { session, ended } = begin('Hello', { launch });
+		await ended(1);
+		expect(session.live().sessionModel).toEqual({
+			requested: {},
+			model: 'provider/default-model',
+			effort: 'medium'
+		});
+	});
+
+	it('updates live defaults from the root session and clears an undisclosed effort', async () => {
+		const launch = meta({ OPENCODE_PATH: process.execPath });
+		launch.agent = 'opencode';
+		const { session, ended } = begin('Change model', { launch });
+		await ended(1);
+		expect(session.live().sessionModel).toEqual({ requested: {}, model: 'provider/other-model' });
+	});
+
 	it('declines a tool permission request without asking the person', async () => {
 		const { events, ended } = begin('permission');
 		await ended(1);
@@ -284,17 +381,25 @@ describe('a session', () => {
 		expect(events).toContainEqual({ kind: 'text', text: mode });
 	});
 
-	it.each(['claude', 'codex'] as const)('fails the turn when %s is missing', async (agent) => {
-		const launch = meta({ PATH: '', CLAUDE_CODE_EXECUTABLE: '', CODEX_PATH: '' });
-		launch.agent = agent;
-		const { events, ended } = begin('hello', { launch });
-		await ended(1);
-		expect(events).toContainEqual({
-			kind: 'turn.failed',
-			error: expect.stringContaining('could not find `' + agent + '`')
-		});
-		expect(events.some((event) => event.kind === 'text')).toBe(false);
-	});
+	it.each(['claude', 'codex', 'opencode'] as const)(
+		'fails the turn when %s is missing',
+		async (agent) => {
+			const launch = meta({
+				PATH: '',
+				CLAUDE_CODE_EXECUTABLE: '',
+				CODEX_PATH: '',
+				OPENCODE_PATH: ''
+			});
+			launch.agent = agent;
+			const { events, ended } = begin('hello', { launch });
+			await ended(1);
+			expect(events).toContainEqual({
+				kind: 'turn.failed',
+				error: expect.stringContaining('could not find `' + agent + '`')
+			});
+			expect(events.some((event) => event.kind === 'text')).toBe(false);
+		}
+	);
 
 	it('fails before prompting when the provider keeps a different mode', async () => {
 		const launch = meta({ REFUSE_MODE: '1' });

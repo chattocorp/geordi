@@ -8,6 +8,7 @@
 	let {
 		value = $bindable(''),
 		running = false,
+		canSteer = true,
 		waiting = false,
 		empty = false,
 		options,
@@ -21,6 +22,7 @@
 		'footer' | 'placeholder' | 'rows' | 'live' | 'onkeydown'
 	> & {
 		running?: boolean;
+		canSteer?: boolean;
 		waiting?: boolean;
 		empty?: boolean;
 		options?: Snippet;
@@ -37,7 +39,7 @@
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
 		event.preventDefault();
 		const { form } = event.currentTarget;
-		const mode = running && pressed(event, 'queue') ? 'queue' : 'steer';
+		const mode = running && (!canSteer || pressed(event, 'queue')) ? 'queue' : 'steer';
 		form?.requestSubmit(form.querySelector<HTMLButtonElement>(`button[value=${mode}]`));
 	}
 </script>
@@ -49,7 +51,9 @@
 	live={running && !waiting}
 	onkeydown={keys}
 	placeholder={running
-		? 'Steer the agent, or queue a message'
+		? canSteer
+			? 'Steer the agent, or queue a message'
+			: 'Queue a message'
 		: empty
 			? 'What should the agent do?'
 			: 'Reply to the agent'}
@@ -73,26 +77,29 @@
 				class="invisible hidden pr-1 text-xs whitespace-nowrap text-muted group-focus-within/composer:visible @4xl:block"
 			>
 				{running
-					? `Enter to steer, ${hint('queue')} to queue`
+					? !canSteer
+						? 'Enter to queue'
+						: `Enter to steer, ${hint('queue')} to queue`
 					: 'Enter to send, Shift+Enter for a new line'}
 			</p>
 			{#if running}
 				<Button icon="icon-[lucide--square]" label="Stop the agent" onclick={onstop} />
 				<Button
 					{...queueButton}
+					variant={canSteer ? undefined : 'primary'}
 					icon="icon-[lucide--list-plus]"
 					label="Queue: send this when the agent is done"
 				>
 					Queue
 				</Button>
-				<Button
-					{...sendButton}
-					variant="primary"
-					icon="icon-[lucide--corner-down-right]"
-					label="Steer: send to the working agent"
-				>
-					Steer
-				</Button>
+				{#if canSteer}<Button
+						{...sendButton}
+						variant="primary"
+						icon="icon-[lucide--corner-down-right]"
+						label="Steer: send to the working agent"
+					>
+						Steer
+					</Button>{/if}
 			{:else}
 				<Button {...sendButton} variant="primary" icon="icon-[lucide--arrow-up]" label="Send" />
 			{/if}

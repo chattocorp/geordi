@@ -167,9 +167,13 @@ export const purgeWorkspaces = command(v.array(v.string()), (ids) => workspaces(
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 
 export const archiveWorkspace = command(
-	v.object({ workspaceId: v.string(), discard: v.boolean() }),
-	async ({ workspaceId, discard }) => {
-		await archive(workspaceId, discard);
+	v.object({
+		workspaceId: v.string(),
+		discard: v.boolean(),
+		stopAgents: v.optional(v.boolean(), false)
+	}),
+	async ({ workspaceId, discard, stopAgents }) => {
+		await archive(workspaceId, discard, null, stopAgents);
 	}
 );
 

@@ -74,6 +74,7 @@ import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
 import {
 	cachedPullBase,
+	checkForge,
 	markReady,
 	mergePull,
 	setAutoMerge,
@@ -110,7 +111,10 @@ const daemonId = owner.id;
 process.once('exit', owner.close);
 /** The models and effort levels this machine's agent CLIs offer; told to the forge. */
 const harnesses: Harness[] = await Promise.all(
-	AGENTS.map(async (agent) => ({ agent, ...(await adapterFor(agent)).offers() }))
+	AGENTS.map(async (agent) => {
+		const adapter = await adapterFor(agent);
+		return { agent, ...(await adapter.offers()) };
+	})
 );
 
 // Unencrypted connections are only acceptable on this machine. Both carry secrets: the
@@ -533,6 +537,7 @@ async function readRequest(request: DaemonRequest) {
 		).trim();
 		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
+	if (request.kind === 'checkForge') return checkForge(request.repoPath);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);

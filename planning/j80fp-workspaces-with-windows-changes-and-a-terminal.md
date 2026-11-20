@@ -20,3 +20,7 @@ Terminal focus follow-up: terminals opened with + now receive keyboard focus onc
 Sidebar resize follow-up: navigation can grow to 720 pixels in a wide window. The conversation keeps at least half of the workspace beside it, including when the browser restores a saved layout.
 
 Right-panel tab follow-up: double-clicking a tab in either right panel moves it beside the conversation and selects it. Verified both panels and persistence after reload in the browser.
+
+Terminal title follow-up: interactive terminal tabs show the title set by their shell or program. Clearing the title restores the numbered label. Configured jobs keep their Run labels. Verified the title in a sample workspace before and after restarting the forge.
+
+Terminal shortcut follow-up: Cmd/Ctrl+Shift+/ focuses a shell in its pane. It opens and focuses a new shell when none exists or a terminal has keyboard focus. Verified all three cases in a sample workspace.

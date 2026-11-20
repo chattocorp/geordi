@@ -313,8 +313,8 @@ export async function concernsAboutArchiving(id: string) {
 				}
 			}
 			const concerns = archiveConcerns(standing);
-			const blocked = workspaces().summary(workspace.id).status === 'running';
-			if (blocked) concerns.push('Stop busy agents before archiving.');
+			const stopAgents = workspaces().summary(workspace.id).status === 'running';
+			if (stopAgents) concerns.push('Busy agents will be stopped.');
 			const active = terminals().running(workspace.id).length
 				? await hub()
 						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
@@ -324,7 +324,7 @@ export async function concernsAboutArchiving(id: string) {
 				concerns,
 				active,
 				discard: !!standing.changes?.uncommitted,
-				blocked
+				stopAgents
 			};
 		})
 	);
@@ -336,12 +336,17 @@ export async function concernsAboutArchiving(id: string) {
 	return {
 		concerns,
 		discard: previews.some((preview) => preview.discard),
-		blocked: previews.some((preview) => preview.blocked)
+		stopAgents: previews.some((preview) => preview.stopAgents)
 	};
 }
 
 /** Archives a workspace and the workspaces its agent started; see `createArchiver`. */
-export const archiveWorkspace = (id: string, discard: boolean, actor: string | null = null) =>
+export const archiveWorkspace = (
+	id: string,
+	discard: boolean,
+	actor: string | null = null,
+	stopAgents = false
+) =>
 	createArchiver({
 		workspaces: workspaces(),
 		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
@@ -356,7 +361,7 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 		closeProject: async (projectId) => {
 			await hub().request({ kind: 'closeProject', worktreeId: projectId, project: true });
 		}
-	})(id, discard, actor);
+	})(id, discard, actor, stopAgents);
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */
 const ICON_MS = 10 * 60_000;

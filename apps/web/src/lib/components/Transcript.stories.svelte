@@ -338,3 +338,20 @@
 		}}
 	/>
 </Story>
+
+<Story
+	name="Review finding"
+	asChild
+	play={async ({ canvas }) => {
+		openSource.mockClear();
+		await userEvent.click(canvas.getByRole('button', { name: 'src/changes.ts:40–42' }));
+		await expect(openSource).toHaveBeenCalledWith('src/changes.ts', 40);
+	}}
+>
+	<div class="max-w-2xl sheet p-4">
+		<Markdown
+			agentDirectives
+			text={'I found one issue in the changes pane.\n\n::code-comment{title="Refresh the diff after a rename" body="The selection still points to the old path, so the diff stays empty until you select the file again." file="/work/src/changes.ts" start=40 end=42 priority=2}'}
+		/>
+	</div>
+</Story>

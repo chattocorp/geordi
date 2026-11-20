@@ -141,6 +141,54 @@ describe('upstream', () => {
 		return import('./upstream.ts');
 	}
 
+	it('checks the registered origin independently of workspace state and keeps secrets out of the result', async () => {
+		const {
+			ref: { repoPath }
+		} = await workspace();
+		const origin = (...args: string[]) => execFileSync('git', ['-C', repoPath, 'remote', ...args]);
+		vi.stubEnv('FORGES_FORGEJO_BASE_URL', 'https://forge.example.test');
+		vi.stubEnv('FORGES_FORGEJO_TOKEN', 'test-token');
+		const { checkForge } = await configured();
+		expect(await checkForge(repoPath)).toEqual({ status: 'none', summary: 'No origin remote' });
+		origin('add', 'origin', '/tmp/local.git');
+		expect(await checkForge(repoPath)).toMatchObject({ status: 'none' });
+		origin('set-url', 'origin', 'https://user:test-token@unknown.example.test/team/widgets.git');
+		const unknown = await checkForge(repoPath);
+		expect(unknown).toEqual({
+			status: 'problem',
+			summary: 'No forge set up for unknown.example.test',
+			setup: true,
+			origin: 'https://unknown.example.test/team/widgets.git'
+		});
+		origin('set-url', 'origin', 'https://forge.example.test/team/widgets.git');
+		const fetch = vi.spyOn(globalThis, 'fetch');
+		try {
+			fetch.mockResolvedValueOnce(
+				Response.json({ message: 'sensitive error details' }, { status: 404 })
+			);
+			const hidden = await checkForge(repoPath);
+			expect(hidden).toMatchObject({ status: 'problem', setup: true });
+			expect(JSON.stringify([unknown, hidden])).not.toMatch(/test-token|sensitive error|user/);
+			fetch.mockResolvedValueOnce(
+				Response.json({
+					id: 1,
+					name: 'widgets',
+					full_name: 'team/widgets',
+					owner: { login: 'team' }
+				})
+			);
+			expect(await checkForge(repoPath)).toEqual({
+				status: 'ok',
+				summary: 'forge.example.test · signed in',
+				origin: 'https://forge.example.test/team/widgets.git',
+				forge: 'forgejo',
+				access: 'credentials'
+			});
+		} finally {
+			fetch.mockRestore();
+		}
+	});
+
 	it('enables auto-merge for the checked-out commit and cancels it through forges', async () => {
 		const { setAutoMerge, mergePull } = await configured();
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');

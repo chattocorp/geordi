@@ -19,11 +19,24 @@
 			efforts
 		},
 		// a CLI that says nothing about its models: there is nothing to choose
-		{ agent: 'codex', models: [], efforts: [] }
+		{ agent: 'codex', models: [], efforts: [] },
+		{
+			agent: 'opencode',
+			models: [
+				{ id: 'opencode/big-pickle', name: 'Big Pickle', efforts: [] },
+				{
+					id: 'opencode/beam-free',
+					name: 'Beam Free',
+					efforts: ['low', 'medium', 'high', 'xhigh', 'max']
+				}
+			],
+			efforts: []
+		}
 	];
 </script>
 
 <script lang="ts">
+	let defaultChoice = $state<HarnessChoice>({ agent: 'opencode', settings: {} });
 	let choice = $state<HarnessChoice>({
 		agent: 'claude',
 		settings: { claude: { model: 'opus', effort: 'high', permissionMode: 'auto' } }
@@ -34,13 +47,24 @@
 	<div class="flex flex-wrap items-center gap-4">
 		<AgentAvatar agent="claude" />
 		<AgentAvatar agent="codex" />
+		<AgentAvatar agent="opencode" />
 		<AgentAvatar agent="claude" size="sm" />
 		<AgentAvatar agent="codex" size="sm" />
+		<AgentAvatar agent="opencode" size="sm" />
 	</div>
 </Story>
 
 <Story name="Picker" asChild>
 	<HarnessPicker {harnesses} {choice} onchange={(next) => (choice = next)} />
+</Story>
+
+<Story name="Reported OpenCode defaults" asChild>
+	<HarnessPicker
+		{harnesses}
+		choice={defaultChoice}
+		sessionModel={{ requested: {}, model: 'opencode/beam-free', effort: 'low' }}
+		onchange={(next) => (defaultChoice = next)}
+	/>
 </Story>
 
 <Story name="Provider status" asChild>

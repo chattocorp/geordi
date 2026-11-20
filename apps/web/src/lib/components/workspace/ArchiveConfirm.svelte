@@ -24,13 +24,8 @@
 			<Button variant="soft" disabled={asking?.busy} onclick={() => asking?.answer(false)}
 				>Cancel</Button
 			>
-			<Button
-				variant="primary"
-				disabled={asking?.blocked}
-				busy={asking?.busy}
-				onclick={() => asking?.answer(true)}
-			>
-				Archive
+			<Button variant="primary" busy={asking?.busy} onclick={() => asking?.answer(true)}>
+				{asking?.stopAgents ? 'Stop and archive' : 'Archive'}
 			</Button>
 		</div>
 	</div>

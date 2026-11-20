@@ -14,7 +14,8 @@ vi.mock('./app.ts', () => ({
 	hub: () => ({
 		background: () => [],
 		suggestion: () => null,
-		followBackground: () => () => {}
+		sessionModel: () => undefined,
+		followSession: () => () => {}
 	}),
 	watchers: () => ({ watch: () => () => {}, state: () => null }),
 	terminals: () => ({ subscribe: () => () => {}, running: () => [], finished: () => ({}) })

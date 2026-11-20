@@ -293,7 +293,7 @@
 					ending.latest
 				)}{/if}{/snippet}
 		<AgentText text={part.text} footer={ending ? footer : undefined}>
-			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
+			<Markdown agentDirectives preserveLineBreaks text={part.text} {dimmed} {pictures} />
 		</AgentText>
 	{:else if part.kind === 'subagent'}
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />

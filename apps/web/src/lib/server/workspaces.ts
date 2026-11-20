@@ -6,6 +6,7 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { error } from '@sveltejs/kit';
 import {
 	AGENTS,
+	MODEL_SETTING,
 	SETTING,
 	sameAgentSettings,
 	type Agent,
@@ -263,6 +264,7 @@ export function createWorkspaces(
 
 	/** Workspaces that must not start a turn right now, and what is being done to them; see `hold`. */
 	const held = new Map<string, string>();
+	const stoppingForArchive = new Set<string>();
 	function refuseHeld(id: string) {
 		const doing = held.get(id);
 		if (doing) error(409, `This workspace is ${doing}`);
@@ -322,6 +324,17 @@ export function createWorkspaces(
 		action?: ActionId
 	) {
 		const { id } = workspace;
+		if (workspace.agent === 'opencode' && workspace.status !== 'idle' && !from) {
+			store.append(
+				{
+					type: 'workspace.queued',
+					stream: `workspace:${id}`,
+					data: { id, text, ...(images.length && { images }), ...(action && { action }) }
+				},
+				{ actor }
+			);
+			return;
+		}
 		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
 		const senderName = sender
 			? (access.name(sender) ?? projection.get().get(sender)?.title)
@@ -351,7 +364,11 @@ export function createWorkspaces(
 	}
 
 	function promoteCompletedQueue(workspace: Workspace) {
-		if (workspace.lastTurn === 'completed' && workspace.queue.length)
+		if (
+			workspace.lastTurn === 'completed' &&
+			workspace.queue.length &&
+			!stoppingForArchive.has(workspace.id)
+		)
 			say(workspace, workspace.queue[0], null, 'queued');
 	}
 
@@ -391,7 +408,8 @@ export function createWorkspaces(
 		for (const key of ['model', 'effort'] as const) {
 			const value = settings[key];
 			if (!value) continue;
-			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
+			if (!(key === 'model' ? MODEL_SETTING : SETTING).test(value))
+				error(400, `That is not a ${key}: ${value}`);
 			chosen[key] = value;
 		}
 		if (settings.permissionMode) chosen.permissionMode = settings.permissionMode;
@@ -490,6 +508,19 @@ export function createWorkspaces(
 		if (!prompt && !images.length) return id;
 		say(find(id), prompt, actor, undefined, images);
 		return id;
+	}
+
+	async function waitUntil(ready: () => boolean, timeoutMs: number) {
+		if (!ready())
+			await new Promise<void>((resolve) => {
+				const done = () => {
+					clearTimeout(timeout);
+					unsubscribe();
+					resolve();
+				};
+				const timeout = setTimeout(done, timeoutMs);
+				const unsubscribe = store.subscribe(() => ready() && done());
+			});
 	}
 
 	function stop(id: string) {
@@ -817,16 +848,7 @@ export function createWorkspaces(
 		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
 		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
 			const workspace = findFor(callerId, id);
-			if (workspace.status === 'running')
-				await new Promise<void>((resolve) => {
-					const done = () => {
-						clearTimeout(timeout);
-						unsubscribe();
-						resolve();
-					};
-					const timeout = setTimeout(done, timeoutMs);
-					const unsubscribe = store.subscribe(() => workspace.status === 'idle' && done());
-				});
+			await waitUntil(() => workspace.status === 'idle', timeoutMs);
 			return report(workspace);
 		}
 	};
@@ -1083,6 +1105,27 @@ export function createWorkspaces(
 			ids.forEach(refuseHeld);
 			for (const id of ids) held.set(id, doing);
 			return () => ids.forEach((id) => held.delete(id));
+		},
+
+		async stopForArchive(ids: string[]) {
+			const family = ids.map(find);
+			const busy = () => family.find((workspace) => workspace.status === 'running');
+			try {
+				for (const workspace of family) {
+					stoppingForArchive.add(workspace.id);
+					if (
+						workspace.status === 'running' &&
+						!dispatch({ type: 'agent.stop', workspaceId: workspace.id })
+					)
+						error(503, 'Connect the daemon to stop busy agents.');
+				}
+				await waitUntil(() => !busy(), 30_000);
+				const stillRunning = busy();
+				if (stillRunning)
+					error(409, `“${stillRunning.title}” is still running. Try archiving again.`);
+			} finally {
+				for (const workspace of family) stoppingForArchive.delete(workspace.id);
+			}
 		},
 
 		stop,
