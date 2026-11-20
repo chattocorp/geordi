@@ -29,6 +29,11 @@ export const shortcuts = {
 		label: 'Next unread workspace',
 		group: 'General'
 	},
+	repositoryFilter: {
+		code: 'KeyK',
+		label: 'Search the sidebar repository filter',
+		group: 'General'
+	},
 	focusRepo: {
 		code: 'KeyF',
 		shift: true,

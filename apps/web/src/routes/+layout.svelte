@@ -51,8 +51,11 @@
 
 	// The sidebar can be hidden and made wider or narrower; both are remembered here.
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
-	const toggleSidebar = () =>
-		(sidebar.current = { ...sidebar.current, open: !sidebar.current.open });
+	let repositoryPickerOpen = $state(false);
+	function toggleSidebar() {
+		repositoryPickerOpen = false;
+		sidebar.current = { ...sidebar.current, open: !sidebar.current.open };
+	}
 	setTitleBarLead(() => (sidebar.current.open ? undefined : lead));
 	// Leave room for the conversation and its tools in smaller windows.
 	const maxWidth = $derived(Math.max(240, Math.min(720, (innerWidth.current ?? 1320) - 600)));
@@ -155,6 +158,14 @@
 		} else if (pressed(event, 'todayOnly')) {
 			event.preventDefault();
 			if (!event.repeat) todayOnly = !todayOnly;
+		} else if (
+			pressed(event, 'repositoryFilter') &&
+			window.matchMedia('(min-width: 48rem)').matches
+		) {
+			event.preventDefault();
+			if (event.repeat) return;
+			if (!sidebar.current.open) toggleSidebar();
+			repositoryPickerOpen = true;
 		} else if (pressed(event, 'focusRepo')) {
 			event.preventDefault();
 			toggleFocus();
@@ -219,6 +230,7 @@
 					{folded}
 					{focus}
 					bind:todayOnly
+					bind:repositoryPickerOpen
 				/>
 			</div>
 

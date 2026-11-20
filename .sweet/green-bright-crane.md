@@ -2,4 +2,4 @@
 type: feature
 ---
 
-You can filter the sidebar by repository and activity today using the controls under New workspace.
+Under New workspace, you can use the calendar button to show workspaces active today. Press Cmd+K on Mac or Ctrl+K elsewhere to search the repository picker.

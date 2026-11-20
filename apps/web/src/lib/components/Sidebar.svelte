@@ -41,6 +41,7 @@
 		folded,
 		focus,
 		todayOnly = $bindable(false),
+		repositoryPickerOpen = $bindable(false),
 		lost = false
 	}: {
 		nav: Navigation | undefined;
@@ -49,6 +50,7 @@
 		folded: { current: string[] };
 		focus: { current: string | null };
 		todayOnly?: boolean;
+		repositoryPickerOpen?: boolean;
 		lost?: boolean;
 	} = $props();
 
@@ -309,22 +311,20 @@
 		>
 			<Select
 				label="Repository"
+				title={`Search repositories (${hint('repositoryFilter')})`}
+				bind:open={repositoryPickerOpen}
 				options={repositoryOptions}
 				bind:value={() => focus.current ?? '', (value) => (focus.current = value || null)}
 			/>
-			<button
-				type="button"
-				aria-pressed={todayOnly}
+			<Button
+				variant="ghost"
+				icon="icon-[lucide--calendar-days]"
+				label="Show workspaces active today"
 				title={`Show workspaces active today (${hint('todayOnly')})`}
-				class={[
-					'inline-flex h-8 shrink-0 items-center gap-1 rounded-control px-2 text-sm hover:bg-hover hover:text-ink',
-					todayOnly ? 'bg-sunken text-ink' : 'text-muted'
-				]}
+				aria-pressed={todayOnly}
+				class="aria-pressed:bg-sunken aria-pressed:text-ink"
 				onclick={() => (todayOnly = !todayOnly)}
-			>
-				{#if todayOnly}<span class="icon-[lucide--check] size-3.5"></span>{/if}
-				Today
-			</button>
+			/>
 		</div>
 
 		<!--

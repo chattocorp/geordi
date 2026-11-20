@@ -237,7 +237,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const today = canvas.getByRole('button', { name: 'Today' });
+		const today = canvas.getByRole('button', { name: 'Show workspaces active today' });
 		await fireEvent.click(today);
 		await expect(today).toHaveAttribute('aria-pressed', 'true');
 		await waitFor(() => expect(canvas.getByText('Review the daemon')).toBeVisible());
