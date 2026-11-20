@@ -1,6 +1,6 @@
 <script lang="ts">
 	import WorkspaceActivity from './WorkspaceActivity.svelte';
-	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
+	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 
 	import StandingIcon from './StandingIcon.svelte';
@@ -41,7 +41,7 @@
 		asking?: boolean;
 		waiting?: boolean;
 		working?: boolean;
-		progress?: WorkspaceAction['id'];
+		progress?: ActivityId;
 		standing?: WorkspaceStanding | null;
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };

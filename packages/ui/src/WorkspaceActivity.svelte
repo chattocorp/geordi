@@ -1,9 +1,8 @@
 <script lang="ts">
-	import type { WorkspaceAction } from './actions.ts';
+	import type { ActivityId as Activity } from './actions.ts';
 	import Spinner from './Spinner.svelte';
 	import StatusCircle from './StatusCircle.svelte';
 
-	type Activity = WorkspaceAction['id'] | 'working';
 	let { activity }: { activity: Activity } = $props();
 
 	const labels: Record<Activity, string> = {
@@ -19,12 +18,13 @@
 		'ready-for-review': 'Marking ready for review',
 		'enable-auto-merge': 'Enabling auto-merge',
 		'cancel-auto-merge': 'Disabling auto-merge',
+		'auto-merge': 'Merging when ready',
 		'restore-worktree': 'Restoring worktree',
 		continue: 'Continuing on a new branch',
 		retry: 'Retrying',
 		working: 'Working'
 	};
-	const merging = $derived(activity === 'merge-pull' || activity === 'enable-auto-merge');
+	const merging = $derived(['merge-pull', 'enable-auto-merge', 'auto-merge'].includes(activity));
 	const fixing = $derived(['fix-checks', 'resolve-conflicts', 'address-review'].includes(activity));
 </script>
 
