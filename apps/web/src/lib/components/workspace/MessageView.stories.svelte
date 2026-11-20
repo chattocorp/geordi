@@ -492,12 +492,15 @@
 	asChild
 	play={async ({ canvas }) => {
 		openReviewer.mockClear();
-		await userEvent.click(await canvas.findByText('Review UI and design'));
+		const reviewer = await canvas.findByText('Review UI and design');
+		// The virtual list pauses pointer input while it scrolls, including after expansion.
+		await waitFor(() => userEvent.click(reviewer));
 		await expect(
 			await canvas.findByText('The focus indicator is visible on every tab.')
 		).toBeVisible();
 		await expect(canvas.getByText('Running')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Open in tab' }));
+		const open = canvas.getByRole('button', { name: 'Open in tab' });
+		await waitFor(() => userEvent.click(open));
 		await expect(openReviewer).toHaveBeenCalledWith('ui');
 	}}
 >
