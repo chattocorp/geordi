@@ -30,7 +30,8 @@ export const shortcuts = {
 		group: 'General'
 	},
 	repositoryFilter: {
-		code: 'KeyK',
+		code: 'KeyF',
+		alt: true,
 		label: 'Search the sidebar repository filter',
 		group: 'General'
 	},
