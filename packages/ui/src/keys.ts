@@ -23,6 +23,12 @@ export const shortcuts = {
 	},
 	previousWorkspace: { key: '[', label: 'Previous workspace', group: 'General' },
 	nextWorkspace: { key: ']', label: 'Next workspace', group: 'General' },
+	nextUnreadWorkspace: {
+		code: 'Enter',
+		shift: true,
+		label: 'Next unread workspace',
+		group: 'General'
+	},
 	focusRepo: {
 		code: 'KeyF',
 		shift: true,

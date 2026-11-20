@@ -3,6 +3,7 @@ import {
 	byRepository,
 	inFocus,
 	inSidebarOrder,
+	nextUnread,
 	stepThrough,
 	unfolded,
 	withAides
@@ -142,5 +143,21 @@ describe('stepThrough', () => {
 		expect(stepThrough(order, null, 1)?.id).toBe('a');
 		expect(stepThrough(order, null, -1)?.id).toBe('c');
 		expect(stepThrough([], null, 1)).toBeUndefined();
+	});
+});
+
+describe('nextUnread', () => {
+	const order = ['a', 'b', 'c', 'd'].map((id) => ({ id }));
+	const unread = new Set(['a', 'd']);
+
+	it('starts after the current row, skips read rows, and wraps', () => {
+		expect(nextUnread(order, 'b', unread)?.id).toBe('d');
+		expect(nextUnread(order, 'd', unread)?.id).toBe('a');
+		expect(nextUnread(order, null, unread)?.id).toBe('a');
+	});
+
+	it('stays put when no other listed workspace is unread', () => {
+		expect(nextUnread(order, 'a', new Set(['a', 'hidden']))).toBeUndefined();
+		expect(nextUnread(order, null, new Set())).toBeUndefined();
 	});
 });
