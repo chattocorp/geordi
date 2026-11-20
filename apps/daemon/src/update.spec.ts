@@ -94,19 +94,30 @@ describe('update', () => {
 		expect(git(worktree.path, 'status', '--porcelain')).toBe('');
 	});
 
-	it('leaves a worktree with uncommitted changes alone', async () => {
-		const { upstream, repoPath, worktree, origin } = await setup();
-		const before = git(repoPath, 'rev-parse', worktree.branch);
+	it('preserves staged, unstaged and untracked work when bringing in other files', async () => {
+		const { upstream, worktree, origin, read } = await setup();
 		commit(upstream, 'b.txt', 'new upstream\n');
+		writeFileSync(join(worktree.path, 'a.txt'), 'staged');
+		git(worktree.path, 'add', 'a.txt');
+		writeFileSync(join(worktree.path, 'a.txt'), 'unstaged');
+		writeFileSync(join(worktree.path, 'untracked.txt'), 'new');
 
-		writeFileSync(join(worktree.path, 'a.txt'), 'being worked on\n');
-		expect(await update(worktree, origin)).toBe(false);
-		git(worktree.path, 'checkout', '-q', 'a.txt');
-		writeFileSync(join(worktree.path, 'untracked.txt'), 'new\n');
-		expect(await update(worktree, origin)).toBe(false);
+		expect(await update(worktree, origin)).toBe(true);
+		expect(read('b.txt')).toBe('new upstream\n');
+		expect(read('a.txt')).toBe('unstaged');
+		expect(git(worktree.path, 'show', ':a.txt')).toBe('staged');
+		expect(read('untracked.txt')).toBe('new');
+	});
 
-		expect(git(repoPath, 'rev-parse', worktree.branch)).toBe(before);
-		expect(existsSync(join(worktree.path, 'b.txt'))).toBe(false);
+	it.each(['tracked', 'untracked'])('preserves a %s file that blocks checkout', async (kind) => {
+		const { upstream, worktree, origin, read } = await setup();
+		const file = kind === 'tracked' ? 'a.txt' : 'new.txt';
+		const before = git(worktree.path, 'rev-parse', 'HEAD');
+		commit(upstream, file, 'incoming');
+		writeFileSync(join(worktree.path, file), 'local');
+		expect(await update(worktree, origin)).toBe(false);
+		expect(git(worktree.path, 'rev-parse', 'HEAD')).toBe(before);
+		expect(read(file)).toBe('local');
 	});
 
 	it('has nothing to do for a branch that is up to date', async () => {

@@ -1,4 +1,6 @@
-import { baseOf, uncommittedFiles, type Origin } from './changes.ts';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { baseOf, type Origin } from './changes.ts';
 import { fetchUpstream, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /** Whether a git command went through: for the ones that answer by how they end. */
@@ -42,7 +44,7 @@ async function merged(worktree: Worktree, ours: string, theirs: string, message:
  * commit otherwise. Fetches first where that branch is the upstream's.
  *
  * Only where git can do it by itself. Resolves to `false`, with everything as it was, where
- * it takes judgement: uncommitted changes, conflicts, no branch checked out.
+ * it takes judgement: conflicting edits, an unfinished Git operation, or no branch checked out.
  *
  * Without running git inside the worktree, whose own Git metadata is the agent's to write
  * (see `gitIn`, and `continueOn`): the commit is made in the repository, the branch moved
@@ -68,7 +70,15 @@ export async function update(
 
 	const head = headOf(worktree);
 	if (!head.startsWith('refs/heads/')) return false;
-	if ((await uncommittedFiles(worktree)).length > 0) return false;
+	const operations = [
+		'MERGE_HEAD',
+		'CHERRY_PICK_HEAD',
+		'REVERT_HEAD',
+		'rebase-merge',
+		'rebase-apply',
+		'sequencer'
+	];
+	if (operations.some((name) => existsSync(join(worktree.adminDir, name)))) return false;
 
 	const commit = async (rev: string) =>
 		(await gitIn(worktree, 'rev-parse', '--verify', `${rev}^{commit}`)).trim();
@@ -86,7 +96,12 @@ export async function update(
 	const next = forward
 		? theirs
 		: await merged(worktree, ours, theirs, `Merge ${from} into ${branch}`);
-	if (!next || working()) return false;
+	if (!next) return false;
+
+	// Git's two-tree checkout carries unrelated staged and unstaged edits forward.
+	// Check the index and files before moving the branch, then check again on checkout.
+	const checkout = ['read-tree', '-m', '-u'];
+	if (!(await succeeds(worktree, ...checkout, '--dry-run', ours, next)) || working()) return false;
 
 	// The branch first, and only from where we found it: whoever moved it meanwhile wins.
 	const move = (to: string, was: string, why: string) =>
@@ -98,7 +113,7 @@ export async function update(
 	}
 	try {
 		// refuses, before changing anything, to overwrite a file that is in the way
-		await gitIn(worktree, 'read-tree', '-m', '-u', ours, next);
+		await gitIn(worktree, ...checkout, ours, next);
 	} catch {
 		await move(ours, next, 'reset: the merge could not be checked out');
 		return false;
