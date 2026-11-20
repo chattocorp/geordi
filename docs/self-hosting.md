@@ -1,10 +1,10 @@
 # Self-hosting
 
-Geordi has two parts (see [ADR-002](adr/ADR-002-forge-and-daemon-monorepo.md)):
+Geordi has two parts (see [ADR-002](https://github.com/chattocorp/geordi/blob/main/docs/adr/ADR-002-forge-and-daemon-monorepo.md)):
 
 - The **forge** (`apps/web`), a SvelteKit app, shows repositories and workspaces. It
   stores everything as an append-only event log in SQLite
-  ([ADR-001](adr/ADR-001-event-sourcing.md)).
+  ([ADR-001](https://github.com/chattocorp/geordi/blob/main/docs/adr/ADR-001-event-sourcing.md)).
 - The **daemon** (`apps/daemon`) runs on the machine with your code. It manages worktrees,
   agents and terminals, and connects to the forge.
 
@@ -26,7 +26,7 @@ through an SSH tunnel, for the web and the browsers' WebSocket:
 ssh -L 7717:localhost:7717 -L 7719:localhost:7719 your-server
 ```
 
-To run forge and daemon yourself, from a checkout (see [Contributing](../CONTRIBUTING.md)
+To run forge and daemon yourself, from a checkout (see [Contributing](https://github.com/chattocorp/geordi/blob/main/CONTRIBUTING.md)
 for the tools):
 
 ```sh

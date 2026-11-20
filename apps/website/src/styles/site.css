@@ -49,3 +49,24 @@ html {
 		transform: translateY(4px);
 	}
 }
+
+.guide {
+	@apply leading-relaxed;
+}
+.guide > h1 {
+	@apply text-headline;
+}
+.guide > h2 {
+	@apply text-2xl;
+}
+
+/* Astro highlights code at build time. Use the site's surface and theme. */
+.astro-code {
+	@apply overflow-x-auto;
+}
+.astro-code span {
+	color: var(--shiki-light);
+}
+.dark .astro-code span {
+	color: var(--shiki-dark);
+}

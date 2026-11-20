@@ -23,7 +23,7 @@
 	import SubagentRow from '#lib/components/SubagentRow.svelte';
 	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
 	import Button from '@geordi/ui/Button.svelte';
-	import Notice from '#lib/ui/Notice.svelte';
+	import Notice from '@geordi/ui/Notice.svelte';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 
 	let {

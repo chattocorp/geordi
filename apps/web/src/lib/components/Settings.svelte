@@ -10,7 +10,7 @@
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
-	import Notice from '#lib/ui/Notice.svelte';
+	import Notice from '@geordi/ui/Notice.svelte';
 	import Segmented from '#lib/ui/Segmented.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';

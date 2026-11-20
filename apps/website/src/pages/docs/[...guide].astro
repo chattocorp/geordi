@@ -1,0 +1,61 @@
+---
+import Base from '../../layouts/Base.astro';
+import { Content as FirstWorkspace } from '../../../../../docs/first-workspace.mdx';
+import { Content as Configuration } from '../../../../../docs/configuration.mdx';
+import { Content as SelfHosting } from '../../../../../docs/self-hosting.md';
+
+export function getStaticPaths() {
+	return [
+		{
+			params: { guide: undefined },
+			props: {
+				title: 'Your first workspace',
+				Content: FirstWorkspace,
+				description: 'Start a workspace, ask an agent for a small edit and review the diff.'
+			}
+		},
+		{
+			params: { guide: 'configuration' },
+			props: {
+				title: 'Configuring a repository',
+				Content: Configuration,
+				description: 'Configure jobs, ports, links and setup commands in .geordi.yml.'
+			}
+		},
+		{
+			params: { guide: 'self-hosting' },
+			props: {
+				title: 'Self-hosting',
+				Content: SelfHosting,
+				description: 'Run the forge and daemon and connect an external agent.'
+			}
+		}
+	];
+}
+const { title, description, Content } = Astro.props;
+---
+
+<Base title={`${title} · Geordi Docs`} {description}>
+	<div class="grid items-start gap-2 md:grid-cols-[auto_1fr]">
+		<nav
+			aria-label="Documentation"
+			class="flex flex-col gap-1 sheet-quiet p-4 md:sticky md:top-16 md:w-64"
+		>
+			<h2 class="label px-3 pb-1">Documentation</h2>
+			{getStaticPaths().map(({ params, props }) => (
+				<a
+					href={params.guide ? `/docs/${params.guide}/` : '/docs/'}
+					aria-current={title === props.title ? 'page' : undefined}
+					class:list={['item px-3 py-2', title === props.title && 'item-active']}
+				>
+					{props.title}
+				</a>
+			))}
+		</nav>
+		<article class="min-w-0 sheet sheet-pad">
+			<div class="guide prose mx-auto">
+				<Content />
+			</div>
+		</article>
+	</div>
+</Base>

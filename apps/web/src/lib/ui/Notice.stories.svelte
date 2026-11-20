@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Notice from './Notice.svelte';
+	import Notice from '@geordi/ui/Notice.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Notice', component: Notice });
 </script>

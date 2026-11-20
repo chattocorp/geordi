@@ -102,3 +102,77 @@ test('a link to the site is shown with a picture', async (t) => {
 	const response = await page.request.get(`http://127.0.0.1:${server.port}${image.pathname}`);
 	expect(response.headers()['content-type']).toBe('image/png');
 });
+
+test('read all three guides from the homepage on a phone without JavaScript', async (t) => {
+	const page = await browser.newPage({
+		javaScriptEnabled: false,
+		viewport: { width: 320, height: 800 }
+	});
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/`);
+	await page.getByRole('link', { name: 'Docs', exact: true }).click();
+	const navigation = page.getByRole('navigation', { name: 'Documentation' });
+	for (const title of ['Your first workspace', 'Configuring a repository', 'Self-hosting']) {
+		await navigation.getByRole('link', { name: title }).click();
+		await expect(navigation.locator('[aria-current="page"]')).toHaveText(title);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(title);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+	}
+});
+
+test('the first workspace guide renders the README edit in the shared diff viewer', async (t) => {
+	const page = await browser.newPage({ reducedMotion: 'reduce' });
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/docs/#review-the-diff`);
+	const diff = page.getByRole('figure', { name: 'README.md' });
+	await diff.scrollIntoViewIfNeeded();
+	await expect(diff.getByText('# Example', { exact: true })).toBeVisible();
+	await expect(
+		diff
+			.locator('[data-line-type="change-addition"]')
+			.getByText('Use this repository to try Geordi.', { exact: true })
+	).toBeVisible();
+});
+
+test('copy the guide prompt and inspect its example pull request', async (t) => {
+	const page = await browser.newPage({
+		permissions: ['clipboard-read', 'clipboard-write'],
+		reducedMotion: 'reduce'
+	});
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/docs/`);
+	const copy = page.getByRole('button', { name: 'Copy message' });
+	await page.locator('astro-island:not([ssr])').filter({ has: copy }).waitFor();
+	await copy.click();
+	await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+		'Leave the change uncommitted for review.'
+	);
+	const demo = page.getByRole('figure', { name: 'Workspace actions example' });
+	await demo.getByRole('button', { name: 'Create PR', exact: true }).click();
+	await demo.getByRole('button', { name: '#1', exact: true }).click();
+	await expect(demo.getByText('Check Markdown')).toBeVisible();
+	await demo.getByRole('button', { name: 'Fix errors — Explain Geordi in README' }).click();
+	await expect(demo.getByText('Ready to merge', { exact: true })).toBeVisible();
+	await demo.getByRole('button', { name: 'Merge PR', exact: true }).click();
+	await demo.getByRole('button', { name: 'Archive — Explain Geordi in README' }).click();
+	await expect(demo.getByText('The workspace is in Archive.')).toBeVisible();
+	await demo.getByRole('button', { name: 'Try again' }).click();
+	await expect(demo.getByRole('button', { name: 'Create PR', exact: true })).toBeVisible();
+});
+
+test('the configuration example opens the app with both jobs and stops dependent jobs', async (t) => {
+	const page = await browser.newPage({ reducedMotion: 'reduce' });
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/docs/configuration/`);
+	const pane = page.getByRole('figure', { name: 'Run pane preview' });
+	await page.locator('astro-island:not([ssr])').filter({ has: pane }).waitFor();
+	await pane.getByRole('button', { name: /Open the app/ }).click();
+	await expect(pane.getByRole('button', { name: 'Stop Development server' })).toBeVisible();
+	await expect(pane.getByRole('status')).toHaveText('http://localhost:20001/');
+	await pane.getByTitle('Show the output of Development server').click();
+	await expect(pane.getByRole('status')).toHaveText('pnpm dev --port $PORT');
+	await pane.getByRole('button', { name: 'Stop db' }).click();
+	await expect(pane.getByRole('button', { name: 'Start Development server' })).toBeVisible();
+	await expect(pane.getByRole('button', { name: 'Start db' })).toBeVisible();
+});

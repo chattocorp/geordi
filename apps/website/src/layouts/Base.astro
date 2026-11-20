@@ -1,5 +1,7 @@
 ---
 import '../styles/site.css';
+import bodyFont from '@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2?url';
+import codeFont from '@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url';
 import Button from '../components/Button.astro';
 import Visor from '../components/Visor.astro';
 import { site } from '../site.ts';
@@ -19,6 +21,8 @@ const image = new URL(card.src, Astro.site);
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
+		<link rel="preload" href={bodyFont} as="font" type="font/woff2" crossorigin="anonymous" />
+		<link rel="preload" href={codeFont} as="font" type="font/woff2" crossorigin="anonymous" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>{title}</title>
 		<meta name="description" content={description} />
@@ -58,21 +62,29 @@ const image = new URL(card.src, Astro.site);
 			<div class="column flex h-14 items-center gap-1">
 				<a
 					href="/"
-					class="mr-auto flex items-center gap-2.5 rounded-control px-3 py-1.5 font-semibold"
+					class="mr-auto flex items-center gap-2.5 rounded-control px-1 py-1.5 font-semibold sm:px-3"
 				>
 					<Visor />
 					Geordi
 				</a>
-				<Button variant="ghost" href="#features" class="px-3 max-sm:hidden">
+				<Button variant="ghost" href="/#features" class="px-3 max-sm:hidden">
 					Features
 				</Button>
-				<Button variant="ghost" href="#install" class="px-3 max-sm:hidden">
+				<Button variant="ghost" href="/#install" class="px-3 max-sm:hidden">
 					Install
 				</Button>
-				<Button variant="ghost" href={site.repo} class="px-3">
+				<Button variant="ghost" href="/docs/" class="px-3">
+					Docs
+				</Button>
+				<Button variant="ghost" href={site.repo} class="px-3 max-sm:hidden">
 					GitHub
 				</Button>
-				<Button variant="primary" href={site.download} icon="icon-[lucide--download]" class="ml-2">
+				<Button
+					variant="primary"
+					href={site.download}
+					icon="icon-[lucide--download]"
+					class="sm:ml-2"
+				>
 					Download
 				</Button>
 			</div>

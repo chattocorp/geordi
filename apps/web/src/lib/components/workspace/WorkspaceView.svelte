@@ -35,8 +35,8 @@
 		type Zone
 	} from '#lib/layout.ts';
 	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
-	import JobMark, { type JobState } from './JobMark.svelte';
-	import RunPane from './RunPane.svelte';
+	import JobMark, { type JobState } from '@geordi/ui/JobMark.svelte';
+	import RunPane from '@geordi/ui/RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
@@ -45,7 +45,7 @@
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
-	import Notice from '#lib/ui/Notice.svelte';
+	import Notice from '@geordi/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
 	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 	import Split from '#lib/ui/Split.svelte';

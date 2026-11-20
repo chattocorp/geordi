@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
-	import Notice from '#lib/ui/Notice.svelte';
+	import Notice from '@geordi/ui/Notice.svelte';
 	import { problemOf } from '#lib/problem.ts';
 	import { registerRepo } from '../../routes/repos.remote';
 

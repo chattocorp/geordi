@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Job, Link } from '@geordi/protocol';
 	import Button from '@geordi/ui/Button.svelte';
-	import Notice from '#lib/ui/Notice.svelte';
+	import Notice from '@geordi/ui/Notice.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 
 	/**
