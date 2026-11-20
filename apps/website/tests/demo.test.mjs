@@ -133,3 +133,22 @@ test('the first workspace guide renders the README edit in the shared diff viewe
 			.getByText('Use this repository to try Geordi.', { exact: true })
 	).toBeVisible();
 });
+
+test('copy the guide prompt and inspect its example pull request', async (t) => {
+	const page = await browser.newPage({
+		permissions: ['clipboard-read', 'clipboard-write'],
+		reducedMotion: 'reduce'
+	});
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/docs/`);
+	const copy = page.getByRole('button', { name: 'Copy message' });
+	await page.locator('astro-island:not([ssr])').filter({ has: copy }).waitFor();
+	await copy.click();
+	await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+		'Leave the change uncommitted for review.'
+	);
+	const pull = page.getByRole('region', { name: 'Pull request', exact: true });
+	await pull.getByRole('button', { name: /Checks/ }).click();
+	await expect(pull.getByText('Check Markdown')).toBeVisible();
+});

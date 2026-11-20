@@ -1,5 +1,6 @@
 ---
 import Button from '../components/Button.astro';
+import { Content as RepositoryExample } from '../components/RepositoryExample.md';
 import Demo from '../components/Demo.svelte';
 import Spinner from '@geordi/ui/Spinner.svelte';
 import Base from '../layouts/Base.astro';
@@ -260,18 +261,9 @@ const steps = [
 			</div>
 			<div class="mt-auto overflow-hidden rounded-control bg-sunken">
 				<p class="px-4 pt-3 code-dense text-muted">.geordi.yml</p>
-				<pre class="overflow-x-auto p-4 pt-2 code-dense"><span class="text-accent-ink">setup</span>: pnpm install
-
-<span class="text-accent-ink">jobs</span>:
-  <span class="text-accent-ink">db</span>:
-    <span class="text-accent-ink">command</span>: docker compose up db
-  <span class="text-accent-ink">web</span>:
-    <span class="text-accent-ink">command</span>: pnpm dev --port $PORT
-    <span class="text-accent-ink">needs</span>: [db]
-
-<span class="text-accent-ink">urls</span>:
-  <span class="text-accent-ink">app</span>:
-    <span class="text-accent-ink">url</span>: http://localhost:&#123;web&#125;/</pre>
+				<div class="p-4 pt-2 code-dense">
+					<RepositoryExample />
+				</div>
 			</div>
 		</article>
 	</div>

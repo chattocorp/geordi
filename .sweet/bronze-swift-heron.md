@@ -2,4 +2,4 @@
 type: feature
 ---
 
-You can now read the Geordi guides at geordi.run/docs, from your first workspace to repository configuration and self-hosting. The first guide shows the example README edit in the workspace diff viewer.
+You can now read the Geordi guides at geordi.run/docs, from your first workspace to repository configuration and self-hosting. You can copy the example prompt, review the README diff and explore pull request checks in the guide. YAML examples have syntax highlighting in both themes.

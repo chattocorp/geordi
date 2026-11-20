@@ -1,3 +1,5 @@
+import UserMessage from '../packages/ui/src/UserMessage.svelte';
+import PullRequestPane from '../packages/ui/src/PullRequestPane.svelte';
 import DiffView from '../packages/ui/src/DiffView.svelte';
 
 # Your first workspace
@@ -22,7 +24,12 @@ Choose a model from the agent you signed in to. Check the permission mode before
 
 In **What should the agent do?**, enter a task you can review in one file. For a practice repository, try this:
 
-> Add one sentence below the README heading explaining that this repository is for trying Geordi. Leave the change uncommitted for review.
+<div class="not-prose my-4">
+	<UserMessage
+		client:load
+		text="Add one sentence below the README heading explaining that this repository is for trying Geordi. Leave the change uncommitted for review."
+	/>
+</div>
 
 Select **Get to work**. The new workspace opens with your message in the conversation. Its branch name appears at the top.
 
@@ -47,6 +54,30 @@ When `README.md` appears under **Changes**, select it. A tab opens beside the co
 
 ## Open a pull request
 
-If your repository is connected to a supported forge, select **Create PR** at the top of the workspace. This asks the agent to commit the edit, push the branch and open a pull request. Open the pull request from the workspace to review it and its checks. When you're ready and the checks allow it, select **Merge PR**. After the merge, **Archive** puts the conversation away.
+If your repository is connected to a supported forge, select **Create PR** at the top of the workspace. This asks the agent to commit the edit, push the branch and open a pull request. Open the pull request from the workspace to review it and its checks. In the example below, expand **Checks** to see which check passed.
+
+<div class="not-prose my-6 rounded-control bg-sunken">
+	<PullRequestPane
+		client:load
+		pull={{
+			number: '1',
+			title: 'Explain what the example repository is for',
+			url: null,
+			state: 'open',
+			draft: false,
+			base: 'main',
+			review: null,
+			checks: {
+				state: 'success',
+				total: 1,
+				failed: 0,
+				url: null,
+				items: [{ id: 'docs', name: 'Check Markdown', state: 'success', status: 'success' }]
+			}
+		}}
+	/>
+</div>
+
+When you're ready and the checks allow it, select **Merge PR**. After the merge, **Archive** puts the conversation away.
 
 Trying this with a local-only repository? Select **Commit** to have the agent save the edit on the workspace branch.

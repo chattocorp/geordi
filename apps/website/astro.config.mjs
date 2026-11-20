@@ -6,7 +6,12 @@ import { defineConfig } from 'astro/config';
 // A static site: `pnpm --filter @geordi/website build` writes it to `dist/`.
 export default defineConfig({
 	site: 'https://geordi.run',
-	markdown: { syntaxHighlight: false },
+	markdown: {
+		shikiConfig: {
+			themes: { light: 'github-light', dark: 'github-dark-dimmed' },
+			defaultColor: false
+		}
+	},
 	integrations: [
 		mdx(),
 		svelte(),
