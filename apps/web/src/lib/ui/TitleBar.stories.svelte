@@ -17,3 +17,15 @@
 		<p class="p-5 text-muted">The page's content</p>
 	</div>
 </Story>
+
+<Story name="Actions in a narrow workspace" asChild>
+	<div class="w-72 sheet">
+		<TitleBar>
+			<h1 class="truncate heading">Return people after sign-in</h1>
+			{#snippet actions()}
+				<Button icon="icon-[lucide--git-pull-request]">#412</Button>
+				<Button icon="icon-[lucide--git-merge]">Merge PR</Button>
+			{/snippet}
+		</TitleBar>
+	</div>
+</Story>

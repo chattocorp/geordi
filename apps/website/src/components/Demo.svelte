@@ -161,7 +161,7 @@
 	});
 	const git = $derived({ changes, upstream, unavailable: null });
 	const standing = $derived(standingOf(git));
-	const actions = $derived(actionsFor(git));
+	const offered = $derived(actionsFor(git));
 	const at = (from: number, until = last + 1) => ({
 		'data-from': from,
 		hidden: step < from || step >= until
@@ -250,7 +250,7 @@
 >
 	<!-- the window's title bar: what the workspace is, and the ribbon that says what is next -->
 	<TitleBar>
-		<span class="flex gap-2" aria-hidden="true">
+		<span class="hidden gap-2 sm:flex" aria-hidden="true">
 			<span class="size-3 rounded-full bg-muted/25"></span>
 			<span class="size-3 rounded-full bg-muted/25"></span>
 			<span class="size-3 rounded-full bg-muted/25"></span>
@@ -262,22 +262,22 @@
 			geordi/return-after-sign-in
 		</span>
 
-		{#if step >= 7}
-			<div class="ml-auto">
+		{#snippet actions()}
+			{#if step >= 7}
 				<WorkspaceActions
 					{standing}
-					{actions}
+					actions={offered}
 					disabled={!playing}
 					pull={upstream.pull}
 					compact={narrow.current}
 					onopenpull={openPull}
 					onaction={act}
 				/>
-			</div>
-		{/if}
+			{/if}
+		{/snippet}
 	</TitleBar>
 
-	<div class="flex h-120 gap-2 px-2 pb-2 sm:h-136">
+	<div class="flex h-152 gap-2 px-2 pb-2 sm:h-136">
 		<!-- the sidebar: every workspace, and how its work stands -->
 		<aside class="hidden w-64 shrink-0 flex-col sheet-quiet lg:flex">
 			<div class="flex-1 space-y-5 p-2">
@@ -302,7 +302,7 @@
 									current
 									working={running}
 									{standing}
-									{actions}
+									actions={offered}
 									onaction={playing && step >= 7 ? act : undefined}
 								/>
 							</li>
@@ -349,7 +349,10 @@
 				aria-labelledby="{uid}-chat-tab-0"
 				class="flex min-h-0 flex-1 flex-col"
 			>
-				<div bind:this={transcript} class="scroller flex min-h-0 flex-1 flex-col gap-4 px-5 pb-4">
+				<div
+					bind:this={transcript}
+					class="scroller flex min-h-0 flex-1 flex-col gap-4 px-3 pb-4 sm:px-5"
+				>
 					{#if step === 0}<p class="m-auto max-w-xs text-center text-sm text-balance text-muted">
 							Say what you want done.
 						</p>

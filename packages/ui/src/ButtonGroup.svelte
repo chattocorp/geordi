@@ -17,7 +17,7 @@
 <div
 	role="group"
 	aria-label={label}
-	class="inline-flex shrink-0 gap-px overflow-hidden rounded-full *:rounded-none"
+	class="inline-flex max-w-full shrink-0 flex-wrap gap-px overflow-hidden rounded-full *:rounded-none"
 >
 	{@render children()}
 </div>

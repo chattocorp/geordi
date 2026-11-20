@@ -900,32 +900,34 @@
 				{/if}
 			</div>
 		</div>
-		<WorkspaceActions
-			{standing}
-			pull={standingState?.upstream?.pull}
-			actions={offered}
-			unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
-			disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
-			{pending}
-			asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
-			onopenpull={() => showTab(PR)}
-			onaction={act}
-		/>
-		{#if workspace.archivedAt}
-			<Badge>Archived</Badge>
-			<Button onclick={reopen} disabled={restoringWorkspace}
-				>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
-			>
-		{:else if !project}
-			<Button
-				variant="ghost"
-				icon={frame.current.open
-					? 'icon-[lucide--panel-right-close]'
-					: 'icon-[lucide--panel-right-open]'}
-				label="Toggle changes and terminals ({hint('toggleSide')})"
-				onclick={toggleSide}
+		{#snippet actions()}
+			<WorkspaceActions
+				{standing}
+				pull={standingState?.upstream?.pull}
+				actions={offered}
+				unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
+				disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
+				{pending}
+				asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
+				onopenpull={() => showTab(PR)}
+				onaction={act}
 			/>
-		{/if}
+			{#if workspace.archivedAt}
+				<Badge>Archived</Badge>
+				<Button onclick={reopen} disabled={restoringWorkspace}
+					>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
+				>
+			{:else if !project}
+				<Button
+					variant="ghost"
+					icon={frame.current.open
+						? 'icon-[lucide--panel-right-close]'
+						: 'icon-[lucide--panel-right-open]'}
+					label="Toggle changes and terminals ({hint('toggleSide')})"
+					onclick={toggleSide}
+				/>
+			{/if}
+		{/snippet}
 	</TitleBar>
 
 	{#if archiveProblem}
