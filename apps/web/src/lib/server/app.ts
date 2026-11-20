@@ -306,24 +306,27 @@ export async function concernsAboutArchiving(id: string) {
 			}
 			const concerns = archiveConcerns(standing);
 			const blocked = workspaces().summary(workspace.id).status === 'running';
-			if (blocked) concerns.push('Stop the running agent before archiving.');
-			if (
-				terminals().running(workspace.id).length &&
-				(await hub()
-					.request({ kind: 'terminalActivity', workspaceId: workspace.id })
-					.catch(() => true))
-			)
-				concerns.push('Archiving will stop running terminal processes.');
+			if (blocked) concerns.push('Stop busy agents before archiving.');
+			const active = terminals().running(workspace.id).length
+				? await hub()
+						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
+						.catch(() => null)
+				: false;
 			return {
-				concerns:
-					workspace.id === id ? concerns : concerns.map((text) => `“${workspace.title}”: ${text}`),
+				concerns,
+				active,
 				discard: !!standing.changes?.uncommitted,
 				blocked
 			};
 		})
 	);
+	const concerns = [...new Set(previews.flatMap((preview) => preview.concerns))];
+	if (previews.some((preview) => preview.active))
+		concerns.push('Running processes will be stopped.');
+	else if (previews.some((preview) => preview.active === null))
+		concerns.push('Any running terminal processes will be stopped.');
 	return {
-		concerns: previews.flatMap((preview) => preview.concerns),
+		concerns,
 		discard: previews.some((preview) => preview.discard),
 		blocked: previews.some((preview) => preview.blocked)
 	};

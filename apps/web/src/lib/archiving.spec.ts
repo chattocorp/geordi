@@ -43,11 +43,11 @@ describe('archiveConcerns', () => {
 		const clean = { files: [], uncommitted: 0, unpushed: 0 };
 		for (const state of ['open', 'closed'] as const) {
 			expect(archiveConcerns({ changes: clean, upstream: upstream({ state }) })).toEqual([
-				'Pull request #7 is not merged.'
+				'Pull requests remain unmerged.'
 			]);
 		}
 		expect(archiveConcerns({ changes: { ...clean, unmerged: true } })).toEqual([
-			'Its branch has unmerged commits.'
+			'Branches contain unmerged commits.'
 		]);
 	});
 
@@ -56,7 +56,7 @@ describe('archiveConcerns', () => {
 			changes: { files: [file, { ...file, path: 'b.txt' }], uncommitted: 2, unpushed: 0 },
 			upstream: upstream(null)
 		});
-		expect(concerns).toEqual(['2 files have uncommitted changes, which will be discarded.']);
+		expect(concerns).toEqual(['Uncommitted changes will be discarded.']);
 	});
 
 	it('says what is nowhere but here: commits that were not pushed', () => {
@@ -64,34 +64,34 @@ describe('archiveConcerns', () => {
 			changes: { files: [file], uncommitted: 0, unpushed: null },
 			upstream: upstream(null)
 		});
-		expect(never).toEqual([expect.stringMatching(/never pushed/)]);
+		expect(never).toEqual(['Unpushed commits will stay on local branches.']);
 
 		const some = archiveConcerns({
 			changes: { files: [file], uncommitted: 0, unpushed: 1 },
 			upstream: upstream({})
 		});
 		expect(some).toEqual([
-			'1 commit is not pushed. They stay on its branch, on this machine only.',
-			'Pull request #7 is not merged.'
+			'Unpushed commits will stay on local branches.',
+			'Pull requests remain unmerged.'
 		]);
 	});
 
 	it('says what has not landed: an open pull request, or none at all', () => {
 		const pushed = { files: [file], uncommitted: 0, unpushed: 0 };
 		expect(archiveConcerns({ changes: pushed, upstream: upstream({}) })).toEqual([
-			'Pull request #7 is not merged.'
+			'Pull requests remain unmerged.'
 		]);
 		expect(archiveConcerns({ changes: pushed, upstream: upstream(null) })).toEqual([
-			expect.stringMatching(/no pull request/)
+			'Branches contain unmerged commits.'
 		]);
 		// the forge didn't answer in time: nothing is claimed about a pull request
-		expect(archiveConcerns({ changes: pushed })).toEqual(['Its branch has unmerged commits.']);
+		expect(archiveConcerns({ changes: pushed })).toEqual(['Branches contain unmerged commits.']);
 		// a merged pull request with something uncommitted on top: only that is lost
 		expect(
 			archiveConcerns({
 				changes: { files: [file], uncommitted: 1, unpushed: 0 },
 				upstream: upstream({ state: 'merged' })
 			})
-		).toEqual([expect.stringMatching(/uncommitted/)]);
+		).toEqual([expect.stringMatching(/Uncommitted/)]);
 	});
 });

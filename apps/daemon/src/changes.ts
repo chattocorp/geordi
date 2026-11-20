@@ -189,15 +189,18 @@ async function filesSince(
  */
 export async function uncommittedFiles(worktree: Worktree): Promise<string[]> {
 	const [modified, others] = await Promise.all([modifiedFiles(worktree), untracked(worktree)]);
-	return [...modified, ...others];
+	return [...new Set([...modified, ...others])].sort();
 }
 
 async function modifiedFiles(worktree: Worktree) {
-	return (
-		await gitIn(worktree, 'diff', '--name-only', '--no-renames', '-z', ...SAFE, headOf(worktree))
-	)
-		.split('\0')
-		.filter(Boolean);
+	// Compare the index and working files separately. A file can match HEAD on disk
+	// while the index holds a staged edit that removing the worktree would lose.
+	const args = ['diff', '--name-only', '--no-renames', '-z', ...SAFE];
+	const [staged, unstaged] = await Promise.all([
+		gitIn(worktree, ...args, '--cached', headOf(worktree)),
+		gitIn(worktree, ...args)
+	]);
+	return (staged + unstaged).split('\0').filter(Boolean);
 }
 
 /**
@@ -312,12 +315,13 @@ async function readStatus(worktree: Worktree, origin: Origin): Promise<Changes> 
 		landed(worktree, origin, head),
 		incoming(worktree, origin)
 	]);
+
 	return {
 		branch: branchOf(worktree),
 		comparisonTarget: name,
 		files,
 		unmerged: tip.trim() !== fork,
-		uncommitted: modified.length + others.length,
+		uncommitted: new Set([...modified, ...others]).size,
 		unpushed,
 		landed: isLanded,
 		incoming: behind
