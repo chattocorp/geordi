@@ -1,7 +1,7 @@
 # FDR-006: Repository configuration: jobs, ports, links, setup and teardown
 
 **Status:** Active
-**Last reviewed:** 2026-11-18
+**Last reviewed:** 2026-11-20
 
 ## Overview
 
@@ -24,8 +24,9 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ### Ports
 
-- A workspace gets a run of ports of its own (one per job, unless the file asks for more) the first time it needs one. The daemon picks a run in which every port is free at that moment, and otherwise looks further.
+- A workspace gets a run of ports of its own (one per job, unless the file asks for more) the first time it needs one. The daemon picks a run in which every port is free at that moment, and otherwise looks further. A port is free when nothing listens on it on any of the machine's local addresses (`127.0.0.1`, `0.0.0.0`, `::1`, `::`): on macOS a port that can be had on one of them may be another program's on another.
 - Those ports are the workspace's for as long as it lives: across restarts of its jobs, of the daemon and of the machine. They are given up when the workspace is archived.
+- Ports come from 20000–29999, unless the daemon's environment names other ones (`GEORDI_PORT_RANGE=30000-39999`). Two daemons on one machine know nothing of each other's ports, so each needs a range of its own: Geordi run for development (`scripts/workspace-dev.mjs`) uses 30000–39999.
 - Every job has one of them as its own, from the first time the job is seen. It keeps it when jobs are added, removed or reordered.
 - Jobs and agents also receive `GEORDI_ASSIGNED_PORTS`, the full list of assigned ports as JSON. Spare ports must come from this list: a workspace that grows can have several separate blocks.
 - A workspace that outgrows its ports (more jobs, or a bigger `ports`) keeps what it has and gets more.
@@ -35,6 +36,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 - **Run** starts the job or opens the URL named by `default` (for example, `jobs.web` or `urls.app`). When the setting is omitted, Run uses the first URL, or the first job if there are no URLs. A job button becomes **Stop** while its job runs. With multiple choices, the adjacent chevron opens the full menu of links, individual jobs, **Start all** and **Stop all**.
 - Each job runs in a terminal tab named after it, in the user's shell, in the workspace's directory.
+- A job starts only while its port is free. When another program has it, the job does not start: its tab says that port N is in use, and by what (where `lsof` can tell); starting it, what needs it, or a link that needs it fails with the same words. The job keeps its port; it is the other program that has to go.
 - Starting a job first starts the jobs it needs, each once the ones before it are up. A job is up when something listens on its port. One that never does (a desktop app, a game) is taken to be up after half a minute, if it still runs.
 - Stopping a job stops the jobs that need it too. Closing a job's tab is stopping it.
 - Opening a link starts the jobs it needs, waits for them to be up, and opens it in the browser.
@@ -78,7 +80,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 **Decision:** The daemon assigns a workspace its ports and each job its own among them, writes that down (`~/.geordi/ports.json`), and never works it out again.
 **Why:** A port that changes breaks everything that remembered it: a bookmark, a callback address registered elsewhere, a tab left open, an agent's notes. Working ports out from something (a hash of the ID, a position in the file) changes them as soon as that something does. Ports belong to the machine, so the daemon keeps them, also once there are daemons on several machines.
-**Tradeoff:** A port that was free when the run was picked can be taken by something else later. The job then fails to start, and says so, rather than moving quietly.
+**Tradeoff:** A port that was free when the run was picked can be taken by something else later. The job then fails to start, and says so, rather than moving quietly: the daemon looks before it starts a job, since what answers on a taken port would otherwise be taken for the job being up.
 
 ### 4. Up means listening
 

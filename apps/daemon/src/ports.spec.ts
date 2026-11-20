@@ -3,10 +3,10 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createPorts, portAt, portEnv, waitForPort } from './ports.ts';
+import { createPorts, free, portAt, portEnv, portRange, portTaken, waitForPort } from './ports.ts';
 
 const file = () => join(mkdtempSync(join(tmpdir(), 'geordi-ports-')), 'ports.json');
-const allFree = async () => true;
+const allFree = { isFree: async () => true };
 
 describe('workspace ports', () => {
 	it('gives each workspace a run of its own, and the same one every time it is asked', async () => {
@@ -37,7 +37,7 @@ describe('workspace ports', () => {
 
 	it('finds another run where a port is in use, or belongs to another workspace', async () => {
 		const busy = new Set([20003, 20015]);
-		const ports = createPorts(file(), async (port) => !busy.has(port));
+		const ports = createPorts(file(), { isFree: async (port) => !busy.has(port) });
 		expect((await ports.ensure('one', 10)).blocks).toEqual([{ first: 20020, count: 10 }]);
 		expect((await ports.ensure('two', 10)).blocks).toEqual([{ first: 20030, count: 10 }]);
 	});
@@ -96,4 +96,55 @@ it('exports the exact assigned port list when allocations span several blocks', 
 	});
 	expect(JSON.parse(env.GEORDI_ASSIGNED_PORTS)).toEqual([20000, 20001, 24000, 24001]);
 	expect(env.GEORDI_PORT_DESKTOP).toBe('24000');
+});
+
+describe('whether a port is free', () => {
+	/** Holds a port on `host`, as another program would. */
+	async function hold(host: string) {
+		const server = createServer().listen({ port: 0, host });
+		await new Promise((resolve) => server.once('listening', resolve));
+		const { port } = server.address() as { port: number };
+		return { port, close: () => new Promise((resolve) => server.close(resolve)) };
+	}
+
+	it.each(['127.0.0.1', '0.0.0.0', '::1', '::'])(
+		'is not free while something listens on %s',
+		async (host) => {
+			const held = await hold(host).catch(() => null);
+			if (!held) return; // no IPv6 here
+			expect(await free(held.port)).toBe(false);
+			expect(await portTaken(held.port)).toMatch(
+				new RegExp(`^Port ${held.port} is in use by another program`)
+			);
+			await held.close();
+			expect(await free(held.port)).toBe(true);
+			expect(await portTaken(held.port)).toBeNull();
+		}
+	);
+
+	it('names the program that holds it, where lsof can tell', async () => {
+		const held = await hold('127.0.0.1');
+		const said = await portTaken(held.port);
+		await held.close();
+		if (said?.includes('process')) expect(said).toContain(`process ${process.pid}`);
+	});
+});
+
+describe('the range ports come from', () => {
+	it('is the usual one unless the environment says otherwise', () => {
+		expect(portRange(undefined)).toEqual({ from: 20000, to: 29999 });
+		expect(portRange('30000-39999')).toEqual({ from: 30000, to: 39999 });
+	});
+
+	it.each(['30000', '39999-30000', '80-1000', '30000-70000', 'a-b', '30000-39999x'])(
+		'refuses %s',
+		(value) => expect(() => portRange(value)).toThrow(/GEORDI_PORT_RANGE/)
+	);
+
+	it('gives out ports from the range it is given', async () => {
+		const ports = createPorts(file(), { ...allFree, range: { from: 30000, to: 30019 } });
+		expect((await ports.ensure('one', 10)).blocks).toEqual([{ first: 30000, count: 10 }]);
+		await ports.ensure('two', 10);
+		await expect(ports.ensure('three', 10)).rejects.toThrow(/no free ports/);
+	});
 });

@@ -478,6 +478,11 @@ export type DaemonRequest =
 	 */
 	| { kind: 'portReady'; port: number; timeoutMs: number }
 	/**
+	 * Whether a program other than a job of ours has `port`, before the job starts. Answers
+	 * with what to say about it, or `null` while the port is free.
+	 */
+	| { kind: 'portTaken'; port: number }
+	/**
 	 * Has the workspace carry on with new work (FDR-001): fetches, and moves its worktree to
 	 * a new branch off where work in the repository starts. Refused while it has uncommitted
 	 * changes. Answers with the new branch.
@@ -558,6 +563,7 @@ export type DaemonResults = {
 	continueWorktree: { branch: string };
 	approveRun: null;
 	portReady: boolean;
+	portTaken: string | null;
 	config: RepoConfig;
 	release: ReleasePlan | null;
 	findFiles: FileMatch[];
