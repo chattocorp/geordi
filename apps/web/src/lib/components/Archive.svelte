@@ -11,7 +11,7 @@
 	type Props = {
 		entries?: ArchiveEntry[];
 		lost?: boolean;
-		/** Deletes these workspaces for good; says how many went and how many bytes that freed. */
+		/** Deletes these workspaces for good; says how many went and how many bytes smaller the log got. */
 		onpurge?: (ids: string[]) => Promise<{ purged: number; freed: number }>;
 	};
 	let { entries, lost = false, onpurge }: Props = $props();
@@ -49,7 +49,10 @@
 			const { purged, freed } = await onpurge(asking.ids);
 			const deleted = `Deleted ${purged === 1 ? 'one workspace' : `${purged} workspaces`}`;
 			// what is too little to name is not worth a number
-			outcome = freed >= 100_000 ? `${deleted}, which freed ${megabytes(freed)}.` : `${deleted}.`;
+			outcome =
+				freed >= 100_000
+					? `${deleted}. Geordi's log is ${megabytes(freed)} smaller.`
+					: `${deleted}.`;
 			asking = null;
 		} catch (error) {
 			problem = problemOf(error, 'Could not delete them.');

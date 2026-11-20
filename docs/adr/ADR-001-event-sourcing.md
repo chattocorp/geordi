@@ -32,5 +32,5 @@ Alternatives considered:
 - No transactions to think about; full history for free; live updates fall out of "an event was appended".
 - We maintain projection code and must evolve event formats carefully, since old events are replayed forever.
 - Startup time grows with the log until we persist projections.
-- Writers are limited to one process per log, which matches the single-forge model (see ADR-002).
+- Writers are limited to one process per log, which matches the single-forge model (see ADR-002). The forge enforces it: it holds an exclusive lock on its data directory (`forge.lock`) while it runs, and a second forge on the same data refuses to start.
 - Back up and restore `blobs/` with the SQLite log. A consistent backup can snapshot the log first, then copy the blobs, which are immutable. An interrupted upload can leave an unreferenced file.

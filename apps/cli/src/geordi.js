@@ -62,7 +62,7 @@ const forge = start('forge');
 forge.on('exit', (code) => {
 	if (stopping) return;
 	console.error(
-		`The forge exited with code ${code}. Is another Geordi using port ${settings.web}?`
+		`The forge exited with code ${code}. Is another Geordi running, on port ${settings.web} or with the same data?`
 	);
 	process.exitCode = 1;
 	stop('SIGTERM'); // the agents work on
