@@ -38,7 +38,7 @@ import {
 	versions
 } from './changes.ts';
 import { resolve, settingsOf } from './config.ts';
-import { createPorts, portEnv, waitForPort } from './ports.ts';
+import { createPorts, portEnv, portRange, portTaken, waitForPort } from './ports.ts';
 import {
 	closeTerminal,
 	closeTerminals,
@@ -65,7 +65,6 @@ import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
 import {
 	cachedPullBase,
-	repositoryThreads,
 	markReady,
 	mergePull,
 	setAutoMerge,
@@ -134,7 +133,8 @@ const approvals = createApprovals(
 
 /** The ports of workspaces (FDR-006): theirs for as long as they live, so they are written down. */
 const ports = createPorts(
-	process.env.GEORDI_PORTS_FILE || join(homedir(), '.geordi', 'ports.json')
+	process.env.GEORDI_PORTS_FILE || join(homedir(), '.geordi', 'ports.json'),
+	{ range: portRange(process.env.GEORDI_PORT_RANGE) }
 );
 
 /**
@@ -154,6 +154,9 @@ async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeR
 
 /** What a job's terminal runs when its command is not one that was seen and agreed to. */
 const RUN_CHANGED = `echo 'This is not the command you agreed to run: the repository'"'"'s Geordi configuration has changed. Start it again to see and run what it says now.'; exit 1`;
+
+/** What a job's terminal runs when another program has its port: says so (in `GEORDI_PORT_TAKEN`). */
+const PORT_TAKEN = `echo "$GEORDI_PORT_TAKEN"; exit 1`;
 
 /** What the terminal of a script that did not run says instead. Words of ours, never the file's. */
 const SETUP_NOT_RUN = {
@@ -521,8 +524,6 @@ async function readRequest(request: DaemonRequest) {
 		).trim();
 		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
-	if (request.kind === 'repoThreads')
-		return repositoryThreads(request.repoPath, request.category, request.after);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
@@ -568,6 +569,7 @@ async function readRequest(request: DaemonRequest) {
 	}
 	if (request.kind === 'portReady')
 		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
+	if (request.kind === 'portTaken') return portTaken(request.port);
 	if (request.kind === 'continueWorktree') {
 		const { repoPath, worktreeId } = request;
 		const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
@@ -726,6 +728,14 @@ async function handle(message: ForgeMessage) {
 								? config.setup && { ...config.setup, port: null }
 								: config.jobs.find((job) => job.name === asked?.job);
 						const agreed = job && job.command === asked?.command && job.approved;
+						// A job's port stays its own (FDR-006): when another program has it, the job
+						// doesn't start (it would not be the one answering there), and says why.
+						const taken =
+							agreed &&
+							job.port !== null &&
+							(!runningTerminals().includes(terminalId) || terminalId in endedTerminals())
+								? await portTaken(job.port)
+								: null;
 						guard();
 						openTerminal(
 							terminalId,
@@ -733,9 +743,13 @@ async function handle(message: ForgeMessage) {
 							{
 								...message,
 								closeOnSuccess: asked?.job === 'setup',
-								command: asked && (agreed ? job.command : RUN_CHANGED),
+								command: asked && (taken ? PORT_TAKEN : agreed ? job.command : RUN_CHANGED),
 								// every terminal knows the workspace's ports; a job also which one is its own
-								env: { ...env, ...(agreed && job.port !== null && { PORT: String(job.port) }) },
+								env: {
+									...env,
+									...(agreed && job.port !== null && { PORT: String(job.port) }),
+									...(taken && { GEORDI_PORT_TAKEN: taken })
+								},
 								// a job that has ended is no longer running, though its terminal is still there
 								onEnded: (status) =>
 									status !== null && sendLive({ type: 'terminal.ended', terminalId, status })

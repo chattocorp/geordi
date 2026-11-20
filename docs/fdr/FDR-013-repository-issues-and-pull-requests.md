@@ -1,9 +1,13 @@
 # FDR-013: Repository issues and pull requests
 
-**Status:** Active
-**Last reviewed:** 2026-11-19
+**Status:** Withdrawn
+**Last reviewed:** 2026-11-20
 
-## Overview
+## Withdrawn
+
+The repository lists were removed while the design is reconsidered. Selecting a repository header now folds or expands its workspaces.
+
+## Prior design
 
 Open a repository to see work on its upstream forge and choose what to work on next.
 

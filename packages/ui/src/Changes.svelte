@@ -17,10 +17,11 @@
 		/** The branch of a worktree that was removed outside Geordi, if that is what happened. */
 		gone?: string | null;
 		onopen(path: string): void;
+		onopencombined?: () => void;
 		/** The files as one list, in Git's order, or arranged in their directories. */
 		view?: View;
 	};
-	let { git, gone = null, onopen, view = $bindable('list') }: Props = $props();
+	let { git, gone = null, onopen, onopencombined, view = $bindable('list') }: Props = $props();
 
 	const files = $derived(git?.changes?.files ?? []);
 	/** Whether there are files to list, and so a choice of how to show them. */
@@ -67,6 +68,17 @@
 					Compared with <span>{git.changes.comparisonTarget}</span>
 				{/if}
 			</p>
+			{#if onopencombined}
+				<button
+					type="button"
+					aria-label="Open combined diff"
+					title="Open combined diff"
+					onclick={onopencombined}
+					class="flex size-7 shrink-0 items-center justify-center rounded-control text-muted hover:bg-hover hover:text-ink"
+				>
+					<span class="icon-[lucide--files] size-4"></span>
+				</button>
+			{/if}
 			<div role="radiogroup" aria-label="Show the changes" class="flex shrink-0">
 				{#each views as option (option.value)}
 					<button
@@ -129,7 +141,7 @@
 										row.open && 'rotate-90'
 									]}
 								></span>
-								<FittedPath path={row.name} class={{ 'text-ink': row.name.includes('/') }} />
+								<FittedPath path={row.name} />
 							</button>
 						{:else}
 							{@render file(row.file, row.depth)}

@@ -18,9 +18,7 @@
 	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
-	import { lanes } from '#lib/overview.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import Badge from '@geordi/ui/Badge.svelte';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
@@ -28,8 +26,8 @@
 	import { moveWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
-	 * The sidebar's sheet: where to go (the overview, a new workspace), the workspaces by
-	 * repository, and the settings below. `nav` is what there is, once known; `path` is the
+	 * The sidebar's sheet: a new workspace, the workspaces by
+	 * repository, and the archive and settings below. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
 	 * repository under its name, and those its agents started under a workspace. `focus` is
 	 * the repository shown alone, if any. `visibleWorkspaces` are those shown, `todayOnly` whether
@@ -92,8 +90,6 @@
 		return () => clearTimeout(settled);
 	});
 	const motion = () => ({ duration: shifting ? MOTION : 0, easing: cubicOut });
-	/** How many workspaces wait for the person: counted beside the overview. */
-	const needYou = $derived(lanes(nav?.workspaces ?? [], unread).attention.length);
 	/**
 	 * A workspace counts as working, for archiving, while anything its agent started is. Not
 	 * a project's: what it started in a repository carries on without it.
@@ -303,17 +299,7 @@
 
 <div class="flex min-h-0 flex-1 flex-col sheet-quiet select-none">
 	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
-		<div class="space-y-0.5">
-			{@render link(
-				resolve('/overview'),
-				'icon-[lucide--layout-list]',
-				'Overview',
-				path === '/overview',
-				needYou
-			)}
-			{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
-			{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
-		</div>
+		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 
 		<!--
 			Each repository keeps its own space below it, rather than space between them: what
@@ -336,14 +322,12 @@
 					<div class="group relative flex h-7 items-center pr-1.5">
 						<SidebarRowLabel
 							title={repo.name}
-							href={repo.id !== null ? resolve('/repos/[id]', { id: repo.id }) : undefined}
-							current={repo.id !== null && path === resolve('/repos/[id]', { id: repo.id })}
 							fold={{
 								folded: isFolded,
 								count: all.length,
 								toggle: () => toggleFolded(repo.id ?? PROJECTS)
 							}}
-							class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink aria-[current=page]:text-ink"
+							class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink"
 						>
 							{#snippet icon()}
 								{#if repo.id !== null}<RepoIcon id={repo.id} />{:else}<span
@@ -415,6 +399,7 @@
 
 	<div class="p-2">
 		<ConnectionIndicator {lost} class="px-2.5 py-1" />
+		{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
 		<a
 			href={settingsPath()}
 			class={['item gap-2.5 px-2.5 py-1.5 text-base', inSettings && 'item-active font-medium']}
@@ -491,7 +476,7 @@
 	</li>
 {/snippet}
 
-{#snippet link(href: string, icon: string, label: string, current: boolean, needYou = 0)}
+{#snippet link(href: string, icon: string, label: string, current: boolean)}
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- callers pass resolve()d hrefs -->
 	<a
 		{href}
@@ -500,9 +485,6 @@
 	>
 		<span class={['size-4 shrink-0', icon]}></span>
 		<span class="truncate">{label}</span>
-		{#if needYou > 0}
-			<span class="ml-auto" title="{needYou} need you"><Badge tone="accent">{needYou}</Badge></span>
-		{/if}
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 {/snippet}

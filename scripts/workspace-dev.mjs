@@ -37,6 +37,8 @@ const env = {
 	GEORDI_DAEMON_TOKEN_FILE: join(data, 'daemon-token'),
 	GEORDI_RUN_APPROVALS_FILE: join(data, 'run-approvals.json'),
 	GEORDI_PORTS_FILE: join(data, 'ports.json'),
+	// The installed app gives out 20000–29999: a range of its own keeps the two apart.
+	GEORDI_PORT_RANGE: '30000-39999',
 	GEORDI_DAEMON_PORT: String(daemon),
 	GEORDI_LIVE_PORT: String(live),
 	GEORDI_FORGE_URL: `ws://127.0.0.1:${daemon}`,

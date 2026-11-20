@@ -292,7 +292,6 @@ export type Link = {
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
-	default?: `jobs.${string}` | `urls.${string}`;
 	jobs: Job[];
 	urls: Link[];
 	/** Run once in a workspace's new worktree, before its agent starts. */
@@ -314,10 +313,6 @@ export type RepoConfig = {
  * parser (`config.ts`) accepts exactly these; a test holds the two together.
  */
 export const CONFIG_SETTINGS = {
-	default: {
-		does: 'The job or URL for the Run button. Use its key, such as `jobs.web` or `urls.app`. Without a default, Run selects the first URL, or the first job if there are no URLs.',
-		example: 'default: urls.app'
-	},
 	run: {
 		does: 'The command that runs the project for someone to look at or use: its development server, a desktop app, a game. Short for a single job called `run`. Use this unless the project needs several things running.',
 		example: 'run: pnpm dev --port $PORT'
@@ -478,6 +473,11 @@ export type DaemonRequest =
 	 */
 	| { kind: 'portReady'; port: number; timeoutMs: number }
 	/**
+	 * Whether a program other than a job of ours has `port`, before the job starts. Answers
+	 * with what to say about it, or `null` while the port is free.
+	 */
+	| { kind: 'portTaken'; port: number }
+	/**
 	 * Has the workspace carry on with new work (FDR-001): fetches, and moves its worktree to
 	 * a new branch off where work in the repository starts. Refused while it has uncommitted
 	 * changes. Answers with the new branch.
@@ -534,19 +534,12 @@ export type DaemonRequest =
 	| { kind: 'findFiles'; query: string; repoPath: string; worktreeId?: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
-	| { kind: 'repoThreads'; repoPath: string; category: 'issue' | 'pull_request'; after?: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
 
 /** Highlight positions are UTF-16 offsets into the repository-relative path. */
 export type FileMatch = { path: string; indices: number[] };
-
-export type RepositoryThread = Pick<PullRequest, 'number' | 'title' | 'review' | 'draft'> & {
-	url: string;
-	author?: string;
-	updatedAt?: string;
-};
 
 export type DaemonResults = {
 	changes: Changes;
@@ -558,12 +551,12 @@ export type DaemonResults = {
 	continueWorktree: { branch: string };
 	approveRun: null;
 	portReady: boolean;
+	portTaken: string | null;
 	config: RepoConfig;
 	release: ReleasePlan | null;
 	findFiles: FileMatch[];
 	editReleaseNote: null;
 	repoIcon: RepoIcon | null;
-	repoThreads: { items: RepositoryThread[]; next?: string };
 	diff: FileVersions;
 	source: FileContent | null;
 	picture: Picture | null;

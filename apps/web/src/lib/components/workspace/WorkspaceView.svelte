@@ -1,5 +1,4 @@
 <script lang="ts">
-	import RunningJob from '@geordi/ui/RunningJob.svelte';
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -36,7 +35,8 @@
 		type Zone
 	} from '#lib/layout.ts';
 	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
-	import RunControls from './RunControls.svelte';
+	import JobMark, { type JobState } from './JobMark.svelte';
+	import RunPane from './RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
@@ -73,6 +73,8 @@
 	import Markdown from '#lib/components/Markdown.svelte';
 	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
+	import CombinedDiffFile from './CombinedDiffFile.svelte';
+	import DiffSection from '../DiffSection.svelte';
 	import PatchView from '../PatchView.svelte';
 
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
@@ -126,9 +128,12 @@
 	// dragged from any area to any other.
 	const CHAT = 'chat';
 	const PR = 'pr';
+	const COMBINED = 'combined-diff';
 	const TURN = 'turn-changes';
 	let selectedTurn = $state.raw<TurnChanges>();
 	const CHANGES = 'changes';
+	/** The repository's links and jobs, and how they are: in the dock, where their output is. */
+	const RUN = 'run';
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
 	const DRAFT = 'draft';
@@ -194,9 +199,11 @@
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
+		if (tab === COMBINED) return !project;
 		if (tab === TURN) return !!selectedTurn;
 		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
+		if (tab === RUN) return runnable;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('subagent:')) return reviewers.has(tab);
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
@@ -234,6 +241,7 @@
 			if (!placed.includes(`agent:${aide.id}`)) main = add(main, `agent:${aide.id}`, beside);
 		for (const tab of [CHANGES, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
+		if (exists(RUN) && !placed.includes(RUN)) dock = add(dock, RUN);
 		for (const name of workspace.terminals)
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
 		return { main, side, dock };
@@ -251,12 +259,23 @@
 	const config = $derived(workspace.archivedAt ? null : (workspace.git?.config ?? null));
 	const jobs = $derived(config?.jobs ?? []);
 	const links = $derived(config?.urls ?? []);
+	/** Whether there is anything to run, or something to say about the file that says so. */
+	const runnable = $derived(jobs.length > 0 || links.length > 0 || !!config?.problem);
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
 	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
 	/** A job runs while its terminal is there and its command has not ended in it. */
 	const isUp = (job: string) =>
 		workspace.terminals.includes(JOB_TERMINAL + job) && !(JOB_TERMINAL + job in workspace.finished);
+	/** How a job is: up once it listens on its port; over, and how it went, once it ended. */
+	function jobState(job: string): JobState {
+		const terminal = JOB_TERMINAL + job;
+		const ended = workspace.finished[terminal];
+		if (workspace.terminals.includes(terminal) && ended !== undefined) return { ended };
+		if (launching.has(job)) return 'starting';
+		return isUp(job) ? 'running' : 'stopped';
+	}
+	const labelOf = (job: string) => jobs.find((other) => other.name === job)?.label ?? job;
 
 	// The commands are in a file the agent can write, and run as the user, outside any
 	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
@@ -297,9 +316,7 @@
 			mergeProblem = null;
 			try {
 				await runSetup({ workspaceId: id, command: setup.command });
-				const front = jobTab('setup');
-				const at = areaOf(front) ?? 'dock';
-				arrange({ [at]: open(layouts[at], front) });
+				show('setup');
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not set up');
 			}
@@ -331,10 +348,6 @@
 			mergeProblem = null;
 			try {
 				await startJobs({ workspaceId: id, jobs: names, seen });
-				// its tab is there as soon as its terminal is: in front, unless it was put elsewhere
-				const front = jobTab(names.at(-1)!);
-				const at = areaOf(front) ?? 'dock';
-				arrange({ [at]: open(layouts[at], front) });
 				await jobsReady({ workspaceId: id, jobs: order });
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not start that');
@@ -342,6 +355,14 @@
 				for (const name of order) launching.delete(name);
 			}
 		});
+	}
+
+	/** Brings a job's terminal to the front: in the dock, unless it was put elsewhere. */
+	function show(job: string) {
+		const front = jobTab(job);
+		const at = areaOf(front) ?? 'dock';
+		if (at !== 'main' && !frame.current.open) toggleSide();
+		arrange({ [at]: open(layouts[at], front) });
 	}
 
 	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
@@ -395,14 +416,15 @@
 	}
 
 	// A workspace has a terminal to begin with: opened when it is, if it has none, where
-	// there is a directory to open one in.
+	// there is a directory to open one in. One with things to run begins with those instead.
 	let begun = false;
 	$effect(() => {
-		if (begun || !git?.changes || workspace.archivedAt || !workspace.worktree || worktreeGone)
-			return;
+		// what it has to run is known once its configuration has come, after its changes
+		if (begun || !git?.changes || !git.config) return;
+		if (workspace.archivedAt || !workspace.worktree || worktreeGone) return;
 		begun = true;
 		untrack(() => {
-			if (workspace.terminals.length === 0 && starting.size === 0)
+			if (workspace.terminals.length === 0 && starting.size === 0 && !runnable)
 				arrange({ dock: open(dock, newTerminal(false)) });
 		});
 	});
@@ -453,6 +475,7 @@
 		tab !== CHANGES &&
 		tab !== PR &&
 		tab !== CHANGESET &&
+		tab !== RUN &&
 		// not from under an agent at work
 		aideOf(tab)?.status !== 'running';
 
@@ -695,21 +718,6 @@
 	}}
 />
 
-<!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
-{#snippet runActions()}
-	<RunControls
-		defaultTarget={config?.default}
-		{jobs}
-		{links}
-		{isUp}
-		{launching}
-		{start}
-		{stop}
-		{visit}
-		problem={config?.problem}
-	/>
-{/snippet}
-
 <!-- A count at the end of a tab: nearer the tab's edge than text would be, being a shape itself. -->
 {#snippet count(n: number)}
 	<span class="-mr-1 flex"><Badge>{n}</Badge></span>
@@ -718,9 +726,15 @@
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
-	{#if tab === TURN}
+	{#if tab === COMBINED}
+		<span class="icon-[lucide--files] size-3.5 shrink-0"></span>
+		<span>Combined diff</span>
+	{:else if tab === TURN}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
+	{:else if tab === RUN}
+		<span class="icon-[lucide--circle-play] size-3.5 shrink-0"></span>
+		<span class="truncate">Run</span>
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -749,22 +763,9 @@
 	{:else if terminalOf(tab)}
 		{@const job = jobOf(terminalOf(tab))}
 		{#if job}
-			{@const status = workspace.finished[terminalOf(tab) ?? '']}
 			<!-- running; or over, and how it went: its output is still there to be read -->
-			{#if status === undefined && launching.has(job)}
-				<!-- on its way up: until it listens on its port -->
-				<ProgressIcon label="Starting" />
-			{:else if status === undefined}
-				<RunningJob class="size-3.5" />
-			{:else if status === 0}
-				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
-			{:else}
-				<span
-					class="icon-[lucide--x] size-3.5 shrink-0 text-danger"
-					title="Ended with status {status}"
-				></span>
-			{/if}
-			<span class="truncate">{job}</span>
+			<JobMark state={jobState(job)} />
+			<span class="truncate">{labelOf(job)}</span>
 		{:else}
 			{@const terminals = everywhere()
 				.filter((other) => terminalOf(other) && !jobOf(terminalOf(other)))
@@ -800,7 +801,23 @@
 	{@const path = tab === 'diff' ? saved.diffPath : undefined}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
-	{#if tab === TURN && selectedTurn}
+	{#if tab === COMBINED}
+		<div class="scroller space-y-2 p-3">
+			{#if git?.unavailable}
+				<p class="text-sm text-muted">{git.unavailable}</p>
+			{:else if !git?.changes}
+				<p class="text-sm text-muted">Loading the changes…</p>
+			{:else}
+				{#each git.changes.files as file (file.path)}
+					<DiffSection path={file.path} added={file.added} removed={file.removed}>
+						<CombinedDiffFile workspaceId={id} path={file.path} version={git.version} />
+					</DiffSection>
+				{:else}
+					<p class="text-sm text-muted">No changes yet</p>
+				{/each}
+			{/if}
+		</div>
+	{:else if tab === TURN && selectedTurn}
 		<div class="scroller px-3 pb-4">
 			{#key selectedTurn}
 				<header
@@ -816,11 +833,23 @@
 				<PatchView diff={selectedTurn.diff} collapsible />
 			{/key}
 		</div>
+	{:else if tab === RUN}
+		<RunPane
+			{jobs}
+			{links}
+			stateOf={jobState}
+			{start}
+			{stop}
+			{show}
+			{visit}
+			problem={config?.problem}
+		/>
 	{:else if tab === CHANGES}
 		<Changes
 			{git}
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 			onopen={openDiff}
+			onopencombined={() => showTab(COMBINED)}
 			bind:view={changesView.current}
 		/>
 	{:else if tab === PR && pull}
@@ -1067,7 +1096,6 @@
 								splits={false}
 								newTab={workspace.archivedAt ? undefined : newTerminal}
 								newLabel="New terminal"
-								actions={runActions}
 							/>
 						</div>
 					{/snippet}

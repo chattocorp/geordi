@@ -43,7 +43,6 @@
 		standing: null,
 		actions: [],
 		branch: `geordi/${id}`,
-		pull: null,
 		updatedAt: '2026-11-18T12:00:00.000Z',
 		...rest
 	});
@@ -238,8 +237,8 @@
 	)}
 </Story>
 
-<Story name="On the overview" asChild>
-	{@render frame(nav, '/overview')}
+<Story name="On the archive" asChild>
+	{@render frame(nav, '/archive')}
 </Story>
 
 <Story
@@ -326,13 +325,12 @@
 </Story>
 
 <Story
-	name="Open or fold a repository"
+	name="Fold a repository from its name"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const repo = canvas.getByRole('link', { name: 'sample-project' });
-		await expect(repo).toHaveAttribute('href', '/repos/sample');
-		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse sample-project' }));
+		const repo = canvas.getByRole('button', { name: 'Collapse sample-project' });
+		await fireEvent.click(within(repo).getByText('sample-project'));
 		await expect(repo).toBeVisible();
 		await expect(within(repo).getByText('2')).toBeVisible();
 		await expect(canvas.queryByText('Try out the new parser')).toBeNull();
@@ -344,7 +342,7 @@
 		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
 	}}
 >
-	{@render frame(nav, '/repos/sample')}
+	{@render frame(nav, '/workspaces/plain')}
 </Story>
 
 <Story

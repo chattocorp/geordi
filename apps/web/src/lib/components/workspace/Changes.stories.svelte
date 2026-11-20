@@ -112,12 +112,15 @@
 				files: [{ path: 'message.txt', status: 'modified', added: 1, removed: 1 }]
 			}
 		},
-		onopen: fn()
+		onopen: fn(),
+		onopencombined: fn()
 	}}
 	play={async ({ canvas, userEvent, args }) => {
 		await expect(canvas.getByText('main')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: /message.txt/ }));
 		await expect(args.onopen).toHaveBeenCalledWith('message.txt');
+		await userEvent.click(canvas.getByRole('button', { name: 'Open combined diff' }));
+		await expect(args.onopencombined).toHaveBeenCalledOnce();
 	}}
 />
 
@@ -162,7 +165,9 @@
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
 		const nested = canvas.getByRole('button', { name: 'very/deeply/nested/directories' });
 		await expect(nested).toHaveAttribute('aria-expanded', 'true');
-		await expect(nested).toHaveTextContent('directories');
+		await expect(canvas.getByText('directories')).toHaveStyle({
+			color: getComputedStyle(nested).color
+		});
 		await waitFor(() => expect(nested).toHaveTextContent(/^v\/.*directories$/));
 		await expect(nested).toHaveStyle({ fontSize: '15px' });
 		await expect(canvas.getByRole('button', { name: /INDEX\.md/ })).toBeVisible();
