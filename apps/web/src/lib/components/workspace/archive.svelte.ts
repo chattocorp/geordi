@@ -11,7 +11,7 @@ export const beingArchived = new SvelteSet<string>();
 export type ArchiveQuestion = {
 	title: string;
 	concerns: string[];
-	blocked: boolean;
+	stopAgents: boolean;
 	busy: boolean;
 	answer(go: boolean): void;
 };
@@ -29,15 +29,15 @@ export async function archive(workspaceId: string, title: string): Promise<boole
 	beingArchived.add(workspaceId);
 	let hasQuestion = false;
 	try {
-		const { concerns, discard, blocked } = await previewArchive(workspaceId);
+		const { concerns, discard, stopAgents } = await previewArchive(workspaceId);
 		if (concerns.length) {
 			const decision = Promise.withResolvers<boolean>();
-			questions.push({ title, concerns, blocked, busy: false, answer: decision.resolve });
+			questions.push({ title, concerns, stopAgents, busy: false, answer: decision.resolve });
 			hasQuestion = true;
-			if (!(await decision.promise) || blocked) return false;
+			if (!(await decision.promise)) return false;
 			questions[0].busy = true;
 		}
-		await archiveWorkspace({ workspaceId, discard });
+		await archiveWorkspace({ workspaceId, discard, stopAgents });
 		return true;
 	} catch (error) {
 		archiveProblems[workspaceId] = problemOf(error, 'Could not archive the workspace');
