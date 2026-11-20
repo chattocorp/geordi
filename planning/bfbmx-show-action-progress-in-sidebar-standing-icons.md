@@ -6,4 +6,4 @@ data:
 id: bfbmx
 title: Show action progress in sidebar standing icons
 ---
-The sidebar replaces the standing icon and action pill with a spinner during a pull request action. A confirmed merge stays busy while the live view still offers Merge for that pull request. Browser and command tests cover the spinner, duplicate clicks, and retry after failure.
+The sidebar shows a green merge, red repair, or purple archive animation for the active operation. Agent turns, worktree operations, running jobs, and background tasks share the activity slot. A queued agent action takes over when its turn begins and survives forge replay. Browser tests cover the symbols, and reduced motion keeps them static. Type checks, lint, tests, and release validation passed.

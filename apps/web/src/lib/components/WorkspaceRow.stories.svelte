@@ -42,11 +42,14 @@
 </Story>
 
 <Story
-	name="Merging a pull request"
+	name="Workspace activity"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole('img', { name: 'Merging pull request' })).toBeVisible();
+		for (const name of ['Fixing checks', 'Archiving', 'Working', 'Running tests']) {
+			await expect(canvas.getByRole('img', { name })).toBeVisible();
+		}
 		await expect(canvas.queryByRole('img', { name: 'Ready to merge' })).toBeNull();
 		await expect(canvas.queryByRole('button')).toBeNull();
 	}}
@@ -54,11 +57,15 @@
 	<div class="w-64 sheet-quiet p-2">
 		<WorkspaceRow
 			title="Branding cleanup"
-			progress="Merging pull request"
+			progress="merge-pull"
 			standing={{ label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' }}
 			actions={[{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]}
 			onaction={fn()}
 			onarchive={fn()}
 		/>
+		<WorkspaceRow title="Repair failing CI" working progress="fix-checks" />
+		<WorkspaceRow title="Retire the old importer" leaving />
+		<WorkspaceRow title="Explore the event log" working />
+		<WorkspaceRow title="Verify the new parser" jobs={['tests']} />
 	</div>
 </Story>

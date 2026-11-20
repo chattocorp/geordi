@@ -1,3 +1,4 @@
+import { ACTION_IDS } from '@geordi/ui/actions';
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
@@ -116,8 +117,9 @@ export const sendMessage = form(
 );
 
 /** Says something to the workspace's agent without a form: what the workspace's actions do. */
-export const say = command(v.object({ workspaceId: v.string(), text }), ({ workspaceId, text }) =>
-	workspaces().send(workspaceId, text)
+export const say = command(
+	v.object({ workspaceId: v.string(), text, action: v.optional(v.picklist(ACTION_IDS)) }),
+	({ workspaceId, text, action }) => workspaces().send(workspaceId, text, null, [], action)
 );
 
 export const restoreWorkspace = command(v.string(), async (id) => {

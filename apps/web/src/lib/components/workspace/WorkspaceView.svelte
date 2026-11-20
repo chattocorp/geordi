@@ -643,7 +643,7 @@
 	async function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
-		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		else if (action.prompt) say({ workspaceId: id, text: action.prompt, action: action.id });
 		else if (action.pullNumber) {
 			mergeProblem = null;
 			await runPullAction(id, action);

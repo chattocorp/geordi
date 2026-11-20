@@ -394,8 +394,9 @@
 			working={workspace.working || (isFolded && busy)}
 			progress={pendingPullAction.get(workspace.id) ??
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
-					? 'Merging pull request'
-					: undefined)}
+					? 'merge-pull'
+					: workspace.activeAction)}
+			jobs={workspace.runningJobs}
 			standing={workspace.standing}
 			actions={workspace.actions}
 			fold={under > 0

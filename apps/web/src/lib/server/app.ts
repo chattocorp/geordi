@@ -215,7 +215,7 @@ export async function updateWorkspace(id: string, prompt: string) {
 			// no daemon, no worktree: the agent's turn says what is wrong
 			console.warn(`[update] ${cause instanceof Error ? cause.message : String(cause)}`);
 		}
-	workspaces().send(id, prompt);
+	workspaces().send(id, prompt, null, [], 'merge-upstream');
 }
 
 /**

@@ -4,7 +4,7 @@ import type { WorkspaceAction } from '@geordi/ui/actions';
 import { enableWithReview, mergeWithReview } from './release-review.svelte.ts';
 import { markReady, setAutoMerge } from '../../../routes/workspaces.remote';
 
-export const pendingPullAction = new SvelteMap<string, string>();
+export const pendingPullAction = new SvelteMap<string, WorkspaceAction['id']>();
 // The command can confirm the merge before navigation or the workspace view catches up.
 const mergedPull = new SvelteMap<string, string>();
 
@@ -21,10 +21,7 @@ export async function runPullAction(workspaceId: string, action: WorkspaceAction
 	const { pullNumber } = action;
 	if (!pullNumber) return;
 	if (pullActionPending(workspaceId, action)) return;
-	pendingPullAction.set(
-		workspaceId,
-		action.id === 'merge-pull' ? 'Merging pull request' : action.label + ' in progress'
-	);
+	pendingPullAction.set(workspaceId, action.id);
 	delete reviewProblems[workspaceId];
 	try {
 		if (action.id === 'merge-pull') {

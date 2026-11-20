@@ -2,4 +2,4 @@
 type: fix
 ---
 
-Your sidebar shows a spinner while a pull request action runs and while a confirmed merge updates.
+Your sidebar shows what each workspace is doing. A green merge, red wrench, or purple archive icon animates while the action runs. You can also see agent turns and running jobs.
