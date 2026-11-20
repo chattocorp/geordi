@@ -276,11 +276,14 @@
 		const list = canvasElement.querySelector<HTMLElement>('.scroll-fade')!;
 		await waitFor(() => expect(list).toHaveClass('more-below'));
 		await expect(list).not.toHaveClass('more-above');
-		list.scrollTop = (list.scrollHeight - list.clientHeight) / 2;
+		const more = within(canvasElement).getByRole('button', { name: 'Scroll to more workspaces' });
+		await expect(more).toBeVisible();
+		await fireEvent.click(more);
 		await waitFor(() => expect(list).toHaveClass('more-above', 'more-below'));
 		list.scrollTop = list.scrollHeight;
 		await waitFor(() => expect(list).not.toHaveClass('more-below'));
 		await expect(list).toHaveClass('more-above');
+		await expect(more).not.toBeVisible();
 		list.scrollTop = 0;
 	}}
 >
