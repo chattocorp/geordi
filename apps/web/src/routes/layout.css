@@ -24,6 +24,17 @@
 @custom-variant desktop (&:where([data-desktop], [data-desktop] *));
 /* In the desktop app on macOS, whose window's buttons sit at the top left. */
 @custom-variant mac (&:where([data-desktop='mac'], [data-desktop='mac'] *));
+/* A row's controls: shown while it is hovered, or keyboard focus is inside it (a `group`). */
+@custom-variant reveal {
+	@media (hover: hover) {
+		&:is(:where(.group):hover *) {
+			@slot;
+		}
+	}
+	&:is(:where(.group):has(:focus-visible) *) {
+		@slot;
+	}
+}
 
 /*
  * Geordi's design system starts here: colour tokens, type and shape (in `@theme`), and
