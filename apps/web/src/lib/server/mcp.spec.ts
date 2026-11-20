@@ -298,6 +298,45 @@ describe('the agent API as an MCP server', () => {
 		});
 	});
 
+	it('advertises the start locations and supervision scope available to each caller', async () => {
+		const { caller, rpcAs, workspaces } = setup();
+		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Coordinate' });
+		const token = workspaces.access.issue('Client', [workspaces.get(caller).repoId!]);
+		const external = workspaces.agents.authenticate(token)!;
+		const catalog = async (actor: string) => {
+			const { tools } = (await rpcAs(actor)('tools/list')).result as {
+				tools: {
+					name: string;
+					description: string;
+					inputSchema: { required?: string[]; properties: Record<string, unknown> };
+				}[];
+			};
+			return Object.fromEntries(tools.map((tool) => [tool.name, tool]));
+		};
+		const repoTools = await catalog(caller);
+		const projectTools = await catalog(project);
+		const clientTools = await catalog(external);
+		expect(repoTools.start_agent.inputSchema.properties).not.toHaveProperty('repository');
+		expect(repoTools.start_agent.inputSchema.properties).not.toHaveProperty('workspace');
+		expect(projectTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
+		expect(projectTools.start_agent.description).toContain('regardless of worktree mode');
+		expect(clientTools.start_agent.inputSchema.required).toContain('repository');
+		expect(clientTools.start_agent.inputSchema.properties.worktree).toMatchObject({ const: 'own' });
+		expect(clientTools.start_agent.inputSchema.properties).not.toHaveProperty('workspace');
+		expect(clientTools.send_message.description).toContain(
+			'only your own direct or indirect descendants'
+		);
+		for (const name of ['send_message', 'stop_agent', 'archive_agent'])
+			expect(projectTools[name].description).toContain(
+				'any agent in a repository or in your project'
+			);
+		expect(repoTools.archive_agent.description).toContain('earlier workspaces stay archived');
+		expect(projectTools.archive_agent.description).toContain('preserves the folder');
+		expect(clientTools.workspace_status.inputSchema.required).toContain('agent_id');
+		expect(projectTools.workspace_status.inputSchema.required).toContain('agent_id');
+		expect(repoTools.workspace_status.inputSchema.required ?? []).not.toContain('agent_id');
+	});
+
 	it('ignores notifications and rejects unknown methods', async () => {
 		const { agents, caller, rpc } = setup();
 		const notification = { jsonrpc: '2.0', method: 'notifications/initialized' } as const;
