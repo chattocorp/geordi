@@ -61,7 +61,6 @@
 			standing={{ label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' }}
 			actions={[{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]}
 			onaction={fn()}
-			onarchive={fn()}
 		/>
 		<WorkspaceRow title="Repair failing CI" working progress="fix-checks" />
 		<WorkspaceRow title="Retire the old importer" leaving />

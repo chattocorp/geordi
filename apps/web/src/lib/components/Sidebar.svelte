@@ -404,7 +404,6 @@
 				: undefined}
 			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
 			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
-			onarchive={busy || leaving ? undefined : () => archiveAndNavigate(workspace)}
 		/>
 	</li>
 {/snippet}
