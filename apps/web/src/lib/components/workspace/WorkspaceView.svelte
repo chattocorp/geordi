@@ -600,6 +600,21 @@
 	function promote(tab: string) {
 		if (chatGroup) receive('main')(tab, chatGroup, 'center');
 	}
+	/** Where a window belongs beside the main area, if it does. */
+	const homeOf = (tab: string): Area | undefined =>
+		tab === CHANGES || tab === PR || tab === CHANGESET
+			? 'side'
+			: tab === RUN || terminalOf(tab)
+				? 'dock'
+				: undefined;
+	/** Send a window from the main area back to where it belongs. */
+	function demote(tab: string) {
+		const home = homeOf(tab);
+		const group = home && groupsOf(layouts[home])[0];
+		if (!home || !group || !workspace.worktree) return;
+		if (!frame.current.open) toggleSide();
+		receive(home)(tab, group.id, 'center');
+	}
 
 	/** The conversation stays where it is, and what a workspace always has can't be closed. */
 	const movable = (tab: string) => tab !== CHAT;
@@ -1221,6 +1236,7 @@
 					{closable}
 					accepts={movable}
 					onreceive={receive('main')}
+					ondoubleclick={demote}
 					newTab={workspace.archivedAt ? undefined : newConversation}
 					newLabel="New conversation"
 				/>
