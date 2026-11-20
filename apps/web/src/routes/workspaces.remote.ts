@@ -47,6 +47,11 @@ const agentSettings = {
 	permissionMode: v.optional(v.picklist(PERMISSION_MODES))
 };
 
+export const renameWorkspace = command(
+	v.object({ workspaceId: v.string(), title: v.string() }),
+	({ workspaceId, title }) => workspaces().rename(workspaceId, title)
+);
+
 /** Applies the workspace settings from the next turn. */
 export const configureWorkspace = command(
 	v.object({

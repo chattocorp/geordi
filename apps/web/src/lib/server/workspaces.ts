@@ -298,6 +298,7 @@ export type Workspace = {
 	title: string;
 	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
 	named: boolean;
+	manuallyNamed?: boolean;
 	agent: Agent;
 	/** The agent settings for its next turn. */
 	settings: AgentSettings;
@@ -504,6 +505,7 @@ export function createWorkspaces(
 			workspace.title = event.data.title;
 			// a title someone chose, as opposed to one its agent's session goes by
 			if (actor) workspace.named = true;
+			if (actor === 'person') workspace.manuallyNamed = true;
 			return;
 		}
 		if (event.type === 'workspace.configured') {
@@ -994,6 +996,7 @@ export function createWorkspaces(
 				project: workspace.repoId === null,
 				sharesWorktree: workspace.worktreeId !== workspace.id,
 				named: workspace.named,
+				manuallyNamed: workspace.manuallyNamed,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
 			...(attachments.length && { images: attachments }),
@@ -1344,6 +1347,7 @@ export function createWorkspaces(
 		 * times at most: a name that keeps changing is no name.
 		 */
 		name(callerId: string, title: string) {
+			if (find(callerId).manuallyNamed) error(409, 'The person chose this workspace name.');
 			const mine = store
 				.readStream(`workspace:${callerId}`)
 				.filter((event) => event.type === 'workspace.titled' && event.actor === callerId);
@@ -1816,6 +1820,17 @@ export function createWorkspaces(
 			);
 		},
 
+		rename(id: string, title: string) {
+			const workspace = find(id);
+			const clean = title.trim();
+			if (!clean || clean.length > 80 || /[\r\n]/.test(clean))
+				error(400, 'Enter a name of 1 to 80 characters on one line.');
+			if (workspace.manuallyNamed && workspace.title === clean) return;
+			store.append(
+				{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: clean } },
+				{ actor: 'person' }
+			);
+		},
 		retitle,
 
 		/**
