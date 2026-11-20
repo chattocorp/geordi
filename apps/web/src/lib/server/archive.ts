@@ -37,19 +37,27 @@ export function createArchiver({
 	removeWorktree,
 	closeProject
 }: Parts) {
-	return async function archive(id: string, discard: boolean, actor: string | null = null) {
+	return async function archive(
+		id: string,
+		discard: boolean,
+		actor: string | null = null,
+		stopAgents = false
+	) {
 		// children before their parents, so a shared worktree goes with its last user
 		const family = [id, ...workspaces.descendants(id)].reverse().map(workspaces.summary);
 
 		const busy = family.find((workspace) => workspace.status === 'running');
-		if (busy) error(409, `Stop the agent in “${busy.title}” before archiving`);
+		if (busy && (!stopAgents || actor !== null))
+			error(409, `Stop the agent in “${busy.title}” before archiving`);
 
 		const release = workspaces.hold(
 			family.flatMap((workspace) => [workspace.id, workspace.worktreeId]),
 			'being archived'
 		);
 		try {
-			for (const workspace of family) {
+			if (busy) await workspaces.stopForArchive(family.map(({ id }) => id));
+			for (const member of family) {
+				const workspace = workspaces.summary(member.id);
 				if (workspace.archivedAt) continue;
 				// a project's agents end with it, once nothing else works in its folder; the folder stays
 				if (
