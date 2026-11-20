@@ -27,8 +27,7 @@
 	import { moveWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
-	 * The sidebar's sheet: a new workspace, the workspaces by
-	 * repository, and the archive and settings below. `nav` is what there is, once known; `path` is the
+	 * The sidebar groups workspaces by repository and keeps navigation links below the list. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
 	 * repository under its name, and those its agents started under a workspace. `focus` is
 	 * the repository shown alone, if any. `visibleWorkspaces` are those shown, `todayOnly` whether
@@ -302,12 +301,10 @@
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col sheet-quiet select-none">
 	<nav class="flex min-h-0 flex-1 flex-col p-2" aria-label="Main">
-		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
-
 		<div
 			role="group"
 			aria-label="Workspace filters"
-			class="my-2 flex shrink-0 items-center justify-between gap-1"
+			class="mb-2 flex shrink-0 items-center justify-between gap-1"
 		>
 			<Select
 				label="Repository"
@@ -410,8 +407,9 @@
 		</div>
 	</nav>
 
-	<div class="p-2">
+	<nav class="p-2" aria-label="Workspace navigation">
 		<ConnectionIndicator {lost} class="px-2.5 py-1" />
+		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 		{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
 		<a
 			href={settingsPath()}
@@ -422,7 +420,7 @@
 			Settings
 			<kbd class="ml-auto font-sans text-xs text-muted">{settingsHint}</kbd>
 		</a>
-	</div>
+	</nav>
 </div>
 
 {#snippet row(

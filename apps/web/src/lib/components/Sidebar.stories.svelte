@@ -276,7 +276,12 @@
 	name="Nothing yet"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(within(canvasElement).getByRole('link', { name: 'New workspace' })).toBeVisible();
+		const menu = within(canvasElement).getByRole('navigation', { name: 'Workspace navigation' });
+		const [create, archive, settings] = within(menu).getAllByRole('link');
+		await expect(create).toHaveAccessibleName('New workspace');
+		await expect(create).toHaveAttribute('aria-current', 'page');
+		await expect(archive).toHaveAccessibleName('Archive');
+		await expect(settings).toHaveAccessibleName(/Settings/);
 	}}
 >
 	{@render frame(undefined, '/')}
