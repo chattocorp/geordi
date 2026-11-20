@@ -27,6 +27,7 @@
 		"./SidebarRowLabel.svelte": "./src/SidebarRowLabel.svelte",
 		"./Spinner.svelte": "./src/Spinner.svelte",
 		"./StandingIcon.svelte": "./src/StandingIcon.svelte",
+		"./StatusCircle.svelte": "./src/StatusCircle.svelte",
 		"./TitleBar.svelte": "./src/TitleBar.svelte",
 		"./Toolbar.svelte": "./src/Toolbar.svelte",
 		"./ToolCall.svelte": "./src/ToolCall.svelte",

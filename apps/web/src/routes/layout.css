@@ -358,7 +358,7 @@
 	@apply rounded-card border border-dashed border-line px-4 py-10 text-center text-muted;
 }
 
-/* Workspace actions and their activity icons share the same status colours. */
+/* Workspace actions and the circles of `StatusCircle` (a workspace's state) share these colours. */
 @utility status-ok {
 	@apply bg-ok/12 text-ok;
 }
@@ -367,6 +367,12 @@
 }
 @utility status-merged {
 	@apply bg-merged/15 text-merged;
+}
+@utility status-accent {
+	@apply bg-accent-soft text-accent-ink;
+}
+@utility status-neutral {
+	@apply bg-hover text-muted;
 }
 
 /* A status dot. Add `dot-live` while the thing it stands for is working. */

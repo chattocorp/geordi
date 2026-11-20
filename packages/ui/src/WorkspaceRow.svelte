@@ -4,6 +4,7 @@
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 
 	import StandingIcon from './StandingIcon.svelte';
+	import StatusCircle from './StatusCircle.svelte';
 
 	let {
 		title,
@@ -104,14 +105,17 @@
 	/>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-		{#if activity}
-			<span class="col-start-1 row-start-1 grid w-6 place-items-center text-muted">
-				<WorkspaceActivity {activity} />
-			</span>
+		{#if asking}
+			<!-- an agent there waits for the person's answer -->
+			<StatusCircle tone="accent" label="Waiting for your answer">
+				<span class="icon-[lucide--message-circle-question] size-4"></span>
+			</StatusCircle>
+		{:else if activity}
+			<WorkspaceActivity {activity} />
 		{:else if visibleStanding}
 			<span
 				class={[
-					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
+					'col-start-1 row-start-1 grid justify-self-end',
 					pillColor &&
 						'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
 				]}
@@ -119,7 +123,7 @@
 				<StandingIcon standing={visibleStanding} />
 			</span>
 		{/if}
-		{#if !activity && primary && pillColor}
+		{#if !asking && !activity && primary && pillColor}
 			<button
 				type="button"
 				class={[
@@ -138,14 +142,7 @@
 	</span>
 </div>
 {#snippet statusIcon()}
-	{#if asking}
-		<!-- an agent there waits for the person's answer -->
-		<span
-			class="icon-[lucide--message-circle-question] size-4 text-accent-ink"
-			role="img"
-			aria-label="Waiting for your answer"
-		></span>
-	{:else if waiting}
+	{#if waiting}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
 	{:else if icon}
 		<span class={[icon, 'size-4']}></span>
