@@ -14,7 +14,6 @@ import {
 	github,
 	MergeMethodRequiredError,
 	type Check,
-	type Cursor,
 	type ResolvedThreadRef,
 	type ForgeProvider,
 	type Forges,
@@ -400,99 +399,6 @@ export async function unknownForge(repoPath: string): Promise<string | null> {
 	const host = remote && hostOf(remote);
 	if (!host) return null;
 	return (await forges()).parseUrl(remote) ? null : host;
-}
-
-// Provider cursors can contain request URLs. Only pass back a cursor this daemon issued.
-const threadListings = new Map<
-	string,
-	{ at: number; read: ReturnType<typeof readRepositoryThreads> }
->();
-const threadPages = new Map<string, { key: string; cursor: Cursor }>();
-
-export async function repositoryThreads(
-	repoPath: string,
-	category: 'issue' | 'pull_request',
-	after?: string
-) {
-	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
-	const found = remote && (await forges()).parseUrl(remote);
-	if (!found) throw new Error('This repository needs an origin on a supported forge.');
-	const { provider, repo } = found;
-	if (!provider.can('threads.list'))
-		throw new Error('This forge cannot list issues and pull requests.');
-	const key = JSON.stringify([repoPath, remote, category]);
-	const saved = after ? threadPages.get(after) : undefined;
-	if (after && saved?.key !== key)
-		throw new Error('This page has expired. Open the first page again.');
-	const pageKey = JSON.stringify([key, after]);
-	const cached = threadListings.get(pageKey);
-	if (cached && Date.now() - cached.at < 30_000) return cached.read;
-	const read = readRepositoryThreads(provider, repo, category, key, saved?.cursor);
-	threadListings.set(pageKey, { at: Date.now(), read });
-	if (threadListings.size > 128) threadListings.delete(threadListings.keys().next().value!);
-	try {
-		return await read;
-	} catch (error) {
-		if (threadListings.get(pageKey)?.read === read) threadListings.delete(pageKey);
-		throw error;
-	}
-}
-
-async function readRepositoryThreads(
-	provider: ForgeProvider,
-	repo: Repo,
-	category: 'issue' | 'pull_request',
-	key: string,
-	cursor?: Cursor
-) {
-	const page = await provider.threads
-		.list(repo, {
-			kind: category,
-			state: 'open',
-			sort: 'updated',
-			direction: 'desc',
-			// A single batch can fill in the review decisions for ten pull requests.
-			perPage: category === 'pull_request' ? 10 : 30,
-			cursor
-		})
-		.page();
-	const threads = page.items.filter((t) => t.ref.kind === category && t.state === 'open');
-	const details =
-		category === 'pull_request' &&
-		threads.length &&
-		provider.authKind !== 'anonymous' &&
-		provider.can('threads.getMany')
-			? await provider.threads
-					.getMany(
-						threads.map((t) => t.ref),
-						{ signal: AbortSignal.timeout(3500) }
-					)
-					.catch(() => [])
-			: [];
-	const items = threads.map((listed, index) => {
-		const result = details[index];
-		const thread = result?.ok ? result.thread : listed;
-		const { number, title, draft, review } = summarise(thread);
-		const url = thread.url || provider.urlFor({ thread: thread.ref });
-		if (!url || !/^https?:\/\//i.test(url))
-			throw new Error('The forge returned an invalid thread URL.');
-		return {
-			number,
-			title,
-			draft,
-			review,
-			url,
-			author: thread.author?.login,
-			updatedAt: listed.updatedAt?.toISOString()
-		};
-	});
-	let next: string | undefined;
-	if (page.cursor) {
-		next = crypto.randomUUID();
-		threadPages.set(next, { key, cursor: page.cursor });
-		if (threadPages.size > 512) threadPages.delete(threadPages.keys().next().value!);
-	}
-	return { items, next };
 }
 
 /**

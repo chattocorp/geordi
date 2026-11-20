@@ -71,7 +71,6 @@ export const navigation = () =>
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
-					pull: pull && pull.state !== 'unknown' ? { number: pull.number, url: pull.url } : null,
 					// when anything last happened in it, also in the agents working alongside
 					updatedAt: [workspace, ...aides]
 						.map((member) => member.updatedAt)

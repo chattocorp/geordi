@@ -421,7 +421,7 @@
 	})}
 </Story>
 
-<!-- Small, with only the next step: as on the overview's cards. -->
+<!-- Small, with only the next step. -->
 <Story
 	name="Compact"
 	asChild
