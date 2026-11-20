@@ -293,6 +293,8 @@ export type Workspace = {
 	outputCursor?: string;
 	/** Sequence of the last visible transcript change, including edits to existing tools and questions. */
 	activitySeq?: number;
+	/** Last new question or finished turn. */
+	recapTriggerSeq?: number;
 	pendingMessages?: PendingMessage[];
 	/** When the turn that is running began, for the `turn` item that ends it. */
 	turnStartedAt?: string;
@@ -706,6 +708,7 @@ export function createWorkspaces(
 			}
 			case 'question':
 				if (questionById(workspace, output.id)) break;
+				workspace.recapTriggerSeq = seq;
 				append({ ...output, answers: null, open: true, at });
 				if (output.blocking !== false) workspace.asking = true;
 				break;
@@ -719,6 +722,7 @@ export function createWorkspaces(
 				break;
 			case 'turn.completed':
 			case 'turn.failed':
+				workspace.recapTriggerSeq = seq;
 				delete workspace.activeAction;
 				workspace.status = 'idle';
 				// a turn that is over waits for no answer
@@ -1579,19 +1583,30 @@ export function createWorkspaces(
 				!workspace.resumeId ||
 				workspace.archivedAt ||
 				through <= after ||
+				(workspace.recapTriggerSeq ?? 0) <= after ||
 				through > (workspace.activitySeq ?? 0)
 			)
 				error(409, 'The workspace cannot be recapped.');
+			const events = store.readStream('workspace:' + id, after, through);
+			if (
+				!events.some(
+					(e) =>
+						e.type === 'workspace.output' &&
+						['turn.completed', 'turn.failed', 'question'].includes(e.data.event.kind)
+				)
+			)
+				error(409, 'No turn ended or question arrived during this interval.');
 			const questions = workspace.transcript.flatMap((item) =>
 				item.kind === 'question' && item.open ? item.questions.map((q) => q.question) : []
 			);
 			return {
 				kind: 'recap',
+				workspaceId: id,
 				...locate(id),
 				agent: workspace.agent,
 				sessionId: workspace.resumeId,
 				range: after + '-' + through,
-				activity: recapActivity(store.readStream('workspace:' + id, after, through), questions)
+				activity: recapActivity(events, questions)
 			};
 		},
 

@@ -2,4 +2,4 @@
 type: feature
 ---
 
-When you return to a Claude or Codex conversation, see what changed while you were away and whether the agent needs your input.
+After five minutes away, see a short recap when a turn finished or your agent asked a new question. In General settings, you can turn recaps off and check how many tokens Claude and Codex used for them.

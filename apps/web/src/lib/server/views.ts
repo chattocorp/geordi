@@ -1,7 +1,16 @@
 import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
-import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
+import {
+	hub,
+	limits,
+	recapUsage,
+	repos,
+	standings,
+	terminals,
+	watchers,
+	workspaces
+} from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
@@ -272,7 +281,11 @@ export const usageLimits = () =>
 	}) satisfies View<unknown>;
 
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
-export const views = { navigation, workspace, commands, archive, limits: usageLimits };
+const recapTotals = () => ({
+	read: recapUsage().totals,
+	affects: (event: GeordiEvent) => event.type === 'recap.measured'
+});
+export const views = { recapTotals, navigation, workspace, commands, archive, limits: usageLimits };
 
 export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;

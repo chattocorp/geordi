@@ -6,20 +6,23 @@ import {
 	ndJsonStream,
 	PROTOCOL_VERSION,
 	SessionUpdate,
+	StateUpdate,
 	ContentBlock
 } from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import type { DaemonRequest } from '@geordi/protocol';
+import type { DaemonRequest, TurnUsage } from '@geordi/protocol';
+import { turnUsage } from './agents/acp.ts';
 import { wrapperEntry, wrapperEnv } from './wrapper.ts';
 
 type Request = Extract<DaemonRequest, { kind: 'recap' }>;
 
 // Keep a request across a forge reconnect and coalesce returns from multiple windows.
+type Measure = (fork: string, usage: TurnUsage) => void;
 const recaps = new Map<string, Promise<string>>();
-export function workspaceRecap(request: Request, cwd: string) {
+export function workspaceRecap(request: Request, cwd: string, measure: Measure) {
 	const key = JSON.stringify([request.agent, request.sessionId, request.range]);
 	const previous = recaps.get(key);
 	if (previous) return previous;
-	const result = generateRecap(request, cwd);
+	const result = generateRecap(request, cwd, measure);
 	recaps.set(key, result);
 	void result.then(
 		() => {
@@ -31,7 +34,7 @@ export function workspaceRecap(request: Request, cwd: string) {
 	return result;
 }
 
-export async function generateRecap(request: Request, cwd: string) {
+export async function generateRecap(request: Request, cwd: string, measure: Measure) {
 	const env = { ...process.env };
 	const missing = wrapperEnv(request.agent, env);
 	if (missing) throw new Error(missing);
@@ -65,7 +68,10 @@ export async function generateRecap(request: Request, cwd: string) {
 			if (SessionUpdate.isAgentMessageChunk(u) && ContentBlock.isText(u.content))
 				messages.set(u.messageId, (messages.get(u.messageId) ?? '') + u.content.text);
 			if (SessionUpdate.isStateUpdate(u) && u.state === 'running') running = true;
-			if (running && SessionUpdate.isStateUpdate(u) && u.state === 'idle') {
+			if (running && SessionUpdate.isStateUpdate(u) && StateUpdate.isIdle(u)) {
+				running = false;
+				const { usage } = turnUsage(u.usage);
+				if (usage) measure(fork, usage);
 				const text = [...messages.values()].join('\n').trim();
 				if (u.stopReason === 'end_turn' && text) done.resolve(text);
 				else done.reject(new Error('The agent did not finish its recap.'));

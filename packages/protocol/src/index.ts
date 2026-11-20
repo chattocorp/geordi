@@ -456,9 +456,14 @@ export type ReleasePlan = {
 export type RepoIcon = { type: string; data: string };
 
 export type DaemonRequest =
-	| ({ kind: 'recap'; agent: Agent; sessionId: string; activity: string; range: string } & (
-			WorktreeRef | ProjectRef
-	  ))
+	| ({
+			kind: 'recap';
+			workspaceId: string;
+			agent: Agent;
+			sessionId: string;
+			activity: string;
+			range: string;
+	  } & (WorktreeRef | ProjectRef))
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
 	| ({ kind: 'changes' } & WorktreeRef)
 	/**
@@ -859,6 +864,7 @@ export type DaemonMessage =
 			/** The models and effort levels this daemon's agent CLIs offer. */
 			harnesses: Harness[];
 	  }
+	| { type: 'recap.measured'; id: string; workspaceId: string; agent: Agent; usage: TurnUsage }
 	| { type: 'workspace.event'; workspaceId: string; event: AgentEvent; cursor?: string }
 	/** Answers a `request`, with either a result (see `DaemonResults`) or an error. */
 	| { type: 'response'; id: string; result?: unknown; error?: string }

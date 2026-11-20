@@ -512,7 +512,15 @@ async function readRequest(request: DaemonRequest) {
 			'project' in request
 				? projectPath(projectsDir, request.worktreeId)
 				: (await locateWorktree(worktreesDir, request.repoPath, request.worktreeId)).path;
-		return workspaceRecap(request, cwd);
+		return workspaceRecap(request, cwd, (id, usage) =>
+			send({
+				type: 'recap.measured',
+				id,
+				workspaceId: request.workspaceId,
+				agent: request.agent,
+				usage
+			})
+		);
 	}
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);

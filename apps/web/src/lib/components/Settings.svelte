@@ -8,6 +8,8 @@
 	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import { hint, shortcutGroups } from '@geordi/ui/keys';
+	import RecapSettings from './RecapSettings.svelte';
+	import type { RecapTotals } from '#lib/server/recap-usage.ts';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
@@ -28,6 +30,7 @@
 		return updates?.subscribe((state) => (updateState = state));
 	});
 
+	const recaps = follow<RecapTotals>('recapTotals', () => (section === 'general' ? '' : undefined));
 	const nav = follow<Navigation>('navigation');
 	const repos = $derived(nav.current?.repos ?? []);
 
@@ -104,6 +107,7 @@
 						]}
 					/>
 				</div>
+				<RecapSettings totals={recaps.current} />
 			{:else if section === 'notifications'}
 				<h2 class="heading">Notifications</h2>
 				<p class="pb-4 text-sm text-muted">

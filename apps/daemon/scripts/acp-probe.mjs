@@ -163,16 +163,22 @@ try {
 
 	await until('foreground completion', () => ofKind('turn.completed').length);
 	if (scenario === 'recap') {
+		const measurements = [];
 		const text = await generateRecap(
 			{
 				kind: 'recap',
+				workspaceId,
 				agent,
 				sessionId: session.resumeId(),
 				range: '1-2',
 				activity: 'The agent finished its tests and asked the person a question.'
 			},
-			cwd
+			cwd,
+			(_fork, usage) => measurements.push(usage)
 		);
+		assert.equal(measurements.length, 1);
+		assert(measurements[0].totalTokens > 0);
+		console.log(JSON.stringify(measurements[0]));
 		assert.match(text, /lemon/i);
 		assert.match(text, /ship|release|deploy/i);
 		console.log(text);
