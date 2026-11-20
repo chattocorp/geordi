@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { basename } from 'node:path';
 import { promisify } from 'node:util';
 import { spawn, type IPty } from '@lydell/node-pty';
-import type { DaemonResults, TerminalSize } from '@geordi/protocol';
+import type { DaemonResults, TerminalActivity, TerminalSize } from '@geordi/protocol';
 
 /** How much output (in characters) is kept for viewers that connect later. */
 const SCROLLBACK = 200_000;
@@ -171,27 +171,33 @@ export const endedTerminals = (): Record<string, number> =>
 const exec = promisify(execFile);
 
 /** A terminal at its shell prompt can close quietly. Inspect processes only on archive. */
-export async function hasTerminalActivity(workspaceId: string): Promise<boolean> {
-	const shells = new Map<number, string>();
+export async function terminalActivity(workspaceId: string): Promise<TerminalActivity[]> {
+	const activity: TerminalActivity[] = [];
+	const shells = new Map<number, { name: string; shell: string; processes: string[] }>();
+	const prefix = workspaceId + ':';
 	for (const [id, terminal] of terminals) {
-		if (!id.startsWith(workspaceId + ':') || terminal.ended !== undefined) continue;
-		if (terminal.shell === null) return true;
-		shells.set(terminal.pty.pid, terminal.shell);
+		if (!id.startsWith(prefix) || terminal.ended !== undefined) continue;
+		const name = id.slice(prefix.length);
+		if (terminal.shell === null) activity.push({ terminal: name, processes: [] });
+		else shells.set(terminal.pty.pid, { name, shell: terminal.shell, processes: [] });
 	}
-	if (!shells.size) return false;
+	if (!shells.size) return activity;
 
 	// A foreground or background job has a parent in the shell. An exec'd program
-	// replaces the shell itself and keeps its PID.
+	// replaces the shell itself and keeps its PID. Read executable names without arguments.
 	const { stdout } = await exec('/bin/ps', ['-A', '-o', 'pid=,ppid=,stat=,comm=']);
 	for (const line of stdout.split('\n')) {
 		const row = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.+?)\s*$/.exec(line);
-		// A shell may leave a finished background job in the process table until it waits.
 		if (!row || row[3].startsWith('Z')) continue;
-		if (shells.has(Number(row[2]))) return true;
+		const name = basename(row[4]);
+		const owner = shells.get(Number(row[2]));
+		if (owner) owner.processes.push(name);
 		const shell = shells.get(Number(row[1]));
-		if (shell && basename(row[4]) !== shell) return true;
+		if (shell && name !== shell.shell) shell.processes.push(name);
 	}
-	return false;
+	for (const { name, processes } of shells.values())
+		if (processes.length) activity.push({ terminal: name, processes });
+	return activity;
 }
 
 export function scrollbackOf(id: string): DaemonResults['scrollback'] {

@@ -620,7 +620,20 @@ describe('status', () => {
 
 		git('add', 'a.txt');
 		git('commit', '-qm', 'a');
-		expect(await status(worktree, origin)).toMatchObject({ uncommitted: 1, unpushed: null });
+		writeFileSync(join(worktree.path, 'a.txt'), 'staged edit\n');
+		git('add', 'a.txt');
+		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
+		expect(await status(worktree, origin)).toMatchObject({
+			uncommitted: 2,
+			uncommittedPaths: ['a.txt', 'b.txt'],
+			unpushed: null
+		});
+		git('restore', '--staged', 'a.txt');
+		expect(await status(worktree, origin)).toMatchObject({
+			uncommitted: 1,
+			uncommittedPaths: ['b.txt'],
+			unpushed: null
+		});
 
 		// pushed, as far as this machine knows: the remote-tracking branch is where we are
 		const remote = 'refs/remotes/origin/geordi/abcdefgh';

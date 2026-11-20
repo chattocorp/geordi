@@ -5,6 +5,7 @@ import { createStandings } from './standings.ts';
 import { join } from 'node:path';
 import { error } from '@sveltejs/kit';
 import {
+	JOB_TERMINAL,
 	NO_WORKTREE,
 	REMOVE_TIMEOUT_MS,
 	UPSTREAM_TICK_MS,
@@ -306,17 +307,38 @@ export async function concernsAboutArchiving(id: string) {
 			}
 			const concerns = archiveConcerns(standing);
 			const blocked = workspaces().summary(workspace.id).status === 'running';
-			if (blocked) concerns.push('Stop the running agent before archiving.');
-			if (
-				terminals().running(workspace.id).length &&
-				(await hub()
-					.request({ kind: 'terminalActivity', workspaceId: workspace.id })
-					.catch(() => true))
-			)
-				concerns.push('Archiving will stop running terminal processes.');
+			if (blocked)
+				concerns.push({ label: `Stop the running ${workspace.agent} agent before archiving.` });
+			const names = terminals().running(workspace.id);
+			if (names.length) {
+				const activity = await hub()
+					.request({ kind: 'terminalActivity', workspaceId: workspace.id, details: true })
+					.catch(() => null);
+				if (Array.isArray(activity)) {
+					const shells = names.filter((name) => !name.startsWith(JOB_TERMINAL)).sort();
+					const items = activity.map(({ terminal, processes }) => {
+						if (terminal.startsWith(JOB_TERMINAL))
+							return `Job “${terminal.slice(JOB_TERMINAL.length)}”`;
+						const index = shells.indexOf(terminal);
+						const label = index < 0 ? 'Terminal' : `Terminal ${index + 1}`;
+						return processes.length ? `${label} · ${processes.join(', ')}` : label;
+					});
+					if (items.length) concerns.push({ label: 'Archiving will stop this work', items });
+				} else if (activity !== false) {
+					// A disconnected or older daemon cannot name the processes.
+					concerns.push({
+						label: 'Archiving will close the terminals. Processes still running in them will stop.'
+					});
+				}
+			}
 			return {
 				concerns:
-					workspace.id === id ? concerns : concerns.map((text) => `“${workspace.title}”: ${text}`),
+					workspace.id === id
+						? concerns
+						: concerns.map((concern) => ({
+								...concern,
+								label: `“${workspace.title}” — ${concern.label}`
+							})),
 				discard: !!standing.changes?.uncommitted,
 				blocked
 			};

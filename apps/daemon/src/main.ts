@@ -38,7 +38,7 @@ import {
 	openTerminal,
 	resizeTerminal,
 	endedTerminals,
-	hasTerminalActivity,
+	terminalActivity,
 	runningTerminals,
 	scrollbackOf,
 	writeTerminal
@@ -499,7 +499,10 @@ function answer(request: DaemonRequest) {
 }
 
 async function readRequest(request: DaemonRequest) {
-	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
+	if (request.kind === 'terminalActivity') {
+		const active = await terminalActivity(request.workspaceId);
+		return request.details ? active : active.length > 0;
+	}
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'findFiles') {
 		const { repoPath, worktreeId, query } = request;

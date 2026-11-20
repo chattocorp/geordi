@@ -25,12 +25,14 @@ it.each([
 	{ confirm: true, discard: false, blocked: true }
 ])('handles confirmation with %o', async ({ confirm, discard, blocked }) => {
 	vi.mocked(previewArchive).mockResolvedValueOnce({
-		concerns: ['Unfinished work'],
+		concerns: [{ label: 'Unfinished work' }],
 		discard,
 		blocked
 	});
 	const result = archive('w', 'Workspace');
-	await vi.waitFor(() => expect(archiving.asking?.concerns).toEqual(['Unfinished work']));
+	await vi.waitFor(() =>
+		expect(archiving.asking?.concerns).toEqual([{ label: 'Unfinished work' }])
+	);
 	archiving.asking!.answer(confirm);
 	expect(await result).toBe(confirm && !blocked);
 	if (confirm && !blocked)
@@ -53,7 +55,7 @@ it('starts a second clean archive while the first is pending', async () => {
 });
 
 it('keeps each confirmation until its own archive is answered', async () => {
-	const flagged = { concerns: ['Unfinished work'], discard: true, blocked: false };
+	const flagged = { concerns: [{ label: 'Unfinished work' }], discard: true, blocked: false };
 	vi.mocked(previewArchive)
 		.mockResolvedValueOnce(flagged)
 		.mockResolvedValueOnce(flagged)
