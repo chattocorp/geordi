@@ -152,7 +152,6 @@ needs = ["db"]
 	it.each([
 		['what is not YAML', 'run: [oops', /./],
 		['what is not settings', '- run\n- jobs', /settings/],
-		['an unknown default', 'run: dev\ndefault: urls.run', /default/],
 		['a single word', 'pnpm dev', /settings/],
 		['a run command that is not one', 'run: 5', /run/],
 		['a number of ports that is a word', 'ports: "3"', /ports/],
@@ -166,17 +165,19 @@ needs = ["db"]
 		expect(() => parseConfig(text)).toThrow(problem);
 	});
 
+	it('ignores a setting it no longer has, so that older files still work', () => {
+		// `default` named what a Run button ran; there is none any more
+		expect(parseConfig('run: dev\ndefault: urls.app')).not.toHaveProperty('default');
+	});
+
 	it('understands every setting agents are told about', () => {
-		const { default: target, run, jobs, urls, ports, setup, teardown, ...others } = CONFIG_SETTINGS;
+		const { run, jobs, urls, ports, setup, teardown, ...others } = CONFIG_SETTINGS;
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
 		expect(parseConfig(run.example).jobs).toEqual([
 			{ name: 'run', command: 'pnpm dev --port $PORT', needs: [] }
 		]);
 		// the link's example leads to a job of the jobs' example
-		expect(
-			parseConfig([ports.example, jobs.example, urls.example, target.example].join('\n\n'))
-		).toMatchObject({
-			default: 'urls.app',
+		expect(parseConfig([ports.example, jobs.example, urls.example].join('\n\n'))).toMatchObject({
 			ports: 20,
 			jobs: [{ name: 'db' }, { name: 'web' }],
 			urls: [{ name: 'app', needs: ['web'] }]

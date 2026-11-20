@@ -27,6 +27,75 @@ const SAMPLES = {
 				'about.html':
 					'<!doctype html>\n<html lang="en">\n\t<head>\n\t\t<meta charset="utf-8" />\n\t\t<title>About</title>\n\t\t<link rel="stylesheet" href="style.css" />\n\t</head>\n\t<body>\n\t\t<h1>About</h1>\n\t\t<p><a href="index.html">Back home</a></p>\n\t</body>\n</html>\n'
 			}
+		},
+		{
+			// what the Run menu has to show: links, jobs that keep running, one slow to come
+			// up (with a long name), and one that ends, here in failure: there is no contact page
+			message: 'Run it with Geordi',
+			files: {
+				'.geordi.yml': `jobs:
+  web:
+    label: Static server
+    command: node serve.js
+  preview:
+    label: Preview server that takes a few seconds to come up
+    command: SERVE_DELAY=5 node serve.js
+  check:
+    label: Check links
+    command: node check.js
+
+urls:
+  site:
+    label: Site
+    url: http://localhost:{web}/
+  about:
+    label: About page (preview)
+    url: http://localhost:{preview}/about.html
+`,
+				'serve.js': `import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, join, normalize } from 'node:path';
+
+const types = { '.html': 'text/html', '.css': 'text/css' };
+const port = Number(process.env.PORT ?? 8080);
+const delay = Number(process.env.SERVE_DELAY ?? 0);
+
+const server = createServer(async (request, response) => {
+	const path = new URL(request.url, 'http://localhost').pathname;
+	const file = join(process.cwd(), normalize(path === '/' ? '/index.html' : path));
+	try {
+		const body = await readFile(file);
+		response.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' });
+		response.end(body);
+		console.log(\`200 \${path}\`);
+	} catch {
+		response.writeHead(404).end('Not found');
+		console.log(\`404 \${path}\`);
+	}
+});
+
+if (delay) console.log(\`Starting in \${delay} seconds…\`);
+setTimeout(
+	() => server.listen(port, () => console.log(\`Serving on http://localhost:\${port}/\`)),
+	delay * 1000
+);
+`,
+				'check.js': `import { existsSync, readFileSync, readdirSync } from 'node:fs';
+
+let broken = 0;
+for (const page of readdirSync('.').filter((file) => file.endsWith('.html'))) {
+	for (const [, href] of readFileSync(page, 'utf8').matchAll(/(?:href|src)="([^":#]+)"/g)) {
+		if (existsSync(href)) continue;
+		console.error(\`\${page}: \${href} is missing\`);
+		broken++;
+	}
+}
+console.log(broken ? \`\${broken} broken link(s)\` : 'Every link leads somewhere.');
+process.exit(broken ? 1 : 0);
+`,
+				'index.html':
+					'<!doctype html>\n<html lang="en">\n\t<head>\n\t\t<meta charset="utf-8" />\n\t\t<title>Sample site</title>\n\t\t<link rel="stylesheet" href="style.css" />\n\t</head>\n\t<body>\n\t\t<h1>Hello</h1>\n\t\t<p>This is a sample site.</p>\n\t\t<p><a href="about.html">About</a> · <a href="contact.html">Contact</a></p>\n\t</body>\n</html>\n'
+			}
 		}
 	],
 	'sample-cli': [
@@ -55,6 +124,13 @@ const SAMPLES = {
 				'.sweet.yml':
 					'name: Sample CLI\nversion: 0.1.0\nversion-files:\n  - path: package.json\n    format: json\n    key: version\n'
 			}
+		},
+		{
+			// a single job, which ends: Run runs it
+			message: 'Run the tests with Geordi',
+			files: {
+				'.geordi.yml': 'jobs:\n  test:\n    label: Tests\n    command: node --test\n'
+			}
 		}
 	]
 };
@@ -64,6 +140,15 @@ const SAMPLES = {
  * release notes to show: each in a sample repository, with files written but not committed.
  */
 const WORKSPACES = {
+	'sample-site': [
+		{
+			title: 'Soften the colours',
+			files: {
+				'style.css':
+					'body {\n\tfont-family: system-ui, sans-serif;\n\tmargin: 4rem auto;\n\tmax-width: 40rem;\n\tcolor: #333;\n\tbackground: #fdfcf8;\n}\n'
+			}
+		}
+	],
 	'sample-cli': [
 		{
 			title: 'Say goodbye too',
