@@ -1,3 +1,5 @@
+import DiffView from '../packages/ui/src/DiffView.svelte';
+
 # Your first workspace
 
 Give an agent a small README edit, then review the change beside the conversation. A workspace gives the agent its own Git branch and working directory. You can keep using your original checkout while it works.
@@ -27,6 +29,21 @@ Select **Get to work**. The new workspace opens with your message in the convers
 ## Review the diff
 
 When `README.md` appears under **Changes**, select it. A tab opens beside the conversation tab and shows the added line. Compare the sentence with your request. To revise it, return to the conversation and tell the agent what to change.
+
+<figure class="not-prose my-6 overflow-hidden rounded-control bg-sunken">
+	<figcaption class="px-3 py-2 code-dense">README.md</figcaption>
+	<div class="min-h-16">
+		<DiffView
+			client:visible
+			path="README.md"
+			old={'# Example\n'}
+			new={'# Example\n\nUse this repository to try Geordi.\n'}
+		/>
+		<noscript>
+			<pre>+ Use this repository to try Geordi.</pre>
+		</noscript>
+	</div>
+</figure>
 
 ## Open a pull request
 

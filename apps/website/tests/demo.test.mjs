@@ -119,3 +119,17 @@ test('read all three guides from the homepage on a phone without JavaScript', as
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 	}
 });
+
+test('the first workspace guide renders the README edit in the shared diff viewer', async (t) => {
+	const page = await browser.newPage({ reducedMotion: 'reduce' });
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/docs/#review-the-diff`);
+	const diff = page.getByRole('figure', { name: 'README.md' });
+	await diff.scrollIntoViewIfNeeded();
+	await expect(diff.getByText('# Example', { exact: true })).toBeVisible();
+	await expect(
+		diff
+			.locator('[data-line-type="change-addition"]')
+			.getByText('Use this repository to try Geordi.', { exact: true })
+	).toBeVisible();
+});
