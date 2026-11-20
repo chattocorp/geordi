@@ -298,9 +298,7 @@
 </Dialog>
 
 <div class="flex min-h-0 flex-1 flex-col sheet-quiet select-none">
-	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
-		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
-
+	<nav class="flex-1 overflow-y-auto p-2" aria-label="Main">
 		<!--
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
@@ -397,8 +395,9 @@
 		</div>
 	</nav>
 
-	<div class="p-2">
+	<nav aria-label="Workspace navigation" class="p-2">
 		<ConnectionIndicator {lost} class="px-2.5 py-1" />
+		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 		{@render link(resolve('/archive'), 'icon-[lucide--archive]', 'Archive', path === '/archive')}
 		<a
 			href={settingsPath()}
@@ -409,7 +408,7 @@
 			Settings
 			<kbd class="ml-auto font-sans text-xs text-muted">{settingsHint}</kbd>
 		</a>
-	</div>
+	</nav>
 </div>
 
 {#snippet row(
