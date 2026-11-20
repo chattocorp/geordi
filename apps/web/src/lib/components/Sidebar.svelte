@@ -515,7 +515,6 @@
 				? { count: under, folded: isFolded, toggle: () => toggleFolded(workspace.id) }
 				: undefined}
 			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
-			onarchive={() => archiveAndNavigate(workspace)}
 			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
 		/>
 	</li>
