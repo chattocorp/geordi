@@ -1,5 +1,3 @@
-import { createContext } from 'svelte';
-import { persisted } from '#lib/persisted.svelte.ts';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 
@@ -28,9 +26,3 @@ export const settingsPath = (section: Section = settings.section) =>
 export function openSettings(section?: Section) {
 	void goto(settingsPath(section));
 }
-
-type RibbonPosition = 'window' | 'pane';
-const [getRibbonPosition, setRibbonPosition] = createContext<{ current: RibbonPosition }>();
-export { getRibbonPosition };
-export const initRibbonPosition = () =>
-	setRibbonPosition(persisted<RibbonPosition>('geordi:ribbon-position', 'pane'));
