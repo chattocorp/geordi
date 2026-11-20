@@ -235,6 +235,14 @@
 					</div>
 					<p class="text-sm text-muted">Version {version}</p>
 					<p>A self-hostable code forge and agent orchestrator.</p>
+					<p>
+						For support, come to the <a
+							href="https://chat.chatto.run/chat/-/RHrVQGGG3fvnU0w"
+							target="_blank"
+							rel="noreferrer"
+							class="file-link">#geordi channel on Chatto HQ</a
+						>.
+					</p>
 				</div>
 				{#if updates && updateState}<DesktopUpdates state={updateState} controls={updates} />{/if}
 			{/if}
