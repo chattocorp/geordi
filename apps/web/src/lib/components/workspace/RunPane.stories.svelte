@@ -108,6 +108,7 @@
 		await userEvent.click(terminal.querySelector('[class~="icon-[lucide--square-terminal]"]')!);
 		await expect(canvas.getByText('Show: web')).toBeVisible();
 		const stopWeb = canvas.getByRole('button', { name: 'Stop Static server' });
+		await expect(stopWeb.querySelector('.text-danger')).not.toBeVisible();
 		await userEvent.tab({ shift: true });
 		await expect(stopWeb).toHaveFocus();
 		await expect(stopWeb.querySelector('.text-danger')).toBeVisible();

@@ -88,7 +88,9 @@
 			class="hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
 			>{where(link.href)}</span
 		>
-		{#if first && shortcut}<kbd class="text-xs text-muted">{shortcut}</kbd>{/if}
+		{#if first && shortcut}<kbd class="shrink-0 text-base font-medium tracking-wide text-prose"
+				>{shortcut}</kbd
+			>{/if}
 	</button>
 {/snippet}
 
@@ -115,7 +117,9 @@
 								></span>{:else}<JobMark {state} />{/if}</span
 						>
 						<span class="flex-1 truncate">{live(state) ? 'Stop' : 'Start'} {name}</span>
-						{#if shortcut}<kbd class="text-xs text-muted">{shortcut}</kbd>{/if}
+						{#if shortcut}<kbd class="shrink-0 text-base font-medium tracking-wide text-prose"
+								>{shortcut}</kbd
+							>{/if}
 					</button>
 					{#if hasTerminal(job.name)}
 						<Button
@@ -180,7 +184,7 @@
 					>
 						{#if state !== 'stopped'}
 							<span
-								class="grid place-items-center group-hover/job:hidden group-focus-visible/mark:hidden"
+								class="grid place-items-center group-hover/mark:hidden group-focus-visible/mark:hidden"
 							>
 								<JobMark {state} />
 							</span>
@@ -189,7 +193,7 @@
 							class={[
 								'size-3.5',
 								state !== 'stopped' &&
-									'hidden group-hover/job:block group-focus-visible/mark:block',
+									'hidden group-hover/mark:block group-focus-visible/mark:block',
 								live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
 							]}
 						></span>
