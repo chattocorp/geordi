@@ -1,5 +1,5 @@
 import { createContext } from 'svelte';
-import { persisted } from '#lib/persisted.svelte.ts';
+import { persisted } from '@geordi/ui/persisted';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 

@@ -13,7 +13,7 @@
 	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
-	import { persisted } from '#lib/persisted.svelte.ts';
+	import { persisted } from '@geordi/ui/persisted';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
 	import { releaseReview } from '#lib/components/workspace/release-review.svelte.ts';
 	import ReleaseConfirm from '#lib/components/workspace/ReleaseConfirm.svelte';

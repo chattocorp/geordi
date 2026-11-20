@@ -9,7 +9,7 @@
 <script lang="ts">
 	import { submitOnEnter } from '@geordi/ui/keys';
 	import { draft } from '#lib/drafts.svelte.ts';
-	import { persisted } from '#lib/persisted.svelte.ts';
+	import { persisted } from '@geordi/ui/persisted';
 	import AddRepository from '../AddRepository.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';

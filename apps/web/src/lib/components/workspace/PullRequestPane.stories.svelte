@@ -8,6 +8,10 @@
 
 	const { Story } = defineMeta({ title: 'Geordi/Pull request', component: PullRequestPane });
 
+	function resetChecksPreference() {
+		localStorage.removeItem('geordi:checks-expanded');
+	}
+
 	const pull: PullRequest = {
 		number: '42',
 		body: 'Keep workspace diffs fast by skipping submodule contents.\n\n- Show changes to the recorded commit.\n- Leave nested working trees alone.',
@@ -72,17 +76,22 @@
 
 <Story
 	name="Checks under way"
+	beforeEach={resetChecksPreference}
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		const summary = canvas.getByRole('button', { name: 'Checks 6' });
+		await expect(summary).toHaveAttribute('aria-expanded', 'false');
+		await userEvent.click(summary);
 		const browser = canvas.getByRole('link', { name: 'Browser tests Running' });
 		await expect(browser).toBeVisible();
 		await expect(canvas.getAllByRole('listitem')[0]).toHaveTextContent('Unit tests');
 		await expect(canvas.getByText('Lint')).toBeVisible();
 		await userEvent.click(summary);
 		await expect(browser).not.toBeVisible();
+		await expect(localStorage.getItem('geordi:checks-expanded')).toBe('false');
 		await userEvent.click(summary);
 		await expect(canvas.getByText('Queued')).toBeVisible();
+		await expect(localStorage.getItem('geordi:checks-expanded')).toBe('true');
 	}}
 >
 	{@render pane(
@@ -121,8 +130,10 @@
 
 <Story
 	name="Many running checks"
+	beforeEach={resetChecksPreference}
 	asChild
-	play={async ({ canvas }) => {
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.click(canvas.getByRole('button', { name: 'Checks 37' }));
 		const list = canvas.getByRole('region', { name: 'Checks' }).querySelector('ul')!;
 		await expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
 		await expect(list.firstElementChild).toHaveTextContent(/\d+[smh]$/);
