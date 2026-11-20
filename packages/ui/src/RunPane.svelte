@@ -1,13 +1,14 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import type { Job, Link } from '@geordi/protocol';
-	import Button from '@geordi/ui/Button.svelte';
-	import Notice from '#lib/ui/Notice.svelte';
+	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 
 	/**
 	 * The repository's links and jobs (FDR-006), and how each is: what a workspace runs, in
 	 * one place. A row is the way to what it stands for: a link opens, a job that has a
-	 * terminal shows it. Starting and stopping is at a job's end.
+	 * terminal shows it. Starting and stopping is at a job's end. What comes before them (a
+	 * problem with the configuration, say) is `children`.
 	 */
 	let {
 		jobs,
@@ -18,7 +19,7 @@
 		stop,
 		show,
 		visit,
-		problem = null
+		children
 	}: {
 		jobs: Job[];
 		links: Link[];
@@ -29,7 +30,7 @@
 		/** Brings a job's terminal to the front. */
 		show: (name: string) => void;
 		visit: (link: Link) => void;
-		problem?: string | null;
+		children?: Snippet;
 	} = $props();
 
 	const live = (state: JobState) => state === 'running' || state === 'starting';
@@ -54,9 +55,7 @@
 {/snippet}
 
 <div class="scroller flex flex-col gap-3 p-2">
-	{#if problem}
-		<Notice>The repository's configuration can't be read: {problem}</Notice>
-	{/if}
+	{@render children?.()}
 
 	{#if links.length > 0}
 		<section aria-label="Open">

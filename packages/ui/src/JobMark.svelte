@@ -4,8 +4,8 @@
 </script>
 
 <script lang="ts">
-	import RunningJob from '@geordi/ui/RunningJob.svelte';
-	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
+	import RunningJob from './RunningJob.svelte';
+	import ProgressIcon from './ProgressIcon.svelte';
 
 	/** How a job is, as a mark: the same wherever the job shows (its tab, the Run tab). */
 	let { state, class: size = 'size-3.5' }: { state: JobState; class?: string } = $props();

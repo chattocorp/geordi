@@ -137,6 +137,7 @@
 			)
 		],
 		access: [],
+		activeAgents: [],
 		harnesses: null
 	};
 

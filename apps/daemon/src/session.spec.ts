@@ -146,7 +146,7 @@ const meta = (env: Record<string, string> = {}): Meta => ({
 		api: null,
 		settings: {},
 		// The fixture stands in for the wrapper and the agent's own program: neither need be installed.
-		env: { CLAUDE_CODE_EXECUTABLE: 'claude', CODEX_PATH: 'codex', ...env }
+		env: { CLAUDE_CODE_EXECUTABLE: process.execPath, CODEX_PATH: process.execPath, ...env }
 	}
 });
 
@@ -284,14 +284,14 @@ describe('a session', () => {
 		expect(events).toContainEqual({ kind: 'text', text: mode });
 	});
 
-	it('fails the turn, saying so, when the agent is not installed', async () => {
-		const { events, ended } = begin('hello', {
-			launch: meta({ PATH: '', CLAUDE_CODE_EXECUTABLE: '' })
-		});
+	it.each(['claude', 'codex'] as const)('fails the turn when %s is missing', async (agent) => {
+		const launch = meta({ PATH: '', CLAUDE_CODE_EXECUTABLE: '', CODEX_PATH: '' });
+		launch.agent = agent;
+		const { events, ended } = begin('hello', { launch });
 		await ended(1);
 		expect(events).toContainEqual({
 			kind: 'turn.failed',
-			error: expect.stringContaining('could not find `claude`')
+			error: expect.stringContaining('could not find `' + agent + '`')
 		});
 		expect(events.some((event) => event.kind === 'text')).toBe(false);
 	});

@@ -10,12 +10,13 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 ## Behavior
 
 - Settings are a page of their own, in the main content area beside the sidebar, at `/settings/<section>`. Cmd+, (Ctrl+, elsewhere than on a Mac) opens it, as does "Settings" at the foot of the sidebar (marked while one is there) and, in the desktop app, "Settings…" in the app menu. One leaves it as any other page.
-- It has sections, listed on its left, each at an address of its own, and opens where it was left. The sections are General, Notifications, Keyboard, Repositories, Agent access and About.
+- It has sections, listed on its left, each at an address of its own, and opens where it was left. The sections are General, Notifications, Keyboard, Repositories, Providers, Agent access and About.
 - **General** holds the theme: System (follows the computer's setting, also while it changes), Light, or Dark. General also lets you align the workspace action ribbon with the right edge of the main pane (the default) or the window. Both choices apply across workspaces in this browser.
 - **Keyboard** lists the keyboard shortcuts, by group, as they are pressed on this platform. They are all defined in one place (`@geordi/ui/keys`), which is what the page lists: a new shortcut shows there by being added.
 - **Notifications** turns telling of finished agents on or off (FDR-008), and sends a test: a notification and the sound, as when an agent is done, with a word on what came of it and where to look if nothing showed.
 - **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. **Add repository…** opens a folder chooser on desktop. In a browser, enter a Git checkout’s path on the Geordi host. Geordi explains invalid paths and lets you try again.
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
+- **Providers** shows which agent programs the daemon found when it connected and how many turns each is running. When the daemon disconnects, availability is unknown. New workspaces can use any available provider.
 - **Agent access** issues and revokes named MCP tokens, each for the repositories chosen with checkboxes (All and None only change the choice; repositories added later are never included). Settings shows a new token once, with the URL to use in the client (FDR-002).
 - **About** describes Geordi and shows the running release version.
 - The workspace picker and the first-run screen offer the same **Add repository…** action as Settings. Adding a checkout opens the workspace composer with that repository selected, including when Geordi already knows it. The composer keeps your draft and attachments.

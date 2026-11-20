@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import Disclosure from '@geordi/ui/Disclosure.svelte';
-	import FittedPath from '@geordi/ui/FittedPath.svelte';
-	import DiffStat from '@geordi/ui/DiffStat.svelte';
+	import Disclosure from './Disclosure.svelte';
+	import FittedPath from './FittedPath.svelte';
+	import DiffStat from './DiffStat.svelte';
 
 	let {
 		path,

@@ -27,6 +27,7 @@ import {
 	type WorktreeRef
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
+import { agentProgram } from './agents/program.ts';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
 import {
@@ -460,7 +461,7 @@ function connect(delay = 500) {
 				sessions: [...sessions.keys()],
 				terminals: runningTerminals(),
 				ended: endedTerminals(),
-				harnesses
+				harnesses: harnesses.filter(({ agent }) => agentProgram(agent))
 			};
 			ws.send(JSON.stringify(hello));
 		} else if (message.type === 'welcome' && verify(token, 'forge', nonce, message.proof)) {

@@ -178,6 +178,15 @@ describe('choosing what an agent runs', () => {
 		expect(await describe()).toMatch(/no daemon is connected/);
 	});
 
+	it('can start with only Codex installed and reports a missing provider before starting', async () => {
+		const { settingsOf, offered } = begun();
+		offered.current = offered.current!.filter((offer) => offer.agent === 'codex');
+		expect(await settingsOf({})).toEqual({});
+		expect(await settingsOf({ agent: 'claude' })).toBe('Provider claude is unavailable');
+		offered.current = [];
+		expect(await settingsOf({})).toBe('No providers are available');
+	});
+
 	it('runs an agent of the same kind as its parent, but for what was asked', async () => {
 		const { settingsOf } = begun();
 		expect(await settingsOf({})).toEqual({ model: 'opus', effort: 'high' });

@@ -154,8 +154,8 @@ const tools = {
 				'Start a coding agent and return its agent report immediately. Use wait_for_agent for the result.',
 				startLocation[kind],
 				kind === 'external'
-					? `The agent defaults to ${AGENTS[0]} and its provider settings. You may have up to ${agents.limits.children} direct children running at once.`
-					: `The agent defaults to your kind and inherits your model and compatible effort. A different kind uses its provider defaults. The maximum nesting depth is ${agents.limits.depth}. You may have up to ${agents.limits.children} direct children running at once.`,
+					? `The agent defaults to ${agents.harnesses()?.[0]?.agent ?? AGENTS[0]} and its provider settings. You may have up to ${agents.limits.children} direct children running at once.`
+					: `The agent defaults to your kind when available and inherits your model and compatible effort. A different kind uses its provider defaults. The maximum nesting depth is ${agents.limits.depth}. You may have up to ${agents.limits.children} direct children running at once.`,
 				offersOf(agents.harnesses())
 			].join('\n\n'),
 		input: startInput,

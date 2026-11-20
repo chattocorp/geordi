@@ -743,7 +743,17 @@ export function createWorkspaces(
 				};
 			}
 
-			const kind = agent ?? caller?.agent ?? AGENTS[0];
+			const preferred = caller?.agent ?? AGENTS[0];
+			const kind =
+				agent ??
+				offered?.find((h) => h.agent === preferred)?.agent ??
+				offered?.[0]?.agent ??
+				preferred;
+			if (offered && !offered.some((h) => h.agent === kind))
+				error(
+					409,
+					offered.length ? `Provider ${kind} is unavailable` : 'No providers are available'
+				);
 			const settings = settingsFor(
 				kind,
 				caller,
