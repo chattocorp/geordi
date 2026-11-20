@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Spinner from './Spinner.svelte';
+	import ProgressIcon from './ProgressIcon.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -99,7 +99,7 @@
 			</div>
 		{:else if !git || (!git.changes && !git.unavailable)}
 			<p class="flex items-center gap-2 px-3.5 py-2 text-muted">
-				<Spinner label="Loading the changes" /> Loading…
+				<ProgressIcon label="Loading the changes" /> Loading…
 			</p>
 		{:else if git.unavailable}
 			<p class="px-3.5 py-2 text-muted">{git.unavailable}</p>

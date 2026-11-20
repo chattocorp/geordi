@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ActivityId as Activity } from './actions.ts';
+	import ProgressIcon from './ProgressIcon.svelte';
 	import Spinner from './Spinner.svelte';
 	import StatusIcon from './StatusIcon.svelte';
 
@@ -44,10 +45,10 @@
 			<span class="archive-arrow absolute top-0 left-1.5 icon-[lucide--arrow-down] size-3"></span>
 		</span>
 		<span class="archive-tray icon-[lucide--inbox] size-4"></span>
-	{:else if activity === 'working' || activity === 'retry'}
+	{:else if activity === 'working'}
 		<span aria-hidden="true" class="inline-flex"><Spinner /></span>
 	{:else}
-		<span class="icon-[lucide--refresh-cw] size-4 motion-safe:animate-checks-spin"></span>
+		<ProgressIcon class="size-4" />
 	{/if}
 </StatusIcon>
 

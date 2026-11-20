@@ -17,6 +17,7 @@
 	import AgentText from '@geordi/ui/AgentText.svelte';
 	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
 	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
+	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { actionsFor, standingOf, type WorkspaceAction } from '@geordi/ui/actions';
 
@@ -498,7 +499,7 @@
 												class="flex items-center gap-2 p-5 text-sm text-muted"
 												role="status"
 											>
-												<Spinner label="Loading the diff" /> Loading the diff…
+												<ProgressIcon label="Loading the diff" /> Loading the diff…
 											</p>{/if}
 										<DiffView
 											path={file.path}

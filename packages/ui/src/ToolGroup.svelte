@@ -3,7 +3,7 @@
 	import { iconOf, sortOf, titleOf } from './tools.ts';
 	import type { ToolEntry } from './tools.ts';
 	import type { ComponentProps } from 'svelte';
-	import Spinner from './Spinner.svelte';
+	import ProgressIcon from './ProgressIcon.svelte';
 	import ToolCall from './ToolCall.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 
@@ -57,7 +57,7 @@
 		{#if active}
 			<span class={['size-3.5 shrink-0', iconOf(active)]}></span>
 			<ToolTitle parts={titleOf(active, cwd)} />
-			<Spinner label="Running" />
+			<ProgressIcon label="Running" />
 		{:else}
 			<!-- named, so that a row of small icons says what it is -->
 			<span class="text-xs">Tools</span>

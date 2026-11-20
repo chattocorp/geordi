@@ -47,7 +47,7 @@
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import Spinner from '@geordi/ui/Spinner.svelte';
+	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
@@ -753,7 +753,7 @@
 			<!-- running; or over, and how it went: its output is still there to be read -->
 			{#if status === undefined && launching.has(job)}
 				<!-- on its way up: until it listens on its port -->
-				<span class="grid size-3.5 shrink-0 place-items-center"><Spinner label="Starting" /></span>
+				<ProgressIcon label="Starting" />
 			{:else if status === undefined}
 				<RunningJob class="size-3.5" />
 			{:else if status === 0}
@@ -841,7 +841,7 @@
 			/>
 		{:else}
 			<p class="flex items-center gap-2 p-5 text-sm text-muted">
-				<Spinner label="Loading changeset" /> Loading changeset…
+				<ProgressIcon label="Loading changeset" /> Loading changeset…
 			</p>
 		{/if}
 	{:else if path}
