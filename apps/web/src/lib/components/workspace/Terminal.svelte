@@ -14,8 +14,9 @@
 		/** Focus a terminal opened with + once its input is ready. */
 		autofocus?: boolean;
 		onautofocus?: () => void;
+		ontitle?: (title: string) => void;
 	};
-	let { workspaceId, terminal, start, autofocus = false, onautofocus }: Props = $props();
+	let { workspaceId, terminal, start, autofocus = false, onautofocus, ontitle }: Props = $props();
 
 	/** xterm paints its own colours; take them from our tokens. */
 	function theme(node: HTMLElement): ITheme {
@@ -54,6 +55,7 @@
 			const fit = new FitAddon();
 			term.loadAddon(fit);
 			term.loadAddon(terminalLinks());
+			term.onTitleChange((title) => ontitle?.(title.trim()));
 			term.open(node);
 			fit.fit();
 			if (autofocus) {
