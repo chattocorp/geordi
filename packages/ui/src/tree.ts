@@ -11,7 +11,9 @@ const byName = <F>(a: TreeNode<F>, b: TreeNode<F>) =>
 
 /**
  * Files arranged by their directories. A directory that holds nothing but one other directory
- * is shown together with it, as one (`src/lib/server`), the way VS Code compacts folders.
+ * is shown together with it, as one (`src/lib/server`), the way VS Code compacts folders; one
+ * that holds nothing but one file is shown as that file, its name the path to it from the
+ * row above (`server/a.ts`).
  */
 export function fileTree<F extends { path: string }>(files: readonly F[]): TreeNode<F>[] {
 	const root: TreeDir<F> = { kind: 'dir', path: '', name: '', children: [] };
@@ -36,6 +38,9 @@ export function fileTree<F extends { path: string }>(files: readonly F[]): TreeN
 			const only = dir.children[0];
 			dir = { ...only, name: `${dir.name}/${only.name}` };
 		}
+		const [only] = dir.children;
+		if (dir.children.length === 1 && only.kind === 'file')
+			return { ...only, name: `${dir.name}/${only.name}` };
 		return { ...dir, children: dir.children.map(compact).sort(byName) };
 	};
 	return root.children.map(compact).sort(byName);

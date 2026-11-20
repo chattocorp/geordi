@@ -154,6 +154,46 @@
 	</div>
 </Story>
 
+<!-- merged rows in the tree shorten like paths in the list: folders give way to the name -->
+<Story name="Long paths in a narrow tree" asChild>
+	<div class="w-80 sheet-quiet">
+		<Changes
+			view="tree"
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: [
+						{
+							path: 'apps/docs-website/src/content/reference/connectrpc-api/types.mdx',
+							status: 'modified',
+							added: 1,
+							removed: 1
+						},
+						{
+							path: 'apps/docs-website/src/content/generated/connectrpc-api/admin.raw.mdx',
+							status: 'modified',
+							added: 1,
+							removed: 1
+						},
+						{
+							path: 'apps/frontend/src/lib/components/settings/AdministrationPanel.svelte',
+							status: 'added',
+							added: 120,
+							removed: 0
+						}
+					]
+				}
+			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
+
 <Story
 	name="Fold directories in the tree"
 	asChild
@@ -165,6 +205,9 @@
 		await userEvent.click(nested);
 		await expect(nested).toHaveAttribute('aria-expanded', 'false');
 		await expect(canvas.queryByRole('button', { name: /INDEX\.md/ })).toBeNull();
+		// a directory with one file in it is shown in that file's row
+		await expect(canvas.getByText('white-cool-willow.md')).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: '.sweet' })).toBeNull();
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a list' }));
 		await expect(canvas.getByRole('button', { name: /GLOSSARY\.md/ })).toBeVisible();
 	}}
@@ -187,7 +230,14 @@
 							added: 2,
 							removed: 1
 						},
+						{
+							path: 'docs/adr/very/deeply/nested/directories/NOTES.md',
+							status: 'added',
+							added: 4,
+							removed: 0
+						},
 						{ path: 'docs/GLOSSARY.md', status: 'deleted', added: 0, removed: 3 },
+						{ path: '.sweet/white-cool-willow.md', status: 'added', added: 5, removed: 0 },
 						{ path: 'README.md', status: 'modified', added: 1, removed: 1 }
 					]
 				}

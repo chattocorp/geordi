@@ -117,6 +117,7 @@
 							<button
 								type="button"
 								aria-expanded={row.open}
+								aria-label={row.name}
 								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
 								title={row.path}
 								style:padding-left="{0.875 + row.depth * 1.25}rem"
@@ -128,10 +129,10 @@
 										row.open && 'rotate-90'
 									]}
 								></span>
-								<span class="min-w-0 truncate">{row.name}</span>
+								<FittedPath path={row.name} />
 							</button>
 						{:else}
-							{@render file(row.file, row.depth)}
+							{@render file(row.file, row.depth, row.name)}
 						{/if}
 					</li>
 				{/each}
@@ -147,7 +148,7 @@
 </section>
 
 <!-- a file's row: in the list with its path, in the tree with its name at its depth -->
-{#snippet file(entry: File, depth?: number)}
+{#snippet file(entry: File, depth?: number, name = entry.path)}
 	{@const { letter, tone, means } = flag(entry)}
 	{@const deleted = entry.status === 'deleted'}
 	<button
@@ -166,15 +167,10 @@
 		>
 			{letter}
 		</span>
-		{#if depth === undefined}
-			<!-- the name is what is looked for: where room runs out, the directories give way
-			     first (`fitPath`); the full path is in the row's tooltip -->
-			<FittedPath path={entry.path} class={{ 'line-through': deleted }} />
-		{:else}
-			<span class={['min-w-0 flex-1 truncate', deleted && 'line-through']}>
-				{entry.path.slice(entry.path.lastIndexOf('/') + 1)}
-			</span>
-		{/if}
+		<!-- the name is what is looked for: where room runs out, the directories give way
+		     first (`fitPath`); the full path is in the row's tooltip. In the tree, a row's name
+		     is its path from the row above: a folder with one file in it is shown in its row -->
+		<FittedPath path={name} class={{ 'line-through': deleted }} />
 		<DiffStat added={entry.added} removed={entry.removed} />
 	</button>
 {/snippet}
