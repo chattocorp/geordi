@@ -11,7 +11,7 @@ export const site = {
 	repo: 'https://github.com/chattocorp/geordi',
 	download: 'https://github.com/chattocorp/geordi/releases/latest',
 	docs: {
-		selfHosting: 'https://github.com/chattocorp/geordi/blob/main/docs/self-hosting.md',
-		configuration: 'https://github.com/chattocorp/geordi/blob/main/docs/configuration.md'
+		selfHosting: '/docs/self-hosting/',
+		configuration: '/docs/configuration/'
 	}
 };

@@ -60,10 +60,7 @@ http://localhost:7717. See [Self-hosting](docs/self-hosting.md).
 
 ## Getting started
 
-1. Register a repository on the home page.
-2. Open it and start a workspace: describe the work, pick an agent, and send.
-3. The agent works in its own worktree, on a new branch. Follow its changes, talk to it,
-   and use the ribbon at the top to take the work to a pull request and merge it.
+Follow [Your first workspace](https://geordi.run/docs/) to add a local repository, ask an agent for a small edit, review the diff and open a pull request.
 
 ## Safety
 

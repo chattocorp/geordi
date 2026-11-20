@@ -102,3 +102,20 @@ test('a link to the site is shown with a picture', async (t) => {
 	const response = await page.request.get(`http://127.0.0.1:${server.port}${image.pathname}`);
 	expect(response.headers()['content-type']).toBe('image/png');
 });
+
+test('read all three guides from the homepage on a phone without JavaScript', async (t) => {
+	const page = await browser.newPage({
+		javaScriptEnabled: false,
+		viewport: { width: 320, height: 800 }
+	});
+	t.after(() => page.close());
+	await page.goto(`http://127.0.0.1:${server.port}/`);
+	await page.getByRole('link', { name: 'Docs', exact: true }).click();
+	const navigation = page.getByRole('navigation', { name: 'Documentation' });
+	for (const title of ['Your first workspace', 'Configuring a repository', 'Self-hosting']) {
+		await navigation.getByRole('link', { name: title }).click();
+		await expect(navigation.locator('[aria-current="page"]')).toHaveText(title);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(title);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+	}
+});

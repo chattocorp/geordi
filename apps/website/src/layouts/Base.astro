@@ -58,21 +58,29 @@ const image = new URL(card.src, Astro.site);
 			<div class="column flex h-14 items-center gap-1">
 				<a
 					href="/"
-					class="mr-auto flex items-center gap-2.5 rounded-control px-3 py-1.5 font-semibold"
+					class="mr-auto flex items-center gap-2.5 rounded-control px-1 py-1.5 font-semibold sm:px-3"
 				>
 					<Visor />
 					Geordi
 				</a>
-				<Button variant="ghost" href="#features" class="px-3 max-sm:hidden">
+				<Button variant="ghost" href="/#features" class="px-3 max-sm:hidden">
 					Features
 				</Button>
-				<Button variant="ghost" href="#install" class="px-3 max-sm:hidden">
+				<Button variant="ghost" href="/#install" class="px-3 max-sm:hidden">
 					Install
 				</Button>
-				<Button variant="ghost" href={site.repo} class="px-3">
+				<Button variant="ghost" href="/docs/" class="px-3">
+					Docs
+				</Button>
+				<Button variant="ghost" href={site.repo} class="px-3 max-sm:hidden">
 					GitHub
 				</Button>
-				<Button variant="primary" href={site.download} icon="icon-[lucide--download]" class="ml-2">
+				<Button
+					variant="primary"
+					href={site.download}
+					icon="icon-[lucide--download]"
+					class="sm:ml-2"
+				>
 					Download
 				</Button>
 			</div>
