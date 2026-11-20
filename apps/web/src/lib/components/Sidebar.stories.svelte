@@ -193,8 +193,12 @@
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
 			const pill = canvas.getByText(label, { selector: 'button' });
 			const row = within(pill.closest('li')!);
+			await expect(pill).toHaveStyle({ cursor: 'pointer' });
+			await expect(getComputedStyle(pill).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+			const diameter = pill.getBoundingClientRect().height;
+			await expect(pill.getBoundingClientRect().width).toBe(diameter);
 			row.getByRole('link').focus();
-			await waitFor(() => expect(pill).toHaveStyle({ opacity: '1' }));
+			await waitFor(() => expect(pill.clientWidth).toBeGreaterThanOrEqual(pill.scrollWidth));
 			pill.focus();
 			await expect(pill).toHaveFocus();
 			const { left, right, top, height } = pill.getBoundingClientRect();

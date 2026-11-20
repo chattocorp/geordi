@@ -236,7 +236,7 @@ it, perhaps you.
   - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`, `Toolbar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Segmented`, `Select`, `Split`): generic, no domain knowledge. Domain components live in
     `#lib/components/` or, when both apps use them, in `@geordi/ui`.
-  - Use `StatusIcon` for passive status icons. Show the glyph directly on the surrounding surface. Reserve filled circles for controls.
+  - Use `StatusIcon` for passive status icons. Show the glyph directly on the surrounding surface. Passive icons have no click interaction or pointer cursor. Use `indicator-action` on a link or button for an available action. It has a filled circle and pointer cursor at rest and expands into a labelled pill on hover or keyboard focus.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
     utility (styling only) or a component (behaviour or structure). Never use arbitrary
     values or raw colours.

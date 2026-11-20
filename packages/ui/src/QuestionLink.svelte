@@ -8,10 +8,12 @@
 	aria-label="Open agent question"
 	title="Open agent question"
 	class={[
-		'inline-flex shrink-0 items-center justify-center gap-2 rounded-full text-accent-ink hover:bg-hover',
-		worded ? 'px-2 py-1' : 'size-6 bg-accent-soft'
+		'text-accent-ink hover:bg-hover',
+		worded
+			? 'inline-flex items-center gap-2 rounded-full px-2 py-1'
+			: 'indicator-action bg-accent-soft'
 	]}
 >
-	<span class="icon-[lucide--message-circle-question] size-4"></span>
-	{#if worded}Waiting for your answer{/if}
+	<span class="icon-[lucide--message-circle-question] size-4 shrink-0"></span>
+	{worded ? 'Waiting for your answer' : 'Answer'}
 </a>

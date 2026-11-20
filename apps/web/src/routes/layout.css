@@ -358,6 +358,14 @@
 	@apply rounded-card border border-dashed border-line px-4 py-10 text-center text-muted;
 }
 
+/* The same control is a circle at rest and a labelled pill on hover or keyboard focus. */
+@utility indicator-action {
+	@apply inline-flex h-6 w-6 shrink-0 items-center gap-1 overflow-hidden rounded-full px-1 text-xs font-medium whitespace-nowrap;
+	interpolate-size: allow-keywords;
+	@apply motion-safe:transition-[width,padding] motion-safe:duration-150;
+	@apply hover:w-max hover:px-2 focus-visible:w-max focus-visible:px-2 reveal:w-max reveal:px-2;
+}
+
 /* Tints for workspace action controls and ribbons. */
 @utility status-ok {
 	@apply bg-ok/12 text-ok;

@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, fn, within } from 'storybook/test';
+	import { expect, fn, waitFor, within } from 'storybook/test';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace row', component: WorkspaceRow });
@@ -75,6 +75,15 @@
 	play={async ({ canvasElement }) => {
 		const link = within(canvasElement).getByRole('link', { name: 'Open agent question' });
 		await expect(link).toHaveAttribute('href', '/workspaces/login?question');
+		const passive = within(canvasElement).getByRole('img', { name: 'Working' });
+		await expect(getComputedStyle(passive).cursor).not.toBe('pointer');
+		await expect(passive.closest('a, button')).toBeNull();
+		await expect(link).toHaveStyle({ cursor: 'pointer' });
+		await expect(getComputedStyle(link).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+		const height = link.getBoundingClientRect().height;
+		await expect(link.getBoundingClientRect().width).toBe(height);
+		link.focus();
+		await waitFor(() => expect(link.getBoundingClientRect().width).toBeGreaterThan(height));
 	}}
 >
 	<div class="w-64 sheet-quiet p-2">
