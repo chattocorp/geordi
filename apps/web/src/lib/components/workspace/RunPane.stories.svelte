@@ -2,8 +2,9 @@
 	import { expect, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { Job, Link } from '@geordi/protocol';
-	import type { JobState } from './JobMark.svelte';
-	import RunPane from './RunPane.svelte';
+	import type { JobState } from '@geordi/ui/JobMark.svelte';
+	import RunPane from '@geordi/ui/RunPane.svelte';
+	import Notice from '#lib/ui/Notice.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Run', component: RunPane });
 	const job = (name: string, label: string, command: string, port: number): Job => ({
@@ -61,12 +62,15 @@
 			{links}
 			{stateOf}
 			hasTerminal={(name) => stateOf(name) !== 'stopped' && name !== 'preview'}
-			{problem}
 			start={(names) => (last = `Start: ${names.join(', ')}`)}
 			stop={(name) => (last = `Stop: ${name}`)}
 			show={(name) => (last = `Show: ${name}`)}
 			visit={(link) => (last = `Open: ${link.name}`)}
-		/>
+		>
+			{#if problem}
+				<Notice>The repository's configuration can't be read: {problem}</Notice>
+			{/if}
+		</RunPane>
 	</div>
 	<p class="mt-2 text-sm text-muted">{last}</p>
 {/snippet}

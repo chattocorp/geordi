@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ToolDiff } from '@geordi/protocol';
 	import { describeChange, patchFiles, type PatchFile } from '#lib/patch.ts';
-	import DiffSection from './DiffSection.svelte';
+	import DiffSection from '@geordi/ui/DiffSection.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 
 	type Props = {
