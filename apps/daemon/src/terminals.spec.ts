@@ -41,6 +41,22 @@ describe('a command in a terminal', () => {
 		expect(output()).not.toContain('press Enter');
 	});
 
+	it('waits for Enter after a failed program that took the terminal over', async () => {
+		// an interactive shell hands the terminal to a program it starts, and not back
+		const { ended, exited, output } = run('t:c', `"${process.execPath}" -e "process.exit(1)"`);
+		let gone = false;
+		void exited.then(() => (gone = true));
+		expect(await ended).toBe(1);
+		await expect.poll(output).toContain('press Enter to close');
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		expect(gone).toBe(false);
+		writeTerminal('t:c', 'x');
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		expect(gone).toBe(false);
+		writeTerminal('t:c', '\r');
+		await exited;
+	});
+
 	it('says so when the terminal is closed before the command ends', async () => {
 		const { ended } = run('t:b', 'sleep 30');
 		expect(await hasTerminalActivity('t')).toBe(true);

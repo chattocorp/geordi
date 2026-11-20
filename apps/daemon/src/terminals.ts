@@ -78,14 +78,17 @@ export function openTerminal(
 
 	const shell = process.env.SHELL || '/bin/sh';
 	// The command and the shell reach the script as arguments: nothing in them is parsed twice.
-	// `printf` makes the escapes into a new line and dim text.
+	// `printf` makes the escapes into a new line and dim text. Once the command has ended,
+	// the script only waits, without reading: the user's shell may have handed the terminal
+	// to the command (job control) and not back, and then a read would fail at once. Enter is
+	// heard here instead (`write`).
 	const script = `
 		"$0" -l -i -c "$1"
 		s=$?
 		printf "\\033]7717;%s\\007" "$s"
 		if [ "$2" = close ] && [ "$s" -eq 0 ]; then exit 0; fi
 		printf "\\n\\033[2m[ended with status %s; press Enter to close]\\033[0m" "$s"
-		read -r _
+		exec sleep 2147483647
 	`;
 	const [file, args] = command
 		? ['/bin/sh', ['-c', script, shell, command, closeOnSuccess ? 'close' : 'wait']]
@@ -138,6 +141,8 @@ export function openTerminal(
 				output(`\r\n${error instanceof Error ? error.message : error}\r\n`);
 				return pty.kill();
 			}
+			// over, and waiting for Enter to close
+			if (terminal.ended !== undefined) return void (/[\r\n]/.test(data) && pty.kill());
 			pty.write(data);
 		}
 	};
