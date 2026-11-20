@@ -9,7 +9,7 @@
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
-	import { openSettings } from '#lib/components/settings.svelte.ts';
+	import { initRibbonPosition, openSettings } from '#lib/components/settings.svelte.ts';
 	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
@@ -31,6 +31,7 @@
 	// everything live on the page comes over one connection: this is where it starts
 	// svelte-ignore state_referenced_locally
 	connect(data.live);
+	initRibbonPosition();
 	const lost = $derived(connection.state === 'lost');
 	const nav = follow<Navigation>('navigation');
 
@@ -52,7 +53,11 @@
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
 	const toggleSidebar = () =>
 		(sidebar.current = { ...sidebar.current, open: !sidebar.current.open });
-	setTitleBarLead(() => (sidebar.current.open ? undefined : lead));
+	let titleBarHeight = $state<number>();
+	setTitleBarLead(
+		() => (sidebar.current.open ? undefined : lead),
+		(height) => (titleBarHeight = height)
+	);
 	// Leave room for the conversation and its tools in smaller windows.
 	const maxWidth = $derived(Math.max(240, Math.min(720, (innerWidth.current ?? 1320) - 600)));
 	const clampWidth = (width: number) => Math.round(Math.min(maxWidth, Math.max(240, width)));
@@ -195,13 +200,18 @@
 	{#if sidebar.current.open}
 		<aside
 			class="sticky top-0 hidden h-dvh shrink-0 flex-col bg-frame md:flex"
+			style:--title-bar-height={titleBarHeight
+				? `${titleBarHeight}px`
+				: 'calc(var(--spacing) * 14)'}
 			style:width="{clampWidth(sidebar.current.width)}px"
 		>
 			<!--
 				The sidebar's part of the title bar. On macOS the window's buttons are on its left, so
 				the logo makes way and the toggle moves up beside them.
 			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag mac:pl-22">
+			<div
+				class="flex h-(--title-bar-height) shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag mac:pl-22"
+			>
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
@@ -233,7 +243,7 @@
 				aria-valuenow={clampWidth(sidebar.current.width)}
 				onpointerdown={resize}
 				onkeydown={nudge}
-				class="absolute top-14 -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px focus-visible:after:bg-accent"
+				class="absolute top-(--title-bar-height) -right-2 bottom-2 z-10 w-2 cursor-col-resize touch-none select-none after:absolute after:inset-y-0 after:left-1/2 after:w-px focus-visible:after:bg-accent"
 			></div>
 		</aside>
 	{/if}

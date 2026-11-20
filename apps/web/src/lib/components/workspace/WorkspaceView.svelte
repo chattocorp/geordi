@@ -39,6 +39,7 @@
 	import RunPane from './RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
+	import { getRibbonPosition } from '#lib/components/settings.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
@@ -180,6 +181,7 @@
 
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
+	const ribbonPosition = getRibbonPosition();
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
 	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
@@ -988,7 +990,11 @@
 {/snippet}
 
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
-	<TitleBar>
+	<TitleBar
+		contentWidth={ribbonPosition.current === 'pane' && frame.current.open && !project
+			? columnWidth
+			: undefined}
+	>
 		<div class="min-w-0 flex-1">
 			<WorkspaceHeading
 				title={workspace.title}
@@ -1030,7 +1036,10 @@
 				<Button onclick={reopen} disabled={restoringWorkspace}
 					>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
 				>
-			{:else if !project}
+			{/if}
+		{/snippet}
+		{#snippet trailing()}
+			{#if !workspace.archivedAt && !project}
 				<Button
 					variant="ghost"
 					icon={frame.current.open
