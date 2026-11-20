@@ -17,10 +17,14 @@
 	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
 
 	let pending = $state(false);
+	let field = $state<{ name: string }>();
 	const replyForm = {
 		async onsubmit(event: SubmitEvent) {
 			event.preventDefault();
 			pending = true;
+			await tick();
+			// Refresh the text field while the form is still pending.
+			field = field ? undefined : { name: 'text' };
 			await tick();
 			pending = false;
 		}
@@ -102,14 +106,26 @@
 		const text = canvas.getByRole('textbox');
 		await expect(text).toHaveFocus();
 		await userEvent.keyboard('First reply{Enter}');
-		await expect(text).toHaveFocus();
+		await waitFor(() => expect(text).toHaveFocus());
 		await userEvent.click(canvas.getByRole('button', { name: 'Send' }));
-		await expect(text).toHaveFocus();
+		await waitFor(() => expect(text).toHaveFocus());
 	}}
 >
 	<div class="max-w-2xl">
 		<ReplyComposer form={replyForm} focused disabled={pending} onstop={() => {}} />
 	</div>
+</Story>
+
+<Story
+	name="Queue restores focus after a field refresh"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.type(canvas.getByRole('textbox'), 'Follow up');
+		await userEvent.click(canvas.getByRole('button', { name: 'Queue' }));
+		await waitFor(() => expect(canvas.getByRole('textbox')).toHaveFocus());
+	}}
+>
+	<ReplyComposer running {field} form={replyForm} disabled={pending} onstop={() => {}} />
 </Story>
 
 <Story
