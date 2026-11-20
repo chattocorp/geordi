@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { openSettings } from '#lib/components/settings.svelte.ts';
 	import NewWorkspace from '#lib/components/workspace/NewWorkspace.svelte';
 	import { PROJECT } from '#lib/components/workspace/RepoPicker.svelte';
-	import Button from '@geordi/ui/Button.svelte';
 	import Page from '#lib/ui/Page.svelte';
 	import WaitingForView from '#lib/components/WaitingForView.svelte';
 	import { connection, follow } from '#lib/live.svelte.ts';
@@ -33,16 +31,9 @@
 
 	{#if !nav}
 		<WaitingForView lost={connection.state === 'lost'} />
-	{:else if nav.repos.length > 0}
+	{:else}
 		<div class="flex flex-1 flex-col justify-center">
 			{#key page.url.search}<NewWorkspace repos={nav.repos} {preferred} {issue} focused />{/key}
-		</div>
-	{:else}
-		<div class="empty">
-			<p class="pb-4">Agents work in a repository. Add one first.</p>
-			<Button variant="primary" onclick={() => openSettings('repositories')}>
-				Add a repository
-			</Button>
 		</div>
 	{/if}
 </Page>

@@ -14,11 +14,11 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 - **General** holds the theme: System (follows the computer's setting, also while it changes), Light, or Dark. The choice belongs to the browser.
 - **Keyboard** lists the keyboard shortcuts, by group, as they are pressed on this platform. They are all defined in one place (`@geordi/ui/keys`), which is what the page lists: a new shortcut shows there by being added.
 - **Notifications** turns telling of finished agents on or off (FDR-008), and sends a test: a notification and the sound, as when an agent is done, with a word on what came of it and where to look if nothing showed.
-- **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. A path to a Git repository on the machine adds one; a path Geordi can't make sense of is refused with the reason, on the page.
+- **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. **Add repository…** opens a folder chooser on desktop. In a browser, enter a Git checkout’s path on the Geordi host. Geordi explains invalid paths and lets you try again.
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
 - **Agent access** issues and revokes named MCP tokens, each for the repositories chosen with checkboxes (All and None only change the choice; repositories added later are never included). Settings shows a new token once, with the URL to use in the client (FDR-002).
 - **About** describes Geordi and shows the running release version.
-- Where there are no repositories yet, the new-workspace page says so and opens the settings at Repositories.
+- The workspace picker and the first-run screen offer the same **Add repository…** action as Settings. Adding a checkout opens the workspace composer with that repository selected, including when Geordi already knows it. The composer keeps your draft and attachments.
 - Select a repository name or icon in the sidebar to fold or expand its workspaces. A folded group shows its workspace count. The browser remembers which groups are folded.
 
 ## Design Decisions

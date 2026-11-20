@@ -4,7 +4,8 @@ import { command } from '$app/server';
 import { repos, workspaces } from '#lib/server/app.ts';
 
 export const registerRepo = command(v.pipe(v.string(), v.trim(), v.nonEmpty()), (path) => {
-	repos().register(path);
+	const { id, name } = repos().register(path);
+	return { id, name };
 });
 
 export const removeRepo = command(v.string(), (id) => {
