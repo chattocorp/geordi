@@ -64,12 +64,12 @@
 	});
 
 	const tones = {
-		ok: 'bg-ok/12 text-ok',
-		danger: 'bg-danger-soft text-danger',
+		ok: 'status-ok',
+		danger: 'status-danger',
 		// something to do: quiet, like the rest; it is the next step that is in ink. Not in
 		// gold, which is the reply box's (to send, and at work)
 		accent: 'bg-sunken text-muted',
-		merged: 'bg-merged/15 text-merged',
+		merged: 'status-merged',
 		neutral: 'bg-sunken text-muted'
 	};
 </script>

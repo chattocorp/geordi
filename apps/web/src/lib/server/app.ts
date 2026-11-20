@@ -215,7 +215,7 @@ export async function updateWorkspace(id: string, prompt: string) {
 			// no daemon, no worktree: the agent's turn says what is wrong
 			console.warn(`[update] ${cause instanceof Error ? cause.message : String(cause)}`);
 		}
-	workspaces().send(id, prompt);
+	workspaces().send(id, prompt, null, [], 'merge-upstream');
 }
 
 /**
@@ -230,7 +230,7 @@ export function upstreamMayHaveChanged(workspaceId: string) {
 		// A late turn event can refer to a workspace that is gone.
 		return;
 	}
-	void standings().look(ref.worktreeId, { fresh: true, announce: true });
+	return standings().look(ref.worktreeId, { fresh: true, announce: true });
 }
 
 /** The jobs repositories have run for their workspaces (FDR-006). */

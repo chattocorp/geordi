@@ -1,3 +1,4 @@
+import { ACTION_IDS } from '@geordi/ui/actions';
 import * as v from 'valibot';
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, query } from '$app/server';
@@ -116,8 +117,9 @@ export const sendMessage = form(
 );
 
 /** Says something to the workspace's agent without a form: what the workspace's actions do. */
-export const say = command(v.object({ workspaceId: v.string(), text }), ({ workspaceId, text }) =>
-	workspaces().send(workspaceId, text)
+export const say = command(
+	v.object({ workspaceId: v.string(), text, action: v.optional(v.picklist(ACTION_IDS)) }),
+	({ workspaceId, text, action }) => workspaces().send(workspaceId, text, null, [], action)
 );
 
 export const restoreWorkspace = command(v.string(), async (id) => {
@@ -174,8 +176,9 @@ export const mergePull = command(
 				{ kind: 'mergePull', ...ref, pullNumber, confirmation },
 				60_000
 			);
-			// merged (or queued to be): the sidebar and the ribbon say so at once
-			if (typeof status === 'string') upstreamMayHaveChanged(workspaceId);
+			// A queue acknowledgment alone doesn't tell us the new standing.
+			if (status === 'queued') await upstreamMayHaveChanged(workspaceId);
+			else if (status === 'merged') void upstreamMayHaveChanged(workspaceId);
 			return status;
 		} catch (cause) {
 			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);

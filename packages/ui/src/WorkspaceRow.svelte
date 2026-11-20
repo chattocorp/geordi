@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import WorkspaceActivity from './WorkspaceActivity.svelte';
 	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
-	import Spinner from './Spinner.svelte';
+
 	import StandingIcon from './StandingIcon.svelte';
 
 	let {
@@ -19,6 +19,8 @@
 		asking = false,
 		waiting = false,
 		working = false,
+		progress,
+		jobs = [],
 		standing = null,
 		actions = [],
 		fold,
@@ -40,6 +42,8 @@
 		asking?: boolean;
 		waiting?: boolean;
 		working?: boolean;
+		progress?: WorkspaceAction['id'];
+		jobs?: string[];
 		standing?: WorkspaceStanding | null;
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
@@ -49,30 +53,34 @@
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
-	const danger = 'bg-danger-soft text-danger hover:bg-danger/20';
+	const danger = 'status-danger hover:bg-danger/20';
 	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
-		'merge-pull': 'bg-ok/12 text-ok hover:bg-ok/20',
+		'merge-pull': 'status-ok hover:bg-ok/20',
 		'resolve-conflicts': danger,
 		'fix-checks': danger,
 		'address-review': danger,
-		archive: 'bg-merged/15 text-merged hover:bg-merged/25'
+		archive: 'status-merged hover:bg-merged/25'
 	};
 
-	// The pill just clicked stays, with its check, even once the row can't be acted on
-	// (archiving makes it leave at once).
-	let activated = $state<WorkspaceAction>();
-	let reset: ReturnType<typeof setTimeout>;
-	onDestroy(() => clearTimeout(reset));
+	const primary = $derived(actions.find((action) => !action.aside));
+	const pillColor = $derived(primary && onaction && pillColors[primary.id]);
+	const visibleStanding = $derived(standing?.tone === 'accent' ? null : standing);
 
-	const primary = $derived(activated ?? actions.find((action) => !action.aside));
-	const pillColor = $derived(primary && (activated || onaction) && pillColors[primary.id]);
-	const visibleStanding = $derived(leaving || standing?.tone === 'accent' ? null : standing);
+	let submitting = $state<WorkspaceAction['id']>();
+	const activity = $derived(
+		leaving
+			? 'archive'
+			: (progress ?? submitting ?? (working && !asking && !waiting ? 'working' : undefined))
+	);
+	const showJobs = $derived(jobs.length > 0 && !standing?.checks?.pending);
 
-	function activate(action: WorkspaceAction) {
-		activated = action;
-		clearTimeout(reset);
-		reset = setTimeout(() => (activated = undefined), 1500);
-		onaction?.(action);
+	async function activate(action: WorkspaceAction) {
+		submitting = action.id;
+		try {
+			await onaction?.(action);
+		} finally {
+			submitting = undefined;
+		}
 	}
 </script>
 
@@ -81,7 +89,7 @@
 	class={[
 		'group relative item pr-1 text-base',
 		// on its way out: it shows, and there is nothing more to do with it
-		(leaving || dragging) && 'opacity-60',
+		dragging && 'opacity-60',
 		leaving && 'pointer-events-none',
 		current && 'item-active',
 		// it came to rest out of sight, and they haven't looked since
@@ -101,28 +109,32 @@
 	/>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-		{#if visibleStanding}
+		{#if activity}
+			<span class="col-start-1 row-start-1 grid w-6 place-items-center text-muted">
+				<WorkspaceActivity {activity} {jobs} />
+			</span>
+		{:else if visibleStanding || showJobs}
 			<span
 				class={[
 					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
-					activated
-						? 'opacity-0'
-						: pillColor
-							? 'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
-							: onarchive && 'reveal:invisible'
+					pillColor
+						? 'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
+						: onarchive && 'reveal:invisible'
 				]}
 			>
-				<StandingIcon standing={visibleStanding} />
+				{#if showJobs}
+					<WorkspaceActivity activity="jobs" {jobs} />
+				{:else if visibleStanding}
+					<StandingIcon standing={visibleStanding} />
+				{/if}
 			</span>
 		{/if}
-		{#if pillColor && primary}
+		{#if !activity && primary && pillColor}
 			<button
 				type="button"
 				class={[
 					'col-start-1 row-start-1 inline-flex h-6 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap motion-safe:transition-all motion-safe:duration-150 motion-safe:ease-out',
-					activated
-						? 'w-max px-2'
-						: 'pointer-events-none w-0 opacity-0 reveal:pointer-events-auto reveal:w-max reveal:px-2 reveal:opacity-100',
+					'pointer-events-none w-0 opacity-0 reveal:pointer-events-auto reveal:w-max reveal:px-2 reveal:opacity-100',
 					pillColor
 				]}
 				style:interpolate-size="allow-keywords"
@@ -130,9 +142,9 @@
 				onclick={() => activate(primary)}
 			>
 				{primary.label}
-				<span class={[activated ? 'icon-[lucide--check]' : primary.icon, 'size-3.5']}></span>
+				<span class={[primary.icon, 'size-3.5']}></span>
 			</button>
-		{:else if onarchive}
+		{:else if !activity && onarchive}
 			<button
 				type="button"
 				class={[
@@ -149,9 +161,7 @@
 	</span>
 </div>
 {#snippet statusIcon()}
-	{#if leaving}
-		<Spinner label="Archiving" />
-	{:else if asking}
+	{#if asking}
 		<!-- an agent there waits for the person's answer -->
 		<span
 			class="icon-[lucide--message-circle-question] size-4 text-accent-ink"
@@ -160,9 +170,6 @@
 		></span>
 	{:else if waiting}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
-	{:else if working}
-		<!-- its agent, one working alongside it, or one folded away under it -->
-		<Spinner />
 	{:else if icon}
 		<span class={[icon, 'size-4']}></span>
 	{:else if child}

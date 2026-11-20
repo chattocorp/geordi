@@ -12,7 +12,7 @@
 		continueFromAfar
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
-	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
+	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
 	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
@@ -111,7 +111,7 @@
 				label: action.label,
 				icon: action.icon,
 				tone: actionTone(workspace.standing),
-				disabled: !!action.pullNumber && pendingPullAction.has(workspace.id),
+				disabled: pullActionPending(workspace.id, action),
 				onselect: () => actFromAfar(workspace, action)
 			})),
 			...(next.length > 0 ? ['separator' as const] : []),
@@ -392,6 +392,11 @@
 			asking={workspace.outcome === 'asking'}
 			waiting={workspace.waiting}
 			working={workspace.working || (isFolded && busy)}
+			progress={pendingPullAction.get(workspace.id) ??
+				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
+					? 'merge-pull'
+					: workspace.activeAction)}
+			jobs={workspace.runningJobs}
 			standing={workspace.standing}
 			actions={workspace.actions}
 			fold={under > 0

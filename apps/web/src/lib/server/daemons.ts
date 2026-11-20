@@ -1,3 +1,4 @@
+import type { WorkspaceAction } from '@geordi/ui/actions';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import {
@@ -15,6 +16,26 @@ import {
 import type { EventStore, GeordiEvent } from './events/index.ts';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
+
+/** Only operations that change the worktree or its pull request belong in the sidebar. */
+function actionForRequest(request: DaemonRequest): WorkspaceAction['id'] | undefined {
+	switch (request.kind) {
+		case 'mergePull':
+			return 'merge-pull';
+		case 'setAutoMerge':
+			return request.enabled ? 'enable-auto-merge' : 'cancel-auto-merge';
+		case 'markReady':
+			return 'ready-for-review';
+		case 'updateWorktree':
+			return 'merge-upstream';
+		case 'continueWorktree':
+			return 'continue';
+		case 'prepareWorktree':
+			return 'restore-worktree';
+		case 'removeWorktree':
+			return 'archive';
+	}
+}
 
 export type DaemonEvent = { type: 'daemon.selected'; stream: 'daemon'; data: { id: string } };
 
@@ -113,6 +134,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	const changed = () => watching.forEach((tell) => tell());
 	/** Requests awaiting a daemon's answer, by request ID. */
 	const pending = new Map<string, (response: { result?: unknown; error?: string }) => void>();
+
+	// Request IDs keep overlapping operations independent, including on timeout or disconnect.
+	const operations = new Map<string, { worktreeId: string; action: WorkspaceAction['id'] }>();
+	const operationListeners = new Set<() => void>();
+	const operationsChanged = () => operationListeners.forEach((tell) => tell());
 
 	/** Sends to the active daemon. Returns false if there is none. */
 	function send(message: ForgeMessage): boolean {
@@ -272,11 +298,18 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				const settle = ({ result, error }: { result?: unknown; error?: string }) => {
 					clearTimeout(timeout);
 					pending.delete(id);
+					if (operations.delete(id)) operationsChanged();
 					if (error === undefined) resolve(result as DaemonResults[K]);
 					else reject(new Error(error));
 				};
 				pending.set(id, settle);
-				if (!send({ type: 'request', id, request })) settle({ error: 'No daemon connected' });
+				if (!send({ type: 'request', id, request }))
+					return settle({ error: 'No daemon connected' });
+				const action = actionForRequest(request);
+				if (action && 'worktreeId' in request && request.worktreeId) {
+					operations.set(id, { worktreeId: request.worktreeId, action });
+					operationsChanged();
+				}
 			});
 		},
 
@@ -285,6 +318,12 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		 * `null` while no daemon is connected.
 		 */
 		harnesses: () => (active?.socket.readyState === WebSocket.OPEN ? active.harnesses : null),
+
+		operations: () => operations.values(),
+		followOperations(tell: () => void) {
+			operationListeners.add(tell);
+			return () => operationListeners.delete(tell);
+		},
 
 		/** Calls `tell` whenever a daemon connects or goes away. Returns a function that ends it. */
 		subscribe(tell: () => void): () => void {

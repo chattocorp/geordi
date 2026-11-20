@@ -22,6 +22,8 @@
 		"./PullRequestTab.svelte": "./src/PullRequestTab.svelte",
 		"./ReplyComposer.svelte": "./src/ReplyComposer.svelte",
 		"./Ring.svelte": "./src/Ring.svelte",
+		"./RunningJob.svelte": "./src/RunningJob.svelte",
+		"./WorkspaceActivity.svelte": "./src/WorkspaceActivity.svelte",
 		"./SidebarRowLabel.svelte": "./src/SidebarRowLabel.svelte",
 		"./Spinner.svelte": "./src/Spinner.svelte",
 		"./StandingIcon.svelte": "./src/StandingIcon.svelte",

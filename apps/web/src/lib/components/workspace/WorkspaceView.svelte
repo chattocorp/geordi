@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RunningJob from '@geordi/ui/RunningJob.svelte';
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
 	import { invalidateAll } from '$app/navigation';
@@ -66,7 +67,7 @@
 		updateWorkspace
 	} from '../../../routes/workspaces.remote';
 	import { addedNoteCount } from '#lib/release-notes.ts';
-	import { pendingPullAction, runPullAction, reviewProblems } from './review.svelte.ts';
+	import { pullActionPending, runPullAction, reviewProblems } from './review.svelte.ts';
 	import { archive as archiveWorkspace, archiveProblems, beingArchived } from './archive.svelte.ts';
 	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
@@ -559,8 +560,7 @@
 			.filter((action) =>
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
-					: (action.id === 'merge-pull' && mergeConfirmed) ||
-						(!!action.pullNumber && pendingPullAction.has(id)) ||
+					: pullActionPending(id, action) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
 			)
@@ -573,9 +573,6 @@
 	/** It is being archived right now, which takes a moment. */
 	const leaving = $derived(beingArchived.has(id));
 
-	// A successful command can arrive before the live view that offers Archive.
-	let mergedPull = $state<string | null>(null);
-	const mergeConfirmed = $derived(mergedPull !== null && mergedPull === pull?.number);
 	/** Why merging (or restoring the worktree) didn't work, if it didn't. */
 	let mergeProblem = $state<string | null>(null);
 
@@ -647,11 +644,10 @@
 	async function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
-		else if (action.prompt) say({ workspaceId: id, text: action.prompt });
+		else if (action.prompt) say({ workspaceId: id, text: action.prompt, action: action.id });
 		else if (action.pullNumber) {
-			if (action.id === 'merge-pull' && mergeConfirmed) return;
 			mergeProblem = null;
-			if ((await runPullAction(id, action)) === 'merged') mergedPull = action.pullNumber;
+			await runPullAction(id, action);
 		} else if (action.id === 'restore-worktree') restore();
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
@@ -728,12 +724,7 @@
 				<!-- on its way up: until it listens on its port -->
 				<span class="grid size-3.5 shrink-0 place-items-center"><Spinner label="Starting" /></span>
 			{:else if status === undefined}
-				<span
-					class="bar-running icon-[lucide--play] size-3.5 shrink-0 text-accent"
-					role="img"
-					aria-label="Running"
-					title="Running"
-				></span>
+				<RunningJob class="size-3.5" />
 			{:else if status === 0}
 				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
 			{:else}

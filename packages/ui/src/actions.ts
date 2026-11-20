@@ -1,27 +1,30 @@
 import type { Changes, CheckCounts, Upstream } from '@geordi/protocol';
 
+export const ACTION_IDS = [
+	'merge-upstream',
+	'commit',
+	'create-pull',
+	'update-pull',
+	'resolve-conflicts',
+	'fix-checks',
+	'address-review',
+	'enable-auto-merge',
+	'cancel-auto-merge',
+	'ready-for-review',
+	'merge-pull',
+	'restore-worktree',
+	'retry',
+	'continue',
+	'archive'
+] as const;
+
 /**
  * What could or should happen next in a workspace (FDR-003), worked out from where its
  * changes and its pull request stand. Most actions are a message to the workspace's agent;
  * merging and archiving are things Geordi does itself.
  */
 export type WorkspaceAction = {
-	id:
-		| 'merge-upstream'
-		| 'commit'
-		| 'create-pull'
-		| 'update-pull'
-		| 'resolve-conflicts'
-		| 'fix-checks'
-		| 'address-review'
-		| 'enable-auto-merge'
-		| 'cancel-auto-merge'
-		| 'ready-for-review'
-		| 'merge-pull'
-		| 'restore-worktree'
-		| 'retry'
-		| 'continue'
-		| 'archive';
+	id: (typeof ACTION_IDS)[number];
 	label: string;
 	incomingCommits?: number;
 	/** An Iconify class. */
