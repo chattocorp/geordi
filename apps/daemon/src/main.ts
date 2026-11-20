@@ -1,3 +1,4 @@
+import { workspaceRecap } from './recap.ts';
 import { projectPath } from './projects.ts';
 import { claimDaemon } from './daemon-owner.ts';
 import { prepareSessionsDirectory } from './session-process.ts';
@@ -499,6 +500,13 @@ function answer(request: DaemonRequest) {
 }
 
 async function readRequest(request: DaemonRequest) {
+	if (request.kind === 'recap') {
+		const cwd =
+			'project' in request
+				? projectPath(projectsDir, request.worktreeId)
+				: (await locateWorktree(worktreesDir, request.repoPath, request.worktreeId)).path;
+		return workspaceRecap(request, cwd);
+	}
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'findFiles') {

@@ -30,8 +30,8 @@ import {
 	renameSync,
 	writeFileSync
 } from 'node:fs';
-import { createRequire } from 'node:module';
-import { delimiter, dirname, join } from 'node:path';
+import { wrapperEntry, wrapperEnv, wrapperName } from './wrapper.ts';
+import { join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import type {
 	Agent,
@@ -85,18 +85,8 @@ const IDLE_MS = Number(process.env.GEORDI_SESSION_IDLE_MS) || 5 * 60_000;
 const dir = process.argv[2];
 const file = (name: string) => join(dir, name);
 const { agent, options, apiToken } = JSON.parse(readFileSync(file('meta.json'), 'utf8')) as Meta;
-const cmd = agent === 'codex' ? 'codex-acp' : 'claude-agent-acp';
-// Staged (a release), the wrapper is bundled next to this file; in the repository, it is the
-// package's. The optional argument lets the session tests exercise this same host with a fixture.
-const bundled = join(import.meta.dirname, `${cmd}.js`);
-const entry =
-	process.argv[3] ??
-	(existsSync(bundled)
-		? bundled
-		: join(
-				dirname(createRequire(import.meta.url).resolve(`@agentclientprotocol/${cmd}/package.json`)),
-				'dist/index.js'
-			));
+const cmd = wrapperName(agent);
+const entry = process.argv[3] ?? wrapperEntry(agent);
 
 // A signal meant to end the session reaches the whole process group, the CLI with it. We
 // stay, to note how it ended.
@@ -105,12 +95,7 @@ for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(signal
 const env = { ...process.env, ...options.env };
 // The agent's own program is the one the person has installed: the wrappers would otherwise
 // look for a copy of their own, which Geordi leaves out (some 300 MB each).
-const program = agent === 'codex' ? 'codex' : 'claude';
-const programEnv = agent === 'codex' ? 'CODEX_PATH' : 'CLAUDE_CODE_EXECUTABLE';
-env[programEnv] ||= installed(program);
-const missing = env[programEnv]
-	? undefined
-	: `Geordi could not find \`${program}\`. Install it, or put it on your PATH.`;
+const missing = wrapperEnv(agent, env);
 if (agent === 'codex') {
 	const config = JSON.parse(env.CODEX_CONFIG || '{}');
 	config.features = { ...config.features, default_mode_request_user_input: true };
@@ -128,14 +113,6 @@ if (agent === 'codex') {
 	}
 	env.CODEX_CONFIG = JSON.stringify(config);
 }
-/** Where a program is on the `PATH`, if it is anywhere. */
-function installed(name: string): string | undefined {
-	const extensions = process.platform === 'win32' ? (env.PATHEXT || '.EXE').split(';') : [''];
-	for (const dir of (env.PATH ?? '').split(delimiter).filter(Boolean))
-		for (const extension of extensions)
-			if (existsSync(join(dir, name + extension))) return join(dir, name + extension);
-}
-
 const err = openSync(file('err.log'), 'a', 0o600);
 const child = spawn(process.execPath, [entry], {
 	cwd: options.cwd,

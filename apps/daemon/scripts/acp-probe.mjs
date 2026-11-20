@@ -1,3 +1,4 @@
+import { generateRecap } from '../src/recap.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -10,6 +11,7 @@ import { resumeSessions, startSession } from '../src/session.ts';
 
 const [, , agent, scenario = 'inspect', permissionMode = 'full-access'] = process.argv;
 const prompts = {
+	recap: 'Reply that the lemon tests passed and ask whether to ship today.',
 	subagents:
 		'Use two native subagents in parallel. Ask the first to run pwd and reply DAEMON_READY and the second to run pwd and reply UI_READY. Wait for both, then summarize.',
 	inspect: 'Reply with exactly READY.',
@@ -24,7 +26,7 @@ assert(
 	['codex', 'claude'].includes(agent) &&
 		Object.hasOwn(prompts, scenario) &&
 		['auto', 'full-access'].includes(permissionMode),
-	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask|subagents|commands] [auto|full-access]'
+	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask|subagents|commands|recap] [auto|full-access]'
 );
 
 const root = mkdtempSync(join(tmpdir(), 'geordi-acp-'));
@@ -160,6 +162,21 @@ try {
 	}
 
 	await until('foreground completion', () => ofKind('turn.completed').length);
+	if (scenario === 'recap') {
+		const text = await generateRecap(
+			{
+				kind: 'recap',
+				agent,
+				sessionId: session.resumeId(),
+				range: '1-2',
+				activity: 'The agent finished its tests and asked the person a question.'
+			},
+			cwd
+		);
+		assert.match(text, /lemon/i);
+		assert.match(text, /ship|release|deploy/i);
+		console.log(text);
+	}
 	if (scenario === 'commands') {
 		await until('the commands', () => ofKind('commands').length);
 		const offered = ofKind('commands').at(-1).commands;

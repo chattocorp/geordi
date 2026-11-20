@@ -25,6 +25,13 @@ import {
 	workspaces
 } from '#lib/server/app.ts';
 
+const cursor = v.pipe(v.number(), v.integer(), v.minValue(0));
+export const recapWorkspace = command(
+	v.object({ workspaceId: v.string(), after: cursor, through: cursor }),
+	({ workspaceId, after, through }) =>
+		hub().request(workspaces().recapRequest(workspaceId, after, through), 100_000)
+);
+
 const imageIds = v.pipe(
 	v.optional(v.string(), '[]'),
 	v.transform((value) => {

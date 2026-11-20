@@ -1,7 +1,7 @@
 # FDR-001: Workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-19
+**Last reviewed:** 2026-11-20
 
 ## Overview
 
@@ -12,6 +12,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - A workspace is started with an agent and a repository, and usually with a first prompt (without one, it is there with its worktree, waiting to be told what to do): from "New workspace" in the sidebar, where the repository worked in last is preselected, or from the + beside a repository's name. It gets its own worktree and branch, which starts from the main branch of the repository's upstream as it stands at that moment (Geordi fetches first), not from whatever the repository has checked out. A repository without an upstream, or one that can't be reached, starts from what is there. It is named after the first line of that prompt at first. Its agent then gives it a short name that says what the work is about, once it knows (the agent API's `name_workspace`), and may change it a couple of times if the work turns out to be about something else. Until then, the title its agent gives the conversation (Claude makes one from the prompt within seconds; Codex once its first turn ends) bridges the moments, and replaces the first line; a name the agent or whoever started the workspace chose is never replaced by it.
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - Geordi saves each prompt before sending it. While a saved prompt waits for an offline daemon, the conversation shows **Waiting for daemon**. Delivery resumes when it reconnects.
+- When you return to a conversation that changed while you were away, a recap shows what happened and whether the agent needs your input. The agent writes it in a temporary copy of the session so you can continue the original conversation. Your browser remembers what you saw and reuses the recap on a return with no new activity.
 - During a turn, the conversation shows progress as it happens. When the turn ends, the final reply or failure stays visible. Open **Turn activity** to inspect earlier messages and tool calls in order.
 - At the end of a turn that changed files, the reply footer shows the filename for a single edit or the number of changed files, plus the lines added and removed. Select it to open the numbered turn tab. Each text diff opens expanded and can be folded from its file header. The diff compares the worktree at the start and end of the turn, so it includes shell edits and commits. Edits made at the same time by another agent or a person in the same worktree are included. The saved diff stays available after later edits or archiving. For large patches, the summary keeps the counts and file list.
 - An agent’s plan updates in place as its steps change. If the agent continues the plan in a later exchange, the card moves into that reply. The current step stands out. When all steps are complete, the plan folds into a summary that can be reopened. Agents can also share a written plan or withdraw a plan.

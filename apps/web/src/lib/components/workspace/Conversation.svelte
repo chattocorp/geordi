@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import Recap from './Recap.svelte';
+	import { watchReturn } from './return-recap.ts';
 	import { resolve } from '$app/paths';
 	import MessageView from './MessageView.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
@@ -11,6 +14,7 @@
 	import type { Limits } from '#lib/server/limits.ts';
 	import type { Navigation, WorkspaceUpdate } from '#lib/server/views.ts';
 	import {
+		recapWorkspace,
 		findFiles,
 		configureWorkspace,
 		answerQuestion,
@@ -89,11 +93,35 @@
 		}))
 	);
 
+	const watchedId = $derived(workspace.archivedAt ? null : workspace.id);
+	let recap = $state('');
+	let visit = $state<ReturnType<typeof watchReturn>>();
+	$effect(() => {
+		const id = watchedId;
+		recap = '';
+		if (!id) return;
+		const watcher = untrack(() =>
+			watchReturn(
+				id,
+				() => workspace.activitySeq ?? 0,
+				(after, through) => recapWorkspace({ workspaceId: id, after, through }),
+				(text) => (recap = text)
+			)
+		);
+		visit = watcher;
+		return () => {
+			watcher.destroy();
+			visit = undefined;
+		};
+	});
+	$effect(() => visit?.update());
+
 	let messages = $state<MessageView>();
 	const toLatest = () => messages?.toLatest();
 </script>
 
 <div class="relative flex min-h-0 flex-1 flex-col">
+	{#if recap}<Recap text={recap} />{/if}
 	{#key workspace.id}
 		<MessageView
 			bind:this={messages}

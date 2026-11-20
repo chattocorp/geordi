@@ -1,3 +1,4 @@
+import { recapActivity } from './recap.ts';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
@@ -10,6 +11,7 @@ import {
 	sameAgentSettings,
 	type Agent,
 	type AgentEvent,
+	type DaemonRequest,
 	type AgentPlan,
 	type AgentSettings,
 	type ContextUsage,
@@ -284,6 +286,8 @@ type Status = 'running' | 'idle';
  */
 export type Workspace = {
 	outputCursor?: string;
+	/** Sequence of the last visible transcript change, including edits to existing tools and questions. */
+	activitySeq?: number;
 	pendingMessages?: PendingMessage[];
 	/** When the turn that is running began, for the `turn` item that ends it. */
 	turnStartedAt?: string;
@@ -478,11 +482,12 @@ export function createWorkspaces(
 		if (!workspace) return;
 		workspace.updatedAt = at;
 		const { id, transcript } = workspace;
-		function edit(index: number, remove: number, ...items: TranscriptItem[]) {
+		const edit = (index: number, remove: number, ...items: TranscriptItem[]) => {
+			workspace.activitySeq = seq;
 			transcript.splice(index, remove, ...items);
 			if (!restoring)
 				for (const listener of listeners.get(id) ?? []) listener([index, remove, ...items]);
-		}
+		};
 		const append = (item: TranscriptItem) => edit(transcript.length, 0, item);
 		const replace = (item: TranscriptItem, next: TranscriptItem) =>
 			edit(transcript.indexOf(item), 1, next);
@@ -691,7 +696,10 @@ export function createWorkspaces(
 				if (output.blocking !== false) workspace.asking = true;
 				break;
 			case 'turn.started':
-				if (workspace.status !== 'running') workspace.turnStartedAt = at;
+				if (workspace.status !== 'running') {
+					workspace.turnStartedAt = at;
+					workspace.activitySeq = seq;
+				}
 				workspace.status = 'running';
 				workspace.lastTurn = null;
 				break;
@@ -1543,6 +1551,32 @@ export function createWorkspaces(
 				.filter((workspace) => workspace.repoId === repoId && !workspace.archivedAt)
 				.reverse()
 				.map(summarise),
+
+		recapRequest(
+			id: string,
+			after: number,
+			through: number
+		): Extract<DaemonRequest, { kind: 'recap' }> {
+			const workspace = find(id);
+			if (
+				!workspace.resumeId ||
+				workspace.archivedAt ||
+				through <= after ||
+				through > (workspace.activitySeq ?? 0)
+			)
+				error(409, 'The workspace cannot be recapped.');
+			const questions = workspace.transcript.flatMap((item) =>
+				item.kind === 'question' && item.open ? item.questions.map((q) => q.question) : []
+			);
+			return {
+				kind: 'recap',
+				...locate(id),
+				agent: workspace.agent,
+				sessionId: workspace.resumeId,
+				range: after + '-' + through,
+				activity: recapActivity(store.readStream('workspace:' + id, after, through), questions)
+			};
+		},
 
 		get: (id: string): Workspace => view(find(id)),
 

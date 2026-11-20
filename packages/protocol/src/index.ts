@@ -453,6 +453,9 @@ export type ReleasePlan = {
 export type RepoIcon = { type: string; data: string };
 
 export type DaemonRequest =
+	| ({ kind: 'recap'; agent: Agent; sessionId: string; activity: string; range: string } & (
+			WorktreeRef | ProjectRef
+	  ))
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
 	| ({ kind: 'changes' } & WorktreeRef)
 	/**
@@ -546,6 +549,7 @@ export type RepositoryThread = Pick<PullRequest, 'number' | 'title' | 'review' |
 };
 
 export type DaemonResults = {
+	recap: string;
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
