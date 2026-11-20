@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
 	import BackgroundTasks from './BackgroundTasks.svelte';
@@ -364,13 +365,25 @@
 						{#if block.kind === 'user'}
 							{#if block.from || (block.delegated && i !== assignmentIndex)}
 								<!-- not the person's words: another agent's, and whose -->
+								{@const title = block.from && senders?.[block.from]}
+								{@const label = title
+									? `From the agent in “${title}”`
+									: block.senderName
+										? `From ${block.senderName}`
+										: 'From another agent'}
 								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
 									<span class="icon-[lucide--bot] size-3.5"></span>
-									{block.from && senders?.[block.from]
-										? `From the agent in “${senders[block.from]}”`
-										: block.senderName
-											? `From ${block.senderName}`
-											: 'From another agent'}
+									{#if block.from && !block.from.startsWith('external:')}
+										<a
+											href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`, {
+												id: block.from
+											})}
+											class="rounded-control hover:text-ink hover:underline focus-visible:underline"
+											>{label}</a
+										>
+									{:else}
+										{label}
+									{/if}
 								</p>
 							{/if}
 							<UserMessage text={block.text}>

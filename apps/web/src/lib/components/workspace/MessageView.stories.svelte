@@ -617,10 +617,31 @@
 	</div>
 </Story>
 
-<Story name="External agent follow-up" asChild>
+<Story
+	name="Agent follow-ups"
+	asChild
+	play={async ({ canvas }) => {
+		for (const [name, id] of [
+			['From the agent in “Simplify release CI”', 'parent'],
+			['From Review', 'peer']
+		]) {
+			await expect(await canvas.findByRole('link', { name })).toHaveAttribute(
+				'href',
+				`/workspaces/${id}?agent=${id}`
+			);
+		}
+		await expect(canvas.getByText('From Release assistant').closest('a')).toBeNull();
+	}}
+>
 	<div class="flex h-80 flex-col overflow-hidden card">
 		<MessageView
 			blocks={[
+				{
+					kind: 'user',
+					text: 'Please check the release.',
+					from: 'parent'
+				},
+				{ kind: 'user', text: 'The review is ready.', from: 'peer', senderName: 'Review' },
 				{
 					kind: 'user',
 					text: 'Please check the migration.',
@@ -628,6 +649,7 @@
 					senderName: 'Release assistant'
 				}
 			]}
+			senders={{ parent: 'Simplify release CI' }}
 			agent="codex"
 			onremove={() => {}}
 			onanswer={() => {}}
