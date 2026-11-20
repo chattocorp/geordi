@@ -9,8 +9,6 @@
 		tabs: string[];
 		current: string | null;
 		tab: Snippet<[string]>;
-		/** A control of a tab's own, beside its label (a tab can't hold one), for the tabs that have one. */
-		control?: (id: string) => Snippet | undefined;
 		actions?: Snippet;
 		onselect?: (id: string) => void;
 		onclose?: (id: string) => void;
@@ -25,19 +23,8 @@
 			drop(event: DragEvent): void;
 		};
 	};
-	let {
-		prefix,
-		tabs,
-		current,
-		tab,
-		control,
-		actions,
-		onselect,
-		onclose,
-		closable,
-		before,
-		drag
-	}: Props = $props();
+	let { prefix, tabs, current, tab, actions, onselect, onclose, closable, before, drag }: Props =
+		$props();
 </script>
 
 <div
@@ -49,7 +36,6 @@
 >
 	{#each tabs as id, index (id)}
 		{@const active = id === current}
-		{@const own = control?.(id)}
 		<!-- The tab and its close button are siblings: a tab can't hold another control. -->
 		<div
 			role="presentation"
@@ -72,7 +58,7 @@
 				// as much room before what it starts with as after what it ends with
 				'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
 				// a button at the end sits as close to the edge as the tab's height leaves it
-				closable?.(id) || own ? 'pr-1' : 'pr-2',
+				closable?.(id) ? 'pr-1' : 'pr-2',
 				active ? 'tab-active' : 'tab-inactive',
 				// where the dragged tab would go: a line before this one, or after the last
 				before === id && 'tab-drop-before',
@@ -90,7 +76,6 @@
 			>
 				{@render tab(id)}
 			</button>
-			{@render own?.()}
 			{#if closable?.(id)}
 				<Button
 					variant="ghost"

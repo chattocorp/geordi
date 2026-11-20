@@ -570,7 +570,6 @@
 					>
 						{#snippet tab(id: string)}
 							{#if id === 'run'}
-								<span class="icon-[lucide--circle-play] size-3.5 shrink-0"></span>
 								<span>Run</span>
 							{:else}
 								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
@@ -600,6 +599,7 @@
 						class="flex min-h-0 flex-1 flex-col"
 					>
 						<RunPane
+							defaultAction="urls.app"
 							{jobs}
 							{links}
 							stateOf={(name) => jobStates[name] ?? 'stopped'}

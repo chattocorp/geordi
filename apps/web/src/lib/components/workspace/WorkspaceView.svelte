@@ -34,7 +34,14 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { CONFIG_FILE, JOB_TERMINAL, SCRIPTS, startOrder, type Script } from '@geordi/protocol';
+	import {
+		CONFIG_FILE,
+		JOB_TERMINAL,
+		SCRIPTS,
+		startOrder,
+		type PortConflict,
+		type Script
+	} from '@geordi/protocol';
 	import JobMark, { type JobState } from '@geordi/ui/JobMark.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
@@ -45,6 +52,7 @@
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
+	import PortConflictDialog from './PortConflictDialog.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
@@ -283,21 +291,16 @@
 		const job = jobOf(terminal);
 		return !!job && !SCRIPTS.some((script) => script === job);
 	}
-	/** What the Run tab's own button starts or opens: the file's `default` (FDR-006). */
 	const runJob = $derived(jobs.find((job) => config?.default === `jobs.${job.name}`));
 	const runLink = $derived(links.find((link) => config?.default === `urls.${link.name}`));
-	/** The Run tab's own button, where there is a `run` job to start. */
 	function runLive(job: string) {
 		const state = jobState(job);
 		return state === 'running' || state === 'starting';
 	}
-	/** What the Run tab's button does: starts or stops the default job, or opens the default link. */
 	function runDefault() {
 		if (runJob) return runLive(runJob.name) ? stop(runJob.name) : start([runJob.name]);
 		if (runLink) visit(runLink);
 	}
-	const control = (tab: string) =>
-		tab === RUN && (runJob || runLink) && !workspace.archivedAt ? runControl : undefined;
 	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
 	/** A job runs while its terminal is there and its command has not ended in it. */
 	const isUp = (job: string) =>
@@ -374,15 +377,26 @@
 	/** The jobs that were asked for and are on their way up: until they listen on their port. */
 	const launching = new SvelteSet<string>();
 
+	let blocked = $state<{
+		workspaceId: string;
+		conflict: PortConflict & { job: string };
+		retry: () => void;
+	} | null>(null);
+
 	/** Starts jobs and their dependencies. */
-	function start(names: string[]) {
+	function start(names: string[], confirmation?: string) {
+		const workspaceId = id;
 		agreed(names, async (seen) => {
 			const order = startOrder(jobs, names);
 			for (const name of order) launching.add(name);
 			mergeProblem = null;
 			try {
-				await startJobs({ workspaceId: id, jobs: names, seen });
-				await jobsReady({ workspaceId: id, jobs: order });
+				const conflict = await startJobs({ workspaceId, jobs: names, seen, confirmation });
+				if (conflict) {
+					blocked = { workspaceId, conflict, retry: () => start(names, conflict.confirmation) };
+					return;
+				}
+				await jobsReady({ workspaceId, jobs: order });
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not start that');
 			} finally {
@@ -402,7 +416,8 @@
 	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
 
 	/** Opens a link in the browser, once the jobs it needs are up. */
-	function visit(link: (typeof links)[number]) {
+	function visit(link: (typeof links)[number], confirmation?: string) {
+		const workspaceId = id;
 		agreed(link.needs, async (seen) => {
 			// a new tab has to be opened while the click still counts; where to comes later
 			// (`window` is the name of a snippet in here)
@@ -411,7 +426,12 @@
 			for (const name of booting) launching.add(name);
 			mergeProblem = null;
 			try {
-				const href = await openLink({ workspaceId: id, link: link.name, seen });
+				const href = await openLink({ workspaceId, link: link.name, seen, confirmation });
+				if (typeof href !== 'string') {
+					tab?.close();
+					blocked = { workspaceId, conflict: href, retry: () => visit(link, href.confirmation) };
+					return;
+				}
 				if (!tab) return void globalThis.open(href, '_blank', 'noopener');
 				tab.opener = null; // what is served there has no business with this page
 				tab.location.href = href;
@@ -764,36 +784,6 @@
 	<span class="-mr-1 flex"><Badge>{n}</Badge></span>
 {/snippet}
 
-{#snippet runControl()}
-	{#if runJob}
-		{@const state = jobState(runJob.name)}
-		{@const live = runLive(runJob.name)}
-		{@const name = runJob.label ?? 'the project'}
-		<Button
-			variant="ghost"
-			size="sm"
-			icon={live ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'}
-			working={state === 'starting'}
-			label="{live ? 'Stop' : 'Run'} {name} ({hint('runDefault')})"
-			onclick={runDefault}
-			class={[live && 'hover:text-danger!']}
-		/>
-	{:else if runLink}
-		<!-- as in the Run tab: gold once all it needs runs, and it opens at once -->
-		{@const ready =
-			runLink.needs.length > 0 && runLink.needs.every((job) => jobState(job) === 'running')}
-		<Button
-			variant="ghost"
-			size="sm"
-			icon="icon-[lucide--external-link]"
-			working={runLink.needs.some((job) => jobState(job) === 'starting')}
-			label="Open {runLink.label ?? runLink.name} ({hint('runDefault')})"
-			onclick={runDefault}
-			class={[ready && 'text-accent!']}
-		/>
-	{/if}
-{/snippet}
-
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
@@ -804,7 +794,6 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
 	{:else if tab === RUN}
-		<span class="icon-[lucide--circle-play] size-3.5 shrink-0"></span>
 		<span class="truncate">Run</span>
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
@@ -906,6 +895,8 @@
 		</div>
 	{:else if tab === RUN}
 		<RunPane
+			defaultAction={config?.default}
+			shortcut={hint('runDefault')}
 			{jobs}
 			{links}
 			stateOf={jobState}
@@ -1134,7 +1125,6 @@
 					layout={main}
 					onchange={(next) => arrange({ main: next })}
 					{tab}
-					{control}
 					{window}
 					{closable}
 					accepts={movable}
@@ -1163,7 +1153,6 @@
 								layout={layouts.side}
 								onchange={(next) => arrange({ side: next })}
 								{tab}
-								{control}
 								{window}
 								{closable}
 								accepts={movable}
@@ -1178,7 +1167,6 @@
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
 								{tab}
-								{control}
 								{window}
 								{closable}
 								accepts={movable}
@@ -1233,3 +1221,13 @@
 		</div>
 	</div>
 </Dialog>
+
+<PortConflictDialog
+	conflict={blocked?.workspaceId === id ? blocked.conflict : null}
+	cancel={() => (blocked = null)}
+	retry={() => {
+		const request = blocked;
+		blocked = null;
+		if (request?.workspaceId === id) request.retry();
+	}}
+/>

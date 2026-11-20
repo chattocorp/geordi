@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { Job, Link } from '@geordi/protocol';
+	import type { Job, Link, RepoConfig } from '@geordi/protocol';
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 
@@ -11,6 +11,8 @@
 	 * problem with the configuration, say) is `children`.
 	 */
 	let {
+		defaultAction,
+		shortcut,
 		jobs,
 		links,
 		stateOf,
@@ -21,6 +23,8 @@
 		visit,
 		children
 	}: {
+		defaultAction?: RepoConfig['default'];
+		shortcut?: string;
 		jobs: Job[];
 		links: Link[];
 		stateOf: (job: string) => JobState;
@@ -33,6 +37,10 @@
 		children?: Snippet;
 	} = $props();
 
+	const firstLink = $derived(links.find((link) => defaultAction === `urls.${link.name}`));
+	const firstJob = $derived(jobs.find((job) => defaultAction === `jobs.${job.name}`));
+	const otherLinks = $derived(links.filter((link) => link !== firstLink));
+	const otherJobs = $derived(jobs.filter((job) => job !== firstJob));
 	const live = (state: JobState) => state === 'running' || state === 'starting';
 	const idle = $derived(jobs.filter((job) => !live(stateOf(job.name))));
 	const up = $derived(jobs.filter((job) => live(stateOf(job.name))));
@@ -54,42 +62,85 @@
 	>
 {/snippet}
 
+{#snippet linkRow(link: Link, first = false)}
+	<button
+		type="button"
+		title="Open {link.href}"
+		onclick={() => visit(link)}
+		class="group/link flex h-8 w-full items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
+	>
+		<span class="grid size-6 shrink-0 place-items-center">
+			{#if link.needs.some((name) => stateOf(name) === 'starting')}
+				<JobMark state="starting" />
+			{:else}
+				<span
+					class={[
+						'icon-[lucide--external-link] size-3.5',
+						ready(link) ? 'text-accent' : 'text-muted'
+					]}
+				></span>
+			{/if}
+		</span>
+		<span class="min-w-0 flex-1 truncate text-ink"
+			>{first ? 'Open ' : ''}{link.label ?? link.name}</span
+		>
+		<span
+			class="hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
+			>{where(link.href)}</span
+		>
+		{#if first && shortcut}<kbd class="text-xs text-muted">{shortcut}</kbd>{/if}
+	</button>
+{/snippet}
+
 <div class="scroller flex flex-col gap-3 p-2">
 	{@render children?.()}
 
-	{#if links.length > 0}
+	{#if firstLink || firstJob}
+		<section aria-label="Default action">
+			{@render heading('Default action')}
+			{#if firstLink}
+				{@render linkRow(firstLink, true)}
+			{:else if firstJob}
+				{@const job = firstJob}
+				{@const state = stateOf(job.name)}
+				{@const name = job.label ?? job.name}
+				<div class="flex items-center">
+					<button
+						type="button"
+						onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
+						class="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
+					>
+						<span class="grid size-6 shrink-0 place-items-center text-muted"
+							>{#if state === 'stopped'}<span class="icon-[lucide--play] size-3.5"
+								></span>{:else}<JobMark {state} />{/if}</span
+						>
+						<span class="flex-1 truncate">{live(state) ? 'Stop' : 'Start'} {name}</span>
+						{#if shortcut}<kbd class="text-xs text-muted">{shortcut}</kbd>{/if}
+					</button>
+					{#if hasTerminal(job.name)}
+						<Button
+							variant="ghost"
+							size="sm"
+							icon="icon-[lucide--square-terminal]"
+							label="Open terminal for {name}"
+							onclick={() => show(job.name)}
+						/>
+					{/if}
+				</div>
+			{/if}
+		</section>
+	{/if}
+
+	{#if otherLinks.length > 0}
 		<section aria-label="Open">
 			{@render heading('Open')}
-			{#each links as link (link.name)}
-				<button
-					type="button"
-					title="Open {link.href}"
-					onclick={() => visit(link)}
-					class="group/link flex h-8 w-full items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
-				>
-					<span class="grid size-6 shrink-0 place-items-center">
-						{#if link.needs.some((name) => stateOf(name) === 'starting')}
-							<JobMark state="starting" />
-						{:else}
-							<span
-								class={[
-									'icon-[lucide--external-link] size-3.5',
-									ready(link) ? 'text-accent' : 'text-muted'
-								]}
-							></span>
-						{/if}
-					</span>
-					<span class="min-w-0 flex-1 truncate text-ink">{link.label ?? link.name}</span>
-					<span
-						class="hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
-						>{where(link.href)}</span
-					>
-				</button>
+			{#each otherLinks as link (link.name)}
+				{@render linkRow(link)}
 			{/each}
 		</section>
 	{/if}
 
-	{#if jobs.length > 0}
+	{#if otherJobs.length > 0}
 		<section aria-label="Jobs">
 			<div class="flex items-center gap-0.5 pr-0.5">
 				{@render heading('Jobs')}
@@ -112,7 +163,7 @@
 					/>
 				{/if}
 			</div>
-			{#each jobs as job (job.name)}
+			{#each otherJobs as job (job.name)}
 				{@const state = stateOf(job.name)}
 				{@const name = job.label ?? job.name}
 				{@const action = live(state) ? 'Stop' : 'Start'}

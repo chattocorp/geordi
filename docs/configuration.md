@@ -49,9 +49,10 @@ and should keep running until stopped.
 it mentions (and any under its `needs`) and waits for them. Only addresses on this
 machine (`localhost`).
 
-**`default`**: what the **Run** button starts, by key: `urls.app` or `jobs.web`. Without
-it, Run uses the first URL, or the first job if there are no URLs. With several choices,
-the chevron next to Run opens them all.
+**`default`** selects the first action inside the **Run** tab. Use a URL key such as
+`urls.app` or a job key such as `jobs.web`. Press ⌥⌘R on macOS or Ctrl+Alt+R elsewhere
+to use it from the workspace. If you omit `default`, Geordi uses the job named `run`
+when present. Otherwise the pane lists the configured links and jobs in their usual order.
 
 ## Ports
 
