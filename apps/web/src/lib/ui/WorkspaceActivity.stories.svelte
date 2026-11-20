@@ -8,7 +8,6 @@
 </script>
 
 <Story name="Agent working" args={{ activity: 'working' }} />
-<Story name="Job running" args={{ activity: 'jobs', jobs: ['tests'] }} />
 <Story name="Merging" args={{ activity: 'merge-pull' }} />
 <Story name="Fixing" args={{ activity: 'fix-checks' }} />
 <Story name="Archiving" args={{ activity: 'archive' }} />

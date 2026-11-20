@@ -20,7 +20,6 @@
 		waiting = false,
 		working = false,
 		progress,
-		jobs = [],
 		standing = null,
 		actions = [],
 		fold,
@@ -42,7 +41,6 @@
 		waiting?: boolean;
 		working?: boolean;
 		progress?: WorkspaceAction['id'];
-		jobs?: string[];
 		standing?: WorkspaceStanding | null;
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
@@ -70,7 +68,6 @@
 			? 'archive'
 			: (progress ?? submitting ?? (working && !asking && !waiting ? 'working' : undefined))
 	);
-	const showJobs = $derived(jobs.length > 0 && !standing?.checks?.pending);
 
 	async function activate(action: WorkspaceAction) {
 		submitting = action.id;
@@ -109,9 +106,9 @@
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if activity}
 			<span class="col-start-1 row-start-1 grid w-6 place-items-center text-muted">
-				<WorkspaceActivity {activity} {jobs} />
+				<WorkspaceActivity {activity} />
 			</span>
-		{:else if visibleStanding || showJobs}
+		{:else if visibleStanding}
 			<span
 				class={[
 					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
@@ -119,11 +116,7 @@
 						'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
 				]}
 			>
-				{#if showJobs}
-					<WorkspaceActivity activity="jobs" {jobs} />
-				{:else if visibleStanding}
-					<StandingIcon standing={visibleStanding} />
-				{/if}
+				<StandingIcon standing={visibleStanding} />
 			</span>
 		{/if}
 		{#if !activity && primary && pillColor}

@@ -11,6 +11,12 @@
 
 	const { Story } = defineMeta({ title: 'Geordi/Transcript' });
 
+	// Wait for the lazy parser before timing assertions about the rendered patch.
+	async function loadDiffParser() {
+		await import('@pierre/diffs');
+		return {};
+	}
+
 	const openDiff = fn();
 	const openSource = fn();
 	const reply = [
@@ -292,6 +298,7 @@
 -->
 <Story
 	name="Edits"
+	loaders={[loadDiffParser]}
 	asChild
 	play={async ({ canvas, canvasElement }) => {
 		await userEvent.click(canvas.getByText('Tools'));
@@ -312,6 +319,7 @@
 
 <Story
 	name="Turn review files"
+	loaders={[loadDiffParser]}
 	asChild
 	play={async ({ canvasElement }) => {
 		await waitFor(() => expect(canvasElement.querySelectorAll('details[open]')).toHaveLength(2));

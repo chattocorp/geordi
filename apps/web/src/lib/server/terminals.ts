@@ -194,22 +194,6 @@ export function createTerminals(
 			changed();
 		},
 
-		/** Active jobs grouped for the navigation view. An open shell alone is idle. */
-		runningJobs(): Map<string, string[]> {
-			const jobs = new Map<string, string[]>();
-			for (const [id, terminal] of terminals) {
-				if (!terminal.running || terminal.ended !== undefined) continue;
-				const split = id.indexOf(':');
-				const name = id.slice(split + 1);
-				if (!name.startsWith(JOB_TERMINAL)) continue;
-				const workspaceId = id.slice(0, split);
-				const group = jobs.get(workspaceId) ?? [];
-				group.push(name.slice(JOB_TERMINAL.length));
-				jobs.set(workspaceId, group);
-			}
-			return jobs;
-		},
-
 		/** The names of a workspace's terminals whose shells are running. */
 		running(workspaceId: string): string[] {
 			const prefix = `${workspaceId}:`;
