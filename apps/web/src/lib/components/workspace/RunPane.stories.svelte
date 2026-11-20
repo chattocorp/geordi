@@ -75,6 +75,10 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByText('localhost:20000')).not.toBeVisible();
+		await expect(canvas.getByText(':20000')).not.toBeVisible();
+		await userEvent.tab();
+		await expect(canvas.getByText('localhost:20000')).toBeVisible();
 		await userEvent.click(canvas.getByTitle('Show the output of Static server'));
 		await expect(canvas.getByText('Show: web')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Stop Static server' }));
