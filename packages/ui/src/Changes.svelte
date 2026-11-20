@@ -59,10 +59,10 @@
 	}
 </script>
 
-<section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
+<section class="flex min-h-0 flex-1 flex-col text-sm" aria-label="Changes">
 	{#if listed}
 		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-3.5">
-			<p class="min-w-0 flex-1 truncate text-xs text-muted" title={git?.changes?.comparisonTarget}>
+			<p class="min-w-0 flex-1 truncate text-muted" title={git?.changes?.comparisonTarget}>
 				{#if git?.changes?.comparisonTarget}
 					Compared with <span>{git.changes.comparisonTarget}</span>
 				{/if}
@@ -90,7 +90,7 @@
 	<div class="scroller py-1.5">
 		{#if gone}
 			<!-- what happened, calmly; the way out is in the workspace's title bar -->
-			<div class="space-y-1.5 px-3.5 py-2 text-sm text-muted">
+			<div class="space-y-1.5 px-3.5 py-2 text-muted">
 				<p class="font-medium text-ink">The worktree was removed outside Geordi.</p>
 				<p>
 					Restoring it, or simply your next message, brings back everything committed on
@@ -98,16 +98,16 @@
 				</p>
 			</div>
 		{:else if !git || (!git.changes && !git.unavailable)}
-			<p class="flex items-center gap-2 px-3.5 py-2 text-sm text-muted">
+			<p class="flex items-center gap-2 px-3.5 py-2 text-muted">
 				<Spinner label="Loading the changes" /> Loading…
 			</p>
 		{:else if git.unavailable}
-			<p class="px-3.5 py-2 text-sm text-muted">{git.unavailable}</p>
+			<p class="px-3.5 py-2 text-muted">{git.unavailable}</p>
 		{:else if files.length === 0}
 			<!-- nothing to list: a quiet word in the middle of the pane, not a line in its corner -->
 			<div class="flex min-h-full flex-col items-center justify-center gap-3 px-6 text-center">
 				<span class="icon-[lucide--file-diff] size-6 text-muted opacity-60"></span>
-				<p class="text-sm font-medium text-ink">No changes yet</p>
+				<p class="font-medium text-ink">No changes yet</p>
 			</div>
 		{:else if view === 'tree'}
 			<ul>
@@ -120,7 +120,7 @@
 								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
 								title={row.path}
 								style:padding-left="{0.875 + row.depth * 1.25}rem"
-								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left text-xs whitespace-nowrap text-muted hover:bg-hover"
+								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap text-muted hover:bg-hover"
 							>
 								<span
 									class={[
@@ -156,7 +156,7 @@
 		title="{means}: {entry.path}"
 		style:padding-left={depth === undefined ? undefined : `${0.875 + depth * 1.25}rem`}
 		class={[
-			'flex w-full items-center overflow-hidden py-1 pr-3.5 text-left text-xs whitespace-nowrap hover:bg-hover',
+			'flex w-full items-center overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap hover:bg-hover',
 			depth === undefined ? 'gap-2.5 pl-3.5' : 'gap-1.5'
 		]}
 	>
@@ -175,6 +175,6 @@
 				{entry.path.slice(entry.path.lastIndexOf('/') + 1)}
 			</span>
 		{/if}
-		<DiffStat class="text-xs tabular-nums" added={entry.added} removed={entry.removed} />
+		<DiffStat class="tabular-nums" added={entry.added} removed={entry.removed} />
 	</button>
 {/snippet}
