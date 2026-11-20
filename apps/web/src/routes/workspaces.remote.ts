@@ -77,6 +77,9 @@ export const createWorkspace = form(
 		alongside: v.optional(v.string())
 	}),
 	({ model, effort, permissionMode, alongside, repoId, ...data }) => {
+		const offered = hub().harnesses();
+		if (offered && !offered.some((h) => h.agent === data.agent))
+			error(409, `Provider ${data.agent} is unavailable`);
 		const settings = { model, effort, permissionMode };
 		if (alongside) {
 			const id = workspaces().join(alongside, { ...data, settings });

@@ -92,6 +92,7 @@ export const navigation = () =>
 				 * What each agent can be asked to run: its models and their effort levels, as the
 				 * connected daemon reports them. `null` while no daemon is connected.
 				 */
+				activeAgents: all.filter((w) => w.status === 'running').map((w) => w.agent),
 				harnesses
 			};
 		},

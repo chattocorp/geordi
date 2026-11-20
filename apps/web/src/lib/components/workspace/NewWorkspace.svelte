@@ -155,6 +155,8 @@
 						<span class="icon-[lucide--unplug] size-3.5"></span>
 						Waiting for the daemon
 					</span>
+				{:else if harnesses}
+					<span class="text-sm text-muted">Install Claude Code or Codex to start a workspace.</span>
 				{/if}
 			</div>
 			{#if alongside}

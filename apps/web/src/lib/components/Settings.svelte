@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { version } from '../../../package.json';
 	import { onMount } from 'svelte';
+	import Providers from './Providers.svelte';
 	import AgentAccess from './AgentAccess.svelte';
 	import DesktopUpdates, { type UpdateBridge, type UpdateState } from './DesktopUpdates.svelte';
 	import Logo from './Logo.svelte';
@@ -226,6 +227,11 @@
 						Removing a repository only makes Geordi forget it. Nothing on disk changes.
 					</p>
 				</div>
+			{:else if section === 'providers'}
+				<Providers
+					harnesses={nav.connected ? nav.current?.harnesses : undefined}
+					active={nav.current?.activeAgents ?? []}
+				/>
 			{:else if section === 'access'}
 				<AgentAccess
 					{repos}
