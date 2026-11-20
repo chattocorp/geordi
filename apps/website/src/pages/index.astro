@@ -87,6 +87,22 @@ const keys = [
 	{ keys: '⌥⌘R', does: 'Run this workspace’s default action' }
 ];
 
+/** Why many agents at once stay manageable, for the section before Try it. */
+const parallel = [
+	{
+		title: 'They never get in each other’s way',
+		text: 'Every workspace has its own worktree, branch and ports. Ten agents can change the same project, and run its dev server, without touching each other’s work.'
+	},
+	{
+		title: 'All of them at a glance',
+		text: 'The sidebar shows every workspace and how it stands: working, waiting for your answer, checks failing, ready to merge.'
+	},
+	{
+		title: 'You’re called when you’re needed',
+		text: 'When an agent finishes or has a question, Geordi tells you, and keeps its workspace in bold until you’ve looked. The rest of the time, your attention is yours.'
+	}
+];
+
 const steps = [
 	{
 		title: 'Install Claude Code or Codex and sign in',
@@ -300,16 +316,22 @@ const steps = [
 
 	<section class="sheet-quiet sheet-pad">
 		<div class="max-w-2xl">
-			<h2 class="text-headline font-semibold text-balance">Run several agents side by side</h2>
+			<h2 class="text-headline font-semibold text-balance">
+				Start the next task before the last one is done
+			</h2>
 			<p class="mt-4 text-pretty text-muted">
-				Have Claude build search, Codex write a data migration, and a third agent review a pull
-				request. Give each a workspace so you can follow the conversation and changes for each task.
-			</p>
-			<p class="mt-4 text-pretty text-muted">
-				When Codex asks how to handle old records, open its workspace from the sidebar and answer.
-				The other agents keep working while you decide.
+				Geordi is made for keeping a lot of agents busy at once. Hand out work as fast as you think
+				of it, to Claude or Codex, and get on with your day.
 			</p>
 		</div>
+		<dl class="mt-10 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+			{parallel.map((point) => (
+				<div>
+					<dt class="heading">{point.title}</dt>
+					<dd class="mt-1.5 text-pretty text-muted">{point.text}</dd>
+				</div>
+			))}
+		</dl>
 	</section>
 
 	<section id="install" class="grid gap-10 sheet sheet-pad lg:grid-cols-2 lg:gap-16">
