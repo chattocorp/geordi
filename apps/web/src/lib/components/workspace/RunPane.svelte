@@ -13,6 +13,7 @@
 		jobs,
 		links,
 		stateOf,
+		hasTerminal,
 		start,
 		stop,
 		show,
@@ -22,6 +23,7 @@
 		jobs: Job[];
 		links: Link[];
 		stateOf: (job: string) => JobState;
+		hasTerminal: (job: string) => boolean;
 		start: (names: string[]) => void;
 		stop: (name: string) => void;
 		/** Brings a job's terminal to the front. */
@@ -143,18 +145,20 @@
 						></span>
 					</button>
 					<!-- once it has a terminal, the rest of the row is the way to its output -->
-					{#if state === 'stopped'}
+					{#if !hasTerminal(job.name)}
 						<div class="flex min-w-0 flex-1 items-center gap-2 text-sm" title={job.command}>
 							{@render about(job)}
 						</div>
 					{:else}
 						<button
 							type="button"
-							title="Show the output of {name}"
+							aria-label="Open terminal for {name}"
+							title="Open terminal for {name}"
 							onclick={() => show(job.name)}
 							class="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-sm"
 						>
 							{@render about(job)}
+							<span class="icon-[lucide--square-terminal] size-3.5 shrink-0 text-muted"></span>
 						</button>
 					{/if}
 				</div>

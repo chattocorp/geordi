@@ -34,7 +34,7 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
+	import { CONFIG_FILE, JOB_TERMINAL, SCRIPTS, startOrder, type Script } from '@geordi/protocol';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import RunPane from './RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
@@ -244,9 +244,23 @@
 		for (const tab of [CHANGES, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
 		if (exists(RUN) && !placed.includes(RUN)) dock = add(dock, RUN);
-		for (const name of workspace.terminals)
+		for (const name of workspace.terminals) {
+			if (isRunTerminal(name)) continue;
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
+		}
 		return { main, side, dock };
+	});
+	// Forget closed job terminals so a later run does not restore an old tab.
+	$effect(() => {
+		for (const area of ['main', 'side', 'dock'] as const) {
+			const layout = arrangement.current[area];
+			if (!layout) continue;
+			const next = prune(layout, (tab) => {
+				const terminal = terminalOf(tab);
+				return !terminal || !jobOf(terminal) || workspace.terminals.includes(terminal);
+			});
+			if (next !== layout) arrangement.current = { ...arrangement.current, [area]: next };
+		}
 	});
 	const main = $derived(layouts.main);
 	const dock = $derived(layouts.dock);
@@ -265,6 +279,10 @@
 	const runnable = $derived(jobs.length > 0 || links.length > 0 || !!config?.problem);
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
+	function isRunTerminal(terminal: string) {
+		const job = jobOf(terminal);
+		return !!job && !SCRIPTS.some((script) => script === job);
+	}
 	/** What the Run tab's own button starts or opens: the file's `default` (FDR-006). */
 	const runJob = $derived(jobs.find((job) => config?.default === `jobs.${job.name}`));
 	const runLink = $derived(links.find((link) => config?.default === `urls.${link.name}`));
@@ -356,12 +374,11 @@
 	/** The jobs that were asked for and are on their way up: until they listen on their port. */
 	const launching = new SvelteSet<string>();
 
-	/** Starts jobs (and what they need), and brings the last of them to the front of the dock. */
+	/** Starts jobs and their dependencies. */
 	function start(names: string[]) {
 		agreed(names, async (seen) => {
 			const order = startOrder(jobs, names);
 			for (const name of order) launching.add(name);
-			if (!frame.current.open) toggleSide();
 			mergeProblem = null;
 			try {
 				await startJobs({ workspaceId: id, jobs: names, seen });
@@ -449,7 +466,7 @@
 		});
 	});
 
-	/** Remembers a new arrangement. A terminal whose window is gone from it has its shell ended. */
+	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
 	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
@@ -467,10 +484,9 @@
 				});
 				return;
 			}
-			if (terminal && !remaining.includes(tab)) {
+			if (terminal && !remaining.includes(tab) && !isRunTerminal(terminal)) {
 				starting.delete(terminal);
 				const job = jobOf(terminal);
-				// a job takes the jobs that need it along
 				if (job) stop(job);
 				else closeTerminal({ workspaceId: id, terminal }).catch(() => {});
 			}
@@ -893,6 +909,7 @@
 			{jobs}
 			{links}
 			stateOf={jobState}
+			hasTerminal={(name) => workspace.terminals.includes(JOB_TERMINAL + name)}
 			{start}
 			{stop}
 			{show}

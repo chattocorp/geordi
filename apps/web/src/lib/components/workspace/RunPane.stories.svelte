@@ -60,6 +60,7 @@
 			{jobs}
 			{links}
 			{stateOf}
+			hasTerminal={(name) => stateOf(name) !== 'stopped' && name !== 'preview'}
 			{problem}
 			start={(names) => (last = `Start: ${names.join(', ')}`)}
 			stop={(name) => (last = `Stop: ${name}`)}
@@ -81,7 +82,8 @@
 		await expect(startDocs.querySelector('[class~="icon-[lucide--play]"]')).toBeVisible();
 		await userEvent.tab();
 		await expect(canvas.getByText('localhost:20000')).toBeVisible();
-		await userEvent.click(canvas.getByTitle('Show the output of Static server'));
+		const terminal = canvas.getByRole('button', { name: 'Open terminal for Static server' });
+		await userEvent.click(terminal.querySelector('[class~="icon-[lucide--square-terminal]"]')!);
 		await expect(canvas.getByText('Show: web')).toBeVisible();
 		const stopWeb = canvas.getByRole('button', { name: 'Stop Static server' });
 		await userEvent.tab({ shift: true });
@@ -96,7 +98,12 @@
 		await expect(canvas.getByText('Start: check, test, docs')).toBeVisible();
 		await expect(canvas.getByTitle('Ended with status 1')).toBeVisible();
 		// a job that never ran has no output to show
-		await expect(canvas.queryByTitle('Show the output of Documentation')).toBeNull();
+		await expect(
+			canvas.queryByRole('button', { name: 'Open terminal for Documentation' })
+		).toBeNull();
+		await expect(canvas.queryByRole('button', { name: /Open terminal for Preview/ })).toBeNull();
+		await userEvent.click(canvas.getByRole('button', { name: 'Open terminal for Check links' }));
+		await expect(canvas.getByText('Show: check')).toBeVisible();
 		await userEvent.click(canvas.getByTitle('Open http://localhost:20000/'));
 		await expect(canvas.getByText('Open: site')).toBeVisible();
 	}}>{@render pane(jobs, links, (name) => states[name] ?? 'stopped')}</Story
