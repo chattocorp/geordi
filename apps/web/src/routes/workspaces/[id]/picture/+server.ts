@@ -10,11 +10,13 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	const path = url.searchParams.get('path');
 	if (!path) error(400, 'Which picture?');
 	const where = workspaces().locate(params.id);
+	const worktreeOnly = url.searchParams.has('file');
+	if (worktreeOnly && 'project' in where) error(404);
 	const picture = await hub()
 		.request(
 			'project' in where
 				? { kind: 'projectPicture', path, ...where }
-				: { kind: 'picture', path, ...where }
+				: { kind: 'picture', path, worktreeOnly, ...where }
 		)
 		.catch(() => null); // no daemon, or no worktree: no picture
 	if (!picture) error(404, 'There is no such picture');

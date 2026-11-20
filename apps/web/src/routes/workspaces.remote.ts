@@ -401,9 +401,13 @@ export const getSource = query(
 	v.object({ workspaceId: v.string(), path: v.string() }),
 	async ({ workspaceId, path }) => {
 		try {
-			const text = await hub().request({ kind: 'source', path, ...workspaces().ref(workspaceId) });
-			if (text !== null) return { text };
-			return { unavailable: 'This file is missing or cannot be displayed as text.' };
+			const content = await hub().request({
+				kind: 'source',
+				path,
+				...workspaces().ref(workspaceId)
+			});
+			if (content !== null) return { content };
+			return { unavailable: 'This file is missing or cannot be displayed.' };
 		} catch (error) {
 			return { unavailable: `Could not load the file: ${message(error)}` };
 		}

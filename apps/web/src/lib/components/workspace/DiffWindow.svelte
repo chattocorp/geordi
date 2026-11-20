@@ -1,5 +1,5 @@
 <script lang="ts">
-	import DiffView from '@geordi/ui/DiffView.svelte';
+	import FileView from './FileView.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { getDiff } from '../../../routes/workspaces.remote';
 
@@ -16,9 +16,6 @@
 
 	const versions = $derived(getDiff({ workspaceId, path }));
 
-	/** Whether the diff itself is on screen: its viewer takes a moment the first time. */
-	let ready = $state(false);
-
 	// Compared as a value: the data it is derived from is new with every update.
 	const current = $derived(version);
 	$effect(() => {
@@ -33,16 +30,15 @@
 	</p>
 {/snippet}
 
-<div class="scroller">
-	{#if !versions.current}
-		{@render loading()}
-	{:else if 'unavailable' in versions.current}
-		<p class="p-5 text-sm text-muted">{versions.current.unavailable}</p>
-	{:else if versions.current.old === versions.current.new}
-		<!-- renamed or moved, and otherwise as it was -->
-		<p class="p-5 text-sm text-muted">The file's content is unchanged.</p>
-	{:else}
-		{#if !ready}{@render loading()}{/if}
-		<DiffView {path} old={versions.current.old} new={versions.current.new} bind:ready />
-	{/if}
-</div>
+{#if !versions.current}
+	{@render loading()}
+{:else if 'unavailable' in versions.current}
+	<p class="p-5 text-sm text-muted">{versions.current.unavailable}</p>
+{:else}
+	<FileView
+		{path}
+		old={versions.current.old}
+		current={versions.current.new}
+		pictures={`/workspaces/${workspaceId}/picture?file&v=${version}`}
+	/>
+{/if}
