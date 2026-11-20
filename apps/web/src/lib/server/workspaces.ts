@@ -1175,6 +1175,64 @@ export function createWorkspaces(
 		},
 
 		/**
+		 * Deletes archived workspaces from the log for good (ADR-012, FDR-014), with everyone
+		 * who worked in their worktrees and every agent they started, who must be archived too;
+		 * and the images sent to them. Their branches and project folders stay. Returns how many
+		 * workspaces went, and how many bytes that freed.
+		 */
+		purge(ids: string[], actor: string | null = null): { purged: number; freed: number } {
+			const all = [...projection.get().values()];
+			const family = new Map<string, Workspace>();
+			const add = (workspace: Workspace) => {
+				if (family.has(workspace.id)) return;
+				family.set(workspace.id, workspace);
+				for (const other of all)
+					if (
+						(other.worktreeId === workspace.id || starterOf(other) === workspace.id) &&
+						other.id !== workspace.id
+					)
+						add(other);
+			};
+			ids.forEach((id) => add(find(id)));
+			if (!family.size) return { purged: 0, freed: 0 };
+
+			for (const workspace of family.values()) {
+				if (!workspace.archivedAt) error(409, `“${workspace.title}” is not archived`);
+				refuseHeld(workspace.id);
+			}
+			// where one of them worked alongside a workspace that stays, it said where that one's worktree is
+			const worktrees = [
+				...new Set([...family.values()].map((workspace) => workspace.worktreeId))
+			].flatMap((id) => {
+				const owner = family.has(id) ? undefined : projection.get().get(id);
+				return owner?.worktree ? [{ id, ...owner.worktree }] : [];
+			});
+			const images = imageStore.forget(
+				[...family.values()].flatMap((workspace) =>
+					transcriptOf(workspace).flatMap((item) => (item.kind === 'user' && item.images) || [])
+				)
+			);
+			const { freed } = store.purge(
+				[...[...family.keys()].flatMap((id) => projection.streamsOf(id)), ...images.streams],
+				{
+					type: 'workspace.purged',
+					stream: 'purges',
+					data: {
+						workspaces: [...family.values()].map(({ id, title }) => ({
+							id,
+							title,
+							born: projection.bornAt(id) ?? 0
+						})),
+						worktrees
+					}
+				},
+				{ actor }
+			);
+			images.release();
+			return { purged: family.size, freed };
+		},
+
+		/**
 		 * Called when a daemon (re)connects, with the workspaces whose agents are at work as
 		 * far as it has told us. Turns we think are running but the daemon doesn't know about
 		 * were lost. Turns it runs that we have given up (stopped while it was away, say) are

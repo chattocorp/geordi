@@ -20,7 +20,8 @@ type Row = {
 };
 
 /**
- * Append-only event log on SQLite.
+ * Append-only event log on SQLite. The one exception is `purge`, which deletes whole streams
+ * at a person's word (ADR-012).
  *
  * All writes go through `append`, which issues a single INSERT statement, so a batch of
  * events is atomic without explicit transactions. SQLite access is synchronous, so code
@@ -60,7 +61,49 @@ export class EventStore<E extends EventInput = EventInput> {
 	append(events: E | E[], { actor = null }: { actor?: string | null } = {}): StoredEvent<E>[] {
 		const batch = Array.isArray(events) ? events : [events];
 		if (batch.length === 0) return [];
+		return this.#publish(this.#insert(batch, actor));
+	}
 
+	/**
+	 * Deletes these streams from the log for good, and appends `record` in the same
+	 * transaction: what was deleted, by whom, and whatever the projections still need to
+	 * know of it (ADR-012). Projections see only the record, so it must tell them what to let
+	 * go of. Then the file is made smaller; returns how many bytes that freed.
+	 */
+	purge(
+		streams: string[],
+		record: E,
+		{ actor = null }: { actor?: string | null } = {}
+	): { event: StoredEvent<E>; freed: number } {
+		const size = () =>
+			(this.#db.prepare('PRAGMA page_count').get() as { page_count: number }).page_count *
+			(this.#db.prepare('PRAGMA page_size').get() as { page_size: number }).page_size;
+		const before = size();
+		this.#db.exec('BEGIN');
+		let rows: Row[];
+		try {
+			this.#db
+				.prepare('DELETE FROM events WHERE stream IN (SELECT value FROM json_each(?))')
+				.run(JSON.stringify(streams));
+			rows = this.#insert([record], actor);
+			this.#db.exec('COMMIT');
+		} catch (problem) {
+			this.#db.exec('ROLLBACK');
+			throw problem;
+		}
+		const [event] = this.#publish(rows);
+		// What was deleted is only gone from the disk once the file is written anew. If that
+		// fails (a full disk), it is still deleted, and the space is reused for what comes next.
+		try {
+			this.#db.exec('VACUUM');
+			this.#db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+		} catch (problem) {
+			console.error('[events] could not compact the log after a purge', problem);
+		}
+		return { event, freed: Math.max(0, before - size()) };
+	}
+
+	#insert(batch: E[], actor: string | null): Row[] {
 		const at = new Date().toISOString();
 		const placeholders = batch.map(() => '(?, ?, ?, ?, ?)').join(', ');
 		const params = batch.flatMap((e) => [e.type, e.stream, JSON.stringify(e.data), actor, at]);
@@ -69,9 +112,12 @@ export class EventStore<E extends EventInput = EventInput> {
 				`INSERT INTO events (type, stream, data, actor, at) VALUES ${placeholders} RETURNING *`
 			)
 			.all(...params) as Row[];
-
 		// RETURNING promises no order
-		const stored = rows.sort((a, b) => a.seq - b.seq).map((row) => this.#parse(row));
+		return rows.sort((a, b) => a.seq - b.seq);
+	}
+
+	#publish(rows: Row[]): StoredEvent<E>[] {
+		const stored = rows.map((row) => this.#parse(row));
 		for (const event of stored) for (const apply of this.#projections.values()) apply(event);
 		for (const listener of this.#listeners)
 			try {
@@ -80,6 +126,14 @@ export class EventStore<E extends EventInput = EventInput> {
 				console.error(`[events] a listener failed on events ${stored[0].seq}…`, problem);
 			}
 		return stored;
+	}
+
+	/** All events of one type, in order. */
+	readType(type: string): StoredEvent<E>[] {
+		const rows = this.#db
+			.prepare('SELECT * FROM events WHERE type = ? ORDER BY seq')
+			.all(type) as Row[];
+		return rows.map((row) => this.#parse(row));
 	}
 
 	/** All events after the given sequence number, in order. */

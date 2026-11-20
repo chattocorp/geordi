@@ -67,6 +67,9 @@ it('remembers which daemon can recover unfinished turns across forge restart', (
 	expect(restarted('owner')).toBe(true);
 	running = false;
 	expect(restarted('other')).toBe(true);
-	expect(store.readAll().map((event) => event.data.id)).toEqual(['owner', 'other']);
+	expect(store.readAll().map((event) => (event.data as { id: string }).id)).toEqual([
+		'owner',
+		'other'
+	]);
 	store.close();
 });

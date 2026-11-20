@@ -44,8 +44,32 @@ export function createImages(store: EventStore<GeordiEvent>) {
 		const buffer = blobs?.get(blob) ?? readFileSync(join(directory, blob));
 		return { mediaType, data: buffer.toString('base64') };
 	}
+	/** The blob an image's bytes are in, if they are not in its event (as they were at first). */
+	function blobOf(id: string): string | undefined {
+		const event = store.readStream(`image:${id}`).find((event) => event.type === 'image.added');
+		return event?.type === 'image.added' && 'blob' in event.data ? event.data.blob : undefined;
+	}
 	return {
 		get,
+		/**
+		 * What to delete with these images when what they were sent with is purged (ADR-012):
+		 * their streams, and then (`release`) the blobs no other image has. An image belongs to
+		 * the one message it was uploaded for.
+		 */
+		forget(ids: string[]) {
+			const hashes = new Set(ids.flatMap((id) => blobOf(id) ?? []));
+			return {
+				streams: ids.map((id) => `image:${id}`),
+				release() {
+					for (const event of store.readType('image.added'))
+						if (event.type === 'image.added' && 'blob' in event.data)
+							hashes.delete(event.data.blob);
+					for (const hash of hashes)
+						if (blobs) blobs.delete(hash);
+						else rmSync(join(directory, hash), { force: true });
+				}
+			};
+		},
 		resolve(ids: string[]): MessageImage[] {
 			if (ids.length > MAX_IMAGES) error(400, `Add up to ${MAX_IMAGES} images per message`);
 			return ids.map(get);

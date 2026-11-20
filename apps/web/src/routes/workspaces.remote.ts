@@ -154,6 +154,12 @@ export const restoreWorkspace = command(v.string(), async (id) => {
 	}
 });
 
+/**
+ * Deletes archived workspaces for good, with the agents they started (ADR-012, FDR-014).
+ * Says how many went, and how many bytes the event log got smaller by.
+ */
+export const purgeWorkspaces = command(v.array(v.string()), (ids) => workspaces().purge(ids));
+
 /** Check for unfinished work without changing the workspace. */
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 

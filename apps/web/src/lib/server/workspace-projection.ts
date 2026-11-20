@@ -136,6 +136,22 @@ export type WorkspacesEvent =
 			type: 'workspace.output';
 			stream: WorkspaceStream;
 			data: { id: string; event: AgentEvent; cursor?: string };
+	  }
+	/**
+	 * Archived workspaces were deleted from the log for good, their streams with them
+	 * (ADR-012). Says what they still mean to the workspaces that stay: that they were
+	 * workspaces, from `born` (the `seq` they were created at) on, so what their agents said
+	 * elsewhere stays theirs; and the worktree of a workspace that stays, where one of them
+	 * worked alongside it and was what said where its worktree is. All in one stream, read
+	 * before the replay.
+	 */
+	| {
+			type: 'workspace.purged';
+			stream: 'purges';
+			data: {
+				workspaces: { id: string; title: string; born: number }[];
+				worktrees: { id: string; path: string; branch: string }[];
+			};
 	  };
 
 export type SubagentItem = {
@@ -401,6 +417,19 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				event.data.id,
 				initialWorkspace({ ...event.data, title: promptTitle(event.data.title) }, at, actor)
 			);
+			return;
+		}
+
+		if (event.type === 'workspace.purged') {
+			for (const { id } of event.data.workspaces) {
+				workspaces.delete(id);
+				sessionStreams.delete(id);
+				listeners.delete(id);
+			}
+			for (const { id, path, branch } of event.data.worktrees) {
+				const owner = workspaces.get(id);
+				if (owner) owner.worktree = { path, branch };
+			}
 			return;
 		}
 
@@ -690,6 +719,10 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	// Mutates in place (O(1) per event during replay); readers get copies. Events from
 	// before a workspace had exactly one conversation are translated first (see legacy.ts).
 	const upcast = createUpcaster();
+	// Purged workspaces were workspaces from when they were born, which replay no longer sees.
+	for (const event of store.readStream('purges'))
+		if (event.type === 'workspace.purged')
+			for (const { id, born: seq } of event.data.workspaces) born.set(id, seq);
 	const projection = store.project(
 		'workspaces',
 		() => new Map<string, Workspace>(),
@@ -738,6 +771,13 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		get: projection.get,
 		/** A workspace's transcript; an archived one's is read again from the log. */
 		transcriptOf,
+		/** The streams a workspace's events are in: its own, and that of the session it began as. */
+		streamsOf(id: string): string[] {
+			const session = sessionStreams.get(id);
+			return [`workspace:${id}`, ...(session ? [session] : [])];
+		},
+		/** The `seq` a workspace was created at. */
+		bornAt: (id: string) => born.get(id),
 		/** Tells `listener` each edit of a workspace's transcript, until the returned function is called. */
 		followEdits(id: string, listener: (edit: TranscriptEdit) => void): () => void {
 			const followers = listeners.get(id) ?? new Set<(edit: TranscriptEdit) => void>();
