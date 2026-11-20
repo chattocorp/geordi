@@ -788,3 +788,32 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Posted image attachments"
+	asChild
+	play={async ({ canvas }) => {
+		const button = await canvas.findByRole('button', { name: 'Open image 2' });
+		const src = button.querySelector('img')!.src;
+		await userEvent.click(button);
+		const dialog = await canvas.findByRole('dialog', { name: 'Attached image 2' });
+		expect(dialog.querySelector('img')!.src).toBe(src);
+		await userEvent.click(dialog);
+		await waitFor(() => expect(canvas.queryByRole('dialog')).toBeNull());
+	}}
+>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[
+				{
+					kind: 'user',
+					text: 'Here are the two icon variants.',
+					images: ['opencode-light.svg', 'opencode-dark.svg']
+				}
+			]}
+			agent="codex"
+			onremove={() => {}}
+			onanswer={() => {}}
+		/>
+	</div>
+</Story>
