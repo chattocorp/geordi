@@ -249,6 +249,7 @@ describe('workspaces', () => {
 
 		workspaces.continued(id, 'geordi/abc-2');
 		const workspace = workspaces.get(id);
+		expect(workspace.continued).toBe(true);
 		expect(workspace.worktree).toEqual({ path: '/wt/abc', branch: 'geordi/abc-2' });
 		// the conversation is as it was, with a word about what happened
 		expect(workspace.transcript.map((item) => item.kind)).toEqual(['user', 'turn', 'note']);

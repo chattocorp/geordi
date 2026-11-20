@@ -51,6 +51,7 @@ export const navigation = () =>
 					(pull?.state === 'open' && pull.autoMerge?.enabled ? 'auto-merge' : undefined);
 				const state = {
 					...known,
+					continued: workspace.continued,
 					failed: workspace.lastTurn === 'failed',
 					child: !!parentId
 				};

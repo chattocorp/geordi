@@ -310,6 +310,7 @@ const tools = {
 			const state = {
 				changes,
 				upstream,
+				continued: workspace.continued,
 				failed: workspace.lastTurn === 'failed',
 				child: !!workspace.parentId
 			};
