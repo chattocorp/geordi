@@ -2,7 +2,11 @@
 	import Spinner from './Spinner.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
+	import { fileTree, treeRows } from './tree.ts';
 	import type { Changes } from '@geordi/protocol';
+
+	type View = 'list' | 'tree';
 
 	type Props = {
 		/**
@@ -13,10 +17,21 @@
 		/** The branch of a worktree that was removed outside Geordi, if that is what happened. */
 		gone?: string | null;
 		onopen(path: string): void;
+		/** The files as one list, in Git's order, or arranged in their directories. */
+		view?: View;
 	};
-	let { git, gone = null, onopen }: Props = $props();
+	let { git, gone = null, onopen, view = $bindable('list') }: Props = $props();
 
 	const files = $derived(git?.changes?.files ?? []);
+	/** Whether there are files to list, and so a choice of how to show them. */
+	const listed = $derived(!gone && !git?.unavailable && files.length > 0);
+	/** Directories folded shut in the tree, by path; all are open to begin with. */
+	const folded = new SvelteSet<string>();
+	const rows = $derived(view === 'tree' ? treeRows(fileTree(files), folded) : []);
+	const views: { value: View; label: string; icon: string }[] = [
+		{ value: 'list', label: 'As a list', icon: 'icon-[lucide--list]' },
+		{ value: 'tree', label: 'As a tree', icon: 'icon-[lucide--list-tree]' }
+	];
 
 	type File = (typeof files)[number];
 	const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1);
@@ -45,6 +60,33 @@
 </script>
 
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changes">
+	{#if listed}
+		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-3.5">
+			<p class="min-w-0 flex-1 truncate text-xs text-muted" title={git?.changes?.comparisonTarget}>
+				{#if git?.changes?.comparisonTarget}
+					Compared with <span class="code-dense">{git.changes.comparisonTarget}</span>
+				{/if}
+			</p>
+			<div role="radiogroup" aria-label="Show the changes" class="flex shrink-0">
+				{#each views as option (option.value)}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={view === option.value}
+						aria-label={option.label}
+						title={option.label}
+						onclick={() => (view = option.value)}
+						class={[
+							'flex size-7 items-center justify-center rounded-control',
+							view === option.value ? 'text-ink' : 'text-muted opacity-60 hover:opacity-100'
+						]}
+					>
+						<span class={[option.icon, 'size-4']}></span>
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
 	<div class="scroller py-1.5">
 		{#if gone}
 			<!-- what happened, calmly; the way out is in the workspace's title bar -->
@@ -67,33 +109,72 @@
 				<span class="icon-[lucide--file-diff] size-6 text-muted opacity-60"></span>
 				<p class="text-sm font-medium text-ink">No changes yet</p>
 			</div>
-		{:else}
-			{#if git.changes?.comparisonTarget}
-				<p class="truncate px-3.5 py-1 text-xs text-muted" title={git.changes.comparisonTarget}>
-					Compared with <span class="code-dense">{git.changes.comparisonTarget}</span>
-				</p>
-			{/if}
+		{:else if view === 'tree'}
 			<ul>
-				{#each files as file (file.path)}
-					{@const { letter, tone, means } = flag(file)}
+				{#each rows as row (row.path)}
 					<li>
-						<button
-							type="button"
-							onclick={() => onopen(file.path)}
-							title="{means}: {file.path}"
-							class="flex w-full items-center gap-2.5 overflow-hidden px-3.5 py-1 text-left code-dense whitespace-nowrap hover:bg-hover"
-						>
-							<span class={['w-2 shrink-0 text-center font-semibold', tone]} aria-label={means}>
-								{letter}
-							</span>
-							<!-- the name is what is looked for: where room runs out, the directories give way
-							     first (`fitPath`); the full path is in the row's tooltip -->
-							<FittedPath path={file.path} class={{ 'line-through': file.status === 'deleted' }} />
-							<DiffStat added={file.added} removed={file.removed} />
-						</button>
+						{#if row.kind === 'dir'}
+							<button
+								type="button"
+								aria-expanded={row.open}
+								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
+								title={row.path}
+								style:padding-left="{0.875 + row.depth * 1.25}rem"
+								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left code-dense whitespace-nowrap text-muted hover:bg-hover"
+							>
+								<span
+									class={[
+										'icon-[lucide--chevron-right] size-3.5 shrink-0',
+										row.open && 'rotate-90'
+									]}
+								></span>
+								<span class="min-w-0 truncate">{row.name}</span>
+							</button>
+						{:else}
+							{@render file(row.file, row.depth)}
+						{/if}
 					</li>
+				{/each}
+			</ul>
+		{:else}
+			<ul>
+				{#each files as entry (entry.path)}
+					<li>{@render file(entry)}</li>
 				{/each}
 			</ul>
 		{/if}
 	</div>
 </section>
+
+<!-- a file's row: in the list with its path, in the tree with its name at its depth -->
+{#snippet file(entry: File, depth?: number)}
+	{@const { letter, tone, means } = flag(entry)}
+	{@const deleted = entry.status === 'deleted'}
+	<button
+		type="button"
+		onclick={() => onopen(entry.path)}
+		title="{means}: {entry.path}"
+		style:padding-left={depth === undefined ? undefined : `${0.875 + depth * 1.25}rem`}
+		class={[
+			'flex w-full items-center overflow-hidden py-1 pr-3.5 text-left code-dense whitespace-nowrap hover:bg-hover',
+			depth === undefined ? 'gap-2.5 pl-3.5' : 'gap-1.5'
+		]}
+	>
+		<span
+			class={['shrink-0 text-center font-semibold', depth === undefined ? 'w-2' : 'w-3.5', tone]}
+			aria-label={means}
+		>
+			{letter}
+		</span>
+		{#if depth === undefined}
+			<!-- the name is what is looked for: where room runs out, the directories give way
+			     first (`fitPath`); the full path is in the row's tooltip -->
+			<FittedPath path={entry.path} class={{ 'line-through': deleted }} />
+		{:else}
+			<span class={['min-w-0 flex-1 truncate', deleted && 'line-through']}>
+				{entry.path.slice(entry.path.lastIndexOf('/') + 1)}
+			</span>
+		{/if}
+		<DiffStat added={entry.added} removed={entry.removed} />
+	</button>
+{/snippet}
