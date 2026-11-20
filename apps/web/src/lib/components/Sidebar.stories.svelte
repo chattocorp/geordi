@@ -159,6 +159,7 @@
 			{path}
 			{folded}
 			{focus}
+			todayOnly={day !== null}
 			{lost}
 		/>
 	</div>

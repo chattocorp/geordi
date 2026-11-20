@@ -212,6 +212,7 @@
 					path={page.url.pathname}
 					{folded}
 					{focus}
+					{todayOnly}
 				/>
 			</div>
 

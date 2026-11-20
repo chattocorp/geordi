@@ -30,7 +30,8 @@
 	 * repository, and the settings below. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
 	 * repository under its name, and those its agents started under a workspace. `focus` is
-	 * the repository shown alone, if any.
+	 * the repository shown alone, if any. `visibleWorkspaces` are those shown, `todayOnly` whether
+	 * they are only those active today.
 	 */
 	let {
 		nav,
@@ -38,6 +39,7 @@
 		path,
 		folded,
 		focus,
+		todayOnly = false,
 		lost = false
 	}: {
 		nav: Navigation | undefined;
@@ -45,6 +47,7 @@
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
+		todayOnly?: boolean;
 		lost?: boolean;
 	} = $props();
 
@@ -71,14 +74,17 @@
 	);
 
 	/**
-	 * Repositories slide away and back when the focus changes, and only then: not when the
-	 * list first arrives, nor when a repository comes or goes on its own.
+	 * Repositories and workspaces slide away and back when what is shown changes (the focus,
+	 * today only), and only then: not when the list first arrives, nor when one comes or goes
+	 * on its own.
 	 */
 	let shifting = $state(false);
-	let lastFocus = focus.current;
+	const shown = $derived(`${focus.current}:${todayOnly}`);
+	let lastShown: string | undefined;
 	$effect.pre(() => {
-		if (focus.current === lastFocus) return;
-		lastFocus = focus.current;
+		const was = lastShown;
+		lastShown = shown;
+		if (was === undefined || was === shown) return;
 		shifting = !prefersReducedMotion.current;
 		const settled = setTimeout(() => (shifting = false), MOTION + 50);
 		return () => clearTimeout(settled);
@@ -217,7 +223,7 @@
 			: [...folded.current, id]);
 	const settingsHint = hint('settings');
 	const focusHint = hint('focusRepo');
-	/** How long repositories take to slide away or back, in milliseconds. */
+	/** How long repositories and workspaces take to slide away or back, in milliseconds. */
 	const MOTION = 200;
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
@@ -371,6 +377,7 @@
 				index === rows.length - 1 &&
 				'row-drop-after'
 		]}
+		transition:slide={motion()}
 		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
 		draggable={depth === 0 && !leaving}
 		ondragstart={(event) => {
