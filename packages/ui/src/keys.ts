@@ -7,6 +7,8 @@ type Combo = {
 	code?: string;
 	/** The character (`[`), for punctuation: wherever the layout has it, Option or not. */
 	key?: string;
+	/** Alternate character produced by Shift on another keyboard layout. */
+	shiftedKey?: string;
 	shift?: boolean;
 	alt?: boolean;
 };
@@ -55,6 +57,13 @@ export const shortcuts = {
 		label: 'Toggle changes and terminals',
 		group: 'Workspace'
 	},
+	terminal: {
+		key: '/',
+		shiftedKey: '?',
+		shift: true,
+		label: 'Focus a terminal, or open a new terminal',
+		group: 'Workspace'
+	},
 	runDefault: {
 		code: 'KeyR',
 		alt: true,
@@ -79,10 +88,15 @@ export function pressed(event: KeyboardEvent, id: ShortcutId): boolean {
 	const mac = isMac();
 	if (event.isComposing || event.shiftKey !== !!shortcut.shift) return false;
 	if (!(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return false;
-	if (shortcut.code ? event.code !== shortcut.code : event.key !== shortcut.key) return false;
+	if (
+		shortcut.code
+			? event.code !== shortcut.code
+			: event.key !== shortcut.key && event.key !== shortcut.shiftedKey
+	)
+		return false;
 	// a character may take Option to type (`[` on a German Mac): only letters care about Alt
 	if (shortcut.code && event.altKey !== !!shortcut.alt) return false;
-	return mac || !(event.target as Element | null)?.closest?.('.xterm');
+	return mac || id === 'terminal' || !(event.target as Element | null)?.closest?.('.xterm');
 }
 
 /** How a shortcut is written, as people know it on their platform: `⌥⌘B`, `Ctrl+Alt+B`. */

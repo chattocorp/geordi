@@ -471,6 +471,33 @@
 		return `terminal:${name}`;
 	}
 
+	function terminalShortcut(event: KeyboardEvent) {
+		if (
+			!pressed(event, 'terminal') ||
+			project ||
+			workspace.archivedAt ||
+			!workspace.worktree ||
+			worktreeGone
+		)
+			return;
+		event.preventDefault();
+		event.stopPropagation();
+		if (event.repeat) return;
+
+		const shells = everywhere().filter((tab) => terminalOf(tab) && !jobOf(terminalOf(tab)));
+		const selected = Object.values(layouts)
+			.flatMap(groupsOf)
+			.find((group) => group.active && shells.includes(group.active));
+		const existing = selected?.active ?? shells[0];
+		if (existing && !document.activeElement?.closest('.xterm')) {
+			focusTerminal = terminalOf(existing);
+			showTab(existing);
+		} else {
+			if (!frame.current.open) toggleSide();
+			arrange({ dock: open(dock, newTerminal()) });
+		}
+	}
+
 	// A workspace has a terminal to begin with: opened when it is, if it has none, where
 	// there is a directory to open one in. The Run tab, where there is one, sits beside it.
 	let begun = false;
@@ -775,6 +802,7 @@
 <svelte:head><title>{workspace.title} · Geordi</title></svelte:head>
 
 <svelte:window
+	onkeydowncapture={terminalShortcut}
 	onkeydown={(event) => {
 		if (pressed(event, 'toggleSide')) {
 			event.preventDefault();
