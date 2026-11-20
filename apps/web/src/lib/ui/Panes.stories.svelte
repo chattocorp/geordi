@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { expect, fireEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { move, singleGroup, groupsOf, type Layout } from '#lib/layout.ts';
+	import { close, open, move, singleGroup, groupsOf, type Layout } from '#lib/layout.ts';
 	import Panes from './Panes.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Panes', component: Panes });
@@ -14,6 +14,8 @@
 	let single = $state.raw<Layout>(singleGroup(['Conversation', 'WorkspaceView.svelte']));
 	let halves = $state.raw<Layout>(split);
 	let nothing = $state.raw<Layout>(singleGroup([]));
+	let main = $state.raw<Layout>(singleGroup(['Conversation']));
+	let side = $state.raw<Layout>(singleGroup(['Changes', 'Files']));
 	let count = 3;
 </script>
 
@@ -97,5 +99,39 @@
 		>
 			{#snippet empty()}No terminal open. Start one with +.{/snippet}
 		</Panes>
+	</div>
+</Story>
+
+<Story
+	name="Promote a tab"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const [mainBar, sideBar] = canvas.getAllByRole('tablist').map((bar) => within(bar));
+		const files = sideBar.getByRole('tab', { name: 'Files' });
+		await userEvent.click(files);
+		await expect(files).toHaveAttribute('aria-selected', 'true');
+		await userEvent.dblClick(files);
+		await expect(mainBar.getByRole('tab', { name: 'Files' })).toHaveAttribute(
+			'aria-selected',
+			'true'
+		);
+		await expect(sideBar.getByRole('tab', { name: 'Changes' })).toHaveAttribute(
+			'aria-selected',
+			'true'
+		);
+	}}
+>
+	<div class="flex h-80 gap-2">
+		<Panes layout={main} onchange={(next) => (main = next)} {tab} {window} />
+		<Panes
+			layout={side}
+			onchange={(next) => (side = next)}
+			{tab}
+			{window}
+			ondoubleclick={(id) => {
+				main = open(main, id);
+				side = close(side, id);
+			}}
+		/>
 	</div>
 </Story>

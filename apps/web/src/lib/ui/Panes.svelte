@@ -18,6 +18,7 @@
 	type Props = {
 		layout: Layout;
 		onchange(layout: Layout): void;
+		ondoubleclick?: (tab: string) => void;
 		/** A tab's label. */
 		tab: Snippet<[string]>;
 		/** A tab's content. */
@@ -48,6 +49,7 @@
 	let {
 		layout,
 		onchange,
+		ondoubleclick,
 		tab,
 		window,
 		newTab,
@@ -148,6 +150,7 @@
 				current={n.active}
 				{tab}
 				actions={newTab || (actions && groupsOf(layout)[0]?.id === n.id) ? barActions : undefined}
+				{ondoubleclick}
 				onselect={(id) => onchange(open(layout, id))}
 				onclose={(id) => onchange(close(layout, id))}
 				{closable}
