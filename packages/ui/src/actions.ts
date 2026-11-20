@@ -365,7 +365,7 @@ export function standingOf(state: State): WorkspaceStanding | null {
 		return {
 			label: pull.checks.optionalChecksRunning ? 'Optional checks running' : 'Checks running',
 			tone: 'neutral',
-			icon: 'icon-[lucide--circle-dashed] animate-checks-spin',
+			icon: 'icon-[lucide--circle-dashed] motion-safe:animate-checks-spin',
 			checks: pull.checks.counts
 		};
 	if (pull.autoMerge?.enabled)
