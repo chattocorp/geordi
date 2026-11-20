@@ -897,16 +897,22 @@ export function createWorkspaces(
 			const dependents = new Map<string, string[]>();
 			for (const workspace of projection.get().values()) {
 				if (workspace.archivedAt || workspace.repoId !== repoId) continue;
-				const owners = [workspace.worktreeId, repoId === null ? null : workspace.parentId];
+				// A reviewer sent to a different worktree stays with that worktree's owner.
+				const owners = [workspace.worktreeId];
+				if (repoId !== null && workspace.parentId) {
+					const parent = projection.get().get(workspace.parentId);
+					if (workspace.worktreeId === workspace.id || workspace.worktreeId === parent?.worktreeId)
+						owners.push(workspace.parentId);
+				}
 				for (const owner of owners) {
-					if (!owner || owner === workspace.id) continue;
+					if (owner === workspace.id) continue;
 					const group = dependents.get(owner);
 					if (group) group.push(workspace.id);
 					else dependents.set(owner, [workspace.id]);
 				}
 			}
 
-			// A reviewer can depend on both its parent and the child whose worktree it shares.
+			// Nested agents in one worktree can depend on both their parent and its owner.
 			const visited = new Set<string>();
 			const ordered: string[] = [];
 			function visit(owner: string) {

@@ -92,7 +92,7 @@ describe('archiving', () => {
 		expect(removed.indexOf(grandchild)).toBeLessThan(removed.indexOf(child));
 	});
 
-	it('keeps a cross-repository child and its reviewer running when the parent is archived', async () => {
+	it('keeps reviewers with their worktrees across an A → B → A delegation chain', async () => {
 		const { workspaces, repos, store, archive, lead, start, removed, closed } = setup();
 		const local = start(lead, 'own', 'Local work');
 		const other = repos.register(repositoryPath());
@@ -111,10 +111,15 @@ describe('archiving', () => {
 			worktree: 'own',
 			prompt: 'Check compatibility'
 		});
+		const { id: backReviewer } = workspaces.agents.start(lead, {
+			workspace: back,
+			worktree: 'shared',
+			prompt: 'Review compatibility'
+		});
 		await archive(lead, false);
 		expect(closed).toEqual([local, lead]);
 		expect(removed).toEqual([local, lead]);
-		for (const id of [child, reviewer, back]) {
+		for (const id of [child, reviewer, back, backReviewer]) {
 			expect(workspaces.get(id)).toMatchObject({ archivedAt: null, status: 'running' });
 		}
 
@@ -125,6 +130,11 @@ describe('archiving', () => {
 		expect(closed.slice(-2)).toEqual([reviewer, child]);
 		const replay = createWorkspaces(store, repos, () => true);
 		expect(replay.get(back)).toMatchObject({ archivedAt: null, status: 'running' });
+		expect(replay.get(backReviewer)).toMatchObject({
+			archivedAt: null,
+			status: 'running',
+			worktreeId: back
+		});
 	});
 
 	it('tears down only what a person archives: an agent archiving leaves that to the person', async () => {
@@ -141,6 +151,17 @@ describe('archiving', () => {
 		const { workspaces, archive, removed, lead, start } = setup();
 		const reviewer = start(lead, 'shared', 'Review');
 		await archive(reviewer, false);
+		expect(removed).toEqual([]);
+		expect(workspaces.get(lead).archivedAt).toBeNull();
+	});
+
+	it('archives a shared agent with its parent when both work in the same checkout', async () => {
+		const { workspaces, archive, removed, closed, lead, start } = setup();
+		const parent = start(lead, 'shared', 'Pair');
+		const child = start(parent, 'shared', 'Check tests');
+
+		await archive(parent, false);
+		expect(closed).toEqual([child, parent]);
 		expect(removed).toEqual([]);
 		expect(workspaces.get(lead).archivedAt).toBeNull();
 	});
