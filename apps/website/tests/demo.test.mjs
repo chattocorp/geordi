@@ -17,11 +17,11 @@ after(async () => {
 	await Promise.all([browser?.close(), server?.stop()]);
 });
 
-async function openDemo(t, javaScriptEnabled) {
+async function openDemo(t, javaScriptEnabled, width = 1440) {
 	const page = await browser.newPage({
 		javaScriptEnabled,
 		reducedMotion: 'reduce',
-		viewport: { width: 1440, height: 1000 }
+		viewport: { width, height: 1000 }
 	});
 	t.after(() => page.close());
 	await page.goto(`http://127.0.0.1:${server.port}/`);
@@ -57,6 +57,22 @@ test('open changed files, revisit a diff, and inspect pull request #412', async 
 	await expect(pull.getByRole('heading', { name: 'Return people after sign-in' })).toBeVisible();
 	await pull.getByRole('button', { name: /Checks/ }).click();
 	await expect(pull.getByText('Sign-in redirect tests')).toBeVisible();
+});
+
+test('phone title bars contain the pull request and next action', async (t) => {
+	const demo = await openDemo(t, true, 320);
+	await expect(demo.getByRole('textbox')).toBeEnabled();
+	const header = demo.locator('header');
+	const bounds = await header.boundingBox();
+	for (const name of ['#412', 'Archive']) {
+		const box = await header.getByRole('button', { name, exact: true }).boundingBox();
+		expect(box.y).toBeGreaterThanOrEqual(bounds.y);
+		expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+		expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+		expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+	}
+	await header.getByRole('button', { name: '#412' }).click();
+	await expect(demo.getByRole('tab', { name: /#412/ })).toHaveAttribute('aria-selected', 'true');
 });
 
 test('the conversation, changed files, and diff are readable without JavaScript', async (t) => {

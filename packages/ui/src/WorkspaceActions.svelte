@@ -79,7 +79,7 @@
 	unit: the standing colours the whole thing, and the first action is the next step. A
 	question appears at its head while an agent waits for an answer.
 -->
-<div class={['flex items-center gap-2', compact ? 'min-w-0 flex-1 flex-wrap' : 'shrink-0']}>
+<div class={['flex max-w-full flex-wrap items-center gap-2', compact && 'min-w-0 flex-1']}>
 	{#if unreachable && !compact}
 		{@const label = `The forge cannot be reached, so this is how things stood when it last could. (${unreachable})`}
 		<span
@@ -135,8 +135,7 @@
 				aria-label="Next steps"
 				class={[
 					// as tall when small: the pill frames its buttons (`h-7`) all round
-					'inline-flex h-9 items-center gap-1 rounded-full',
-					// never narrower than what is in it: on a card it moves to a line of its own
+					'inline-flex min-h-9 max-w-full flex-wrap items-center gap-1 rounded-full py-1',
 					'shrink-0',
 					compact ? 'pl-2.5' : 'pl-3',
 					// buttons reach the end of the pill; text keeps its distance
