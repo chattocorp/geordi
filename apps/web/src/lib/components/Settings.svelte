@@ -19,7 +19,7 @@
 	import AddRepository from './AddRepository.svelte';
 	import { removeRepo } from '../../routes/repos.remote';
 	import { issueAccess, revokeAccess } from '../../routes/access.remote';
-	import { sections, settingsPath, type Section } from './settings.svelte.ts';
+	import { getRibbonPosition, sections, settingsPath, type Section } from './settings.svelte.ts';
 
 	let { section }: { section: Section } = $props();
 
@@ -30,6 +30,7 @@
 		return updates?.subscribe((state) => (updateState = state));
 	});
 
+	const ribbonPosition = getRibbonPosition();
 	const nav = follow<Navigation>('navigation');
 	const repos = $derived(nav.current?.repos ?? []);
 
@@ -98,6 +99,22 @@
 							{ value: 'system', label: 'System' },
 							{ value: 'light', label: 'Light' },
 							{ value: 'dark', label: 'Dark' }
+						]}
+					/>
+				</div>
+				<div class="flex flex-wrap items-center justify-between gap-4 pt-6">
+					<div>
+						<p class="text-sm font-medium">Action ribbon position</p>
+						<p class="text-sm text-muted">
+							Choose which right edge the workspace actions align with.
+						</p>
+					</div>
+					<Segmented
+						label="Action ribbon position"
+						bind:value={ribbonPosition.current}
+						options={[
+							{ value: 'window', label: 'Window' },
+							{ value: 'pane', label: 'Main pane' }
 						]}
 					/>
 				</div>

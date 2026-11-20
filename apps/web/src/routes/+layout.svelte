@@ -9,7 +9,7 @@
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
-	import { openSettings } from '#lib/components/settings.svelte.ts';
+	import { initRibbonPosition, openSettings } from '#lib/components/settings.svelte.ts';
 	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
@@ -31,6 +31,7 @@
 	// everything live on the page comes over one connection: this is where it starts
 	// svelte-ignore state_referenced_locally
 	connect(data.live);
+	initRibbonPosition();
 	const lost = $derived(connection.state === 'lost');
 	const nav = follow<Navigation>('navigation');
 

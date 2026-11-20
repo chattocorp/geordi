@@ -1,9 +1,11 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import Segmented from './Segmented.svelte';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 
+	let position = $state('pane');
 	const { Story } = defineMeta({ title: 'UI/TitleBar', component: TitleBar });
 </script>
 
@@ -30,9 +32,17 @@
 	</div>
 </Story>
 
-<Story name="Actions above the main pane" asChild>
+<Story name="Action ribbon position" asChild>
+	<Segmented
+		label="Action ribbon position"
+		bind:value={position}
+		options={[
+			{ value: 'window', label: 'Window' },
+			{ value: 'pane', label: 'Main pane' }
+		]}
+	/>
 	<div class="bg-frame">
-		<TitleBar contentWidth={480}>
+		<TitleBar contentWidth={position === 'pane' ? 480 : undefined}>
 			<div class="min-w-0">
 				<h1 class="truncate heading">Return people after sign-in</h1>
 				<p class="truncate text-xs text-muted">sample-site</p>
