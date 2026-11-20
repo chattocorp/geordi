@@ -1,13 +1,18 @@
 <script lang="ts" module>
 	import { getContext, setContext, type Snippet } from 'svelte';
 
-	const LEAD = Symbol('title bar lead');
+	const SHELL = Symbol('title bar shell');
+	type Shell = {
+		lead: () => Snippet | undefined;
+		onheight?: (height: number) => void;
+	};
 
 	/**
 	 * Says what every title bar below starts with (`undefined` for nothing). For the app's
 	 * shell: the way back to a hidden sidebar, say.
 	 */
-	export const setTitleBarLead = (lead: () => Snippet | undefined) => setContext(LEAD, lead);
+	export const setTitleBarLead = (lead: Shell['lead'], onheight?: Shell['onheight']) =>
+		setContext<Shell>(SHELL, { lead, onheight });
 </script>
 
 <script lang="ts">
@@ -21,7 +26,7 @@
 	};
 	let { class: extra, children, actions, trailing, contentWidth }: Props = $props();
 
-	const lead = getContext<(() => Snippet | undefined) | undefined>(LEAD);
+	const shell = getContext<Shell | undefined>(SHELL);
 </script>
 
 <!--
@@ -32,10 +37,11 @@
 	room for the window's buttons where they are drawn over it (`window-controls-room`).
 -->
 <header
+	bind:borderBoxSize={null, (size: ResizeObserverSize[]) => shell?.onheight?.(size[0].blockSize)}
 	class={['flex min-h-14 shrink-0 items-center gap-3 bg-frame px-5 select-none window-drag', extra]}
 >
 	{#snippet heading()}
-		{@render lead?.()?.()}
+		{@render shell?.lead()?.()}
 		{@render children?.()}
 	{/snippet}
 	{#if actions}

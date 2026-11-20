@@ -33,7 +33,10 @@
 <Story name="Actions above the main pane" asChild>
 	<div class="bg-frame">
 		<TitleBar contentWidth={480}>
-			<h1 class="truncate heading">Return people after sign-in</h1>
+			<div class="min-w-0">
+				<h1 class="truncate heading">Return people after sign-in</h1>
+				<p class="truncate text-xs text-muted">sample-site</p>
+			</div>
 			{#snippet actions()}
 				<Button icon="icon-[lucide--git-merge]">Merge PR</Button>
 			{/snippet}
