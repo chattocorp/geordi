@@ -113,8 +113,8 @@
 						label="Action ribbon position"
 						bind:value={ribbonPosition.current}
 						options={[
-							{ value: 'window', label: 'Window' },
-							{ value: 'pane', label: 'Main pane' }
+							{ value: 'pane', label: 'Main pane' },
+							{ value: 'window', label: 'Window' }
 						]}
 					/>
 				</div>

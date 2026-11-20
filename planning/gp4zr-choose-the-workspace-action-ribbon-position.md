@@ -6,4 +6,4 @@ data:
 id: gp4zr
 title: Choose the workspace action ribbon position
 ---
-General settings now offer Window (default) and Main pane for the action ribbon from 1a2hq. Verified both positions and aligned panel tops in Chromium, reloaded to check persistence, then switched back to Window.
+General settings offer Main pane (default) followed by Window for the action ribbon from 1a2hq. Verified the option order, the default alignment in a fresh browser, and the saved Window alignment after reloading.

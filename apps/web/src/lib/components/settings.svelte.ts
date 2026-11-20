@@ -33,4 +33,4 @@ type RibbonPosition = 'window' | 'pane';
 const [getRibbonPosition, setRibbonPosition] = createContext<{ current: RibbonPosition }>();
 export { getRibbonPosition };
 export const initRibbonPosition = () =>
-	setRibbonPosition(persisted<RibbonPosition>('geordi:ribbon-position', 'window'));
+	setRibbonPosition(persisted<RibbonPosition>('geordi:ribbon-position', 'pane'));

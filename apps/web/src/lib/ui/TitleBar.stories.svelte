@@ -37,8 +37,8 @@
 		label="Action ribbon position"
 		bind:value={position}
 		options={[
-			{ value: 'window', label: 'Window' },
-			{ value: 'pane', label: 'Main pane' }
+			{ value: 'pane', label: 'Main pane' },
+			{ value: 'window', label: 'Window' }
 		]}
 	/>
 	<div class="bg-frame">
