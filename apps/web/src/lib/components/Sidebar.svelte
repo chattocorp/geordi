@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import Dialog from '#lib/ui/Dialog.svelte';
+	import Select from '#lib/ui/Select.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
@@ -39,7 +40,7 @@
 		path,
 		folded,
 		focus,
-		todayOnly = false,
+		todayOnly = $bindable(false),
 		lost = false
 	}: {
 		nav: Navigation | undefined;
@@ -68,10 +69,10 @@
 	]);
 	/** What stands for the projects among the folded: no repository has it as its ID. */
 	const PROJECTS = 'projects';
-	/** How many repositories a focus hides: offered at the end, to show them again. */
-	const hidden = $derived(
-		withWorkspaces.filter((repo) => listed.has(repo.id) && !sidebarRepos.includes(repo)).length
-	);
+	const repositoryOptions = $derived([
+		{ value: '', label: 'All repositories' },
+		...withWorkspaces.map(({ id, name }) => ({ value: id, label: name }))
+	]);
 
 	/**
 	 * Repositories and workspaces slide away and back when what is shown changes (the focus,
@@ -297,15 +298,40 @@
 	{/if}
 </Dialog>
 
-<div class="flex min-h-0 flex-1 flex-col sheet-quiet select-none">
-	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
+<div class="flex min-h-0 min-w-0 flex-1 flex-col sheet-quiet select-none">
+	<nav class="flex min-h-0 flex-1 flex-col p-2" aria-label="Main">
 		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
+
+		<div
+			role="group"
+			aria-label="Workspace filters"
+			class="my-2 flex shrink-0 items-center justify-between gap-1"
+		>
+			<Select
+				label="Repository"
+				options={repositoryOptions}
+				bind:value={() => focus.current ?? '', (value) => (focus.current = value || null)}
+			/>
+			<button
+				type="button"
+				aria-pressed={todayOnly}
+				title={`Show workspaces active today (${hint('todayOnly')})`}
+				class={[
+					'inline-flex h-8 shrink-0 items-center gap-1 rounded-control px-2 text-sm hover:bg-hover hover:text-ink',
+					todayOnly ? 'bg-sunken text-ink' : 'text-muted'
+				]}
+				onclick={() => (todayOnly = !todayOnly)}
+			>
+				{#if todayOnly}<span class="icon-[lucide--check] size-3.5"></span>{/if}
+				Today
+			</button>
+		</div>
 
 		<!--
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
 		-->
-		<div>
+		<div class="scroller">
 			{#each groups as repo (repo.id ?? PROJECTS)}
 				{@const all = listed.get(repo.id) ?? []}
 				{@const rows = unfolded(all, folded.current)}
@@ -378,21 +404,8 @@
 					{/if}
 				</div>
 			{/each}
-			<!-- with one repository shown alone, the others wait here, out of the way -->
-			{#if hidden > 0}
-				<button
-					type="button"
-					class="mb-4 flex h-7 w-full items-center gap-2 pr-2 pl-1.5 text-left text-sm text-muted/60 hover:text-ink"
-					transition:slide={motion()}
-					onclick={() => (focus.current = null)}
-				>
-					<span class="grid size-5 shrink-0 place-items-center">
-						<span class="icon-[lucide--chevrons-up-down] size-4"></span>
-					</span>
-					<span class="truncate">
-						Show {hidden} other {hidden === 1 ? 'repository' : 'repositories'}
-					</span>
-				</button>
+			{#if nav && todayOnly && groups.length === 0}
+				<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
 			{/if}
 		</div>
 	</nav>

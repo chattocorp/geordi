@@ -218,7 +218,7 @@
 					path={page.url.pathname}
 					{folded}
 					{focus}
-					{todayOnly}
+					bind:todayOnly
 				/>
 			</div>
 

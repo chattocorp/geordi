@@ -7,7 +7,15 @@
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import Sidebar from './Sidebar.svelte';
 
-	const { Story } = defineMeta({ title: 'Geordi/Sidebar', component: Sidebar });
+	const { Story } = defineMeta({
+		title: 'Geordi/Sidebar',
+		component: Sidebar,
+		beforeEach() {
+			filters.todayOnly = false;
+			focus.current = null;
+			folded.current = [];
+		}
+	});
 
 	type Item = Navigation['workspaces'][number];
 
@@ -15,6 +23,8 @@
 	const folded = $state({ current: [] as string[] });
 	/** The repository shown alone: in the app, remembered in the browser too. */
 	const focus = $state({ current: null as string | null });
+
+	const filters = $state({ todayOnly: false });
 
 	const ready: WorkspaceStanding = {
 		label: 'Ready to merge',
@@ -153,16 +163,21 @@
 	};
 </script>
 
-{#snippet frame(nav: Navigation | undefined, path: string, lost = false, day: string | null = null)}
+{#snippet frame(
+	nav: Navigation | undefined,
+	path: string,
+	lost = false,
+	day = new Date(2026, 10, 20).toDateString()
+)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh w-64 bg-frame p-2">
 		<Sidebar
-			visibleWorkspaces={activeOnDay(nav?.workspaces ?? [], day)}
+			visibleWorkspaces={activeOnDay(nav?.workspaces ?? [], filters.todayOnly ? day : null)}
 			{nav}
 			{path}
 			{folded}
 			{focus}
-			todayOnly={day !== null}
+			bind:todayOnly={filters.todayOnly}
 			{lost}
 		/>
 	</div>
@@ -222,9 +237,20 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText('Review the daemon')).toBeVisible();
-		await expect(canvas.queryByText('Scale live views and the event log')).toBeNull();
-		await expect(canvas.queryByText('sample-project')).toBeNull();
+		const today = canvas.getByRole('button', { name: 'Today' });
+		await fireEvent.click(today);
+		await expect(today).toHaveAttribute('aria-pressed', 'true');
+		await waitFor(() => expect(canvas.getByText('Review the daemon')).toBeVisible());
+		await waitFor(() =>
+			expect(canvas.queryByText('Scale live views and the event log')).toBeNull()
+		);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
+		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
+		await expect(canvas.getByText('No workspaces active today.')).toBeVisible();
+		await fireEvent.click(today);
+		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
+		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));
+		await fireEvent.click(await canvas.findByRole('option', { name: 'All repositories' }));
 	}}
 >
 	{@render frame(
@@ -305,8 +331,9 @@
 		await fireEvent.click(only!);
 		// the others slide away
 		await waitFor(() => expect(canvas.queryByText('Raise light mode text contrast')).toBeNull());
-		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
-		await fireEvent.click(canvas.getByRole('button', { name: 'Show 1 other repository' }));
+		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
+		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));
+		await fireEvent.click(await canvas.findByRole('option', { name: 'All repositories' }));
 		await waitFor(() => expect(canvas.getByText('Raise light mode text contrast')).toBeVisible());
 	}}
 >
@@ -344,7 +371,7 @@
 			'false'
 		);
 		await fireEvent.click(canvas.getByRole('button', { name: 'Expand sample-project' }));
-		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
+		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
 	}}
 >
 	{@render frame(nav, '/workspaces/plain')}
