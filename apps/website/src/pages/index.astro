@@ -1,5 +1,6 @@
 ---
 import Button from '../components/Button.astro';
+import ReleaseDownloads from '../components/ReleaseDownloads.astro';
 import Demo from '../components/Demo.svelte';
 import Spinner from '@geordi/ui/Spinner.svelte';
 import Base from '../layouts/Base.astro';
@@ -121,12 +122,10 @@ const steps = [
 				towards a merged pull request.
 			</p>
 			<div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-				<Button variant="primary" size="lg" href={site.download} icon="icon-[lucide--download]">
-					Download Geordi
-				</Button>
+				<ReleaseDownloads />
 				<p class="text-sm text-muted">
-					Version {site.version} for macOS (Apple silicon), Windows and Linux. It's still early
-					days, so expect things to change.
+					For macOS (Apple silicon), Windows and Linux. It's still early days, so expect things to
+					change.
 				</p>
 			</div>
 		</div>
@@ -299,9 +298,7 @@ const steps = [
 				quickly, so you'll probably run into a rough edge or two.
 			</p>
 			<div class="mt-8 flex flex-wrap items-center gap-3">
-				<Button variant="primary" size="lg" href={site.download} icon="icon-[lucide--download]">
-					Download Geordi {site.version}
-				</Button>
+				<ReleaseDownloads />
 				<Button size="lg" href={site.docs.selfHosting}>
 					Run it without the app
 				</Button>

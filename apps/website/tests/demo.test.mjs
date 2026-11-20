@@ -102,3 +102,34 @@ test('a link to the site is shown with a picture', async (t) => {
 	const response = await page.request.get(`http://127.0.0.1:${server.port}${image.pathname}`);
 	expect(response.headers()['content-type']).toBe('image/png');
 });
+
+test('download links follow the stable release and the next published beta', async (t) => {
+	const page = await browser.newPage();
+	t.after(() => page.close());
+	const api = 'https://api.github.com/repos/chattocorp/geordi/releases';
+	const tags = 'https://github.com/chattocorp/geordi/releases/tag/';
+	await page.route(api + '/latest', (route) => route.fulfill({ json: { tag_name: 'v0.9.0' } }));
+	let candidates = [
+		{ tag_name: 'v0.11.0-beta.0', prerelease: true, draft: true },
+		{ tag_name: 'v0.10.0-beta.2', prerelease: true, draft: false }
+	];
+	await page.route(api + '?page=1', (route) => route.fulfill({ json: candidates }));
+	await page.goto(`http://127.0.0.1:${server.port}/`);
+	const beta = page.getByRole('link', { name: 'Try 0.10.0-beta.2' });
+	await expect(beta).toHaveCount(2);
+	await expect(beta.first()).toHaveAttribute('href', tags + 'v0.10.0-beta.2');
+	await expect(page.getByRole('link', { name: 'Download stable 0.9.0' }).first()).toHaveAttribute(
+		'href',
+		tags + 'v0.9.0'
+	);
+
+	candidates = [{ tag_name: 'v0.9.0-beta.1', prerelease: true, draft: false }];
+	await page.reload({ waitUntil: 'networkidle' });
+	await expect(page.getByRole('link', { name: /^Try .*beta/ })).toHaveCount(0);
+
+	await page.route(api + '/latest', (route) => route.fulfill({ status: 403 }));
+	await page.reload({ waitUntil: 'networkidle' });
+	await expect(
+		page.getByRole('link', { name: 'Download stable', exact: true }).first()
+	).toHaveAttribute('href', 'https://github.com/chattocorp/geordi/releases/latest');
+});
