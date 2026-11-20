@@ -7,7 +7,7 @@ import { GEORDI_DATA_DIR } from '$app/env/private';
 import type { LegacyEvent } from '../legacy.ts';
 import { lazy } from '../lazy.ts';
 import type { RepoEvent } from '../repos.ts';
-import type { WorkspacesEvent } from '../workspaces.ts';
+import type { WorkspacesEvent } from '../workspace-projection.ts';
 import { EventStore } from './store.ts';
 
 export { EventStore, type EventInput, type StoredEvent } from './store.ts';
