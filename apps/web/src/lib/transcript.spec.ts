@@ -91,3 +91,14 @@ describe('toBlocks', () => {
 		]);
 	});
 });
+
+it('omits only standalone agent browser completion markers', () => {
+	const marker = '::browser-complete{title="Checked browser session availability"}';
+	expect(toBlocks([{ kind: 'text', text: marker, at }])).toEqual([]);
+	for (const text of [`    ${marker}`, `Example: ${marker}`, '```\n' + marker + '\n```']) {
+		expect(toBlocks([{ kind: 'text', text, at }])).toEqual([
+			{ kind: 'agent', parts: [{ kind: 'text', text }] }
+		]);
+	}
+	expect(toBlocks([{ kind: 'user', text: marker, at }])).toEqual([{ kind: 'user', text: marker }]);
+});

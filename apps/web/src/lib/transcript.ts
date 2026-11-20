@@ -1,6 +1,8 @@
 import type { TurnDiff, TurnUsage } from '@geordi/protocol';
 import type { SubagentItem, TranscriptItem } from '#lib/server/workspaces.ts';
 
+import { isBrowserCompletion } from './agent-directives.ts';
+
 export type TurnChanges = { number: number; diff: TurnDiff };
 
 type Tool = Extract<TranscriptItem, { kind: 'tool' }>;
@@ -41,6 +43,8 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 				continue;
 			}
 		}
+		if ((item.kind === 'text' || item.kind === 'message') && isBrowserCompletion(item.text))
+			continue;
 		if (item.kind === 'note') {
 			blocks.push({ kind: 'note', text: item.text });
 			continue;

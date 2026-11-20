@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createArchiver } from './archive.ts';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { createRepos } from './repos.ts';
@@ -17,7 +17,11 @@ function repositoryPath() {
 function setup() {
 	const store = new EventStore<GeordiEvent>(':memory:');
 	const repos = createRepos(store);
-	const workspaces = createWorkspaces(store, repos, () => true);
+	const stops: string[] = [];
+	const workspaces = createWorkspaces(store, repos, (message) => {
+		if (message.type === 'agent.stop') stops.push(message.workspaceId);
+		return true;
+	});
 	const repo = repos.register(repositoryPath());
 
 	/** Worktrees a daemon was asked to remove, and ones it refuses to (they have work in them). */
@@ -54,6 +58,7 @@ function setup() {
 		return settle(id);
 	};
 	return {
+		stops,
 		workspaces,
 		repos,
 		store,
@@ -173,6 +178,44 @@ describe('archiving', () => {
 
 		await expect(archive(lead, false)).rejects.toEqual(refusal(/Stop the agent in “Build”/));
 		expect(workspaces.list(repo.id)).toHaveLength(2);
+	});
+
+	it('waits for every confirmed stop before archiving and keeps queued work from starting', async () => {
+		const { workspaces, archive, lead, start, stops, closed } = setup();
+		const child = start(lead, 'shared', 'Review');
+		workspaces.send(lead, 'Continue');
+		workspaces.send(child, 'Continue');
+		workspaces.send(child, 'Later');
+		await expect(archive(lead, false, 'agent', true)).rejects.toEqual(refusal(/Stop the agent/));
+		expect(stops).toEqual([]);
+		const done = archive(lead, false, null, true);
+		expect(stops).toEqual([child, lead]);
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(workspaces.get(child).status).toBe('idle');
+		expect(closed).toEqual([]);
+		workspaces.record(lead, { kind: 'turn.failed', error: 'Stopped' });
+		await done;
+		expect(closed).toEqual([child, lead]);
+	});
+
+	it('releases the workspace for retry if an agent does not stop', async () => {
+		const { workspaces, archive, lead, closed, removed } = setup();
+		workspaces.send(lead, 'Continue');
+		vi.useFakeTimers();
+		try {
+			const failed = expect(archive(lead, false, null, true)).rejects.toEqual(
+				refusal(/still running/)
+			);
+			await vi.advanceTimersByTimeAsync(30_000);
+			await failed;
+			expect(closed).toEqual([]);
+			expect(removed).toEqual([]);
+			workspaces.record(lead, { kind: 'turn.failed', error: 'Stopped' });
+			await archive(lead, false);
+			expect(closed).toEqual([lead]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('stops at work that would be lost, says where, and carries on when told to discard', async () => {

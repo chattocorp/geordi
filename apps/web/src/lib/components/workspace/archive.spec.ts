@@ -10,37 +10,49 @@ vi.mock('../../../routes/workspaces.remote', () => ({
 beforeEach(() => vi.clearAllMocks());
 
 it('checks once without opening a dialog and archives a clean workspace', async () => {
-	vi.mocked(previewArchive).mockResolvedValueOnce({ concerns: [], discard: false, blocked: false });
+	vi.mocked(previewArchive).mockResolvedValueOnce({
+		concerns: [],
+		discard: false,
+		stopAgents: false
+	});
 	const result = archive('w', 'Workspace');
 	expect(archiving.asking).toBeNull();
 	expect(await archive('w', 'Workspace')).toBe(false);
 	expect(await result).toBe(true);
-	expect(archiveWorkspace).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'w', discard: false });
+	expect(archiveWorkspace).toHaveBeenCalledExactlyOnceWith({
+		workspaceId: 'w',
+		discard: false,
+		stopAgents: false
+	});
 });
 
 it.each([
-	{ confirm: false, discard: true, blocked: false },
-	{ confirm: true, discard: true, blocked: false },
-	{ confirm: true, discard: false, blocked: false },
-	{ confirm: true, discard: false, blocked: true }
-])('handles confirmation with %o', async ({ confirm, discard, blocked }) => {
+	{ confirm: false, discard: true, stopAgents: false },
+	{ confirm: true, discard: true, stopAgents: false },
+	{ confirm: true, discard: false, stopAgents: false },
+	{ confirm: true, discard: false, stopAgents: true }
+])('handles confirmation with %o', async ({ confirm, discard, stopAgents }) => {
 	vi.mocked(previewArchive).mockResolvedValueOnce({
 		concerns: ['Unfinished work'],
 		discard,
-		blocked
+		stopAgents
 	});
 	const result = archive('w', 'Workspace');
 	await vi.waitFor(() => expect(archiving.asking?.concerns).toEqual(['Unfinished work']));
 	archiving.asking!.answer(confirm);
-	expect(await result).toBe(confirm && !blocked);
-	if (confirm && !blocked)
-		expect(archiveWorkspace).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'w', discard });
+	expect(await result).toBe(confirm);
+	if (confirm)
+		expect(archiveWorkspace).toHaveBeenCalledExactlyOnceWith({
+			workspaceId: 'w',
+			discard,
+			stopAgents
+		});
 	else expect(archiveWorkspace).not.toHaveBeenCalled();
 });
 
 it('starts a second clean archive while the first is pending', async () => {
 	const firstArchive = Promise.withResolvers<void>();
-	vi.mocked(previewArchive).mockResolvedValue({ concerns: [], discard: false, blocked: false });
+	vi.mocked(previewArchive).mockResolvedValue({ concerns: [], discard: false, stopAgents: false });
 	vi.mocked<(input: Parameters<typeof archiveWorkspace>[0]) => Promise<void>>(
 		archiveWorkspace
 	).mockReturnValueOnce(firstArchive.promise);
@@ -53,11 +65,11 @@ it('starts a second clean archive while the first is pending', async () => {
 });
 
 it('keeps each confirmation until its own archive is answered', async () => {
-	const flagged = { concerns: ['Unfinished work'], discard: true, blocked: false };
+	const flagged = { concerns: ['Unfinished work'], discard: true, stopAgents: false };
 	vi.mocked(previewArchive)
 		.mockResolvedValueOnce(flagged)
 		.mockResolvedValueOnce(flagged)
-		.mockResolvedValueOnce({ concerns: [], discard: false, blocked: false });
+		.mockResolvedValueOnce({ concerns: [], discard: false, stopAgents: false });
 	const first = archive('first', 'First');
 	const second = archive('second', 'Second');
 	expect(await archive('clean', 'Clean')).toBe(true);
@@ -67,6 +79,10 @@ it('keeps each confirmation until its own archive is answered', async () => {
 	expect(archiving.asking?.title).toBe('Second');
 	archiving.asking!.answer(true);
 	expect(await second).toBe(true);
-	expect(archiveWorkspace).toHaveBeenLastCalledWith({ workspaceId: 'second', discard: true });
+	expect(archiveWorkspace).toHaveBeenLastCalledWith({
+		workspaceId: 'second',
+		discard: true,
+		stopAgents: false
+	});
 	expect(archiving.asking).toBeNull();
 });
