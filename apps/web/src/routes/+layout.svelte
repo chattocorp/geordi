@@ -10,9 +10,9 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { openSettings } from '#lib/components/settings.svelte.ts';
-	import { activeOnDay, inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
+	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
-	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
+	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
 	import { releaseReview } from '#lib/components/workspace/release-review.svelte.ts';
@@ -87,7 +87,7 @@
 	}
 
 	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
-	function stepWorkspace(step: 1 | -1) {
+	function stepWorkspace(step: 1 | -1 | 'unread') {
 		const all = nav.current;
 		if (!all) return;
 		const order = inSidebarOrder(
@@ -96,9 +96,11 @@
 				all.repos.filter((repo) => repo.workspaceCount > 0),
 				focus.current
 			).map(({ id }) => id),
-			folded.current
+			folded.current,
+			step === 'unread'
 		);
-		const to = stepThrough(order, viewed, step);
+		const to =
+			step === 'unread' ? nextUnread(order, viewed, unread) : stepThrough(order, viewed, step);
 		if (to) void goto(resolve('/workspaces/[id]', { id: to.id }));
 	}
 
@@ -143,6 +145,9 @@
 		} else if (pressed(event, 'previousWorkspace') || pressed(event, 'nextWorkspace')) {
 			event.preventDefault();
 			stepWorkspace(pressed(event, 'nextWorkspace') ? 1 : -1);
+		} else if (pressed(event, 'nextUnreadWorkspace')) {
+			event.preventDefault();
+			if (!event.repeat) stepWorkspace('unread');
 		} else if (pressed(event, 'settings')) {
 			event.preventDefault();
 			openSettings();

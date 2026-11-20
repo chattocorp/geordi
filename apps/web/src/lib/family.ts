@@ -91,11 +91,13 @@ export function unfolded<T extends { id: string }>(
 export function inSidebarOrder<T extends Member>(
 	all: T[],
 	repoIds: readonly string[],
-	folded: readonly string[]
+	folded: readonly string[],
+	includeProjects = false
 ): T[] {
 	const listed = byRepository(all);
-	return repoIds
-		.filter((repoId) => !folded.includes(repoId))
+	const groups = includeProjects ? [null, ...repoIds] : repoIds;
+	return groups
+		.filter((repoId) => !folded.includes(repoId ?? 'projects'))
 		.flatMap((repoId) => unfolded(listed.get(repoId) ?? [], folded))
 		.map(({ workspace }) => workspace);
 }
@@ -118,4 +120,15 @@ export function stepThrough<T extends { id: string }>(
 	const at = order.findIndex(({ id }) => id === current);
 	if (at === -1) return step === 1 ? order[0] : order.at(-1);
 	return order[(at + step + order.length) % order.length];
+}
+
+/** Find the next unread row after the current one, wrapping once. */
+export function nextUnread<T extends { id: string }>(
+	order: T[],
+	current: string | null,
+	unread: ReadonlySet<string>
+): T | undefined {
+	const at = order.findIndex(({ id }) => id === current);
+	const isUnread = (row: T) => unread.has(row.id);
+	return order.slice(at + 1).find(isUnread) ?? order.slice(0, Math.max(0, at)).find(isUnread);
 }
