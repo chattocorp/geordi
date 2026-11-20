@@ -28,3 +28,5 @@ The Checks running icon now turns once every two seconds. Verified the animation
 The incoming-commits action is now labeled Sync.
 
 The Sync button shows the incoming base commit count in regular-weight muted text at 70% opacity.
+
+Sync checks whether Git can preserve local edits before moving the branch. The sidebar gives a working agent’s Braille spinner priority over the action icon. Covered by Git integration tests and the Workspace activity browser story.

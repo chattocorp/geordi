@@ -205,7 +205,7 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 
 /**
  * Brings the latest of the branch a workspace's work is based on into it (FDR-003). Where
- * there is nothing to decide (no agent at work in it, nothing uncommitted, no conflicts),
+ * there is nothing to decide (no agent at work in it, local edits can be preserved, no conflicts),
  * the daemon does it with git, at once. Otherwise the agent is asked to, with `prompt`.
  */
 export async function updateWorkspace(id: string, prompt: string) {

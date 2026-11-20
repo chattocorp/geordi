@@ -66,9 +66,7 @@
 
 	let submitting = $state<WorkspaceAction['id']>();
 	const activity = $derived(
-		leaving
-			? 'archive'
-			: (progress ?? submitting ?? (working && !asking && !waiting ? 'working' : undefined))
+		working && !asking && !waiting ? 'working' : leaving ? 'archive' : (progress ?? submitting)
 	);
 
 	async function activate(action: WorkspaceAction) {
