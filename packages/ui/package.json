@@ -26,6 +26,7 @@
 		"./ReplyComposer.svelte": "./src/ReplyComposer.svelte",
 		"./Ring.svelte": "./src/Ring.svelte",
 		"./RunningJob.svelte": "./src/RunningJob.svelte",
+		"./RunTab.svelte": "./src/RunTab.svelte",
 		"./RunPane.svelte": "./src/RunPane.svelte",
 		"./WorkspaceActivity.svelte": "./src/WorkspaceActivity.svelte",
 		"./SidebarRowLabel.svelte": "./src/SidebarRowLabel.svelte",

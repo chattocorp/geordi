@@ -6,6 +6,7 @@
 	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import { hint } from '@geordi/ui/keys';
 	import RunPane from '@geordi/ui/RunPane.svelte';
+	import RunTab from '@geordi/ui/RunTab.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Run', component: RunPane });
@@ -63,8 +64,12 @@
 		{#if defaultAction}
 			<PaneTabs prefix="run-dock" tabs={['Terminal 1', 'Run']} current="Run">
 				{#snippet tab(id: string)}
-					{#if id !== 'Run'}<span class="icon-[lucide--square-terminal] size-3.5"></span>{/if}
-					{id}
+					{#if id === 'Run'}
+						<RunTab {jobs} {stateOf} />
+					{:else}
+						<span class="icon-[lucide--square-terminal] size-3.5"></span>
+						{id}
+					{/if}
 				{/snippet}
 			</PaneTabs>
 		{/if}
@@ -135,6 +140,9 @@
 	name="Default link"
 	asChild
 	play={async ({ canvas, userEvent }) => {
+		await expect(
+			within(canvas.getByRole('tab', { name: /Run/ })).getByRole('img', { name: 'Job running' })
+		).toBeVisible();
 		const first = within(canvas.getByRole('region', { name: 'Default action' })).getByRole(
 			'button',
 			{ name: /Open About page/ }

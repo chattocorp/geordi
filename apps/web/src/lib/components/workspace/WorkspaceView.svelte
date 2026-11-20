@@ -44,6 +44,7 @@
 	} from '@geordi/protocol';
 	import JobMark, { type JobState } from '@geordi/ui/JobMark.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
+	import RunTab from '@geordi/ui/RunTab.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { getRibbonPosition } from '#lib/components/settings.svelte.ts';
@@ -798,7 +799,7 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
 	{:else if tab === RUN}
-		<span class="truncate">Run</span>
+		<RunTab {jobs} stateOf={jobState} />
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>

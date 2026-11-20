@@ -64,9 +64,15 @@ test('stop and start a job in the Run tab', async (t) => {
 	const demo = await openDemo(t, true);
 	await expect(demo.getByRole('textbox')).toBeEnabled();
 	const run = demo.getByRole('tabpanel', { name: 'Run' });
+	const mark = demo.getByRole('tab', { name: /Run/ }).getByRole('img', { name: 'Job running' });
+	await expect(mark).toBeVisible();
 	await run.getByRole('button', { name: 'Stop Dev server' }).click();
+	await expect(mark).toBeVisible();
+	await run.getByRole('button', { name: 'Stop Database' }).click();
+	await expect(mark).toHaveCount(0);
 	await run.getByRole('button', { name: 'Start Dev server' }).click();
 	await expect(run.getByRole('button', { name: 'Stop Dev server' })).toBeAttached();
+	await expect(mark).toBeVisible();
 });
 
 test('phone title bars contain the pull request and next action', async (t) => {
