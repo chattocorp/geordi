@@ -13,6 +13,7 @@ const toml = (text: string) => parseConfig(text, '.geordi.toml');
 describe('parseConfig, of TOML', () => {
 	it('reads a single run command as a job of that name', () => {
 		expect(toml('run = "pnpm dev"')).toEqual({
+			default: 'jobs.run',
 			ports: 1, // one job, one port
 			jobs: [{ name: 'run', command: 'pnpm dev', needs: [] }],
 			urls: [],
@@ -152,6 +153,7 @@ needs = ["db"]
 	it.each([
 		['what is not YAML', 'run: [oops', /./],
 		['what is not settings', '- run\n- jobs', /settings/],
+		['an unknown default', 'run: dev\ndefault: urls.run', /default/],
 		['a single word', 'pnpm dev', /settings/],
 		['a run command that is not one', 'run: 5', /run/],
 		['a number of ports that is a word', 'ports: "3"', /ports/],
@@ -165,19 +167,22 @@ needs = ["db"]
 		expect(() => parseConfig(text)).toThrow(problem);
 	});
 
-	it('ignores a setting it no longer has, so that older files still work', () => {
-		// `default` named what a Run button ran; there is none any more
-		expect(parseConfig('run: dev\ndefault: urls.app')).not.toHaveProperty('default');
+	it('makes the run job the default, unless the file names another', () => {
+		expect(parseConfig('run: dev')).toMatchObject({ default: 'jobs.run' });
+		expect(parseConfig('jobs:\n  web:\n    command: dev')).not.toHaveProperty('default');
 	});
 
 	it('understands every setting agents are told about', () => {
-		const { run, jobs, urls, ports, setup, teardown, ...others } = CONFIG_SETTINGS;
+		const { default: target, run, jobs, urls, ports, setup, teardown, ...others } = CONFIG_SETTINGS;
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
 		expect(parseConfig(run.example).jobs).toEqual([
 			{ name: 'run', command: 'pnpm dev --port $PORT', needs: [] }
 		]);
 		// the link's example leads to a job of the jobs' example
-		expect(parseConfig([ports.example, jobs.example, urls.example].join('\n\n'))).toMatchObject({
+		expect(
+			parseConfig([ports.example, jobs.example, urls.example, target.example].join('\n\n'))
+		).toMatchObject({
+			default: 'urls.app',
 			ports: 20,
 			jobs: [{ name: 'db' }, { name: 'web' }],
 			urls: [{ name: 'app', needs: ['web'] }]

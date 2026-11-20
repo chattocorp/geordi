@@ -26,6 +26,7 @@ const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
 
 /** What a `.geordi.yml` says, before a workspace's ports are filled in. */
 export type Settings = {
+	default?: RepoConfig['default'];
 	ports: number;
 	jobs: { label?: string; name: string; command: string; needs: string[] }[];
 	urls: { label?: string; name: string; url: string; needs: string[] }[];
@@ -170,6 +171,15 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 		setup,
 		teardown
 	};
+	const targets = [
+		...jobs.map(({ name }) => `jobs.${name}` as const),
+		...urls.map(({ name }) => `urls.${name}` as const)
+	];
+	if (said.default !== undefined)
+		settings.default =
+			targets.find((target) => target === said.default) ??
+			fail('`default` must name a configured job or URL, such as jobs.web or urls.app');
+	else if (targets.includes('jobs.run')) settings.default = 'jobs.run';
 	return settings;
 }
 
@@ -238,6 +248,7 @@ export function resolve(
 	const port = (job: string) => portAt(assigned, assigned.jobs[job]);
 	const count = assigned.blocks.reduce((sum, block) => sum + block.count, 0);
 	return {
+		default: settings?.default,
 		jobs: (settings?.jobs ?? []).map((job) => ({
 			...job,
 			port: port(job.name),
