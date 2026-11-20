@@ -17,6 +17,7 @@
 		"./Disclosure.svelte": "./src/Disclosure.svelte",
 		"./FittedPath.svelte": "./src/FittedPath.svelte",
 		"./JobMark.svelte": "./src/JobMark.svelte",
+		"./Keys.svelte": "./src/Keys.svelte",
 		"./LinkCard.svelte": "./src/LinkCard.svelte",
 		"./MessageCopy.svelte": "./src/MessageCopy.svelte",
 		"./PaneTabs.svelte": "./src/PaneTabs.svelte",

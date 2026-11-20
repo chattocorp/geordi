@@ -67,7 +67,7 @@ export const shortcuts = {
 	runDefault: {
 		code: 'KeyR',
 		alt: true,
-		label: 'Run the default job, or open the default link',
+		label: 'Run default tasks',
 		group: 'Workspace'
 	},
 	queue: { key: 'Enter', label: 'Queue a message for when the agent is done', group: 'Workspace' },
@@ -105,6 +105,21 @@ export function hint(id: ShortcutId): string {
 	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
 	if (isMac()) return `${shortcut.alt ? '⌥' : ''}${shortcut.shift ? '⇧' : ''}⌘${key}`;
 	return ['Ctrl', shortcut.alt && 'Alt', shortcut.shift && 'Shift', key].filter(Boolean).join('+');
+}
+
+/**
+ * A shortcut's keys, one by one, to be drawn as keycaps: on a Mac its modifiers by name
+ * (`alt`, `shift`, `cmd`; drawn as icons, not as characters a font may lack), elsewhere as
+ * they are written on the keys.
+ */
+export function keysOf(id: ShortcutId): string[] {
+	const shortcut: Shortcut = shortcuts[id];
+	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
+	if (isMac())
+		return [shortcut.alt && 'alt', shortcut.shift && 'shift', 'cmd', key].filter(
+			Boolean
+		) as string[];
+	return hint(id).split('+');
 }
 
 /** The shortcuts by group, in the order they are defined, for listing. */

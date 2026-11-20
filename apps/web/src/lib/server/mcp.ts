@@ -286,11 +286,12 @@ const tools = {
 		run: () => configurationReference()
 	},
 	check_configuration: {
-		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including the first action in the Run pane: \`default\`), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
+		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including task defaults in the Tasks panel), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
 		input: v.object({}),
 		run: async (agents: Agents, caller: string) => {
 			const {
 				default: target,
+				tasks,
 				source,
 				file,
 				problem,
@@ -310,7 +311,15 @@ const tools = {
 						: source === 'base'
 							? `the ${name} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
-				default: target ?? null,
+				...(tasks
+					? {
+							tasks: tasks.map((task) => ({
+								...task,
+								command: jobs.find((job) => job.name === task.name)?.command,
+								url: urls.find((url) => url.name === task.name)?.href
+							}))
+						}
+					: { default: target ?? null }),
 				problem,
 				ports,
 				jobs: jobs.map(({ name, label, command, needs, port }) => ({

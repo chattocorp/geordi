@@ -82,16 +82,14 @@ automatically, and Codex runs in its sandbox with automatic review. For OpenCode
 ## Configuring a repository
 
 A `.geordi.yml` at the top of a repository says what to run and where to look at it.
-Workspaces get a **Run** tab for it, and ports of their own:
+Workspaces get a **Tasks** tab for it, and ports of their own:
 
 ```yaml
-jobs:
+tasks:
   web:
     command: pnpm dev --port $PORT
-
-urls:
-  app:
     url: http://localhost:{web}/
+    default: true
 ```
 
 See [Configuration](docs/configuration.md) for everything it can say.

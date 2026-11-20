@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { problemOf } from '#lib/problem.ts';
 import {
 	dependentsOf,
 	JOB_TERMINAL,
@@ -6,6 +7,7 @@ import {
 	type DaemonRequest,
 	type DaemonResults,
 	type RepoConfig,
+	type PortConflict,
 	type WorktreeRef
 } from '@geordi/protocol';
 import type { createTerminals } from './terminals.ts';
@@ -57,6 +59,26 @@ export function createJobs(
 			error(409, `${job.name} ended before it was up: look at its terminal`);
 	}
 
+	async function startJob(
+		workspaceId: string,
+		job: RepoConfig['jobs'][number],
+		seen: Record<string, string>,
+		confirmation?: string
+	) {
+		const at = terminalOf(workspaceId, job.name);
+		if (!terminals.isRunning(at)) {
+			const taken = await ask({
+				kind: 'jobPort',
+				...ref(workspaceId),
+				job: job.name,
+				confirmation: job.approved && job.command === seen[job.name] ? confirmation : undefined
+			});
+			if (taken) return { ...taken, job: job.label ?? job.name };
+			terminals.start(at, SIZE, { job: job.name, command: seen[job.name] ?? '' });
+		}
+		return null;
+	}
+
 	/**
 	 * Starts `names` and what they need, each once what it needs is up. `seen` has each
 	 * job's command as the person asking saw it: the daemon runs no other.
@@ -72,17 +94,8 @@ export function createJobs(
 		const order = startOrder(jobs, names);
 		for (const [index, name] of order.entries()) {
 			const job = jobs.find((job) => job.name === name)!;
-			const at = terminalOf(workspaceId, name);
-			if (!terminals.isRunning(at)) {
-				const taken = await ask({
-					kind: 'jobPort',
-					...ref(workspaceId),
-					job: name,
-					confirmation: job.approved && job.command === seen[name] ? confirmation : undefined
-				});
-				if (taken) return { ...taken, job: job.label ?? name };
-				terminals.start(at, SIZE, { job: name, command: seen[name] ?? '' });
-			}
+			const conflict = await startJob(workspaceId, job, seen, confirmation);
+			if (conflict) return conflict;
 			// only something that comes after it has to wait for it
 			const needed = order
 				.slice(index + 1)
@@ -99,6 +112,59 @@ export function createJobs(
 			seen: Record<string, string>,
 			confirmation?: string
 		) => start(workspaceId, names, seen, confirmation),
+
+		/** Each selected task shares its prerequisites with the rest of the launch. */
+		async runTasks(
+			workspaceId: string,
+			names: string[],
+			seen: Record<string, string>,
+			confirmation?: string
+		) {
+			const config = await configOf(workspaceId);
+			const tasks = new Map(config.tasks?.map((task) => [task.name, task]));
+			const prerequisites = new Set(
+				startOrder([...tasks.values()], names).flatMap((name) => tasks.get(name)!.needs)
+			);
+			type Outcome = { href?: string; problem?: string; conflict?: PortConflict & { job: string } };
+			const pending = new Map<string, Promise<Outcome>>();
+			function launch(name: string): Promise<Outcome> {
+				const running = pending.get(name);
+				if (running) return running;
+				const result = execute(name).catch((cause) => ({
+					problem: problemOf(cause, `Could not run ${name}`)
+				}));
+				pending.set(name, result);
+				return result;
+			}
+			async function execute(name: string): Promise<Outcome> {
+				const task = tasks.get(name);
+				if (!task) return { problem: `There is no task "${name}" any more` };
+				const dependencies = await Promise.all(task.needs.map(launch));
+				const failed = dependencies.find((result) => result.problem || result.conflict);
+				if (failed) return failed;
+				const job = config.jobs.find((job) => job.name === name);
+				const link = config.urls.find((link) => link.name === name);
+				if (job) {
+					if (job.command !== seen[name] || !job.approved)
+						return { problem: `Review the command for ${task.label ?? name} and run it again` };
+					const conflict = await startJob(workspaceId, job, seen, confirmation);
+					if (conflict) return { conflict };
+					if (!link && prerequisites.has(name)) await up(workspaceId, job);
+				}
+				if (!link) return {};
+				const url = new URL(link.href);
+				const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
+				const family = url.hostname === '127.0.0.1' ? 4 : url.hostname === '[::1]' ? 6 : undefined;
+				if (
+					!(await ask({ kind: 'portReady', port, family, timeoutMs: READY_MS }, READY_MS + 10_000))
+				)
+					return { problem: `${task.label ?? name}: port ${port} did not become reachable` };
+				return { href: link.href };
+			}
+			return Promise.all(
+				[...new Set(names)].map(async (name) => ({ name, ...(await launch(name)) }))
+			);
+		},
 
 		/** Waits for jobs that were started to be up. */
 		async ready(workspaceId: string, names: string[]) {

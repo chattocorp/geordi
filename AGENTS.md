@@ -163,8 +163,8 @@ it, perhaps you.
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that
   are files in the bundle and that the system plays (FDR-008).
-- **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names jobs to run
-  (with what they need), links to open, and how many ports a workspace gets. The daemon reads
+- **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names tasks with a command, a local URL, or both, and their dependencies and defaults.
+  Existing jobs and URLs still work. The file also sets how many ports a workspace gets. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
   reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +
   its name, and is running only until its command ends (`terminal.ended`; the terminal

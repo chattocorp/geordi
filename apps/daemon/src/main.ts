@@ -582,7 +582,11 @@ async function readRequest(request: DaemonRequest) {
 		return null;
 	}
 	if (request.kind === 'portReady')
-		return waitForPort(request.port, Math.min(request.timeoutMs, 120_000));
+		return waitForPort(
+			request.port,
+			Math.min(request.timeoutMs, 120_000),
+			request.family === 4 ? '127.0.0.1' : request.family === 6 ? '::1' : 'localhost'
+		);
 	if (request.kind === 'jobPort') {
 		const assigned = ports.of(request.worktreeId);
 		const index = assigned?.jobs[request.job];

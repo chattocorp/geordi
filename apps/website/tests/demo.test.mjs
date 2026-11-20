@@ -60,11 +60,11 @@ test('open changed files and the combined diff, and inspect pull request #412', 
 	await expect(pull.getByText('Sign-in redirect tests')).toBeVisible();
 });
 
-test('stop and start a job in the Run tab', async (t) => {
+test('stop and start a job in the Tasks tab', async (t) => {
 	const demo = await openDemo(t, true);
 	await expect(demo.getByRole('textbox')).toBeEnabled();
-	const run = demo.getByRole('tabpanel', { name: 'Run' });
-	const mark = demo.getByRole('tab', { name: /Run/ }).getByRole('img', { name: 'Job running' });
+	const run = demo.getByRole('tabpanel', { name: 'Tasks' });
+	const mark = demo.getByRole('tab', { name: /Tasks/ }).getByRole('img', { name: 'Job running' });
 	await expect(mark).toBeVisible();
 	await run.getByRole('button', { name: 'Stop Dev server' }).click();
 	await expect(mark).toBeVisible();
@@ -104,7 +104,7 @@ test('the conversation, changed files, and what runs are readable without JavaSc
 	await expect(
 		demo.getByRole('region', { name: 'Changes' }).getByRole('button', { name: /auth\.ts/ })
 	).toBeVisible();
-	const run = demo.getByRole('tabpanel', { name: 'Run' });
+	const run = demo.getByRole('tabpanel', { name: 'Tasks' });
 	await expect(run.getByText('Dev server')).toBeVisible();
 });
 

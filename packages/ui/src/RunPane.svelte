@@ -3,6 +3,8 @@
 	import type { Job, Link, RepoConfig } from '@geordi/protocol';
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
+	import Keys from './Keys.svelte';
+	import type { ShortcutId } from './keys.ts';
 
 	/**
 	 * The repository's links and jobs (FDR-006), and how each is: what a workspace runs, in
@@ -11,6 +13,8 @@
 	 * problem with the configuration, say) is `children`.
 	 */
 	let {
+		tasks,
+		launch,
 		defaultAction,
 		shortcut,
 		jobs,
@@ -23,8 +27,11 @@
 		visit,
 		children
 	}: {
+		tasks?: RepoConfig['tasks'];
+		launch?: (names: string[]) => void;
 		defaultAction?: RepoConfig['default'];
-		shortcut?: string;
+		/** Shown on what it runs: the default tasks, or the default action. */
+		shortcut?: ShortcutId;
 		jobs: Job[];
 		links: Link[];
 		stateOf: (job: string) => JobState;
@@ -88,135 +95,223 @@
 			class="hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
 			>{where(link.href)}</span
 		>
-		{#if first && shortcut}<kbd class="shrink-0 text-base font-medium tracking-wide text-prose"
-				>{shortcut}</kbd
-			>{/if}
+		{#if first && shortcut}<Keys id={shortcut} />{/if}
 	</button>
+{/snippet}
+
+<!--
+	A task, as a row. The row is the way to what it stands for: a URL opens (starting what it
+	needs), a command that has run shows its terminal, else it runs. Its mark says how it is,
+	as part of the row; it is a button of its own only where it does something the row does
+	not: stop what is live, or run again a command whose row shows its terminal. One tab stop
+	per action.
+-->
+{#snippet taskRow(task: NonNullable<RepoConfig['tasks']>[number])}
+	{@const job = jobs.find((job) => job.name === task.name)}
+	{@const link = links.find((link) => link.name === task.name)}
+	{@const label = task.label ?? task.name}
+	{@const state = stateOf(task.name)}
+	{@const terminal = !!job && hasTerminal(task.name)}
+	{@const action = live(state) ? 'Stop' : 'Run'}
+	{@const opens = link ? 'Open' : terminal ? 'Open terminal for' : 'Run'}
+	{@const ownMark = !!job && (live(state) || (!link && terminal))}
+	<div class="group/task flex h-8 items-center gap-1 rounded-control pr-1 pl-0.5 hover:bg-hover">
+		{#if job && ownMark}
+			<button
+				type="button"
+				aria-label="{action} {label}"
+				title="{action} {label}"
+				onclick={() => (live(state) ? stop(task.name) : launch?.([task.name]))}
+				class="group/mark grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink"
+			>
+				{#if state !== 'stopped'}
+					<span
+						class="grid place-items-center group-hover/mark:hidden group-focus-visible/mark:hidden"
+					>
+						<JobMark {state} />
+					</span>
+				{/if}
+				<span
+					class={[
+						'size-3.5',
+						state !== 'stopped' && 'hidden group-hover/mark:block group-focus-visible/mark:block',
+						live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
+					]}
+				></span>
+			</button>
+		{/if}
+		<button
+			type="button"
+			aria-label="{opens} {label}"
+			title={link ? `Open ${link.href}` : terminal ? `Open terminal for ${label}` : job?.command}
+			onclick={() => (link || !terminal ? launch?.([task.name]) : show(task.name))}
+			class="flex h-full min-w-0 flex-1 items-center gap-1 text-left text-sm"
+		>
+			{#if !ownMark}
+				<!-- what it would do: run, or wait for what it needs -->
+				{@const waiting = !job && link?.needs.some((name) => stateOf(name) === 'starting')}
+				<span class="grid size-6 shrink-0 place-items-center text-muted">
+					{#if waiting}<JobMark state="starting" />
+					{:else if state === 'stopped' || !job}<span class="icon-[lucide--play] size-3.5"></span>
+					{:else}<JobMark {state} />{/if}
+				</span>
+			{/if}
+			<span class="min-w-0 flex-1 truncate text-ink">{label}</span>
+			{#if link || job}
+				<span
+					class="ml-1 hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/task:inline group-has-focus-visible/task:inline"
+					>{link ? where(link.href) : `:${job?.port}`}</span
+				>
+			{/if}
+			{#if task.default && shortcut}<span class="ml-1"><Keys id={shortcut} /></span>{/if}
+			{#if link}
+				<span class="ml-1 icon-[lucide--external-link] size-3.5 shrink-0 text-muted"></span>
+			{:else if terminal}
+				<span class="ml-1 icon-[lucide--square-terminal] size-3.5 shrink-0 text-muted"></span>
+			{/if}
+		</button>
+		{#if link && terminal}
+			<Button
+				variant="ghost"
+				size="sm"
+				icon="icon-[lucide--square-terminal]"
+				label="Open terminal for {label}"
+				onclick={() => show(task.name)}
+			/>
+		{/if}
+	</div>
 {/snippet}
 
 <div class="scroller flex flex-col gap-3 p-2">
 	{@render children?.()}
 
-	{#if firstLink || firstJob}
-		<section aria-label="Default action">
-			{@render heading('Default action')}
-			{#if firstLink}
-				{@render linkRow(firstLink, true)}
-			{:else if firstJob}
-				{@const job = firstJob}
-				{@const state = stateOf(job.name)}
-				{@const name = job.label ?? job.name}
-				<div class="flex items-center">
-					<button
-						type="button"
-						onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
-						class="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
-					>
-						<span class="grid size-6 shrink-0 place-items-center text-muted"
-							>{#if state === 'stopped'}<span class="icon-[lucide--play] size-3.5"
-								></span>{:else}<JobMark {state} />{/if}</span
+	{#if tasks}
+		<!-- one list, in the order the configuration has them -->
+		<section aria-label="Tasks">
+			{#each tasks as task (task.name)}
+				{@render taskRow(task)}
+			{/each}
+		</section>
+	{:else}
+		{#if firstLink || firstJob}
+			<section aria-label="Default action">
+				{@render heading('Default action')}
+				{#if firstLink}
+					{@render linkRow(firstLink, true)}
+				{:else if firstJob}
+					{@const job = firstJob}
+					{@const state = stateOf(job.name)}
+					{@const name = job.label ?? job.name}
+					<div class="flex items-center">
+						<button
+							type="button"
+							onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
+							class="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
 						>
-						<span class="flex-1 truncate">{live(state) ? 'Stop' : 'Start'} {name}</span>
-						{#if shortcut}<kbd class="shrink-0 text-base font-medium tracking-wide text-prose"
-								>{shortcut}</kbd
-							>{/if}
-					</button>
-					{#if hasTerminal(job.name)}
+							<span class="grid size-6 shrink-0 place-items-center text-muted"
+								>{#if state === 'stopped'}<span class="icon-[lucide--play] size-3.5"
+									></span>{:else}<JobMark {state} />{/if}</span
+							>
+							<span class="flex-1 truncate">{live(state) ? 'Stop' : 'Start'} {name}</span>
+							{#if shortcut}<Keys id={shortcut} />{/if}
+						</button>
+						{#if hasTerminal(job.name)}
+							<Button
+								variant="ghost"
+								size="sm"
+								icon="icon-[lucide--square-terminal]"
+								label="Open terminal for {name}"
+								onclick={() => show(job.name)}
+							/>
+						{/if}
+					</div>
+				{/if}
+			</section>
+		{/if}
+
+		{#if otherLinks.length > 0}
+			<section aria-label="Open">
+				{@render heading('Open')}
+				{#each otherLinks as link (link.name)}
+					{@render linkRow(link)}
+				{/each}
+			</section>
+		{/if}
+
+		{#if otherJobs.length > 0}
+			<section aria-label="Jobs">
+				<div class="flex items-center gap-0.5 pr-0.5">
+					{@render heading('Jobs')}
+					{#if jobs.length > 1 && idle.length > 0}
 						<Button
-							variant="ghost"
 							size="sm"
-							icon="icon-[lucide--square-terminal]"
-							label="Open terminal for {name}"
-							onclick={() => show(job.name)}
+							variant="ghost"
+							icon="icon-[lucide--play]"
+							label="Start all"
+							onclick={() => start(idle.map((job) => job.name))}
+						/>
+					{/if}
+					{#if up.length > 1}
+						<Button
+							size="sm"
+							variant="ghost"
+							icon="icon-[lucide--circle-stop]"
+							label="Stop all"
+							onclick={() => up.forEach((job) => stop(job.name))}
 						/>
 					{/if}
 				</div>
-			{/if}
-		</section>
-	{/if}
-
-	{#if otherLinks.length > 0}
-		<section aria-label="Open">
-			{@render heading('Open')}
-			{#each otherLinks as link (link.name)}
-				{@render linkRow(link)}
-			{/each}
-		</section>
-	{/if}
-
-	{#if otherJobs.length > 0}
-		<section aria-label="Jobs">
-			<div class="flex items-center gap-0.5 pr-0.5">
-				{@render heading('Jobs')}
-				{#if jobs.length > 1 && idle.length > 0}
-					<Button
-						size="sm"
-						variant="ghost"
-						icon="icon-[lucide--play]"
-						label="Start all"
-						onclick={() => start(idle.map((job) => job.name))}
-					/>
-				{/if}
-				{#if up.length > 1}
-					<Button
-						size="sm"
-						variant="ghost"
-						icon="icon-[lucide--circle-stop]"
-						label="Stop all"
-						onclick={() => up.forEach((job) => stop(job.name))}
-					/>
-				{/if}
-			</div>
-			{#each otherJobs as job (job.name)}
-				{@const state = stateOf(job.name)}
-				{@const name = job.label ?? job.name}
-				{@const action = live(state) ? 'Stop' : 'Start'}
-				<div
-					class="group/job flex h-8 items-center gap-1 rounded-control pr-2 pl-0.5 hover:bg-hover"
-				>
-					<!-- how it is; pointed at (or reached with the keyboard), what can be done about it -->
-					<button
-						type="button"
-						aria-label="{action} {name}"
-						title="{action} {name}"
-						onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
-						class="group/mark grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink"
+				{#each otherJobs as job (job.name)}
+					{@const state = stateOf(job.name)}
+					{@const name = job.label ?? job.name}
+					{@const action = live(state) ? 'Stop' : 'Start'}
+					<div
+						class="group/job flex h-8 items-center gap-1 rounded-control pr-2 pl-0.5 hover:bg-hover"
 					>
-						{#if state !== 'stopped'}
-							<span
-								class="grid place-items-center group-hover/mark:hidden group-focus-visible/mark:hidden"
-							>
-								<JobMark {state} />
-							</span>
-						{/if}
-						<span
-							class={[
-								'size-3.5',
-								state !== 'stopped' &&
-									'hidden group-hover/mark:block group-focus-visible/mark:block',
-								live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
-							]}
-						></span>
-					</button>
-					<!-- once it has a terminal, the rest of the row is the way to its output -->
-					{#if !hasTerminal(job.name)}
-						<div class="flex min-w-0 flex-1 items-center gap-2 text-sm" title={job.command}>
-							{@render about(job)}
-						</div>
-					{:else}
+						<!-- how it is; pointed at (or reached with the keyboard), what can be done about it -->
 						<button
 							type="button"
-							aria-label="Open terminal for {name}"
-							title="Open terminal for {name}"
-							onclick={() => show(job.name)}
-							class="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-sm"
+							aria-label="{action} {name}"
+							title="{action} {name}"
+							onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
+							class="group/mark grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink"
 						>
-							{@render about(job)}
-							<span class="icon-[lucide--square-terminal] size-3.5 shrink-0 text-muted"></span>
+							{#if state !== 'stopped'}
+								<span
+									class="grid place-items-center group-hover/mark:hidden group-focus-visible/mark:hidden"
+								>
+									<JobMark {state} />
+								</span>
+							{/if}
+							<span
+								class={[
+									'size-3.5',
+									state !== 'stopped' &&
+										'hidden group-hover/mark:block group-focus-visible/mark:block',
+									live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
+								]}
+							></span>
 						</button>
-					{/if}
-				</div>
-			{/each}
-		</section>
+						<!-- once it has a terminal, the rest of the row is the way to its output -->
+						{#if !hasTerminal(job.name)}
+							<div class="flex min-w-0 flex-1 items-center gap-2 text-sm" title={job.command}>
+								{@render about(job)}
+							</div>
+						{:else}
+							<button
+								type="button"
+								aria-label="Open terminal for {name}"
+								title="Open terminal for {name}"
+								onclick={() => show(job.name)}
+								class="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-sm"
+							>
+								{@render about(job)}
+								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0 text-muted"></span>
+							</button>
+						{/if}
+					</div>
+				{/each}
+			</section>
+		{/if}
 	{/if}
 </div>

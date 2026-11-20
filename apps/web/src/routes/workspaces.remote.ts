@@ -291,6 +291,17 @@ export const editReleaseNote = command(
 	}
 );
 
+export const runTasks = command(
+	v.object({
+		workspaceId: v.string(),
+		tasks: v.array(jobName),
+		seen,
+		confirmation: v.optional(v.string())
+	}),
+	({ workspaceId, tasks, seen, confirmation }) =>
+		jobs().runTasks(workspaceId, tasks, seen, confirmation)
+);
+
 /** Starts jobs, and before each the jobs it needs. */
 export const startJobs = command(
 	v.object({

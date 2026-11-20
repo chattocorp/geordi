@@ -6,26 +6,42 @@ Geordi reads the workspace's own file, or else the one on the branch the work st
 
 ```yaml
 setup: pnpm install
-default: urls.app
 
-jobs:
+tasks:
   db:
     command: docker compose up db
   web:
     label: Development server
     command: pnpm dev --port $PORT
     needs: [db]
-
-urls:
-  app:
-    label: Open the app
     url: http://localhost:{web}/
+    default: true
 ```
 
 Commands run only once you have seen and agreed to them, once per repository and again
 whenever they change.
 
 ## Running
+
+Give each entry in `tasks` a `command`, a local HTTP or HTTPS `url`, or both.
+The Tasks panel shows one row per task, in file order. Select a task with a URL to
+start what it needs and open the page when its port accepts connections. If the
+browser blocks the tab, select the ready link in Tasks. For a command-only task,
+select its name to start it or to read its terminal once it has run. The control
+beside the name lets you stop a running command or run it again after it ends.
+
+- Use `needs` to name tasks that must be ready first. A URL can use `{web}` for the
+  port assigned to the command named `web`. This also starts that command when needed.
+- Set `default: true` on each task you want to launch together. The shortcut appears beside
+  each default task. Press ⌥⌘R on macOS or Ctrl+Alt+R elsewhere. Shared dependencies start
+  once. Geordi opens the URLs of the selected tasks and reuses running commands.
+  With no defaults, the shortcut shows the Tasks panel.
+- Use `label` for a display name. Dependencies and assigned ports use the task key.
+
+### Existing job and URL configurations
+
+Repositories can continue to use the following settings together. When migrating,
+replace them with `tasks` and keep command keys to retain assigned ports.
 
 **`run`**: for a project with one thing to run, this is enough:
 
@@ -49,7 +65,7 @@ and should keep running until stopped.
 it mentions (and any under its `needs`) and waits for them. Only addresses on this
 machine (`localhost`).
 
-**`default`** selects the first action inside the **Run** tab. Use a URL key such as
+**`default`** selects the first action inside the **Tasks** tab. Use a URL key such as
 `urls.app` or a job key such as `jobs.web`. Press ⌥⌘R on macOS or Ctrl+Alt+R elsewhere
 to use it from the workspace. If you omit `default`, Geordi uses the job named `run`
 when present. Otherwise the pane lists the configured links and jobs in their usual order.
