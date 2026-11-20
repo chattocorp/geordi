@@ -80,7 +80,10 @@
 				standing: ready,
 				actions: [{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]
 			}),
-			workspace('tokens', 'Check every token in dark mode', { parentId: 'ready' }),
+			workspace('tokens', 'Check every token in dark mode', {
+				parentId: 'ready',
+				actions: [{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }]
+			}),
 			workspace('failing', 'Guard shared worktrees from update and continue', {
 				standing: failing,
 				actions: [{ id: 'fix-checks', label: 'Fix errors', icon: 'icon-[lucide--wrench]' }]
@@ -189,7 +192,9 @@
 		const canvas = within(canvasElement);
 		const idle = canvas.getByRole('link', { name: /Check every token/ });
 		idle.focus();
-		await expect(within(idle.closest('li')!).queryByRole('button')).toBeNull();
+		const cleanRow = within(idle.closest('li')!);
+		await expect(cleanRow.queryByRole('button')).toBeNull();
+		await expect(cleanRow.queryByRole('img')).toBeNull();
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
 			const pill = canvas.getByText(label, { selector: 'button' });
 			const row = within(pill.closest('li')!);
