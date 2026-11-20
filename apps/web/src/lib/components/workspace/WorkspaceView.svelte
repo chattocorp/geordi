@@ -245,8 +245,7 @@
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
 		if (exists(RUN) && !placed.includes(RUN)) dock = add(dock, RUN);
 		for (const name of workspace.terminals) {
-			const job = jobOf(name);
-			if (job && !SCRIPTS.some((script) => script === job)) continue;
+			if (isRunTerminal(name)) continue;
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
 		}
 		return { main, side, dock };
@@ -280,6 +279,10 @@
 	const runnable = $derived(jobs.length > 0 || links.length > 0 || !!config?.problem);
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
+	function isRunTerminal(terminal: string) {
+		const job = jobOf(terminal);
+		return !!job && !SCRIPTS.some((script) => script === job);
+	}
 	/** What the Run tab's own button starts or opens: the file's `default` (FDR-006). */
 	const runJob = $derived(jobs.find((job) => config?.default === `jobs.${job.name}`));
 	const runLink = $derived(links.find((link) => config?.default === `urls.${link.name}`));
@@ -463,7 +466,7 @@
 		});
 	});
 
-	/** Remembers a new arrangement. A terminal whose window is gone from it has its shell ended. */
+	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
 	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
@@ -481,10 +484,9 @@
 				});
 				return;
 			}
-			if (terminal && !remaining.includes(tab)) {
+			if (terminal && !remaining.includes(tab) && !isRunTerminal(terminal)) {
 				starting.delete(terminal);
 				const job = jobOf(terminal);
-				// a job takes the jobs that need it along
 				if (job) stop(job);
 				else closeTerminal({ workspaceId: id, terminal }).catch(() => {});
 			}

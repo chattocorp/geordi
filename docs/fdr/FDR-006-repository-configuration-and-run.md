@@ -38,7 +38,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - Each job runs in the user's shell in the workspace directory. Starting a job leaves the current pane in place. Once its terminal exists, the job row in Run shows a terminal icon. Choose it to open the terminal tab or focus it where you placed it. You can also open the output after the command ends.
 - A job starts only while its port is free. When another program has it, the job does not start: its tab says that port N is in use, and by what (where `lsof` can tell); starting it, what needs it, or a link that needs it fails with the same words. The job keeps its port; it is the other program that has to go.
 - Starting a job first starts the jobs it needs, each once the ones before it are up. A job is up when something listens on its port. One that never does (a desktop app, a game) is taken to be up after half a minute, if it still runs.
-- Stopping a job stops the jobs that need it too. Closing a job's tab is stopping it.
+- Closing a job’s terminal tab hides its output. The job keeps running, and you can reopen the same terminal from Run. Stopping a job also stops the jobs that need it.
 - Opening a link starts the jobs it needs, waits for them to be up, and opens it in the browser.
 - When a job's command ends by itself, its tab says with what status and stays until Enter is pressed, so that what it printed can be read.
 
