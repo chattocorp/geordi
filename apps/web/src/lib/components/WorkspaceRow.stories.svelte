@@ -68,3 +68,17 @@
 		<WorkspaceRow title="Verify the new parser" />
 	</div>
 </Story>
+
+<Story
+	name="Open agent question"
+	asChild
+	play={async ({ canvasElement }) => {
+		const link = within(canvasElement).getByRole('link', { name: 'Open agent question' });
+		await expect(link).toHaveAttribute('href', '/workspaces/login?question');
+	}}
+>
+	<div class="w-64 sheet-quiet p-2">
+		<WorkspaceRow title="Edit the login form" working />
+		<WorkspaceRow title="Choose a page" asking href="/workspaces/login" />
+	</div>
+</Story>

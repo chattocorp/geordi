@@ -43,6 +43,7 @@
 		onopenturn,
 		onopensubagent,
 		onremove,
+		questionTarget,
 		onanswer,
 		following = $bindable(true)
 	}: {
@@ -65,6 +66,7 @@
 		onremove?: (index: number, text: string, images: string[]) => void;
 		/** Answers something the agent asked: one answer per question. */
 		onanswer?: (question: string, answers: string[]) => unknown;
+		questionTarget?: { id: string; done(): void };
 		following?: boolean;
 	} = $props();
 
@@ -194,6 +196,20 @@
 		followLatest();
 	}
 
+	$effect(() => {
+		const target = questionTarget;
+		if (!target || !list) return;
+		const index = blocks.findIndex(
+			(block) =>
+				block.kind === 'agent' &&
+				block.parts.some((part) => part.kind === 'question' && part.id === target.id)
+		);
+		if (index < 0) return;
+		following = false;
+		expanded.add(index);
+		list.scrollToIndex(index);
+	});
+
 	function scrolled(offset: number) {
 		if (!list) return;
 		const atBottom = list.getScrollSize() - offset - list.getViewportSize() < 80;
@@ -298,6 +314,7 @@
 		{/key}
 	{:else if part.kind === 'question'}
 		<QuestionCard
+			onreveal={questionTarget?.id === part.id ? questionTarget.done : undefined}
 			questions={part.questions}
 			answers={part.answers}
 			open={part.open && !!onanswer}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
+	import QuestionLink from './QuestionLink.svelte';
 	import Button from './Button.svelte';
 	import ButtonGroup from './ButtonGroup.svelte';
 	import { cubicOut } from 'svelte/easing';
@@ -22,8 +23,8 @@
 		disabled?: boolean;
 		/** The actions already under way: asked of the agent and not done yet. */
 		pending?: WorkspaceAction['id'][];
-		/** Whether an agent has asked the person something, and waits for the answer. */
-		asking?: boolean;
+		/** The workspace with a question waiting for an answer. */
+		askingIn?: string;
 		/** Small, with only the next step: for showing many at once (the overview). */
 		compact?: boolean;
 		onopenpull(): void;
@@ -36,7 +37,7 @@
 		unreachable = null,
 		disabled = false,
 		pending = [],
-		asking = false,
+		askingIn,
 		compact = false,
 		onopenpull,
 		onaction
@@ -51,7 +52,7 @@
 	const text = $derived(compact ? 'text-xs' : 'text-sm');
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
 	// small, beside a next step or a question, the colour and icon of how it stands say enough
-	const worded = $derived(!compact || (ordered.length === 0 && !asking));
+	const worded = $derived(!compact || (ordered.length === 0 && !askingIn));
 	// In compact ribbons the question icon fits beside the next step.
 	const showQuestionLabel = $derived(!compact || ordered.length === 0);
 	const linked = $derived(!compact && !!pull?.url);
@@ -126,7 +127,7 @@
 			{/if}
 		</div>
 	{/if}
-	{#if standing || ordered.length > 0 || asking}
+	{#if standing || ordered.length > 0 || askingIn}
 		<!-- a new standing or next step is a new ribbon -->
 		{#key `${standing?.label}|${primary?.id}`}
 			<div
@@ -137,25 +138,15 @@
 					// as tall when small: the pill frames its buttons (`h-7`) all round
 					'inline-flex min-h-9 max-w-full flex-wrap items-center gap-1 rounded-full py-1',
 					'shrink-0',
+					text,
 					compact ? 'pl-2.5' : 'pl-3',
 					// buttons reach the end of the pill; text keeps its distance
 					ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
 					tones[standing?.tone ?? 'neutral']
 				]}
 			>
-				{#if asking}
-					<span
-						class={['flex items-center gap-2 font-medium whitespace-nowrap', text]}
-						role="status"
-					>
-						<span
-							class={['icon-[lucide--message-circle-question]', icon]}
-							title={showQuestionLabel ? undefined : 'Waiting for your answer'}
-							role={showQuestionLabel ? undefined : 'img'}
-							aria-label={showQuestionLabel ? undefined : 'Waiting for your answer'}
-						></span>
-						{#if showQuestionLabel}Waiting for your answer{/if}
-					</span>
+				{#if askingIn}
+					<QuestionLink workspaceHref={askingIn} worded={showQuestionLabel} />
 					{#if standing || ordered.length > 0}
 						<span class={['w-px shrink-0 bg-current opacity-25', compact ? 'mx-1 h-3' : 'mx-2 h-4']}
 						></span>

@@ -3,6 +3,7 @@
 	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 
+	import QuestionLink from './QuestionLink.svelte';
 	import StandingIcon from './StandingIcon.svelte';
 	import StatusIcon from './StatusIcon.svelte';
 
@@ -105,8 +106,9 @@
 	/>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-		{#if asking}
-			<!-- an agent there waits for the person's answer -->
+		{#if asking && href}
+			<QuestionLink workspaceHref={href} />
+		{:else if asking}
 			<StatusIcon tone="accent" label="Waiting for your answer">
 				<span class="icon-[lucide--message-circle-question] size-4"></span>
 			</StatusIcon>

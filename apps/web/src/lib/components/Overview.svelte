@@ -139,7 +139,9 @@
 				pending={workspace.actions
 					.filter((action) => pullActionPending(workspace.id, action))
 					.map((action) => action.id)}
-				asking={workspace.outcome === 'asking'}
+				askingIn={workspace.outcome === 'asking'
+					? resolve('/workspaces/[id]', { id: workspace.id })
+					: undefined}
 				onopenpull={() => open(workspace)}
 				onaction={(action) => actFromAfar(workspace, action)}
 			/>
