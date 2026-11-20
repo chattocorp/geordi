@@ -420,22 +420,32 @@
 				<div
 					role="group"
 					aria-label="Suggested reply"
-					class="pointer-events-none relative z-1 col-start-1 row-start-1 mx-4 my-2 flex min-w-0 items-start gap-1 self-start text-muted"
+					class="pointer-events-none relative z-1 col-start-1 row-start-1 mx-4 my-2 max-h-40 min-w-0 self-start overflow-y-auto overscroll-contain text-muted"
 				>
-					<button
-						type="button"
+					<span
+						role="button"
+						tabindex="0"
 						title="Send suggested reply"
-						class="pointer-events-auto max-h-40 min-w-0 overflow-y-auto overscroll-contain text-left wrap-anywhere whitespace-pre-wrap hover:text-ink"
-						onclick={() => takeSuggestion(offered, true)}>{offered}</button
+						class="pointer-events-auto wrap-anywhere whitespace-pre-wrap hover:text-ink"
+						onclick={() => takeSuggestion(offered, true)}
+						onkeydown={(event) => {
+							if (event.key === 'Enter' || event.key === ' ') {
+								event.preventDefault();
+								takeSuggestion(offered, true);
+							}
+						}}>{offered}</span
+					><span class="whitespace-nowrap"
+						>&NoBreak;<span class="relative inline-block w-6 align-baseline" style="height: 1cap"
+							><Button
+								variant="ghost"
+								icon="icon-[lucide--pencil] -translate-y-0.75"
+								label="Edit suggested reply"
+								size="sm"
+								class="pointer-events-auto absolute top-1/2 left-0 -translate-y-1/2"
+								onclick={() => takeSuggestion(offered, false)}
+							/></span
+						></span
 					>
-					<Button
-						variant="ghost"
-						icon="icon-[lucide--pencil]"
-						label="Edit suggested reply"
-						size="sm"
-						class="pointer-events-auto"
-						onclick={() => takeSuggestion(offered, false)}
-					/>
 				</div>
 			{/if}
 			{#if field}

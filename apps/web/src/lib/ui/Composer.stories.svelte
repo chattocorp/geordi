@@ -285,6 +285,15 @@
 	play={async ({ canvas }) => {
 		const send = canvas.getByRole('button', { name: /Review the failing tests/ });
 		await expect(send.textContent).toBe(longSuggestion);
+		const lastLine = Array.from(send.getClientRects()).at(-1)!;
+		const pen = canvas
+			.getByRole('button', { name: 'Edit suggested reply' })
+			.querySelector('span')!
+			.getBoundingClientRect();
+		await expect(pen.left).toBeGreaterThanOrEqual(lastLine.right);
+		const lift = lastLine.top + lastLine.height / 2 - (pen.top + pen.height / 2);
+		await expect(lift).toBeGreaterThan(2);
+		await expect(lift).toBeLessThan(4);
 		const text = canvas.getByRole('textbox');
 		await expect(text).toHaveAttribute('placeholder', '');
 		await expect(send.getBoundingClientRect().top).toBeGreaterThanOrEqual(
@@ -318,18 +327,17 @@
 		const send = canvas.getByRole('button', { name: 'Send' });
 		const pane = canvas.getByTestId('conversation-pane');
 		await expect(canvas.getByRole('textbox').closest('form')).toContainElement(prompt);
-		await expect(prompt.scrollHeight).toBeGreaterThan(prompt.clientHeight);
+		const group = canvas.getByRole('group', { name: 'Suggested reply' });
+		await expect(group.scrollHeight).toBeGreaterThan(group.clientHeight);
 		await expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
 			pane.getBoundingClientRect().bottom
 		);
 		const edit = canvas.getByRole('button', { name: 'Edit suggested reply' });
-		const editTop = edit.getBoundingClientRect().top;
-		prompt.scrollTop = prompt.scrollHeight;
-		await expect(edit.getBoundingClientRect().top).toBe(editTop);
-		await expect(prompt.scrollTop + prompt.clientHeight).toBeGreaterThanOrEqual(
-			prompt.scrollHeight - 1
+		group.scrollTop = group.scrollHeight;
+		await expect(edit.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			group.getBoundingClientRect().bottom + 1
 		);
-		prompt.scrollTop = 0;
+		group.scrollTop = 0;
 	}}
 >
 	<div data-testid="conversation-pane" class="flex h-64 max-w-sm flex-col">
