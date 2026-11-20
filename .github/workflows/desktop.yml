@@ -130,10 +130,10 @@ jobs:
             test "$tag" = "v$version"
           fi
           notes="$RUNNER_TEMP/notes.md"
-          if [[ "$prerelease" == true ]]; then
+          # A beta tag pushed by hand has no changelog section; it gets a placeholder.
+          if ! sweet changelog --version "${tag#v}" -- . > "$notes"; then
+            test "$prerelease" = true
             printf 'Beta release %s.\n' "$tag" > "$notes"
-          else
-            sweet changelog --version "${tag#v}" -- . > "$notes"
           fi
           test -s "$notes"
           if ! gh release view "$tag" >/dev/null 2>&1; then

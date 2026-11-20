@@ -1,11 +1,11 @@
 # Sweet repository configuration
 types:
-  fix:
-    bump: patch
-    section: Fixes
   feature:
     bump: minor
     section: Features
+  fix:
+    bump: patch
+    section: Fixes
   chore:
     bump: none
   refactor:
