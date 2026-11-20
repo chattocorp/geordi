@@ -18,3 +18,4 @@ A public website that says what Geordi is and leads to the download.
 - Stable desktop publications trigger deployment. You can also run the Website workflow manually to redeploy the latest stable tag. The browser reads GitHub Releases to show the stable version and any beta for a newer version. The stable download link works without JavaScript.
 - Shared links include a 1200 × 630 workspace preview with the download address.
 - The homepage introduces agent review in the hero and omits the fictional conversation and after-quit activity feed.
+- The configuration example uses a default web task with a command, a URL, and a database dependency (f5yky).

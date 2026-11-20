@@ -55,7 +55,7 @@ const keys = [
 	{ keys: '⌘[ ⌘]', does: 'Previous and next workspace' },
 	{ keys: '⇧⌘↩', does: 'Next workspace with news for you' },
 	{ keys: '⇧⌘F', does: 'Only the repository you are in' },
-	{ keys: '⌥⌘R', does: 'Run this workspace’s default action' }
+	{ keys: '⌥⌘R', does: 'Launch this workspace’s default tasks' }
 ];
 
 /** Why many agents at once stay manageable, for the section before Try it. */
@@ -147,9 +147,8 @@ const steps = [
 					Run the same app in several workspaces
 				</h3>
 				<p class="mt-4 text-pretty text-muted">
-					Set your dev server to use <code class="code text-(--inline-code)">$PORT</code>. Geordi
-					gives the job a separate port in each workspace, so you can open two branches side by
-					side.
+					Select Dev server in the Tasks panel to start the database and open the app. Geordi gives
+					the server its own port in each workspace, so you can try two branches side by side.
 				</p>
 				<p class="mt-4">
 					<a href={site.docs.configuration} class="text-link">
@@ -160,19 +159,16 @@ const steps = [
 			<div class="mt-auto overflow-hidden rounded-control bg-sunken">
 				<p class="px-4 pt-3 code-dense text-muted">.geordi.yml</p>
 				<pre class="overflow-x-auto p-4 pt-2 code-dense"><span class="text-accent-ink">setup</span>: pnpm install
-<span class="text-accent-ink">default</span>: urls.app
 
-<span class="text-accent-ink">jobs</span>:
+<span class="text-accent-ink">tasks</span>:
   <span class="text-accent-ink">db</span>:
     <span class="text-accent-ink">command</span>: docker compose up db
   <span class="text-accent-ink">web</span>:
     <span class="text-accent-ink">label</span>: Dev server
     <span class="text-accent-ink">command</span>: pnpm dev --port $PORT
     <span class="text-accent-ink">needs</span>: [db]
-
-<span class="text-accent-ink">urls</span>:
-  <span class="text-accent-ink">app</span>:
-    <span class="text-accent-ink">url</span>: http://localhost:&#123;web&#125;/</pre>
+    <span class="text-accent-ink">url</span>: http://localhost:&#123;web&#125;/
+    <span class="text-accent-ink">default</span>: true</pre>
 			</div>
 		</article>
 
