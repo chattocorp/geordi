@@ -77,8 +77,9 @@ test('a link to the site is shown with a picture', async (t) => {
 	await page.goto(`http://127.0.0.1:${server.port}/`);
 	const meta = (property) => page.locator(`meta[property="og:${property}"]`);
 	await expect(meta('url')).toHaveAttribute('content', 'https://geordi.run/');
-	await expect(meta('image:width')).toHaveAttribute('content', '2400');
-	await expect(meta('image:height')).toHaveAttribute('content', '1260');
+	await expect(meta('description')).toHaveAttribute('content', /^.{1,125}$/);
+	await expect(meta('image:width')).toHaveAttribute('content', '1200');
+	await expect(meta('image:height')).toHaveAttribute('content', '630');
 	// The address is the public one; the file is asked of the server under test.
 	const image = new URL(await meta('image').getAttribute('content'));
 	expect(image.origin).toBe('https://geordi.run');

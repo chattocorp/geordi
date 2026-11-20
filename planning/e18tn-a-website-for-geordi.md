@@ -16,7 +16,4 @@ A public website that says what Geordi is and leads to the download.
 - Run it from a workspace with the `website` job; build with `pnpm --filter @geordi/website build` (to `apps/website/dist`).
 - Hosted at https://geordi.run as a Cloudflare Worker with static assets (`apps/website/wrangler.jsonc`), deployed by `.github/workflows/website.yml` on pushes to `main` that touch it (secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`).
 - Stable desktop publication also deploys the site. Production builds label downloads with the latest published GitHub release.
-
-## Open
-
-- A social preview image.
+- Shared links include a 1200 × 630 workspace preview with the download address.
