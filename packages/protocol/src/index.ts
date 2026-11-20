@@ -294,6 +294,8 @@ export type Link = {
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
+	/** Unified task graph in configuration order, when the repository uses tasks. */
+	tasks?: { name: string; label?: string; needs: string[]; default: boolean }[];
 	/** The first action in the Run pane: `default`, else the `run` job. */
 	default?: `jobs.${string}` | `urls.${string}`;
 	jobs: Job[];
@@ -317,6 +319,11 @@ export type RepoConfig = {
  * parser (`config.ts`) accepts exactly these; a test holds the two together.
  */
 export const CONFIG_SETTINGS = {
+	tasks: {
+		does: "Named Run tasks. Give each a command, a local HTTP(S) url, or both. A command receives its assigned port as PORT. Use {name} in a URL for a command task's port. List prerequisites under needs. Selecting a task starts its dependencies and opens only its own URL once reachable. Set default: true on each task the Run shortcut should launch. Without defaults the shortcut shows the Run panel. Use tasks in place of jobs, urls, run and the top-level default.",
+		example:
+			'tasks:\n  web:\n    command: pnpm dev --port $PORT\n    url: http://localhost:{web}/\n    default: true'
+	},
 	default: {
 		does: 'The first action in the Run pane. Use a job or URL key, such as `jobs.web` or `urls.app`. If omitted, Geordi uses the `run` job when present.',
 		example: 'default: urls.app'
@@ -487,7 +494,7 @@ export type DaemonRequest =
 	 * Waits until something on this machine listens on `port`, for `timeoutMs` at most.
 	 * Answers whether something does.
 	 */
-	| { kind: 'portReady'; port: number; timeoutMs: number }
+	| { kind: 'portReady'; port: number; timeoutMs: number; family?: 4 | 6 }
 	/**
 	 * Checks the job's assigned port before launch. A matching confirmation requests that
 	 * the daemon stop the observed listener. Returns null once the port is free.

@@ -70,6 +70,7 @@
 		restoreWorktree,
 		restoreWorkspace,
 		runSetup,
+		runTasks,
 		say,
 		startJobs,
 		stopTask,
@@ -299,6 +300,10 @@
 		return state === 'running' || state === 'starting';
 	}
 	function runDefault() {
+		if (config?.tasks) {
+			const selected = config.tasks.filter((task) => task.default).map((task) => task.name);
+			return selected.length ? launchTasks(selected) : showTab(RUN);
+		}
 		if (runJob) return runLive(runJob.name) ? stop(runJob.name) : start([runJob.name]);
 		if (runLink) visit(runLink);
 	}
@@ -339,10 +344,10 @@
 	 * run. `then` gets the commands as they stood when asked: what was seen is what runs.
 	 */
 	function agreed(names: string[], then: (seen: Seen) => void) {
-		const seen = Object.fromEntries(jobs.map((job) => [job.name, job.command]));
 		const needed = startOrder(jobs, names).flatMap(
 			(name) => jobs.find((job) => job.name === name) ?? []
 		);
+		const seen = Object.fromEntries(needed.map((job) => [job.name, job.command]));
 		agreedTo(needed, () => then(seen));
 	}
 
@@ -415,6 +420,61 @@
 	}
 
 	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
+
+	const readyLinks = new SvelteMap<string, string>();
+
+	function launchTasks(names: string[], confirmation?: string) {
+		const workspaceId = id;
+		const commands = startOrder(config?.tasks ?? [], names).filter((name) =>
+			jobs.some((job) => job.name === name)
+		);
+		agreed(commands, async (seen) => {
+			const tabs = new SvelteMap<string, Window | null>();
+			for (const name of names) {
+				readyLinks.delete(name);
+				if (links.some((link) => link.name === name) && !('geordiDesktop' in globalThis))
+					tabs.set(name, globalThis.open('about:blank', '_blank'));
+			}
+			const booting = commands.filter((name) => !isUp(name));
+			for (const name of booting) launching.add(name);
+			mergeProblem = null;
+			try {
+				const results = await runTasks({ workspaceId, tasks: names, seen, confirmation });
+				const problems = new SvelteSet<string>();
+				for (const { name, href, problem } of results) {
+					if (problem) problems.add(problem);
+					if (!href) continue;
+					const tab = tabs.get(name);
+					if (tab && !tab.closed) {
+						tab.opener = null;
+						tab.location.href = href;
+						tabs.delete(name);
+					} else if ('geordiDesktop' in globalThis) globalThis.open(href, '_blank', 'noopener');
+					else {
+						readyLinks.set(name, href);
+						showTab(RUN);
+					}
+				}
+				mergeProblem = [...problems].join(' · ') || null;
+				const conflict = results.find((result) => result.conflict)?.conflict;
+				if (conflict)
+					blocked = {
+						workspaceId,
+						conflict,
+						retry: () =>
+							launchTasks(
+								results.filter((result) => result.conflict).map((result) => result.name),
+								conflict.confirmation
+							)
+					};
+			} catch (error) {
+				mergeProblem = problemOf(error, 'Could not run tasks');
+			} finally {
+				for (const tab of tabs.values()) tab?.close();
+				for (const name of booting) launching.delete(name);
+			}
+		});
+	}
 
 	/** Opens a link in the browser, once the jobs it needs are up. */
 	function visit(link: (typeof links)[number], confirmation?: string) {
@@ -777,7 +837,11 @@
 		if (pressed(event, 'toggleSide')) {
 			event.preventDefault();
 			toggleSide();
-		} else if (pressed(event, 'runDefault') && (runJob || runLink) && !workspace.archivedAt) {
+		} else if (
+			pressed(event, 'runDefault') &&
+			(runJob || runLink || (config?.tasks && runnable)) &&
+			!workspace.archivedAt
+		) {
 			event.preventDefault();
 			runDefault();
 		}
@@ -900,6 +964,8 @@
 		</div>
 	{:else if tab === RUN}
 		<RunPane
+			tasks={config?.tasks}
+			launch={launchTasks}
 			defaultAction={config?.default}
 			shortcut={hint('runDefault')}
 			{jobs}
@@ -911,6 +977,12 @@
 			{show}
 			{visit}
 		>
+			{#each readyLinks as [name, href] (name)}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
+				<a class="item" {href} target="_blank" rel="noopener"
+					>Open {links.find((link) => link.name === name)?.label ?? name} in browser</a
+				>
+			{/each}
 			{#if config?.problem}
 				<Notice>The repository's configuration can't be read: {config.problem}</Notice>
 			{/if}

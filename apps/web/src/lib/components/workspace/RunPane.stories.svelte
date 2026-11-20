@@ -178,3 +178,34 @@
 >
 	{@render pane(jobs, links, (name) => states[name], null, 'jobs.web')}
 </Story>
+
+<Story
+	name="Unified tasks"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.click(canvas.getByRole('button', { name: /Run defaults/ }));
+		await expect(canvas.getByText('Run: web, worker')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Open Static server' }));
+		await expect(canvas.getByText('Run: web')).toBeVisible();
+	}}
+>
+	<div class="w-96 sheet-quiet">
+		<RunPane
+			tasks={[
+				{ name: 'web', label: web.label, needs: [], default: true },
+				{ name: 'worker', label: 'Worker', needs: ['web'], default: true }
+			]}
+			jobs={[web, job('worker', 'Worker', 'work', 20001)]}
+			links={[{ ...links[0], name: 'web' }]}
+			stateOf={(name) => (name === 'web' ? 'running' : 'stopped')}
+			hasTerminal={(name) => name === 'web'}
+			shortcut={hint('runDefault')}
+			launch={(names) => (last = `Run: ${names.join(', ')}`)}
+			start={() => {}}
+			stop={() => {}}
+			show={() => {}}
+			visit={() => {}}
+		/>
+	</div>
+	<p>{last}</p>
+</Story>

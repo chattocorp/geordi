@@ -6,26 +6,41 @@ Geordi reads the workspace's own file, or else the one on the branch the work st
 
 ```yaml
 setup: pnpm install
-default: urls.app
 
-jobs:
+tasks:
   db:
     command: docker compose up db
   web:
     label: Development server
     command: pnpm dev --port $PORT
     needs: [db]
-
-urls:
-  app:
-    label: Open the app
     url: http://localhost:{web}/
+    default: true
 ```
 
 Commands run only once you have seen and agreed to them, once per repository and again
 whenever they change.
 
 ## Running
+
+Give each entry in `tasks` a `command`, a local HTTP or HTTPS `url`, or both.
+The Run panel shows one row per task, in file order. Select a task to start its
+command and open its URL when the port accepts connections. If the browser blocks
+a new tab, select the ready link in Run. Tasks with commands have terminal output
+and a Stop control while running.
+
+- Use `needs` to name tasks that must be ready first. A URL can use `{web}` for the
+  port assigned to the command named `web`. This also starts that command when needed.
+- Set `default: true` on each task you want **Run defaults** to launch. Press ⌥⌘R
+  on macOS or Ctrl+Alt+R elsewhere to launch them together. Shared dependencies start
+  once. Geordi opens the URLs of the selected tasks and reuses running commands.
+  With no defaults, the shortcut shows the Run panel.
+- Use `label` for a display name. Dependencies and assigned ports use the task key.
+
+### Existing job and URL configurations
+
+Repositories can continue to use the following settings together. When migrating,
+replace them with `tasks` and keep command keys to retain assigned ports.
 
 **`run`**: for a project with one thing to run, this is enough:
 

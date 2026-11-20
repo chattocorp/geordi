@@ -173,7 +173,18 @@ needs = ["db"]
 	});
 
 	it('understands every setting agents are told about', () => {
-		const { default: target, run, jobs, urls, ports, setup, teardown, ...others } = CONFIG_SETTINGS;
+		const {
+			default: target,
+			run,
+			jobs,
+			urls,
+			tasks,
+			ports,
+			setup,
+			teardown,
+			...others
+		} = CONFIG_SETTINGS;
+		expect(parseConfig(tasks.example).tasks).toEqual([{ name: 'web', default: true, needs: [] }]);
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
 		expect(parseConfig(run.example).jobs).toEqual([
 			{ name: 'run', command: 'pnpm dev --port $PORT', needs: [] }
@@ -382,5 +393,36 @@ describe('display labels', () => {
 			{ name: 'web', needs: [] },
 			{ name: 'other', needs: ['web'] }
 		]);
+	});
+});
+
+describe('unified tasks', () => {
+	it('resolves shared prerequisites, URL-only dependencies and multiple defaults', () => {
+		const config = parseConfig(
+			JSON.stringify({
+				tasks: {
+					web: { command: 'serve', url: 'http://localhost:{web}/', default: true },
+					page: { url: 'http://localhost:{web}/preview' },
+					worker: { command: 'work', needs: ['page'], default: true }
+				}
+			})
+		);
+		expect(config.tasks?.filter((task) => task.default).map((task) => task.name)).toEqual([
+			'web',
+			'worker'
+		]);
+		expect(config.jobs.map((job) => job.needs)).toEqual([[], ['web']]);
+		expect(config.urls.map((link) => link.needs)).toEqual([['web'], ['web']]);
+		expect(config.ports).toBe(2);
+		expect(parseConfig('tasks: {run: {command: dev}}').tasks?.[0].default).toBe(false);
+	});
+	it.each([
+		{ a: {} },
+		{ a: { url: 'https://example.org' } },
+		{ a: { command: 'run', default: 'true' } },
+		{ a: { command: 'run', needs: ['b'] } },
+		{ a: { command: 'run', needs: ['b'] }, b: { url: 'http://localhost:{a}' } }
+	])('rejects invalid task definitions', (tasks) => {
+		expect(() => parseConfig(JSON.stringify({ tasks }))).toThrow();
 	});
 });

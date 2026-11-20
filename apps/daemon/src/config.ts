@@ -26,6 +26,7 @@ const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
 
 /** What a `.geordi.yml` says, before a workspace's ports are filled in. */
 export type Settings = {
+	tasks?: RepoConfig['tasks'];
 	default?: RepoConfig['default'];
 	ports: number;
 	jobs: { label?: string; name: string; command: string; needs: string[] }[];
@@ -77,7 +78,81 @@ function read(text: string, file: string): Record<string, unknown> {
  */
 export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Settings {
 	const said = read(text, file);
+	if (said.tasks === undefined) return parseSettings(said);
+	for (const key of ['jobs', 'urls', 'run', 'default'])
+		if (key in said) fail(`Use tasks instead of combining tasks and ${key}`);
+	const entries = Object.entries(isTable(said.tasks) ? said.tasks : fail('tasks must be a table'));
+	const known = new Set(entries.map(([name]) => name));
+	const tasks = entries.map(([name, value]) => {
+		const task = isTable(value) ? value : fail(`tasks.${name} must be a table`);
+		if (!CONFIG_NAME.test(name)) fail(`Invalid task name "${name}"`);
+		if (task.command === undefined && task.url === undefined)
+			fail(`tasks.${name} needs a command or URL`);
+		if (task.default !== undefined && typeof task.default !== 'boolean')
+			fail(`tasks.${name}.default must be a boolean`);
+		const needs = names(task.needs, `tasks.${name}.needs`, known);
+		// A port reference also starts its owner, except for the task's own port.
+		if (typeof task.url === 'string')
+			for (const [, owner] of task.url.matchAll(PLACEHOLDER))
+				if (owner !== name && !needs.includes(owner)) needs.push(owner);
+		return {
+			name,
+			...displayLabel(task.label, `tasks.${name}`),
+			needs,
+			default: task.default === true,
+			command: task.command,
+			url: task.url
+		};
+	});
+	const byName = new Map(tasks.map((task) => [task.name, task]));
+	const visiting = new Set<string>();
+	const commands = new Map<string, string[]>();
+	// A URL-only dependency has no terminal. Its command prerequisites still belong
+	// in the job graph for approvals, terminal controls and cascading stops.
+	function prerequisites(name: string): string[] {
+		if (visiting.has(name)) fail(`tasks.${name} needs itself`);
+		const cached = commands.get(name);
+		if (cached) return cached;
+		const task = byName.get(name) ?? fail(`There is no task "${name}"`);
+		visiting.add(name);
+		const needed = [
+			...new Set(
+				task.needs.flatMap((dep) => {
+					const ancestors = prerequisites(dep);
+					return byName.get(dep)?.command !== undefined ? [dep] : ancestors;
+				})
+			)
+		];
+		visiting.delete(name);
+		commands.set(name, needed);
+		return needed;
+	}
+	const jobs = new Map<string, (typeof tasks)[number]>();
+	const urls = new Map<string, (typeof tasks)[number]>();
+	for (const task of tasks) {
+		const needs = prerequisites(task.name);
+		if (task.command !== undefined) jobs.set(task.name, { ...task, needs });
+		if (task.url !== undefined)
+			urls.set(task.name, { ...task, needs: task.command === undefined ? needs : [task.name] });
+	}
+	const settings = parseSettings({
+		...said,
+		jobs: Object.fromEntries(jobs),
+		urls: Object.fromEntries(urls)
+	});
+	delete settings.default;
+	settings.tasks = tasks.map(({ name, label, needs, default: selected }) => ({
+		name,
+		label,
+		needs,
+		default: selected
+	}));
+	return settings;
+}
 
+function parseSettings(said: Record<string, unknown>): Settings {
+	const jobSection = said.tasks === undefined ? 'jobs' : 'tasks';
+	const urlSection = said.tasks === undefined ? 'urls' : 'tasks';
 	const commands = new Map<string, { command: unknown; needs: unknown; label?: unknown }>();
 	if (said.jobs !== undefined) {
 		if (!isTable(said.jobs)) fail('`jobs` must be a table of jobs');
@@ -100,7 +175,7 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 			fail(`"${name}" is not a job name: say \`${name}: …\` for the ${name} script`);
 		if (typeof command !== 'string' || !command.trim() || command.length > MAX_COMMAND)
 			fail(
-				`${name === 'run' && !isTable(said.jobs) ? '`run`' : `jobs.${name}.command`} must be a command, as a string`
+				`${name === 'run' && !isTable(said.jobs) ? '`run`' : `${jobSection}.${name}.command`} must be a command, as a string`
 			);
 		return {
 			name,
@@ -130,10 +205,10 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 				fail(`"${name}" is not a name: lower case letters, digits and dashes`);
 			const url = isTable(link) ? link.url : undefined;
 			if (typeof url !== 'string' || url.length > MAX_URL)
-				fail(`urls.${name}.url must be an address, as a string`);
+				fail(`${urlSection}.${name}.url must be an address, as a string`);
 			const mentioned = [...(url as string).matchAll(PLACEHOLDER)].map((match) => match[1]);
 			for (const job of mentioned)
-				if (!known.has(job)) fail(`urls.${name}: there is no job "${job}"`);
+				if (!known.has(job)) fail(`${urlSection}.${name}: there is no job "${job}"`);
 			let address: URL | undefined;
 			try {
 				address = new URL((url as string).replace(PLACEHOLDER, '1'));
@@ -141,11 +216,15 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 				// said below
 			}
 			if (!address || !/^https?:$/.test(address.protocol) || !LOCAL.test(address.hostname))
-				fail(`urls.${name}.url must be an http address on this machine (localhost)`);
-			const needs = names((link as Record<string, unknown>).needs, `urls.${name}.needs`, known);
+				fail(`${urlSection}.${name}.url must be an http address on this machine (localhost)`);
+			const needs = names(
+				(link as Record<string, unknown>).needs,
+				`${urlSection}.${name}.needs`,
+				known
+			);
 			urls.push({
 				name,
-				...displayLabel((link as Record<string, unknown>).label, `urls.${name}`),
+				...displayLabel((link as Record<string, unknown>).label, `${urlSection}.${name}`),
 				url: url as string,
 				needs: [...new Set([...mentioned, ...needs])]
 			});
@@ -248,6 +327,7 @@ export function resolve(
 	const port = (job: string) => portAt(assigned, assigned.jobs[job]);
 	const count = assigned.blocks.reduce((sum, block) => sum + block.count, 0);
 	return {
+		tasks: settings?.tasks,
 		default: settings?.default,
 		jobs: (settings?.jobs ?? []).map((job) => ({
 			...job,

@@ -137,18 +137,22 @@ export async function checkJobPort(
 }
 
 /** Whether something on this machine answers on `port`. */
-export const listening = (port: number) =>
+export const listening = (port: number, host = 'localhost') =>
 	new Promise<boolean>((resolve) => {
-		const socket = createConnection({ port, host: 'localhost' })
+		const socket = createConnection({ port, host })
 			.once('connect', () => (socket.destroy(), resolve(true)))
 			.once('error', () => resolve(false));
 		socket.setTimeout(1000, () => (socket.destroy(), resolve(false)));
 	});
 
 /** Waits until something listens on `port`, for `timeoutMs` at most. Resolves to whether something does. */
-export async function waitForPort(port: number, timeoutMs: number): Promise<boolean> {
+export async function waitForPort(
+	port: number,
+	timeoutMs: number,
+	host = 'localhost'
+): Promise<boolean> {
 	for (const until = Date.now() + timeoutMs; ;) {
-		if (await listening(port)) return true;
+		if (await listening(port, host)) return true;
 		if (Date.now() >= until) return false;
 		await new Promise((resolve) => setTimeout(resolve, 250));
 	}

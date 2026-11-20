@@ -1,12 +1,9 @@
 setup: pnpm install --frozen-lockfile
 
-# The Run tab's button: opens Geordi, starting the web server and daemon first.
-default: urls.app
-
 # Electron needs two spare ports. Existing workspaces also reserve the retired install port.
 ports: 9
 
-jobs:
+tasks:
   web:
     label: Web server
     command: node scripts/workspace-dev.mjs web
@@ -14,29 +11,24 @@ jobs:
     label: Agent daemon
     command: node scripts/workspace-dev.mjs daemon
     needs: [web]
+  app:
+    label: Geordi
+    url: http://localhost:{web}/
+    needs: [daemon]
+    default: true
   reset:
     label: Reset development data (stop the web server first)
     command: node scripts/workspace-dev.mjs reset
   storybook:
     label: Storybook
     command: node scripts/workspace-dev.mjs storybook
+    url: http://localhost:{storybook}/
 
   website:
     label: Website
     command: pnpm --filter @geordi/website dev --port $PORT
+    url: http://localhost:{website}/
 
   desktop:
     label: Electron dev app
     command: pnpm desktop:dev
-
-urls:
-  app:
-    label: Geordi
-    url: http://localhost:{web}/
-    needs: [daemon]
-  components:
-    label: Storybook
-    url: http://localhost:{storybook}/
-  website:
-    label: Website
-    url: http://localhost:{website}/

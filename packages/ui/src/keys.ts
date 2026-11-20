@@ -58,7 +58,7 @@ export const shortcuts = {
 	runDefault: {
 		code: 'KeyR',
 		alt: true,
-		label: 'Run the default job, or open the default link',
+		label: 'Run default tasks',
 		group: 'Workspace'
 	},
 	queue: { key: 'Enter', label: 'Queue a message for when the agent is done', group: 'Workspace' },
