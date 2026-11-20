@@ -76,22 +76,14 @@
 	]);
 
 	/**
-	 * Repositories and workspaces slide away and back when what is shown changes (the focus,
-	 * today only), and only then: not when the list first arrives, nor when one comes or goes
-	 * on its own.
+	 * Repositories and workspaces slide in and out whenever they come or go: by a filter (the
+	 * focus, today only) or on their own. Not when the list first arrives: it is drawn in
+	 * `{#if nav}`, and a transition is local, so it plays only when its own block changes.
 	 */
-	let shifting = $state(false);
-	const shown = $derived(`${focus.current}:${todayOnly}`);
-	let lastShown: string | undefined;
-	$effect.pre(() => {
-		const was = lastShown;
-		lastShown = shown;
-		if (was === undefined || was === shown) return;
-		shifting = !prefersReducedMotion.current;
-		const settled = setTimeout(() => (shifting = false), MOTION + 50);
-		return () => clearTimeout(settled);
+	const motion = () => ({
+		duration: prefersReducedMotion.current ? 0 : MOTION,
+		easing: cubicOut
 	});
-	const motion = () => ({ duration: shifting ? MOTION : 0, easing: cubicOut });
 	/**
 	 * A workspace counts as working, for archiving, while anything its agent started is. Not
 	 * a project's: what it started in a repository carries on without it.
@@ -352,80 +344,82 @@
 		-->
 		<div class="peer scroller scroll-fade" bind:this={workspaceList} {@attach watchScrollEdges}>
 			<div aria-hidden="true"></div>
-			{#each groups as repo (repo.id ?? PROJECTS)}
-				{@const all = listed.get(repo.id) ?? []}
-				{@const rows = unfolded(all, folded.current)}
-				{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
-				{@const focused = focus.current === repo.id}
-				{@const newHref = `${resolve('/')}?${repo.id === null ? 'project' : `repo=${repo.id}`}`}
-				{@const newLabel = repo.id === null ? 'New project' : `New workspace in ${repo.name}`}
-				<div class="pb-4" transition:slide={motion()}>
-					<!--
+			{#if nav}
+				{#each groups as repo (repo.id ?? PROJECTS)}
+					{@const all = listed.get(repo.id) ?? []}
+					{@const rows = unfolded(all, folded.current)}
+					{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
+					{@const focused = focus.current === repo.id}
+					{@const newHref = `${resolve('/')}?${repo.id === null ? 'project' : `repo=${repo.id}`}`}
+					{@const newLabel = repo.id === null ? 'New project' : `New workspace in ${repo.name}`}
+					<div class="pb-4" transition:slide={motion()}>
+						<!--
 				A label for what is under it: its picture, its name (quiet, by its colour: the
 				workspaces are what is read here), and the way to start something in it. What is
 				under it lines up with it: icon under picture, title under name.
 			-->
-					<div class="group relative flex h-7 items-center pr-1.5">
-						<SidebarRowLabel
-							title={repo.name}
-							fold={{
-								folded: isFolded,
-								count: all.length,
-								toggle: () => toggleFolded(repo.id ?? PROJECTS)
-							}}
-							class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink"
-						>
-							{#snippet icon()}
-								{#if repo.id !== null}<RepoIcon id={repo.id} />{:else}<span
-										class="icon-[lucide--folders] size-5"
-									></span>{/if}
-							{/snippet}
-						</SidebarRowLabel>
-						{#if repo.id !== null}
-							<button
-								type="button"
-								class={[
-									'invisible grid size-6 shrink-0 place-items-center rounded-control hover:bg-sunken hover:text-ink reveal:visible',
-									focused ? 'bg-sunken text-ink' : 'text-muted'
-								]}
-								title={focused
-									? `Show all repositories (${focusHint})`
-									: `Show only ${repo.name} (${focusHint})`}
-								aria-label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
-								aria-pressed={focused}
-								onclick={() => (focus.current = focused ? null : repo.id)}
+						<div class="group relative flex h-7 items-center pr-1.5">
+							<SidebarRowLabel
+								title={repo.name}
+								fold={{
+									folded: isFolded,
+									count: all.length,
+									toggle: () => toggleFolded(repo.id ?? PROJECTS)
+								}}
+								class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink"
 							>
-								<span class="icon-[lucide--search] size-4"></span>
-							</button>
+								{#snippet icon()}
+									{#if repo.id !== null}<RepoIcon id={repo.id} />{:else}<span
+											class="icon-[lucide--folders] size-5"
+										></span>{/if}
+								{/snippet}
+							</SidebarRowLabel>
+							{#if repo.id !== null}
+								<button
+									type="button"
+									class={[
+										'invisible grid size-6 shrink-0 place-items-center rounded-control hover:bg-sunken hover:text-ink reveal:visible',
+										focused ? 'bg-sunken text-ink' : 'text-muted'
+									]}
+									title={focused
+										? `Show all repositories (${focusHint})`
+										: `Show only ${repo.name} (${focusHint})`}
+									aria-label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
+									aria-pressed={focused}
+									onclick={() => (focus.current = focused ? null : repo.id)}
+								>
+									<span class="icon-[lucide--search] size-4"></span>
+								</button>
+							{/if}
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
+							<a
+								href={newHref}
+								class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:visible"
+								title={newLabel}
+								aria-label={newLabel}
+							>
+								<span class="icon-[lucide--plus] size-4"></span>
+							</a>
+							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+						</div>
+						{#if !isFolded}
+							<ul
+								class="space-y-px"
+								ondragleave={(event) => {
+									if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+										dropBefore = undefined;
+								}}
+							>
+								{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
+									{@render row(workspace, parent, depth, under, rows, index)}
+								{/each}
+							</ul>
 						{/if}
-						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
-						<a
-							href={newHref}
-							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:visible"
-							title={newLabel}
-							aria-label={newLabel}
-						>
-							<span class="icon-[lucide--plus] size-4"></span>
-						</a>
-						<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					</div>
-					{#if !isFolded}
-						<ul
-							class="space-y-px"
-							ondragleave={(event) => {
-								if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-									dropBefore = undefined;
-							}}
-						>
-							{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-								{@render row(workspace, parent, depth, under, rows, index)}
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			{/each}
-			{#if nav && todayOnly && groups.length === 0}
-				<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{/each}
+				{#if todayOnly && groups.length === 0}
+					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{/if}
 			{/if}
 			<div aria-hidden="true"></div>
 		</div>

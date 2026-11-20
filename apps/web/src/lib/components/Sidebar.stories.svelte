@@ -14,6 +14,8 @@
 			filters.todayOnly = false;
 			focus.current = null;
 			folded.current = [];
+			arrived.current = false;
+			loaded.current = false;
 		}
 	});
 
@@ -25,6 +27,10 @@
 	const focus = $state({ current: null as string | null });
 
 	const filters = $state({ todayOnly: false });
+	/** Whether a workspace has come along since the story began. */
+	const arrived = $state({ current: false });
+	/** Whether navigation has arrived, in the story where it comes late. */
+	const loaded = $state({ current: false });
 
 	const ready: WorkspaceStanding = {
 		label: 'Ready to merge',
@@ -199,6 +205,37 @@
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="A workspace comes and goes"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sliding = (element: Element) => expect(element.getAnimations().length).toBeGreaterThan(0);
+		// what is there when navigation arrives does not slide in
+		loaded.current = true;
+		const group = (await canvas.findByText('Try out the new parser')).closest('ul')!.parentElement!;
+		await expect(group.getAnimations()).toHaveLength(0);
+		arrived.current = true;
+		const row = (await canvas.findByText('Just started')).closest('li')!;
+		await sliding(row);
+		arrived.current = false;
+		await sliding(row);
+		await waitFor(() => expect(canvas.queryByText('Just started')).toBeNull());
+	}}
+>
+	{@render frame(
+		loaded.current
+			? {
+					...nav,
+					workspaces: arrived.current
+						? [workspace('new', 'Just started', { repoId: 'sample' }), ...nav.workspaces]
+						: nav.workspaces
+				}
+			: undefined,
+		'/workspaces/ready'
+	)}
 </Story>
 
 <Story
