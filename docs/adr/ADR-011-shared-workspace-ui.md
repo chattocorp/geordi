@@ -14,4 +14,4 @@ Astro builds the website as static assets. It renders the demo in its final stat
 
 ## Consequences
 
-The shared components use the existing design tokens and utilities (ADR-005). Both builds scan the package for Tailwind classes, and changes to the package trigger a website deployment. The forge's Storybook exercises the same components that the demo imports.
+The shared components use the existing design tokens and utilities (ADR-005). Both builds scan the package for Tailwind classes. Changes to the shared components reach the website with the next stable release. The forge's Storybook exercises the same components that the demo imports.
