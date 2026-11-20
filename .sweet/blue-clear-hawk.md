@@ -2,4 +2,4 @@
 type: fix
 ---
 
-The Run tab and its default action now have separate click targets you can distinguish at a glance.
+Open the Run tab to find your default action first, followed by the other links and jobs.

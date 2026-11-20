@@ -4,6 +4,6 @@ data:
   status: done
   type: task
 id: p2r6q
-title: Separate the Run tab from its shortcut
+title: Show the default action first in Run
 ---
-The text tab opens the Run pane. A separate button opens the default link or controls the default job.
+The Run tab opens a pane with the default link or job first. Verified both default types in browser stories and checked the dark-mode dock.

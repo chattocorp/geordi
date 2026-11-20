@@ -2,7 +2,6 @@
 	import { expect, fireEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { move, singleGroup, groupsOf, type Layout } from '#lib/layout.ts';
-	import Button from '@geordi/ui/Button.svelte';
 	import Panes from './Panes.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Panes', component: Panes });
@@ -15,8 +14,6 @@
 	let single = $state.raw<Layout>(singleGroup(['Conversation', 'WorkspaceView.svelte']));
 	let halves = $state.raw<Layout>(split);
 	let nothing = $state.raw<Layout>(singleGroup([]));
-	let dock = $state.raw<Layout>(singleGroup(['Terminal 1', 'Run']));
-	let started = $state(false);
 	let count = 3;
 </script>
 
@@ -74,60 +71,6 @@
 			{/snippet}
 		</Panes>
 	</div>
-</Story>
-
-{#snippet run()}
-	<Button
-		variant="secondary"
-		size="sm"
-		icon={started ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'}
-		label={started ? 'Stop the project' : 'Run the project'}
-		onclick={() => (started = !started)}
-		class={[started && 'hover:text-danger!']}
-	/>
-{/snippet}
-
-{#snippet openLink()}
-	<Button variant="secondary" size="sm" icon="icon-[lucide--external-link]" label="Open preview" />
-{/snippet}
-
-{#snippet dockWith(shortcut: import('svelte').Snippet)}
-	<div class="flex h-48 sheet-quiet overflow-hidden">
-		<Panes
-			layout={dock}
-			onchange={(next) => (dock = next)}
-			{window}
-			closable={(id) => id !== 'Run'}
-			control={(id) => (id === 'Run' ? shortcut : undefined)}
-		>
-			{#snippet tab(id: string)}
-				{#if id !== 'Run'}
-					<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
-				{/if}
-				<span>{id}</span>
-			{/snippet}
-		</Panes>
-	</div>
-{/snippet}
-
-<!-- A tab with a control of its own, beside its label: the Run tab's button. -->
-<Story
-	name="Tab control"
-	asChild
-	play={async ({ canvas, userEvent }) => {
-		await userEvent.click(canvas.getByRole('button', { name: 'Run the project' }));
-		await expect(canvas.getByRole('button', { name: 'Stop the project' })).toBeVisible();
-		await expect(canvas.getByRole('tab', { name: 'Terminal 1' })).toHaveAttribute(
-			'aria-selected',
-			'true'
-		);
-	}}
->
-	{@render dockWith(run)}
-</Story>
-
-<Story name="Default link" asChild>
-	{@render dockWith(openLink)}
 </Story>
 
 <Story name="Split" asChild>

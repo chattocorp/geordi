@@ -9,8 +9,6 @@
 		tabs: string[];
 		current: string | null;
 		tab: Snippet<[string]>;
-		/** A control of a tab's own, beside its label (a tab can't hold one), for the tabs that have one. */
-		control?: (id: string) => Snippet | undefined;
 		actions?: Snippet;
 		onselect?: (id: string) => void;
 		onclose?: (id: string) => void;
@@ -25,19 +23,8 @@
 			drop(event: DragEvent): void;
 		};
 	};
-	let {
-		prefix,
-		tabs,
-		current,
-		tab,
-		control,
-		actions,
-		onselect,
-		onclose,
-		closable,
-		before,
-		drag
-	}: Props = $props();
+	let { prefix, tabs, current, tab, actions, onselect, onclose, closable, before, drag }: Props =
+		$props();
 </script>
 
 <div
@@ -49,7 +36,6 @@
 >
 	{#each tabs as id, index (id)}
 		{@const active = id === current}
-		{@const own = control?.(id)}
 		<!-- The tab and its close button are siblings: a tab can't hold another control. -->
 		<div
 			role="presentation"
@@ -104,7 +90,6 @@
 				/>
 			{/if}
 		</div>
-		{@render own?.()}
 	{/each}
 	{#if actions}
 		<div class="sticky right-0 ml-auto flex shrink-0 items-center gap-1 bg-pane pl-2">

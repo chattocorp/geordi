@@ -283,21 +283,16 @@
 		const job = jobOf(terminal);
 		return !!job && !SCRIPTS.some((script) => script === job);
 	}
-	/** What the Run tab's own button starts or opens: the file's `default` (FDR-006). */
 	const runJob = $derived(jobs.find((job) => config?.default === `jobs.${job.name}`));
 	const runLink = $derived(links.find((link) => config?.default === `urls.${link.name}`));
-	/** The Run tab's own button, where there is a `run` job to start. */
 	function runLive(job: string) {
 		const state = jobState(job);
 		return state === 'running' || state === 'starting';
 	}
-	/** What the Run tab's button does: starts or stops the default job, or opens the default link. */
 	function runDefault() {
 		if (runJob) return runLive(runJob.name) ? stop(runJob.name) : start([runJob.name]);
 		if (runLink) visit(runLink);
 	}
-	const control = (tab: string) =>
-		tab === RUN && (runJob || runLink) && !workspace.archivedAt ? runControl : undefined;
 	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
 	/** A job runs while its terminal is there and its command has not ended in it. */
 	const isUp = (job: string) =>
@@ -764,36 +759,6 @@
 	<span class="-mr-1 flex"><Badge>{n}</Badge></span>
 {/snippet}
 
-{#snippet runControl()}
-	{#if runJob}
-		{@const state = jobState(runJob.name)}
-		{@const live = runLive(runJob.name)}
-		{@const name = runJob.label ?? 'the project'}
-		<Button
-			variant="secondary"
-			size="sm"
-			icon={live ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'}
-			working={state === 'starting'}
-			label="{live ? 'Stop' : 'Run'} {name} ({hint('runDefault')})"
-			onclick={runDefault}
-			class={[live && 'hover:text-danger!']}
-		/>
-	{:else if runLink}
-		<!-- as in the Run tab: gold once all it needs runs, and it opens at once -->
-		{@const ready =
-			runLink.needs.length > 0 && runLink.needs.every((job) => jobState(job) === 'running')}
-		<Button
-			variant="secondary"
-			size="sm"
-			icon="icon-[lucide--external-link]"
-			working={runLink.needs.some((job) => jobState(job) === 'starting')}
-			label="Open {runLink.label ?? runLink.name} ({hint('runDefault')})"
-			onclick={runDefault}
-			class={[ready && 'text-accent!']}
-		/>
-	{/if}
-{/snippet}
-
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
@@ -905,6 +870,8 @@
 		</div>
 	{:else if tab === RUN}
 		<RunPane
+			defaultAction={config?.default}
+			shortcut={hint('runDefault')}
 			{jobs}
 			{links}
 			stateOf={jobState}
@@ -1133,7 +1100,6 @@
 					layout={main}
 					onchange={(next) => arrange({ main: next })}
 					{tab}
-					{control}
 					{window}
 					{closable}
 					accepts={movable}
@@ -1162,7 +1128,6 @@
 								layout={layouts.side}
 								onchange={(next) => arrange({ side: next })}
 								{tab}
-								{control}
 								{window}
 								{closable}
 								accepts={movable}
@@ -1177,7 +1142,6 @@
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
 								{tab}
-								{control}
 								{window}
 								{closable}
 								accepts={movable}

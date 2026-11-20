@@ -29,7 +29,7 @@ const SAMPLES = {
 			}
 		},
 		{
-			// what the Run tab has to show: links (one the default, for its button), jobs that
+			// what the Run tab has to show: links (one the default), jobs that
 			// keep running, one slow to come up (with a long name), and one that ends, here in
 			// failure: there is no contact page
 			message: 'Run it with Geordi',

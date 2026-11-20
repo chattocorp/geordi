@@ -599,6 +599,7 @@
 						class="flex min-h-0 flex-1 flex-col"
 					>
 						<RunPane
+							defaultAction="urls.app"
 							{jobs}
 							{links}
 							stateOf={(name) => jobStates[name] ?? 'stopped'}

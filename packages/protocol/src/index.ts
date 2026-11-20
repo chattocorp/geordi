@@ -294,7 +294,7 @@ export type Link = {
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
-	/** What the Run tab's own button starts or opens: `default`, else the `run` job. */
+	/** The first action in the Run pane: `default`, else the `run` job. */
 	default?: `jobs.${string}` | `urls.${string}`;
 	jobs: Job[];
 	urls: Link[];
@@ -318,7 +318,7 @@ export type RepoConfig = {
  */
 export const CONFIG_SETTINGS = {
 	default: {
-		does: 'The job to start or the URL to open with the button on the Run tab. Use its key, such as `jobs.web` or `urls.app`. Without it, the button starts the `run` job, if there is one.',
+		does: 'The first action in the Run pane. Use a job or URL key, such as `jobs.web` or `urls.app`. If omitted, Geordi uses the `run` job when present.',
 		example: 'default: urls.app'
 	},
 	run: {

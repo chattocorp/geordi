@@ -1,8 +1,10 @@
 <script module lang="ts">
 	import { expect, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { Job, Link } from '@geordi/protocol';
+	import type { Job, Link, RepoConfig } from '@geordi/protocol';
 	import type { JobState } from '@geordi/ui/JobMark.svelte';
+	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
+	import { hint } from '@geordi/ui/keys';
 	import RunPane from '@geordi/ui/RunPane.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 
@@ -54,10 +56,21 @@
 	jobs: Job[],
 	links: Link[],
 	stateOf: (name: string) => JobState,
-	problem: string | null = null
+	problem: string | null = null,
+	defaultAction?: RepoConfig['default']
 )}
 	<div class="flex h-120 w-96 flex-col sheet-quiet">
+		{#if defaultAction}
+			<PaneTabs prefix="run-dock" tabs={['Terminal 1', 'Run']} current="Run">
+				{#snippet tab(id: string)}
+					{#if id !== 'Run'}<span class="icon-[lucide--square-terminal] size-3.5"></span>{/if}
+					{id}
+				{/snippet}
+			</PaneTabs>
+		{/if}
 		<RunPane
+			{defaultAction}
+			shortcut={hint('runDefault')}
 			{jobs}
 			{links}
 			{stateOf}
@@ -117,3 +130,42 @@
 <Story name="Unreadable configuration" asChild
 	>{@render pane([], [], () => 'stopped', 'jobs.web: command is missing')}</Story
 >
+
+<Story
+	name="Default link"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const first = within(canvas.getByRole('region', { name: 'Default action' })).getByRole(
+			'button',
+			{ name: /Open About page/ }
+		);
+		await expect(canvas.getAllByRole('button')[0]).toBe(first);
+		await userEvent.click(first);
+		await expect(canvas.getByText('Open: about')).toBeVisible();
+		await expect(
+			within(canvas.getByRole('region', { name: 'Open' })).queryByText('About page')
+		).toBeNull();
+	}}
+>
+	{@render pane(
+		[web, jobs[1], jobs[3]],
+		links,
+		(name) => (name === 'preview' ? 'running' : 'stopped'),
+		null,
+		'urls.about'
+	)}
+</Story>
+<Story
+	name="Default job"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const first = canvas.getAllByRole('button')[0];
+		await expect(first).toHaveAccessibleName(/Stop Static server/);
+		await userEvent.click(first);
+		await expect(canvas.getByText('Stop: web')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Open terminal for Static server' }));
+		await expect(canvas.getByText('Show: web')).toBeVisible();
+	}}
+>
+	{@render pane(jobs, links, (name) => states[name], null, 'jobs.web')}
+</Story>
