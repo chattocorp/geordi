@@ -369,3 +369,24 @@
 	{@render frame(nav, '/workspaces/ready')}
 	<ContextMenu />
 </Story>
+
+<Story
+	name="Filter by name"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const field = canvas.getByRole('searchbox', { name: 'Filter sidebar' });
+		await fireEvent.input(field, { target: { value: 'PROTOCOL' } });
+		await expect(canvas.getByText('Ship the protocol bump everywhere')).toBeVisible();
+		await expect(canvas.queryByText('Raise light mode text contrast')).toBeNull();
+		await fireEvent.input(field, { target: { value: 'sample-project' } });
+		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
+		await expect(canvas.queryByText('Projects')).toBeNull();
+		await fireEvent.input(field, { target: { value: 'no such title' } });
+		await expect(canvas.getByText('No matches')).toBeVisible();
+		await fireEvent.keyDown(field, { key: 'Escape' });
+		await expect(canvas.getByText('Projects')).toBeVisible();
+	}}
+>
+	{@render frame(withProjects, '/workspaces/project')}
+</Story>

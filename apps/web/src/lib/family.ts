@@ -20,6 +20,23 @@ export function activeOnDay<T extends { updatedAt: string }>(workspaces: T[], da
 		: workspaces.filter((w) => new Date(w.updatedAt).toDateString() === day);
 }
 
+/** Match a workspace title or the name of its repository, within the current sidebar scope. */
+export function matchingWorkspaces<T extends { title: string; repoId: string | null }>(
+	workspaces: T[],
+	repos: { id: string; name: string }[],
+	filter: string
+) {
+	const query = filter.trim().toLowerCase();
+	if (!query) return workspaces;
+	const matchingRepos = new Set(
+		repos.filter((repo) => repo.name.toLowerCase().includes(query)).map((repo) => repo.id)
+	);
+	return workspaces.filter(
+		(w) =>
+			w.title.toLowerCase().includes(query) || (w.repoId !== null && matchingRepos.has(w.repoId))
+	);
+}
+
 /** Keeps the order given, but puts each workspace right after the one that started it. */
 export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));

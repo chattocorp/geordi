@@ -29,6 +29,7 @@ export const shortcuts = {
 		label: 'Next unread workspace',
 		group: 'General'
 	},
+	filterSidebar: { key: '/', shift: true, label: 'Filter the sidebar', group: 'General' },
 	focusRepo: {
 		code: 'KeyF',
 		shift: true,
@@ -73,7 +74,8 @@ export function pressed(event: KeyboardEvent, id: ShortcutId): boolean {
 	const mac = isMac();
 	if (event.isComposing || event.shiftKey !== !!shortcut.shift) return false;
 	if (!(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return false;
-	if (shortcut.code ? event.code !== shortcut.code : event.key !== shortcut.key) return false;
+	const key = id === 'filterSidebar' && event.key === '?' ? '/' : event.key;
+	if (shortcut.code ? event.code !== shortcut.code : key !== shortcut.key) return false;
 	// a character may take Option to type (`[` on a German Mac): only letters care about Alt
 	if (shortcut.code && event.altKey !== !!shortcut.alt) return false;
 	return mac || !(event.target as Element | null)?.closest?.('.xterm');

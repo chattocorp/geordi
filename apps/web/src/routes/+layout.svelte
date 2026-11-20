@@ -1,7 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { innerWidth } from 'svelte/reactivity/window';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -10,7 +10,14 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { initRibbonPosition, openSettings } from '#lib/components/settings.svelte.ts';
-	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
+	import {
+		activeOnDay,
+		inFocus,
+		inSidebarOrder,
+		matchingWorkspaces,
+		nextUnread,
+		stepThrough
+	} from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
@@ -67,6 +74,14 @@
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
 
+	let filter = $state('');
+	let sidebarView = $state<Sidebar>();
+	async function focusFilter() {
+		if (!sidebar.current.open) sidebar.current = { ...sidebar.current, open: true };
+		await tick();
+		sidebarView?.focusFilter();
+	}
+
 	let todayOnly = $state(false);
 	let day = $state('');
 	$effect(() => {
@@ -96,12 +111,12 @@
 		const all = nav.current;
 		if (!all) return;
 		const order = inSidebarOrder(
-			visibleWorkspaces,
+			matchingWorkspaces(visibleWorkspaces, all.repos, filter),
 			inFocus(
 				all.repos.filter((repo) => repo.workspaceCount > 0),
 				focus.current
 			).map(({ id }) => id),
-			folded.current,
+			filter.trim() ? [] : folded.current,
 			step === 'unread'
 		);
 		const to =
@@ -159,6 +174,9 @@
 		} else if (pressed(event, 'todayOnly')) {
 			event.preventDefault();
 			if (!event.repeat) todayOnly = !todayOnly;
+		} else if (pressed(event, 'filterSidebar')) {
+			event.preventDefault();
+			void focusFilter();
 		} else if (pressed(event, 'focusRepo')) {
 			event.preventDefault();
 			toggleFocus();
@@ -221,6 +239,8 @@
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
 			<div class="mb-2 ml-2 flex min-h-0 flex-1">
 				<Sidebar
+					bind:this={sidebarView}
+					bind:filter
 					{lost}
 					nav={nav.current}
 					{visibleWorkspaces}

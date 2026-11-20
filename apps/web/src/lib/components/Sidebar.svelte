@@ -15,7 +15,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
+	import { byRepository, inFocus, matchingWorkspaces, unfolded } from '#lib/family.ts';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -39,6 +39,7 @@
 		path,
 		folded,
 		focus,
+		filter = $bindable(''),
 		todayOnly = false,
 		lost = false
 	}: {
@@ -47,6 +48,7 @@
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
+		filter?: string;
 		todayOnly?: boolean;
 		lost?: boolean;
 	} = $props();
@@ -54,7 +56,16 @@
 	type Item = Navigation['workspaces'][number];
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(visibleWorkspaces));
+	const listed = $derived(
+		byRepository(matchingWorkspaces(visibleWorkspaces, nav?.repos ?? [], filter))
+	);
+	const filtering = $derived(!!filter.trim());
+	const visibleFolds = $derived(filtering ? [] : folded.current);
+	let filterInput: HTMLInputElement;
+	export function focusFilter() {
+		filterInput.focus();
+		filterInput.select();
+	}
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
 	/**
@@ -301,6 +312,19 @@
 	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
 		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 
+		<input
+			type="search"
+			class="w-full input text-sm"
+			placeholder="Filter sidebar"
+			aria-label="Filter sidebar"
+			title={`Filter sidebar (${hint('filterSidebar')})`}
+			bind:value={filter}
+			bind:this={filterInput}
+			onkeydown={(event) => {
+				if (event.key === 'Escape') filter = '';
+			}}
+		/>
+
 		<!--
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
@@ -308,8 +332,8 @@
 		<div>
 			{#each groups as repo (repo.id ?? PROJECTS)}
 				{@const all = listed.get(repo.id) ?? []}
-				{@const rows = unfolded(all, folded.current)}
-				{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
+				{@const rows = unfolded(all, visibleFolds)}
+				{@const isFolded = visibleFolds.includes(repo.id ?? PROJECTS)}
 				{@const focused = focus.current === repo.id}
 				{@const newHref = `${resolve('/')}?${repo.id === null ? 'project' : `repo=${repo.id}`}`}
 				{@const newLabel = repo.id === null ? 'New project' : `New workspace in ${repo.name}`}
@@ -322,11 +346,13 @@
 					<div class="group relative flex h-7 items-center pr-1.5">
 						<SidebarRowLabel
 							title={repo.name}
-							fold={{
-								folded: isFolded,
-								count: all.length,
-								toggle: () => toggleFolded(repo.id ?? PROJECTS)
-							}}
+							fold={filtering
+								? undefined
+								: {
+										folded: isFolded,
+										count: all.length,
+										toggle: () => toggleFolded(repo.id ?? PROJECTS)
+									}}
 							class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink"
 						>
 							{#snippet icon()}
@@ -378,6 +404,7 @@
 					{/if}
 				</div>
 			{/each}
+			{#if filtering && !groups.length}<p class="px-2 text-sm text-muted">No matches</p>{/if}
 			<!-- with one repository shown alone, the others wait here, out of the way -->
 			{#if hidden > 0}
 				<button
@@ -420,7 +447,7 @@
 	rows: Row[],
 	index: number
 )}
-	{@const isFolded = under > 0 && folded.current.includes(workspace.id)}
+	{@const isFolded = under > 0 && visibleFolds.includes(workspace.id)}
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
@@ -437,7 +464,7 @@
 		]}
 		transition:slide={motion()}
 		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
-		draggable={depth === 0 && !leaving}
+		draggable={!filtering && depth === 0 && !leaving}
 		ondragstart={(event) => {
 			dragged = workspace;
 			event.dataTransfer?.setData('text/plain', workspace.title);
@@ -467,7 +494,7 @@
 					: workspace.activeAction)}
 			standing={workspace.standing}
 			actions={workspace.actions}
-			fold={under > 0
+			fold={!filtering && under > 0
 				? { count: under, folded: isFolded, toggle: () => toggleFolded(workspace.id) }
 				: undefined}
 			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
