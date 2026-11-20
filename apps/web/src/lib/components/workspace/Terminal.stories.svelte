@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, waitFor } from 'storybook/test';
+	import { expect, fn, mocked, spyOn, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Terminal from './Terminal.svelte';
 
@@ -58,3 +58,24 @@
 		<Terminal workspaceId="story" terminal="resized" start={false} />
 	</div>
 </Story>
+
+<Story
+	name="Shell sets and clears its title"
+	args={{ workspaceId: 'story', terminal: 'titled', start: false, ontitle: fn() }}
+	beforeEach={async () => {
+		const { Terminal: Xterm } = await import('@xterm/xterm');
+		const opened = spyOn(Xterm.prototype, 'open');
+		return () => opened.mockRestore();
+	}}
+	play={async ({ args }) => {
+		const { Terminal: Xterm } = await import('@xterm/xterm');
+		const opened = mocked(Xterm.prototype.open);
+		await waitFor(() => expect(opened).toHaveBeenCalled());
+		const term = opened.mock.contexts[0] as InstanceType<typeof Xterm>;
+		term.write('\x1b]2;Build');
+		term.write(' output\x07');
+		await waitFor(() => expect(args.ontitle).toHaveBeenLastCalledWith('Build output'));
+		term.write('\x1b]0;\x1b\\');
+		await waitFor(() => expect(args.ontitle).toHaveBeenLastCalledWith(''));
+	}}
+/>
