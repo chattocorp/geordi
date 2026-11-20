@@ -2,7 +2,6 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { Harness } from '@geordi/protocol';
 	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
-	import StatusBadge from './StatusBadge.svelte';
 	import HarnessPicker, { type HarnessChoice } from './workspace/HarnessPicker.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Agents' });
@@ -30,14 +29,12 @@
 	});
 </script>
 
-<Story name="Avatar and status" asChild>
+<Story name="Avatars" asChild>
 	<div class="flex flex-wrap items-center gap-4">
 		<AgentAvatar agent="claude" />
 		<AgentAvatar agent="codex" />
 		<AgentAvatar agent="claude" size="sm" />
 		<AgentAvatar agent="codex" size="sm" />
-		<StatusBadge running />
-		<StatusBadge running={false} />
 	</div>
 </Story>
 

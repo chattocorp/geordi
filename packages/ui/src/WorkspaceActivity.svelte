@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ActivityId as Activity } from './actions.ts';
 	import Spinner from './Spinner.svelte';
-	import StatusCircle from './StatusCircle.svelte';
+	import StatusIcon from './StatusIcon.svelte';
 
 	let { activity }: { activity: Activity } = $props();
 
@@ -28,7 +28,7 @@
 	const fixing = $derived(['fix-checks', 'resolve-conflicts', 'address-review'].includes(activity));
 </script>
 
-<StatusCircle
+<StatusIcon
 	label={labels[activity]}
 	tone={merging ? 'ok' : fixing ? 'danger' : activity === 'archive' ? 'merged' : 'neutral'}
 >
@@ -49,7 +49,7 @@
 	{:else}
 		<span class="icon-[lucide--refresh-cw] size-4 motion-safe:animate-checks-spin"></span>
 	{/if}
-</StatusCircle>
+</StatusIcon>
 
 <style>
 	/*

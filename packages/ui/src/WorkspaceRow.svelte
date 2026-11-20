@@ -3,8 +3,9 @@
 	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 
+	import QuestionLink from './QuestionLink.svelte';
 	import StandingIcon from './StandingIcon.svelte';
-	import StatusCircle from './StatusCircle.svelte';
+	import StatusIcon from './StatusIcon.svelte';
 
 	let {
 		title,
@@ -105,39 +106,27 @@
 	/>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-		{#if asking}
-			<!-- an agent there waits for the person's answer -->
-			<StatusCircle tone="accent" label="Waiting for your answer">
+		{#if asking && href}
+			<QuestionLink workspaceHref={href} />
+		{:else if asking}
+			<StatusIcon tone="accent" label="Waiting for your answer">
 				<span class="icon-[lucide--message-circle-question] size-4"></span>
-			</StatusCircle>
+			</StatusIcon>
 		{:else if activity}
 			<WorkspaceActivity {activity} />
-		{:else if visibleStanding}
-			<span
-				class={[
-					'col-start-1 row-start-1 grid justify-self-end',
-					pillColor &&
-						'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
-				]}
-			>
-				<StandingIcon standing={visibleStanding} />
-			</span>
-		{/if}
-		{#if !asking && !activity && primary && pillColor}
+		{:else if primary && pillColor}
 			<button
 				type="button"
-				class={[
-					'col-start-1 row-start-1 inline-flex h-6 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap motion-safe:transition-all motion-safe:duration-150 motion-safe:ease-out',
-					'pointer-events-none w-0 opacity-0 reveal:pointer-events-auto reveal:w-max reveal:px-2 reveal:opacity-100',
-					pillColor
-				]}
-				style:interpolate-size="allow-keywords"
+				class={['indicator-action', pillColor]}
 				aria-label="{primary.label} — {title}"
+				title={visibleStanding?.label ?? primary.label}
 				onclick={() => activate(primary)}
 			>
+				<span class={[primary.icon, 'size-4 shrink-0']}></span>
 				{primary.label}
-				<span class={[primary.icon, 'size-3.5']}></span>
 			</button>
+		{:else if visibleStanding}
+			<StandingIcon standing={visibleStanding} />
 		{/if}
 	</span>
 </div>

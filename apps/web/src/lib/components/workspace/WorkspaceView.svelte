@@ -2,7 +2,7 @@
 	import RunningJob from '@geordi/ui/RunningJob.svelte';
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -493,6 +493,31 @@
 		open: openDiff
 	});
 
+	const askingAgent = $derived([workspace, ...workspace.aides].find((agent) => agent.asking));
+	let questionTarget = $state<{ owner: string; id: string; done(): void }>();
+
+	// Consume the link once so the same question can be opened again after switching tabs.
+	$effect(() => {
+		if (page.params.id !== id || !page.url.searchParams.has('question')) return;
+		untrack(() => {
+			void goto(resolve('/workspaces/[id]', { id }), {
+				shallow: true,
+				replace: true,
+				state: page.state
+			});
+			const question = askingAgent?.transcript.find(
+				(item) => item.kind === 'question' && item.open && item.blocking !== false
+			);
+			if (!askingAgent || question?.kind !== 'question') return;
+			showTab(askingAgent.id === id ? CHAT : `agent:${askingAgent.id}`);
+			questionTarget = {
+				owner: askingAgent.id,
+				id: question.id,
+				done: () => (questionTarget = undefined)
+			};
+		});
+	});
+
 	// A link to an agent working alongside leads here, to its conversation (`?agent=`). So
 	// does beginning one: it takes the place of the window it was begun in.
 	$effect(() => {
@@ -862,6 +887,7 @@
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
 			workspace={aideOf(tab)!}
+			questionTarget={questionTarget?.owner === aideOf(tab)!.id ? questionTarget : undefined}
 			onopenturn={openTurn}
 			waiting={waiting(aideOf(tab)!)}
 			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
@@ -870,6 +896,7 @@
 	{:else}
 		<Conversation
 			{workspace}
+			questionTarget={questionTarget?.owner === id ? questionTarget : undefined}
 			onopenturn={openTurn}
 			waiting={waiting(workspace)}
 			onopensubagent={(child) => showTab(reviewerTab(id, child))}
@@ -912,7 +939,7 @@
 				unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
 				disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 				{pending}
-				asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
+				askingIn={askingAgent ? resolve('/workspaces/[id]', { id }) : undefined}
 				onopenpull={() => showTab(PR)}
 				onaction={act}
 			/>
