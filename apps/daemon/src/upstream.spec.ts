@@ -149,13 +149,16 @@ describe('upstream', () => {
 		vi.stubEnv('FORGES_FORGEJO_BASE_URL', 'https://forge.example.test');
 		vi.stubEnv('FORGES_FORGEJO_TOKEN', 'test-token');
 		const { checkForge } = await configured();
-		expect((await checkForge(repoPath)).message).toContain('no origin');
+		expect(await checkForge(repoPath)).toEqual({ status: 'none', summary: 'No origin remote' });
 		origin('add', 'origin', '/tmp/local.git');
-		expect((await checkForge(repoPath)).message).toContain('no forge host');
+		expect(await checkForge(repoPath)).toMatchObject({ status: 'none' });
 		origin('set-url', 'origin', 'https://user:test-token@unknown.example.test/team/widgets.git');
-		expect(await checkForge(repoPath)).toMatchObject({
-			context: 'unknown.example.test',
-			setup: true
+		const unknown = await checkForge(repoPath);
+		expect(unknown).toEqual({
+			status: 'problem',
+			summary: 'No forge set up for unknown.example.test',
+			setup: true,
+			origin: 'https://unknown.example.test/team/widgets.git'
 		});
 		origin('set-url', 'origin', 'https://forge.example.test/team/widgets.git');
 		const fetch = vi.spyOn(globalThis, 'fetch');
@@ -163,13 +166,9 @@ describe('upstream', () => {
 			fetch.mockResolvedValueOnce(
 				Response.json({ message: 'sensitive error details' }, { status: 404 })
 			);
-			const denied = await checkForge(repoPath);
-			expect(denied).toMatchObject({
-				context: 'forge.example.test · forgejo · Credentials configured',
-				setup: true
-			});
-			expect(denied.message).toContain('could not find');
-			expect(JSON.stringify(denied)).not.toMatch(/test-token|sensitive error/);
+			const hidden = await checkForge(repoPath);
+			expect(hidden).toMatchObject({ status: 'problem', setup: true });
+			expect(JSON.stringify([unknown, hidden])).not.toMatch(/test-token|sensitive error|user/);
 			fetch.mockResolvedValueOnce(
 				Response.json({
 					id: 1,
@@ -178,7 +177,13 @@ describe('upstream', () => {
 					owner: { login: 'team' }
 				})
 			);
-			expect((await checkForge(repoPath)).message).toBe('The daemon can read this repository.');
+			expect(await checkForge(repoPath)).toEqual({
+				status: 'ok',
+				summary: 'forge.example.test · signed in',
+				origin: 'https://forge.example.test/team/widgets.git',
+				forge: 'forgejo',
+				access: 'credentials'
+			});
 		} finally {
 			fetch.mockRestore();
 		}

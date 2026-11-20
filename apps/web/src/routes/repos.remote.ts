@@ -19,6 +19,6 @@ export const checkRepoForge = command(v.string(), async (id) => {
 	try {
 		return await hub().request({ kind: 'checkForge', repoPath }, 30_000);
 	} catch {
-		error(503, 'The daemon could not complete the check. Check its connection and try again.');
+		error(503, 'Could not ask the daemon');
 	}
 });

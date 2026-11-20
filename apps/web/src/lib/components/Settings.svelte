@@ -18,8 +18,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import AddRepository from './AddRepository.svelte';
-	import ForgeCheck from './ForgeCheck.svelte';
-	import RepoIcon from './RepoIcon.svelte';
+	import RepositoryRow from './RepositoryRow.svelte';
 	import { checkRepoForge, removeRepo } from '../../routes/repos.remote';
 	import { issueAccess, revokeAccess } from '../../routes/access.remote';
 	import { getRibbonPosition, sections, settingsPath, type Section } from './settings.svelte.ts';
@@ -41,7 +40,6 @@
 	let tested = $state<Awaited<ReturnType<typeof test>>>();
 
 	let adding = $state<AddRepository>();
-	let selectedRepo = $state<string>();
 	let problem = $state<string>();
 
 	/** Runs something the server may refuse, and says so if it does. */
@@ -185,76 +183,37 @@
 					{/each}
 				</div>
 			{:else if section === 'repositories'}
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<h2 class="heading">Repositories</h2>
-					<Button size="sm" icon="icon-[lucide--plus]" onclick={() => adding?.start()}
-						>Add repository</Button
+				<h2 class="heading">Repositories</h2>
+				<p class="pb-4 text-sm text-muted">The Git repositories agents can work in.</p>
+
+				<div class="space-y-3">
+					{#if repos.length > 0}
+						<ul class="card p-2">
+							{#each repos as repo (repo.id)}
+								<li>
+									<RepositoryRow
+										{repo}
+										check={() => checkRepoForge(repo.id)}
+										onremove={() => attempt(() => removeRepo(repo.id), 'Could not remove it')}
+									/>
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						<p class="empty">No repositories yet. Add one below.</p>
+					{/if}
+
+					<Button icon="icon-[lucide--plus]" onclick={() => adding?.start()}>Add repository…</Button
 					>
+					<AddRepository
+						bind:this={adding}
+						onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
+					/>
+					{#if problem}<Notice>{problem}</Notice>{/if}
+					<p class="text-xs text-muted">
+						Removing a repository only makes Geordi forget it. Nothing on disk changes.
+					</p>
 				</div>
-				{#if repos.length}
-					<p class="mt-2 mb-5 text-sm text-muted">Select a repository to check its forge access.</p>
-					<ul class="space-y-1">
-						{#each repos as repo (repo.id)}
-							{@const expanded = selectedRepo === repo.id}
-							<li class={['rounded-card', expanded && 'bg-sunken']}>
-								<button
-									type="button"
-									aria-expanded={expanded}
-									onclick={() => (selectedRepo = expanded ? undefined : repo.id)}
-									class="flex w-full items-center gap-3 rounded-card px-3 py-3 text-left hover:bg-hover"
-								>
-									<RepoIcon id={repo.id} />
-									<span class="min-w-0 flex-1">
-										<span class="block truncate font-medium">{repo.name}</span>
-										<span
-											dir="rtl"
-											class="block truncate text-left code-dense text-muted"
-											title={repo.path}><bdi>{repo.path}</bdi></span
-										>
-									</span>
-									{#if repo.workspaceCount}
-										<span class="shrink-0 text-xs text-muted"
-											>{repo.workspaceCount}
-											{repo.workspaceCount === 1 ? 'workspace' : 'workspaces'}</span
-										>
-									{/if}
-									<span
-										aria-hidden="true"
-										class={[
-											'icon-[lucide--chevron-right] size-4 shrink-0 text-muted',
-											expanded && 'rotate-90'
-										]}
-									></span>
-								</button>
-								{#if expanded}
-									<div class="px-3 pb-3">
-										<ForgeCheck check={() => checkRepoForge(repo.id)} />
-										{#if !repo.workspaceCount}
-											<div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-												<span class="text-xs text-muted"
-													>Removing this repository keeps its files on disk.</span
-												>
-												<Button
-													size="sm"
-													variant="ghost"
-													onclick={() => attempt(() => removeRepo(repo.id), 'Could not remove it')}
-													>Remove repository</Button
-												>
-											</div>
-										{/if}
-									</div>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				{:else}
-					<p class="empty">No repositories yet.</p>
-				{/if}
-				<AddRepository
-					bind:this={adding}
-					onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
-				/>
-				{#if problem}<Notice>{problem}</Notice>{/if}
 			{:else if section === 'providers'}
 				<Providers
 					harnesses={nav.connected ? nav.current?.harnesses : undefined}

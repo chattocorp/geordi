@@ -2,4 +2,4 @@
 type: feature
 ---
 
-In Settings → Repositories, select a repository to see whether your daemon recognizes the upstream forge and can read the repository.
+Settings → Repositories now shows whether Geordi can read each repository on its forge. Unfold a repository to see its directory, origin and forge access, and what to fix when it fails.
