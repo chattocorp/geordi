@@ -8,12 +8,14 @@
 	/** `pictures` is where the pictures of the workspace this was written in are served. */
 	let {
 		text,
+		agentDirectives = false,
 		dimmed = false,
 		preserveLineBreaks = false,
 		pictures,
 		documentPath
 	}: {
 		text: string;
+		agentDirectives?: boolean;
 		dimmed?: boolean;
 		preserveLineBreaks?: boolean;
 		pictures?: string;
@@ -25,6 +27,7 @@
 	let viewing = $state<{ src: string; alt: string } | null>(null);
 	const html = $derived(
 		renderMarkdown(text, {
+			agentDirectives,
 			preserveLineBreaks,
 			documentPath,
 			pictures,
