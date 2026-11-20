@@ -1,6 +1,11 @@
 name: Website
 on:
+  workflow_dispatch:
   workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: false
@@ -10,18 +15,18 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: website
-  cancel-in-progress: false
-
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || !contains(inputs.tag, '-')
+    concurrency:
+      group: website
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment:
       name: website
       url: https://geordi.run
     steps:
-      - name: Read the version served by the download link
+      - name: Select the stable release to deploy
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -29,7 +34,6 @@ jobs:
           tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "GEORDI_DOWNLOAD_VERSION=${tag#v}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
         with:
           ref: ${{ steps.release.outputs.tag }}
