@@ -129,7 +129,7 @@
 										row.open && 'rotate-90'
 									]}
 								></span>
-								<FittedPath path={row.name} class={{ 'text-ink': row.name.includes('/') }} />
+								<FittedPath path={row.name} />
 							</button>
 						{:else}
 							{@render file(row.file, row.depth)}
