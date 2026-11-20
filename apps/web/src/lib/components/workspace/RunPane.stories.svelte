@@ -241,6 +241,10 @@
 	name="Tasks"
 	asChild
 	play={async ({ canvas, userEvent }) => {
+		// what is starting shows on the tab, ahead of what runs
+		await expect(
+			within(canvas.getByRole('tab', { name: /Tasks/ })).getByRole('img', { name: 'Job starting' })
+		).toBeVisible();
 		// one list in configuration order; the default carries the shortcut
 		const rows = canvas.getAllByRole('button', { name: /^(Open|Run|Open terminal for) / });
 		await expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
