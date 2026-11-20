@@ -77,13 +77,15 @@
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('localhost:20000')).not.toBeVisible();
 		await expect(canvas.getByText(':20000')).not.toBeVisible();
+		const startDocs = canvas.getByRole('button', { name: 'Start Documentation' });
+		await expect(startDocs.querySelector('[class~="icon-[lucide--play]"]')).toBeVisible();
 		await userEvent.tab();
 		await expect(canvas.getByText('localhost:20000')).toBeVisible();
 		await userEvent.click(canvas.getByTitle('Show the output of Static server'));
 		await expect(canvas.getByText('Show: web')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Stop Static server' }));
 		await expect(canvas.getByText('Stop: web')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Start Documentation' }));
+		await userEvent.click(startDocs);
 		await expect(canvas.getByText('Start: docs')).toBeVisible();
 		// what is not running yet starts at once; what runs stops at once
 		await userEvent.click(canvas.getByRole('button', { name: 'Start all' }));

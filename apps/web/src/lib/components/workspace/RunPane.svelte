@@ -126,14 +126,18 @@
 						onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
 						class="group/mark grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink"
 					>
-						<span
-							class="grid place-items-center group-hover/job:hidden group-focus-visible/mark:hidden"
-						>
-							<JobMark {state} />
-						</span>
+						{#if state !== 'stopped'}
+							<span
+								class="grid place-items-center group-hover/job:hidden group-focus-visible/mark:hidden"
+							>
+								<JobMark {state} />
+							</span>
+						{/if}
 						<span
 							class={[
-								'hidden size-3.5 group-hover/job:block group-focus-visible/mark:block',
+								'size-3.5',
+								state !== 'stopped' &&
+									'hidden group-hover/job:block group-focus-visible/mark:block',
 								live(state) ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'
 							]}
 						></span>
