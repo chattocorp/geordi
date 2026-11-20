@@ -1,13 +1,16 @@
 import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { GEORDI_ALLOWED_HOSTS } from '$app/env/private';
 import { hub, liveServer } from '#lib/server/app.ts';
+import { store } from '#lib/server/events/index.ts';
 
 /**
- * Start accepting daemon connections, and browsers' for what is live, as soon as the server
- * starts. On SIGINT or SIGTERM the adapter stops serving pages, and then says so: those
+ * Take the data, and start accepting daemon connections, and browsers' for what is live, as
+ * soon as the server starts. On SIGINT or SIGTERM the adapter stops serving pages, and then says so: those
  * servers would keep the process alive, so that is when it ends.
  */
 export const init: ServerInit = () => {
+	// the data first: a second Geordi on the same data stops here, before it serves anything
+	store();
 	hub();
 	liveServer();
 	process.once('sveltekit:shutdown', () => process.exit(0));

@@ -43,7 +43,9 @@
 		await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
 		await expect(args.onpurge).toHaveBeenCalledWith(['sidebar', 'release']);
 		await waitFor(() =>
-			expect(canvas.getByText('Deleted 2 workspaces, which freed 52.4 MB.')).toBeVisible()
+			expect(
+				canvas.getByText("Deleted 2 workspaces. Geordi's log is 52.4 MB smaller.")
+			).toBeVisible()
 		);
 	}}
 />

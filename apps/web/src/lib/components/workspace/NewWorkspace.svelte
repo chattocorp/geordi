@@ -10,6 +10,7 @@
 	import { submitOnEnter } from '@geordi/ui/keys';
 	import { draft } from '#lib/drafts.svelte.ts';
 	import { persisted } from '#lib/persisted.svelte.ts';
+	import AddRepository from '../AddRepository.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import RepoPicker, { PROJECT } from './RepoPicker.svelte';
@@ -58,10 +59,16 @@
 	 * a new project (FDR-012).
 	 */
 	let picked = $state<string>();
+	// Registration can finish before the navigation view delivers the new list.
+	let available = $derived(repos);
+	function added(repo: { id: string; name: string }) {
+		if (!available.some(({ id }) => id === repo.id)) available = [...available, repo];
+		picked = repo.id;
+	}
 	const target = $derived(picked ?? preferred);
 	const project = $derived(!alongside && target === PROJECT);
 	/** The repository picked, or the first one. */
-	const repo = $derived(repos.find((repo) => repo.id === target) ?? repos[0]);
+	const repo = $derived(available.find((repo) => repo.id === target) ?? available[0]);
 
 	// `undefined` until loaded, `null` while no daemon is connected: nothing to choose from
 	const offered = follow<Navigation>('navigation');
@@ -75,6 +82,7 @@
 		const scope = alongside ? { workspaceId: alongside } : { repoId: repo.id };
 		return (query: string) => findFiles({ ...scope, query });
 	});
+	let adding = $state<AddRepository>();
 	let pickingRepo = $state(false);
 	// only where repositories are to be chosen from: on the page for a new workspace
 	$effect(() => {
@@ -85,80 +93,91 @@
 </script>
 
 <!-- Where a workspace begins: say what should be done, pick who does it, how, and where. -->
-<MessageComposer
-	files={searchFiles}
-	bind:images={written.images}
-	imageField={images.as('hidden', '[]')}
-	{form}
-	disabled={createWorkspace.pending > 0}
-	{label}
-	{focused}
-	rows={alongside ? undefined : 5}
-	placeholder={project ? 'What should be done, and where?' : 'What should the agent do?'}
-	field={prompt.as('text')}
-	onkeydown={(event) => {
-		// Enter starts the workspace, but not while there is no daemon to run it
-		if (chosen) submitOnEnter(event);
-		else if (event.key === 'Enter' && !event.shiftKey) event.preventDefault();
-	}}
-	problems={[...(prompt.issues() ?? []), ...(images.issues() ?? [])].map(
-		(problem) => problem.message
-	)}
->
-	{#snippet header()}
-		<input {...fields.repoId.as('hidden', project ? '' : (repo?.id ?? ''))} />
-		{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />{/if}
-		{#if chosen}
-			<input {...fields.agent.as('hidden', chosen.harness.agent)} />
-			<input {...fields.model.as('hidden', chosen.model?.id ?? '')} />
-			<input {...fields.effort.as('hidden', chosen.effort ?? '')} />
-			<input {...fields.permissionMode.as('hidden', chosen.permissionMode)} />
-		{/if}
-	{/snippet}
-	{#snippet footer()}
-		<div class="flex min-w-0 flex-wrap items-center gap-1">
-			<!-- a repository to work in, or a new project (FDR-012), which is in none -->
-			{#if !alongside}
-				<RepoPicker
-					{repos}
-					bind:open={pickingRepo}
-					bind:value={() => (project ? PROJECT : repo.id), (id) => (picked = id)}
-				/>
+{#if !alongside}
+	<AddRepository bind:this={adding} onadded={added} />
+{/if}
+{#if !alongside && available.length === 0}
+	<div class="empty">
+		<p class="pb-4">Agents work in a repository. Add one first.</p>
+		<Button variant="primary" onclick={() => adding?.start()}>Add repository…</Button>
+	</div>
+{:else}
+	<MessageComposer
+		files={searchFiles}
+		bind:images={written.images}
+		imageField={images.as('hidden', '[]')}
+		{form}
+		disabled={createWorkspace.pending > 0}
+		{label}
+		{focused}
+		rows={alongside ? undefined : 5}
+		placeholder={project ? 'What should be done, and where?' : 'What should the agent do?'}
+		field={prompt.as('text')}
+		onkeydown={(event) => {
+			// Enter starts the workspace, but not while there is no daemon to run it
+			if (chosen) submitOnEnter(event);
+			else if (event.key === 'Enter' && !event.shiftKey) event.preventDefault();
+		}}
+		problems={[...(prompt.issues() ?? []), ...(images.issues() ?? [])].map(
+			(problem) => problem.message
+		)}
+	>
+		{#snippet header()}
+			<input {...fields.repoId.as('hidden', project ? '' : (repo?.id ?? ''))} />
+			{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />{/if}
+			{#if chosen}
+				<input {...fields.agent.as('hidden', chosen.harness.agent)} />
+				<input {...fields.model.as('hidden', chosen.model?.id ?? '')} />
+				<input {...fields.effort.as('hidden', chosen.effort ?? '')} />
+				<input {...fields.permissionMode.as('hidden', chosen.permissionMode)} />
 			{/if}
-			{#if harnesses?.length}
-				<HarnessPicker
-					{harnesses}
-					choice={choice.current}
-					onchange={(next) => (choice.current = next)}
+		{/snippet}
+		{#snippet footer()}
+			<div class="flex min-w-0 flex-wrap items-center gap-1">
+				<!-- a repository to work in, or a new project (FDR-012), which is in none -->
+				{#if !alongside}
+					<RepoPicker
+						onadd={() => adding?.start()}
+						repos={available}
+						bind:open={pickingRepo}
+						bind:value={() => (project ? PROJECT : repo.id), (id) => (picked = id)}
+					/>
+				{/if}
+				{#if harnesses?.length}
+					<HarnessPicker
+						{harnesses}
+						choice={choice.current}
+						onchange={(next) => (choice.current = next)}
+					/>
+				{:else if harnesses === null}
+					<!-- agents run on a daemon: without one there is nobody to choose -->
+					<span class="flex h-8 items-center gap-1.5 px-2 text-sm text-muted">
+						<span class="icon-[lucide--unplug] size-3.5"></span>
+						Waiting for the daemon
+					</span>
+				{/if}
+			</div>
+			{#if alongside}
+				<!-- a conversation like the others there: sent as they are -->
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+					class="ml-auto"
+					disabled={!chosen}
 				/>
-			{:else if harnesses === null}
-				<!-- agents run on a daemon: without one there is nobody to choose -->
-				<span class="flex h-8 items-center gap-1.5 px-2 text-sm text-muted">
-					<span class="icon-[lucide--unplug] size-3.5"></span>
-					Waiting for the daemon
-				</span>
+			{:else}
+				<Button
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					class="ml-auto"
+					disabled={!chosen}
+				>
+					{prompt.value()?.trim() ? 'Get to work' : project ? 'Start project' : 'Start workspace'}
+				</Button>
 			{/if}
-		</div>
-		{#if alongside}
-			<!-- a conversation like the others there: sent as they are -->
-			<Button
-				type="submit"
-				variant="primary"
-				icon="icon-[lucide--arrow-up]"
-				label="Send"
-				class="ml-auto"
-				disabled={!chosen}
-			/>
-		{:else}
-			<Button
-				type="submit"
-				variant="primary"
-				icon="icon-[lucide--arrow-up]"
-				class="ml-auto"
-				disabled={!chosen}
-			>
-				{prompt.value()?.trim() ? 'Get to work' : project ? 'Start project' : 'Start workspace'}
-			</Button>
-		{/if}
-	{/snippet}
-</MessageComposer>
+		{/snippet}
+	</MessageComposer>
+{/if}

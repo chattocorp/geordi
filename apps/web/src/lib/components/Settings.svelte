@@ -14,7 +14,10 @@
 	import Segmented from '#lib/ui/Segmented.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { registerRepo, removeRepo } from '../../routes/repos.remote';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import AddRepository from './AddRepository.svelte';
+	import { removeRepo } from '../../routes/repos.remote';
 	import { issueAccess, revokeAccess } from '../../routes/access.remote';
 	import { sections, settingsPath, type Section } from './settings.svelte.ts';
 
@@ -33,7 +36,7 @@
 	/** What came of the last test notification, if one was sent. */
 	let tested = $state<Awaited<ReturnType<typeof test>>>();
 
-	let path = $state('');
+	let adding = $state<AddRepository>();
 	let problem = $state<string>();
 
 	/** Runs something the server may refuse, and says so if it does. */
@@ -46,11 +49,6 @@
 			problem = problemOf(error, fallback);
 			return false;
 		}
-	}
-
-	async function add(event: SubmitEvent) {
-		event.preventDefault();
-		if (await attempt(() => registerRepo(path), 'Could not add the repository')) path = '';
 	}
 
 	// what went wrong belongs to the section it happened in
@@ -200,15 +198,12 @@
 						<p class="empty">No repositories yet. Add one below.</p>
 					{/if}
 
-					<form onsubmit={add} class="flex items-center gap-2">
-						<input
-							bind:value={path}
-							placeholder="~/src/my-project"
-							aria-label="Path to a Git repository on this machine"
-							class="min-w-0 flex-1 input code"
-						/>
-						<Button type="submit" variant="primary" disabled={!path.trim()}>Add</Button>
-					</form>
+					<Button icon="icon-[lucide--plus]" onclick={() => adding?.start()}>Add repository…</Button
+					>
+					<AddRepository
+						bind:this={adding}
+						onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
+					/>
 					{#if problem}<Notice>{problem}</Notice>{/if}
 					<p class="text-xs text-muted">
 						Removing a repository only makes Geordi forget it. Nothing on disk changes.

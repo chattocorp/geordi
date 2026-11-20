@@ -324,6 +324,24 @@ else {
 	});
 	app.on('before-quit', () => (quitting = true));
 
+	ipcMain.handle('geordi:choose-repository', async (event) => {
+		const frame = event.senderFrame;
+		const window = BrowserWindow.fromWebContents(event.sender);
+		if (
+			!window ||
+			!frame ||
+			frame !== event.sender.mainFrame ||
+			URL.parse(frame.url)?.origin !== url
+		)
+			return null;
+		const result = await dialog.showOpenDialog(window, {
+			title: 'Add repository',
+			buttonLabel: 'Add repository',
+			properties: ['openDirectory']
+		});
+		return result.filePaths[0] ?? null;
+	});
+
 	// How many workspaces are unread, as the web app counts them: a number on the app's icon.
 	ipcMain.on('geordi:badge', (_event, count) =>
 		app.setBadgeCount(Number.isInteger(count) && count > 0 ? count : 0)
