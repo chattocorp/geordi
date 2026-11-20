@@ -16,6 +16,7 @@
 	type Props = {
 		/** What is being chosen; read out, not shown. */
 		label: string;
+		title?: string;
 		/** A keyboard shortcut that opens and focuses this picker, given its button. */
 		shortcut?: (event: KeyboardEvent, button: HTMLElement) => boolean;
 		value?: T;
@@ -34,6 +35,7 @@
 	};
 	let {
 		label,
+		title,
 		value = $bindable(),
 		options,
 		trigger,
@@ -149,6 +151,7 @@
 -->
 <button
 	bind:this={button}
+	{title}
 	type="button"
 	popovertarget="{id}-popup"
 	aria-haspopup="listbox"

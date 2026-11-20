@@ -285,11 +285,7 @@
 			<span class="icon-[lucide--panel-left-close] size-4 text-muted"></span>
 		</div>
 		<aside class="flex min-h-0 flex-1 flex-col sheet-quiet">
-			<div class="flex-1 space-y-5 p-2">
-				<p class="item gap-2.5 px-2.5 py-1.5 text-base">
-					<span class="icon-[lucide--plus] size-4 shrink-0"></span>
-					New workspace
-				</p>
+			<div class="flex-1 p-2">
 				<div>
 					<p class="flex h-7 items-center gap-2 px-1.5 text-sm font-semibold text-muted">
 						<span
@@ -326,6 +322,10 @@
 					</ul>
 				</div>
 			</div>
+			<p class="mx-2 item gap-2.5 px-2.5 py-1.5 text-base">
+				<span class="icon-[lucide--plus] size-4 shrink-0"></span>
+				New workspace
+			</p>
 			<p class="mx-2 item gap-2.5 px-2.5 py-1.5 text-base">
 				<span class="icon-[lucide--archive] size-4 shrink-0"></span>
 				Archive
