@@ -79,9 +79,9 @@
 	beforeEach={resetChecksPreference}
 	asChild
 	play={async ({ canvas, userEvent }) => {
-		const summary = canvas.getByRole('button', { name: 'Checks 6' });
+		const summary = canvas.getByRole('button', { name: /^Checks 6/ });
 		await expect(summary).toHaveAttribute('aria-expanded', 'false');
-		await userEvent.click(summary);
+		await userEvent.click(canvas.getByRole('img', { name: /1 queued/ }));
 		const browser = canvas.getByRole('link', { name: 'Browser tests Running' });
 		await expect(browser).toBeVisible();
 		await expect(canvas.getAllByRole('listitem')[0]).toHaveTextContent('Unit tests');
@@ -133,7 +133,7 @@
 	beforeEach={resetChecksPreference}
 	asChild
 	play={async ({ canvas, userEvent }) => {
-		await userEvent.click(canvas.getByRole('button', { name: 'Checks 37' }));
+		await userEvent.click(canvas.getByRole('button', { name: /^Checks 37/ }));
 		const list = canvas.getByRole('region', { name: 'Checks' }).querySelector('ul')!;
 		await expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
 		await expect(list.firstElementChild).toHaveTextContent(/\d+[smh]$/);
