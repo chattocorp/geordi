@@ -1,6 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { Harness } from '@geordi/protocol';
+	import Providers from './Providers.svelte';
 	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import HarnessPicker, { type HarnessChoice } from './workspace/HarnessPicker.svelte';
 
@@ -40,4 +41,12 @@
 
 <Story name="Picker" asChild>
 	<HarnessPicker {harnesses} {choice} onchange={(next) => (choice = next)} />
+</Story>
+
+<Story name="Provider status" asChild>
+	<Providers harnesses={[harnesses[0]]} active={['claude']} />
+</Story>
+
+<Story name="Daemon offline" asChild>
+	<Providers harnesses={null} active={[]} />
 </Story>
