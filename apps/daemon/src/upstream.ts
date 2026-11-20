@@ -5,12 +5,15 @@ import { quietGit } from './git.ts';
 import {
 	CI_REFRESH_MS,
 	type CheckCounts,
+	type ForgeDiagnostic,
 	type PullCheck,
 	type PullRequest,
 	type Upstream
 } from '@geordi/protocol';
 import {
 	createForges,
+	ForgeApiError,
+	RateLimitedError,
 	github,
 	MergeMethodRequiredError,
 	type Check,
@@ -403,6 +406,79 @@ export async function unknownForge(repoPath: string): Promise<string | null> {
 	const host = remote && hostOf(remote);
 	if (!host) return null;
 	return (await forges()).parseUrl(remote) ? null : host;
+}
+
+/** Check the same registry workspaces use. Only return safe summaries of remote errors. */
+export async function checkForge(repoPath: string): Promise<ForgeDiagnostic> {
+	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin').catch(() => null);
+	if (!remote) {
+		const remotes = await quietGit(repoPath, 'remote').catch(() => null);
+		return {
+			message:
+				remotes !== null && !remotes.split('\n').includes('origin')
+					? 'This repository has no origin remote.'
+					: 'The daemon could not read the origin remote. Check the repository path.'
+		};
+	}
+	const host = hostOf(remote);
+	if (!host) return { message: 'The origin has no forge host. Check its Git remote URL.' };
+
+	let found;
+	try {
+		found = (await forges()).parseUrl(remote);
+	} catch {
+		return {
+			context: host,
+			message: 'The daemon could not load its forge configuration.',
+			setup: true
+		};
+	}
+	if (!found)
+		return {
+			context: host,
+			message:
+				'No configured forge matches this origin. Check the FORGES_* variables in the daemon environment and restart Geordi.',
+			setup: true
+		};
+
+	const { provider, repo } = found;
+	const context = [
+		host,
+		provider.forge,
+		provider.authKind === 'anonymous' ? 'Anonymous' : 'Credentials configured'
+	].join(' · ');
+	try {
+		await provider.repos.get(repo, { signal: AbortSignal.timeout(8000) });
+		return { context, message: 'The daemon can read this repository.' };
+	} catch (error) {
+		if (error instanceof RateLimitedError)
+			return { context, message: 'The forge rate limit was reached. Try again later.' };
+		if (error instanceof ForgeApiError) {
+			if (error.status === 401 || error.status === 403)
+				return {
+					context,
+					message:
+						'The forge denied access. Check the daemon credentials and repository permissions.',
+					setup: true
+				};
+			if (error.status === 404)
+				return {
+					context,
+					message:
+						'The forge could not find this repository. Check the origin and whether the daemon credentials can read it.',
+					setup: true
+				};
+			return {
+				context,
+				message: `The forge returned HTTP ${error.status} while reading this repository.`
+			};
+		}
+		return {
+			context,
+			message:
+				'The repository read failed. Check the forge address and the connection from the daemon.'
+		};
+	}
 }
 
 /**

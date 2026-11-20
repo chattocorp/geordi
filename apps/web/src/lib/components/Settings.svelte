@@ -18,7 +18,8 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import AddRepository from './AddRepository.svelte';
-	import { removeRepo } from '../../routes/repos.remote';
+	import ForgeCheck from './ForgeCheck.svelte';
+	import { checkRepoForge, removeRepo } from '../../routes/repos.remote';
 	import { issueAccess, revokeAccess } from '../../routes/access.remote';
 	import { getRibbonPosition, sections, settingsPath, type Section } from './settings.svelte.ts';
 
@@ -189,26 +190,29 @@
 					{#if repos.length > 0}
 						<ul class="divide-y divide-line/60 card">
 							{#each repos as repo (repo.id)}
-								<li class="flex items-center gap-3 py-2 pr-2 pl-3.5">
-									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-medium">{repo.name}</p>
-										<p class="truncate code-dense text-muted" title={repo.path}>{repo.path}</p>
+								<li class="py-2 pr-2 pl-3.5">
+									<div class="flex items-center gap-3">
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-medium">{repo.name}</p>
+											<p class="truncate code-dense text-muted" title={repo.path}>{repo.path}</p>
+										</div>
+										{#if repo.workspaceCount > 0}
+											<span class="shrink-0 text-xs text-muted">
+												{repo.workspaceCount}
+												{repo.workspaceCount === 1 ? 'workspace' : 'workspaces'}
+											</span>
+										{/if}
+										<Button
+											variant="ghost"
+											icon="icon-[lucide--trash-2]"
+											label={repo.workspaceCount > 0
+												? `Archive ${repo.name}'s workspaces to remove it`
+												: `Remove ${repo.name}`}
+											disabled={repo.workspaceCount > 0}
+											onclick={() => attempt(() => removeRepo(repo.id), 'Could not remove it')}
+										/>
 									</div>
-									{#if repo.workspaceCount > 0}
-										<span class="shrink-0 text-xs text-muted">
-											{repo.workspaceCount}
-											{repo.workspaceCount === 1 ? 'workspace' : 'workspaces'}
-										</span>
-									{/if}
-									<Button
-										variant="ghost"
-										icon="icon-[lucide--trash-2]"
-										label={repo.workspaceCount > 0
-											? `Archive ${repo.name}'s workspaces to remove it`
-											: `Remove ${repo.name}`}
-										disabled={repo.workspaceCount > 0}
-										onclick={() => attempt(() => removeRepo(repo.id), 'Could not remove it')}
-									/>
+									<ForgeCheck check={() => checkRepoForge(repo.id)} />
 								</li>
 							{/each}
 						</ul>

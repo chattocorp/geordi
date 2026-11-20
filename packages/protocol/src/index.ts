@@ -455,6 +455,8 @@ export type ReleasePlan = {
 };
 
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
+export type ForgeDiagnostic = { context?: string; message: string; setup?: boolean };
+
 /** A small picture, as it is served: its media type, and its bytes in base64. */
 export type RepoIcon = { type: string; data: string };
 
@@ -549,6 +551,7 @@ export type DaemonRequest =
 	/** Up to forty ranked paths with highlight positions for the composer. */
 	| { kind: 'findFiles'; query: string; repoPath: string; worktreeId?: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
+	| { kind: 'checkForge'; repoPath: string }
 	| { kind: 'repoIcon'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'terminalActivity'; workspaceId: string }
@@ -572,6 +575,7 @@ export type DaemonResults = {
 	release: ReleasePlan | null;
 	findFiles: FileMatch[];
 	editReleaseNote: null;
+	checkForge: ForgeDiagnostic;
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: FileContent | null;

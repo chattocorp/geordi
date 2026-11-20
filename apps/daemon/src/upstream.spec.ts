@@ -141,6 +141,49 @@ describe('upstream', () => {
 		return import('./upstream.ts');
 	}
 
+	it('checks the registered origin independently of workspace state and keeps secrets out of the result', async () => {
+		const {
+			ref: { repoPath }
+		} = await workspace();
+		const origin = (...args: string[]) => execFileSync('git', ['-C', repoPath, 'remote', ...args]);
+		vi.stubEnv('FORGES_FORGEJO_BASE_URL', 'https://forge.example.test');
+		vi.stubEnv('FORGES_FORGEJO_TOKEN', 'test-token');
+		const { checkForge } = await configured();
+		expect((await checkForge(repoPath)).message).toContain('no origin');
+		origin('add', 'origin', '/tmp/local.git');
+		expect((await checkForge(repoPath)).message).toContain('no forge host');
+		origin('set-url', 'origin', 'https://user:test-token@unknown.example.test/team/widgets.git');
+		expect(await checkForge(repoPath)).toMatchObject({
+			context: 'unknown.example.test',
+			setup: true
+		});
+		origin('set-url', 'origin', 'https://forge.example.test/team/widgets.git');
+		const fetch = vi.spyOn(globalThis, 'fetch');
+		try {
+			fetch.mockResolvedValueOnce(
+				Response.json({ message: 'sensitive error details' }, { status: 404 })
+			);
+			const denied = await checkForge(repoPath);
+			expect(denied).toMatchObject({
+				context: 'forge.example.test · forgejo · Credentials configured',
+				setup: true
+			});
+			expect(denied.message).toContain('could not find');
+			expect(JSON.stringify(denied)).not.toMatch(/test-token|sensitive error/);
+			fetch.mockResolvedValueOnce(
+				Response.json({
+					id: 1,
+					name: 'widgets',
+					full_name: 'team/widgets',
+					owner: { login: 'team' }
+				})
+			);
+			expect((await checkForge(repoPath)).message).toBe('The daemon can read this repository.');
+		} finally {
+			fetch.mockRestore();
+		}
+	});
+
 	it('enables auto-merge for the checked-out commit and cancels it through forges', async () => {
 		const { setAutoMerge, mergePull } = await configured();
 		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
