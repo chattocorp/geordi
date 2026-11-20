@@ -1002,19 +1002,24 @@
 				{columnWidth}
 			/>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
-				<span class="flex shrink-0 items-center gap-1">
+				<span
+					class={['flex min-w-0 items-center gap-1', workspace.worktree && 'max-w-1/2']}
+					title={repo.name}
+				>
 					<span
 						class={[
 							project ? 'icon-[lucide--folder-kanban]' : 'icon-[lucide--folder-git-2]',
-							'size-3.5'
+							'size-3.5 shrink-0'
 						]}
 					></span>
-					{repo.name}
+					<span class="truncate">{repo.name}</span>
 				</span>
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
-						<span class="truncate code-dense">{workspace.worktree.branch}</span>
+						<span class="truncate code-dense" title={workspace.worktree.branch}
+							>{workspace.worktree.branch}</span
+						>
 					</span>
 				{/if}
 			</div>

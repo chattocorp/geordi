@@ -108,7 +108,7 @@
 				onclick={onopenpull}
 			>
 				<span class={['icon-[lucide--git-pull-request]', icon]}></span>
-				<span>#{pull.number}</span>
+				<span class="@max-md/titlebar:sr-only">#{pull.number}</span>
 			</button>
 			{#if linked && pull.url}
 				<a
@@ -153,26 +153,27 @@
 					{/if}
 				{/if}
 				{#if standing}
-					<span
-						class={['shrink-0', icon, standing.icon, !worded && 'mr-1.5']}
-						title={worded ? undefined : standing.label}
-						role={worded ? undefined : 'img'}
-						aria-label={worded ? undefined : standing.label}
-					></span>
-					{#if worded && standing.hint && !compact}
-						<!-- what it means, and what to do about it, a click away -->
+					{#snippet status()}
+						<span class={['shrink-0', icon, standing.icon]}></span>
+						{#if worded}
+							<span class="@max-2xl/titlebar:sr-only">{standing.label}</span>
+						{/if}
+					{/snippet}
+					{#if standing.hint && !compact}
 						<a
 							href={standing.hint.href}
 							target="_blank"
 							rel="external noreferrer"
 							title={standing.hint.text}
-							class={[
-								'pr-1.5 pl-1 font-medium whitespace-nowrap underline decoration-current/40 decoration-dotted underline-offset-4 hover:text-ink',
-								text
-							]}>{standing.label}</a
+							class="inline-flex items-center gap-2 pr-1.5 font-medium whitespace-nowrap underline decoration-current/40 decoration-dotted underline-offset-4 hover:text-ink"
+							>{@render status()}</a
 						>
-					{:else if worded}
-						<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span
+					{:else}
+						<span
+							class="inline-flex items-center gap-2 pr-1.5 font-medium whitespace-nowrap"
+							title={standing.label}
+							role={worded ? undefined : 'img'}
+							aria-label={worded ? undefined : standing.label}>{@render status()}</span
 						>
 					{/if}
 				{/if}
@@ -194,15 +195,18 @@
 								size="sm"
 								variant={next && filled ? 'primary' : 'soft'}
 								tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
-								class={quiet ? 'text-ink' : undefined}
+								class={['@max-md/titlebar:size-7 @max-md/titlebar:p-0', quiet && 'text-ink']}
+								label={action.label}
 								icon={action.icon}
 								{disabled}
 								{busy}
 								onclick={() => onaction(action)}
 							>
-								{action.label}
+								<span class="@max-md/titlebar:sr-only">{action.label}</span>
 								{#if action.incomingCommits !== undefined}
-									<span class="font-normal tabular-nums opacity-60">{action.incomingCommits}</span>
+									<span class="font-normal tabular-nums opacity-60 @max-md/titlebar:sr-only"
+										>{action.incomingCommits}</span
+									>
 									<span class="sr-only"
 										>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
 									>

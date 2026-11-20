@@ -41,19 +41,14 @@
 	{/snippet}
 	{#if actions}
 		<div
-			class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 py-1"
+			class="@container/titlebar flex min-w-0 flex-1 items-center gap-3 py-1"
 			style:max-width={contentWidth === undefined
 				? undefined
 				: `calc(${contentWidth}px - var(--spacing) * 3)`}
 		>
-			<div class="flex min-w-0 grow basis-56 items-center gap-3">{@render heading()}</div>
-			<div
-				class={[
-					'flex max-w-full flex-wrap items-center gap-2 empty:hidden',
-					contentWidth !== undefined && 'ml-auto'
-				]}
-			>
-				{@render actions()}
+			<div class="flex min-w-0 flex-1 items-center gap-3">{@render heading()}</div>
+			<div class="max-w-5/6 overflow-x-auto empty:hidden">
+				<div class="flex w-max items-center gap-2">{@render actions()}</div>
 			</div>
 		</div>
 	{:else}

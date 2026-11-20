@@ -15,5 +15,6 @@
 	]}
 >
 	<span class="icon-[lucide--message-circle-question] size-4 shrink-0"></span>
-	{worded ? 'Waiting for your answer' : 'Answer'}
+	{#if worded}<span class="@max-2xl/titlebar:sr-only">Waiting for your answer</span
+		>{:else}Answer{/if}
 </a>

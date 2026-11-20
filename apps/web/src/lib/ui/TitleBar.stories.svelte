@@ -4,6 +4,7 @@
 	import Segmented from './Segmented.svelte';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
+	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 
 	let position = $state('pane');
@@ -21,13 +22,48 @@
 	</div>
 </Story>
 
-<Story name="Actions in a narrow workspace" asChild>
-	<div class="w-72 sheet">
+<Story
+	name="Responsive workspace ribbon"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const bar = canvas.getByRole('banner');
+		const frame = bar.parentElement!;
+		const status = canvas.getByText('Uncommitted changes');
+		const button = canvas.getByRole('button', { name: 'Commit' });
+		const label = within(button).getByText('Commit');
+		for (const width of [800, 550, 320, 800]) {
+			frame.style.width = width + 'px';
+			await expect(bar.getBoundingClientRect().height).toBe(56);
+			await expect(status.getBoundingClientRect().width > 1).toBe(width === 800);
+			await expect(label.getBoundingClientRect().width > 1).toBe(width !== 320);
+			await expect(button.getBoundingClientRect().right).toBeLessThanOrEqual(
+				bar.getBoundingClientRect().right
+			);
+			const title = canvas.getByRole('heading');
+			await expect(title.getBoundingClientRect().right).toBeLessThan(
+				button.getBoundingClientRect().left
+			);
+			if (width === 320) await expect(title.scrollWidth).toBeGreaterThan(title.clientWidth);
+		}
+	}}
+>
+	<div class="sheet">
 		<TitleBar>
-			<h1 class="truncate heading">Return people after sign-in</h1>
+			<h1 class="truncate heading">Return people to their original workspace after sign-in</h1>
 			{#snippet actions()}
-				<Button icon="icon-[lucide--git-pull-request]">#412</Button>
-				<Button icon="icon-[lucide--git-merge]">Merge PR</Button>
+				<WorkspaceActions
+					standing={{
+						label: 'Uncommitted changes',
+						icon: 'icon-[lucide--circle-dot]',
+						tone: 'neutral'
+					}}
+					actions={[
+						{ id: 'commit', icon: 'icon-[lucide--git-commit-horizontal]', label: 'Commit' }
+					]}
+					onaction={() => {}}
+					onopenpull={() => {}}
+				/>
 			{/snippet}
 		</TitleBar>
 	</div>

@@ -6,4 +6,4 @@ data:
 id: 7ffn8
 title: Keep the sidebar steady during workspace navigation
 ---
-The sidebar now keeps its position when the workspace title bar grows. Verified the switch from New workspace to a sample workspace in Chromium at widths of 1440 and 1050 pixels. The sidebar stayed 56 pixels from the top at both widths.
+The sidebar stays in place when switching from New workspace. The workspace title bar stays on one row. Title and branch text truncate, and the ribbon hides status labels before action labels as its available space decreases. Verified a 56-pixel title bar at window widths of 1440, 1050, 840 and 360 pixels in Chromium.
