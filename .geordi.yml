@@ -1,5 +1,8 @@
 setup: pnpm install --frozen-lockfile
 
+# The Run tab's button: opens Geordi, starting the web server and daemon first.
+default: urls.app
+
 # Electron needs two spare ports. Existing workspaces also reserve the retired install port.
 ports: 9
 
