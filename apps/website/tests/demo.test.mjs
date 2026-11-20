@@ -63,9 +63,14 @@ test('phone title bars contain the pull request and next action', async (t) => {
 	const demo = await openDemo(t, true, 320);
 	await expect(demo.getByRole('textbox')).toBeEnabled();
 	const header = demo.locator('header');
-	const bounds = await header.boundingBox();
 	for (const name of ['#412', 'Archive']) {
-		const box = await header.getByRole('button', { name, exact: true }).boundingBox();
+		// A release link can appear above the demo. Read both rectangles in the same frame.
+		const { bounds, box } = await header
+			.getByRole('button', { name, exact: true })
+			.evaluate((button) => ({
+				bounds: button.closest('header').getBoundingClientRect().toJSON(),
+				box: button.getBoundingClientRect().toJSON()
+			}));
 		expect(box.y).toBeGreaterThanOrEqual(bounds.y);
 		expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
 		expect(box.x).toBeGreaterThanOrEqual(bounds.x);
