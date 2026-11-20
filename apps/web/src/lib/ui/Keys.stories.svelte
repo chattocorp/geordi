@@ -15,3 +15,5 @@
 		<span class="flex items-center gap-3">Open the settings <Keys id="settings" /></span>
 	</div>
 </Story>
+
+<Story name="Mac shortcut" args={{ id: 'runDefault', mac: true }} />

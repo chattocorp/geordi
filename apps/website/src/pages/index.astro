@@ -1,4 +1,6 @@
 ---
+import Keys from '@geordi/ui/Keys.svelte';
+import { shortcuts, type ShortcutId } from '@geordi/ui/keys';
 import ReleaseDownloads from '../components/ReleaseDownloads.astro';
 import Demo from '../components/Demo.svelte';
 import Base from '../layouts/Base.astro';
@@ -49,13 +51,13 @@ const review = [
 	}
 ];
 
-/** A few of the keyboard shortcuts, as a Mac writes them. */
-const keys = [
-	{ keys: '⌘N', does: 'New workspace' },
-	{ keys: '⌘[ ⌘]', does: 'Previous and next workspace' },
-	{ keys: '⇧⌘↩', does: 'Next workspace with news for you' },
-	{ keys: '⇧⌘F', does: 'Only the repository you are in' },
-	{ keys: '⌥⌘R', does: 'Launch this workspace’s default tasks' }
+const featuredShortcuts: ShortcutId[] = [
+	'newWorkspace',
+	'previousWorkspace',
+	'nextWorkspace',
+	'nextUnreadWorkspace',
+	'focusRepo',
+	'runDefault'
 ];
 
 /** Why many agents at once stay manageable, for the section before Try it. */
@@ -191,19 +193,18 @@ const steps = [
 
 		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
 			<div>
-				<h3 class="text-headline font-semibold text-balance">Keys for busy days</h3>
+				<h3 class="text-headline font-semibold text-balance">Keyboard shortcuts</h3>
 				<p class="mt-4 text-pretty text-muted">
-					With ten agents at work, the next one that needs you is a key press away. On Windows and
-					Linux, it's Ctrl where a Mac has Cmd.
+					On Windows and Linux, use Ctrl for Command and Alt for Option.
 				</p>
 			</div>
 			<dl class="mt-auto space-y-2.5 text-sm">
-				{keys.map((key) => (
+				{featuredShortcuts.map((id) => (
 					<div class="flex items-center gap-4">
-						<dt class="w-16 shrink-0 text-muted">
-							<kbd class="font-sans">{key.keys}</kbd>
+						<dt class="w-24 shrink-0">
+							<Keys {id} mac />
 						</dt>
-						<dd>{key.does}</dd>
+						<dd>{shortcuts[id].label}</dd>
 					</div>
 				))}
 			</dl>

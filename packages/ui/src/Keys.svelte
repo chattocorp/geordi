@@ -5,7 +5,7 @@
 	 * A keyboard shortcut, quietly: each key on a faint keycap. Mac modifiers are icons, so
 	 * they look the same whatever font is at hand. Read out as it is written (`⌥⌘R`).
 	 */
-	let { id }: { id: ShortcutId } = $props();
+	let { id, mac }: { id: ShortcutId; mac?: boolean } = $props();
 
 	const icons: Record<string, string> = {
 		alt: 'icon-[lucide--option]',
@@ -16,10 +16,10 @@
 
 <kbd
 	class="inline-flex shrink-0 items-center gap-0.5 font-sans text-xs font-medium text-muted"
-	aria-label={hint(id)}
-	title={hint(id)}
+	aria-label={hint(id, mac)}
+	title={hint(id, mac)}
 >
-	{#each keysOf(id) as key, index (index)}
+	{#each keysOf(id, mac) as key, index (index)}
 		<span
 			aria-hidden="true"
 			class="grid h-5 min-w-5 place-items-center rounded-control bg-hover px-1 leading-none"

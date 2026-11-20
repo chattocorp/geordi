@@ -7,6 +7,7 @@
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import PullRequestTab from '@geordi/ui/PullRequestTab.svelte';
+	import Keys from '@geordi/ui/Keys.svelte';
 	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 	import DiffSection from '@geordi/ui/DiffSection.svelte';
@@ -334,7 +335,7 @@
 			<p class="mx-2 mb-2 item gap-2.5 px-2.5 py-1.5 text-base">
 				<span class="icon-[lucide--settings] size-4 shrink-0"></span>
 				<span class="flex-1">Settings</span>
-				<kbd class="font-sans text-xs text-muted">⌘,</kbd>
+				<Keys id="settings" mac />
 			</p>
 		</aside>
 	</div>

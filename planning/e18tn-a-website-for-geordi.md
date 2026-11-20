@@ -19,3 +19,4 @@ A public website that says what Geordi is and leads to the download.
 - Shared links include a 1200 × 630 workspace preview with the download address.
 - The homepage introduces agent review in the hero and omits the fictional conversation and after-quit activity feed.
 - The configuration example uses a default web task with a command, a URL, and a database dependency (f5yky).
+- The shortcut list and demo settings row use the shared keycaps with Mac modifiers.

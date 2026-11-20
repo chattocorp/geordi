@@ -100,10 +100,10 @@ export function pressed(event: KeyboardEvent, id: ShortcutId): boolean {
 }
 
 /** How a shortcut is written, as people know it on their platform: `⌥⌘B`, `Ctrl+Alt+B`. */
-export function hint(id: ShortcutId): string {
+export function hint(id: ShortcutId, mac = isMac()): string {
 	const shortcut: Shortcut = shortcuts[id];
 	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
-	if (isMac()) return `${shortcut.alt ? '⌥' : ''}${shortcut.shift ? '⇧' : ''}⌘${key}`;
+	if (mac) return `${shortcut.alt ? '⌥' : ''}${shortcut.shift ? '⇧' : ''}⌘${key}`;
 	return ['Ctrl', shortcut.alt && 'Alt', shortcut.shift && 'Shift', key].filter(Boolean).join('+');
 }
 
@@ -112,14 +112,14 @@ export function hint(id: ShortcutId): string {
  * (`alt`, `shift`, `cmd`; drawn as icons, not as characters a font may lack), elsewhere as
  * they are written on the keys.
  */
-export function keysOf(id: ShortcutId): string[] {
+export function keysOf(id: ShortcutId, mac = isMac()): string[] {
 	const shortcut: Shortcut = shortcuts[id];
 	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
-	if (isMac())
+	if (mac)
 		return [shortcut.alt && 'alt', shortcut.shift && 'shift', 'cmd', key].filter(
 			Boolean
 		) as string[];
-	return hint(id).split('+');
+	return hint(id, mac).split('+');
 }
 
 /** The shortcuts by group, in the order they are defined, for listing. */
