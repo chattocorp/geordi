@@ -2,4 +2,4 @@
 type: fix
 ---
 
-The website shows each keyboard shortcut with the same keycaps you see in Geordi.
+The homepage now goes from the workspace demo to a task configuration example and installation instructions.
