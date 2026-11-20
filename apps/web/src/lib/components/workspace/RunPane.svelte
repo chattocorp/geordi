@@ -45,7 +45,10 @@
 
 {#snippet about(job: Job)}
 	<span class="min-w-0 flex-1 truncate text-ink">{job.label ?? job.name}</span>
-	<span class="shrink-0 code-dense text-xs text-muted">:{job.port}</span>
+	<span
+		class="hidden shrink-0 code-dense text-xs text-muted group-hover/job:inline group-has-focus-visible/job:inline"
+		>:{job.port}</span
+	>
 {/snippet}
 
 <div class="scroller flex flex-col gap-3 p-2">
@@ -61,7 +64,7 @@
 					type="button"
 					title="Open {link.href}"
 					onclick={() => visit(link)}
-					class="flex h-8 w-full items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
+					class="group/link flex h-8 w-full items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
 				>
 					<span class="grid size-6 shrink-0 place-items-center">
 						{#if link.needs.some((name) => stateOf(name) === 'starting')}
@@ -76,7 +79,8 @@
 						{/if}
 					</span>
 					<span class="min-w-0 flex-1 truncate text-ink">{link.label ?? link.name}</span>
-					<span class="max-w-1/2 shrink-0 truncate code-dense text-xs text-muted"
+					<span
+						class="hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
 						>{where(link.href)}</span
 					>
 				</button>
@@ -122,15 +126,19 @@
 						onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
 						class="group/mark grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink"
 					>
-						<span
-							class="grid place-items-center group-hover/job:hidden group-focus-visible/mark:hidden"
-						>
-							<JobMark {state} />
-						</span>
+						{#if state !== 'stopped'}
+							<span
+								class="grid place-items-center group-hover/job:hidden group-focus-visible/mark:hidden"
+							>
+								<JobMark {state} />
+							</span>
+						{/if}
 						<span
 							class={[
-								'hidden size-3.5 group-hover/job:block group-focus-visible/mark:block',
-								live(state) ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'
+								'size-3.5',
+								state !== 'stopped' &&
+									'hidden group-hover/job:block group-focus-visible/mark:block',
+								live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
 							]}
 						></span>
 					</button>
