@@ -6,10 +6,12 @@
 		open: boolean;
 		/** What the dialog is, for those who can't see it. */
 		label: string;
+		/** Choose the initial focus when this dialog opens. */
+		onopen?: () => void;
 		class?: string;
 		children: Snippet;
 	};
-	let { open = $bindable(), label, class: extra, children }: Props = $props();
+	let { open = $bindable(), label, onopen, class: extra, children }: Props = $props();
 
 	let dialog: HTMLDialogElement;
 
@@ -19,7 +21,8 @@
 			// The browser puts the focus on the first thing in it, ringed when the dialog was
 			// opened from the keyboard: a mark on something nobody chose. It starts on the
 			// dialog itself; Tab goes on from there, and shows where it is.
-			dialog.focus();
+			if (onopen) onopen();
+			else dialog.focus();
 		}
 		if (!open && dialog.open) dialog.close();
 	});

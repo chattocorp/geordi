@@ -14,11 +14,12 @@ export function instructionsFor(workspace: {
 	sharesWorktree: boolean;
 	/** Whether it was given a name on purpose already. */
 	named: boolean;
+	manuallyNamed?: boolean;
 	/** Whether it may start agents itself: not when it is nested as deep as agents may go. */
 	mayDelegate: boolean;
 }): string {
 	const { parent } = workspace;
-	if (workspace.project) return projectInstructions();
+	if (workspace.project) return projectInstructions(workspace.manuallyNamed);
 	return [
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi workspace.',
 
@@ -42,7 +43,7 @@ export function instructionsFor(workspace: {
 			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. Prefer it to your own built-in subagents for anything more than a quick lookup.'
 			: 'You cannot start further agents from here.',
 		// one that was started with a name has it from whoever knows what it is for
-		parent && workspace.named
+		workspace.manuallyNamed || (parent && workspace.named)
 			? ''
 			: 'Once you know what the work is about, give this workspace a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name. Do that early, alongside your first steps, and again only if the work turns out to be about something else.',
 		"This workspace has network ports of its own, which stay the same for as long as it lives: `$GEORDI_PORT` is the first of them, `$GEORDI_PORTS` says how many there are, and each of the repository's jobs has its own in `$GEORDI_PORT_<NAME>`. When you start anything that listens on a port (a dev server, a database), use one of these, never a default like 3000 or 5173: other workspaces run the same project next to you.",
@@ -62,7 +63,7 @@ const LINKS =
 	'When you mention a Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.';
 
 /** What the agent of a project is told (FDR-012): it orchestrates Geordi for the person. */
-function projectInstructions(): string {
+function projectInstructions(manuallyNamed = false): string {
 	return [
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi project: a workspace that belongs to no repository, in which the person has you orchestrate their agents: across repositories, or for work that belongs to no branch.',
 		'Your working directory is an empty folder of this project’s own, not a Git repository: for notes, and for anything you fetch to look at. It stays when the project is archived, and is there again when it is restored: keep notes there that are worth having later.',
@@ -72,6 +73,10 @@ function projectInstructions(): string {
 		PICTURES,
 		DIAGRAMS,
 		LINKS,
-		'Once you know what the work is about, give this project a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name.'
-	].join('\n\n');
+		manuallyNamed
+			? ''
+			: 'Once you know what the work is about, give this project a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name.'
+	]
+		.filter(Boolean)
+		.join('\n\n');
 }

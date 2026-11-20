@@ -4,6 +4,7 @@
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { activeOnDay } from '#lib/family.ts';
+	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import Sidebar from './Sidebar.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Sidebar', component: Sidebar });
@@ -340,4 +341,24 @@
 	}}
 >
 	{@render frame(nav, '/repos/sample')}
+</Story>
+
+<Story
+	name="Rename workspace"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.contextMenu(canvas.getByText('Raise light mode text contrast'));
+		await fireEvent.click(await canvas.findByRole('menuitem', { name: 'Rename workspace' }));
+		const field = await canvas.findByRole('textbox', { name: 'Workspace name' });
+		await expect(field).toHaveValue('Raise light mode text contrast');
+		await expect(field).toHaveFocus();
+		await fireEvent.input(field, { target: { value: '  ' } });
+		await expect(canvas.getByRole('button', { name: 'Rename' })).toBeDisabled();
+		await fireEvent.click(canvas.getByRole('button', { name: 'Cancel' }));
+		await expect(canvas.queryByRole('dialog')).toBeNull();
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+	<ContextMenu />
 </Story>
