@@ -79,7 +79,7 @@ export type Dispatch = (message: ForgeMessage) => boolean;
 export const UNTITLED = 'New workspace';
 
 /** How often an agent may name its own workspace. */
-const MAX_NAMES = 3;
+export const MAX_NAMES = 3;
 
 type NewWorkspace = {
 	/** `null` for a project (FDR-012). */
@@ -618,6 +618,7 @@ export function createWorkspaces(
 	 * is for whoever started it, directly or not.
 	 */
 	const agents = {
+		limits,
 		authenticate,
 		isProject,
 		reportWorkspace: (callerId: string, id: string) => report(findFor(callerId, id)),
