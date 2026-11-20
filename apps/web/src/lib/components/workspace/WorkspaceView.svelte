@@ -263,6 +263,21 @@
 	const runnable = $derived(jobs.length > 0 || links.length > 0 || !!config?.problem);
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
+	/** What the Run tab's own button starts or opens: the file's `default` (FDR-006). */
+	const runJob = $derived(jobs.find((job) => config?.default === `jobs.${job.name}`));
+	const runLink = $derived(links.find((link) => config?.default === `urls.${link.name}`));
+	/** The Run tab's own button, where there is a `run` job to start. */
+	function runLive(job: string) {
+		const state = jobState(job);
+		return state === 'running' || state === 'starting';
+	}
+	/** What the Run tab's button does: starts or stops the default job, or opens the default link. */
+	function runDefault() {
+		if (runJob) return runLive(runJob.name) ? stop(runJob.name) : start([runJob.name]);
+		if (runLink) visit(runLink);
+	}
+	const control = (tab: string) =>
+		tab === RUN && (runJob || runLink) && !workspace.archivedAt ? runControl : undefined;
 	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
 	/** A job runs while its terminal is there and its command has not ended in it. */
 	const isUp = (job: string) =>
@@ -416,7 +431,7 @@
 	}
 
 	// A workspace has a terminal to begin with: opened when it is, if it has none, where
-	// there is a directory to open one in. One with things to run begins with those instead.
+	// there is a directory to open one in. The Run tab, where there is one, sits beside it.
 	let begun = false;
 	$effect(() => {
 		// what it has to run is known once its configuration has come, after its changes
@@ -424,8 +439,11 @@
 		if (workspace.archivedAt || !workspace.worktree || worktreeGone) return;
 		begun = true;
 		untrack(() => {
-			if (workspace.terminals.length === 0 && starting.size === 0 && !runnable)
-				arrange({ dock: open(dock, newTerminal(false)) });
+			if (workspace.terminals.length === 0 && starting.size === 0) {
+				// the terminal first, the Run tab after it
+				const withTerminal = open(close(dock, RUN), newTerminal(false));
+				arrange({ dock: exists(RUN) ? add(withTerminal, RUN) : withTerminal });
+			}
 		});
 	});
 
@@ -713,15 +731,49 @@
 
 <svelte:window
 	onkeydown={(event) => {
-		if (!pressed(event, 'toggleSide')) return;
-		event.preventDefault();
-		toggleSide();
+		if (pressed(event, 'toggleSide')) {
+			event.preventDefault();
+			toggleSide();
+		} else if (pressed(event, 'runDefault') && (runJob || runLink) && !workspace.archivedAt) {
+			event.preventDefault();
+			runDefault();
+		}
 	}}
 />
 
 <!-- A count at the end of a tab: nearer the tab's edge than text would be, being a shape itself. -->
 {#snippet count(n: number)}
 	<span class="-mr-1 flex"><Badge>{n}</Badge></span>
+{/snippet}
+
+{#snippet runControl()}
+	{#if runJob}
+		{@const state = jobState(runJob.name)}
+		{@const live = runLive(runJob.name)}
+		{@const name = runJob.label ?? 'the project'}
+		<Button
+			variant="ghost"
+			size="sm"
+			icon={live ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'}
+			working={state === 'starting'}
+			label="{live ? 'Stop' : 'Run'} {name} ({hint('runDefault')})"
+			onclick={runDefault}
+			class={[live && 'hover:text-danger!']}
+		/>
+	{:else if runLink}
+		<!-- as in the Run tab: gold once all it needs runs, and it opens at once -->
+		{@const ready =
+			runLink.needs.length > 0 && runLink.needs.every((job) => jobState(job) === 'running')}
+		<Button
+			variant="ghost"
+			size="sm"
+			icon="icon-[lucide--external-link]"
+			working={runLink.needs.some((job) => jobState(job) === 'starting')}
+			label="Open {runLink.label ?? runLink.name} ({hint('runDefault')})"
+			onclick={runDefault}
+			class={[ready && 'text-accent!']}
+		/>
+	{/if}
 {/snippet}
 
 {#snippet tab(tab: string)}
@@ -1048,6 +1100,7 @@
 					layout={main}
 					onchange={(next) => arrange({ main: next })}
 					{tab}
+					{control}
 					{window}
 					{closable}
 					accepts={movable}
@@ -1076,6 +1129,7 @@
 								layout={layouts.side}
 								onchange={(next) => arrange({ side: next })}
 								{tab}
+								{control}
 								{window}
 								{closable}
 								accepts={movable}
@@ -1090,6 +1144,7 @@
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
 								{tab}
+								{control}
 								{window}
 								{closable}
 								accepts={movable}

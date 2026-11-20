@@ -20,6 +20,8 @@
 		onchange(layout: Layout): void;
 		/** A tab's label. */
 		tab: Snippet<[string]>;
+		/** A control of a tab's own, beside its label, for the tabs that have one. */
+		control?: (tab: string) => Snippet | undefined;
 		/** A tab's content. */
 		window: Snippet<[string]>;
 		/** Names the tab the "+" button of a group opens. Without it, there is no such button. */
@@ -49,6 +51,7 @@
 		layout,
 		onchange,
 		tab,
+		control,
 		window,
 		newTab,
 		closable = () => true,
@@ -147,6 +150,7 @@
 				tabs={n.tabs}
 				current={n.active}
 				{tab}
+				{control}
 				actions={newTab || (actions && groupsOf(layout)[0]?.id === n.id) ? barActions : undefined}
 				onselect={(id) => onchange(open(layout, id))}
 				onclose={(id) => onchange(close(layout, id))}

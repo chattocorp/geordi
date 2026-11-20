@@ -29,11 +29,14 @@ const SAMPLES = {
 			}
 		},
 		{
-			// what the Run menu has to show: links, jobs that keep running, one slow to come
-			// up (with a long name), and one that ends, here in failure: there is no contact page
+			// what the Run tab has to show: links (one the default, for its button), jobs that
+			// keep running, one slow to come up (with a long name), and one that ends, here in
+			// failure: there is no contact page
 			message: 'Run it with Geordi',
 			files: {
-				'.geordi.yml': `jobs:
+				'.geordi.yml': `default: urls.site
+
+jobs:
   web:
     label: Static server
     command: node serve.js

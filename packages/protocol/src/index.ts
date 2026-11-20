@@ -294,6 +294,8 @@ export type Link = {
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
+	/** What the Run tab's own button starts or opens: `default`, else the `run` job. */
+	default?: `jobs.${string}` | `urls.${string}`;
 	jobs: Job[];
 	urls: Link[];
 	/** Run once in a workspace's new worktree, before its agent starts. */
@@ -315,6 +317,10 @@ export type RepoConfig = {
  * parser (`config.ts`) accepts exactly these; a test holds the two together.
  */
 export const CONFIG_SETTINGS = {
+	default: {
+		does: 'The job to start or the URL to open with the button on the Run tab. Use its key, such as `jobs.web` or `urls.app`. Without it, the button starts the `run` job, if there is one.',
+		example: 'default: urls.app'
+	},
 	run: {
 		does: 'The command that runs the project for someone to look at or use: its development server, a desktop app, a game. Short for a single job called `run`. Use this unless the project needs several things running.',
 		example: 'run: pnpm dev --port $PORT'
