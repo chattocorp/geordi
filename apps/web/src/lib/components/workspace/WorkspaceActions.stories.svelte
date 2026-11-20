@@ -228,7 +228,7 @@
 	)}
 </Story>
 
-<Story name="Checks running with slowly rotating icon" asChild>
+<Story name="Checks running" asChild>
 	{@render bar({
 		changes: pushed,
 		upstream: upstream({ checks: { state: 'pending', total: 3, failed: 0, url: null } })
