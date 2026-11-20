@@ -87,33 +87,6 @@ const keys = [
 	{ keys: '⌥⌘R', does: 'Run this workspace’s default action' }
 ];
 
-const opinions = [
-	{
-		title: 'A quiet screen',
-		text: 'Read the conversation and the diff side by side. Colour helps you spot a failed check, a merged pull request, or an agent that needs your attention.'
-	},
-	{
-		title: 'Ask for a plan in the conversation',
-		text: 'Tell the agent to wait for your feedback before it edits. When it shares a checklist, you can follow its progress in the conversation.'
-	},
-	{
-		title: 'Two permission modes',
-		text: "Full Access or Auto Mode, chosen per workspace. There's no mode where you have to approve every single tool call."
-	},
-	{
-		title: 'No built-in browser',
-		text: 'Project previews and external links open in your browser. Follow a file link in the conversation to inspect the code in Geordi.'
-	},
-	{
-		title: 'Claude and Codex, side by side',
-		text: 'Pick the agent, model and effort for each workspace, and mix them in one project. Geordi runs the agents you already have.'
-	},
-	{
-		title: 'It runs on your machine',
-		text: 'Geordi runs on your computer and keeps your conversation history there. You don’t need a Geordi account.'
-	}
-];
-
 const steps = [
 	{
 		title: 'Install Claude Code or Codex and sign in',
@@ -326,17 +299,18 @@ const steps = [
 	</div>
 
 	<section class="sheet-quiet sheet-pad">
-		<h2 class="max-w-2xl text-headline font-semibold text-balance">
-			A few things we decided on purpose
-		</h2>
-		<dl class="mt-10 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-			{opinions.map((opinion) => (
-				<div>
-					<dt class="heading">{opinion.title}</dt>
-					<dd class="mt-1.5 text-pretty text-muted">{opinion.text}</dd>
-				</div>
-			))}
-		</dl>
+		<div class="max-w-2xl">
+			<h2 class="text-headline font-semibold text-balance">Hand off a bug while it’s fresh</h2>
+			<p class="mt-4 text-pretty text-muted">
+				A menu opens off the edge of the screen. Drop a screenshot into a workspace and ask Claude
+				to fix it. Found another way to trigger it? Send the steps while Claude works, then queue a
+				follow-up to add a regression test.
+			</p>
+			<p class="mt-4 text-pretty text-muted">
+				Switch back to your own work. When the agent finishes, click its notification to go straight
+				to the conversation and review the fix.
+			</p>
+		</div>
 	</section>
 
 	<section id="install" class="grid gap-10 sheet sheet-pad lg:grid-cols-2 lg:gap-16">
