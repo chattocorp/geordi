@@ -1,22 +1,48 @@
 <script lang="ts">
-	let { text, line }: { text: string; line?: number } = $props();
+	import { highlightFile } from '#lib/highlightFile.ts';
+
+	let { path, text, line }: { path: string; text: string; line?: number } = $props();
 	const lines = $derived(text.replace(/\r?\n$/, '').split(/\r?\n/));
 	const selected = $derived(line !== undefined && line >= 1 && line <= lines.length);
+	const highlighted = $derived(highlightFile(path, text, selected ? line : undefined));
 </script>
 
 <div class="scroller p-4">
 	{#if line !== undefined && !selected}
 		<p class="mb-2 text-sm text-muted">Line {line} is outside this file.</p>
 	{/if}
-	{#if selected && line}
-		<pre class="code-dense">{line > 1 ? lines.slice(0, line - 1).join('\n') + '\n' : ''}<mark
-				class="bg-accent-soft text-accent-ink"
-				aria-label={`Line ${line}`}
+	{#snippet plain()}
+		{#if selected && line}
+			<pre class="code-dense">{line > 1 ? lines.slice(0, line - 1).join('\n') + '\n' : ''}<mark
+					class="bg-accent-soft text-accent-ink"
+					aria-label={`Line ${line}`}
+					{@attach (node) => {
+						node.scrollIntoView({ block: 'center', inline: 'nearest' });
+					}}>{lines[line - 1] || ' '}</mark
+				>{line < lines.length ? '\n' + lines.slice(line).join('\n') : ''}</pre>
+		{:else}
+			<pre class="code-dense">{text}</pre>
+		{/if}
+	{/snippet}
+	{#await highlighted}
+		{@render plain()}
+	{:then html}
+		{#if html}
+			<div
+				class="code-dense"
 				{@attach (node) => {
-					node.scrollIntoView({ block: 'center', inline: 'nearest' });
-				}}>{lines[line - 1] || ' '}</mark
-			>{line < lines.length ? '\n' + lines.slice(line).join('\n') : ''}</pre>
-	{:else}
-		<pre class="code-dense">{text}</pre>
-	{/if}
+					void html;
+					node.querySelector('mark')?.scrollIntoView({ block: 'center', inline: 'nearest' });
+				}}
+			>
+				<!-- Shiki escapes source text before it adds token markup. -->
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				{@html html}
+			</div>
+		{:else}
+			{@render plain()}
+		{/if}
+	{:catch}
+		{@render plain()}
+	{/await}
 </div>
