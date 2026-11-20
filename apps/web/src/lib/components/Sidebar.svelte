@@ -66,6 +66,46 @@
 		filterInput.focus();
 		filterInput.select();
 	}
+	let results: HTMLDivElement;
+	function navigateResults(event: KeyboardEvent) {
+		if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+			return;
+		const fromInput = event.target === filterInput;
+		if (event.key === 'Escape' && (fromInput || results.contains(event.target as Node))) {
+			filter = '';
+			filterInput.focus();
+			return;
+		}
+		if (
+			event.key !== 'ArrowDown' &&
+			event.key !== 'ArrowUp' &&
+			!(fromInput && event.key === 'Enter')
+		)
+			return;
+		const links = Array.from(results.querySelectorAll('[data-filter-result]'), (row) =>
+			row.querySelector('a')!
+		).filter(Boolean);
+		const index = links.indexOf(event.target as HTMLAnchorElement);
+		if (!fromInput && index === -1) return;
+		event.preventDefault();
+		if (event.key === 'Enter') links[0]?.click();
+		else if (event.key === 'ArrowDown') links[Math.min(index + 1, links.length - 1)]?.focus();
+		else if (fromInput) links.at(-1)?.focus();
+		else (links[index - 1] ?? filterInput).focus();
+	}
+	const emptyRepos = $derived(
+		filtering
+			? (nav?.repos ?? []).filter(
+					(repo) =>
+						repo.workspaceCount === 0 &&
+						filter
+							.trim()
+							.toLowerCase()
+							.split(/\s+/)
+							.every((term) => repo.name.toLowerCase().includes(term))
+				)
+			: []
+	);
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
 	/**
@@ -309,27 +349,34 @@
 </Dialog>
 
 <div class="flex min-h-0 flex-1 flex-col sheet-quiet select-none">
-	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">
+	<!-- The navigation delegates arrow keys from the search field and result links. -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<nav class="flex min-h-0 flex-1 flex-col gap-2 p-2" aria-label="Main" onkeydown={navigateResults}>
 		{@render link(resolve('/'), 'icon-[lucide--plus]', 'New workspace', path === '/')}
 
-		<input
-			type="search"
-			class="w-full input text-sm"
-			placeholder="Filter sidebar"
-			aria-label="Filter sidebar"
-			title={`Filter sidebar (${hint('filterSidebar')})`}
-			bind:value={filter}
-			bind:this={filterInput}
-			onkeydown={(event) => {
-				if (event.key === 'Escape') filter = '';
-			}}
-		/>
+		<label
+			class="mx-1 flex h-8 shrink-0 items-center gap-2 rounded-control bg-sunken/70 px-2 text-muted focus-within:bg-surface focus-within:ring-1 focus-within:ring-muted/50"
+		>
+			<span class="icon-[lucide--search] size-4 shrink-0"></span>
+			<input
+				type="search"
+				class="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-muted focus-visible:outline-none"
+				placeholder="Filter sidebar"
+				aria-label="Filter sidebar"
+				title={`Filter sidebar (${hint('filterSidebar')})`}
+				bind:value={filter}
+				bind:this={filterInput}
+			/>
+			{#if !filter}<kbd aria-hidden="true" class="shrink-0 font-sans text-xs text-muted"
+					>{hint('filterSidebar')}</kbd
+				>{/if}
+		</label>
 
 		<!--
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
 		-->
-		<div>
+		<div bind:this={results} class="scroller min-h-0 flex-1 overflow-y-auto pt-1">
 			{#each groups as repo (repo.id ?? PROJECTS)}
 				{@const all = listed.get(repo.id) ?? []}
 				{@const rows = unfolded(all, visibleFolds)}
@@ -404,7 +451,24 @@
 					{/if}
 				</div>
 			{/each}
-			{#if filtering && !groups.length}<p class="px-2 text-sm text-muted">No matches</p>{/if}
+			{#each emptyRepos as repo (repo.id)}
+				<div data-filter-result>
+					<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved home with the selected repository -->
+					<a
+						href={`${resolve('/')}?repo=${repo.id}`}
+						class="item gap-2 px-1.5 py-1 text-sm focus-visible:-outline-offset-2"
+						title={`New workspace in ${repo.name}`}
+					>
+						<RepoIcon id={repo.id} /><span class="min-w-0 flex-1 truncate">{repo.name}</span><span
+							class="icon-[lucide--plus] size-4 text-muted"
+						></span>
+					</a>
+					<!-- eslint-enable svelte/no-navigation-without-resolve -->
+				</div>
+			{/each}
+			{#if filtering && !groups.length && !emptyRepos.length}<p class="px-2 text-sm text-muted">
+					No matches
+				</p>{/if}
 			<!-- with one repository shown alone, the others wait here, out of the way -->
 			{#if hidden > 0}
 				<button
@@ -454,8 +518,10 @@
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
 	<li
+		data-filter-result={leaving ? undefined : true}
 		style:margin-inline-start="calc(var(--spacing) * {3 * depth})"
 		class={[
+			'sidebar-result',
 			dropBefore === workspace.id && 'row-drop-before',
 			dragged?.repoId === workspace.repoId &&
 				dropBefore === null &&

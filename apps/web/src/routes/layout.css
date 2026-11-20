@@ -290,6 +290,15 @@
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
+/* Keep keyboard focus inside the scroll area and mark the full workspace row. */
+@utility sidebar-result {
+	& > .item:has(> a:focus-visible) {
+		@apply bg-surface text-ink ring-1 ring-muted ring-inset;
+	}
+	& > .item > a:focus-visible {
+		@apply outline-none;
+	}
+}
 @utility tab-inactive {
 	color: color-mix(in srgb, var(--muted) 80%, var(--ink));
 }

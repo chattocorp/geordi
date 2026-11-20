@@ -382,6 +382,19 @@
 		await fireEvent.input(field, { target: { value: 'sample-project' } });
 		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
 		await expect(canvas.queryByText('Projects')).toBeNull();
+		await fireEvent.keyDown(field, { key: 'ArrowDown' });
+		const parser = canvas.getByRole('link', { name: /Try out the new parser/ });
+		await expect(parser).toHaveFocus();
+		await fireEvent.keyDown(parser, { key: 'ArrowDown' });
+		await expect(canvas.getByRole('link', { name: /A title that is far too long/ })).toHaveFocus();
+		await fireEvent.input(field, { target: { value: 'parser SAMPLE' } });
+		await expect(parser).toBeVisible();
+		await expect(canvas.queryByText(/A title that is far too long/)).toBeNull();
+		await fireEvent.input(field, { target: { value: 'no-workspaces' } });
+		await expect(canvas.getByRole('link', { name: 'no-workspaces' })).toHaveAttribute(
+			'href',
+			'/?repo=idle'
+		);
 		await fireEvent.input(field, { target: { value: 'no such title' } });
 		await expect(canvas.getByText('No matches')).toBeVisible();
 		await fireEvent.keyDown(field, { key: 'Escape' });

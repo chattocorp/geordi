@@ -28,13 +28,13 @@ export function matchingWorkspaces<T extends { title: string; repoId: string | n
 ) {
 	const query = filter.trim().toLowerCase();
 	if (!query) return workspaces;
-	const matchingRepos = new Set(
-		repos.filter((repo) => repo.name.toLowerCase().includes(query)).map((repo) => repo.id)
-	);
-	return workspaces.filter(
-		(w) =>
-			w.title.toLowerCase().includes(query) || (w.repoId !== null && matchingRepos.has(w.repoId))
-	);
+	const terms = query.split(/\s+/);
+	const names = new Map(repos.map((repo) => [repo.id, repo.name]));
+	return workspaces.filter((workspace) => {
+		const repo = workspace.repoId === null ? 'Projects' : (names.get(workspace.repoId) ?? '');
+		const name = `${repo} ${workspace.title}`.toLowerCase();
+		return terms.every((term) => name.includes(term));
+	});
 }
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */
