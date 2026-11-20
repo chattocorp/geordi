@@ -1,5 +1,5 @@
 import type { Agent, AgentEvent } from '@geordi/protocol';
-import type { WorkspacesEvent } from './workspaces.ts';
+import type { WorkspacesEvent } from './workspace-projection.ts';
 
 /**
  * Events as they were written before a workspace had exactly one conversation: sessions
