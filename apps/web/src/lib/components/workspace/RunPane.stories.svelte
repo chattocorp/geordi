@@ -83,7 +83,11 @@
 		await expect(canvas.getByText('localhost:20000')).toBeVisible();
 		await userEvent.click(canvas.getByTitle('Show the output of Static server'));
 		await expect(canvas.getByText('Show: web')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Stop Static server' }));
+		const stopWeb = canvas.getByRole('button', { name: 'Stop Static server' });
+		await userEvent.tab({ shift: true });
+		await expect(stopWeb).toHaveFocus();
+		await expect(stopWeb.querySelector('.text-danger')).toBeVisible();
+		await userEvent.click(stopWeb);
 		await expect(canvas.getByText('Stop: web')).toBeVisible();
 		await userEvent.click(startDocs);
 		await expect(canvas.getByText('Start: docs')).toBeVisible();

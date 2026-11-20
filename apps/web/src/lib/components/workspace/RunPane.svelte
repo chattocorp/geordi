@@ -138,7 +138,7 @@
 								'size-3.5',
 								state !== 'stopped' &&
 									'hidden group-hover/job:block group-focus-visible/mark:block',
-								live(state) ? 'icon-[lucide--circle-stop]' : 'icon-[lucide--play]'
+								live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
 							]}
 						></span>
 					</button>
