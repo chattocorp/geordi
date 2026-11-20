@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PullCheck, PullRequest } from '@geordi/protocol';
+	import { persisted } from './persisted.svelte.ts';
 	import { duration } from './duration.ts';
 	import { describeChecks } from './checks.ts';
 
@@ -60,9 +61,7 @@
 			.map(([status, checks]) => `${checks!.length} ${status}`)
 			.join(', ');
 	});
-	const active = $derived(sorted.some((c) => c.state === 'failure' || c.state === 'pending'));
-	let expanded = $state<boolean>();
-	const show = $derived(expanded ?? active);
+	const expanded = persisted('geordi:checks-expanded', false);
 </script>
 
 <section aria-label="Checks" class="space-y-1 rounded-card bg-surface p-2">
@@ -70,13 +69,16 @@
 		{#if sorted.length}
 			<button
 				type="button"
-				aria-expanded={show}
-				onclick={() => (expanded = !show)}
+				aria-expanded={expanded.current}
+				onclick={() => (expanded.current = !expanded.current)}
 				class="flex min-w-0 flex-1 items-center gap-2 rounded-control px-2 py-1 text-left hover:bg-hover"
 			>
 				<span
 					aria-hidden="true"
-					class={['icon-[lucide--chevron-right] size-4 shrink-0 text-muted', show && 'rotate-90']}
+					class={[
+						'icon-[lucide--chevron-right] size-4 shrink-0 text-muted',
+						expanded.current && 'rotate-90'
+					]}
 				></span>
 				<span class="text-sm font-medium">Checks</span>
 				<span class="text-xs text-muted">{sorted.length}</span>
@@ -113,7 +115,7 @@
 				></span>{/each}
 		</div>
 	</div>
-	{#if show && sorted.length}
+	{#if expanded.current && sorted.length}
 		<ul class="max-h-80 overflow-y-auto" {@attach ticking ? tick : undefined}>
 			{#each sorted as check (check.id)}
 				<li>

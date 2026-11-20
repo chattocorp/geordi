@@ -40,7 +40,7 @@
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
 	import { getRibbonPosition } from '#lib/components/settings.svelte.ts';
-	import { persisted } from '#lib/persisted.svelte.ts';
+	import { persisted } from '@geordi/ui/persisted';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '@geordi/ui/Badge.svelte';
