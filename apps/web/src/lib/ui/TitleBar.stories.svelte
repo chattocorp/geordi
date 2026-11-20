@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { expect, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Segmented from './Segmented.svelte';
 	import Badge from '@geordi/ui/Badge.svelte';
@@ -32,7 +33,16 @@
 	</div>
 </Story>
 
-<Story name="Action ribbon position" asChild>
+<Story
+	name="Action ribbon position"
+	asChild
+	play={async ({ canvasElement }) => {
+		const bar = within(canvasElement).getByRole('banner');
+		await expect(bar.getBoundingClientRect().height).toBe(
+			parseFloat(getComputedStyle(bar).minHeight)
+		);
+	}}
+>
 	<Segmented
 		label="Action ribbon position"
 		bind:value={position}
@@ -41,7 +51,7 @@
 			{ value: 'window', label: 'Window' }
 		]}
 	/>
-	<div class="bg-frame">
+	<div class="min-w-2xl bg-frame">
 		<TitleBar contentWidth={position === 'pane' ? 480 : undefined}>
 			<div class="min-w-0">
 				<h1 class="truncate heading">Return people after sign-in</h1>
