@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '@xterm/xterm/css/xterm.css';
-	import type { ITheme } from '@xterm/xterm';
+	import type { ITheme, Terminal } from '@xterm/xterm';
 	import type { Attachment } from 'svelte/attachments';
 	import { startTerminal, terminalInput, terminalResize } from '../../../routes/workspaces.remote';
 	import { followTerminal } from '#lib/live.svelte.ts';
@@ -11,12 +11,20 @@
 		terminal: string;
 		/** Whether the user just asked for this terminal: start its shell right away. */
 		start: boolean;
-		/** Focus a terminal opened with + once its input is ready. */
+		/** Focus the input as soon as it is ready. */
 		autofocus?: boolean;
 		onautofocus?: () => void;
 		ontitle?: (title: string) => void;
 	};
 	let { workspaceId, terminal, start, autofocus = false, onautofocus, ontitle }: Props = $props();
+
+	let ready = $state.raw<Terminal>();
+	$effect(() => {
+		if (ready && autofocus) {
+			ready.focus();
+			onautofocus?.();
+		}
+	});
 
 	/** xterm paints its own colours; take them from our tokens. */
 	function theme(node: HTMLElement): ITheme {
@@ -58,10 +66,7 @@
 			term.onTitleChange((title) => ontitle?.(title.trim()));
 			term.open(node);
 			fit.fit();
-			if (autofocus) {
-				term.focus();
-				onautofocus?.();
-			}
+			ready = term;
 
 			// Output: recent scrollback first (again after every reconnect), then live.
 			// Old output may contain questions to the terminal (e.g. "what are you?") that
@@ -122,6 +127,7 @@
 				unfollow();
 				resized.disconnect();
 				themed.disconnect();
+				ready = undefined;
 				term.dispose();
 			};
 		});

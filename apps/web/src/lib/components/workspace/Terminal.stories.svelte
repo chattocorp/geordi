@@ -6,6 +6,10 @@
 	const { Story } = defineMeta({ title: 'Geordi/Terminal', component: Terminal });
 </script>
 
+<script lang="ts">
+	let requested = $state(false);
+</script>
+
 <Story
 	name="New terminal receives focus"
 	asChild
@@ -23,18 +27,28 @@
 </Story>
 
 <Story
-	name="Existing terminal leaves focus alone"
+	name="Existing terminal takes focus on request"
 	asChild
-	play={async ({ canvasElement }) => {
-		await waitFor(() => {
+	play={async ({ canvasElement, canvas, userEvent }) => {
+		const input = await waitFor(() => {
 			const input = canvasElement.querySelector('.xterm-helper-textarea');
 			expect(input).not.toBeNull();
 			expect(input).not.toHaveFocus();
+			return input;
 		});
+		await userEvent.click(canvas.getByRole('button', { name: 'Focus terminal' }));
+		await waitFor(() => expect(input).toHaveFocus());
 	}}
 >
 	<div class="flex h-64 flex-col bg-bg">
-		<Terminal workspaceId="story" terminal="existing" start={false} />
+		<button onclick={() => (requested = true)}>Focus terminal</button>
+		<Terminal
+			workspaceId="story"
+			terminal="existing"
+			start={false}
+			autofocus={requested}
+			onautofocus={() => (requested = false)}
+		/>
 	</div>
 </Story>
 
