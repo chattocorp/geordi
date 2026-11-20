@@ -399,7 +399,7 @@
 									{/if}
 								{/each}
 								{#if ending && last?.kind !== 'text'}
-									<div class="-mt-2">{@render byline(ending.reply, '', ending.latest)}</div>
+									<div>{@render byline(ending.reply, '', ending.latest)}</div>
 								{/if}
 							</AgentMessage>
 						{/if}

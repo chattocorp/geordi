@@ -10,7 +10,7 @@
 			<p class="whitespace-pre-wrap">{text}</p>
 		</div>{/if}
 	{#if footer}
-		<div class="mt-1">{@render footer()}</div>
+		<div class="mt-3">{@render footer()}</div>
 	{:else if text}
 		<div
 			class="mt-1 flex items-center gap-1 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover/part:opacity-100 pointer-fine:focus-within:opacity-100"
