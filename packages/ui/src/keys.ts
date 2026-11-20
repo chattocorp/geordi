@@ -43,6 +43,12 @@ export const shortcuts = {
 		label: 'Toggle changes and terminals',
 		group: 'Workspace'
 	},
+	runDefault: {
+		code: 'Enter',
+		alt: true,
+		label: 'Open or start the workspace default',
+		group: 'Workspace'
+	},
 	queue: { key: 'Enter', label: 'Queue a message for when the agent is done', group: 'Workspace' },
 	model: { code: 'KeyM', shift: true, label: 'Choose the model', group: 'Workspace' },
 	effort: { code: 'KeyE', shift: true, label: 'Choose the effort', group: 'Workspace' }

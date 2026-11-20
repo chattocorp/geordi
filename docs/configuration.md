@@ -48,8 +48,13 @@ and should keep running until stopped.
 it mentions (and any under its `needs`) and waits for them. Only addresses on this
 machine (`localhost`).
 
-Choose a link from **Open** in the workspace dock. Choose a job from **Start** to see its
-terminal. When a link and a job share a key, the terminal also offers a shortcut to open the link.
+**`default`** selects the primary dock action by key, for example `urls.app` or `jobs.web`.
+Without this setting, Geordi uses the first URL, or the first job when there are no URLs.
+Click the named button or press **Option+Command+Enter** on Mac (**Ctrl+Alt+Enter** elsewhere).
+If the default job is already running, this shows its terminal.
+
+The chevron lists links first, then jobs. When a link and a job share a key, the terminal
+also offers a shortcut to open the link.
 
 ## Ports
 

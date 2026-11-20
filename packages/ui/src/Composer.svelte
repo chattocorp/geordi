@@ -12,7 +12,7 @@
 	import type { Attachment } from 'svelte/attachments';
 	import type { HTMLFormAttributes, HTMLTextareaAttributes } from 'svelte/elements';
 	import Button from './Button.svelte';
-	import { submitOnEnter } from './keys.ts';
+	import { pressed, submitOnEnter } from './keys.ts';
 	import {
 		completionQuery,
 		fileMention,
@@ -236,6 +236,7 @@
 	}
 
 	function keydown(event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
+		if (pressed(event, 'runDefault')) return;
 		const plainKey = !event.isComposing && !event.altKey && !event.metaKey && !event.ctrlKey;
 		if (offered && plainKey && event.key === 'Tab' && !event.shiftKey) {
 			event.preventDefault();

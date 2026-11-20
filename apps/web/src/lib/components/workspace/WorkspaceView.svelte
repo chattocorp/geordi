@@ -1109,6 +1109,8 @@
 								newLabel="New terminal"
 							>
 								{#snippet actions()}<DockMenus
+										target={config?.default}
+										{show}
 										{jobs}
 										{links}
 										stateOf={jobState}

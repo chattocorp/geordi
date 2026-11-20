@@ -15,7 +15,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - `run: pnpm dev` names the one command that runs the project. It is short for a single job called `run`.
 - `jobs:` names several, each under its name: each has a `command`, and may list the jobs it `needs`.
 - `urls:` names places to open, each under its name: each has a `url`, in which `{job}` stands for that job's port. A link needs the jobs it mentions, and any it lists under `needs`. Links only lead to this machine (`localhost`).
-- Jobs and links may have an optional human-readable `label`, shown in Start and Open menus and command reviews. Without a label, the key is shown. Labels do not change dependencies, assigned ports, command approvals or terminal identities. This lets repositories use readable names without breaking references.
+- Jobs and links may have an optional human-readable `label`, shown in the dock menu and command reviews. Without a label, the key is shown. Labels do not change dependencies, assigned ports, command approvals or terminal identities. This lets repositories use readable names without breaking references.
 - `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No job can be called `setup` or `teardown`.
 - A workspace gets one port per job. `ports: 20` asks for that many instead, for spare ones. (Where a repository names no jobs, a workspace gets ten.)
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). They are not merged. So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.
@@ -34,7 +34,8 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ### Running
 
-- The dock shows **Open** when the repository has links and **Start** when it has jobs, including before the first terminal opens. Select a link to open it in the browser. Select a job to start it and show its terminal. The Start menu also offers bulk start and stop actions when applicable. Configuration errors appear in the dock.
+- The primary dock button opens the default link or starts the default job. Its label names the action and target. For a running default job it shows the terminal. Option+Command+Enter on Mac, or Ctrl+Alt+Enter elsewhere, performs the same action.
+- The repository can set `default` to a URL or job key such as `urls.app` or `jobs.web`. Otherwise the first URL takes precedence, followed by the first job. When there are several choices, the chevron opens one menu with links first, a separator, and jobs below. Bulk start and stop actions appear when applicable. Configuration errors appear in the dock.
 - Each job runs in its own terminal in the workspace directory. Its tab shows a terminal icon, the job label and its status. A gold dot means the job is running. In the terminal you can stop the job, start an ended job again, or open a link with the same configuration name.
 - A job starts only while its port is free. When another program has it, the job does not start: its tab says that port N is in use, and by what (where `lsof` can tell); starting it, what needs it, or a link that needs it fails with the same words. The job keeps its port; it is the other program that has to go.
 - Starting a job first starts the jobs it needs, each once the ones before it are up. A job is up when something listens on its port. One that never does (a desktop app, a game) is taken to be up after half a minute, if it still runs.
@@ -144,8 +145,8 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 **Why:** YAML is what the projects Geordi is used on already configure things in, and what their people and agents write without looking anything up. Reading TOML on costs a few lines and breaks nobody's repository.
 **Tradeoff:** Two parsers, and a file that can be there twice: the YAML one counts, and the other is silently not looked at.
 
-### 13. Open and Start in the dock
+### 13. One primary action and one menu
 
-**Decision:** Give links and jobs separate menus beside the terminal tabs.
-**Why:** People clicked the Run tab expecting to start something, and the play icon on a job tab looked like a launcher. The menu labels describe actions. The terminal icon identifies the output you can read.
-**Tradeoff:** Browsing all available jobs and links takes two menus.
+**Decision:** Name the default action on a dock button and put the other options in an adjacent menu.
+**Why:** One click or shortcut opens the usual target. The button label shows what will happen. Tabs use terminal icons so selecting output is distinct from launching a job.
+**Tradeoff:** Other targets take a second click.

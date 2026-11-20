@@ -292,6 +292,7 @@ export type Link = {
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
+	default?: `jobs.${string}` | `urls.${string}`;
 	jobs: Job[];
 	urls: Link[];
 	/** Run once in a workspace's new worktree, before its agent starts. */
@@ -308,11 +309,26 @@ export type RepoConfig = {
 	file: string | null;
 };
 
+/** Which target the dock opens or starts. */
+export function defaultAction({
+	default: target,
+	urls,
+	jobs
+}: Pick<RepoConfig, 'default' | 'urls' | 'jobs'>) {
+	if (target) return { default: target, defaultSource: 'configured' };
+	if (urls.length) return { default: `urls.${urls[0].name}` as const, defaultSource: 'first URL' };
+	if (jobs.length) return { default: `jobs.${jobs[0].name}` as const, defaultSource: 'first job' };
+}
+
 /**
  * What a `.geordi.yml` can say, for agents to read (`configuration_reference`). The daemon's
  * parser (`config.ts`) accepts exactly these; a test holds the two together.
  */
 export const CONFIG_SETTINGS = {
+	default: {
+		does: 'The job or URL for the primary dock button and its shortcut. Use its key, such as `jobs.web` or `urls.app`. Without a default, Geordi selects the first URL, or the first job if there are no URLs.',
+		example: 'default: urls.app'
+	},
 	run: {
 		does: 'The command that runs the project for someone to look at or use: its development server, a desktop app, a game. Short for a single job called `run`. Use this unless the project needs several things running.',
 		example: 'run: pnpm dev --port $PORT'

@@ -1,7 +1,7 @@
 <script module lang="ts">
-	import { expect, userEvent, within } from 'storybook/test';
+	import { expect, fireEvent, userEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { Job, Link } from '@geordi/protocol';
+	import type { Job, Link, RepoConfig } from '@geordi/protocol';
 	import type { JobState } from './JobMark.svelte';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import DockMenus from './DockMenus.svelte';
@@ -50,9 +50,11 @@
 	let last = $state('No action');
 </script>
 
-{#snippet menus(jobs: Job[], links: Link[])}
+{#snippet menus(jobs: Job[], links: Link[], target?: RepoConfig['default'])}
 	<div class="pane-bar justify-end sheet-quiet px-2">
 		<DockMenus
+			{target}
+			show={(name) => (last = `Showed ${name}`)}
 			{jobs}
 			{links}
 			stateOf={(name) => states[name]}
@@ -70,14 +72,38 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole('button', { name: 'Open' }));
-		await userEvent.click(canvas.getByRole('menuitem', { name: 'Site' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Open Site' }));
+
 		await expect(canvas.getByText('Opened site')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Start' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Open and start menu' }));
+		await expect(
+			canvas
+				.getAllByRole('menuitem')
+				.slice(0, 2)
+				.map((item) => item.textContent?.trim())
+		).toEqual(['Site', 'About page']);
 		await expect(canvas.getByRole('menuitem', { name: 'Static server' })).toBeDisabled();
-		await userEvent.click(canvas.getByRole('menuitem', { name: 'Documentation' }));
+		await fireEvent.click(canvas.getByRole('menuitem', { name: 'Documentation' }));
 		await expect(canvas.getByText('Started docs')).toBeVisible();
 	}}>{@render menus(jobs, links)}</Story
 >
 <Story name="Only links" asChild>{@render menus([], links)}</Story>
 <Story name="Only jobs" asChild>{@render menus(jobs, [])}</Story>
+
+<Story
+	name="Configured default job"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Start Documentation' })).toBeVisible();
+		const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+		await fireEvent.keyDown(window, {
+			key: 'Enter',
+			code: 'Enter',
+			altKey: true,
+			metaKey: mac,
+			ctrlKey: !mac
+		});
+		await expect(canvas.getByText('Started docs')).toBeVisible();
+	}}>{@render menus(jobs, links, 'jobs.docs')}</Story
+>
