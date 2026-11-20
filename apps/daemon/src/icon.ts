@@ -5,8 +5,8 @@ import type { RepoIcon } from '@geordi/protocol';
 
 /**
  * A picture that stands for a repository, as the repository itself has one: the favicon of
- * the app in it, or a logo. Found among its tracked files, by name; the best name wins,
- * then the file nearest the top.
+ * the app in it, or a logo. Found among its tracked files, by name; the file nearest the root wins,
+ * then the best name.
  */
 
 /** What such a picture is called, the likeliest first, and what it is served as. */
@@ -34,7 +34,7 @@ export function pickIcon(paths: string[]): { path: string; type: string } | null
 			const rank = NAMES.findIndex(([name]) => name === base);
 			return rank < 0 ? [] : [{ path, type: NAMES[rank][1], rank, depth: path.split('/').length }];
 		})
-		.sort((a, b) => a.rank - b.rank || a.depth - b.depth || a.path.localeCompare(b.path));
+		.sort((a, b) => a.depth - b.depth || a.rank - b.rank || a.path.localeCompare(b.path));
 	const [best] = ranked;
 	return best ? { path: best.path, type: best.type } : null;
 }
