@@ -1,5 +1,74 @@
 # Geordi Changelog
 
+## 0.8.0-beta.1
+
+### Fixes
+
+- When you share the Geordi website, the preview shows a shorter description and a 1200 × 630 image with the download address. ([#272](https://github.com/chattocorp/geordi/pull/272))
+- The edit pen now sits in line with the last word of a suggested reply when the text wraps. ([#277](https://github.com/chattocorp/geordi/pull/277))
+- In the sidebar, every workspace's state now shows the same way: one icon in a circle of its colour, on the right of the row. That includes the question mark of an agent waiting for your answer and the ring of running checks. ([#286](https://github.com/chattocorp/geordi/pull/286))
+- Combined folder paths in your changes tree now use the same colors and shortening as the flat list, keeping the last folder name visible as space permits. ([#297](https://github.com/chattocorp/geordi/pull/297))
+- The sidebar stays in place when you switch from New workspace to an existing workspace. The workspace title bar stays on one row as you resize the window. Status labels give way to icons first, followed by action labels. ([#326](https://github.com/chattocorp/geordi/pull/326))
+- Every folder name in a combined path now uses the same muted color in the Changes tree. ([#301](https://github.com/chattocorp/geordi/pull/301))
+- Your sidebar shows what each workspace is doing. A green merge, red wrench, or purple archive icon animates while the action runs. You can also see agent turns and running jobs. ([#273](https://github.com/chattocorp/geordi/pull/273))
+- The Changes tab now uses the same 15px proportional type as other lists. ([#294](https://github.com/chattocorp/geordi/pull/294))
+- Geordi no longer lets a second copy of itself run on the same data, for example `npx geordi` on another port while the app is open. The second one stops at once and says why, instead of quietly mixing up both histories. ([#314](https://github.com/chattocorp/geordi/pull/314))
+- The sidebar shows a workspace as merging while its pull request waits to be auto-merged, as it does while Geordi merges it directly. ([#288](https://github.com/chattocorp/geordi/pull/288))
+- You can merge a pull request when GitHub permits it, and the workspace shows when optional checks are still running. ([#321](https://github.com/chattocorp/geordi/pull/321))
+- You can open a workspace when a file is recreated after its deletion was staged. Changes shows the difference from the base version once. ([#327](https://github.com/chattocorp/geordi/pull/327))
+- Before you archive a workspace, a short list summarizes any unfinished work and running processes across its workspaces. ([#274](https://github.com/chattocorp/geordi/pull/274))
+- You can merge a pull request without an extra confirmation when the same next version is already planned. ([#278](https://github.com/chattocorp/geordi/pull/278))
+- A clean workspace keeps its gray Archive button in the ribbon and leaves the sidebar status empty. ([#317](https://github.com/chattocorp/geordi/pull/317))
+- While a workspace is being archived, restored or moved to a new branch, Geordi no longer lets anyone start an agent in its worktree or give one in it something to do, and it says why. ([#296](https://github.com/chattocorp/geordi/pull/296))
+- Draft pull requests no longer show a pencil in the sidebar and workspace bar. ([#291](https://github.com/chattocorp/geordi/pull/291))
+- Workspace titles and actions now fit on separate rows when your screen is narrow. ([#281](https://github.com/chattocorp/geordi/pull/281))
+- Select the question icon in your sidebar, overview, or workspace header to go straight to the agent’s question. ([#295](https://github.com/chattocorp/geordi/pull/295))
+- Your repository icon now comes from the matching file closest to the repository root. ([#268](https://github.com/chattocorp/geordi/pull/268))
+- A turn's changes now include an edit that leaves a file the same size, made within a second of Git's last update to the index. ([#267](https://github.com/chattocorp/geordi/pull/267))
+- Workspace status icons now appear without a circle background, so you can distinguish them from actions. ([#295](https://github.com/chattocorp/geordi/pull/295))
+- Sync now applies incoming commits directly when Git can preserve your local edits. The sidebar shows the Braille spinner whenever your agent is working, including during Sync. ([#322](https://github.com/chattocorp/geordi/pull/322))
+- Jobs now start in the background. Use the terminal icon in the Run pane to open their output. You can close and reopen the tab while the job keeps running. ([#330](https://github.com/chattocorp/geordi/pull/330))
+- When another program already uses one of your job's ports, Geordi no longer takes it for your job and opens that program from your links: the job doesn't start, its terminal says which port is in use and by what, and starting it, or opening a link that needs it, tells you so. New workspaces are also no longer given ports that something on `127.0.0.1` or `::1` already listens on. ([#304](https://github.com/chattocorp/geordi/pull/304))
+- The Run panel shows URLs and ports when you point to a row or focus it with the keyboard.
+  Stopped jobs show a muted play icon that you can click to start them.
+  The Stop icon appears in red when you hover over a running job or focus its control. ([#311](https://github.com/chattocorp/geordi/pull/311))
+- Your sidebar shows workspace activity and Git status even when a background job is running. ([#282](https://github.com/chattocorp/geordi/pull/282))
+- The pending checks icon in your workspace ribbon stays still when you use reduced motion. ([#329](https://github.com/chattocorp/geordi/pull/329))
+- The edit pencil now lines up with the last line of your suggested reply. ([#309](https://github.com/chattocorp/geordi/pull/309))
+- Type a filename after @ to see suggestions. The file list stays steady as you refine your search. ([#269](https://github.com/chattocorp/geordi/pull/269))
+- Your sidebar shows check progress while auto-merge waits for checks to finish. ([#319](https://github.com/chattocorp/geordi/pull/319))
+- After you enter a prompt for a new workspace or project, the start button reads “Make it so”. ([#328](https://github.com/chattocorp/geordi/pull/328))
+- A job whose program ended (a Node script that failed, say) keeps its terminal open until you press Enter, so you can read what it printed. It used to close at once. ([#303](https://github.com/chattocorp/geordi/pull/303))
+- The suggested reply pencil stays on a transparent background when you hover over it. ([#313](https://github.com/chattocorp/geordi/pull/313))
+- You can spot sidebar actions by their filled circle. Hover or focus one to see its action label. ([#295](https://github.com/chattocorp/geordi/pull/295))
+- You can archive a clean workspace directly from its ribbon when it has no pull request and has not been continued. ([#308](https://github.com/chattocorp/geordi/pull/308))
+- You can find the Forges environment variable reference from the self-hosting guide. ([#310](https://github.com/chattocorp/geordi/pull/310))
+- Geordi now starts even if one of your stored events can no longer be read: it logs the event and carries on, where before it could fail to start until the event was removed. ([#290](https://github.com/chattocorp/geordi/pull/290))
+- The sidebar now shows a single Archive pill when a workspace is ready to archive. ([#280](https://github.com/chattocorp/geordi/pull/280))
+- Your agents and external MCP clients now see tool guidance for their access, including which workspaces an archive affects and what happens if it stops partway. ([#320](https://github.com/chattocorp/geordi/pull/320))
+- The sidebar’s merging and archiving icons are now easier to spot: a commit runs into the merged branch with a ripple, and an arrow drops into the archive tray. ([#293](https://github.com/chattocorp/geordi/pull/293))
+- Pending actions such as Create PR show rotating arrows. Braille dots indicate that your agent is thinking. ([#298](https://github.com/chattocorp/geordi/pull/298))
+- Selecting a changed Markdown or SVG file opens its diff, even after you preview the file. ([#284](https://github.com/chattocorp/geordi/pull/284))
+- The bar under an agent’s final reply (changed files, copy, duration) now has a little more room above it. ([#289](https://github.com/chattocorp/geordi/pull/289))
+- Opening a question in earlier activity now focuses its first answer once the question is visible. ([#297](https://github.com/chattocorp/geordi/pull/297))
+
+### Features
+
+- Select a repository name or icon to fold or expand its workspaces. Archive is now just above Settings. The global Overview and repository issue and pull request pages have been removed. ([#305](https://github.com/chattocorp/geordi/pull/305))
+- You can add a repository from the workspace picker, the first-run screen, or Settings. Your draft stays in place with the repository selected. ([#316](https://github.com/chattocorp/geordi/pull/316))
+- Workspace actions align with the right edge of your main pane by default. To align them with the window edge, choose Window in Settings → General. The sidebar and workspace panes also line up at the top when the actions wrap. ([#324](https://github.com/chattocorp/geordi/pull/324))
+- The Changes tab can now show your files as a tree: switch between the list and the tree in its toolbar, fold away directories you are done with, and find deeply nested files under one compact row, as in VS Code. ([#275](https://github.com/chattocorp/geordi/pull/275))
+- Choose **Rename workspace** from the sidebar context menu to set a name your agent will keep. ([#292](https://github.com/chattocorp/geordi/pull/292))
+- You can open a combined diff from the Changes toolbar and fold each file independently. ([#302](https://github.com/chattocorp/geordi/pull/302))
+- A workspace now always opens with a terminal, with the Run tab beside it. The Run tab has a button for what your `.geordi.yml` names as its `default` (a job to start or a link to open), or else for your `run` job; ⌥⌘R (Ctrl+Alt+R) does the same. ([#323](https://github.com/chattocorp/geordi/pull/323))
+- Before deleting archived workspaces, Geordi now keeps a copy of your data as it was, so you can undo the last deletion by hand. It is in `purge-copies` in your data directory (`~/.geordi`). ([#314](https://github.com/chattocorp/geordi/pull/314))
+- Source files now show syntax highlighting when you open them in a workspace. ([#318](https://github.com/chattocorp/geordi/pull/318))
+- Press Cmd/Ctrl+Shift+T to show only workspaces active today in your sidebar. Press it again to show them all. ([#283](https://github.com/chattocorp/geordi/pull/283))
+- Workspaces have a Run tab in the dock in place of the Run button and its menu. It lists your links and jobs, each job with a mark for how it is doing (starting, running, ended, or failed) and its port; point at a job's mark to start or stop it, and choose a job to see its output. A link turns gold once everything it needs is running. A workspace that has things to run opens with this tab instead of a terminal, and job tabs are named after their labels. The `default` setting in `.geordi.yml` is no longer used; files that have it still work. ([#303](https://github.com/chattocorp/geordi/pull/303))
+- You can preview images, SVGs and formatted Markdown in workspace file tabs and use the file toolbar to switch views. ([#276](https://github.com/chattocorp/geordi/pull/276))
+- You can now delete archived workspaces for good, to keep Geordi's data small and its start quick. In **Archive**, right-click a workspace and choose **Delete permanently…**, or use **Delete all**. The agents a workspace started go with it, and Geordi says how much smaller its log got. Git branches are kept. ([#307](https://github.com/chattocorp/geordi/pull/307))
+- Press Cmd+Shift+Enter on Mac or Ctrl+Shift+Enter elsewhere to open your next unread workspace. ([#315](https://github.com/chattocorp/geordi/pull/315))
+
 ## 0.8.0-beta.0
 
 ### Fixes
