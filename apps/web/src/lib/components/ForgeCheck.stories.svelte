@@ -10,6 +10,7 @@
 	name="Unknown forge"
 	args={{
 		check: async () => ({
+			title: 'Forge not set up',
 			context: 'git.example.com',
 			message: 'No configured forge matches this origin.',
 			setup: true
@@ -17,7 +18,8 @@
 	}}
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole('button', { name: 'Check forge access' }));
+		await canvas.findByText('git.example.com');
+		await userEvent.click(canvas.getByRole('button', { name: 'Check forge access again' }));
 		await expect(canvas.getByRole('status')).toHaveTextContent('git.example.com');
 		await expect(canvas.getByRole('link', { name: 'Forge setup guide' })).toBeVisible();
 	}}

@@ -435,9 +435,9 @@ export async function checkForge(repoPath: string): Promise<ForgeDiagnostic> {
 	}
 	if (!found)
 		return {
+			title: 'Forge not set up',
 			context: host,
-			message:
-				'No configured forge matches this origin. Check the FORGES_* variables in the daemon environment and restart Geordi.',
+			message: 'Set the forge address and token in the daemon environment, then restart Geordi.',
 			setup: true
 		};
 

@@ -455,7 +455,12 @@ export type ReleasePlan = {
 };
 
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
-export type ForgeDiagnostic = { context?: string; message: string; setup?: boolean };
+export type ForgeDiagnostic = {
+	title?: string;
+	context?: string;
+	message: string;
+	setup?: boolean;
+};
 
 /** A small picture, as it is served: its media type, and its bytes in base64. */
 export type RepoIcon = { type: string; data: string };
