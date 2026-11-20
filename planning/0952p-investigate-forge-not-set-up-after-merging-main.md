@@ -10,4 +10,4 @@ An existing worktree shows Forge not set up after merging main and restarting Ge
 
 The daemon checks the registered repository's origin using its process environment. In an isolated test with an existing worktree, a fresh process recognized the same origin once it received the Forgejo variables. The ribbon shows the warning only for committed work waiting to be pushed, so a clean new branch can hide the same configuration problem.
 
-Compare old and new worktrees with committed changes to publish on the same repository and daemon. Verify provider recognition and the displayed standing across a restart.
+Reproduction attempt: created a worktree before adding a forge.env file on main, merged main into it, then created a second worktree. Both had committed changes to publish. In a fresh process, both upstream lookups reported the unknown host with the file alone. Both recognized Forgejo when the process received those variables. The original discrepancy remains unexplained. The next useful evidence is whether the new workspace actually shows a pull request on the same host.
