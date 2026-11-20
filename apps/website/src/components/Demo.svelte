@@ -13,6 +13,7 @@
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
+	import RunTab from '@geordi/ui/RunTab.svelte';
 	import type { JobState } from '@geordi/ui/JobMark.svelte';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
 	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
@@ -570,7 +571,7 @@
 					>
 						{#snippet tab(id: string)}
 							{#if id === 'run'}
-								<span>Run</span>
+								<RunTab {jobs} stateOf={(name) => jobStates[name] ?? 'stopped'} />
 							{:else}
 								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 								<span>Terminal 1</span>
