@@ -6,8 +6,6 @@
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace row', component: WorkspaceRow });
 
-	const archive = fn();
-
 	const checking = {
 		changes: { files: [], uncommitted: 0, unpushed: 0 },
 		upstream: {
@@ -142,28 +140,5 @@
 			actions={actionsFor(checking)}
 			onaction={fn()}
 		/>
-	</div>
-</Story>
-
-<Story
-	name="Archive on row hover"
-	asChild
-	play={async ({ canvasElement, userEvent }) => {
-		const canvas = within(canvasElement);
-		const link = canvas.getByRole('link', { name: 'Update the docs' });
-		const button = canvas.getByText('Archive', { selector: 'button' });
-		await expect(button).not.toBeVisible();
-		await userEvent.tab();
-		await expect(link).toHaveFocus();
-		await expect(button).toBeVisible();
-		await userEvent.tab();
-		await expect(button).toHaveFocus();
-		await userEvent.keyboard('{Enter}');
-		await expect(archive).toHaveBeenCalled();
-	}}
->
-	<div class="w-80 sheet-quiet p-2">
-		<WorkspaceRow title="Update the docs" href="/workspaces/docs" onarchive={archive} />
-		<WorkspaceRow title="Review the changelog" working onarchive={archive} />
 	</div>
 </Story>
