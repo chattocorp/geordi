@@ -162,7 +162,9 @@
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
 		const nested = canvas.getByRole('button', { name: 'very/deeply/nested/directories' });
 		await expect(nested).toHaveAttribute('aria-expanded', 'true');
-		await expect(nested).toHaveTextContent('directories');
+		await expect(canvas.getByText('directories')).toHaveStyle({
+			color: getComputedStyle(nested).color
+		});
 		await waitFor(() => expect(nested).toHaveTextContent(/^v\/.*directories$/));
 		await expect(nested).toHaveStyle({ fontSize: '15px' });
 		await expect(canvas.getByRole('button', { name: /INDEX\.md/ })).toBeVisible();
