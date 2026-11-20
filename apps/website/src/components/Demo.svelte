@@ -281,7 +281,11 @@
 	<div class="flex h-152 gap-2 px-2 pb-2 sm:h-136">
 		<!-- the sidebar: every workspace, and how its work stands -->
 		<aside class="hidden w-64 shrink-0 flex-col sheet-quiet lg:flex">
-			<div class="flex-1 p-2">
+			<div class="flex-1 space-y-5 p-2">
+				<p class="item gap-2.5 px-2.5 py-1.5 text-base">
+					<span class="icon-[lucide--plus] size-4 shrink-0"></span>
+					New workspace
+				</p>
 				<div>
 					<p class="flex h-7 items-center gap-2 px-1.5 text-sm font-semibold text-muted">
 						<span
@@ -318,10 +322,6 @@
 					</ul>
 				</div>
 			</div>
-			<p class="mx-2 item gap-2.5 px-2.5 py-1.5 text-base">
-				<span class="icon-[lucide--plus] size-4 shrink-0"></span>
-				New workspace
-			</p>
 			<p class="mx-2 item gap-2.5 px-2.5 py-1.5 text-base">
 				<span class="icon-[lucide--archive] size-4 shrink-0"></span>
 				Archive

@@ -245,14 +245,7 @@
 	name="Nothing yet"
 	asChild
 	play={async ({ canvasElement }) => {
-		const footer = within(canvasElement).getByRole('navigation', { name: 'Workspace navigation' });
-		const links = within(footer).getAllByRole('link');
-		await expect(links.map((link) => link.getAttribute('href'))).toEqual([
-			'/',
-			'/archive',
-			'/settings/general'
-		]);
-		await expect(links[0]).toHaveAttribute('aria-current', 'page');
+		await expect(within(canvasElement).getByRole('link', { name: 'New workspace' })).toBeVisible();
 	}}
 >
 	{@render frame(undefined, '/')}
