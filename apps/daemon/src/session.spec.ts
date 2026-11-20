@@ -140,6 +140,7 @@ writeFileSync(
 const send = msg => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
 let prompt;
 let model;
+let effort;
 let sessionId;
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
 	const req = JSON.parse(line);
@@ -150,8 +151,9 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
 		sessionId = req.params.sessionId;
 		return send({id:req.id,result:{configOptions:[{id:'model',category:'model',name:'Model',type:'select',currentValue:'default',options:[]}]}});
 	case 'session/set_config_option':
-		model = req.params.value;
-		return send({id:req.id,result:{configOptions:[]}});
+		if (req.params.configId === 'model') model = req.params.value;
+		else if (req.params.configId === 'variant') effort = req.params.value;
+		return send({id:req.id,result:{configOptions:[{id:'variant',category:'thought_level',name:'Effort',type:'select',currentValue:effort ?? 'default',options:[]}]}});
 	case 'session/prompt':
 		prompt = req.id;
 		return send({id:'permission',method:'session/request_permission',params:{sessionId,toolCall:{toolCallId:'edit'},options:[
@@ -159,7 +161,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
 		]}});
 	default:
 		if (req.id !== 'permission') return;
-		send({method:'session/update',params:{sessionId,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:model+' '+req.result.outcome.optionId}}}});
+		send({method:'session/update',params:{sessionId,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:model+' '+effort+' '+req.result.outcome.optionId}}}});
 		send({id:prompt,result:{stopReason:'end_turn'}});
 	}
 });
@@ -304,13 +306,13 @@ describe('a session', () => {
 			const launch = meta({ OPENCODE_PATH: process.execPath });
 			launch.agent = 'opencode';
 			launch.options.resumeId = 'saved-session';
-			launch.options.settings = { model: 'provider/model', permissionMode };
+			launch.options.settings = { model: 'provider/model', effort: 'high', permissionMode };
 			const { events, ended } = begin('Edit', { launch });
 			await ended(1);
 			expect(events).toEqual([
 				{ kind: 'turn.started' },
 				{ kind: 'resume', id: 'saved-session' },
-				{ kind: 'text', text: 'provider/model ' + outcome },
+				{ kind: 'text', text: 'provider/model high ' + outcome },
 				{ kind: 'turn.completed' }
 			]);
 		}

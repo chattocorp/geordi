@@ -8,6 +8,7 @@ import {
 	type NewSessionRequest,
 	type NewSessionResponse,
 	type ResumeSessionResponse,
+	type SetSessionConfigOptionResponse,
 	type ContentBlock
 } from '@agentclientprotocol/sdk/unstable';
 import type { MessageImage } from '@geordi/protocol';
@@ -156,14 +157,33 @@ export function connectOpenCode(
 				session = created;
 			}
 			if (!id) throw new Error('Missing OpenCode session ID');
-			if (options.settings.model) {
-				const model = session.configOptions?.find((o) => o.category === 'model');
-				if (!model) throw new Error('OpenCode does not offer model selection');
-				await agent.request(methods.agent.session.setConfigOption, {
-					sessionId: id,
-					configId: model.id,
-					value: options.settings.model
-				});
+			let config = session.configOptions;
+			// Selecting a model changes the effort option and the values it accepts.
+			for (const [category, value] of [
+				['model', options.settings.model],
+				['thought_level', options.settings.effort]
+			] as const) {
+				if (!value) continue;
+				const option = config?.find((o) => o.category === category);
+				if (!option)
+					throw new Error(
+						'OpenCode does not offer ' +
+							(category === 'model' ? 'model selection' : 'reasoning effort for this model')
+					);
+				const result = await agent.request<SetSessionConfigOptionResponse>(
+					methods.agent.session.setConfigOption,
+					{
+						sessionId: id,
+						configId: option.id,
+						value
+					}
+				);
+				config = result.configOptions;
+				if (
+					category === 'thought_level' &&
+					!config.some((o) => o.id === option.id && o.currentValue === value)
+				)
+					throw new Error('OpenCode could not apply reasoning effort ' + value);
 			}
 			emit({ kind: 'resume', id });
 		},

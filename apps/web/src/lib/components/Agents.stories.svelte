@@ -22,7 +22,14 @@
 		{ agent: 'codex', models: [], efforts: [] },
 		{
 			agent: 'opencode',
-			models: [{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] }],
+			models: [
+				{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] },
+				{
+					id: 'opencode/beam-free',
+					name: 'opencode/beam-free',
+					efforts: ['low', 'medium', 'high', 'xhigh', 'max']
+				}
+			],
 			efforts: []
 		}
 	];

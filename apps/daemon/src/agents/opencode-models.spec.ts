@@ -8,3 +8,23 @@ it('lists unique provider-qualified model IDs and ignores CLI diagnostics', () =
 	expect(list.map((model) => model.id)).toEqual(['a/model', 'b/model', 'router/org/model']);
 	expect(modelsIn('')).toEqual([]);
 });
+
+it('keeps each model’s enabled variants in CLI order and tolerates missing metadata', () => {
+	const list = modelsIn(
+		[
+			'p/one',
+			JSON.stringify(
+				{ variants: { low: {}, custom: {}, off: { disabled: true }, 'bad key': {}, default: {} } },
+				null,
+				2
+			),
+			'p/two',
+			'{"variants":{"high":{}}}',
+			'p/three',
+			'{"variants":{}}',
+			'p/four',
+			'{broken}'
+		].join('\r\n')
+	);
+	expect(list.map(({ efforts }) => efforts)).toEqual([['low', 'custom'], ['high'], [], []]);
+});
