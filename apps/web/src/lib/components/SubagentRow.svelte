@@ -4,6 +4,7 @@
 	import Disclosure from '@geordi/ui/Disclosure.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
+	import { isBrowserCompletion } from '#lib/agent-directives.ts';
 	import Markdown from './Markdown.svelte';
 	import PatchView from './PatchView.svelte';
 	import { changedFiles } from '#lib/changedFiles.ts';
@@ -58,9 +59,14 @@
 				{#if entry.kind === 'subagent'}
 					<SubagentRow child={entry} {cwd} {pictures} {onopen} />
 				{:else if entry.kind === 'message'}
-					{#if entry.text}
+					{#if entry.text && (entry.incoming || !isBrowserCompletion(entry.text))}
 						<div class={entry.incoming ? 'message bg-bubble' : undefined}>
-							<Markdown text={entry.text} preserveLineBreaks {pictures} />
+							<Markdown
+								agentDirectives={!entry.incoming}
+								text={entry.text}
+								preserveLineBreaks
+								{pictures}
+							/>
 						</div>
 					{/if}
 				{:else}
