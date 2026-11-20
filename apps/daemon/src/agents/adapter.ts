@@ -36,7 +36,8 @@ export const API_TOKEN_ENV = 'GEORDI_API_TOKEN';
 /** The name agents know the API's MCP server by. */
 export const API_SERVER = 'geordi';
 
-export type AgentAdapter = { offers(): Omit<Harness, 'agent'> };
+type Offer = Omit<Harness, 'agent'>;
+export type AgentAdapter = { offers(): Offer | Promise<Offer> };
 
 /** Tool output can be huge (whole files); keep the event log lean. */
 export function truncate(text: string, max = 4000): string {
@@ -49,6 +50,8 @@ export async function adapterFor(agent: Agent): Promise<AgentAdapter> {
 	switch (agent) {
 		case 'claude':
 			return (await import('./claude.ts')).claude;
+		case 'opencode':
+			return (await import('./opencode-models.ts')).opencode;
 		case 'codex':
 			return (await import('./codex.ts')).codex;
 	}

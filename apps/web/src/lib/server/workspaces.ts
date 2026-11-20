@@ -6,6 +6,7 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { error } from '@sveltejs/kit';
 import {
 	AGENTS,
+	MODEL_SETTING,
 	SETTING,
 	sameAgentSettings,
 	type Agent,
@@ -323,6 +324,17 @@ export function createWorkspaces(
 		action?: ActionId
 	) {
 		const { id } = workspace;
+		if (workspace.agent === 'opencode' && workspace.status !== 'idle' && !from) {
+			store.append(
+				{
+					type: 'workspace.queued',
+					stream: `workspace:${id}`,
+					data: { id, text, ...(images.length && { images }), ...(action && { action }) }
+				},
+				{ actor }
+			);
+			return;
+		}
 		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
 		const senderName = sender
 			? (access.name(sender) ?? projection.get().get(sender)?.title)
@@ -396,7 +408,8 @@ export function createWorkspaces(
 		for (const key of ['model', 'effort'] as const) {
 			const value = settings[key];
 			if (!value) continue;
-			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
+			if (!(key === 'model' ? MODEL_SETTING : SETTING).test(value))
+				error(400, `That is not a ${key}: ${value}`);
 			chosen[key] = value;
 		}
 		if (settings.permissionMode) chosen.permissionMode = settings.permissionMode;

@@ -2,7 +2,11 @@ import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter, resolve, sep } from 'node:path';
 import type { Agent } from '@geordi/protocol';
 
-export const programVariable = { claude: 'CLAUDE_CODE_EXECUTABLE', codex: 'CODEX_PATH' } as const;
+export const programVariable = {
+	claude: 'CLAUDE_CODE_EXECUTABLE',
+	codex: 'CODEX_PATH',
+	opencode: 'OPENCODE_PATH'
+} as const;
 
 /** Resolve the same executable for the daemon's offer and the host's next session. */
 export function agentProgram(agent: Agent, env = process.env) {

@@ -15,11 +15,11 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 39;
+export const PROTOCOL_VERSION = 40;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
-export const AGENTS = ['claude', 'codex'] as const;
+export const AGENTS = ['claude', 'codex', 'opencode'] as const;
 export type Agent = (typeof AGENTS)[number];
 
 export const PERMISSION_MODES = ['auto', 'full-access'] as const;
@@ -39,8 +39,19 @@ export function sameAgentSettings(a: AgentSettings, b: AgentSettings): boolean {
 	return a.model === b.model && a.effort === b.effort && a.permissionMode === b.permissionMode;
 }
 
+/** The values reported by a session, and the workspace choices it opened with. */
+export type SessionModel = {
+	requested: Pick<AgentSettings, 'model' | 'effort'>;
+	model?: string;
+	effort?: string;
+};
+
 /** What model names and effort levels look like. They end up as CLI arguments. */
 export const SETTING = /^[A-Za-z0-9][\w.:[\]-]{0,79}$/;
+
+/** Models may include the OpenCode provider prefix. */
+export const MODEL_SETTING =
+	/^(?=.{1,160}$)[A-Za-z0-9][\w.:[\]-]{0,79}(?:\/[A-Za-z0-9][\w.:[\]-]{0,79})*$/;
 
 export type Model = {
 	id: string;
@@ -740,6 +751,7 @@ export type AgentCommand = {
  * event, said again by a reconnecting daemon. Each is there only once the agent has said it.
  */
 export type AgentLive = {
+	sessionModel?: SessionModel;
 	/** What it has running in the background. */
 	background?: BackgroundTask[];
 	/** How full its context is, said after every model step. */

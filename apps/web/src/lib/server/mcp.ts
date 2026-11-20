@@ -3,6 +3,7 @@ import {
 	AGENTS,
 	CONFIG_FILE,
 	CONFIG_SETTINGS,
+	MODEL_SETTING,
 	SETTING,
 	WORKTREE_MODES,
 	type Changes,
@@ -105,7 +106,7 @@ const startFields = {
 	),
 	agent: v.pipe(v.optional(v.picklist(AGENTS)), v.description('Which coding agent to run.')),
 	model: v.pipe(
-		v.optional(v.pipe(v.string(), v.regex(SETTING, 'That is not a model'))),
+		v.optional(v.pipe(v.string(), v.regex(MODEL_SETTING, 'That is not a model'))),
 		v.description('A model ID offered for the selected agent.')
 	),
 	effort: v.pipe(

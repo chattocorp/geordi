@@ -156,7 +156,9 @@
 						Waiting for the daemon
 					</span>
 				{:else if harnesses}
-					<span class="text-sm text-muted">Install Claude Code or Codex to start a workspace.</span>
+					<span class="text-sm text-muted"
+						>Install Claude Code, Codex, or OpenCode to start a workspace.</span
+					>
 				{/if}
 			</div>
 			{#if alongside}

@@ -183,6 +183,7 @@ export const workspace = (id: string) => {
 				...workspace,
 				background: hub().background(id),
 				suggestion: hub().suggestion(id),
+				sessionModel: hub().sessionModel(id),
 				transcript: readTranscript(id),
 				// who but the person may have written in its conversation: the agents above it
 				senders: Object.fromEntries(parents.map(({ id, title }) => [id, title])),
@@ -191,6 +192,7 @@ export const workspace = (id: string) => {
 					...aide,
 					background: hub().background(aide.id),
 					suggestion: hub().suggestion(aide.id),
+					sessionModel: hub().sessionModel(aide.id),
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
@@ -205,14 +207,14 @@ export const workspace = (id: string) => {
 			const relevant = (source: string) => {
 				if (source === id || transcripts.has(source)) changed();
 			};
-			const stopTasks = hub().followBackground(relevant);
+			const stopSession = hub().followSession(relevant);
 			const stopUsage = workspaces().followUsage(relevant);
 			notify = changed;
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();
 				transcripts.clear();
-				stopTasks();
+				stopSession();
 				stopUsage();
 				notify = undefined;
 				unwatch?.();
@@ -274,5 +276,6 @@ export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
 export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
 	Workspace & {
-		aides: (Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'pendingDelivery'>)[];
+		aides: (Workspace &
+			Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel' | 'pendingDelivery'>)[];
 	};
