@@ -70,7 +70,7 @@ const away = [
 /** Ways to read what an agent changed, for the card about reviewing. */
 const review = [
 	{ icon: 'icon-[lucide--list-tree]', text: 'Changed files as a list, or as a tree you can fold' },
-	{ icon: 'icon-[lucide--files]', text: 'Every diff of a workspace in one tab' },
+	{ icon: 'icon-[lucide--files]', text: 'Browse workspace diffs in one tab' },
 	{ icon: 'icon-[lucide--file-diff]', text: 'What a single turn changed, opened from its reply' },
 	{
 		icon: 'icon-[lucide--file-code]',
@@ -84,40 +84,29 @@ const keys = [
 	{ keys: '⌘[ ⌘]', does: 'Previous and next workspace' },
 	{ keys: '⇧⌘↩', does: 'Next workspace with news for you' },
 	{ keys: '⇧⌘F', does: 'Only the repository you are in' },
-	{ keys: '⌥⌘R', does: 'Start your dev server' }
+	{ keys: '⌥⌘R', does: 'Run this workspace’s default action' }
 ];
 
-const opinions = [
+/** Why many agents at once stay manageable, for the section before Try it. */
+const parallel = [
 	{
-		title: 'A quiet screen',
-		text: 'Most of the window is the conversation and the diff. There is very little colour, and the only things that move are agents at work and checks that are running.'
+		title: 'They never get in each other’s way',
+		text: 'Every workspace has its own worktree, branch and ports. Ten agents can change the same project, and run its dev server, without touching each other’s work.'
 	},
 	{
-		title: 'No plan mode',
-		text: "If you'd like a plan first, ask for one and tell the agent to wait until you've read it. While it works, Geordi shows you its to-do list."
+		title: 'All of them at a glance',
+		text: 'The sidebar shows every workspace and how it stands: working, waiting for your answer, checks failing, ready to merge.'
 	},
 	{
-		title: 'Two permission modes',
-		text: "Full Access or Auto Mode, chosen per workspace. There's no mode where you have to approve every single tool call."
-	},
-	{
-		title: 'No built-in browser',
-		text: 'Previews of your project, and any links, open in the browser you already use.'
-	},
-	{
-		title: 'Claude and Codex, side by side',
-		text: 'Pick the agent, model and effort for each workspace, and mix them in one project. Geordi runs the agents you already have.'
-	},
-	{
-		title: 'It runs on your machine',
-		text: "There's no account and no cloud service. Your history is kept in a SQLite file in your home directory."
+		title: 'You’re called when you’re needed',
+		text: 'When an agent finishes or has a question, Geordi tells you, and keeps its workspace in bold until you’ve looked. The rest of the time, your attention is yours.'
 	}
 ];
 
 const steps = [
 	{
-		title: 'Sign in to Claude Code or Codex',
-		text: "Geordi doesn't come with agents of its own; it uses the ones you already have. For GitHub, it uses your gh CLI login."
+		title: 'Install Claude Code or Codex and sign in',
+		text: 'For GitHub, Geordi uses your gh CLI login.'
 	},
 	{
 		title: 'Install the app',
@@ -135,10 +124,8 @@ const steps = [
 		<div class="max-w-4xl pt-4 pb-10 sm:pt-10 sm:pb-14">
 			<h1 class="text-display font-semibold text-balance">A calmer way to run coding agents.</h1>
 			<p class="mt-6 max-w-2xl text-lede text-pretty text-muted sm:mt-8">
-				Like other agent orchestrators, Geordi gives every task its own agent, Git worktree and
-				branch. The difference is in what happens around them: your agents keep working after you
-				quit, they can bring in other agents to help, and every workspace shows you the next step
-				towards a merged pull request.
+				Run Claude Code and Codex side by side. Give a coding task its own branch, bring in another
+				agent to review the changes, and pick up the conversation after you quit Geordi.
 			</p>
 			<div class="mt-8">
 				<ReleaseDownloads>
@@ -197,14 +184,10 @@ const steps = [
 
 		<article class="flex flex-col gap-8 sheet-quiet sheet-pad lg:col-span-5">
 			<div>
-				<h3 class="text-headline font-semibold text-balance">
-					Every workspace knows its next step
-				</h3>
+				<h3 class="text-headline font-semibold text-balance">See where your pull request stands</h3>
 				<p class="mt-4 text-pretty text-muted">
-					Geordi follows the work all the way to a merged pull request. The bar at the top of a
-					workspace says where it stands and offers the next step: create the PR, fix failing
-					checks, resolve conflicts, merge. The sidebar shows the same for every workspace, so you
-					see at a glance which one needs you.
+					The sidebar shows which pull requests need your attention. Open a workspace to see what
+					you can do next, from fixing a failed check to merging the pull request.
 				</p>
 			</div>
 			<ol class="mt-auto space-y-2">
@@ -260,13 +243,13 @@ const steps = [
 
 		<article class="flex flex-col gap-8 sheet sheet-pad lg:col-span-7">
 			<div class="max-w-xl">
-				<h3 class="text-headline font-semibold text-balance">Five dev servers, no port clashes</h3>
+				<h3 class="text-headline font-semibold text-balance">
+					Run the same app in several workspaces
+				</h3>
 				<p class="mt-4 text-pretty text-muted">
-					Tell Geordi in a <code class="code text-(--inline-code)">.geordi.yml</code> what your
-					project needs to run. Every workspace then gets a terminal, a Run tab with your default
-					action first, and ports of its own that stay the same for as long as it lives. The same
-					dev server can run in five workspaces at once, and the agents know their ports too, so
-					they can start and check things themselves.
+					Set your dev server to use <code class="code text-(--inline-code)">$PORT</code>. Geordi
+					gives the job a separate port in each workspace, so you can open two branches side by
+					side.
 				</p>
 				<p class="mt-4">
 					<a href={site.docs.configuration} class="text-link">
@@ -297,8 +280,7 @@ const steps = [
 			<div class="max-w-xl">
 				<h3 class="text-headline font-semibold text-balance">Review the work where it happens</h3>
 				<p class="mt-4 text-pretty text-muted">
-					You don't need another editor to see what an agent did. Every workspace shows its changes
-					beside the conversation, and opens any file or diff next to it.
+					Select a changed file to read its diff beside the conversation.
 				</p>
 			</div>
 			<ul class="mt-auto space-y-3">
@@ -333,14 +315,20 @@ const steps = [
 	</div>
 
 	<section class="sheet-quiet sheet-pad">
-		<h2 class="max-w-2xl text-headline font-semibold text-balance">
-			A few things we decided on purpose
-		</h2>
+		<div class="max-w-2xl">
+			<h2 class="text-headline font-semibold text-balance">
+				Start the next task before the last one is done
+			</h2>
+			<p class="mt-4 text-pretty text-muted">
+				Geordi is made for keeping a lot of agents busy at once. Hand out work as fast as you think
+				of it, to Claude or Codex, and get on with your day.
+			</p>
+		</div>
 		<dl class="mt-10 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-			{opinions.map((opinion) => (
+			{parallel.map((point) => (
 				<div>
-					<dt class="heading">{opinion.title}</dt>
-					<dd class="mt-1.5 text-pretty text-muted">{opinion.text}</dd>
+					<dt class="heading">{point.title}</dt>
+					<dd class="mt-1.5 text-pretty text-muted">{point.text}</dd>
 				</div>
 			))}
 		</dl>
@@ -350,7 +338,7 @@ const steps = [
 		<div>
 			<h2 class="text-headline font-semibold text-balance">Try it</h2>
 			<p class="mt-4 max-w-xl text-pretty text-muted">
-				The desktop app comes with everything it needs and keeps its data in{' '}
+				The desktop app starts Geordi’s own services for you and keeps its data in{' '}
 				<code class="code text-(--inline-code)">~/.geordi</code>. Geordi is young and changing
 				quickly, so you'll probably run into a rough edge or two.
 			</p>
