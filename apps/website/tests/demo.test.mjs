@@ -148,9 +148,17 @@ test('copy the guide prompt and inspect its example pull request', async (t) => 
 	expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
 		'Leave the change uncommitted for review.'
 	);
-	const pull = page.getByRole('region', { name: 'Pull request', exact: true });
-	await pull.getByRole('button', { name: /Checks/ }).click();
-	await expect(pull.getByText('Check Markdown')).toBeVisible();
+	const demo = page.getByRole('figure', { name: 'Workspace actions example' });
+	await demo.getByRole('button', { name: 'Create PR', exact: true }).click();
+	await demo.getByRole('button', { name: '#1', exact: true }).click();
+	await expect(demo.getByText('Check Markdown')).toBeVisible();
+	await demo.getByRole('button', { name: 'Fix errors — Explain Geordi in README' }).click();
+	await expect(demo.getByText('Ready to merge', { exact: true })).toBeVisible();
+	await demo.getByRole('button', { name: 'Merge PR', exact: true }).click();
+	await demo.getByRole('button', { name: 'Archive — Explain Geordi in README' }).click();
+	await expect(demo.getByText('The workspace is in Archive.')).toBeVisible();
+	await demo.getByRole('button', { name: 'Try again' }).click();
+	await expect(demo.getByRole('button', { name: 'Create PR', exact: true })).toBeVisible();
 });
 
 test('the configuration example opens the app with both jobs and stops dependent jobs', async (t) => {

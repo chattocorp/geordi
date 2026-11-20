@@ -1,5 +1,5 @@
 import UserMessage from '../packages/ui/src/UserMessage.svelte';
-import PullRequestPane from '../packages/ui/src/PullRequestPane.svelte';
+import WorkspaceActionsExample from '../apps/website/src/components/WorkspaceActionsExample.svelte';
 import DiffView from '../packages/ui/src/DiffView.svelte';
 
 # Your first workspace
@@ -54,30 +54,32 @@ When `README.md` appears under **Changes**, select it. A tab opens beside the co
 
 ## Open a pull request
 
-If your repository is connected to a supported forge, select **Create PR** at the top of the workspace. This asks the agent to commit the edit, push the branch and open a pull request. Open the pull request from the workspace to review it and its checks. In the example below, expand **Checks** to see which check passed.
+Look at the **ribbon** at the top of the workspace. After the README edit, it says **Uncommitted changes**. The button at the far right is the next step. On a supported forge, select **Create PR**. Geordi sends the agent a message to commit the edit, push the branch and open a pull request. If you're using a local-only repository, select **Commit** to save the edit on the workspace branch.
 
-<div class="not-prose my-6 rounded-control bg-sunken">
-	<PullRequestPane
-		client:load
-		pull={{
-			number: '1',
-			title: 'Explain what the example repository is for',
-			url: null,
-			state: 'open',
-			draft: false,
-			base: 'main',
-			review: null,
-			checks: {
-				state: 'success',
-				total: 1,
-				failed: 0,
-				url: null,
-				items: [{ id: 'docs', name: 'Check Markdown', state: 'success', status: 'success' }]
-			}
-		}}
-	/>
-</div>
+Once the pull request exists, select its number in the ribbon to see its description, reviews and checks inside Geordi. If you ask the agent for another edit, **Update PR** sends those changes to the same pull request.
 
-When you're ready and the checks allow it, select **Merge PR**. After the merge, **Archive** puts the conversation away.
+Try **Create PR** below. In this example the Markdown check fails. Open **#1** to inspect the check, then try **Fix errors** from the sidebar row. Watch what happens to the ribbon when the check passes.
 
-Trying this with a local-only repository? Select **Commit** to have the agent save the edit on the workspace branch.
+<WorkspaceActionsExample client:load />
+
+## Read the sidebar pills
+
+When you have several workspaces open, look at the right edge of each sidebar row. Hover over a row or use Tab to focus its action. The colored circle expands into a pill with the same action you would find in that workspace’s ribbon. Select the pill to act while you keep reading your current conversation.
+
+| What you see                     | What you can do                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Red **Fix errors**               | Ask the agent to read the failing checks, fix the cause, commit and push.                           |
+| Red **Resolve conflicts**        | Ask the agent to merge the latest base branch, resolve conflicts, run the relevant checks and push. |
+| Red **Address review**           | Ask the agent to read the requested changes, address them and update the pull request.              |
+| Green **Merge PR**               | Merge through the forge. Geordi handles the merge directly.                                         |
+| Purple **Archive** after a merge | Put the finished workspace away. Its conversation is available in **Archive**.                      |
+
+If the workspace has both conflicts and a failing check, the sidebar offers **Resolve conflicts** first. Open the workspace to see both actions in the ribbon.
+
+A spinner means the agent is working. If the agent needs your input, the question icon takes you to the question. A checks indicator shows progress while CI runs. Routine publishing actions such as **Create PR** and **Update PR** stay in the ribbon and become available when the agent finishes its turn.
+
+## Merge and finish
+
+When the ribbon says **Ready to merge**, review the pull request and select **Merge PR** there or in the sidebar. If GitHub offers **Auto-merge** while requirements are pending, you can ask GitHub to merge once they pass. **Disable Auto-merge** withdraws that request.
+
+After the merge, use **Archive** if the task is complete. If you want the same agent to do follow-up work, select **Continue** in the ribbon. Geordi keeps the conversation and starts a fresh branch from the latest upstream.
