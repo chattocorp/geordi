@@ -1,7 +1,7 @@
 # FDR-001: Workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-19
+**Last reviewed:** 2026-11-20
 
 ## Overview
 
@@ -32,8 +32,8 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - Diffs and terminals can also be dragged between the two: a terminal out of the dock to sit beside the conversation, a diff into the dock. The conversation cannot leave the main area, and the changes are not a window at all.
 - The top bar shows what could happen next (FDR-003).
 - **Changes** names the comparison branch and lists the files the workspace would contribute to it, including committed, uncommitted and untracked work. Selecting a file opens a single diff tab next to the conversation. Selecting another file reuses that tab wherever you placed it. The tab shows the filename, with the full path available on hover. The list updates as files change.
-  - PNG, JPEG, WebP, GIF and SVG files open as pictures. Click a picture to enlarge it. For a changed raster image, switch between **Before** and **After**. A deleted file shows its last version.
-  - Markdown opens as a formatted document with local pictures and file links resolved from its folder. Markdown and text SVG files offer **Diff** in Changes and **Source** in a source tab. A link to a specific line opens the source at that line.
+  - PNG, JPEG, WebP, and GIF files open as pictures. Click a picture to enlarge it. For a changed raster image, switch between **Before** and **After**. A deleted file shows its last version.
+  - Selecting a Markdown or text SVG change always opens **Diff**. Choose **Preview** to read the formatted document or see the picture. Source tabs open these files in **Preview** and offer **Source**. Markdown resolves local pictures and file links from its folder. A link to a specific line opens the source at that line.
   - A diff shows the changed lines with syntax highlighting and the changed words within a line marked. The unchanged lines between changes are collapsed; they can be revealed a few at a time, upwards or downwards, or all at once, so there is always as much context as wanted without paging through the whole file.
 - When the workspace branch has a pull request, a tab labeled with its number (for example, **#1234**) appears in the upper right pane. While checks run, the sidebar’s checks ring takes the place of the pull request icon on the tab. The pane shows the title, description, state, target branch, review status and checks. The checks section opens when checks are active or failed. It shows failures first, then active jobs with their status. Other checks expand on demand. Each check opens its run when the forge supplies a link. The title opens the pull request on the upstream forge.
 - **Terminals** are shells in the workspace's directory. "+" in the dock opens one. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.

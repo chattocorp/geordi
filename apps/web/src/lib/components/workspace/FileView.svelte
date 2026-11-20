@@ -24,7 +24,7 @@
 		old != null && current !== null && (typeof old === 'object' || typeof current === 'object')
 	);
 	let side = $state('after');
-	let mode = $derived(line === undefined ? 'rendered' : 'text');
+	let mode = $derived(diff || line !== undefined ? 'text' : 'rendered');
 	const file = $derived((binaryPair && side === 'before' ? old : current) ?? old);
 	const image = $derived(
 		file && typeof file === 'object'

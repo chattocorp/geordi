@@ -24,11 +24,10 @@
 	name="Markdown change"
 	args={{ path: 'notes.md', old: null, current: '# Release notes\n\nImages in the workspace.' }}
 	play={async ({ canvas, userEvent }) => {
-		await expect(canvas.getByRole('heading', { name: 'Release notes' })).toBeVisible();
-		await expect(canvas.getByRole('toolbar', { name: 'File view' })).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Diff' }));
 		await expect(canvas.getByRole('button', { name: 'Diff', pressed: true })).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Preview' }));
 		await expect(canvas.getByRole('heading', { name: 'Release notes' })).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Diff' }));
+		await expect(canvas.queryByRole('heading', { name: 'Release notes' })).toBeNull();
 	}}
 />

@@ -466,7 +466,11 @@
 		selectedTurn = changes;
 		showTab(TURN);
 	}
-	const openDiff = (path: string) => showTab('diff', path);
+	let diffSelection = $state(0);
+	function openDiff(path: string) {
+		diffSelection++;
+		showTab('diff', path);
+	}
 
 	// Its conversations link the files it has changed to their diffs. The list is compared as
 	// text: the changes are new with every update, and each new set renders every reply again.
@@ -817,7 +821,7 @@
 		{/if}
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
-		{#key path}
+		{#key `${diffSelection}:${path}`}
 			<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
 		{/key}
 	{:else if source}
