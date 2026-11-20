@@ -154,6 +154,49 @@
 	</div>
 </Story>
 
+<Story
+	name="Fold directories in the tree"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
+		const nested = canvas.getByRole('button', { name: 'very/deeply/nested/directories' });
+		await expect(nested).toHaveAttribute('aria-expanded', 'true');
+		await expect(canvas.getByRole('button', { name: /INDEX\.md/ })).toBeVisible();
+		await userEvent.click(nested);
+		await expect(nested).toHaveAttribute('aria-expanded', 'false');
+		await expect(canvas.queryByRole('button', { name: /INDEX\.md/ })).toBeNull();
+		await userEvent.click(canvas.getByRole('radio', { name: 'As a list' }));
+		await expect(canvas.getByRole('button', { name: /GLOSSARY\.md/ })).toBeVisible();
+	}}
+>
+	<div class="w-80 sheet-quiet">
+		<Changes
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: [
+						{ path: 'docs/adr/ADR-124-handles.md', status: 'added', added: 7, removed: 0 },
+						{
+							path: 'docs/adr/very/deeply/nested/directories/INDEX.md',
+							status: 'modified',
+							added: 2,
+							removed: 1
+						},
+						{ path: 'docs/GLOSSARY.md', status: 'deleted', added: 0, removed: 3 },
+						{ path: 'README.md', status: 'modified', added: 1, removed: 1 }
+					]
+				}
+			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
+
 <Story name="No changes yet" asChild>
 	<div class="flex h-96 w-80 flex-col">
 		<Changes

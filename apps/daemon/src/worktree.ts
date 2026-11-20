@@ -328,3 +328,12 @@ export function gitIn(worktree: Worktree, ...args: string[]): Promise<string> {
 		timeout: ['merge-tree', 'read-tree'].includes(args[0]) ? CHECKOUT_TIMEOUT : undefined
 	});
 }
+
+/** Latin-1 maps each byte to one character so image blobs survive the text-based Git runner. */
+export async function readBlobIn(worktree: Worktree, object: string) {
+	const raw = await git(worktree.path, ['--literal-pathspecs', 'cat-file', 'blob', object], {
+		env: gitEnv(worktree),
+		encoding: 'latin1'
+	});
+	return Buffer.from(raw, 'latin1');
+}

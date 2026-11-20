@@ -358,6 +358,17 @@
 	@apply rounded-card border border-dashed border-line px-4 py-10 text-center text-muted;
 }
 
+/* Workspace actions and their activity icons share the same status colours. */
+@utility status-ok {
+	@apply bg-ok/12 text-ok;
+}
+@utility status-danger {
+	@apply bg-danger-soft text-danger;
+}
+@utility status-merged {
+	@apply bg-merged/15 text-merged;
+}
+
 /* A status dot. Add `dot-live` while the thing it stands for is working. */
 @utility dot {
 	@apply size-1.5 shrink-0 rounded-full bg-line;

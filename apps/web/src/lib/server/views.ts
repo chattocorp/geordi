@@ -30,11 +30,27 @@ export const navigation = () =>
 			const all = workspaces().all();
 			const harnesses = hub().harnesses();
 			const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
+			const jobs = terminals().runningJobs();
+			const operations = new Map(
+				Array.from(hub().operations(), ({ worktreeId, action }) => [worktreeId, action])
+			);
 			const listed = withAides(all).map(({ workspace, aides }) => {
 				const { id, title, repoId, parentId, status, worktree } = workspace;
 				const busy = [workspace, ...aides].filter((w) => w.status === 'running');
 				const working = busy.length > 0;
+				const runningJobs = [workspace, ...aides].flatMap(({ id }) => [
+					...(jobs.get(id) ?? []),
+					...hub()
+						.background(id)
+						.map((task) => task.label || 'background ' + task.type.replace('_', ' '))
+				]);
 				const waiting = working && !harnesses && busy.every((w) => w.pendingDelivery);
+				const activeAction =
+					operations.get(workspace.worktreeId) ??
+					busy.find(
+						(member) =>
+							!member.asking && !(member.pendingDelivery && !harnesses) && member.activeAction
+					)?.activeAction;
 				// how its work stands, as far as is known: asked about in the background
 				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
 				const pull = known.upstream?.pull;
@@ -51,6 +67,8 @@ export const navigation = () =>
 					parentId: (parentId && ownerOf.get(parentId)) ?? null,
 					status,
 					working,
+					...(activeAction && { activeAction }),
+					...(runningJobs.length && { runningJobs }),
 					...(waiting && { waiting: true }),
 					outcome: outcome([workspace, ...aides]),
 					standing: standingOf(state),
@@ -87,7 +105,13 @@ export const navigation = () =>
 			};
 		},
 		also: (changed) => {
-			const stops = [standings().subscribe(changed), hub().subscribe(changed)];
+			const stops = [
+				standings().subscribe(changed),
+				hub().subscribe(changed),
+				terminals().subscribe(changed),
+				hub().followOperations(changed),
+				hub().followBackground(changed)
+			];
 			return () => stops.forEach((stop) => stop());
 		}
 	}) satisfies View<unknown>;

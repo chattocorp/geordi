@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { actFromAfar } from '#lib/components/workspace/afar.svelte.ts';
-	import { pendingPullAction } from '#lib/components/workspace/review.svelte.ts';
+	import { pullActionPending } from '#lib/components/workspace/review.svelte.ts';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 	import { timeAgo } from '#lib/format.ts';
 	import WaitingForView from '#lib/components/WaitingForView.svelte';
@@ -136,9 +136,9 @@
 				standing={workspace.standing}
 				pull={workspace.pull}
 				actions={workspace.actions}
-				pending={pendingPullAction.has(workspace.id)
-					? workspace.actions.filter((action) => action.pullNumber).map((action) => action.id)
-					: []}
+				pending={workspace.actions
+					.filter((action) => pullActionPending(workspace.id, action))
+					.map((action) => action.id)}
 				asking={workspace.outcome === 'asking'}
 				onopenpull={() => open(workspace)}
 				onaction={(action) => actFromAfar(workspace, action)}

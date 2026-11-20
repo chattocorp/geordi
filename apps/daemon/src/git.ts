@@ -7,7 +7,11 @@ export const CHECKOUT_TIMEOUT = 120_000;
 export async function git(
 	cwd: string,
 	args: string[],
-	{ env = process.env, timeout = 10_000 }: { env?: NodeJS.ProcessEnv; timeout?: number } = {}
+	{
+		env = process.env,
+		timeout = 10_000,
+		encoding = 'utf8'
+	}: { env?: NodeJS.ProcessEnv; timeout?: number; encoding?: BufferEncoding } = {}
 ): Promise<string> {
 	try {
 		return (
@@ -16,7 +20,7 @@ export async function git(
 				env,
 				timeout,
 				killSignal: 'SIGKILL',
-				encoding: 'utf8',
+				encoding,
 				maxBuffer: 64 * 1024 * 1024
 			})
 		).stdout;

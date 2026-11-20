@@ -57,12 +57,18 @@ md.renderer.rules.image = (tokens, index, _options, env) => {
 	const pictures = (env as { pictures?: string } | undefined)?.pictures;
 	const src = String(tokens[index].attrGet('src') ?? '');
 	const alt = escapeHtml(tokens[index].content);
+	const documentPath = (env as Options).documentPath;
 	if (!pictures || !local(src)) return `<a href="${escapeHtml(src)}">${alt || escapeHtml(src)}</a>`;
 	let path = src; // markdown-it has it encoded as a URL
 	try {
 		path = decodeURIComponent(src);
 	} catch {
 		// not encoded the way it looked: as written, then
+	}
+	if (documentPath) {
+		const resolved = documentLink(src, documentPath);
+		if (!resolved) return alt;
+		path = resolved;
 	}
 	const url = escapeHtml(
 		`${pictures}${pictures.includes('?') ? '&' : '?'}path=${encodeURIComponent(path)}`
@@ -106,6 +112,12 @@ function diffLink(href: string) {
 	return parts.join('/');
 }
 
+function documentLink(href: string, documentPath: string) {
+	if (!local(href) || href.startsWith('/')) return;
+	const directory = documentPath.slice(0, documentPath.lastIndexOf('/') + 1);
+	return diffLink(encodeURI(directory).replaceAll('#', '%23').replaceAll('?', '%3F') + href);
+}
+
 // Preserve the inline markup in link labels, including code that names a changed file.
 md.core.ruler.after('inline', 'workspace_links', (state) => {
 	const root = (state.env as Options).root;
@@ -117,14 +129,15 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 				inLink = true;
 				const href = String(token.attrGet('href') ?? '');
 				const citation = sourceLink(href, root);
-				const path = citation?.file ?? (root && diffLink(href));
+				const doc = (state.env as Options).documentPath;
+				const path = citation?.file ?? (doc ? documentLink(href, doc) : root && diffLink(href));
 				if (!path) continue;
 				button = true;
 				const title = token.attrGet('title');
 				token.tag = 'button';
 				token.attrs = [
 					['type', 'button'],
-					[citation ? 'data-source' : 'data-file', path]
+					[citation || doc ? 'data-source' : 'data-file', path]
 				];
 				if (title !== null) token.attrSet('title', title);
 				if (citation?.line) token.attrSet('data-line', citation.line);
@@ -159,6 +172,7 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 };
 
 type Options = {
+	documentPath?: string;
 	preserveLineBreaks?: boolean;
 	root?: string;
 	/**

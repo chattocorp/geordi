@@ -22,10 +22,13 @@
 		"./PullRequestTab.svelte": "./src/PullRequestTab.svelte",
 		"./ReplyComposer.svelte": "./src/ReplyComposer.svelte",
 		"./Ring.svelte": "./src/Ring.svelte",
+		"./RunningJob.svelte": "./src/RunningJob.svelte",
+		"./WorkspaceActivity.svelte": "./src/WorkspaceActivity.svelte",
 		"./SidebarRowLabel.svelte": "./src/SidebarRowLabel.svelte",
 		"./Spinner.svelte": "./src/Spinner.svelte",
 		"./StandingIcon.svelte": "./src/StandingIcon.svelte",
 		"./TitleBar.svelte": "./src/TitleBar.svelte",
+		"./Toolbar.svelte": "./src/Toolbar.svelte",
 		"./ToolCall.svelte": "./src/ToolCall.svelte",
 		"./ToolGroup.svelte": "./src/ToolGroup.svelte",
 		"./TurnActivity.svelte": "./src/TurnActivity.svelte",
@@ -39,7 +42,8 @@
 		"./duration": "./src/duration.ts",
 		"./keys": "./src/keys.ts",
 		"./paths": "./src/paths.ts",
-		"./tools": "./src/tools.ts"
+		"./tools": "./src/tools.ts",
+		"./tree": "./src/tree.ts"
 	},
 	"dependencies": {
 		"@geordi/protocol": "workspace:*",

@@ -15,7 +15,7 @@ import type { MessageImage, Picture } from './images.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 38;
+export const PROTOCOL_VERSION = 39;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
@@ -142,12 +142,15 @@ export type Changes = {
 	unknownForge?: string;
 };
 
+export type FileContent = string | Picture;
+
 /**
  * Both versions of a changed file: where the workspace branched off (`old`) and now (`new`),
  * `null` where the file doesn't exist. Whole files rather than a patch, so that a viewer can
  * show more context around a change on demand. `unavailable` says why there is nothing to show.
  */
-export type FileVersions = { old: string | null; new: string | null } | { unavailable: string };
+export type FileVersions =
+	{ old: FileContent | null; new: FileContent | null } | { unavailable: string };
 
 export type CheckCounts = { passed: number; failed: number; pending: number; skipped: number };
 
@@ -494,16 +497,16 @@ export type DaemonRequest =
 	| ({ kind: 'editReleaseNote'; path: string; original: string; body: string } & WorktreeRef)
 	/** What the repository's configuration says for this workspace. */
 	| ({ kind: 'config' } & WorktreeRef)
-	/** Current text of a worktree-relative file, including files with no changes. */
+	/** Current contents of a worktree-relative file, including files with no changes. */
 	| ({ kind: 'source'; path: string } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
 	/**
 	 * A picture on the daemon's machine that the workspace's agent referred to, to be shown
 	 * where it did. `path` is as the agent wrote it: from the worktree, or absolute. `null`
-	 * if there is no such file, or it is not a picture.
+	 * if there is no such file, or it is not a picture. Set worktreeOnly for pictures in repository documents.
 	 */
-	| ({ kind: 'picture'; path: string } & WorktreeRef)
+	| ({ kind: 'picture'; path: string; worktreeOnly?: boolean } & WorktreeRef)
 	/** As `picture`, for a picture where a project's agent works: in its folder (FDR-012). */
 	| ({ kind: 'projectPicture'; path: string } & ProjectRef)
 	/** The workspace's branch on the repository's upstream forge. */
@@ -566,7 +569,7 @@ export type DaemonResults = {
 	repoIcon: RepoIcon | null;
 	repoThreads: { items: RepositoryThread[]; next?: string };
 	diff: FileVersions;
-	source: string | null;
+	source: FileContent | null;
 	picture: Picture | null;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;

@@ -30,7 +30,14 @@ import {
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
-import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
+import {
+	changes,
+	readSource,
+	readWorktreePicture,
+	status,
+	uncommittedFiles,
+	versions
+} from './changes.ts';
 import { resolve, settingsOf } from './config.ts';
 import { createPorts, portEnv, waitForPort } from './ports.ts';
 import {
@@ -647,9 +654,11 @@ async function readRequest(request: DaemonRequest) {
 		case 'diff':
 			return versions(worktree, comparisonOrigin(worktree, request), request.path);
 		case 'source':
-			return readText(worktree, request.path);
+			return readSource(worktree, request.path);
 		case 'picture':
-			return readPicture(worktree.path, request.path);
+			return request.worktreeOnly
+				? readWorktreePicture(worktree, request.path)
+				: readPicture(worktree.path, request.path);
 		case 'upstream': {
 			const branch = branchOf(worktree);
 			const before = cachedPullBase(request.worktreeId, branch);

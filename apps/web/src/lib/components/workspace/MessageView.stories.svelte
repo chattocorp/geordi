@@ -767,7 +767,7 @@
 					parts: [{ kind: 'text', text: 'The greeting and farewell tests both pass.' }]
 				}
 			]}
-			recap={'**Both tests passed.** Should `farewell` also be available from the CLI?'}
+			recap="**Both tests passed.** Should `farewell` also be available from the CLI?"
 		/>
 	</div>
 </Story>
