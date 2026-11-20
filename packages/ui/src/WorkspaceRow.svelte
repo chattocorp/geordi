@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 	import Spinner from './Spinner.svelte';
@@ -50,22 +51,35 @@
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
+	const danger = 'bg-danger-soft text-danger hover:bg-danger/20';
 	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
 		'merge-pull': 'bg-ok/12 text-ok hover:bg-ok/20',
-		'resolve-conflicts': 'bg-danger-soft text-danger hover:bg-danger/20',
-		'fix-checks': 'bg-danger-soft text-danger hover:bg-danger/20',
-		'address-review': 'bg-danger-soft text-danger hover:bg-danger/20',
+		'resolve-conflicts': danger,
+		'fix-checks': danger,
+		'address-review': danger,
 		archive: 'bg-merged/15 text-merged hover:bg-merged/25'
 	};
 
-	const primary = $derived(actions.find((action) => !action.aside));
-	const pillColor = $derived(primary && onaction && pillColors[primary.id]);
+	// Keep the clicked Archive pill visible even after the row starts leaving.
+	let archiveReceipt = $state<WorkspaceAction>();
+	let reset: ReturnType<typeof setTimeout>;
+	onDestroy(() => clearTimeout(reset));
+
+	const primary = $derived(archiveReceipt ?? actions.find((action) => !action.aside));
+	const pillColor = $derived(primary && (archiveReceipt || onaction) && pillColors[primary.id]);
 	const visibleStanding = $derived(leaving || standing?.tone === 'accent' ? null : standing);
 
 	let submitting = $state<string>();
 	const activity = $derived(progress ?? submitting);
 
 	async function activate(action: WorkspaceAction) {
+		if (action.id === 'archive') {
+			archiveReceipt = action;
+			clearTimeout(reset);
+			reset = setTimeout(() => (archiveReceipt = undefined), 1500);
+			await onaction?.(action);
+			return;
+		}
 		submitting = action.label + ' in progress';
 		try {
 			await onaction?.(action);
@@ -108,21 +122,24 @@
 			<span
 				class={[
 					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
-					(pillColor || onarchive) &&
-						(pillColor
-							? 'group-hover:pointer-events-none group-hover:opacity-0 group-has-focus-visible:pointer-events-none group-has-focus-visible:opacity-0 motion-safe:transition-opacity motion-safe:duration-150'
-							: 'group-hover:invisible group-has-focus-visible:invisible')
+					archiveReceipt
+						? 'opacity-0'
+						: pillColor
+							? 'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
+							: onarchive && 'reveal:invisible'
 				]}
 			>
 				<StandingIcon standing={visibleStanding} />
 			</span>
 		{/if}
-		{#if !activity && onaction && primary && pillColor}
+		{#if !activity && primary && pillColor}
 			<button
 				type="button"
 				class={[
-					'pointer-events-none col-start-1 row-start-1 inline-flex h-6 w-0 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap opacity-0 motion-safe:transition-all motion-safe:duration-150 motion-safe:ease-out',
-					'group-hover:pointer-events-auto group-hover:w-max group-hover:px-2 group-hover:opacity-100 group-has-focus-visible:pointer-events-auto group-has-focus-visible:w-max group-has-focus-visible:px-2 group-has-focus-visible:opacity-100',
+					'col-start-1 row-start-1 inline-flex h-6 items-center gap-1 overflow-hidden rounded-full text-xs font-medium whitespace-nowrap motion-safe:transition-all motion-safe:duration-150 motion-safe:ease-out',
+					archiveReceipt
+						? 'w-max px-2'
+						: 'pointer-events-none w-0 opacity-0 reveal:pointer-events-auto reveal:w-max reveal:px-2 reveal:opacity-100',
 					pillColor
 				]}
 				style:interpolate-size="allow-keywords"
@@ -130,13 +147,13 @@
 				onclick={() => activate(primary)}
 			>
 				{primary.label}
-				<span class={[primary.icon, 'size-3.5']}></span>
+				<span class={[archiveReceipt ? 'icon-[lucide--check]' : primary.icon, 'size-3.5']}></span>
 			</button>
 		{:else if !activity && onarchive}
 			<button
 				type="button"
 				class={[
-					'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-hover',
+					'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control hover:bg-hover reveal:visible',
 					standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
 				]}
 				title="Archive workspace"

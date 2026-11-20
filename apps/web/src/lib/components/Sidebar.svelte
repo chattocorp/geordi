@@ -272,7 +272,7 @@
 							<button
 								type="button"
 								class={[
-									'invisible grid size-6 shrink-0 place-items-center rounded-control group-hover:visible group-has-focus-visible:visible hover:bg-sunken hover:text-ink',
+									'invisible grid size-6 shrink-0 place-items-center rounded-control hover:bg-sunken hover:text-ink reveal:visible',
 									focused ? 'bg-sunken text-ink' : 'text-muted'
 								]}
 								title={focused
@@ -288,7 +288,7 @@
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
 						<a
 							href={newHref}
-							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted group-hover:visible group-has-focus-visible:visible hover:bg-hover hover:text-ink"
+							class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:visible"
 							title={newLabel}
 							aria-label={newLabel}
 						>
