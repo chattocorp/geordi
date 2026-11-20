@@ -23,6 +23,11 @@
 	@apply mx-auto w-full max-w-7xl px-2;
 }
 
+/* A link in running text or beside a button: underlined in the accent, bolder on hover. */
+@utility text-link {
+	@apply font-medium underline decoration-accent underline-offset-4 hover:decoration-2;
+}
+
 /* A sheet's own padding, the same for all of them. */
 @utility sheet-pad {
 	@apply p-6 sm:p-8 lg:p-10;

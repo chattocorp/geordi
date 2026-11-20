@@ -1,5 +1,4 @@
 ---
-import Button from '../components/Button.astro';
 import ReleaseDownloads from '../components/ReleaseDownloads.astro';
 import Demo from '../components/Demo.svelte';
 import Spinner from '@geordi/ui/Spinner.svelte';
@@ -141,12 +140,13 @@ const steps = [
 				quit, they can bring in other agents to help, and every workspace shows you the next step
 				towards a merged pull request.
 			</p>
-			<div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-				<ReleaseDownloads />
-				<p class="text-sm text-muted">
-					For macOS (Apple silicon), Windows and Linux. It's still early days, so expect things to
-					change.
-				</p>
+			<div class="mt-8">
+				<ReleaseDownloads>
+					<p slot="beside" class="text-sm text-muted">
+						For macOS (Apple silicon), Windows and Linux. It's still early days, so expect things to
+						change.
+					</p>
+				</ReleaseDownloads>
 			</div>
 		</div>
 		<div class="-mx-4 sm:mx-0">
@@ -269,10 +269,7 @@ const steps = [
 					so they can start and check things themselves.
 				</p>
 				<p class="mt-4">
-					<a
-						href={site.docs.configuration}
-						class="font-medium underline decoration-accent underline-offset-4 hover:decoration-2"
-					>
+					<a href={site.docs.configuration} class="text-link">
 						Read the configuration docs
 					</a>
 				</p>
@@ -357,11 +354,12 @@ const steps = [
 				<code class="code text-(--inline-code)">~/.geordi</code>. Geordi is young and changing
 				quickly, so you'll probably run into a rough edge or two.
 			</p>
-			<div class="mt-8 flex flex-wrap items-center gap-3">
-				<ReleaseDownloads />
-				<Button size="lg" href={site.docs.selfHosting}>
-					Run it without the app
-				</Button>
+			<div class="mt-8">
+				<ReleaseDownloads>
+					<a class="text-link" href={site.docs.selfHosting}>
+						Run it without the app
+					</a>
+				</ReleaseDownloads>
 			</div>
 			<div class="mt-10 flex max-w-xl gap-3 rounded-control bg-accent-soft p-4 text-sm text-accent-ink">
 				<span class="mt-0.5 icon-[lucide--shield-alert] size-4 shrink-0"></span>
