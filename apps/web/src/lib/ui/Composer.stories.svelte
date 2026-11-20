@@ -264,7 +264,7 @@
 			focused
 			rows={2}
 			placeholder="Reply to the agent"
-			suggestion="Run the tests again and fix whatever still fails."
+			suggestion="Merge PR #308 once the checks pass."
 		>
 			{#snippet footer()}
 				<Button
@@ -292,8 +292,7 @@
 			.getBoundingClientRect();
 		await expect(pen.left).toBeGreaterThanOrEqual(lastLine.right);
 		const lift = lastLine.top + lastLine.height / 2 - (pen.top + pen.height / 2);
-		await expect(lift).toBeGreaterThan(2);
-		await expect(lift).toBeLessThan(4);
+		await expect(Math.abs(lift)).toBeLessThan(1);
 		const text = canvas.getByRole('textbox');
 		await expect(text).toHaveAttribute('placeholder', '');
 		await expect(send.getBoundingClientRect().top).toBeGreaterThanOrEqual(
