@@ -25,8 +25,7 @@
 		actions = [],
 		fold,
 		onpoint,
-		onaction,
-		onarchive
+		onaction
 	}: {
 		title: string;
 		href?: string;
@@ -49,7 +48,6 @@
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
 		onaction?: (action: WorkspaceAction) => void;
-		onarchive?: () => void;
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
@@ -117,9 +115,8 @@
 			<span
 				class={[
 					'col-start-1 row-start-1 grid w-6 place-items-center justify-self-end',
-					pillColor
-						? 'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
-						: onarchive && 'reveal:invisible'
+					pillColor &&
+						'motion-safe:transition-opacity motion-safe:duration-150 reveal:pointer-events-none reveal:opacity-0'
 				]}
 			>
 				{#if showJobs}
@@ -143,19 +140,6 @@
 			>
 				{primary.label}
 				<span class={[primary.icon, 'size-3.5']}></span>
-			</button>
-		{:else if !activity && onarchive}
-			<button
-				type="button"
-				class={[
-					'invisible col-start-1 row-start-1 grid size-6 place-items-center rounded-control hover:bg-hover reveal:visible',
-					standing?.tone === 'merged' ? 'text-merged' : 'text-muted hover:text-ink'
-				]}
-				title="Archive workspace"
-				aria-label="Archive {title}"
-				onclick={onarchive}
-			>
-				<span class="icon-[lucide--archive] size-3.5"></span>
 			</button>
 		{/if}
 	</span>

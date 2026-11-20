@@ -178,6 +178,9 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const idle = canvas.getByRole('link', { name: /Check every token/ });
+		idle.focus();
+		await expect(within(idle.closest('li')!).queryByRole('button')).toBeNull();
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
 			const pill = canvas.getByText(label, { selector: 'button' });
 			const row = within(pill.closest('li')!);
