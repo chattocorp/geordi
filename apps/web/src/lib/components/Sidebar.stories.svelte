@@ -209,10 +209,10 @@
 		const idle = canvas.getByRole('link', { name: /Check every token/ });
 		idle.focus();
 		const cleanRow = within(idle.closest('li')!);
-		await expect(cleanRow.queryByRole('button')).toBeNull();
+		await expect(cleanRow.getByRole('button', { name: /Archive/ })).toBeVisible();
 		await expect(cleanRow.queryByRole('img')).toBeNull();
-		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
-			const pill = canvas.getByText(label, { selector: 'button' });
+		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive — Run checks']) {
+			const pill = canvas.getByRole('button', { name: new RegExp('^' + label) });
 			const row = within(pill.closest('li')!);
 			await expect(pill).toHaveStyle({ cursor: 'pointer' });
 			await expect(getComputedStyle(pill).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
