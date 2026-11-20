@@ -748,7 +748,7 @@
 </Story>
 
 <Story
-	name="Return recap"
+	name="Framed return recap"
 	asChild
 	play={async ({ canvas }) => {
 		const recap = await canvas.findByRole('region', { name: 'Workspace recap' });

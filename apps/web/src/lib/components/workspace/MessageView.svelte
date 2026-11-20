@@ -408,7 +408,10 @@
 						{/if}
 					</div>
 				{:else if row.kind === 'recap'}
-					<section aria-label="Workspace recap" class="space-y-1">
+					<section
+						aria-label="Workspace recap"
+						class="space-y-1 rounded-card bg-sidebar/40 px-4 py-3 ring-1 ring-line/40 ring-inset"
+					>
 						<h3 class="text-xs font-medium text-muted">Since you last looked</h3>
 						<Markdown text={row.text} />
 					</section>
