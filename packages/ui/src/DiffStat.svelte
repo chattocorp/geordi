@@ -1,9 +1,13 @@
 <script lang="ts">
 	/** Lines added and removed; `added` is `null` for a binary file. */
-	let { added, removed }: { added: number | null; removed: number | null } = $props();
+	let {
+		added,
+		removed,
+		class: className = 'code-dense'
+	}: { added: number | null; removed: number | null; class?: string } = $props();
 </script>
 
-<span class="shrink-0 code-dense">
+<span class={['shrink-0', className]}>
 	{#if added === null}
 		<span class="text-muted">binary</span>
 	{:else}

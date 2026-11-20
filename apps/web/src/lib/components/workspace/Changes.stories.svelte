@@ -145,7 +145,8 @@
 							added: 2,
 							removed: 1
 						},
-						{ path: 'docs/GLOSSARY.md', status: 'modified', added: 3, removed: 1 }
+						{ path: 'docs/GLOSSARY.md', status: 'modified', added: 3, removed: 1 },
+						{ path: 'src/middleware/WindowWidths.ts', status: 'added', added: 18, removed: 0 }
 					]
 				}
 			}}
@@ -161,6 +162,7 @@
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
 		const nested = canvas.getByRole('button', { name: 'very/deeply/nested/directories' });
 		await expect(nested).toHaveAttribute('aria-expanded', 'true');
+		await expect(nested).toHaveStyle({ fontSize: '15px' });
 		await expect(canvas.getByRole('button', { name: /INDEX\.md/ })).toBeVisible();
 		await userEvent.click(nested);
 		await expect(nested).toHaveAttribute('aria-expanded', 'false');
