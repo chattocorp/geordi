@@ -285,6 +285,8 @@ export type WorkspaceStanding = {
 	icon: string;
 	/** While checks run: how many of them stand how, where the forge says. */
 	checks?: CheckCounts;
+	/** The sidebar animation for this standing. */
+	activity?: 'auto-merge';
 	/** More on what it means, and where to read what to do about it. */
 	hint?: { text: string; href: string };
 };
@@ -365,6 +367,7 @@ export function standingOf(state: State): WorkspaceStanding | null {
 	if (pull.autoMerge?.enabled)
 		return {
 			label: 'Auto-merge enabled',
+			activity: 'auto-merge',
 			tone: 'neutral',
 			icon: 'icon-[lucide--git-merge]',
 			checks: pull.checks?.counts

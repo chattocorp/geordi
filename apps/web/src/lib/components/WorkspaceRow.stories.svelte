@@ -1,9 +1,39 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, fn, waitFor, within } from 'storybook/test';
+	import { standingOf, actionsFor } from '@geordi/ui/actions';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Workspace row', component: WorkspaceRow });
+
+	const checking = {
+		changes: { files: [], uncommitted: 0, unpushed: 0 },
+		upstream: {
+			forge: 'github',
+			repo: 'acme/widgets',
+			repoUrl: null,
+			branch: 'release',
+			pushed: true,
+			createUrl: null,
+			pull: {
+				number: '42',
+				title: 'Release notes',
+				url: null,
+				state: 'open',
+				draft: false,
+				base: 'main',
+				review: null,
+				checks: {
+					state: 'pending',
+					total: 3,
+					failed: 0,
+					url: null,
+					counts: { pending: 1, passed: 2, failed: 0, skipped: 0 }
+				},
+				autoMerge: { enabled: true, canEnable: false, canDisable: true }
+			}
+		}
+	} satisfies Parameters<typeof standingOf>[0];
 </script>
 
 <Story
@@ -89,5 +119,25 @@
 	<div class="w-64 sheet-quiet p-2">
 		<WorkspaceRow title="Edit the login form" working />
 		<WorkspaceRow title="Choose a page" asking href="/workspaces/login" />
+	</div>
+</Story>
+
+<Story
+	name="Checks running with auto-merge enabled"
+	asChild
+	play={async ({ canvasElement }) => {
+		await expect(
+			within(canvasElement).getByRole('img', { name: 'Checks: 1 running, 2 passed' })
+		).toBeVisible();
+	}}
+>
+	<div class="w-80 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Chatto 0.6 beta readiness"
+			current
+			standing={standingOf(checking)}
+			actions={actionsFor(checking)}
+			onaction={fn()}
+		/>
 	</div>
 </Story>
