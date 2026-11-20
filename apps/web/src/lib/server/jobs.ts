@@ -72,8 +72,13 @@ export function createJobs(
 		for (const [index, name] of order.entries()) {
 			const job = jobs.find((job) => job.name === name)!;
 			const at = terminalOf(workspaceId, name);
-			if (!terminals.isRunning(at))
+			if (!terminals.isRunning(at)) {
+				// Another program on its port would answer for it: the job doesn't start, its
+				// terminal (the daemon looks again) says why, and so does this.
+				const taken = await ask({ kind: 'portTaken', port: job.port });
 				terminals.start(at, SIZE, { job: name, command: seen[name] ?? '' });
+				if (taken) error(409, `${job.name} did not start. ${taken}`);
+			}
 			// only something that comes after it has to wait for it
 			const needed = order
 				.slice(index + 1)

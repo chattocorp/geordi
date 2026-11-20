@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createConnection, createServer } from 'node:net';
 import { dirname } from 'node:path';
+import { promisify } from 'node:util';
 
 /**
  * The ports of workspaces (FDR-006). A workspace gets a run of ports of its own when it
@@ -18,17 +20,78 @@ export type Assigned = {
 	jobs: Record<string, number>;
 };
 
-/** Where workspaces' ports come from: above what services register, below what systems hand out themselves. */
-const RANGE = { from: 20_000, to: 29_999 };
+type Range = { from: number; to: number };
 
-/** Whether nothing on this machine listens on `port`. */
-const free = (port: number) =>
+/** Where workspaces' ports come from: above what services register, below what systems hand out themselves. */
+const RANGE: Range = { from: 20_000, to: 29_999 };
+
+/**
+ * The range in `GEORDI_PORT_RANGE` (`30000-39999`), or the usual one. Two daemons on one
+ * machine (the app's and one in development) give out ports without knowing of each
+ * other: each needs a range of its own.
+ */
+export function portRange(value: string | undefined): Range {
+	if (!value) return RANGE;
+	const match = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(value);
+	const [from, to] = match ? [Number(match[1]), Number(match[2])] : [NaN, NaN];
+	if (!(from >= 1024 && from <= to && to <= 65_535))
+		throw new Error(
+			`GEORDI_PORT_RANGE must be two ports between 1024 and 65535, like 30000-39999: not "${value}"`
+		);
+	return { from, to };
+}
+
+/** Errors that say this machine has no IPv6, rather than that the port is taken. */
+const NO_IPV6 = new Set(['EAFNOSUPPORT', 'EADDRNOTAVAIL']);
+
+/**
+ * Where something may listen. Each must be tried: on macOS a port can be bound on one of
+ * them while another program listens on another (a server on `127.0.0.1` does not keep
+ * anyone from `::`, nor one on `0.0.0.0` from `127.0.0.1`).
+ */
+const HOSTS = ['127.0.0.1', '0.0.0.0', '::1', '::'];
+
+const bindable = (port: number, host: string) =>
 	new Promise<boolean>((resolve) => {
 		const server = createServer()
-			.once('error', () => resolve(false))
+			.once('error', (error: NodeJS.ErrnoException) =>
+				resolve(host.includes(':') && NO_IPV6.has(error.code ?? ''))
+			)
 			.once('listening', () => server.close(() => resolve(true)))
-			.listen(port);
+			.listen({ port, host, ipv6Only: host === '::' });
 	});
+
+/** Whether nothing on this machine listens on `port`, on any of its local addresses. */
+export async function free(port: number): Promise<boolean> {
+	for (const host of HOSTS) if (!(await bindable(port, host))) return false;
+	return true;
+}
+
+/** Which program listens on `port`, if `lsof` can tell. */
+async function listener(port: number): Promise<string | null> {
+	try {
+		const { stdout } = await promisify(execFile)(
+			'lsof',
+			['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fpc'],
+			{ timeout: 2000 }
+		);
+		const pid = /^p(\d+)$/m.exec(stdout)?.[1];
+		const name = /^c(.+)$/m.exec(stdout)?.[1];
+		return name && pid ? `${name} (process ${pid})` : null;
+	} catch {
+		return null; // no lsof, or nothing it is allowed to see
+	}
+}
+
+/**
+ * What to say when `port` is taken by a program that is not the job's: `null` while it is
+ * free. A job's port stays its own (FDR-006), so the job does not start rather than move.
+ */
+export async function portTaken(port: number): Promise<string | null> {
+	if (await free(port)) return null;
+	const program = await listener(port);
+	return `Port ${port} is in use by another program${program ? `: ${program}` : ''}. Stop it, then start this job again.`;
+}
 
 /** Whether something on this machine answers on `port`. */
 export const listening = (port: number) =>
@@ -59,7 +122,13 @@ export function portAt({ blocks }: Assigned, index: number): number {
 	throw new Error('The workspace has no such port');
 }
 
-export function createPorts(file: string, isFree: (port: number) => Promise<boolean> = free) {
+export function createPorts(
+	file: string,
+	{
+		isFree = free,
+		range = RANGE
+	}: { isFree?: (port: number) => Promise<boolean>; range?: Range } = {}
+) {
 	let all: Record<string, Assigned> = {};
 	try {
 		all = JSON.parse(readFileSync(file, 'utf8'));
@@ -79,7 +148,7 @@ export function createPorts(file: string, isFree: (port: number) => Promise<bool
 		const taken = Object.values(all).flatMap((assigned) => assigned.blocks);
 		const clear = (first: number) =>
 			taken.every((block) => first + count <= block.first || block.first + block.count <= first);
-		for (let first = RANGE.from; first + count - 1 <= RANGE.to; first += count) {
+		for (let first = range.from; first + count - 1 <= range.to; first += count) {
 			if (!clear(first)) continue;
 			const ports = Array.from({ length: count }, (_, index) => first + index);
 			// all of them, now: a run with a port someone else is using is of no use
