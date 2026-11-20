@@ -441,7 +441,7 @@
 								icon="icon-[lucide--pencil]"
 								label="Edit suggested reply"
 								size="sm"
-								class="pointer-events-auto absolute top-1/2 left-0 -translate-y-1/2"
+								class="pointer-events-auto absolute top-1/2 left-0 -translate-y-1/2 hover:bg-transparent!"
 								onclick={() => takeSuggestion(offered, false)}
 							/></span
 						></span

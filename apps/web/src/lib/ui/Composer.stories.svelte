@@ -413,7 +413,10 @@
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		sentSuggestion.mockClear();
-		await userEvent.click(canvas.getByRole('button', { name: 'Edit suggested reply' }));
+		const edit = canvas.getByRole('button', { name: 'Edit suggested reply' });
+		await userEvent.hover(edit);
+		await expect(edit).toHaveStyle({ backgroundColor: 'rgba(0, 0, 0, 0)' });
+		await userEvent.click(edit);
 		const text = canvas.getByRole('combobox');
 		await expect(text).toHaveFocus();
 		await expect(text).toHaveValue('Run the tests again.');
