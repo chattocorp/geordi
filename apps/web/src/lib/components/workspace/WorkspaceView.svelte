@@ -34,7 +34,7 @@
 		type Layout,
 		type Zone
 	} from '#lib/layout.ts';
-	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
+	import { CONFIG_FILE, JOB_TERMINAL, SCRIPTS, startOrder, type Script } from '@geordi/protocol';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import RunPane from './RunPane.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
@@ -244,9 +244,24 @@
 		for (const tab of [CHANGES, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
 		if (exists(RUN) && !placed.includes(RUN)) dock = add(dock, RUN);
-		for (const name of workspace.terminals)
+		for (const name of workspace.terminals) {
+			const job = jobOf(name);
+			if (job && !SCRIPTS.some((script) => script === job)) continue;
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
+		}
 		return { main, side, dock };
+	});
+	// Forget closed job terminals so a later run does not restore an old tab.
+	$effect(() => {
+		for (const area of ['main', 'side', 'dock'] as const) {
+			const layout = arrangement.current[area];
+			if (!layout) continue;
+			const next = prune(layout, (tab) => {
+				const terminal = terminalOf(tab);
+				return !terminal || !jobOf(terminal) || workspace.terminals.includes(terminal);
+			});
+			if (next !== layout) arrangement.current = { ...arrangement.current, [area]: next };
+		}
 	});
 	const main = $derived(layouts.main);
 	const dock = $derived(layouts.dock);
@@ -356,12 +371,11 @@
 	/** The jobs that were asked for and are on their way up: until they listen on their port. */
 	const launching = new SvelteSet<string>();
 
-	/** Starts jobs (and what they need), and brings the last of them to the front of the dock. */
+	/** Starts jobs and their dependencies. */
 	function start(names: string[]) {
 		agreed(names, async (seen) => {
 			const order = startOrder(jobs, names);
 			for (const name of order) launching.add(name);
-			if (!frame.current.open) toggleSide();
 			mergeProblem = null;
 			try {
 				await startJobs({ workspaceId: id, jobs: names, seen });
@@ -893,6 +907,7 @@
 			{jobs}
 			{links}
 			stateOf={jobState}
+			hasTerminal={(name) => workspace.terminals.includes(JOB_TERMINAL + name)}
 			{start}
 			{stop}
 			{show}
