@@ -248,6 +248,21 @@
 	/>
 </Story>
 
+<Story
+	name="Clean workspace"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole('button', { name: 'Archive' })).toBeEnabled();
+		await expect(canvas.getByRole('group', { name: 'Next steps' })).toHaveClass('bg-sunken');
+	}}
+>
+	{@render bar({
+		changes: { files: [], uncommitted: 0, unpushed: null },
+		upstream: upstream(null)
+	})}
+</Story>
+
 <Story name="Merged" asChild>
 	{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) })}
 </Story>

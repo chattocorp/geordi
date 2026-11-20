@@ -60,6 +60,8 @@ type State = {
 	failed?: boolean;
 	/** Whether an agent started the workspace: its work goes back to that one. */
 	child?: boolean;
+	/** The workspace has carried on from a finished pull request. */
+	continued?: boolean;
 };
 
 /** Whether everything the workspace did is in the branch it started from, with no pull request to say so. */
@@ -107,7 +109,7 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		label: 'Sync',
 		incomingCommits: incoming.commits,
 		icon: 'icon-[lucide--git-merge]',
-		aside: actions.length > 0,
+		aside: actions.some((action) => action.id !== 'archive'),
 		prompt: mergeFrom(incoming.branch)
 	};
 	return at < 0 ? [...actions, sync] : actions.toSpliced(at, 0, sync);
@@ -127,14 +129,21 @@ function nextActions(state: State): WorkspaceAction[] {
 					'Your last turn ended with an error before you were done. Carry on where you left off.'
 			}
 		];
+	const archive: WorkspaceAction = {
+		id: 'archive',
+		label: 'Archive',
+		icon: 'icon-[lucide--archive]'
+	};
 	// Its work is where it was headed, without a pull request: done with.
-	if (landedLocally(state))
-		return [{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }];
+	if (landedLocally(state)) return [archive];
 	const uncommitted = changes.uncommitted > 0;
 	// committed work that the remote doesn't have: commits ahead of it, or a branch not there at all
 	const unpushed = changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
 	const local = uncommitted || unpushed;
 	const pull = upstream?.pull;
+
+	if (!pull && !local && !changes.files.length && !state.continued)
+		return [{ ...archive, aside: (changes.incoming?.commits ?? 0) > 0 }];
 
 	// Without a forge to send work to, committing is as far as it goes.
 	if (!upstream)
@@ -162,11 +171,6 @@ function nextActions(state: State): WorkspaceAction[] {
 				]
 			: [];
 
-	const archive: WorkspaceAction = {
-		id: 'archive',
-		label: 'Archive',
-		icon: 'icon-[lucide--archive]'
-	};
 	// Its work has landed (or was given up): the workspace is done with, unless there is
 	// more to do in it. Then it carries on, on a fresh branch. Work begun since (an agent
 	// may start a turn unasked) has only that way to go: it comes along.

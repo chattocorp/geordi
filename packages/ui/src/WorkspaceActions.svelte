@@ -139,7 +139,7 @@
 					'inline-flex min-h-9 max-w-full flex-wrap items-center gap-1 rounded-full py-1',
 					'shrink-0',
 					text,
-					compact ? 'pl-2.5' : 'pl-3',
+					standing || askingIn ? (compact ? 'pl-2.5' : 'pl-3') : 'pl-1',
 					// buttons reach the end of the pill; text keeps its distance
 					ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
 					tones[standing?.tone ?? 'neutral']
