@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { HTMLButtonAttributes } from 'svelte/elements';
-	import Spinner from './Spinner.svelte';
+	import ProgressIcon from './ProgressIcon.svelte';
 
 	type Props = {
 		/**
@@ -84,9 +84,7 @@
 >
 	{#if busy || working}
 		<!-- as wide as the icon it stands in for, so that the button keeps its shape -->
-		<span class={['grid place-items-center', size === 'sm' ? 'size-3.5' : 'size-4']}>
-			<Spinner label="Under way" />
-		</span>
+		<ProgressIcon label="Under way" class={size === 'sm' ? 'size-3.5' : 'size-4'} />
 	{:else if icon}
 		<span class={[icon, size === 'sm' ? 'size-3.5' : 'size-4']}></span>
 	{/if}

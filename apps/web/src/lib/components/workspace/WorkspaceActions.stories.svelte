@@ -62,7 +62,11 @@
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText('Working')).not.toBeInTheDocument();
 		await expect(canvas.getByText('Uncommitted changes')).toBeVisible();
-		await expect(canvas.getByRole('button', { name: /Create PR/ })).toBeDisabled();
+		const create = canvas.getByRole('button', { name: /Create PR/ });
+		await expect(create).toBeDisabled();
+		await expect(within(create).getByRole('img', { name: 'Under way' })).toHaveClass(
+			'icon-[lucide--refresh-cw]'
+		);
 	}}
 >
 	{@render bar({ changes: dirty, upstream: upstream(null) }, { pending: ['create-pull'] })}
