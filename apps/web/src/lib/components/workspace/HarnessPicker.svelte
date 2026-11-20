@@ -152,7 +152,8 @@
 	bind:value={() => harness.agent + SEPARATOR + (model?.id ?? ''), pick}
 >
 	{#snippet trigger()}
-		<AgentAvatar agent={harness.agent} size="sm" />
+		<!-- the tile sits as far from the button's left edge as from its top and bottom -->
+		<span class="-ml-1 flex"><AgentAvatar agent={harness.agent} size="sm" /></span>
 		<span class="truncate text-ink"
 			>{model?.name ??
 				(harness.agent === 'opencode' ? defaultModel : agentName[harness.agent])}</span
