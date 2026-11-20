@@ -136,6 +136,11 @@ export const workspace = (id: string) => {
 			if (event.type === 'workspace.restored' && workspaces().worktreeOf(event.data.id) === id)
 				return true;
 			if (event.type === 'workspace.created' && event.data.worktreeId === id) return true;
+			if (event.type === 'workspace.purged')
+				return (
+					event.data.workspaces.some((gone) => gone.id === id || transcripts.has(gone.id)) ||
+					event.data.worktrees.some((worktree) => worktree.id === owner)
+				);
 			if (!event.stream.startsWith('workspace:')) return false;
 			const source = event.data.id;
 			if (source === id || transcripts.has(source)) return true;
@@ -249,6 +254,7 @@ const archive = () => ({
 		[
 			'workspace.archived',
 			'workspace.restored',
+			'workspace.purged',
 			'workspace.titled',
 			'repo.registered',
 			'repo.removed'

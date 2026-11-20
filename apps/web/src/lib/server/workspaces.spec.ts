@@ -1671,3 +1671,93 @@ describe('projects (FDR-012)', () => {
 		expect(sent.at(-1)).toEqual({ type: 'agent.stop', workspaceId: other });
 	});
 });
+
+describe('purging archived workspaces', () => {
+	const png = Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+		'base64'
+	);
+	const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/lead' } as const;
+	const done = (workspaces: ReturnType<typeof createWorkspaces>, ...ids: string[]) =>
+		ids.forEach((id) => workspaces.record(id, { kind: 'turn.completed' }));
+
+	it('deletes a workspace with the agents it started and those alongside, and nothing else', () => {
+		const { store, repos, workspaces, create, dispatch } = setup();
+		const lead = create('Lead');
+		workspaces.record(lead, worktree);
+		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
+		const aide = workspaces.join(lead);
+		const other = create('Other');
+		done(workspaces, lead, child, other);
+		for (const id of [lead, child, aide]) workspaces.archive(id);
+
+		const { purged, freed } = workspaces.purge([lead]);
+		expect(purged).toBe(3);
+		expect(freed).toBeGreaterThanOrEqual(0);
+		for (const id of [lead, child, aide]) expect(() => workspaces.get(id)).toThrow();
+		expect(workspaces.archived()).toEqual([]);
+		expect(store.readAll().filter((event) => event.stream === `workspace:${lead}`)).toEqual([]);
+
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(() => replay.get(lead)).toThrow();
+		expect(replay.get(other)).toEqual(workspaces.get(other));
+	});
+
+	it('refuses while one of them is not archived, and deletes nothing', () => {
+		const { store, workspaces, create } = setup();
+		const lead = create('Lead');
+		workspaces.record(lead, worktree);
+		workspaces.agents.start(lead, { worktree: 'own', prompt: 'Help' });
+		done(workspaces, lead);
+		workspaces.archive(lead);
+		const before = store.readAll().length;
+		expect(() => workspaces.purge([lead])).toThrow(refusal(/“Help” is not archived/));
+		expect(store.readAll()).toHaveLength(before);
+		const release = workspaces.hold([lead], 'being restored');
+		expect(() => workspaces.purge([lead])).toThrow();
+		release();
+	});
+
+	it('keeps what a purged agent said elsewhere as its own, and where a worktree is', () => {
+		const { store, repos, workspaces, create, dispatch } = setup();
+		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Plan' });
+		const owner = create('Owner');
+		done(workspaces, owner);
+		workspaces.agents.send(project, owner, 'Change of plan');
+		// an agent alongside said where the owner's worktree is
+		const aide = workspaces.join(owner);
+		workspaces.record(aide, { kind: 'worktree', path: '/owner', branch: 'geordi/owner' });
+		done(workspaces, project, owner);
+		workspaces.archive(project);
+		workspaces.archive(aide);
+
+		workspaces.purge([project]);
+		workspaces.purge([aide]);
+		const kept = workspaces.get(owner);
+		expect(kept.transcript.find((item) => item.kind === 'user' && item.from)).toMatchObject({
+			text: 'Change of plan',
+			from: project
+		});
+		expect(kept.worktree).toEqual({ path: '/owner', branch: 'geordi/owner' });
+		expect(createWorkspaces(store, repos, dispatch).get(owner)).toEqual(kept);
+	});
+
+	it('deletes the images sent to it, and keeps the bytes another image has too', () => {
+		const { store, workspaces, repo } = setup();
+		const images = createImages(store);
+		const gone = images.add(png);
+		const kept = images.add(png);
+		const purged = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'A',
+			images: [gone]
+		});
+		workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'B', images: [kept] });
+		done(workspaces, purged);
+		workspaces.archive(purged);
+		workspaces.purge([purged]);
+		expect(() => images.get(gone)).toThrow();
+		expect(images.get(kept).data).toBe(png.toString('base64'));
+	});
+});

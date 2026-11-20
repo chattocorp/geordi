@@ -42,7 +42,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - A worktree that was removed outside Geordi (tidied away while it wasn't running, say) doesn't break its workspace: the workspace says so where it says how it stands ("Worktree removed"), with "Restore" as the next step. Restoring, or simply the next message to its agent, brings the worktree back from the workspace's branch, with everything that was committed. What wasn't committed is gone, and the workspace says that too. If the branch is gone as well, the worktree starts afresh.
 - A workspace whose pull request was merged (or closed) can carry on with new work instead of being archived: **Continue** fetches, and moves its worktree to a new branch off the upstream's main branch as it stands then. The conversation stays as it is, with a line saying what happened, and its agent is told with the next message that it is on a new branch and should look at the files afresh. The branch it was on is kept. Uncommitted changes come along onto the new branch (an agent may have begun new work after the merge); if they don't fit onto it, nothing moves and the workspace says so. Not while an agent is at work in that worktree.
 - A workspace can be archived when it is done with. That ends its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. The workspaces its agent started (FDR-002) are archived along with it. Nothing is archived while any of them is still working. The archive dialog appears only when an affected workspace has a running agent, a running terminal process, uncommitted changes, unmerged commits, or an unmerged pull request. It names the workspace and explains what needs attention. Agents archiving the workspaces they started are never asked, and never lose uncommitted work: for them, archiving stops there.
-- Open **Archive** in the sidebar to find a conversation by title or repository. Open it to read it, then select **Restore workspace** to return it to active work and send another message. Restoration applies to the selected conversation and reuses its shared worktree or checks out its retained branch.
+- Open **Archive** in the sidebar to find a conversation by title or repository. Open it to read it, then select **Restore workspace** to return it to active work and send another message. Workspaces in the archive can also be deleted for good (FDR-014). Restoration applies to the selected conversation and reuses its shared worktree or checks out its retained branch.
 - The window arrangement and pane sizes are remembered per browser.
 
 ## Design Decisions
@@ -130,8 +130,8 @@ A workspace takes the title its agent's session goes by (ACP `session_info_updat
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010
-- **FDRs:** FDR-002, FDR-003
+- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010, ADR-012
+- **FDRs:** FDR-002, FDR-003, FDR-014
 
 ## Open Questions
 

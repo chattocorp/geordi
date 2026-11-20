@@ -20,7 +20,7 @@ Alternatives considered:
 
 ## Decision
 
-- The append-only event log records all state changes. An image reference and its immutable blob together preserve an uploaded image.
+- The append-only event log records all state changes. The one exception is purging archived workspaces at a person's word (ADR-012). An image reference and its immutable blob together preserve an uploaded image.
 - The log is one SQLite table, using Node's built-in `node:sqlite`. We build our own small core rather than adopting a library, borrowing Emmett's decide/evolve ideas.
 - Appending a batch of events is one statement and therefore atomic. An image upload publishes its immutable bytes first, in the data directory under `blobs/<sha256>`. Its event records the ID, media type and hash. Older events carry their own bytes and are read on demand.
 - Projections are in-memory and rebuilt by replaying their event types in sequence order. Projections are disposable. Persisting them with a checkpoint is a later optimisation. The workspace projection releases a transcript when its workspace is archived. An archived transcript can be read again from its workspace stream and any earlier session stream.
