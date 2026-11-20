@@ -236,10 +236,14 @@ function nextActions(state: State): WorkspaceAction[] {
 	}
 
 	// Merging is the next step once nothing stands in its way.
-	const checksPass = !pull.checks || pull.checks.state === 'success';
+	const checksAllowMerge =
+		!pull.checks || pull.checks.state === 'success' || pull.checks.optionalChecksRunning;
 	// Auto-merge is for what can't be merged yet: checks still running, a review to wait for,
 	// or anything else the base branch's rules still want.
-	const waiting = !checksPass || pull.review === 'pending' || !!pull.blocked;
+	const waiting =
+		!checksAllowMerge ||
+		(pull.review === 'pending' && !pull.checks?.optionalChecksRunning) ||
+		!!pull.blocked;
 	if (pull.autoMerge?.enabled) {
 		if (pull.autoMerge.canDisable)
 			actions.push({
@@ -256,7 +260,7 @@ function nextActions(state: State): WorkspaceAction[] {
 			icon: 'icon-[lucide--git-merge]',
 			pullNumber: pull.number
 		});
-	} else if (!pull.draft && actions.length === 0 && checksPass && !pull.blocked)
+	} else if (!pull.draft && actions.length === 0 && checksAllowMerge && !pull.blocked)
 		actions.push({
 			id: 'merge-pull',
 			pullNumber: pull.number,
@@ -359,7 +363,7 @@ export function standingOf(state: State): WorkspaceStanding | null {
 	if (unpushed) return todo('Unpublished changes');
 	if (pull.checks?.state === 'pending')
 		return {
-			label: 'Checks running',
+			label: pull.checks.optionalChecksRunning ? 'Optional checks running' : 'Checks running',
 			tone: 'neutral',
 			icon: 'icon-[lucide--circle-dashed] animate-checks-spin',
 			checks: pull.checks.counts
