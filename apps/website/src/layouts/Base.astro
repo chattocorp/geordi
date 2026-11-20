@@ -1,5 +1,7 @@
 ---
 import '../styles/site.css';
+import bodyFont from '@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2?url';
+import codeFont from '@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url';
 import Button from '../components/Button.astro';
 import Visor from '../components/Visor.astro';
 import { site } from '../site.ts';
@@ -19,6 +21,8 @@ const image = new URL(card.src, Astro.site);
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
+		<link rel="preload" href={bodyFont} as="font" type="font/woff2" crossorigin="anonymous" />
+		<link rel="preload" href={codeFont} as="font" type="font/woff2" crossorigin="anonymous" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>{title}</title>
 		<meta name="description" content={description} />

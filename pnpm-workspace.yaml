@@ -12,6 +12,8 @@ allowBuilds:
   workerd: false
 
 catalog:
+  '@fontsource-variable/ibm-plex-sans': ^5.3.0
+  '@fontsource-variable/jetbrains-mono': ^5.3.0
   '@pierre/diffs': ^1.6.4
   '@types/node': ^24
   playwright: ^1.65.0
