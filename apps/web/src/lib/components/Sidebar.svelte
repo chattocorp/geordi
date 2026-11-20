@@ -34,12 +34,14 @@
 	 */
 	let {
 		nav,
+		visibleWorkspaces = nav?.workspaces ?? [],
 		path,
 		folded,
 		focus,
 		lost = false
 	}: {
 		nav: Navigation | undefined;
+		visibleWorkspaces?: Navigation['workspaces'];
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
@@ -49,7 +51,7 @@
 	type Item = Navigation['workspaces'][number];
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(nav?.workspaces ?? []));
+	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
 	/**
@@ -59,12 +61,14 @@
 	 */
 	const groups = $derived([
 		...(listed.get(null)?.length ? [{ id: null, name: 'Projects' }] : []),
-		...sidebarRepos
+		...sidebarRepos.filter((repo) => listed.has(repo.id))
 	]);
 	/** What stands for the projects among the folded: no repository has it as its ID. */
 	const PROJECTS = 'projects';
 	/** How many repositories a focus hides: offered at the end, to show them again. */
-	const hidden = $derived(withWorkspaces.length - sidebarRepos.length);
+	const hidden = $derived(
+		withWorkspaces.filter((repo) => listed.has(repo.id) && !sidebarRepos.includes(repo)).length
+	);
 
 	/**
 	 * Repositories slide away and back when the focus changes, and only then: not when the
