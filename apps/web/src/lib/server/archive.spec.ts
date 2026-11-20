@@ -8,13 +8,17 @@ import { EventStore, type GeordiEvent } from './events/index.ts';
 import { createRepos } from './repos.ts';
 import { createWorkspaces } from './workspaces.ts';
 
-function setup() {
+function repositoryPath() {
 	const repoPath = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
 	execFileSync('git', ['init', '-q', repoPath]);
+	return repoPath;
+}
+
+function setup() {
 	const store = new EventStore<GeordiEvent>(':memory:');
 	const repos = createRepos(store);
 	const workspaces = createWorkspaces(store, repos, () => true);
-	const repo = repos.register(repoPath);
+	const repo = repos.register(repositoryPath());
 
 	/** Worktrees a daemon was asked to remove, and ones it refuses to (they have work in them). */
 	const removed: string[] = [];
@@ -51,6 +55,8 @@ function setup() {
 	};
 	return {
 		workspaces,
+		repos,
+		store,
 		repo,
 		archive,
 		removed,
@@ -84,6 +90,41 @@ describe('archiving', () => {
 		// each worktree once: the lead's only after the reviewer sharing it was archived
 		expect([...removed].sort()).toEqual([lead, child, grandchild].sort());
 		expect(removed.indexOf(grandchild)).toBeLessThan(removed.indexOf(child));
+	});
+
+	it('keeps a cross-repository child and its reviewer running when the parent is archived', async () => {
+		const { workspaces, repos, store, archive, lead, start, removed, closed } = setup();
+		const local = start(lead, 'own', 'Local work');
+		const other = repos.register(repositoryPath());
+		const { id: child } = workspaces.agents.start(local, {
+			repository: other.id,
+			worktree: 'own',
+			prompt: 'Client'
+		});
+		const { id: reviewer } = workspaces.agents.start(lead, {
+			workspace: child,
+			worktree: 'own',
+			prompt: 'Review'
+		});
+		const { id: back } = workspaces.agents.start(child, {
+			repository: workspaces.get(lead).repoId!,
+			worktree: 'own',
+			prompt: 'Check compatibility'
+		});
+		await archive(lead, false);
+		expect(closed).toEqual([local, lead]);
+		expect(removed).toEqual([local, lead]);
+		for (const id of [child, reviewer, back]) {
+			expect(workspaces.get(id)).toMatchObject({ archivedAt: null, status: 'running' });
+		}
+
+		workspaces.record(child, { kind: 'turn.completed' });
+		await expect(archive(child, false)).rejects.toEqual(refusal(/Stop the agent/));
+		workspaces.record(reviewer, { kind: 'turn.completed' });
+		await archive(child, false);
+		expect(closed.slice(-2)).toEqual([reviewer, child]);
+		const replay = createWorkspaces(store, repos, () => true);
+		expect(replay.get(back)).toMatchObject({ archivedAt: null, status: 'running' });
 	});
 
 	it('tears down only what a person archives: an agent archiving leaves that to the person', async () => {

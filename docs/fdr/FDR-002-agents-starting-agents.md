@@ -11,11 +11,11 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 
 - An agent can start another agent (of the same kind as itself, or another). The new agent is a workspace of its own, with its own conversation, and works in one of two places, as the parent decides each time:
   - **Its own worktree:** a new worktree and branch, branched from the parent workspace's branch, for parallel work. If the parent selects another accessible repository, the branch starts from that repository’s base.
-  - **The parent's worktree:** the same directory as the parent, for work that needs to see uncommitted state (reviewing, pairing).
+  - **A shared worktree:** the parent can share its own directory or start a reviewer in the worktree of any of its descendants. The reviewer sees uncommitted files and reports to the agent that started it.
 - The parent can message a child, wait until it has finished its turn, read its latest reply, stop it, and archive it once it is done with it (after merging its branch, say). Archiving on an agent's behalf never discards uncommitted work. Children can start children of their own, up to a limit.
 - A message to a child that is working waits for its turn to end; the parent can have it interrupt instead, which gives the child the message at once, in the middle of what it is doing (ADR-010). In the child's conversation, what an agent said is marked as that agent's, by its workspace's name.
 - The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.
-- Agents can find, read and wait on any workspace in the installation, in any repository, archived conversations included. They message, interrupt, stop and archive only the agents they started, directly or not.
+- Agents can find, read and wait on any workspace in the installation, in any repository, archived conversations included. A repository agent can message another agent in any repository it can access. The message starts a turn if the recipient is idle or waits for its current turn to finish. A repository agent can interrupt, stop and archive its own descendants.
 - People can give an MCP client outside Geordi a named token in Settings (FDR-005), for the repositories they choose; it sees nothing of the others, nor of repositories added later. Such a client can start agents in those repositories, each a workspace of its own, as a person would start it, and supervise them like a parent. It may also message any agent: the message waits for the agent's turn to end, as it interrupts only its own. Its messages are marked with its name.
 - Work from a child with its own worktree is merged in the repository where the child worked. Geordi does not merge on its own.
 - The sidebar groups current workspaces by repository. Archiving the last workspace in a repository removes its heading. A workspace started by an agent is marked as such, appears in its destination repository, and sits under its parent when both are in the same repository; pointing at it lights that one up.
@@ -24,14 +24,14 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - People can add an agent to a workspace too: the "+" beside its conversations opens a new one, begun as a workspace is, by writing what to do and choosing who does it and how. The agent is there once that is sent, working in the same directory. It belongs to the workspace like one an agent started there, and goes when the workspace is archived.
 - People can open, message and stop any child like any other workspace.
 - Limits on nesting depth and on the number of children running at once stop runaway delegation; hitting one is reported to the calling agent as an error it can act on.
-- Archiving a workspace archives the workspaces its agent started along with it: they are part of the same piece of work.
+- Archiving follows children within the same repository and includes agents sharing each affected worktree. When a child works in another repository, it and its work can continue there.
 - A worktree that several workspaces work in is only removed once the last of them is archived.
 
 ## Design Decisions
 
 ### 1. Both sharing and isolating are first-class
 
-**Decision:** A child is always a workspace of its own; it either works in its parent's worktree or gets its own, and the parent decides each time.
+**Decision:** A child is always a workspace of its own; the parent chooses a new worktree or a shared one for each task.
 **Why:** Reviewing needs the parent's uncommitted files, parallel implementation needs isolation. Neither default fits both.
 **Tradeoff:** Agents sharing a worktree can step on each other's edits, and the lead has to choose well.
 

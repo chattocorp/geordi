@@ -1647,7 +1647,7 @@ describe('projects (FDR-012)', () => {
 				.filter((id) => id !== project)
 				.sort()
 		);
-		// only a project starts agents in other workspaces
+		// a repository agent can only place a reviewer with a descendant
 		const lead = create('Lead in a repository');
 		expect(() =>
 			workspaces.agents.start(lead, { worktree: 'own', workspace: target, prompt: 'No' })
