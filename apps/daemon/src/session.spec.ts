@@ -133,6 +133,39 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
 `
 );
 
+const openCodeFixture = join(bin, 'opencode.cjs');
+writeFileSync(
+	openCodeFixture,
+	`
+const send = msg => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
+let prompt;
+let model;
+let sessionId;
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+	const req = JSON.parse(line);
+	switch (req.method) {
+	case 'initialize':
+		return send({id:req.id,result:{protocolVersion:1,agentCapabilities:{sessionCapabilities:{resume:{}}},authMethods:[]}});
+	case 'session/resume':
+		sessionId = req.params.sessionId;
+		return send({id:req.id,result:{configOptions:[{id:'model',category:'model',name:'Model',type:'select',currentValue:'default',options:[]}]}});
+	case 'session/set_config_option':
+		model = req.params.value;
+		return send({id:req.id,result:{configOptions:[]}});
+	case 'session/prompt':
+		prompt = req.id;
+		return send({id:'permission',method:'session/request_permission',params:{sessionId,toolCall:{toolCallId:'edit'},options:[
+			{kind:'allow_once',optionId:'allow',name:'Allow'}, {kind:'reject_once',optionId:'deny',name:'Deny'}
+		]}});
+	default:
+		if (req.id !== 'permission') return;
+		send({method:'session/update',params:{sessionId,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:model+' '+req.result.outcome.optionId}}}});
+		send({id:prompt,result:{stopReason:'end_turn'}});
+	}
+});
+`
+);
+
 const root = () =>
 	mkdtempSync(join(process.platform === 'win32' ? homedir() : tmpdir(), 'geordi-sessions-'));
 const meta = (env: Record<string, string> = {}): Meta => ({
@@ -198,7 +231,7 @@ function begin(
 		(event) => events.push(event),
 		dir,
 		ready,
-		env.MISSING ? join(bin, 'absent.cjs') : fixture
+		env.MISSING ? join(bin, 'absent.cjs') : launch.agent === 'opencode' ? openCodeFixture : fixture
 	);
 	delete process.env.GEORDI_SESSION_IDLE_MS;
 	started.push(session);
@@ -262,6 +295,27 @@ describe('a session', () => {
 		}
 	});
 
+	it.each([
+		['auto', 'deny'],
+		['full-access', 'allow']
+	] as const)(
+		'resumes OpenCode with the chosen model and %s permissions',
+		async (permissionMode, outcome) => {
+			const launch = meta({ OPENCODE_PATH: process.execPath });
+			launch.agent = 'opencode';
+			launch.options.resumeId = 'saved-session';
+			launch.options.settings = { model: 'provider/model', permissionMode };
+			const { events, ended } = begin('Edit', { launch });
+			await ended(1);
+			expect(events).toEqual([
+				{ kind: 'turn.started' },
+				{ kind: 'resume', id: 'saved-session' },
+				{ kind: 'text', text: 'provider/model ' + outcome },
+				{ kind: 'turn.completed' }
+			]);
+		}
+	);
+
 	it('declines a tool permission request without asking the person', async () => {
 		const { events, ended } = begin('permission');
 		await ended(1);
@@ -284,17 +338,25 @@ describe('a session', () => {
 		expect(events).toContainEqual({ kind: 'text', text: mode });
 	});
 
-	it.each(['claude', 'codex'] as const)('fails the turn when %s is missing', async (agent) => {
-		const launch = meta({ PATH: '', CLAUDE_CODE_EXECUTABLE: '', CODEX_PATH: '' });
-		launch.agent = agent;
-		const { events, ended } = begin('hello', { launch });
-		await ended(1);
-		expect(events).toContainEqual({
-			kind: 'turn.failed',
-			error: expect.stringContaining('could not find `' + agent + '`')
-		});
-		expect(events.some((event) => event.kind === 'text')).toBe(false);
-	});
+	it.each(['claude', 'codex', 'opencode'] as const)(
+		'fails the turn when %s is missing',
+		async (agent) => {
+			const launch = meta({
+				PATH: '',
+				CLAUDE_CODE_EXECUTABLE: '',
+				CODEX_PATH: '',
+				OPENCODE_PATH: ''
+			});
+			launch.agent = agent;
+			const { events, ended } = begin('hello', { launch });
+			await ended(1);
+			expect(events).toContainEqual({
+				kind: 'turn.failed',
+				error: expect.stringContaining('could not find `' + agent + '`')
+			});
+			expect(events.some((event) => event.kind === 'text')).toBe(false);
+		}
+	);
 
 	it('fails before prompting when the provider keeps a different mode', async () => {
 		const launch = meta({ REFUSE_MODE: '1' });

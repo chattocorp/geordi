@@ -67,6 +67,8 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 - `GEORDI_PORTS_FILE` (default `~/.geordi/ports.json`): The ports each workspace has been given.
 - `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/reference/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
 
+The daemon looks for `opencode` on its PATH. Set `OPENCODE_PATH` to the executable path if it is installed elsewhere. Sign in with `opencode auth login` as the user that runs the daemon.
+
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
 
 ## Self-hosted forges

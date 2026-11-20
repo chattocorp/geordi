@@ -6,7 +6,7 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
 
 - 🌳 **Workspaces.** One conversation with one agent, in its own Git worktree on its own
   branch. Run as many side by side as you like.
-- 🤖 **Claude and Codex.** Pick the agent, its model and how hard it thinks, per workspace.
+- 🤖 **Claude Code, Codex, and OpenCode.** Pick the agent, its model and how hard it thinks, per workspace.
 - 💬 **Talk while it works.** Steer an agent mid-turn or queue your next message. Agents
   can ask you questions, too.
 - 🧑‍🤝‍🧑 **Control agents through MCP.** Ask your workspace agent to start other agents,
@@ -51,8 +51,11 @@ On macOS, open **Settings → About** to check for updates, choose the Stable or
 and restart to install a downloaded update. Geordi also checks on startup and hourly.
 
 Geordi runs the agent CLIs you already use: sign in to
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code) or
-[Codex](https://github.com/openai/codex) first. For GitHub, Geordi uses the GitHub CLI's
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code),
+[Codex](https://github.com/openai/codex), or [OpenCode](https://opencode.ai) first.
+For OpenCode, run `opencode auth login`, then select **OpenCode** in the workspace model picker.
+It uses your configured model. You can also enter a model ID such as `provider/model`.
+Messages sent during an OpenCode turn wait in the workspace queue. For GitHub, Geordi uses the GitHub CLI's
 login.
 
 To run Geordi without the desktop app (Node.js 24 or newer), run `npx geordi` and open
@@ -73,7 +76,8 @@ http://localhost:7717. See [Self-hosting](docs/self-hosting.md).
 Agents need to commit, push and use tools like `gh`, so by default they run with **Full
 Access**: no permission prompts and no sandbox. They can do whatever your user can.
 Choose **Auto Mode** in the composer to restrict them: Claude then decides permissions
-automatically, and Codex runs in its sandbox with automatic review.
+automatically, and Codex runs in its sandbox with automatic review. For OpenCode, choose
+**Configured permissions** to use its permission rules and decline requests that require approval.
 
 ## Configuring a repository
 

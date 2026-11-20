@@ -133,6 +133,7 @@
 				>
 					{#snippet children(imageProps, hasImages)}
 						<ReplyComposer
+							canSteer={workspace.agent !== 'opencode'}
 							files={searchFiles}
 							{...imageProps}
 							focused

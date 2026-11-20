@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import type { AgentEvent, ForgeMessage } from '@geordi/protocol';
+import type { Agent, AgentEvent, ForgeMessage } from '@geordi/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { createRepos } from './repos.ts';
@@ -27,7 +27,7 @@ function setup({ connected = true, database = ':memory:' } = {}) {
 	const dispatch = (message: ForgeMessage) => (sent.push(message), connected);
 	const workspaces = createWorkspaces(store, repos, dispatch);
 	const repo = repos.register(repoPath);
-	const create = (prompt: string, agent: 'claude' | 'codex' = 'claude') =>
+	const create = (prompt: string, agent: Agent = 'claude') =>
 		workspaces.create({ repoId: repo.id, agent, prompt });
 	return { store, repos, workspaces, sent, repo, create, dispatch };
 }
@@ -546,6 +546,18 @@ describe('workspaces', () => {
 		workspaces.send(id, 'Three');
 		expect(sent.at(-1)).toMatchObject({ prompt: 'Two' });
 		expect(workspaces.get(id).queue).toEqual(['Three']);
+	});
+
+	it('queues a steer to a working OpenCode session across forge replay', () => {
+		const { workspaces, store, repos, dispatch, sent, create } = setup();
+		const id = create('One', 'opencode');
+		workspaces.steer(id, 'Two');
+		expect(sent).toHaveLength(1);
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).queue).toEqual(['Two']);
+		replay.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ type: 'agent.message', prompt: 'Two' });
+		expect(replay.get(id).queue).toEqual([]);
 	});
 
 	it('steers a working agent: the message reaches it at once, in the middle of its turn', () => {

@@ -49,6 +49,8 @@ export async function adapterFor(agent: Agent): Promise<AgentAdapter> {
 	switch (agent) {
 		case 'claude':
 			return (await import('./claude.ts')).claude;
+		case 'opencode':
+			return { offers: () => ({ models: [], efforts: [] }) };
 		case 'codex':
 			return (await import('./codex.ts')).codex;
 	}

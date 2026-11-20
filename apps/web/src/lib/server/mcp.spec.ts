@@ -305,7 +305,10 @@ describe('the agent API as an MCP server', () => {
 		expect(tools[0].inputSchema).toMatchObject({
 			type: 'object',
 			required: ['prompt'],
-			properties: { worktree: { enum: ['own', 'shared'] }, agent: { enum: ['claude', 'codex'] } }
+			properties: {
+				worktree: { enum: ['own', 'shared'] },
+				agent: { enum: ['claude', 'codex', 'opencode'] }
+			}
 		});
 	});
 

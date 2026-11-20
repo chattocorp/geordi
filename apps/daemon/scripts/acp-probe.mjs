@@ -21,10 +21,10 @@ const prompts = {
 		'Run ./probe-task as a background task. Reply WAITING immediately and end this turn. Do not poll. When the task wakes you, reply with its output without further input.'
 };
 assert(
-	['codex', 'claude'].includes(agent) &&
+	(['codex', 'claude'].includes(agent) || (agent === 'opencode' && scenario === 'inspect')) &&
 		Object.hasOwn(prompts, scenario) &&
 		['auto', 'full-access'].includes(permissionMode),
-	'Usage: acp:probe <codex|claude> [inspect|steer|background|ask|subagents|commands] [auto|full-access]'
+	'Usage: acp:probe <codex|claude|opencode> [inspect|steer|background|ask|subagents|commands] [auto|full-access]'
 );
 
 const root = mkdtempSync(join(tmpdir(), 'geordi-acp-'));
@@ -240,11 +240,15 @@ try {
 			break;
 		}
 		case 'inspect': {
+			assert.match(reply(foreground), /READY/);
+			if (agent === 'opencode') {
+				console.log(`OpenCode ACP v1 session ${session.resumeId()}`);
+				break;
+			}
 			const wrapper = agent === 'codex' ? 'codex-acp' : 'claude-agent-acp';
 			const { version } = createRequire(import.meta.url)(
 				`@agentclientprotocol/${wrapper}/package.json`
 			);
-			assert.match(reply(foreground), /READY/);
 			console.log(`${wrapper} ${version}, ACP v2 session ${session.resumeId()}`);
 			break;
 		}

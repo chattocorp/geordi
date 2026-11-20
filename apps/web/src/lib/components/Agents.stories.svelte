@@ -19,7 +19,8 @@
 			efforts
 		},
 		// a CLI that says nothing about its models: there is nothing to choose
-		{ agent: 'codex', models: [], efforts: [] }
+		{ agent: 'codex', models: [], efforts: [] },
+		{ agent: 'opencode', models: [], efforts: [] }
 	];
 </script>
 
@@ -34,6 +35,7 @@
 	<div class="flex flex-wrap items-center gap-4">
 		<AgentAvatar agent="claude" />
 		<AgentAvatar agent="codex" />
+		<AgentAvatar agent="opencode" />
 		<AgentAvatar agent="claude" size="sm" />
 		<AgentAvatar agent="codex" size="sm" />
 	</div>

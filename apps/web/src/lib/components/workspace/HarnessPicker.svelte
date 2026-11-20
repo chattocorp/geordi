@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import {
-		SETTING,
+		MODEL_SETTING,
 		type Agent,
 		type AgentSettings,
 		type PermissionMode,
@@ -31,7 +31,7 @@
 		const wanted = choice.settings[harness?.agent] ?? {};
 		const model =
 			harness?.models.find((model) => model.id === wanted.model) ??
-			(wanted.named && wanted.model && SETTING.test(wanted.model)
+			(wanted.named && wanted.model && MODEL_SETTING.test(wanted.model)
 				? { id: wanted.model, name: wanted.model, efforts: harness.efforts }
 				: harness?.models[0]);
 		const efforts = model?.efforts ?? harness?.efforts ?? [];
@@ -84,7 +84,7 @@
 
 	/** A model by a name we don't know (a specific version, say), for each agent to try. */
 	const named = (typed: string): SelectOption[] =>
-		SETTING.test(typed)
+		MODEL_SETTING.test(typed)
 			? harnesses.map(({ agent }) => ({
 					value: agent + SEPARATOR + typed,
 					label: `Use “${typed}” with ${agentName[agent]}`
@@ -99,7 +99,9 @@
 		});
 
 	function pick(value: string) {
-		const [agent, id] = value.split(SEPARATOR) as [Agent, string];
+		const separator = value.indexOf(SEPARATOR);
+		const agent = value.slice(0, separator) as Agent;
+		const id = value.slice(separator + 1);
 		const listed = harnesses.find((h) => h.agent === agent)?.models.some((m) => m.id === id);
 		set(agent, { model: id || undefined, named: !!id && !listed });
 	}
@@ -140,7 +142,7 @@
 <Select
 	label="Permission mode"
 	options={[
-		{ value: 'auto', label: 'Auto Mode' },
+		{ value: 'auto', label: harness.agent === 'opencode' ? 'Configured permissions' : 'Auto Mode' },
 		{ value: 'full-access', label: 'Full Access' }
 	] satisfies SelectOption<PermissionMode>[]}
 	bind:value={() => permissionMode, (value) => set(harness.agent, { permissionMode: value })}
