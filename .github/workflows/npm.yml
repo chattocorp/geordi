@@ -2,6 +2,9 @@ name: npm package
 on:
   workflow_call:
     inputs:
+      tag:
+        type: string
+        required: true
       commit:
         type: string
         required: true
@@ -10,6 +13,7 @@ permissions: {}
 
 jobs:
   publish:
+    if: "!contains(inputs.tag, '-')"
     runs-on: ubuntu-latest
     permissions:
       contents: read

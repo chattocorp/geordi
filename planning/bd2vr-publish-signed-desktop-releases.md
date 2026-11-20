@@ -10,3 +10,5 @@ title: Publish signed desktop releases
 Publish unsigned desktop ZIPs first. After the release workflow is proven, add Developer ID signing and notarization for macOS and Azure Artifact Signing for Windows. Verify signatures before publication.
 
 Implement macOS signing and notarization first. Windows signing is deferred.
+
+Verified one Apple submission for the signed DMG and the auto-update ZIP in [the branch build](https://github.com/chattocorp/geordi/actions/runs/44590935536). Gatekeeper accepted both the DMG and the app extracted from the ZIP. Sweet Release builds its own tags, and a manual beta tag still starts the desktop workflow.
