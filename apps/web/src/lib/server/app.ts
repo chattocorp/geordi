@@ -1,3 +1,4 @@
+import { createRecapUsage } from './recap-usage.ts';
 import { createImages } from './images.ts';
 import { createLive } from './live.ts';
 import { views } from './views.ts';
@@ -35,6 +36,7 @@ import { createWorkspaces } from './workspaces.ts';
 
 /** The forge's services, wired together. Everything is created on first use. */
 
+export const recapUsage = lazy(() => createRecapUsage(store()));
 export const images = lazy(() => createImages(store()));
 export const repos = lazy(() => createRepos(store()));
 export const workspaces = lazy(() =>
@@ -270,7 +272,8 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		onUsage: (workspaceId, usage) => workspaces().measure(workspaceId, usage),
 		onLimits: (workspaceId, known) => limits().note(workspaces().summary(workspaceId).agent, known),
 		onMessage: (message) => {
-			if (message.type === 'workspace.event') {
+			if (message.type === 'recap.measured') recapUsage().record(message);
+			else if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.cursor);
 				if (message.event.kind === 'turn.completed' || message.event.kind === 'turn.failed')
 					upstreamMayHaveChanged(message.workspaceId);

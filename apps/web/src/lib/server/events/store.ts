@@ -81,10 +81,10 @@ export class EventStore<E extends EventInput = EventInput> {
 	}
 
 	/** All events of one stream, in order. */
-	readStream(stream: string): StoredEvent<E>[] {
+	readStream(stream: string, after = 0, through = Number.MAX_SAFE_INTEGER): StoredEvent<E>[] {
 		const rows = this.#db
-			.prepare('SELECT * FROM events WHERE stream = ? ORDER BY seq')
-			.all(stream) as Row[];
+			.prepare('SELECT * FROM events WHERE stream = ? AND seq > ? AND seq <= ? ORDER BY seq')
+			.all(stream, after, through) as Row[];
 		return rows.map((row) => this.#parse(row));
 	}
 
