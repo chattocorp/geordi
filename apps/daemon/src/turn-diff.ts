@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseFileChanges } from './changes.ts';
 import { gitEnv, type Worktree } from './worktree.ts';
@@ -45,7 +45,14 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 		);
 
 	function tree() {
-		copyFileSync(join(worktree.adminDir, 'index'), index);
+		const original = join(worktree.adminDir, 'index');
+		copyFileSync(original, index);
+		// Git trusts an entry's file to be unchanged when its size and modification time
+		// match, unless the entry is as recent as the index itself: then it reads the file.
+		// A copy made now would lose that, and miss an edit of the same size in the same
+		// second; so the copy is as old as the index (in whole seconds: never newer).
+		const at = Math.floor(statSync(original).mtimeMs / 1000);
+		utimesSync(index, at, at);
 		const tracked = run(['diff-files', '--name-only', '-z', ...SAFE]);
 		const untracked = run(['ls-files', '--others', '--exclude-standard', '-z']);
 		// Embedded repositories are listed as directories. Never descend into them.

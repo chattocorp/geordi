@@ -9,6 +9,7 @@ import {
 	realpathSync,
 	rmSync,
 	symlinkSync,
+	utimesSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -826,6 +827,28 @@ it('runs Git once for a burst of identical changes requests and reads again afte
 	} finally {
 		if (original === undefined) delete process.env.GIT_TRACE2_EVENT;
 		else process.env.GIT_TRACE2_EVENT = original;
+	}
+});
+
+it('sees an edit of the same size in the same second as the index', async () => {
+	const repoPath = repo();
+	const base = mkdtempSync(join(tmpdir(), 'geordi-turn-'));
+	try {
+		const wt = await ensureWorktree(base, repoPath, '12345678');
+		const file = join(wt.path, 'example');
+		// file and index from the same second: Git can tell the file apart only by reading it
+		const second = new Date('2026-11-19T12:00:00Z');
+		writeFileSync(file, 'before\n');
+		utimesSync(file, second, second);
+		execFileSync('git', ['-C', wt.path, 'add', 'example']);
+		utimesSync(join(wt.adminDir, 'index'), second, second);
+		const finish = startTurnDiff(wt, base);
+		writeFileSync(file, 'during\n');
+		utimesSync(file, second, second);
+		expect(finish()?.patch).toContain('-before\n+during');
+	} finally {
+		rmSync(base, { recursive: true, force: true });
+		rmSync(repoPath, { recursive: true, force: true });
 	}
 });
 

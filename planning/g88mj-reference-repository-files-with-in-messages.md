@@ -8,6 +8,8 @@ title: Reference repository files with @ in messages
 ---
 The daemon streams Git names into a reusable worker index and returns at most 40 paths with their fuzzy-match positions. The browser shows each name and folder on one row. Verified keyboard selection through the forge, the packaged worker, refresh after adding a file, and reuse after reconnecting the forge.
 
+The composer starts searching after a filename character follows @ and typing pauses for 150 ms. It keeps the previous rows in place until the new results arrive. A browser story verifies that a bare @ sends no request and that pending rows cannot insert a stale path.
+
 Million-file benchmark (local macOS, Node 26.9.0, warm medians of seven timed requests over the authenticated daemon WebSocket, excluding the browser debounce and rendering):
 
 - Checked-out Git worktree made by repeating repository paths in numbered package directories. Cold first lookup took 22.9 s. Warm queries took 0.82 ms for m, 0.52 ms for msgcomp, 16.55 ms for pkg1740/comp, and 3.37 ms for a miss. The msgcomp response was 4,300 bytes including the envelope. An unrelated daemon request during the cold build took 0.60 ms. Before incremental updates, refreshing after adding a file took 17.4 s.
