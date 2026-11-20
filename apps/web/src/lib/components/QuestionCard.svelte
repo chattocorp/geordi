@@ -65,11 +65,17 @@
 	{@attach (form) => {
 		if (!onreveal) return;
 		const done = onreveal;
-		const frame = requestAnimationFrame(() => {
+		let frame = requestAnimationFrame(reveal);
+		function reveal() {
+			// The virtualizer hides a newly mounted row until it has measured it.
+			if (!form.checkVisibility({ visibilityProperty: true })) {
+				frame = requestAnimationFrame(reveal);
+				return;
+			}
 			form.querySelector<HTMLElement>('button, input, textarea')?.focus({ preventScroll: true });
 			form.scrollIntoView({ block: 'start' });
 			done();
-		});
+		}
 		return () => cancelAnimationFrame(frame);
 	}}
 >
