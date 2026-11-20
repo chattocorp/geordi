@@ -16,6 +16,10 @@ ADR-001 names persisting projections with a checkpoint as a later optimisation. 
 - Forge replay (repositories and workspaces): ~240 ms. Roughly 3 ms per MB, so ~75 ms more each day: ~2 s after a month at this pace.
 - `workspace.output` is 58 MB of it; 50 MB (87%) belongs to archived workspaces (412 of 441). Replay builds their transcripts and drops them at `workspace.archived`.
 
+## Since then: purging (5mj73)
+
+People can now delete archived workspaces for good (ADR-012, FDR-014). On a copy of the same log, purging everything archived took replay from 253 ms to 32 ms and the file from 106 MB to 13 MB. As long as people trim the archive now and then, startup tracks the work in use rather than all of history, which makes this item much less urgent.
+
 ## Tried and dropped
 
 Passing over archived workspaces' transcript-only output during replay (see 5vzw6 for earlier replay work):
@@ -25,4 +29,4 @@ Passing over archived workspaces' transcript-only output during replay (see 5vzw
 
 ## When and what
 
-Pick this up once forge startup passes about a second. Persist the projections with the `seq` they reflect and replay only what comes after. Rebuild from the log when the projection code changes (a version per projection), so they stay disposable.
+Pick this up once forge startup passes about a second even with the archive trimmed. Persist the projections with the `seq` they reflect and replay only what comes after. Rebuild from the log when the projection code changes (a version per projection), so they stay disposable.
