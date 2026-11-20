@@ -35,6 +35,7 @@
 		type Zone
 	} from '#lib/layout.ts';
 	import { CONFIG_FILE, JOB_TERMINAL, startOrder, type Script } from '@geordi/protocol';
+	import JobStatus from './JobStatus.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import DockMenus from './DockMenus.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
@@ -872,27 +873,7 @@
 	{:else if terminal}
 		{@const job = jobOf(terminal)}
 		{#if job && jobs.some((entry) => entry.name === job)}
-			{@const link = links.find((entry) => entry.name === job)}
-			<div class="flex items-center justify-end gap-1 px-2">
-				{#if link}
-					<Button
-						variant="ghost"
-						size="sm"
-						icon="icon-[lucide--external-link]"
-						onclick={() => visit(link)}>Open {link.label ?? link.name}</Button
-					>
-				{/if}
-				{#if isUp(job)}
-					<Button variant="ghost" size="sm" onclick={() => stop(job)}>Stop</Button>
-				{:else}
-					<Button
-						variant="ghost"
-						size="sm"
-						disabled={launching.has(job)}
-						onclick={() => start([job])}>Start again</Button
-					>
-				{/if}
-			</div>
+			<JobStatus state={jobState(job)} start={() => start([job])} stop={() => stop(job)} />
 		{/if}
 		<Terminal
 			workspaceId={id}

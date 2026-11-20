@@ -53,8 +53,7 @@ Without this setting, Geordi uses the first URL, or the first job when there are
 Click the named button or press **Option+Command+Enter** on Mac (**Ctrl+Alt+Enter** elsewhere).
 If the default job is already running, this shows its terminal.
 
-The chevron lists links first, then jobs. When a link and a job share a key, the terminal
-also offers a shortcut to open the link.
+The chevron lists links first, then jobs.
 
 ## Ports
 
