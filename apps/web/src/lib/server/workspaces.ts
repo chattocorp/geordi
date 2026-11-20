@@ -614,7 +614,7 @@ export function createWorkspaces(
 	 * What agents can do through the agent API (ADR-004, FDR-002). Every function takes the
 	 * caller: a workspace, or an external client's grant. It is recorded as the actor of what
 	 * it causes. A workspace's agent can read any workspace, an external client those in the
-	 * repositories it was granted; supervising (messaging, interrupting, stopping, archiving)
+	 * repositories it was granted; supervising (interrupting, stopping, archiving)
 	 * is for whoever started it, directly or not.
 	 */
 	const agents = {
@@ -671,7 +671,7 @@ export function createWorkspaces(
 		/**
 		 * Starts an agent on the caller's behalf, as a workspace of its own. A workspace's agent
 		 * starts it in a new worktree branched from its own (`own`), or in its own worktree
-		 * (`shared`); an external client starts it in a `repository`, as a person would. An
+		 * (`shared`). In another repository it starts from that repository’s base. An
 		 * agent of the caller's kind runs as the caller does, but for the `model` and `effort`
 		 * asked for. An effort is checked against what is `offered`, when that is known.
 		 */
@@ -689,7 +689,7 @@ export function createWorkspaces(
 			}: {
 				repository?: string;
 				worktree: WorktreeMode;
-				/** A project's: an existing workspace to start the agent in, alongside its own. */
+				/** An existing workspace where the caller may start an agent alongside its agent. */
 				workspace?: string;
 				agent?: Agent;
 				model?: string;
@@ -701,6 +701,7 @@ export function createWorkspaces(
 		): AgentReport {
 			const external = isExternal(callerId);
 			const caller = external ? null : find(callerId);
+			if (caller) refuseHeld(caller.id);
 			if (caller && depthOf(caller) + 1 > limits.depth)
 				error(403, `Agents can only be nested ${limits.depth} deep`);
 			ensureCapacity(callerId);
@@ -711,29 +712,26 @@ export function createWorkspaces(
 				base?: string;
 			};
 			const project = caller?.repoId === null;
-			if (alongside !== undefined && !project)
-				error(400, 'Only a project starts agents in other workspaces');
-			if (caller && project && (alongside !== undefined || worktree === 'shared')) {
-				// a project starts agents alongside the agent of a workspace it sees, its own included
-				const owner = find(findControlled(callerId, alongside ?? callerId).worktreeId);
-				if (owner.archivedAt) error(409, 'That workspace is archived');
+			if (alongside !== undefined && external)
+				error(400, 'Only workspace agents can start a reviewer in a workspace');
+			if (caller && (alongside !== undefined || (project && worktree === 'shared'))) {
+				const target = findControlled(callerId, alongside ?? callerId);
+				const owner = findFor(callerId, target.worktreeId);
+				if (target.archivedAt || owner.archivedAt) error(409, 'That workspace is archived');
 				where = {
 					repoId: owner.repoId,
 					parentId: callerId,
 					worktreeId: owner.id,
 					...(owner.base && { base: owner.base })
 				};
-			} else if (!caller || project) {
-				// a project, like a client outside Geordi, starts agents in whichever repository it names
+			} else if (!caller || project || (repository !== undefined && repository !== caller.repoId)) {
 				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
 				if (worktree === 'shared')
-					error(400, 'Only an agent in a workspace can share its worktree');
+					error(400, 'A shared worktree must be in the calling workspace’s repository');
 				if (!reaches(callerId, repository))
 					error(404, `There is no repository ${repository} you have access to`);
-				where = { repoId: repos.get(repository).id, ...(project && { parentId: callerId }) };
+				where = { repoId: repos.get(repository).id, ...(caller && { parentId: callerId }) };
 			} else {
-				if (repository && repository !== caller.repoId)
-					error(403, 'Agents start agents in their own repository');
 				const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
 				if (!branch) error(409, 'Your workspace has no worktree yet');
 				where = {
@@ -768,17 +766,17 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Says something to an agent: at once if it is idle; otherwise once it has finished what
-		 * it is doing, or (`interrupt`) now, steering what it is doing. A workspace's agent
-		 * messages the agents it started; an external client, any agent, but it interrupts only
-		 * those it started: a person's agent is not turned around in the middle of its work.
+		 * Peer messages wait for the current turn. Only a supervisor may steer it.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
-			const external = isExternal(callerId);
-			const workspace = external ? findFor(callerId, id) : findControlled(callerId, id);
+			const workspace = findFor(callerId, id);
+			const project = isProject(callerId);
+			if (!project && (id === callerId || workspace.repoId === null))
+				error(400, 'Choose another agent in an accessible repository');
 			if (workspace.archivedAt) error(409, 'Workspace is archived');
+			refuseHeld(id);
 			if (
-				external &&
+				!project &&
 				interrupt &&
 				workspace.status === 'running' &&
 				!descendantsOf(callerId).some((other) => other.id === workspace.id)
@@ -893,22 +891,38 @@ export function createWorkspaces(
 		/** The workspaces in use that this one's agent started itself, oldest first. */
 		children: (id: string): WorkspaceSummary[] => childrenOf(id).map(summarise),
 
-		/**
-		 * The IDs of the workspaces in use that belong to this one, and go when it goes: those
-		 * its agent started, the agents working in its worktree (whoever started them), and
-		 * theirs. Parents first. For a project, only the agents working in its folder: what it
-		 * started in a repository is work there, which carries on without it (FDR-012).
-		 */
+		/** Workspaces to archive with this one, with each owner before its dependents. */
 		descendants(id: string): string[] {
-			const alongside = [...projection.get().values()].filter(
-				(other) => other.id !== id && other.worktreeId === id && !other.archivedAt
-			);
-			if (find(id).repoId === null) return alongside.map((workspace) => workspace.id);
-			const all = [
-				...descendantsOf(id),
-				...alongside.flatMap((workspace) => [workspace, ...descendantsOf(workspace.id)])
-			];
-			return [...new Set(all.map((workspace) => workspace.id))];
+			const { repoId } = find(id);
+			const dependents = new Map<string, string[]>();
+			for (const workspace of projection.get().values()) {
+				if (workspace.archivedAt || workspace.repoId !== repoId) continue;
+				// A reviewer sent to a different worktree stays with that worktree's owner.
+				const owners = [workspace.worktreeId];
+				if (repoId !== null && workspace.parentId) {
+					const parent = projection.get().get(workspace.parentId);
+					if (workspace.worktreeId === workspace.id || workspace.worktreeId === parent?.worktreeId)
+						owners.push(workspace.parentId);
+				}
+				for (const owner of owners) {
+					if (owner === workspace.id) continue;
+					const group = dependents.get(owner);
+					if (group) group.push(workspace.id);
+					else dependents.set(owner, [workspace.id]);
+				}
+			}
+
+			// Nested agents in one worktree can depend on both their parent and its owner.
+			const visited = new Set<string>();
+			const ordered: string[] = [];
+			function visit(owner: string) {
+				if (visited.has(owner)) return;
+				visited.add(owner);
+				for (const child of dependents.get(owner) ?? []) visit(child);
+				if (owner !== id) ordered.push(owner);
+			}
+			visit(id);
+			return ordered.reverse();
 		},
 
 		/**

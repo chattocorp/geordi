@@ -3,7 +3,7 @@
 | #                                                         | Feature                                                          | Status       | Last reviewed |
 | --------------------------------------------------------- | ---------------------------------------------------------------- | ------------ | ------------- |
 | [FDR-001](FDR-001-workspaces.md)                          | Workspaces                                                       | Active       | 2026-11-20    |
-| [FDR-002](FDR-002-agents-starting-agents.md)              | Agents starting and supervising agents                           | Active       | 2026-11-18    |
+| [FDR-002](FDR-002-agents-starting-agents.md)              | Agents starting and supervising agents                           | Active       | 2026-11-20    |
 | [FDR-003](FDR-003-workspace-actions.md)                   | Workspace actions                                                | Active       | 2026-11-20    |
 | [FDR-004](FDR-004-model-and-effort.md)                    | Choosing the agent, its model and its effort                     | Active       | 2026-11-18    |
 | [FDR-005](FDR-005-settings.md)                            | Settings                                                         | Active       | 2026-11-20    |
@@ -13,6 +13,6 @@
 | [FDR-009](FDR-009-repository-workspace.md)                | The repository's own workspace                                   | Withdrawn    | 2026-11-17    |
 | [FDR-010](FDR-010-native-subagents.md)                    | Native subagents in a conversation                               | Active       | 2026-11-18    |
 | [FDR-011](FDR-011-diagrams-and-svg.md)                    | Diagrams and SVG in agent output                                 | Active       | 2026-11-18    |
-| [FDR-012](FDR-012-projects.md)                            | Projects: workspaces for orchestrating, not tied to a repository | Experimental | 2026-11-19    |
+| [FDR-012](FDR-012-projects.md)                            | Projects: workspaces for orchestrating, not tied to a repository | Experimental | 2026-11-20    |
 | [FDR-013](FDR-013-repository-issues-and-pull-requests.md) | Repository issues and pull requests                              | Withdrawn    | 2026-11-20    |
 | [FDR-014](FDR-014-purging-archived-workspaces.md)         | Deleting archived workspaces for good                            | Active       | 2026-11-20    |

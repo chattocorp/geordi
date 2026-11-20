@@ -134,13 +134,12 @@ function startCatalogInput(kind: CallerKind) {
 			repository: repositoryId,
 			worktree: v.optional(v.literal('own'), 'own')
 		});
-	if (kind === 'project') return startInput;
-	return v.object({ ...startFields, worktree: worktreeMode });
+	return startInput;
 }
 
 const startLocation = {
 	repository:
-		'The default, worktree "own", creates a branch from your current commit. Merge its branch to bring the work back. Use "shared" to work in your directory, including uncommitted files.',
+		'The default, worktree "own", creates a branch from your current commit. Merge its branch to bring the work back. Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". The branch starts from that repository’s base. Pass workspace instead to start a reviewer in the worktree of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode.',
 	project:
 		'Pass repository to start on a new branch from the repository base. Pass workspace to share that workspace’s directory and branch, regardless of worktree mode. With worktree "shared" and no workspace, the agent joins your project folder. The shared forms ignore repository.',
 	external:
@@ -233,8 +232,8 @@ const tools = {
 	send_message: {
 		description: (kind: CallerKind) =>
 			[
-				`Send a follow-up to ${kind === 'external' ? 'any unarchived workspace in your granted repositories' : controlledTarget(kind)}. An idle agent starts a turn, processing any previously queued messages first. A running agent receives the message after its turn unless you set interrupt to steer the current turn.`,
-				kind === 'external' ? 'You may steer only your own direct or indirect descendants.' : '',
+				`Send a follow-up to ${kind === 'project' ? controlledTarget(kind) : 'another unarchived agent in a repository you can access'}. An idle agent starts a turn, processing any previously queued messages first. A running agent receives the message after its turn unless you set interrupt to steer the current turn.`,
+				kind !== 'project' ? 'You may steer only your own direct or indirect descendants.' : '',
 				'Returns the current agent report immediately. Use wait_for_agent for the reply.'
 			]
 				.filter(Boolean)
@@ -264,7 +263,7 @@ const tools = {
 	archive_agent: {
 		description: (kind: CallerKind) =>
 			[
-				`Archive ${controlledTarget(kind)}. For a repository workspace, Geordi also archives its descendants. If the target owns its worktree, this includes agents working alongside it and their descendants.`,
+				`Archive ${controlledTarget(kind)}. Geordi also archives agents working in its directory and follows child workspaces within the same repository. Children in other repositories keep working.`,
 				kind === 'project'
 					? 'Archiving a project closes the agents in its folder and preserves the folder. Agents it started in repositories continue working.'
 					: '',

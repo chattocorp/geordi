@@ -1,7 +1,7 @@
 # FDR-012: Projects
 
 **Status:** Experimental
-**Last reviewed:** 2026-11-19
+**Last reviewed:** 2026-11-20
 
 ## Overview
 
@@ -44,7 +44,7 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 
 **Decision:** A project's agent may do in Geordi whatever the person may: across all repositories, and on any agent, not only those it started. The limits on nesting and on how many agents run at once still apply.
 **Why:** The person works with it, and it acts for them. Rules about whose agent is whose would only stand between them and their own work.
-**Tradeoff:** A project can interrupt, stop or archive work in a repository that it didn't start. Agents in repository workspaces stay limited to their own repository and their own children.
+**Tradeoff:** A project can interrupt, stop or archive work in a repository that it didn't start. Agents in repository workspaces can delegate across repositories and supervise their own descendants.
 
 ### 5. Projects keep to themselves
 

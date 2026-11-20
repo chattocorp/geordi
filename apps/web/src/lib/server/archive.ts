@@ -16,8 +16,8 @@ type Parts = {
 };
 
 /**
- * Archives a workspace together with every workspace its agent started (and theirs): they
- * are part of the same piece of work, and nobody would find them again without it. Each one
+ * Archives a workspace with its same-repository children and agents sharing their worktrees.
+ * Children working in other repositories continue there. Each affected workspace
  * has its shells ended, its worktree removed (unless a workspace that stays still works in
  * it) and is taken out of the lists. Branches and conversations stay.
  *

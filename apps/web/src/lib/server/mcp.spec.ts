@@ -318,8 +318,8 @@ describe('the agent API as an MCP server', () => {
 		const repoTools = await catalog(caller);
 		const projectTools = await catalog(project);
 		const clientTools = await catalog(external);
-		expect(repoTools.start_agent.inputSchema.properties).not.toHaveProperty('repository');
-		expect(repoTools.start_agent.inputSchema.properties).not.toHaveProperty('workspace');
+		expect(repoTools.start_agent.inputSchema.properties).toHaveProperty('repository');
+		expect(repoTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
 		expect(projectTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
 		expect(projectTools.start_agent.description).toContain('regardless of worktree mode');
 		expect(clientTools.start_agent.inputSchema.required).toContain('repository');
@@ -386,7 +386,7 @@ describe('the agent API as an MCP server', () => {
 		expect((await call('start_agent', {})).error).toMatch(/Invalid input/);
 		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not found/);
 		expect((await call('send_message', { agent_id: 'nope', message: 'Hi' })).error).toMatch(
-			/not started/
+			/not found/
 		);
 		expect((await call('launch_missiles')).error).toMatch(/Unknown tool/);
 	});
@@ -482,7 +482,7 @@ describe('workspace status', () => {
 });
 
 describe('installation-wide workspace access', () => {
-	it('lets workspace agents read and wait on any workspace, but message only their own', async () => {
+	it('lets agents read, wait on and message peers across repositories', async () => {
 		const { repos, workspaces, caller, call } = setup();
 		const repoId = repos.register(gitRepository()).id;
 		const peer = workspaces.create({ repoId, agent: 'codex', prompt: 'Review the change' });
@@ -496,15 +496,51 @@ describe('installation-wide workspace access', () => {
 		workspaces.record(peer, { kind: 'turn.completed' });
 		expect(await call('wait_for_agent', { agent_id: peer })).toMatchObject({ status: 'idle' });
 
-		for (const id of [peer, caller])
-			expect((await call('send_message', { agent_id: id, message: 'Hi' })).error).toMatch(
-				/not started/
-			);
+		expect(await call('send_message', { agent_id: peer, message: 'Which version?' })).toMatchObject(
+			{ status: 'running' }
+		);
+		expect(workspaces.get(peer).transcript.at(-1)).toMatchObject({
+			from: caller,
+			text: 'Which version?'
+		});
+		expect(
+			(await call('send_message', { agent_id: peer, message: 'Answer now', interrupt: true })).error
+		).toMatch(/only interrupt/);
+		await call('send_message', { agent_id: peer, message: 'Also check v2' });
+		expect(workspaces.get(peer).queue).toEqual(['Also check v2']);
+		workspaces.record(peer, { kind: 'turn.completed' });
+		expect(workspaces.get(peer).transcript.at(-1)).toMatchObject({
+			from: caller,
+			text: 'Also check v2'
+		});
+		expect((await call('start_agent', { workspace: peer, prompt: 'Review' })).error).toMatch(
+			/not started/
+		);
 		expect((await call('stop_agent', { agent_id: peer })).error).toBeTruthy();
 		expect((await call('archive_agent', { agent_id: peer })).error).toBeTruthy();
-		expect((await call('start_agent', { prompt: 'Elsewhere', repository: repoId })).error).toMatch(
-			/own repository/
-		);
+	});
+
+	it('starts a child from the target repository base in its own worktree', async () => {
+		const { store, repos, workspaces, caller, call } = setup();
+		const repo = repos.register(gitRepository());
+		const task = { prompt: 'Update the client', repository: repo.id };
+		expect((await call('start_agent', { ...task, worktree: 'shared' })).error).toMatch(/shared/);
+		const child = await call('start_agent', task);
+		expect(workspaces.get(child.id)).toMatchObject({
+			parentId: caller,
+			repoId: repo.id,
+			worktreeId: child.id,
+			base: null
+		});
+		const reviewer = await call('start_agent', {
+			workspace: child.id,
+			prompt: 'Review the client changes'
+		});
+		expect(reviewer).toMatchObject({ parentId: caller, sharesWorktree: true });
+		const replay = createWorkspaces(store, repos, () => true);
+		expect(replay.ref(reviewer.id)).toEqual(replay.ref(child.id));
+		expect(replay.ref(child.id)).toEqual({ repoPath: repo.path, worktreeId: child.id });
+		expect(replay.agents.get(caller, child.id)).toMatchObject({ parentId: caller });
 	});
 
 	it('reads archived pages without restarting the agent', async () => {
@@ -672,6 +708,13 @@ it('keeps the agents an external client started to its repositories', async () =
 	const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
 	const started = await callAs(actor)('start_agent', { prompt: 'Look around', repository: repoId });
 	const child = callAs(started.id);
+	expect(
+		(await child('start_agent', { prompt: 'Build', repository: workspaces.get(caller).repoId }))
+			.error
+	).toMatch(/access to/);
+	expect((await child('send_message', { agent_id: caller, message: 'Hi' })).error).toMatch(
+		/not found/
+	);
 	expect(JSON.stringify(await child('list_workspaces'))).not.toContain(caller);
 	expect((await child('read_workspace', { workspace_id: caller })).error).toMatch(/not found/);
 	expect(await child('read_workspace', { workspace_id: started.id })).not.toHaveProperty('error');
