@@ -11,3 +11,5 @@ Replaces the unconditional confirmation from yj2tv. Archive checks affected work
 Idle interactive shells now archive quietly. Tested foreground and background processes, a program that replaces its shell, and configured jobs. Restarted the forge’s daemon connection during a command and verified that the check detected the command until the shell returned to its prompt.
 
 The archive preview now shows each applicable consequence once across all affected workspaces. It includes staged edits even when a working file matches HEAD.
+
+Running terminal processes and Geordi tasks now end automatically when you archive. The preview checks for them only when busy agents or unfinished Git work already require confirmation.
