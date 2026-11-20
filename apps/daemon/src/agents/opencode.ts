@@ -8,6 +8,7 @@ import {
 	type NewSessionRequest,
 	type NewSessionResponse,
 	type ResumeSessionResponse,
+	type SessionConfigOption,
 	type SetSessionConfigOptionResponse,
 	type ContentBlock
 } from '@agentclientprotocol/sdk/unstable';
@@ -26,6 +27,22 @@ export function connectOpenCode(
 	emit: (event: HostEvent) => void
 ) {
 	let id = '';
+	let initialized = false;
+	let reported: { model?: string; effort?: string } | undefined;
+	function reportModel(config: SessionConfigOption[] | null | undefined) {
+		const current = (category: string) => {
+			const option = config?.find((o) => o.category === category);
+			return option?.type === 'select' && option.currentValue && option.currentValue !== 'default'
+				? option.currentValue
+				: undefined;
+		};
+		const model = current('model');
+		const effort = current('thought_level');
+		if (reported && reported.model === model && reported.effort === effort) return;
+		reported = { model, effort };
+		const requested = { model: options.settings.model, effort: options.settings.effort };
+		emit({ kind: 'session.model', value: { requested, model, effort } });
+	}
 	let running = false;
 	let text = '';
 	const tools = new ToolInfos();
@@ -61,6 +78,9 @@ export function connectOpenCode(
 			}
 			if (params.sessionId !== id) return;
 			switch (u.sessionUpdate) {
+				case 'config_option_update':
+					if (initialized) reportModel(u.configOptions);
+					break;
 				case 'agent_message_chunk':
 					if (u.content.type === 'text') text += u.content.text;
 					break;
@@ -186,6 +206,8 @@ export function connectOpenCode(
 					throw new Error('OpenCode could not apply reasoning effort ' + value);
 			}
 			emit({ kind: 'resume', id });
+			initialized = true;
+			reportModel(config);
 		},
 		async message(message: string, images: MessageImage[]) {
 			const prompt: ContentBlock[] = images.map((i) => ({

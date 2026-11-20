@@ -54,7 +54,7 @@ Geordi runs the agent CLIs you already use: sign in to
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code),
 [Codex](https://github.com/openai/codex), or [OpenCode](https://opencode.ai) first.
 For OpenCode, run `opencode auth login`, then open the workspace model picker.
-Select **OpenCode** to use your configured model, or search the models reported by `opencode models`. For models with reasoning variants, the **Effort** menu lists the available levels. Leave it on **Default effort** to use OpenCode’s setting. You can also enter a `provider/model` ID.
+Select **OpenCode** to use your configured model, or search the models reported by `opencode models`. For models with reasoning variants, the **Effort** menu lists the available levels. Leave it on **Default effort** to use OpenCode’s setting. Once OpenCode opens the session, the workspace shows the model and reasoning level it reports for your defaults. You can also enter a `provider/model` ID.
 Messages sent during an OpenCode turn wait in the workspace queue. For GitHub, Geordi uses the GitHub CLI's
 login.
 

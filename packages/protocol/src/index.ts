@@ -39,6 +39,13 @@ export function sameAgentSettings(a: AgentSettings, b: AgentSettings): boolean {
 	return a.model === b.model && a.effort === b.effort && a.permissionMode === b.permissionMode;
 }
 
+/** The values reported by a session, and the workspace choices it opened with. */
+export type SessionModel = {
+	requested: Pick<AgentSettings, 'model' | 'effort'>;
+	model?: string;
+	effort?: string;
+};
+
 /** What model names and effort levels look like. They end up as CLI arguments. */
 export const SETTING = /^[A-Za-z0-9][\w.:[\]-]{0,79}$/;
 
@@ -744,6 +751,7 @@ export type AgentCommand = {
  * event, said again by a reconnecting daemon. Each is there only once the agent has said it.
  */
 export type AgentLive = {
+	sessionModel?: SessionModel;
 	/** What it has running in the background. */
 	background?: BackgroundTask[];
 	/** How full its context is, said after every model step. */

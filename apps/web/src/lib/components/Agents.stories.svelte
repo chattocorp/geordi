@@ -36,6 +36,7 @@
 </script>
 
 <script lang="ts">
+	let defaultChoice = $state<HarnessChoice>({ agent: 'opencode', settings: {} });
 	let choice = $state<HarnessChoice>({
 		agent: 'claude',
 		settings: { claude: { model: 'opus', effort: 'high', permissionMode: 'auto' } }
@@ -54,6 +55,15 @@
 
 <Story name="Picker" asChild>
 	<HarnessPicker {harnesses} {choice} onchange={(next) => (choice = next)} />
+</Story>
+
+<Story name="Reported OpenCode defaults" asChild>
+	<HarnessPicker
+		{harnesses}
+		choice={defaultChoice}
+		sessionModel={{ requested: {}, model: 'opencode/beam-free', effort: 'low' }}
+		onchange={(next) => (defaultChoice = next)}
+	/>
 </Story>
 
 <Story name="Provider status" asChild>

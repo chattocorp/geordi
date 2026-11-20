@@ -40,6 +40,7 @@ import type {
 	BackgroundTask,
 	ContextUsage,
 	MessageImage,
+	SessionModel,
 	UsageLimit
 } from '@geordi/protocol';
 import { agentProgram, programVariable } from './agents/program.ts';
@@ -50,6 +51,7 @@ import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter
 /** What the host writes down: the agent's events, and what it says that is live (`AgentLive`). */
 export type HostEvent = AgentEvent | LiveEvent;
 export type LiveEvent =
+	| { kind: 'session.model'; value: SessionModel }
 	| { kind: 'background'; tasks: BackgroundTask[] }
 	| { kind: 'usage'; usage: ContextUsage }
 	| { kind: 'commands'; commands: AgentCommand[] }

@@ -139,23 +139,36 @@ writeFileSync(
 	`
 const send = msg => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
 let prompt;
-let model;
-let effort;
+let model = 'provider/default-model';
+let effort = 'medium';
+const config = () => [
+	{id:'model',category:'model',name:'Model',type:'select',currentValue:model,options:[]},
+	{id:'variant',category:'thought_level',name:'Effort',type:'select',currentValue:effort,options:[]}
+];
 let sessionId;
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
 	const req = JSON.parse(line);
 	switch (req.method) {
 	case 'initialize':
 		return send({id:req.id,result:{protocolVersion:1,agentCapabilities:{sessionCapabilities:{resume:{}}},authMethods:[]}});
-	case 'session/resume':
-		sessionId = req.params.sessionId;
-		return send({id:req.id,result:{configOptions:[{id:'model',category:'model',name:'Model',type:'select',currentValue:'default',options:[]}]}});
+	case 'session/new':
+ case 'session/resume':
+		sessionId = req.params.sessionId ?? 'new-session';
+		return send({id:req.id,result:{sessionId,configOptions:config()}});
 	case 'session/set_config_option':
 		if (req.params.configId === 'model') model = req.params.value;
 		else if (req.params.configId === 'variant') effort = req.params.value;
-		return send({id:req.id,result:{configOptions:[{id:'variant',category:'thought_level',name:'Effort',type:'select',currentValue:effort ?? 'default',options:[]}]}});
+		return send({id:req.id,result:{configOptions:config()}});
 	case 'session/prompt':
 		prompt = req.id;
+		if (req.params.prompt[0].text === 'Change model') {
+			const update = (sessionId, configOptions) => send({method:'session/update',params:{sessionId,update:{sessionUpdate:'config_option_update',configOptions}}});
+			model = 'provider/other-model';
+			effort = 'default';
+			update(sessionId, config());
+			model = 'provider/child-model';
+			update('child-session', config());
+		}
 		return send({id:'permission',method:'session/request_permission',params:{sessionId,toolCall:{toolCallId:'edit'},options:[
 			{kind:'allow_once',optionId:'allow',name:'Allow'}, {kind:'reject_once',optionId:'deny',name:'Deny'}
 		]}});
@@ -312,11 +325,39 @@ describe('a session', () => {
 			expect(events).toEqual([
 				{ kind: 'turn.started' },
 				{ kind: 'resume', id: 'saved-session' },
+				{
+					kind: 'session.model',
+					value: {
+						requested: { model: 'provider/model', effort: 'high' },
+						model: 'provider/model',
+						effort: 'high'
+					}
+				},
 				{ kind: 'text', text: 'provider/model high ' + outcome },
 				{ kind: 'turn.completed' }
 			]);
 		}
 	);
+
+	it('reports the OpenCode defaults without selecting a model or effort', async () => {
+		const launch = meta({ OPENCODE_PATH: process.execPath });
+		launch.agent = 'opencode';
+		const { session, ended } = begin('Hello', { launch });
+		await ended(1);
+		expect(session.live().sessionModel).toEqual({
+			requested: {},
+			model: 'provider/default-model',
+			effort: 'medium'
+		});
+	});
+
+	it('updates live defaults from the root session and clears an undisclosed effort', async () => {
+		const launch = meta({ OPENCODE_PATH: process.execPath });
+		launch.agent = 'opencode';
+		const { session, ended } = begin('Change model', { launch });
+		await ended(1);
+		expect(session.live().sessionModel).toEqual({ requested: {}, model: 'provider/other-model' });
+	});
 
 	it('declines a tool permission request without asking the person', async () => {
 		const { events, ended } = begin('permission');

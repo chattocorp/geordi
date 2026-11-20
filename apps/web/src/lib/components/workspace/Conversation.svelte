@@ -34,7 +34,7 @@
 		onopenturn,
 		onopensubagent
 	}: {
-		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>;
+		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel'>;
 		questionTarget?: { id: string; done(): void };
 		waiting?: boolean;
 		onopenturn?: (changes: TurnChanges) => void;
@@ -75,7 +75,7 @@
 	const configure = (next: HarnessChoice) => {
 		if (!harnesses?.length) return;
 		const { model, permissionMode } = next.settings[workspace.agent] ?? {};
-		const { effort } = resolveChoice(harnesses, next);
+		const { effort } = resolveChoice(harnesses, next, workspace.sessionModel);
 		return configureWorkspace({ workspaceId: workspace.id, model, effort, permissionMode });
 	};
 
@@ -160,6 +160,7 @@
 								{#if harnesses?.length}<HarnessPicker
 										{harnesses}
 										{choice}
+										sessionModel={workspace.sessionModel}
 										onchange={configure}
 									/>{/if}
 							{/snippet}

@@ -4,6 +4,7 @@
 		type Agent,
 		type AgentSettings,
 		type PermissionMode,
+		type SessionModel,
 		type Harness
 	} from '@geordi/protocol';
 
@@ -26,7 +27,11 @@
 	 * An agent that names no models has none to choose: its CLI decides. A model that was
 	 * typed in is taken as it is: only the agent's CLI knows whether it exists.
 	 */
-	export function resolveChoice(harnesses: Harness[], choice: HarnessChoice) {
+	export function resolveChoice(
+		harnesses: Harness[],
+		choice: HarnessChoice,
+		sessionModel?: SessionModel
+	) {
 		const harness = harnesses.find((harness) => harness.agent === choice.agent) ?? harnesses[0];
 		const wanted = choice.settings[harness?.agent] ?? {};
 		const model =
@@ -36,11 +41,19 @@
 				: harness?.agent === 'opencode'
 					? undefined
 					: harness?.models[0]);
-		const efforts = model?.efforts ?? harness?.efforts ?? [];
+		const reported =
+			harness?.agent === 'opencode' && sessionModel?.requested.model === wanted.model
+				? sessionModel
+				: undefined;
+		const resolvedModel = reported?.model
+			? harness?.models.find((m) => m.id === reported.model)
+			: undefined;
+		const efforts = model?.efforts ?? resolvedModel?.efforts ?? harness?.efforts ?? [];
 		const effort = efforts.find((effort) => effort === wanted.effort);
 		return {
 			harness,
 			model,
+			reported,
 			efforts,
 			effort,
 			permissionMode: wanted.permissionMode ?? 'full-access'
@@ -58,12 +71,23 @@
 		/** What each agent can be asked to run. */
 		harnesses: Harness[];
 		choice: HarnessChoice;
+		sessionModel?: SessionModel;
 		onchange(choice: HarnessChoice): void;
 	};
-	let { harnesses, choice, onchange }: Props = $props();
+	let { harnesses, choice, sessionModel, onchange }: Props = $props();
 
-	const { harness, model, efforts, effort, permissionMode } = $derived(
-		resolveChoice(harnesses, choice)
+	const { harness, model, reported, efforts, effort, permissionMode } = $derived(
+		resolveChoice(harnesses, choice, sessionModel)
+	);
+
+	const reportedEffort = $derived(
+		reported?.requested.effort === effort ? reported?.effort : undefined
+	);
+	const defaultModel = $derived(
+		reported?.model && !model ? 'OpenCode default · ' + reported.model : 'OpenCode'
+	);
+	const defaultEffort = $derived(
+		reportedEffort ? 'Default · ' + effortName(reportedEffort) : 'Default effort'
 	);
 
 	// One list of everything that can do the work: every agent's models. An agent that names
@@ -80,7 +104,13 @@
 				keywords: `${agentName[agent]} ${model.id}`
 			}));
 			if (agent === 'opencode' || !entries.length)
-				return [{ value: agent + SEPARATOR, label: agentName[agent] }, ...entries];
+				return [
+					{
+						value: agent + SEPARATOR,
+						label: agent === 'opencode' ? defaultModel : agentName[agent]
+					},
+					...entries
+				];
 			return entries;
 		})
 	);
@@ -119,7 +149,10 @@
 >
 	{#snippet trigger()}
 		<AgentAvatar agent={harness.agent} size="sm" />
-		<span class="truncate text-ink">{model?.name ?? agentName[harness.agent]}</span>
+		<span class="truncate text-ink"
+			>{model?.name ??
+				(harness.agent === 'opencode' ? defaultModel : agentName[harness.agent])}</span
+		>
 	{/snippet}
 	{#snippet icon(option)}
 		<AgentAvatar agent={agentOf(option)} size="sm" />
@@ -131,15 +164,19 @@
 		label="Reasoning effort"
 		shortcut={effortShortcut}
 		options={[
-			{ value: '', label: 'Default effort' },
+			{ value: '', label: defaultEffort },
 			...efforts.map((effort) => ({ value: effort, label: effortName(effort) }))
 		]}
 		bind:value={() => effort ?? '', (level) => set(harness.agent, { effort: level || undefined })}
 	>
 		{#snippet trigger()}
-			{#if effort}<span class="text-ink">{effortName(effort)}</span>{:else}Effort{/if}
+			{#if effort}<span class="text-ink">{effortName(effort)}</span>{:else}{reportedEffort
+					? defaultEffort
+					: 'Effort'}{/if}
 		{/snippet}
 	</Select>
+{:else if reportedEffort}
+	<span class="text-sm text-muted">{effortName(reportedEffort)} effort</span>
 {/if}
 
 <Select
