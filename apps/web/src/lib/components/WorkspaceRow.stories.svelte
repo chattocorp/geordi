@@ -76,9 +76,12 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('img', { name: 'Merging pull request' })).toBeVisible();
-		await expect(canvas.getByRole('img', { name: 'Archiving' })).toBeVisible();
-		await expect(canvas.getAllByRole('img', { name: 'Working' })).toHaveLength(3);
+		for (const name of ['Merging pull request', 'Fixing checks', 'Archiving']) {
+			const status = canvas.getByRole('img', { name });
+			await expect(status).toBeVisible();
+			await expect(status.firstElementChild).toHaveClass('icon-[lucide--refresh-cw]');
+		}
+		await expect(canvas.getAllByRole('img', { name: 'Working' })).toHaveLength(2);
 		await expect(canvas.getByRole('img', { name: 'Syncing branch' })).toBeVisible();
 		await expect(canvas.queryByRole('img', { name: 'Ready to merge' })).toBeNull();
 		await expect(canvas.queryByRole('button')).toBeNull();
@@ -92,7 +95,7 @@
 			actions={[{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]}
 			onaction={fn()}
 		/>
-		<WorkspaceRow title="Repair failing CI" working progress="fix-checks" />
+		<WorkspaceRow title="Repair failing CI" progress="fix-checks" />
 		<WorkspaceRow title="Retire the old importer" leaving />
 		<WorkspaceRow title="Explore the event log" working />
 		<WorkspaceRow title="Resolve incoming changes" working progress="merge-upstream" />
