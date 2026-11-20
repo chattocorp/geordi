@@ -936,7 +936,7 @@
 {/snippet}
 
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
-	<TitleBar>
+	<TitleBar contentWidth={frame.current.open && !project ? columnWidth : undefined}>
 		<div class="min-w-0 flex-1">
 			<WorkspaceHeading
 				title={workspace.title}
@@ -978,7 +978,10 @@
 				<Button onclick={reopen} disabled={restoringWorkspace}
 					>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
 				>
-			{:else if !project}
+			{/if}
+		{/snippet}
+		{#snippet trailing()}
+			{#if !workspace.archivedAt && !project}
 				<Button
 					variant="ghost"
 					icon={frame.current.open

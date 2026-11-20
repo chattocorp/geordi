@@ -29,3 +29,21 @@
 		</TitleBar>
 	</div>
 </Story>
+
+<Story name="Actions above the main pane" asChild>
+	<div class="bg-frame">
+		<TitleBar contentWidth={480}>
+			<h1 class="truncate heading">Return people after sign-in</h1>
+			{#snippet actions()}
+				<Button icon="icon-[lucide--git-merge]">Merge PR</Button>
+			{/snippet}
+			{#snippet trailing()}
+				<Button variant="ghost" icon="icon-[lucide--panel-right-close]" label="Hide side pane" />
+			{/snippet}
+		</TitleBar>
+		<div class="flex gap-2 px-2 pb-2">
+			<div class="h-32 w-120 sheet"></div>
+			<div class="flex-1 sheet-quiet"></div>
+		</div>
+	</div>
+</Story>
