@@ -37,8 +37,11 @@ const { title, description, Content } = Astro.props;
 
 <Base title={`${title} · Geordi Docs`} {description}>
 	<div class="grid items-start gap-2 md:grid-cols-[auto_1fr]">
-		<nav aria-label="Documentation" class="sheet-quiet p-4 md:sticky md:top-16 md:w-64">
-			<h2 class="label px-3 pb-2">Documentation</h2>
+		<nav
+			aria-label="Documentation"
+			class="flex flex-col gap-1 sheet-quiet p-4 md:sticky md:top-16 md:w-64"
+		>
+			<h2 class="label px-3 pb-1">Documentation</h2>
 			{getStaticPaths().map(({ params, props }) => (
 				<a
 					href={params.guide ? `/docs/${params.guide}/` : '/docs/'}
