@@ -184,21 +184,29 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 	if (workspace.archivedAt) error(409, 'This workspace is archived');
 	if (!workspace.worktree) error(409, 'This workspace has no worktree yet');
 	// everyone in that directory is moved along: none of them may be in the middle of something
-	const busy = workspaces()
-		.sharing(id)
-		.find((other) => other.status === 'running');
+	const sharing = workspaces().sharing(id);
+	const busy = sharing.find((other) => other.status === 'running');
 	if (busy) error(409, `Stop the agent in “${busy.title}” first`);
 
-	let branch;
+	// nobody in it is given anything to do until it is on its new branch, and told so
+	const release = workspaces().hold(
+		[workspace.worktreeId, ...sharing.map((other) => other.id)],
+		'moving to a new branch'
+	);
 	try {
-		({ branch } = await hub().request(
-			{ kind: 'continueWorktree', ...workspaces().ref(id) },
-			90_000
-		));
-	} catch (cause) {
-		error(422, cause instanceof Error ? cause.message : String(cause));
+		let branch;
+		try {
+			({ branch } = await hub().request(
+				{ kind: 'continueWorktree', ...workspaces().ref(id) },
+				90_000
+			));
+		} catch (cause) {
+			error(422, cause instanceof Error ? cause.message : String(cause));
+		}
+		workspaces().continued(id, branch, actor);
+	} finally {
+		release();
 	}
-	workspaces().continued(id, branch, actor);
 	void standings().look(workspace.worktreeId, { fresh: true, announce: true });
 }
 

@@ -40,7 +40,7 @@
 	state: Parameters<typeof actionsFor>[0],
 	activity: Pick<
 		ComponentProps<typeof WorkspaceActions>,
-		'pending' | 'asking' | 'compact' | 'unreachable'
+		'pending' | 'askingIn' | 'compact' | 'unreachable'
 	> = {}
 )}
 	{@const pull = state.upstream?.pull}
@@ -62,7 +62,11 @@
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText('Working')).not.toBeInTheDocument();
 		await expect(canvas.getByText('Uncommitted changes')).toBeVisible();
-		await expect(canvas.getByRole('button', { name: /Create PR/ })).toBeDisabled();
+		const create = canvas.getByRole('button', { name: /Create PR/ });
+		await expect(create).toBeDisabled();
+		await expect(within(create).getByRole('img', { name: 'Under way' })).toHaveClass(
+			'icon-[lucide--refresh-cw]'
+		);
 	}}
 >
 	{@render bar({ changes: dirty, upstream: upstream(null) }, { pending: ['create-pull'] })}
@@ -267,12 +271,12 @@
 	name="Waiting for an answer"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(within(canvasElement).getByRole('status')).toHaveTextContent(
-			'Waiting for your answer'
-		);
+		const link = within(canvasElement).getByRole('link', { name: 'Open agent question' });
+		await expect(link).toHaveTextContent('Waiting for your answer');
+		await expect(link).toHaveAttribute('href', '/workspaces/example?question');
 	}}
 >
-	{@render bar({ changes: null, upstream: null }, { asking: true })}
+	{@render bar({ changes: null, upstream: null }, { askingIn: '/workspaces/example' })}
 </Story>
 
 <Story
@@ -441,11 +445,11 @@
 		{@render bar({ changes: pushed, upstream: upstream({}) }, { compact: true })}
 		{@render bar(
 			{ changes: pushed, upstream: upstream({ checks: failing }) },
-			{ asking: true, compact: true }
+			{ askingIn: '/workspaces/example', compact: true }
 		)}
 		{@render bar(
 			{ changes: pushed, upstream: upstream({ conflicts: true }) },
-			{ asking: true, compact: true }
+			{ askingIn: '/workspaces/example', compact: true }
 		)}
 		{@render bar({ changes: pushed, upstream: upstream({ state: 'merged' }) }, { compact: true })}
 	</div>

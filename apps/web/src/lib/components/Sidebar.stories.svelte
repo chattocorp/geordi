@@ -4,6 +4,7 @@
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { activeOnDay } from '#lib/family.ts';
+	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import Sidebar from './Sidebar.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Sidebar', component: Sidebar });
@@ -193,8 +194,12 @@
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
 			const pill = canvas.getByText(label, { selector: 'button' });
 			const row = within(pill.closest('li')!);
+			await expect(pill).toHaveStyle({ cursor: 'pointer' });
+			await expect(getComputedStyle(pill).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+			const diameter = pill.getBoundingClientRect().height;
+			await expect(pill.getBoundingClientRect().width).toBe(diameter);
 			row.getByRole('link').focus();
-			await waitFor(() => expect(pill).toHaveStyle({ opacity: '1' }));
+			await waitFor(() => expect(pill.clientWidth).toBeGreaterThanOrEqual(pill.scrollWidth));
 			pill.focus();
 			await expect(pill).toHaveFocus();
 			const { left, right, top, height } = pill.getBoundingClientRect();
@@ -340,4 +345,24 @@
 	}}
 >
 	{@render frame(nav, '/repos/sample')}
+</Story>
+
+<Story
+	name="Rename workspace"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.contextMenu(canvas.getByText('Raise light mode text contrast'));
+		await fireEvent.click(await canvas.findByRole('menuitem', { name: 'Rename workspace' }));
+		const field = await canvas.findByRole('textbox', { name: 'Workspace name' });
+		await expect(field).toHaveValue('Raise light mode text contrast');
+		await expect(field).toHaveFocus();
+		await fireEvent.input(field, { target: { value: '  ' } });
+		await expect(canvas.getByRole('button', { name: 'Rename' })).toBeDisabled();
+		await fireEvent.click(canvas.getByRole('button', { name: 'Cancel' }));
+		await expect(canvas.queryByRole('dialog')).toBeNull();
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+	<ContextMenu />
 </Story>

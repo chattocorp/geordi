@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, fn } from 'storybook/test';
+	import { expect, fn, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Panes from '#lib/ui/Panes.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
@@ -145,7 +145,8 @@
 							added: 2,
 							removed: 1
 						},
-						{ path: 'docs/GLOSSARY.md', status: 'modified', added: 3, removed: 1 }
+						{ path: 'docs/GLOSSARY.md', status: 'modified', added: 3, removed: 1 },
+						{ path: 'src/middleware/WindowWidths.ts', status: 'added', added: 18, removed: 0 }
 					]
 				}
 			}}
@@ -161,6 +162,9 @@
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
 		const nested = canvas.getByRole('button', { name: 'very/deeply/nested/directories' });
 		await expect(nested).toHaveAttribute('aria-expanded', 'true');
+		await expect(nested).toHaveTextContent('directories');
+		await waitFor(() => expect(nested).toHaveTextContent(/^v\/.*directories$/));
+		await expect(nested).toHaveStyle({ fontSize: '15px' });
 		await expect(canvas.getByRole('button', { name: /INDEX\.md/ })).toBeVisible();
 		await userEvent.click(nested);
 		await expect(nested).toHaveAttribute('aria-expanded', 'false');
@@ -169,7 +173,7 @@
 		await expect(canvas.getByRole('button', { name: /GLOSSARY\.md/ })).toBeVisible();
 	}}
 >
-	<div class="w-80 sheet-quiet">
+	<div class="w-60 sheet-quiet">
 		<Changes
 			git={{
 				...pending,

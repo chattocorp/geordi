@@ -365,7 +365,8 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			icon: 'icon-[lucide--git-merge]',
 			checks: pull.checks?.counts
 		};
-	if (pull.draft) return { label: 'Draft', tone: 'neutral', icon: 'icon-[lucide--pencil-line]' };
+	// a draft is still being worked on: nothing to say about it yet
+	if (pull.draft) return null;
 	if (pull.review === 'pending' && (pull.autoMerge?.canEnable || pull.blocked === 'rules'))
 		return { label: 'Awaiting review', tone: 'neutral', icon: 'icon-[lucide--clock]' };
 	if (pull.blocked === 'behind') return todo('Behind base branch');

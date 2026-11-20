@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
+	import Dialog from '#lib/ui/Dialog.svelte';
+	import Button from '@geordi/ui/Button.svelte';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
@@ -23,7 +25,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
-	import { moveWorkspace, stopAgent } from '../../routes/workspaces.remote';
+	import { moveWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
 	 * The sidebar's sheet: where to go (the overview, a new workspace), the workspaces by
@@ -107,6 +109,26 @@
 	const actionTone = (standing: WorkspaceStanding | null): MenuTone =>
 		standing?.tone === 'ok' || standing?.tone === 'merged' ? standing.tone : 'accent';
 
+	let nameInput = $state<HTMLInputElement>();
+	let renaming = $state<{ id: string; title: string; problem: string; saving: boolean } | null>(
+		null
+	);
+
+	async function saveName(event: SubmitEvent) {
+		event.preventDefault();
+		const draft = renaming;
+		if (!draft || draft.saving || !draft.title.trim()) return;
+		draft.saving = true;
+		try {
+			await renameWorkspace({ workspaceId: draft.id, title: draft.title });
+			if (renaming === draft) renaming = null;
+		} catch (cause) {
+			draft.problem = cause instanceof Error ? cause.message : 'Could not rename this workspace.';
+		} finally {
+			draft.saving = false;
+		}
+	}
+
 	/** What can be done with a workspace from the sidebar, without opening it. */
 	function workspaceMenu(workspace: Item): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
@@ -129,6 +151,13 @@
 				label: 'Open in new tab',
 				icon: 'icon-[lucide--external-link]',
 				onselect: () => window.open(href, '_blank', 'noopener')
+			},
+			{
+				label: 'Rename workspace',
+				icon: 'icon-[lucide--pencil]',
+				onselect: () => {
+					renaming = { id: workspace.id, title: workspace.title, problem: '', saving: false };
+				}
 			},
 			{
 				label: 'Copy ID',
@@ -227,6 +256,50 @@
 	const MOTION = 200;
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
+
+<Dialog
+	label="Rename workspace"
+	onopen={() => {
+		nameInput?.focus();
+		nameInput?.select();
+	}}
+	class="max-w-md"
+	bind:open={
+		() => !!renaming,
+		(open) => {
+			if (!open) renaming = null;
+		}
+	}
+>
+	{#if renaming}
+		<form onsubmit={saveName} class="space-y-4 p-6">
+			<h2 class="heading">Rename workspace</h2>
+			<label class="block">
+				<span class="label">Workspace name</span>
+				<input
+					class="mt-1 w-full input"
+					maxlength="80"
+					required
+					value={renaming.title}
+					oninput={(event) => {
+						if (renaming) renaming.title = event.currentTarget.value;
+					}}
+					bind:this={nameInput}
+				/>
+			</label>
+			{#if renaming.problem}<p role="alert" class="text-sm text-danger">{renaming.problem}</p>{/if}
+			<div class="flex justify-end gap-2">
+				<Button variant="soft" onclick={() => (renaming = null)}>Cancel</Button>
+				<Button
+					type="submit"
+					variant="primary"
+					busy={renaming.saving}
+					disabled={!renaming.title.trim()}>Rename</Button
+				>
+			</div>
+		</form>
+	{/if}
+</Dialog>
 
 <div class="flex min-h-0 flex-1 flex-col sheet-quiet select-none">
 	<nav class="flex-1 space-y-6 overflow-y-auto p-2" aria-label="Main">

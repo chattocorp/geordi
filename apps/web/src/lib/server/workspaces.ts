@@ -304,6 +304,7 @@ export type Workspace = {
 	title: string;
 	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
 	named: boolean;
+	manuallyNamed?: boolean;
 	agent: Agent;
 	/** The agent settings for its next turn. */
 	settings: AgentSettings;
@@ -533,6 +534,7 @@ export function createWorkspaces(
 			workspace.title = event.data.title;
 			// a title someone chose, as opposed to one its agent's session goes by
 			if (actor) workspace.named = true;
+			if (actor === 'person') workspace.manuallyNamed = true;
 			return;
 		}
 		if (event.type === 'workspace.configured') {
@@ -994,8 +996,12 @@ export function createWorkspaces(
 			: null;
 	}
 
-	/** Workspaces that must not start a turn right now; see `hold`. */
-	const held = new Set<string>();
+	/** Workspaces that must not start a turn right now, and what is being done to them; see `hold`. */
+	const held = new Map<string, string>();
+	function refuseHeld(id: string) {
+		const doing = held.get(id);
+		if (doing) error(409, `This workspace is ${doing}`);
+	}
 
 	/** Send the recorded prompt. An unacknowledged delivery is retried on reconnect. */
 	function deliver(workspace: Workspace, message: PendingMessage, working: boolean) {
@@ -1033,6 +1039,7 @@ export function createWorkspaces(
 				project: workspace.repoId === null,
 				sharesWorktree: workspace.worktreeId !== workspace.id,
 				named: workspace.named,
+				manuallyNamed: workspace.manuallyNamed,
 				mayDelegate: depthOf(workspace) < limits.depth
 			}),
 			...(attachments.length && { images: attachments }),
@@ -1191,6 +1198,8 @@ export function createWorkspaces(
 		actor: string | null = null
 	): string {
 		imageStore.resolve(images);
+		// an agent must not start in a worktree on its way out, or on the move
+		if (workspace.worktreeId) refuseHeld(workspace.worktreeId);
 		const { repoId, ...rest } = workspace;
 		if (repoId !== null) repos.get(repoId); // 404s for unknown repos
 		const chosen = chosenOf(settings);
@@ -1383,6 +1392,7 @@ export function createWorkspaces(
 		 * times at most: a name that keeps changing is no name.
 		 */
 		name(callerId: string, title: string) {
+			if (find(callerId).manuallyNamed) error(409, 'The person chose this workspace name.');
 			const mine = store
 				.readStream(`workspace:${callerId}`)
 				.filter((event) => event.type === 'workspace.titled' && event.actor === callerId);
@@ -1697,7 +1707,7 @@ export function createWorkspaces(
 			imageStore.resolve(images);
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (held.has(id)) error(409, 'This workspace is being archived');
+			refuseHeld(id);
 			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
 				return say(workspace, text, actor, undefined, images, action);
@@ -1721,7 +1731,7 @@ export function createWorkspaces(
 			imageStore.resolve(images);
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (held.has(id)) error(409, 'This workspace is being archived');
+			refuseHeld(id);
 
 			nameAfter(workspace, text);
 			say(workspace, text, actor, undefined, images);
@@ -1782,13 +1792,14 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Keeps workspaces from being given anything to do while something that takes time
-		 * is done to them (archiving, which waits for a daemon). Returns a function that ends
-		 * it. Not in the event log: it lasts no longer than the request that asked for it.
+		 * Keeps workspaces from being given anything to do, and agents from starting in their
+		 * worktrees, while something that takes time is done to them (`doing`, as in “being
+		 * archived”: what waits for a daemon). Returns a function that ends it. Not in the event
+		 * log: it lasts no longer than the request that asked for it.
 		 */
-		hold(ids: string[]): () => void {
-			if (ids.some((id) => held.has(id))) error(409, 'A workspace is being archived or restored');
-			for (const id of ids) held.add(id);
+		hold(ids: string[], doing: string): () => void {
+			ids.forEach(refuseHeld);
+			for (const id of ids) held.set(id, doing);
 			return () => ids.forEach((id) => held.delete(id));
 		},
 
@@ -1863,6 +1874,17 @@ export function createWorkspaces(
 			);
 		},
 
+		rename(id: string, title: string) {
+			const workspace = find(id);
+			const clean = title.trim();
+			if (!clean || clean.length > 80 || /[\r\n]/.test(clean))
+				error(400, 'Enter a name of 1 to 80 characters on one line.');
+			if (workspace.manuallyNamed && workspace.title === clean) return;
+			store.append(
+				{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: clean } },
+				{ actor: 'person' }
+			);
+		},
 		retitle,
 
 		/**

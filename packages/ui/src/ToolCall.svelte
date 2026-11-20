@@ -4,7 +4,7 @@
 	import type { ChangedFiles, ToolEntry } from './tools.ts';
 	import Disclosure from './Disclosure.svelte';
 	import { filesOf, iconOf, relativeTo, titleOf } from './tools.ts';
-	import Spinner from './Spinner.svelte';
+	import ProgressIcon from './ProgressIcon.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 
 	type Props = Omit<ToolEntry, 'id'> & {
@@ -61,7 +61,7 @@
 		</span>
 		<ToolTitle {parts} class="flex-1" />
 		{#if pending}
-			<Spinner label="Running" />
+			<ProgressIcon label="Running" />
 		{:else if isError}
 			<span class="sr-only">Failed</span>
 		{/if}

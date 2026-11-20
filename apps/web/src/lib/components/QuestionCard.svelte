@@ -14,6 +14,7 @@
 		open,
 		delivery,
 		blocking = true,
+		onreveal,
 		onanswer
 	}: {
 		questions: Question[];
@@ -23,6 +24,7 @@
 		open: boolean;
 		blocking?: boolean;
 		delivery?: 'pending' | 'unconfirmed';
+		onreveal?: () => void;
 		onanswer: (answers: string[]) => unknown;
 	} = $props();
 
@@ -57,7 +59,26 @@
 	}
 </script>
 
-<form class="space-y-6 card p-4" onsubmit={answer}>
+<form
+	class="space-y-6 card p-4"
+	onsubmit={answer}
+	{@attach (form) => {
+		if (!onreveal) return;
+		const done = onreveal;
+		let frame = requestAnimationFrame(reveal);
+		function reveal() {
+			// The virtualizer hides a newly mounted row until it has measured it.
+			if (!form.checkVisibility({ visibilityProperty: true })) {
+				frame = requestAnimationFrame(reveal);
+				return;
+			}
+			form.querySelector<HTMLElement>('button, input, textarea')?.focus({ preventScroll: true });
+			form.scrollIntoView({ block: 'start' });
+			done();
+		}
+		return () => cancelAnimationFrame(frame);
+	}}
+>
 	{#each questions as question, i (i)}
 		<!-- Once closed, an optional question nobody answered (a note, say) has nothing to show. -->
 		{#if open || answers?.[i] || !question.optional}

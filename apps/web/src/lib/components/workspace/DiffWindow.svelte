@@ -1,6 +1,6 @@
 <script lang="ts">
 	import FileView from './FileView.svelte';
-	import Spinner from '@geordi/ui/Spinner.svelte';
+	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 	import { getDiff } from '../../../routes/workspaces.remote';
 
 	type Props = {
@@ -26,7 +26,7 @@
 
 {#snippet loading()}
 	<p class="flex items-center gap-2 p-5 text-sm text-muted" role="status">
-		<Spinner label="Loading the diff" /> Loading the diff…
+		<ProgressIcon label="Loading the diff" /> Loading the diff…
 	</p>
 {/snippet}
 

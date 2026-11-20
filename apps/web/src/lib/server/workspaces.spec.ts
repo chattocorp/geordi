@@ -35,6 +35,12 @@ function acknowledgePrompt(
 const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
+/** Matches the error a refused request throws, by its message. */
+const refusal = (message: RegExp) =>
+	expect.objectContaining({
+		body: expect.objectContaining({ message: expect.stringMatching(message) })
+	});
+
 describe('workspaces', () => {
 	it('replays PR links and successful tool candidates across branch changes', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
@@ -983,12 +989,17 @@ describe('titles', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).title).toBe('Safari login cookie fix');
 	});
 
-	it('keeps a name someone gave it over its agent’s title', () => {
-		const { workspaces, create } = setup();
+	it('keeps a manually confirmed name through agent updates and replay', () => {
+		const { store, repos, dispatch, workspaces, create } = setup();
 		const id = create('Do the thing');
-		workspaces.retitle(id, 'My name for it', 'person');
-		workspaces.record(id, { kind: 'title', title: 'Thing doing' });
-		expect(workspaces.get(id).title).toBe('My name for it');
+		workspaces.agents.name(id, 'Investigate login');
+		workspaces.rename(id, 'Investigate login');
+		const replayed = createWorkspaces(store, repos, dispatch);
+		expect(() => replayed.agents.name(id, 'Agent rename')).toThrow();
+		replayed.record(id, { kind: 'title', title: 'Session rename' });
+		expect(replayed.get(id).title).toBe('Investigate login');
+		replayed.rename(id, ' Login in v2.0. ');
+		expect(replayed.get(id).title).toBe('Login in v2.0.');
 	});
 });
 
@@ -1049,6 +1060,19 @@ describe('archiving', () => {
 		});
 		expect(() => workspaces.send(id, 'More')).toThrow();
 		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
+	});
+
+	it('gives a held workspace nothing to do, and starts no agent in its worktree, until released', () => {
+		const { workspaces, create } = setup();
+		const id = create('Lead');
+		workspaces.record(id, { kind: 'turn.completed' });
+		const release = workspaces.hold([id], 'being archived');
+		expect(() => workspaces.send(id, 'More')).toThrow(refusal(/being archived/));
+		expect(() => workspaces.steer(id, 'More')).toThrow(refusal(/being archived/));
+		expect(() => workspaces.join(id)).toThrow(refusal(/being archived/));
+		expect(() => workspaces.hold([id], 'moving to a new branch')).toThrow();
+		release();
+		expect(workspaces.summary(workspaces.join(id)).worktreeId).toBe(id);
 	});
 
 	it('continues the saved session and replays each restored transcript exactly once', () => {
@@ -1254,12 +1278,6 @@ describe('event logs from before a workspace had one conversation', () => {
 });
 
 describe('agents starting agents', () => {
-	/** Matches the error a refused request throws, by its message. */
-	const refusal = (message: RegExp) =>
-		expect.objectContaining({
-			body: expect.objectContaining({ message: expect.stringMatching(message) })
-		});
-
 	const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/parent' } as const;
 
 	function lead(options?: Parameters<typeof setup>[0]) {

@@ -45,7 +45,8 @@ export function createArchiver({
 		if (busy) error(409, `Stop the agent in “${busy.title}” before archiving`);
 
 		const release = workspaces.hold(
-			family.flatMap((workspace) => [workspace.id, workspace.worktreeId])
+			family.flatMap((workspace) => [workspace.id, workspace.worktreeId]),
+			'being archived'
 		);
 		try {
 			for (const workspace of family) {

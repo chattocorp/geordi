@@ -28,6 +28,10 @@ type Row = {
  *
  * After each append, projections are updated first, then listeners are notified,
  * so listeners always observe up-to-date projections.
+ *
+ * A projection or listener that throws on an event is logged and passed over: by then the
+ * event is in the log, and failing on it would fail again on every replay, so the forge
+ * could no longer start.
  */
 export class EventStore<E extends EventInput = EventInput> {
 	readonly #db: DatabaseSync;
@@ -66,9 +70,15 @@ export class EventStore<E extends EventInput = EventInput> {
 			)
 			.all(...params) as Row[];
 
-		const stored = rows.map((row) => this.#parse(row));
+		// RETURNING promises no order
+		const stored = rows.sort((a, b) => a.seq - b.seq).map((row) => this.#parse(row));
 		for (const event of stored) for (const apply of this.#projections.values()) apply(event);
-		for (const listener of this.#listeners) listener(stored);
+		for (const listener of this.#listeners)
+			try {
+				listener(stored);
+			} catch (problem) {
+				console.error(`[events] a listener failed on events ${stored[0].seq}…`, problem);
+			}
 		return stored;
 	}
 
@@ -99,15 +109,25 @@ export class EventStore<E extends EventInput = EventInput> {
 		domains: string[] = []
 	) {
 		let state = initial();
+		const evolveSafely = (event: StoredEvent<E>) => {
+			try {
+				state = evolve(state, event);
+			} catch (problem) {
+				console.error(
+					`[events] projection ${name} failed on event ${event.seq} (${event.type})`,
+					problem
+				);
+			}
+		};
 		const domainsOfInterest = new Set(domains);
 		const where = domains.length ? 'WHERE ' + domains.map(() => 'type GLOB ?').join(' OR ') : '';
 		const rows = this.#db
 			.prepare(`SELECT * FROM events ${where} ORDER BY seq`)
 			.iterate(...domains.map((domain) => domain + '.*'));
-		for (const row of rows) state = evolve(state, this.#parse(row as Row));
+		for (const row of rows) evolveSafely(this.#parse(row as Row));
 		this.#projections.set(name, (event) => {
 			if (!domains.length || domainsOfInterest.has(event.type.split('.', 1)[0]))
-				state = evolve(state, event);
+				evolveSafely(event);
 		});
 		return { get: () => state };
 	}

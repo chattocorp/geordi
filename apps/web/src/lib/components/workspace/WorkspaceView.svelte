@@ -2,7 +2,7 @@
 	import RunningJob from '@geordi/ui/RunningJob.svelte';
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -53,7 +53,7 @@
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import Spinner from '@geordi/ui/Spinner.svelte';
+	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
@@ -518,6 +518,31 @@
 		open: openDiff
 	});
 
+	const askingAgent = $derived([workspace, ...workspace.aides].find((agent) => agent.asking));
+	let questionTarget = $state<{ owner: string; id: string; done(): void }>();
+
+	// Consume the link once so the same question can be opened again after switching tabs.
+	$effect(() => {
+		if (page.params.id !== id || !page.url.searchParams.has('question')) return;
+		untrack(() => {
+			void goto(resolve('/workspaces/[id]', { id }), {
+				shallow: true,
+				replace: true,
+				state: page.state
+			});
+			const question = askingAgent?.transcript.find(
+				(item) => item.kind === 'question' && item.open && item.blocking !== false
+			);
+			if (!askingAgent || question?.kind !== 'question') return;
+			showTab(askingAgent.id === id ? CHAT : `agent:${askingAgent.id}`);
+			questionTarget = {
+				owner: askingAgent.id,
+				id: question.id,
+				done: () => (questionTarget = undefined)
+			};
+		});
+	});
+
 	// A link to an agent working alongside leads here, to its conversation (`?agent=`). So
 	// does beginning one: it takes the place of the window it was begun in.
 	$effect(() => {
@@ -753,7 +778,7 @@
 			<!-- running; or over, and how it went: its output is still there to be read -->
 			{#if status === undefined && launching.has(job)}
 				<!-- on its way up: until it listens on its port -->
-				<span class="grid size-3.5 shrink-0 place-items-center"><Spinner label="Starting" /></span>
+				<ProgressIcon label="Starting" />
 			{:else if status === undefined}
 				<RunningJob class="size-3.5" />
 			{:else if status === 0}
@@ -839,7 +864,7 @@
 			/>
 		{:else}
 			<p class="flex items-center gap-2 p-5 text-sm text-muted">
-				<Spinner label="Loading changeset" /> Loading changeset…
+				<ProgressIcon label="Loading changeset" /> Loading changeset…
 			</p>
 		{/if}
 	{:else if path}
@@ -885,6 +910,7 @@
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
 			workspace={aideOf(tab)!}
+			questionTarget={questionTarget?.owner === aideOf(tab)!.id ? questionTarget : undefined}
 			onopenturn={openTurn}
 			waiting={waiting(aideOf(tab)!)}
 			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
@@ -893,6 +919,7 @@
 	{:else}
 		<Conversation
 			{workspace}
+			questionTarget={questionTarget?.owner === id ? questionTarget : undefined}
 			onopenturn={openTurn}
 			waiting={waiting(workspace)}
 			onopensubagent={(child) => showTab(reviewerTab(id, child))}
@@ -935,7 +962,7 @@
 				unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
 				disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
 				{pending}
-				asking={workspace.asking || workspace.aides.some((aide) => aide.asking)}
+				askingIn={askingAgent ? resolve('/workspaces/[id]', { id }) : undefined}
 				onopenpull={() => {
 					selectedPull = pull?.url ?? pull?.number ?? null;
 					showTab(PR);

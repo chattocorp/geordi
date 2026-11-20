@@ -29,11 +29,13 @@
 	let {
 		workspace,
 		waiting = false,
+		questionTarget,
 		senders,
 		onopenturn,
 		onopensubagent
 	}: {
 		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>;
+		questionTarget?: { id: string; done(): void };
 		waiting?: boolean;
 		onopenturn?: (changes: TurnChanges) => void;
 		onopensubagent: (id: string) => void;
@@ -97,6 +99,7 @@
 	{#key workspace.id}
 		<MessageView
 			bind:this={messages}
+			{questionTarget}
 			showJump
 			{blocks}
 			withComposer={!workspace.archivedAt}

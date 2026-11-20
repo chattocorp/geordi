@@ -57,6 +57,7 @@
 			multiSelect: false
 		}
 	];
+	let questionTarget = $state<{ id: string; done(): void }>();
 	let answers = $state<string[] | null>(null);
 </script>
 
@@ -743,6 +744,44 @@
 					took: 18000
 				}
 			]}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Open a question in earlier activity"
+	asChild
+	play={async ({ canvas }) => {
+		// A virtual row can stay hidden for measurement after its controls mount.
+		const conversation = canvas.getByRole('list');
+		conversation.style.visibility = 'hidden';
+		await userEvent.click(canvas.getByRole('button', { name: 'Open question' }));
+		await waitFor(() => expect(canvas.getByText('SQLite')).toBeInTheDocument());
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		conversation.style.removeProperty('visibility');
+		await waitFor(() => expect(canvas.getByRole('button', { name: /SQLite/ })).toHaveFocus());
+	}}
+>
+	<button
+		type="button"
+		onclick={() => (questionTarget = { id: 'q1', done: () => (questionTarget = undefined) })}
+		>Open question</button
+	>
+	<div class="flex h-96 flex-col overflow-hidden card">
+		<MessageView
+			blocks={[
+				{
+					kind: 'agent',
+					parts: [
+						{ kind: 'question', id: 'q1', questions: asked, answers: null, open: true },
+						{ kind: 'text', text: 'Waiting for your choice.' }
+					]
+				},
+				...history
+			]}
+			agent="claude"
+			{questionTarget}
+			onanswer={() => {}}
 		/>
 	</div>
 </Story>

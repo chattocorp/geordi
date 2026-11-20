@@ -71,6 +71,8 @@ export function createUpcaster() {
 	 * other events need no filtering: the projection ignores events of unknown workspaces.
 	 */
 	const gone = new Set<string>();
+	/** Types of events no version of this code wrote (a branch's build, say): said once each. */
+	const unknown = new Set<string>();
 
 	const created = (data: Created): CurrentEvent[] => {
 		known.set(data.id, { repoId: data.repoId, base: data.base });
@@ -158,6 +160,10 @@ export function createUpcaster() {
 				return [event as CurrentEvent];
 
 			default:
+				if (!unknown.has(event.type)) {
+					unknown.add(event.type);
+					console.warn(`[workspaces] ignoring events of an unknown type: ${event.type}`);
+				}
 				return [];
 		}
 	};

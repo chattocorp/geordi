@@ -24,6 +24,33 @@ describe('EventStore', () => {
 		expect(store.readStream('counter:1').map((e) => e.data.by)).toEqual([1, 3]);
 	});
 
+	it('passes over an event a projection or listener fails on, so replay still starts', () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const store = new EventStore<TestEvent>(':memory:');
+			const evolve = (sum: number, e: { data: { by: number } }) => {
+				if (e.data.by === 13) throw new Error('unlucky');
+				return sum + e.data.by;
+			};
+			const total = store.project('total', () => 0, evolve);
+			const heard: number[] = [];
+			store.subscribe(() => {
+				throw new Error('deaf');
+			});
+			store.subscribe((events) => heard.push(...events.map((e) => e.data.by)));
+
+			expect(store.append([counted(1), counted(13), counted(2)])).toHaveLength(3);
+			expect(total.get()).toBe(3);
+			expect(heard).toEqual([1, 13, 2]);
+
+			// the event is in the log: replaying it must not fail either
+			expect(store.project('again', () => 0, evolve).get()).toBe(3);
+			expect(error).toHaveBeenCalledTimes(3);
+		} finally {
+			error.mockRestore();
+		}
+	});
+
 	it('replays existing events into new projections and keeps them updated', () => {
 		const store = new EventStore<TestEvent>(':memory:');
 		store.append([counted(1), counted(2)]);

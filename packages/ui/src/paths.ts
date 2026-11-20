@@ -1,4 +1,4 @@
-/** A path made to fit a number of columns: its directories, and its file's name. */
+/** A path made to fit the available width: its directories, and its file's name. */
 export type FittedPath = { dirs: string[]; name: string };
 
 /**
@@ -12,29 +12,31 @@ export function initial(dir: string): string {
 	return short.length < dir.length ? short : dir;
 }
 
-const width = ({ dirs, name }: FittedPath) =>
-	dirs.reduce((sum, dir) => sum + dir.length + 1, name.length);
-
 /**
- * `path` shortened until it fits in `columns` characters, a step at a time: the directories
+ * `path` shortened until it fits the available width, a step at a time: the directories
  * become their first letters, the outermost first (`a/f/s/lib/MessageView.svelte`); then they
  * give way to an ellipsis, also from the outside (`…/l/MessageView.svelte`); and then only the
  * name is left, for whoever shows it to cut short.
  */
-export function fitPath(path: string, columns: number): FittedPath {
+export function fitPath(
+	path: string,
+	available: number,
+	measure = (text: string) => text.length
+): FittedPath {
 	const dirs = path.split('/');
 	const name = dirs.pop()!;
 	const fitted = { dirs, name };
-	if (width(fitted) <= columns) return fitted;
+	const fits = () => measure([...dirs, name].join('/')) <= available;
+	if (fits()) return fitted;
 
 	for (let i = 0; i < dirs.length; i++) {
 		dirs[i] = initial(dirs[i]);
-		if (width(fitted) <= columns) return fitted;
+		if (fits()) return fitted;
 	}
 
 	while (dirs.length > 0) {
 		dirs.splice(0, dirs[0] === '…' ? 2 : 1, '…');
-		if (width(fitted) <= columns) return fitted;
+		if (fits()) return fitted;
 		if (dirs.length === 1) break;
 	}
 
