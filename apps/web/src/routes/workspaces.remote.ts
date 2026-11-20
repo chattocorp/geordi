@@ -129,7 +129,7 @@ export const restoreWorkspace = command(v.string(), async (id) => {
 	// a project has no worktree to bring back: its folder is made again, empty, when it next works
 	if (workspace.repoId === null) return domain.restore(id);
 	const ref = domain.ref(id);
-	const release = domain.hold([id, ref.worktreeId]);
+	const release = domain.hold([id, ref.worktreeId], 'being restored');
 	try {
 		const tree = await hub().request(
 			{

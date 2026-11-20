@@ -35,6 +35,12 @@ function acknowledgePrompt(
 const tokenOf = (message: ForgeMessage | undefined) =>
 	(message as Extract<ForgeMessage, { type: 'agent.message' }>).apiToken;
 
+/** Matches the error a refused request throws, by its message. */
+const refusal = (message: RegExp) =>
+	expect.objectContaining({
+		body: expect.objectContaining({ message: expect.stringMatching(message) })
+	});
+
 describe('workspaces', () => {
 	it('publishes nested reviewer edits without changing earlier snapshots', () => {
 		const { workspaces, create } = setup();
@@ -1028,6 +1034,19 @@ describe('archiving', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).archivedAt).not.toBeNull();
 	});
 
+	it('gives a held workspace nothing to do, and starts no agent in its worktree, until released', () => {
+		const { workspaces, create } = setup();
+		const id = create('Lead');
+		workspaces.record(id, { kind: 'turn.completed' });
+		const release = workspaces.hold([id], 'being archived');
+		expect(() => workspaces.send(id, 'More')).toThrow(refusal(/being archived/));
+		expect(() => workspaces.steer(id, 'More')).toThrow(refusal(/being archived/));
+		expect(() => workspaces.join(id)).toThrow(refusal(/being archived/));
+		expect(() => workspaces.hold([id], 'moving to a new branch')).toThrow();
+		release();
+		expect(workspaces.summary(workspaces.join(id)).worktreeId).toBe(id);
+	});
+
 	it('continues the saved session and replays each restored transcript exactly once', () => {
 		const { store, repos, workspaces, create, dispatch, sent } = setup();
 		const id = create('First');
@@ -1231,12 +1250,6 @@ describe('event logs from before a workspace had one conversation', () => {
 });
 
 describe('agents starting agents', () => {
-	/** Matches the error a refused request throws, by its message. */
-	const refusal = (message: RegExp) =>
-		expect.objectContaining({
-			body: expect.objectContaining({ message: expect.stringMatching(message) })
-		});
-
 	const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/parent' } as const;
 
 	function lead(options?: Parameters<typeof setup>[0]) {
