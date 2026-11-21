@@ -479,7 +479,9 @@
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
-			child={!!workspace.parentId}
+			parentHref={workspace.parentId
+				? resolve('/workspaces/[id]', { id: workspace.parentId })
+				: undefined}
 			icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : undefined}
 			{current}
 			{leaving}

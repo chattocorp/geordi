@@ -67,7 +67,12 @@
 <Story name="A project" asChild>
 	<div class="w-64 space-y-px sheet-quiet p-2">
 		<WorkspaceRow title="Plan the 0.7 release" icon="icon-[lucide--folder-kanban]" />
-		<WorkspaceRow title="Bump the protocol" child />
+		<WorkspaceRow
+			title="Bump the protocol"
+			href="#child"
+			parentHref="#parent"
+			parentTitle="Plan the 0.7 release"
+		/>
 	</div>
 </Story>
 
