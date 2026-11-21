@@ -34,11 +34,6 @@
 		warning: 'fill-warning',
 		danger: 'fill-danger'
 	};
-	const strokes: Record<Tone, string> = {
-		normal: 'stroke-muted',
-		warning: 'stroke-warning',
-		danger: 'stroke-danger'
-	};
 	const texts: Record<Tone, string> = {
 		normal: '',
 		warning: 'font-medium text-warning',
@@ -114,8 +109,8 @@
 	</Tooltip>{/if}
 
 <!--
-	Drawn like a phone's status bar, in one colour each: what is there in its tone, what is
-	gone faint. Bars and battery share their top and bottom (y 2.5 to 17.5). Without a `label`,
+	Drawn like a phone's status bar: what is there in its tone; what is gone, and the battery's
+	casing, faint. Bars and battery share their top and bottom (y 2.5 to 17.5). Without a `label`,
 	they only illustrate the words beside them.
 -->
 {#snippet signal(left: number, tone: Tone, label?: string)}
@@ -144,20 +139,21 @@
 {#snippet cell(left: number, tone: Tone, label?: string)}
 	<svg
 		viewBox="0 0 32 20"
-		class={['block h-5 w-8', strokes[tone]]}
+		class="block h-5 w-8"
 		role={label ? 'img' : undefined}
 		aria-label={label}
 		aria-hidden={!label}
 	>
-		<rect x="2" y="3.5" width="25" height="13" rx="4" class="fill-none" stroke-width="2" />
-		<rect x="29" y="7.5" width="2" height="5" rx="1" class={['stroke-none', fills[tone]]} />
 		<rect
-			x="4.5"
-			y="6"
-			width={20 * left}
-			height="8"
-			rx="1.5"
-			class={['stroke-none', fills[tone]]}
+			x="2"
+			y="3.5"
+			width="25"
+			height="13"
+			rx="4"
+			class="fill-none stroke-muted/30"
+			stroke-width="2"
 		/>
+		<rect x="29" y="7.5" width="2" height="5" rx="1" class="fill-muted/30" />
+		<rect x="4.5" y="6" width={20 * left} height="8" rx="1.5" class={fills[tone]} />
 	</svg>
 {/snippet}
