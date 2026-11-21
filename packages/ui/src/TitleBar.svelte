@@ -47,7 +47,7 @@
 				: `calc(${contentWidth}px - var(--spacing) * 3)`}
 		>
 			<div class="flex min-w-0 flex-1 items-center gap-3">{@render heading()}</div>
-			<div class="max-w-5/6 overflow-x-auto empty:hidden">
+			<div class="scrollbar-none max-w-5/6 overflow-x-auto empty:hidden">
 				<div class="flex w-max items-center gap-2">{@render actions()}</div>
 			</div>
 		</div>

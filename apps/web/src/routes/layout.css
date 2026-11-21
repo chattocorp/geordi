@@ -275,8 +275,18 @@
 	}
 }
 
+/* A row that scrolls without showing a scroll bar, not even while it scrolls. */
+@utility scrollbar-none {
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
 /* The same across: a row of tabs that continues beyond its left or right edge. */
 @utility scroll-fade-x {
+	@apply scrollbar-none;
 	--fade-left: 0px;
 	--fade-right: 0px;
 	mask-image: linear-gradient(
