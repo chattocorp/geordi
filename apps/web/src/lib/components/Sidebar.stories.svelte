@@ -399,7 +399,7 @@
 		await expect(markers()).toHaveLength(1);
 		await expect(last).toHaveClass('row-drop-after');
 
-		await fireEvent.dragLeave(sourceList, { relatedTarget: otherList });
+		await fireEvent.dragLeave(last, { relatedTarget: otherList });
 		await expect(markers()).toHaveLength(0);
 		await fireEvent.dragOver(within(otherList).getAllByRole('listitem')[0]);
 		await expect(markers()).toHaveLength(0);

@@ -242,45 +242,53 @@
 
 	type Row = { workspace: Item; parent: Item | null; depth: number };
 
-	/**
-	 * The workspace being dragged to another place among its siblings, and where it would
-	 * go: above that workspace, `null` for below the last of them (`dropAfter`, the row the
-	 * line shows under), `undefined` for nowhere new. What its agent started goes along; its
-	 * parent stays the same.
-	 */
+	// Every workspace drop has an insertion point. A Today list also specifies membership.
+	type Position = { before: string | null; after?: string };
+	type Destination = Position & {
+		element: HTMLElement;
+		deferred?: boolean;
+		header?: string | null;
+	};
 	let dragged = $state<Item | null>(null);
-	let dropBefore = $state<string | null | undefined>(undefined);
-	let dropAfter = $state<string | null>(null);
+	let destination = $state.raw<Destination | null>(null);
 	let openedByDrag: HTMLDetailsElement | undefined;
-	let overSetAside = $state<string | null | undefined>(undefined);
-	/** Whether the one being dragged may be dropped among `repoId`'s: in one list, anywhere. */
+	const overSetAside = $derived(destination?.header);
 	const droppable = (repoId: string | null) =>
 		!!dragged && (!grouped.current || dragged.repoId === repoId);
 
-	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
-		if (!dragged || !droppable(rows[index].workspace.repoId)) return;
+	function previewDrop(
+		event: DragEvent & { currentTarget: HTMLElement },
+		position: Position | undefined,
+		deferred: boolean,
+		header?: string | null
+	) {
 		event.preventDefault();
-		const rect = event.currentTarget.getBoundingClientRect();
-		const target = dropTarget(rows, dragged, index, event.clientY < rect.top + rect.height / 2);
-		if (event.dataTransfer) event.dataTransfer.dropEffect = target ? 'move' : 'none';
-		dropBefore = target?.before;
-		dropAfter = target?.after ?? null;
+		if (event.dataTransfer) event.dataTransfer.dropEffect = position ? 'move' : 'none';
+		destination = position
+			? {
+					...position,
+					deferred: todayOnly ? deferred : undefined,
+					element: event.currentTarget,
+					header
+				}
+			: null;
 	}
 
-	function drop(event: DragEvent, deferred: boolean, before = dropBefore) {
+	function dropWorkspace(event: DragEvent) {
+		if (!dragged) return;
 		event.preventDefault();
-		if (dragged && before !== undefined)
-			void moveWorkspace({ workspaceId: dragged.id, before, ...(todayOnly && { deferred }) });
+		if (destination?.element.contains(event.target as Node)) {
+			const { before, deferred } = destination;
+			void moveWorkspace({ workspaceId: dragged.id, before, deferred });
+		}
 		endDrag();
 	}
 
 	function endDrag() {
 		if (openedByDrag) openedByDrag.open = false;
 		openedByDrag = undefined;
-		overSetAside = undefined;
 		dragged = null;
-		dropBefore = undefined;
-		dropAfter = null;
+		destination = null;
 	}
 
 	/**
@@ -440,7 +448,21 @@
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
 		-->
-		<div class="scroller scroll-fade" {@attach watchScrollEdges}>
+		<div
+			role="group"
+			aria-label="Workspaces"
+			class="scroller scroll-fade"
+			{@attach watchScrollEdges}
+			ondrop={dropWorkspace}
+			ondragleave={(event) => {
+				const element = destination?.element;
+				if (
+					element?.contains(event.target as Node) &&
+					!element.contains(event.relatedTarget as Node | null)
+				)
+					destination = null;
+			}}
+		>
 			<div aria-hidden="true"></div>
 			{#if nav && !grouped.current}
 				{@const rows = unfolded(oneList, folded.current)}
@@ -594,19 +616,7 @@
 				overSetAside === repoId && canSetAside ? 'border-muted' : 'border-line'
 			]}
 			ondragover={(event) => {
-				if (!canSetAside) return;
-				event.preventDefault();
-				if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-				dropBefore = undefined;
-				overSetAside = repoId;
-			}}
-			ondragleave={(event) => {
-				if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-					overSetAside = undefined;
-			}}
-			ondrop={(event) => {
-				if (!canSetAside) return;
-				drop(event, true, items[0]?.id ?? null);
+				if (canSetAside) previewDrop(event, { before: items[0]?.id ?? null }, true, repoId);
 			}}
 		>
 			<span class="icon-[lucide--calendar-minus] size-4 shrink-0"></span>
@@ -632,27 +642,13 @@
 	deferred: boolean,
 	spacing: string | false = false
 )}
-	{@const emptyTarget =
-		todayOnly && !rows.length && dragged && droppable(repoId) && dragged.deferred !== deferred}
-	<ul
-		class={['space-y-px', spacing]}
-		ondragover={(event) => {
-			if (!emptyTarget) return;
-			event.preventDefault();
-			if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-		}}
-		ondrop={(event) => {
-			if (droppable(repoId)) drop(event, deferred, emptyTarget ? null : dropBefore);
-		}}
-		ondragleave={(event) => {
-			if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dropBefore = undefined;
-		}}
-	>
-		{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-			{@render row(workspace, parent, depth, under, rows, index)}
+	<ul class={['space-y-px', spacing]}>
+		{#each rows as entry, index (entry.workspace.id)}
+			{@render row(entry, rows, index, deferred)}
 		{/each}
-		{#if emptyTarget}
+		{#if todayOnly && !rows.length && dragged && droppable(repoId) && dragged.deferred !== deferred}
 			<li
+				ondragover={(event) => previewDrop(event, { before: null }, deferred)}
 				class="flex min-h-8 items-center gap-2 rounded-control border border-dashed border-muted px-2.5 text-xs text-muted"
 			>
 				Drop here
@@ -661,14 +657,8 @@
 	</ul>
 {/snippet}
 
-{#snippet row(
-	workspace: Item,
-	parent: Item | null,
-	depth: number,
-	under: number,
-	rows: Row[],
-	index: number
-)}
+{#snippet row(entry: Row & { under: number }, rows: Row[], index: number, deferred: boolean)}
+	{@const { workspace, parent, depth, under } = entry}
 	{@const isFolded = under > 0 && folded.current.includes(workspace.id)}
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
@@ -679,8 +669,8 @@
 	<li
 		style:margin-inline-start="calc(var(--spacing) * {(grouped.current ? 3 : INDENT) * depth})"
 		class={[
-			dropBefore === workspace.id && 'row-drop-before',
-			dropBefore === null && dropAfter === workspace.id && 'row-drop-after'
+			overSetAside === undefined && destination?.before === workspace.id && 'row-drop-before',
+			destination?.before === null && destination.after === workspace.id && 'row-drop-after'
 		]}
 		transition:slide={motion()}
 		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
@@ -691,7 +681,12 @@
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 		}}
 		ondragend={endDrag}
-		ondragover={(event) => overRow(event, rows, index)}
+		ondragover={(event) => {
+			if (!dragged || !droppable(workspace.repoId)) return;
+			const rect = event.currentTarget.getBoundingClientRect();
+			const upper = event.clientY < rect.top + rect.height / 2;
+			previewDrop(event, dropTarget(rows, dragged, index, upper), deferred);
+		}}
 	>
 		<WorkspaceRow
 			title={workspace.title}
