@@ -520,7 +520,9 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await fireEvent.contextMenu(canvas.getByText('Review the daemon'));
-		await expect(await canvas.findByRole('menuitem', { name: 'Not Today' })).toBeVisible();
+		const defer = await canvas.findByRole('menuitem', { name: 'Not Today' });
+		await expect(defer).toBeVisible();
+		await expect(defer.nextElementSibling).toBe(canvas.getByRole('menuitem', { name: 'Archive' }));
 	}}
 >
 	{@render frame(

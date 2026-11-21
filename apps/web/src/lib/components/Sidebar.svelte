@@ -202,6 +202,12 @@
 							onselect: () => continueFromAfar(workspace)
 						}
 					]),
+			{
+				label: 'Stop agent',
+				icon: 'icon-[lucide--square]',
+				disabled: !running,
+				onselect: () => stopAgent(workspace.id)
+			},
 			...(isActiveOnDay(workspace, new Date().toDateString())
 				? [
 						{
@@ -211,12 +217,6 @@
 						}
 					]
 				: []),
-			{
-				label: 'Stop agent',
-				icon: 'icon-[lucide--square]',
-				disabled: !running,
-				onselect: () => stopAgent(workspace.id)
-			},
 			{
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
