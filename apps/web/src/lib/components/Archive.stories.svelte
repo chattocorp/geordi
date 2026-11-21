@@ -42,11 +42,15 @@
 		const canvas = within(canvasElement);
 		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(2);
 		const lists = canvas.getAllByRole('list');
-		await expect(within(lists[0]).getAllByRole('link')).toHaveLength(1);
-		await expect(within(lists[1]).getAllByRole('link')).toHaveLength(2);
+		await expect(
+			within(lists[0]).getAllByRole('button', { name: /Plan|Simplify|Publish/ })
+		).toHaveLength(1);
+		await expect(
+			within(lists[1]).getAllByRole('button', { name: /Plan|Simplify|Publish/ })
+		).toHaveLength(2);
 		await userEvent.type(canvas.getByRole('searchbox'), 'Project');
 		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(1);
-		await expect(canvas.getByRole('link')).toHaveAttribute('href', '/workspaces/project');
+		await expect(canvas.getByRole('button', { name: /Plan the next release/ })).toBeVisible();
 		await userEvent.clear(canvas.getByRole('searchbox'));
 	}}
 />
@@ -56,7 +60,8 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(canvas.getByRole('searchbox'), 'web');
-		await expect(canvas.getByRole('link')).toHaveAttribute('href', '/workspaces/release');
+		await expect(canvas.getByRole('button', { name: /Publish the release guide/ })).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /Simplify/ })).toBeNull();
 	}}
 />
 <Story name="Empty archive" args={{ entries: [] }} />
@@ -111,6 +116,23 @@
 />
 
 <Story
+	name="Restore on click, once confirmed"
+	args={{ entries, onrestore: fn(async () => {}) }}
+	play={async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole('button', { name: /Publish the release guide/ }));
+		const dialog = within(document.body).getByRole('dialog');
+		await expect(dialog).toHaveAccessibleName('Restore “Publish the release guide”?');
+		await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+		await expect(args.onrestore).not.toHaveBeenCalled();
+		await userEvent.click(canvas.getByRole('button', { name: /Publish the release guide/ }));
+		await userEvent.click(
+			within(within(document.body).getByRole('dialog')).getByRole('button', { name: 'Restore' })
+		);
+		await expect(args.onrestore).toHaveBeenCalledWith('release');
+	}}
+/>
+<Story
 	name="Restore from the row menu"
 	args={{
 		entries,
@@ -121,9 +143,11 @@
 		const canvas = within(canvasElement);
 		await fireEvent.contextMenu(canvas.getByText('Publish the release guide'));
 		const [restore, remove] = await canvas.findAllByRole('menuitem');
-		await expect(restore).toHaveAccessibleName('Restore workspace');
+		await expect(restore).toHaveAccessibleName('Restore workspace…');
 		await expect(remove).toHaveAccessibleName('Delete permanently…');
 		await userEvent.click(restore);
+		const dialog = within(document.body).getByRole('dialog');
+		await userEvent.click(within(dialog).getByRole('button', { name: 'Restore' }));
 		await expect(args.onrestore).toHaveBeenCalledWith('release');
 		await expect(args.onpurge).not.toHaveBeenCalled();
 	}}
