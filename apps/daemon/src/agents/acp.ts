@@ -351,10 +351,18 @@ export function connectAgent(
 				}
 			})
 		};
-		const session = options.resumeId
-			? await agent.request(methods.agent.session.resume, { ...setup, sessionId: options.resumeId })
-			: await agent.request(methods.agent.session.new, setup);
-		id = options.resumeId ?? ('sessionId' in session ? String(session.sessionId) : '');
+		const resumed = options.resumeId
+			? await agent
+					.request(methods.agent.session.resume, { ...setup, sessionId: options.resumeId })
+					.catch((err: unknown) => {
+						// The CLI saves a session once a message is in it: one stopped before that
+						// was never saved, and can't be resumed. Nothing is lost by starting anew.
+						if (isNotFound(err)) return null;
+						throw err;
+					})
+			: null;
+		const session = resumed ?? (await agent.request(methods.agent.session.new, setup));
+		id = resumed ? options.resumeId! : 'sessionId' in session ? String(session.sessionId) : '';
 		if (!id) throw new Error('Missing ACP session ID');
 		offer(session.availableCommands);
 		let config = session.configOptions ?? [];
@@ -441,3 +449,7 @@ export function connectAgent(
 		close: () => connection.close()
 	};
 }
+
+/** ACP's answer for a session the agent does not know. */
+const isNotFound = (err: unknown) =>
+	typeof err === 'object' && err !== null && 'code' in err && err.code === -32002;

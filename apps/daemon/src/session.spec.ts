@@ -30,7 +30,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
  const result=result=>out({id:req.id,result});
  switch(req.method){
  case 'initialize': return result({protocolVersion:2,info:{name:'fixture',version:'1'},capabilities:{},authMethods:[]});
- case 'session/resume':
+ case 'session/resume': if(req.params.sessionId==='unsaved')return out({id:req.id,error:{code:-32002,message:'Resource not found'}});
  case 'session/new': return result({sessionId:id,configOptions});
  case 'session/set_config_option': if(!process.env.REFUSE_MODE)configOptions[0].currentValue=req.params.value;return result({configOptions});
  case 'tool_call/cancel':
@@ -308,6 +308,15 @@ describe('a session', () => {
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 		}
+	});
+
+	it('starts a new session when the one to resume was never saved', async () => {
+		const launch = meta();
+		launch.options.resumeId = 'unsaved';
+		const { events, ended } = begin('which mode', { launch });
+		await ended(1);
+		expect(events).toContainEqual({ kind: 'resume', id: 'cli-1' });
+		expect(events.at(-1)).toEqual({ kind: 'turn.completed' });
 	});
 
 	it.each([
