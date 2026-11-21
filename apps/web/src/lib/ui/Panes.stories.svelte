@@ -13,6 +13,9 @@
 <script lang="ts">
 	let single = $state.raw<Layout>(singleGroup(['Conversation', 'WorkspaceView.svelte']));
 	let halves = $state.raw<Layout>(split);
+	let crowded = $state.raw<Layout>(
+		singleGroup(['pnpm dev', 'pnpm desktop:dev', 'pnpm test', 'pnpm check', 'zsh', 'pnpm lint'])
+	);
 	let nothing = $state.raw<Layout>(singleGroup([]));
 	let main = $state.raw<Layout>(singleGroup(['Conversation']));
 	let side = $state.raw<Layout>(singleGroup(['Changes', 'Files']));
@@ -80,6 +83,29 @@
 		<Panes
 			layout={halves}
 			onchange={(next) => (halves = next)}
+			{tab}
+			{window}
+			newTab={() => `Tab ${++count}`}
+		/>
+	</div>
+</Story>
+
+<!-- More tabs than fit: they scroll, and the + beside them stays clear of them. -->
+<Story
+	name="Many tabs"
+	asChild
+	play={async ({ canvas }) => {
+		const bar = canvas.getByRole('tablist');
+		await expect(bar.scrollWidth).toBeGreaterThan(bar.clientWidth);
+		const plus = canvas.getByRole('button', { name: 'New window' }).getBoundingClientRect();
+		await expect(bar.getBoundingClientRect().right).toBeLessThanOrEqual(plus.left);
+	}}
+>
+	<div class="flex h-48 w-96 sheet overflow-hidden">
+		<Panes
+			layout={crowded}
+			onchange={(next) => (crowded = next)}
+			closable={() => true}
 			{tab}
 			{window}
 			newTab={() => `Tab ${++count}`}

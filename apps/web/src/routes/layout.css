@@ -274,6 +274,26 @@
 	}
 }
 
+/* The same across: a row of tabs that continues beyond its left or right edge. */
+@utility scroll-fade-x {
+	--fade-left: 0px;
+	--fade-right: 0px;
+	mask-image: linear-gradient(
+		to right,
+		transparent,
+		black var(--fade-left),
+		black calc(100% - var(--fade-right)),
+		transparent
+	);
+
+	&.more-left {
+		--fade-left: calc(var(--spacing) * 6);
+	}
+	&.more-right {
+		--fade-right: calc(var(--spacing) * 6);
+	}
+}
+
 /* A page's column of content, and its title. */
 @utility page {
 	@apply mx-auto w-full max-w-3xl space-y-8 px-6 py-10;
