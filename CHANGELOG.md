@@ -1,5 +1,32 @@
 # Geordi Changelog
 
+## 0.8.0-beta.3
+
+### Features
+
+- ⚠️ **BREAKING CHANGE:** You can no longer start new projects: the orchestrating workspaces outside any repository that you started with **New project** in the repository picker. Projects you already have keep working, and you can still archive and restore them; they will be removed entirely in a later version. To orchestrate work across repositories, ask the agent in any repository workspace: it can start agents in your other repositories. ([#376](https://github.com/chattocorp/geordi/pull/376))
+- Clicking a workspace in the archive now offers to restore it, and takes you to it once restored. ([#393](https://github.com/chattocorp/geordi/pull/393))
+- The sidebar now shows when an agent has left tasks running in the background, so you can see at a glance which workspaces are still busy after their turn ended. ([#395](https://github.com/chattocorp/geordi/pull/395))
+- The messages your workspace actions send to agents (Create PR, Fix errors, Retry and the rest) now thank and encourage them as well as telling them what to do. ([#383](https://github.com/chattocorp/geordi/pull/383))
+- Your archive groups workspaces by the day you archived them and shows the time beside each workspace. ([#389](https://github.com/chattocorp/geordi/pull/389))
+- Checks still running now show a light going round their ring in the sidebar, like the one passing over the checks bar. ([#392](https://github.com/chattocorp/geordi/pull/392))
+- You can now reorder the workspaces an agent started by dragging them among their siblings, at any depth. They keep their parent. ([#381](https://github.com/chattocorp/geordi/pull/381))
+- The buttons that open a new terminal and a new conversation now show what they open: a terminal icon and a new-message icon, instead of a plus. ([#385](https://github.com/chattocorp/geordi/pull/385))
+- You can fold the Changes or Tasks sheet beside the conversation down to its tab row, with the chevron at its start, giving the other all the room. ([#387](https://github.com/chattocorp/geordi/pull/387))
+- Switch the sidebar between workspaces grouped by repository and one list, with each workspace marked by its repository’s icon. Press Cmd+Shift+G (Ctrl+Shift+G elsewhere) to switch. In one list, you can drag workspaces into any order. ([#380](https://github.com/chattocorp/geordi/pull/380))
+- The Tools line in your conversation now shows a spinning indicator while one of its tools is still running in the background. ([#391](https://github.com/chattocorp/geordi/pull/391))
+- A task's URL in `.geordi.yml` can now say `$PORT` for its own port, just like its command. ([#377](https://github.com/chattocorp/geordi/pull/377))
+
+### Fixes
+
+- Repository icons now appear once the app has started. Before, they could stay missing until you reloaded the window. ([#380](https://github.com/chattocorp/geordi/pull/380))
+- The Braille indicator now aligns with the Running label beside a subagent. ([#388](https://github.com/chattocorp/geordi/pull/388))
+- When you close a terminal and another terminal takes its place, that terminal now has keyboard focus, so you can keep typing. ([#384](https://github.com/chattocorp/geordi/pull/384))
+- When a pane has more tabs than fit, they now scroll beneath a soft fade at the edges, the + button no longer covers them, and the tab you pick scrolls into view. ([#386](https://github.com/chattocorp/geordi/pull/386))
+- Press Cmd+Option+/ (Ctrl+Alt+/ elsewhere) to focus or open a workspace terminal. It was Cmd+Shift+/ before. ([#384](https://github.com/chattocorp/geordi/pull/384))
+- Open an expanded subagent in its own tab with the icon beside its header. ([#388](https://github.com/chattocorp/geordi/pull/388))
+- Italic text, such as emphasis in an agent's replies, is now set in real IBM Plex Sans italics instead of a slanted imitation. ([#394](https://github.com/chattocorp/geordi/pull/394))
+
 ## 0.8.0-beta.2
 
 ### Features
