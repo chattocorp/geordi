@@ -69,6 +69,7 @@ export const navigation = () =>
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
+					...(workspace.deferred && { deferred: true }),
 					// when anything last happened in it, also in the agents working alongside
 					updatedAt: [workspace, ...aides]
 						.map((member) => member.updatedAt)

@@ -512,3 +512,22 @@
 	{@render frame(nav, '/workspaces/ready')}
 	<ContextMenu />
 </Story>
+
+<Story
+	name="Not Today"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.contextMenu(canvas.getByText('Review the daemon'));
+		await expect(await canvas.findByRole('menuitem', { name: 'Not Today' })).toBeVisible();
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: [workspace('aide', 'Review the daemon', { updatedAt: new Date().toISOString() })]
+		},
+		'/'
+	)}
+	<ContextMenu />
+</Story>

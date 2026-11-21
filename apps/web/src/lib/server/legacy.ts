@@ -155,6 +155,7 @@ export function createUpcaster() {
 			case 'workspace.restored':
 			case 'workspace.archived':
 			case 'workspace.moved':
+			case 'workspace.today':
 			case 'workspace.usage':
 			case 'workspace.purged':
 				return [event as CurrentEvent];

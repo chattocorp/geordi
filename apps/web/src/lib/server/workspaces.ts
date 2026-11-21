@@ -316,6 +316,34 @@ export function createWorkspaces(
 		});
 	}
 
+	// Save a return to Today on the sidebar workspace's own stream. It survives
+	// even if the person prompted an agent alongside it and later deletes that agent.
+	function appendPrompt(
+		workspace: Workspace,
+		event: Extract<GeordiEvent, { type: 'workspace.message' | 'workspace.queued' }>,
+		actor: string | null
+	) {
+		const owner = projection.get().get(workspace.worktreeId);
+		const row = owner && !owner.archivedAt ? owner : workspace;
+		if (
+			row.deferred &&
+			actor === null &&
+			!(event.type === 'workspace.message' && event.data.queued)
+		) {
+			store.append(
+				[
+					{
+						type: 'workspace.today',
+						stream: `workspace:${row.id}`,
+						data: { id: row.id, deferred: false }
+					},
+					event
+				],
+				{ actor }
+			);
+		} else store.append(event, { actor });
+	}
+
 	function say(
 		workspace: Workspace,
 		text: string,
@@ -326,13 +354,14 @@ export function createWorkspaces(
 	) {
 		const { id } = workspace;
 		if (workspace.agent === 'opencode' && workspace.status !== 'idle' && !from) {
-			store.append(
+			appendPrompt(
+				workspace,
 				{
 					type: 'workspace.queued',
 					stream: `workspace:${id}`,
 					data: { id, text, ...(images.length && { images }), ...(action && { action }) }
 				},
-				{ actor }
+				actor
 			);
 			return;
 		}
@@ -343,7 +372,8 @@ export function createWorkspaces(
 		if (from === 'queued') images = workspace.attachments.queue[0];
 		const deliveryId = randomUUID();
 		const working = workspace.status === 'running';
-		store.append(
+		appendPrompt(
+			workspace,
 			{
 				type: 'workspace.message',
 				stream: `workspace:${id}`,
@@ -357,7 +387,7 @@ export function createWorkspaces(
 					...(senderName && { senderName })
 				}
 			},
-			{ actor }
+			actor
 		);
 		// append applies the projection synchronously, including the briefing and attachments.
 		const pending = workspace.pendingMessages?.find((message) => message.deliveryId === deliveryId);
@@ -1017,13 +1047,14 @@ export function createWorkspaces(
 			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
 				return say(workspace, text, actor, undefined, images, action);
-			store.append(
+			appendPrompt(
+				workspace,
 				{
 					type: 'workspace.queued',
 					stream: `workspace:${id}`,
 					data: { id, text, ...(action && { action }), ...(images.length && { images }) }
 				},
-				{ actor }
+				actor
 			);
 			// idle with messages waiting: the turn before failed, and this is the nudge to go on
 			if (workspace.status === 'idle') say(workspace, workspace.queue[0], actor, 'queued');
@@ -1198,6 +1229,16 @@ export function createWorkspaces(
 			store.append(
 				{ type: 'workspace.configured', stream: `workspace:${id}`, data: { id, settings: chosen } },
 				{ actor }
+			);
+		},
+
+		defer(id: string) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (workspace.deferred) return;
+			store.append(
+				{ type: 'workspace.today', stream: `workspace:${id}`, data: { id, deferred: true } },
+				{ actor: 'person' }
 			);
 		},
 

@@ -116,6 +116,7 @@ export type WorkspacesEvent =
 			stream: WorkspaceStream;
 			data: { id: string; before: string | null };
 	  }
+	| { type: 'workspace.today'; stream: WorkspaceStream; data: { id: string; deferred: boolean } }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	| { type: 'workspace.restored'; stream: WorkspaceStream; data: { id: string } }
@@ -344,6 +345,7 @@ export type Workspace = {
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	createdAt: string;
+	deferred?: boolean;
 	updatedAt: string;
 	transcript: TranscriptItem[];
 };
@@ -453,6 +455,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 
 		const workspace = workspaces.get(event.data.id);
 		if (!workspace) return;
+		if (event.type === 'workspace.today') {
+			workspace.deferred = event.data.deferred;
+			if (!workspace.deferred) workspace.updatedAt = at;
+			return;
+		}
 		workspace.updatedAt = at;
 		const { id, transcript } = workspace;
 		function edit(index: number, remove: number, ...items: TranscriptItem[]) {

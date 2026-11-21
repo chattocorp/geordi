@@ -13,11 +13,15 @@ export type Listed<T> = {
 	depth: number;
 };
 
+type Activity = { updatedAt: string; deferred?: boolean };
+
 /** Compare calendar days in the viewer's time zone. */
-export function activeOnDay<T extends { updatedAt: string }>(workspaces: T[], day: string | null) {
-	return day === null
-		? workspaces
-		: workspaces.filter((w) => new Date(w.updatedAt).toDateString() === day);
+export function isActiveOnDay(workspace: Activity, day: string) {
+	return !workspace.deferred && new Date(workspace.updatedAt).toDateString() === day;
+}
+
+export function activeOnDay<T extends Activity>(workspaces: T[], day: string | null) {
+	return day === null ? workspaces : workspaces.filter((w) => isActiveOnDay(w, day));
 }
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */

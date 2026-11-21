@@ -50,6 +50,38 @@ const refusal = (message: RegExp) =>
 	});
 
 describe('workspaces', () => {
+	it('keeps a workspace out of Today through background work and replay until a new prompt', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Review');
+		workspaces.send(id, 'Already queued');
+		const before = workspaces.summary(id);
+		workspaces.defer(id);
+		expect(workspaces.summary(id)).toEqual({ ...before, deferred: true });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.rename(id, 'Review again');
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.summary(id).deferred).toBe(true);
+		replay.steer(id, 'Peer update', 'peer');
+		expect(replay.summary(id).deferred).toBe(true);
+		replay.send(id, 'My next prompt');
+		expect(replay.summary(id).deferred).toBe(false);
+		replay.defer(id);
+		replay.steer(id, 'Change of plan');
+		expect(replay.summary(id).deferred).toBe(false);
+	});
+
+	it('brings the sidebar workspace back when the person prompts an agent alongside it', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Review');
+		const aide = workspaces.join(id);
+		workspaces.defer(id);
+		workspaces.steer(aide, 'Review this file');
+		workspaces.record(aide, { kind: 'turn.completed' });
+		workspaces.archive(aide);
+		workspaces.purge([aide]);
+		expect(createWorkspaces(store, repos, dispatch).summary(id).deferred).toBe(false);
+	});
+
 	it('replays an older worktree without assigning it a new parent directory', () => {
 		const { repo, store, repos, dispatch } = setup();
 		store.append({

@@ -21,6 +21,7 @@
 		byRepository,
 		dropTarget,
 		inFocus,
+		isActiveOnDay,
 		shownUngrouped,
 		unfolded
 	} from '#lib/family.ts';
@@ -31,7 +32,12 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
-	import { moveWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
+	import {
+		deferWorkspace,
+		moveWorkspace,
+		renameWorkspace,
+		stopAgent
+	} from '../../routes/workspaces.remote';
 	import { moveRepo } from '../../routes/repos.remote';
 
 	/**
@@ -196,6 +202,15 @@
 							onselect: () => continueFromAfar(workspace)
 						}
 					]),
+			...(isActiveOnDay(workspace, new Date().toDateString())
+				? [
+						{
+							label: 'Not Today',
+							icon: 'icon-[lucide--calendar-minus]',
+							onselect: () => deferWorkspace(workspace.id)
+						}
+					]
+				: []),
 			{
 				label: 'Stop agent',
 				icon: 'icon-[lucide--square]',

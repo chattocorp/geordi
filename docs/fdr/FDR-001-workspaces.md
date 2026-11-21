@@ -1,7 +1,7 @@
 # FDR-001: Workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-20
+**Last reviewed:** 2026-11-21
 
 ## Overview
 
@@ -26,6 +26,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - An absolute Markdown link to a file in the worktree opens its current contents in a workspace tab, including files with no changes. A trailing line number such as `:139` scrolls to that line and highlights it. If the file is unavailable, the tab explains why it cannot show the text.
 - The workspace's ID is shown in its header; a click copies it.
 - At the top of the sidebar, the repository picker and Today toggle stay visible as the list scrolls. Cmd+Option+F on Mac or Ctrl+Alt+F elsewhere opens the picker and focuses its search field, revealing the sidebar if needed. Choose a repository to focus it, or All repositories to clear focus. The calendar button limits the list to workspaces with activity today and can be combined with repository focus. Cmd/Ctrl+Shift+T also toggles Today. The day starts at local midnight. Previous and next workspace follow the filtered list.
+- Choose **Not Today** from the sidebar menu of a workspace active today to remove it from Today. Turn off Today to find it in the full list. Its agent can keep working. The workspace returns to Today when you send or queue a new prompt in one of its conversations.
 - Cmd/Ctrl+Shift+Enter opens the next unread workspace in visible sidebar order, wrapping to the top when needed. If no other visible workspace is unread, you stay where you are.
 - Cmd/Ctrl+B hides and shows the navigation on the left, and with Alt/Option the changes and dock on the right. Both also have a button, and the navigation's edge can be dragged to resize it.
 - A workspace has a fixed frame: the main area, and beside it the changes above the dock. The lines between them can be dragged to resize, and that is all that can be changed about the frame.
