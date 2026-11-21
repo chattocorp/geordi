@@ -42,14 +42,7 @@
 			imageProblem = `Add up to ${MAX_IMAGES} images per message`;
 			return;
 		}
-		if (
-			files.some(
-				(file) =>
-					!IMAGE_TYPES.includes(file.type as (typeof IMAGE_TYPES)[number]) ||
-					!file.size ||
-					file.size > MAX_IMAGE_BYTES
-			)
-		) {
+		if (files.some((file) => !isImage(file) || !file.size || file.size > MAX_IMAGE_BYTES)) {
 			imageProblem = 'Choose PNG, JPEG, WebP or GIF images, at most 5 MB each';
 			return;
 		}
@@ -66,6 +59,24 @@
 		} finally {
 			uploading = false;
 		}
+	}
+
+	const isImage = (file: File) => IMAGE_TYPES.includes(file.type as (typeof IMAGE_TYPES)[number]);
+
+	/** Where a dropped file is on disk: only the desktop app can say. */
+	const pathOf = (file: File) =>
+		(
+			window as { geordiDesktop?: { pathOf?: (file: File) => string | null } }
+		).geordiDesktop?.pathOf?.(file) ?? null;
+
+	/** Types the paths of dropped files into the text, where its cursor is. */
+	function insertPaths(paths: string[]) {
+		if (!text || !paths.length) return;
+		const { selectionStart: start, selectionEnd: end, value } = text;
+		const before = start > 0 && !/\s/.test(value[start - 1]) ? ' ' : '';
+		const after = end < value.length && !/\s/.test(value[end]) ? ' ' : '';
+		text.setRangeText(before + paths.join(' ') + after, start, end, 'end');
+		text.dispatchEvent(new Event('input', { bubbles: true })); // (so bindings and fields see it)
 	}
 
 	function paste(event: ClipboardEvent) {
@@ -113,9 +124,15 @@
 		const drop = (event: DragEvent) => {
 			depth = 0;
 			dropping = false;
-			const files = [...(event.dataTransfer?.files ?? [])];
+			let files = [...(event.dataTransfer?.files ?? [])];
 			if (!files.length) return; // dropped text goes into the text as usual
 			event.preventDefault();
+			// other files are named by their path, where the app can tell it
+			const paths = files.filter((file) => !isImage(file)).map(pathOf);
+			if (paths.every((path) => path !== null)) {
+				insertPaths(paths);
+				files = files.filter(isImage);
+			}
 			void addImages(files);
 			text?.focus();
 		};
