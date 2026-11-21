@@ -96,8 +96,9 @@
 			{window}
 			newTab={() => `Tab ${++count}`}
 			newLabel="New terminal"
+			newIcon="icon-[lucide--square-terminal]"
 		>
-			{#snippet empty()}No terminal open. Start one with +.{/snippet}
+			{#snippet empty()}No terminal open. Start one from the bar.{/snippet}
 		</Panes>
 	</div>
 </Story>
