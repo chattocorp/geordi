@@ -13,6 +13,7 @@
 		type WorkspaceStanding
 	} from '@geordi/ui/actions';
 	import { hint, pressed } from '@geordi/ui/keys';
+	import { says, spoken } from '@geordi/ui/thanks';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks, type TurnChanges } from '#lib/transcript.ts';
@@ -804,9 +805,9 @@
 		const last = workspace.transcript.findLast((item) => item.kind === 'user');
 		if (running && last?.kind === 'user') asked.push(last.text);
 		return actions
-			.filter((action) =>
-				action.prompt
-					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
+			.filter(({ prompt, ...action }) =>
+				prompt
+					? asked.some((text) => says(text, prompt)) || (action.id === 'merge-upstream' && updating)
 					: pullActionPending(id, action) ||
 						(action.id === 'restore-workspace' && restoringWorkspace) ||
 						(action.id === 'archive' && leaving) ||
@@ -899,7 +900,8 @@
 	async function act(action: WorkspaceAction) {
 		// Geordi's to do where git can, the agent's where it takes judgement
 		if (action.id === 'merge-upstream' && action.prompt) update(action.prompt);
-		else if (action.prompt) say({ workspaceId: id, text: action.prompt, action: action.id });
+		else if (action.prompt)
+			say({ workspaceId: id, text: spoken(action.id, action.prompt), action: action.id });
 		else if (action.pullNumber) {
 			mergeProblem = null;
 			await runPullAction(id, action);
