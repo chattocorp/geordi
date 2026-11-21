@@ -10,7 +10,16 @@ export type RepoEvent =
 			stream: `repo:${string}`;
 			data: { id: string; name: string; path: string };
 	  }
-	| { type: 'repo.removed'; stream: `repo:${string}`; data: { id: string } };
+	| { type: 'repo.removed'; stream: `repo:${string}`; data: { id: string } }
+	/**
+	 * A person moved the repository in the sidebar: right above `before`, or to the end of
+	 * the list where that is `null`. Repositories are otherwise listed as they were registered.
+	 */
+	| {
+			type: 'repo.moved';
+			stream: `repo:${string}`;
+			data: { id: string; before: string | null };
+	  };
 
 export type Repo = { id: string; name: string; path: string; registeredAt: string };
 
@@ -25,6 +34,16 @@ function gitToplevel(path: string): string {
 	} catch {
 		error(400, `Not a Git repository: ${path}`);
 	}
+}
+
+/** The repositories in their order, with `id` right above `before`, or last. */
+function moved(repos: Map<string, Repo>, id: string, before: string | null): Map<string, Repo> {
+	const moving = repos.get(id);
+	if (!moving || id === before || (before !== null && !repos.has(before))) return repos;
+	const entries = [...repos].filter(([other]) => other !== id);
+	const at = before === null ? entries.length : entries.findIndex(([other]) => other === before);
+	entries.splice(at, 0, [id, moving]);
+	return new Map(entries);
 }
 
 export function createRepos(store: EventStore<GeordiEvent>) {
@@ -43,6 +62,7 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 				known.set(event.data.id, event.data.path);
 			}
 			if (event.type === 'repo.removed') repos.delete(event.data.id);
+			if (event.type === 'repo.moved') return moved(repos, event.data.id, event.data.before);
 			return repos;
 		},
 		['repo']
@@ -85,6 +105,14 @@ export function createRepos(store: EventStore<GeordiEvent>) {
 				{ actor }
 			);
 			return get(id);
+		},
+
+		/** Moves a repository in the list: right above `before`, or to the end where that is `null`. */
+		move(id: string, before: string | null, actor: string | null = null) {
+			get(id);
+			if (before !== null) get(before);
+			if (before === id) return;
+			store.append({ type: 'repo.moved', stream: `repo:${id}`, data: { id, before } }, { actor });
 		},
 
 		/**
