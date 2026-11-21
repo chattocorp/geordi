@@ -33,8 +33,10 @@
 		 * with an agent that works in its directory.
 		 */
 		alongside?: string;
+		/** Told of the repository the person picks here. */
+		onpick?: (repoId: string) => void;
 	};
-	let { repos, preferred, issue, label, focused = false, alongside }: Props = $props();
+	let { repos, preferred, issue, label, focused = false, alongside, onpick }: Props = $props();
 
 	const fields = createWorkspace.fields;
 	const { prompt, images } = fields;
@@ -56,11 +58,15 @@
 
 	/** The repository it begins in, as picked here, else as preferred. */
 	let picked = $state<string>();
+	function pick(id: string) {
+		picked = id;
+		onpick?.(id);
+	}
 	// Registration can finish before the navigation view delivers the new list.
 	let available = $derived(repos);
 	function added(repo: { id: string; name: string }) {
 		if (!available.some(({ id }) => id === repo.id)) available = [...available, repo];
-		picked = repo.id;
+		pick(repo.id);
 	}
 	const target = $derived(picked ?? preferred);
 	/** The repository picked, or the first one. */
@@ -136,7 +142,7 @@
 						onadd={() => adding?.start()}
 						repos={available}
 						bind:open={pickingRepo}
-						bind:value={() => repo.id, (id) => (picked = id)}
+						bind:value={() => repo.id, pick}
 					/>
 				{/if}
 				{#if harnesses?.length}
