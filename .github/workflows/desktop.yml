@@ -110,9 +110,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.commit }}
-      # Unreleased Sweet Release commit (PR #62, `sweet github release`): move to the next
+      # Unreleased Sweet Release commit (PRs #62 and #63, `sweet github release`): move to the next
       # release tag. The CLI is built from this revision (`sweet-version: source`).
-      - uses: chattocorp/sweet-release/.github/actions/bootstrap@7a7d348c2ec1b681c078a0ada9aa60b8ee260918
+      - uses: chattocorp/sweet-release/.github/actions/bootstrap@3e714d17a99e4125dd758af128550cc6fedd1397
       - uses: actions/download-artifact@v8
         with:
           pattern: desktop-${{ inputs.tag }}-*
