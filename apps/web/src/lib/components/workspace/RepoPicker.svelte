@@ -1,8 +1,3 @@
-<script lang="ts" module>
-	/** What the picker offers besides repositories: a new project, in none (FDR-012). */
-	export const PROJECT = '';
-</script>
-
 <script lang="ts">
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import Select from '#lib/ui/Select.svelte';
@@ -14,7 +9,7 @@
 		open = $bindable(false)
 	}: {
 		repos: { id: string; name: string }[];
-		/** A repository's ID, or `PROJECT`. */
+		/** A repository's ID. */
 		value: string;
 		open?: boolean;
 		onadd: () => void;
@@ -22,7 +17,6 @@
 
 	const options = $derived([
 		...repos.map((repo) => ({ value: repo.id, label: repo.name })),
-		{ value: PROJECT, label: 'New project' },
 		{ value: ':add', label: 'Add repository…' }
 	]);
 	const selected = $derived(options.find((option) => option.value === value));
@@ -56,10 +50,6 @@
 		<span class="grid size-5 place-items-center"
 			><span class="icon-[lucide--plus] size-4 text-muted"></span></span
 		>
-	{:else if id === PROJECT}
-		<span class="grid size-5 shrink-0 place-items-center">
-			<span class="icon-[lucide--folder-plus] size-4.5 text-muted/70"></span>
-		</span>
 	{:else}
 		<RepoIcon {id} />
 	{/if}

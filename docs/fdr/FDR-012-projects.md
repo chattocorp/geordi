@@ -1,7 +1,9 @@
 # FDR-012: Projects
 
-**Status:** Experimental
-**Last reviewed:** 2026-11-20
+**Status:** Deprecated
+**Last reviewed:** 2026-11-21
+
+> **Deprecated (2026-11-21):** new projects can no longer be started. Existing projects still work and can be archived and restored; projects will be removed entirely in a later version.
 
 ## Overview
 

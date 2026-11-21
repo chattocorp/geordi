@@ -13,7 +13,7 @@
 	import AddRepository from '../AddRepository.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
-	import RepoPicker, { PROJECT } from './RepoPicker.svelte';
+	import RepoPicker from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { createWorkspace, findFiles } from '../../../routes/workspaces.remote';
@@ -54,10 +54,7 @@
 		if (await submit()) written.clear();
 	});
 
-	/**
-	 * Where it begins, as picked here, else as preferred: a repository's ID, or `PROJECT` for
-	 * a new project (FDR-012).
-	 */
+	/** The repository it begins in, as picked here, else as preferred. */
 	let picked = $state<string>();
 	// Registration can finish before the navigation view delivers the new list.
 	let available = $derived(repos);
@@ -66,7 +63,6 @@
 		picked = repo.id;
 	}
 	const target = $derived(picked ?? preferred);
-	const project = $derived(!alongside && target === PROJECT);
 	/** The repository picked, or the first one. */
 	const repo = $derived(available.find((repo) => repo.id === target) ?? available[0]);
 
@@ -111,7 +107,7 @@
 		{label}
 		{focused}
 		rows={alongside ? undefined : 5}
-		placeholder={project ? 'What should be done, and where?' : 'What should the agent do?'}
+		placeholder="What should the agent do?"
 		field={prompt.as('text')}
 		onkeydown={(event) => {
 			// Enter starts the workspace, but not while there is no daemon to run it
@@ -123,7 +119,7 @@
 		)}
 	>
 		{#snippet header()}
-			<input {...fields.repoId.as('hidden', project ? '' : (repo?.id ?? ''))} />
+			<input {...fields.repoId.as('hidden', repo?.id ?? '')} />
 			{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />{/if}
 			{#if chosen}
 				<input {...fields.agent.as('hidden', chosen.harness.agent)} />
@@ -134,13 +130,13 @@
 		{/snippet}
 		{#snippet footer()}
 			<div class="flex min-w-0 flex-wrap items-center gap-1">
-				<!-- a repository to work in, or a new project (FDR-012), which is in none -->
+				<!-- the repository to work in -->
 				{#if !alongside}
 					<RepoPicker
 						onadd={() => adding?.start()}
 						repos={available}
 						bind:open={pickingRepo}
-						bind:value={() => (project ? PROJECT : repo.id), (id) => (picked = id)}
+						bind:value={() => repo.id, (id) => (picked = id)}
 					/>
 				{/if}
 				{#if harnesses?.length}
@@ -179,7 +175,7 @@
 					class="ml-auto"
 					disabled={!chosen}
 				>
-					{prompt.value()?.trim() ? 'Make it so' : project ? 'Start project' : 'Start workspace'}
+					{prompt.value()?.trim() ? 'Make it so' : 'Start workspace'}
 				</Button>
 			{/if}
 		{/snippet}

@@ -63,8 +63,8 @@ export const configureWorkspace = command(
 
 export const createWorkspace = form(
 	v.object({
-		/** Empty for a project, which belongs to no repository (FDR-012). */
-		repoId: v.string(),
+		/** New projects (FDR-012) can no longer be started: every workspace is in a repository. */
+		repoId: v.pipe(v.string(), v.minLength(1, 'Pick a repository to work in')),
 		images: imageIds,
 		agent: v.picklist(AGENTS),
 		...agentSettings,
@@ -87,9 +87,7 @@ export const createWorkspace = form(
 			const owner = workspaces().summary(id).worktreeId;
 			redirect(303, `/workspaces/${owner}?agent=${id}`);
 		}
-		const id = workspaces().create({ ...data, repoId: repoId || null, settings });
-		// a project has no worktree to make
-		if (!repoId) redirect(303, `/workspaces/${id}`);
+		const id = workspaces().create({ ...data, repoId, settings });
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
 		if (!data.prompt && !data.images.length)
