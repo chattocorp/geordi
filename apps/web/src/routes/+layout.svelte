@@ -245,7 +245,7 @@
 				The sidebar's part of the title bar. On macOS the window's buttons are on its left, so
 				the logo makes way and the toggle moves up beside them.
 			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag mac:pl-22">
+			<div class="flex h-14 shrink-0 items-center gap-1 pr-2 pl-4 window-drag mac:pl-22">
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
 				<span class="flex desktop:order-1">
