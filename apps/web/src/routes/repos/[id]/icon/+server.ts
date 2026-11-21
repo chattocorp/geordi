@@ -7,6 +7,9 @@ const CACHE = 'private, max-age=300';
 /** The picture a repository has of itself (a favicon, a logo), for showing beside its name. */
 export const GET: RequestHandler = async ({ params }) => {
 	const icon = await repoIcon(params.id);
+	// nobody could say (no daemon yet): not an answer to keep, the page asks again (`daemon.svelte.ts`)
+	if (icon === undefined)
+		return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } });
 	// none is an answer too, and not an error: the browser keeps it and logs nothing
 	if (!icon) return new Response(null, { status: 204, headers: { 'Cache-Control': CACHE } });
 	return new Response(Buffer.from(icon.data, 'base64'), {

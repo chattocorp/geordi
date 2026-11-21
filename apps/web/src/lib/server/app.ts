@@ -369,20 +369,21 @@ export const archiveWorkspace = (
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */
 const ICON_MS = 10 * 60_000;
-const icons = new Map<string, { at: number; icon: Promise<RepoIcon | null> }>();
+const icons = new Map<string, { at: number; icon: Promise<RepoIcon | null | undefined> }>();
 
 /**
  * The picture a repository has of itself, as a daemon finds it there (ADR-003: live data,
- * asked for and kept a while, never stored). `null` if it has none, or no daemon can say.
+ * asked for and kept a while, never stored). `null` if it has none; `undefined` if no
+ * daemon can say (none is connected yet, say), which is asked again next time.
  */
-export function repoIcon(repoId: string): Promise<RepoIcon | null> {
+export function repoIcon(repoId: string): Promise<RepoIcon | null | undefined> {
 	const known = icons.get(repoId);
 	if (known && Date.now() - known.at < ICON_MS) return known.icon;
 	const icon = hub()
 		.request({ kind: 'repoIcon', repoPath: repos().get(repoId).path })
 		.catch(() => {
 			icons.delete(repoId); // nobody could say: ask again next time
-			return null;
+			return undefined;
 		});
 	icons.set(repoId, { at: Date.now(), icon });
 	return icon;

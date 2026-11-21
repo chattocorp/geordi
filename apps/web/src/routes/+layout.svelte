@@ -10,6 +10,7 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { initRibbonPosition, openSettings } from '#lib/components/settings.svelte.ts';
+	import { daemon } from '#lib/daemon.svelte.ts';
 	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
@@ -48,6 +49,13 @@
 		if (viewed && isLooking()) seen(viewed);
 	});
 	$effect(badge);
+	// A daemon has connected: what none could say before is asked again (`daemon.svelte.ts`).
+	let daemonConnected = false;
+	$effect(() => {
+		const connected = !!nav.current && nav.current.harnesses !== null;
+		if (connected && !daemonConnected) daemon.connections++;
+		daemonConnected = connected;
+	});
 
 	// The sidebar can be hidden and made wider or narrower; both are remembered here.
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
