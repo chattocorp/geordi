@@ -1,5 +1,5 @@
 import { CHECKOUT_TIMEOUT, git, quietGit } from './git.ts';
-import { NO_WORKTREE } from '@geordi/protocol';
+import { NO_WORKTREE, type WorktreeRef } from '@geordi/protocol';
 import { randomUUID } from 'node:crypto';
 import {
 	closeSync,
@@ -13,7 +13,7 @@ import {
 	renameSync,
 	writeSync
 } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 const read = (file: string) => readFileSync(file, 'utf8').trim();
 const same = (a: string, b: string) => realpathSync(a) === realpathSync(b);
@@ -46,8 +46,10 @@ export function verifyLinks({ path, adminDir, commonDir }: Worktree) {
 	throw new Error(`The Git metadata of worktree ${path} was modified; refusing to use it`);
 }
 
-export const worktreePath = (baseDir: string, repoPath: string, worktreeId: string) =>
-	join(baseDir, basename(repoPath), worktreeId.slice(0, 8));
+export const worktreePath = (
+	baseDir: string,
+	{ repoPath, worktreeId, worktreeParent }: WorktreeRef
+) => join(baseDir, worktreeParent ?? basename(repoPath), worktreeId.slice(0, 8));
 
 // Cache the usual checkout only. A linked checkout has a .git file that can be repointed.
 const ordinaryRepos = new Set<string>();
@@ -70,15 +72,11 @@ async function commonDirOf(repoPath: string) {
  * Where a workspace's worktree lives. Everything is derived from the repository and the
  * workspace ID, never by asking git inside the worktree (its metadata is agent-writable).
  */
-export async function describe(
-	baseDir: string,
-	repoPath: string,
-	workspaceId: string
-): Promise<Worktree> {
-	const short = workspaceId.slice(0, 8);
-	const commonDir = await commonDirOf(repoPath);
+export async function describe(baseDir: string, ref: WorktreeRef): Promise<Worktree> {
+	const short = ref.worktreeId.slice(0, 8);
+	const commonDir = await commonDirOf(ref.repoPath);
 	return {
-		path: worktreePath(baseDir, repoPath, workspaceId),
+		path: worktreePath(baseDir, ref),
 		branch: `geordi/${short}`,
 		// git names the admin directory after the worktree's directory
 		adminDir: join(commonDir, 'worktrees', short),
@@ -102,15 +100,11 @@ export function branchRef(branch: string): string {
 
 /** The workspace's existing worktree. Throws if there is none yet, or it was tampered with. */
 /** Whether the workspace's worktree is there already. */
-export const hasWorktree = (baseDir: string, repoPath: string, workspaceId: string) =>
-	existsSync(worktreePath(baseDir, repoPath, workspaceId));
+export const hasWorktree = (baseDir: string, ref: WorktreeRef) =>
+	existsSync(worktreePath(baseDir, ref));
 
-export async function locateWorktree(
-	baseDir: string,
-	repoPath: string,
-	workspaceId: string
-): Promise<Worktree> {
-	const worktree = await describe(baseDir, repoPath, workspaceId);
+export async function locateWorktree(baseDir: string, ref: WorktreeRef): Promise<Worktree> {
+	const worktree = await describe(baseDir, ref);
 	if (!existsSync(worktree.path)) throw new Error(NO_WORKTREE);
 	verifyLinks(worktree);
 	return worktree;
@@ -174,16 +168,9 @@ export async function fetchUpstream(repoPath: string): Promise<string | null> {
  * derived from the workspace ID, so this is idempotent. A worktree that went missing is
  * brought back from its branch (`restored`).
  */
-export async function ensureWorktree(
-	baseDir: string,
-	repoPath: string,
-	workspaceId: string,
-	base?: string,
-	/** The branch it was last known to be on, if not the one named after it (see `continueOn`). */
-	branch?: string,
-	requireBranch = false
-) {
-	const described = await describe(baseDir, repoPath, workspaceId);
+export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireBranch = false) {
+	const { repoPath, base, branch } = ref;
+	const described = await describe(baseDir, ref);
 	const worktree = branch && branchRef(branch) ? { ...described, branch } : described;
 
 	const missing = !existsSync(worktree.path);
@@ -197,7 +184,7 @@ export async function ensureWorktree(
 	if (missing && requireBranch && !restored)
 		throw new Error(`The local branch ${worktree.branch} is missing.`);
 	if (missing) {
-		mkdirSync(join(baseDir, basename(repoPath)), { recursive: true });
+		mkdirSync(dirname(worktree.path), { recursive: true });
 		// git still lists a worktree whose directory is gone, and won't add it again until told
 		await git(repoPath, ['worktree', 'prune']);
 		if (restored)

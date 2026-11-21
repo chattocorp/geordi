@@ -35,6 +35,8 @@ export type WorkspacesEvent =
 				id: string;
 				/** Absent for a project, which belongs to no repository (FDR-012). */
 				repoId?: string;
+				/** Parent directory for this worktree. Older workspaces use the checkout's basename. */
+				worktreeParent?: string;
 				title: string;
 				agent: Agent;
 				/** The agent settings chosen when the workspace was created. */
@@ -302,6 +304,7 @@ export type Workspace = {
 	id: string;
 	/** `null` for a project: a workspace that belongs to no repository, for orchestrating (FDR-012). */
 	repoId: string | null;
+	worktreeParent?: string;
 	title: string;
 	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
 	named: boolean;

@@ -551,7 +551,11 @@ describe('installation-wide workspace access', () => {
 		expect(reviewer).toMatchObject({ parentId: caller, sharesWorktree: true });
 		const replay = createWorkspaces(store, repos, () => true);
 		expect(replay.ref(reviewer.id)).toEqual(replay.ref(child.id));
-		expect(replay.ref(child.id)).toEqual({ repoPath: repo.path, worktreeId: child.id });
+		expect(replay.ref(child.id)).toEqual({
+			repoPath: repo.path,
+			worktreeParent: repo.id,
+			worktreeId: child.id
+		});
 		expect(replay.agents.get(caller, child.id)).toMatchObject({ parentId: caller });
 	});
 

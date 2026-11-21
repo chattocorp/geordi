@@ -53,7 +53,7 @@ it('shares an index across queries and rebuilds it from the worktree after inval
 		writeFileSync(join(repo, 'tracked'), '');
 		git('add', '.');
 		git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'initial');
-		const worktree = await ensureWorktree(base, repo, '12345678');
+		const worktree = await ensureWorktree(base, { repoPath: repo, worktreeId: '12345678' });
 		unlinkSync(join(worktree.path, 'tracked'));
 		writeFileSync(join(worktree.path, 'ignored'), '');
 		writeFileSync(join(worktree.path, 'New File'), '');
@@ -119,7 +119,10 @@ it('reconciles named paths, moved subtrees, and index-only changes with Git', as
 		git(repo, 'config', 'core.excludesFile', external);
 		git(repo, 'add', '.');
 		git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'Initial');
-		const worktree = await ensureWorktree(join(root, 'trees'), repo, '12345678');
+		const worktree = await ensureWorktree(join(root, 'trees'), {
+			repoPath: repo,
+			worktreeId: '12345678'
+		});
 		const base = worktree.path;
 		const names = async () =>
 			(await service.search('test', { worktree }, '')).map((hit) => hit.path).sort();
@@ -187,7 +190,10 @@ it('catches up a saved worktree across worker restarts and replaces a damaged ch
 		writeFileSync(join(repo, '.gitignore'), 'forced\n');
 		git(repo, 'add', '.');
 		git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'Initial');
-		const tree = await ensureWorktree(join(root, 'trees'), repo, '12345678');
+		const tree = await ensureWorktree(join(root, 'trees'), {
+			repoPath: repo,
+			worktreeId: '12345678'
+		});
 		const names = async () =>
 			(await service.search('test', { worktree: tree }, '')).map((hit) => hit.path).sort();
 		writeFileSync(join(tree.path, 'old'), '');

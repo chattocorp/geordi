@@ -41,11 +41,35 @@ describe('ensureWorktree', () => {
 	it('creates a worktree on a new branch, idempotently', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const first = await ensureWorktree(base, repoPath, '12345678-aaaa');
-		const second = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const first = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
+		const second = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
 
 		expect(first).toMatchObject({ created: true, branch: 'geordi/12345678' });
 		expect(second).toMatchObject({ created: false, path: first.path });
+	});
+
+	it('separates same-named repositories and keeps older worktrees in place', async () => {
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-trees-')));
+		const source = repo();
+		const clone = (owner: string) => {
+			const path = join(base, owner, 'api');
+			execFileSync('git', ['clone', '-q', source, path]);
+			return path;
+		};
+		const first = { repoPath: clone('a'), worktreeParent: 'api', worktreeId: '12345678-one' };
+		const second = { repoPath: clone('b'), worktreeParent: 'api-2', worktreeId: '12345678-two' };
+		const legacy = { repoPath: second.repoPath, worktreeId: '87654321-old' };
+		const legacyPath = join(base, 'api', '87654321');
+		execFileSync('git', ['-C', legacy.repoPath, 'worktree', 'add', '-b', 'old', legacyPath]);
+		writeFileSync(join(legacyPath, 'draft'), 'in progress');
+
+		expect((await ensureWorktree(base, first)).path).toBe(join(base, 'api', '12345678'));
+		expect((await ensureWorktree(base, second)).path).toBe(join(base, 'api-2', '12345678'));
+		await removeWorktree(base, first, false);
+		expect((await locateWorktree(base, second)).path).toBe(join(base, 'api-2', '12345678'));
+		expect(await ensureWorktree(base, legacy)).toMatchObject({ path: legacyPath, created: false });
+		expect(branchOf(await locateWorktree(base, legacy))).toBe('old');
+		expect(readFileSync(join(legacyPath, 'draft'), 'utf8')).toBe('in progress');
 	});
 
 	it('starts from where the upstream stands now, not from what is checked out', async () => {
@@ -64,7 +88,7 @@ describe('ensureWorktree', () => {
 		expect(await startOf(repoPath)).toMatch(/^refs\/remotes\/origin\//);
 
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
 		expect(git(worktree.path, 'rev-parse', 'HEAD')).toBe(git(upstream, 'rev-parse', 'HEAD'));
 		// a branch of its own: nothing it would push to by default
 		expect(() => git(worktree.path, 'rev-parse', '--abbrev-ref', '@{upstream}')).toThrow();
@@ -84,7 +108,7 @@ describe('ensureWorktree', () => {
 	it('brings a worktree that was removed back from its branch, with what was committed', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const { path } = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const { path } = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
 		const git = (...args: string[]) =>
 			execFileSync('git', ['-C', path, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
 		writeFileSync(join(path, 'committed.txt'), 'kept\n');
@@ -93,13 +117,15 @@ describe('ensureWorktree', () => {
 		writeFileSync(join(path, 'uncommitted.txt'), 'lost\n');
 
 		rmSync(path, { recursive: true }); // someone tidied up behind Geordi's back
-		await expect(locateWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(NO_WORKTREE);
+		await expect(locateWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })).rejects.toThrow(
+			NO_WORKTREE
+		);
 
-		const again = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const again = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
 		expect(again).toMatchObject({ path, created: false, restored: true });
 		expect(readFileSync(join(path, 'committed.txt'), 'utf8')).toBe('kept\n');
 		expect(existsSync(join(path, 'uncommitted.txt'))).toBe(false);
-		expect(await ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({
+		expect(await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })).toMatchObject({
 			restored: false
 		});
 
@@ -108,10 +134,14 @@ describe('ensureWorktree', () => {
 		execFileSync('git', ['-C', repoPath, 'worktree', 'prune']);
 		execFileSync('git', ['-C', repoPath, 'branch', '-qD', 'geordi/12345678']);
 		await expect(
-			ensureWorktree(base, repoPath, '12345678-aaaa', undefined, 'geordi/12345678', true)
+			ensureWorktree(
+				base,
+				{ repoPath, worktreeId: '12345678-aaaa', branch: 'geordi/12345678' },
+				true
+			)
 		).rejects.toThrow('The local branch geordi/12345678 is missing');
 		expect(existsSync(path)).toBe(false);
-		expect(await ensureWorktree(base, repoPath, '12345678-aaaa')).toMatchObject({
+		expect(await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })).toMatchObject({
 			created: true,
 			restored: false
 		});
@@ -121,7 +151,7 @@ describe('ensureWorktree', () => {
 	it('reports a branch the agent renamed, and comes back from it', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
 		const git = (...args: string[]) =>
 			execFileSync('git', [
 				'-C',
@@ -139,14 +169,12 @@ describe('ensureWorktree', () => {
 		expect(branchOf(worktree)).toBe('geordi/fix-login');
 		expect(await status(worktree, { repoPath })).toMatchObject({ branch: 'geordi/fix-login' });
 
-		await removeWorktree(base, repoPath, '12345678-aaaa', false);
-		const again = await ensureWorktree(
-			base,
+		await removeWorktree(base, { repoPath, worktreeId: '12345678-aaaa' }, false);
+		const again = await ensureWorktree(base, {
 			repoPath,
-			'12345678-aaaa',
-			undefined,
-			'geordi/fix-login'
-		);
+			worktreeId: '12345678-aaaa',
+			branch: 'geordi/fix-login'
+		});
 		expect(again).toMatchObject({ restored: true, branch: 'geordi/fix-login' });
 		expect(readFileSync(join(worktree.path, 'committed.txt'), 'utf8')).toBe('kept\n');
 	});
@@ -157,7 +185,7 @@ describe('ensureWorktree', () => {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
 		execFileSync('git', ['clone', '-q', upstream, repoPath]);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
 		const git = (...args: string[]) =>
 			execFileSync('git', [
 				'-C',
@@ -195,7 +223,7 @@ describe('ensureWorktree', () => {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
 		execFileSync('git', ['clone', '-q', upstream, repoPath]);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
 
 		// work in the workspace, and meanwhile something else lands upstream
 		writeFileSync(join(worktree.path, 'mine.txt'), 'mine\n');
@@ -230,13 +258,11 @@ describe('ensureWorktree', () => {
 		// and a worktree that goes missing comes back on the branch it was on
 		expect(run(worktree.path, 'branch', '--show-current')).toBe('geordi/12345678-3');
 		rmSync(worktree.path, { recursive: true });
-		const back = await ensureWorktree(
-			base,
+		const back = await ensureWorktree(base, {
 			repoPath,
-			'12345678-aaaa',
-			undefined,
-			'geordi/12345678-3'
-		);
+			worktreeId: '12345678-aaaa',
+			branch: 'geordi/12345678-3'
+		});
 		expect(back).toMatchObject({ restored: true, branch: 'geordi/12345678-3' });
 		expect(run(back.path, 'branch', '--show-current')).toBe('geordi/12345678-3');
 	});
@@ -244,33 +270,43 @@ describe('ensureWorktree', () => {
 	it('refuses a worktree whose Git metadata was repointed', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const { path, writableRoots } = await ensureWorktree(base, repoPath, '12345678-aaaa');
+		const { path, writableRoots } = await ensureWorktree(base, {
+			repoPath,
+			worktreeId: '12345678-aaaa'
+		});
 		const evil = mkdtempSync(join(tmpdir(), 'geordi-evil-'));
 
 		const commondir = join(writableRoots.at(-1)!, 'commondir');
 		writeFileSync(commondir, evil);
-		await expect(ensureWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(/was modified/);
+		await expect(ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })).rejects.toThrow(
+			/was modified/
+		);
 
 		writeFileSync(commondir, '../..');
-		await expect(ensureWorktree(base, repoPath, '12345678-aaaa')).resolves.toBeDefined();
+		await expect(
+			ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })
+		).resolves.toBeDefined();
 
 		writeFileSync(join(path, '.git'), `gitdir: ${evil}`);
-		await expect(ensureWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(/was modified/);
+		await expect(ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })).rejects.toThrow(
+			/was modified/
+		);
 	});
 
 	it('locates only worktrees that exist', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		await expect(locateWorktree(base, repoPath, '12345678-aaaa')).rejects.toThrow(/no worktree/);
-		const { path } = await ensureWorktree(base, repoPath, '12345678-aaaa');
-		expect((await locateWorktree(base, repoPath, '12345678-aaaa')).path).toBe(path);
+		await expect(locateWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })).rejects.toThrow(
+			/no worktree/
+		);
+		const { path } = await ensureWorktree(base, { repoPath, worktreeId: '12345678-aaaa' });
+		expect((await locateWorktree(base, { repoPath, worktreeId: '12345678-aaaa' })).path).toBe(path);
 	});
 
 	it('never makes hooks or config writable', async () => {
 		const { writableRoots } = await ensureWorktree(
 			realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-'))),
-			repo(),
-			'abcdefgh-1'
+			{ repoPath: repo(), worktreeId: 'abcdefgh-1' }
 		);
 		const gitDir = writableRoots[0].replace(/\/objects$/, '');
 		expect(writableRoots).toEqual([
@@ -303,7 +339,7 @@ describe('changes', () => {
 		]);
 
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 		expect(await changes(worktree, { repoPath })).toEqual([]);
 
 		// committed in the workspace
@@ -386,7 +422,7 @@ describe('changes', () => {
 			'sub'
 		]);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 		const secret = join(base, 'secret.txt');
 		writeFileSync(secret, 'do not show');
 		symlinkSync(base, join(worktree.path, 'elsewhere'));
@@ -432,13 +468,17 @@ describe('changes', () => {
 	it('branches sub-workspaces off their parent and measures changes against it', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const parent = await ensureWorktree(base, repoPath, 'parent00-1');
+		const parent = await ensureWorktree(base, { repoPath, worktreeId: 'parent00-1' });
 		const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args]);
 		writeFileSync(join(parent.path, 'parent.txt'), 'p\n');
 		git(parent.path, 'add', '.');
 		git(parent.path, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'parent');
 
-		const child = await ensureWorktree(base, repoPath, 'child000-1', parent.branch);
+		const child = await ensureWorktree(base, {
+			repoPath,
+			worktreeId: 'child000-1',
+			base: parent.branch
+		});
 		expect(existsSync(join(child.path, 'parent.txt'))).toBe(true);
 		writeFileSync(join(child.path, 'child.txt'), 'c\n');
 
@@ -449,9 +489,9 @@ describe('changes', () => {
 			'child.txt',
 			'parent.txt'
 		]);
-		await expect(ensureWorktree(base, repoPath, 'evil0000-1', '--detach')).rejects.toThrow(
-			/branch name/
-		);
+		await expect(
+			ensureWorktree(base, { repoPath, worktreeId: 'evil0000-1', base: '--detach' })
+		).rejects.toThrow(/branch name/);
 	});
 
 	it('inherits the target through clean parents and follows a retargeted pull request', async () => {
@@ -459,8 +499,12 @@ describe('changes', () => {
 		const root = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
 		const git = (cwd: string, ...args: string[]) =>
 			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
-		const parent = await ensureWorktree(root, repoPath, 'parent00-1');
-		const child = await ensureWorktree(root, repoPath, 'child000-1', parent.branch);
+		const parent = await ensureWorktree(root, { repoPath, worktreeId: 'parent00-1' });
+		const child = await ensureWorktree(root, {
+			repoPath,
+			worktreeId: 'child000-1',
+			base: parent.branch
+		});
 		git(repoPath, 'update-ref', 'refs/remotes/origin/release', 'HEAD');
 		writeFileSync(join(repoPath, 'from-main.txt'), 'upstream\n');
 		git(repoPath, 'add', '.');
@@ -495,7 +539,7 @@ describe('changes', () => {
 		const repoPath = repo();
 		execFileSync('git', ['-C', repoPath, 'config', 'extensions.worktreeConfig', 'true']);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 
 		const marker = join(base, 'pwned');
 		writeFileSync(
@@ -513,7 +557,7 @@ describe('changes', () => {
 	it('never runs git inside a submodule an agent planted', async () => {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 
 		// a nested repository with hostile config, staged as a submodule and then dirtied
 		const nested = join(worktree.path, 'nested');
@@ -541,7 +585,7 @@ describe('status', () => {
 		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
 		git(upstream, 'clone', '-q', upstream, repoPath);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'incoming-1');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'incoming-1' });
 		const origin = { repoPath };
 		const branch = await startOf(repoPath);
 		expect((await status(worktree, origin)).incoming).toEqual({ branch, commits: 0 });
@@ -556,7 +600,11 @@ describe('status', () => {
 
 	it('compares child workspaces with their parent branch', async () => {
 		const { repoPath, base, worktree, git } = await workspace();
-		const child = await ensureWorktree(base, repoPath, 'child-1', worktree.branch);
+		const child = await ensureWorktree(base, {
+			repoPath,
+			worktreeId: 'child-1',
+			base: worktree.branch
+		});
 		git('commit', '-qm', 'parent work', '--allow-empty');
 		expect((await status(child, { repoPath, base: worktree.branch })).incoming).toEqual({
 			branch: branchRef(worktree.branch),
@@ -567,7 +615,7 @@ describe('status', () => {
 	async function workspace() {
 		const repoPath = repo();
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 		const git = (...args: string[]) =>
 			execFileSync('git', [
 				'-C',
@@ -668,14 +716,14 @@ describe('status', () => {
 	it('removes a clean worktree, keeps its branch, and refuses to discard work unless told to', async () => {
 		const { repoPath, base, worktree, git } = await workspace();
 		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
-		await expect(removeWorktree(base, repoPath, 'abcdefgh-1', false)).rejects.toThrow(
-			/uncommitted or untracked/
-		);
+		await expect(
+			removeWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' }, false)
+		).rejects.toThrow(/uncommitted or untracked/);
 		expect(existsSync(worktree.path)).toBe(true);
 
 		git('add', '.');
 		git('commit', '-qm', 'a');
-		await removeWorktree(base, repoPath, 'abcdefgh-1', false);
+		await removeWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' }, false);
 		expect(existsSync(worktree.path)).toBe(false);
 		const branches = execFileSync('git', ['-C', repoPath, 'branch', '--list', 'geordi/*']);
 		expect(String(branches)).toContain('geordi/abcdefgh');
@@ -685,10 +733,10 @@ describe('status', () => {
 		expect(String(listed)).not.toContain('abcdefgh');
 
 		// already gone is fine; and force discards
-		await removeWorktree(base, repoPath, 'abcdefgh-1', false);
-		const second = await ensureWorktree(base, repoPath, 'second00-1');
+		await removeWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' }, false);
+		const second = await ensureWorktree(base, { repoPath, worktreeId: 'second00-1' });
 		writeFileSync(join(second.path, 'junk.txt'), 'x\n');
-		await removeWorktree(base, repoPath, 'second00-1', true);
+		await removeWorktree(base, { repoPath, worktreeId: 'second00-1' }, true);
 		expect(existsSync(second.path)).toBe(false);
 	});
 
@@ -701,11 +749,11 @@ describe('status', () => {
 		execFileSync('git', ['-C', evil, 'config', 'core.fsmonitor', `touch ${marker}; false`]);
 		writeFileSync(join(worktree.path, '.git'), `gitdir: ${join(evil, '.git')}`);
 
-		await expect(removeWorktree(base, repoPath, 'abcdefgh-1', false)).rejects.toThrow(
-			/was modified/
-		);
+		await expect(
+			removeWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' }, false)
+		).rejects.toThrow(/was modified/);
 		expect(existsSync(worktree.path)).toBe(true);
-		await removeWorktree(base, repoPath, 'abcdefgh-1', true);
+		await removeWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' }, true);
 		expect(existsSync(worktree.path)).toBe(false);
 		expect(existsSync(marker)).toBe(false);
 	});
@@ -753,7 +801,7 @@ describe('Continue checkout', () => {
 			run(repoPath, 'commit', '-qm', 'ignore local settings');
 		}
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 		writeFileSync(join(repoPath, file), 'from the target\n');
 		run(repoPath, 'add', '-f', file);
 		run(repoPath, 'commit', '-qm', 'track settings on the target');
@@ -799,7 +847,7 @@ it('carries uncommitted changes onto the new branch, or moves nothing where they
 	run(repoPath, 'add', '.');
 	run(repoPath, 'commit', '-qm', 'a file to change');
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 
 	// work begun after the branch landed: an edit, and a new file
 	writeFileSync(join(worktree.path, 'shared.txt'), 'edited since\n');
@@ -822,7 +870,7 @@ it('carries uncommitted changes onto the new branch, or moves nothing where they
 it('abandons a continuation if a turn starts while the branch is being made', async () => {
 	const repoPath = repo();
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 	let checks = 0;
 	await expect(
 		continueOn(worktree, repoPath, () => {
@@ -836,7 +884,7 @@ it('abandons a continuation if a turn starts while the branch is being made', as
 it('runs Git once for a burst of identical changes requests and reads again afterward', async () => {
 	const repoPath = repo();
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-	const worktree = await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	const worktree = await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 	const trace = join(base, 'trace');
 	const original = process.env.GIT_TRACE2_EVENT;
 	process.env.GIT_TRACE2_EVENT = trace;
@@ -866,7 +914,7 @@ it('sees an edit of the same size in the same second as the index', async () => 
 	const repoPath = repo();
 	const base = mkdtempSync(join(tmpdir(), 'geordi-turn-'));
 	try {
-		const wt = await ensureWorktree(base, repoPath, '12345678');
+		const wt = await ensureWorktree(base, { repoPath, worktreeId: '12345678' });
 		const file = join(wt.path, 'example');
 		// file and index from the same second: Git can tell the file apart only by reading it
 		const second = new Date('2026-11-19T12:00:00Z');
@@ -888,7 +936,7 @@ it('captures net changes across a commit without staging files or including earl
 	const repoPath = repo();
 	const base = mkdtempSync(join(tmpdir(), 'geordi-turn-'));
 	try {
-		const wt = await ensureWorktree(base, repoPath, '12345678');
+		const wt = await ensureWorktree(base, { repoPath, worktreeId: '12345678' });
 		const write = (name: string, text: string) => writeFileSync(join(wt.path, name), text);
 		const git = (...args: string[]) =>
 			execFileSync('git', ['-C', wt.path, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {

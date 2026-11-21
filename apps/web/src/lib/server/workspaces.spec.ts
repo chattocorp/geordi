@@ -50,6 +50,17 @@ const refusal = (message: RegExp) =>
 	});
 
 describe('workspaces', () => {
+	it('replays an older worktree without assigning it a new parent directory', () => {
+		const { repo, store, repos, dispatch } = setup();
+		store.append({
+			type: 'workspace.created',
+			stream: 'workspace:old',
+			data: { id: 'old', repoId: repo.id, title: 'Old workspace', agent: 'codex' }
+		});
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.ref('old')).toEqual({ repoPath: repo.path, worktreeId: 'old' });
+	});
+
 	it('publishes nested reviewer edits without changing earlier snapshots', () => {
 		const { workspaces, create } = setup();
 		const id = create('Review');
@@ -325,6 +336,7 @@ describe('workspaces', () => {
 				agent: 'claude',
 				settings: {},
 				repoPath: repo.path,
+				worktreeParent: repo.id,
 				apiToken: expect.any(String),
 				resumeId: null,
 				instructions: expect.stringContaining('inside Geordi'),

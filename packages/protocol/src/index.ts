@@ -81,6 +81,8 @@ export const NO_WORKTREE = 'This workspace has no worktree';
 export type WorktreeRef = {
 	worktreeId: string;
 	repoPath: string;
+	/** Parent directory for this worktree. Older workspaces use the checkout's basename. */
+	worktreeParent?: string;
 	/**
 	 * The branch the worktree started from.
 	 * Absent for worktrees started from where work in the repository starts.
@@ -581,7 +583,7 @@ export type DaemonRequest =
 	 */
 	| ({ kind: 'updateWorktree' } & WorktreeRef)
 	/** Up to forty ranked paths with highlight positions for the composer. */
-	| { kind: 'findFiles'; query: string; repoPath: string; worktreeId?: string }
+	| ({ kind: 'findFiles'; query: string } & (WorktreeRef | { repoPath: string }))
 	/** Whether the daemon can read a repository on its upstream forge. */
 	| { kind: 'checkForge'; repoPath: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */

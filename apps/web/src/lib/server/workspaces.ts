@@ -190,6 +190,7 @@ export function createWorkspaces(
 		return {
 			worktreeId,
 			repoPath: repos.get(repoId).path,
+			...(owner.worktreeParent && { worktreeParent: owner.worktreeParent }),
 			...(base && { base }),
 			...(parents.length && { parents }),
 			...(branch && { branch })
@@ -496,6 +497,7 @@ export function createWorkspaces(
 					id,
 					title,
 					...(repoId !== null && { repoId }),
+					...(repoId !== null && !rest.worktreeId && { worktreeParent: repoId }),
 					...rest,
 					...(Object.keys(chosen).length > 0 && { settings: chosen })
 				}

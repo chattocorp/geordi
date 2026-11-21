@@ -60,11 +60,10 @@ for (const tool of ['Changesets', 'Sweet Release']) {
 			git('switch', '-q', 'main');
 			note('fix', 'patch');
 			const base = commit();
-			const worktree = await ensureWorktree(
-				mkdtempSync(join(tmpdir(), 'geordi-test-trees-')),
-				path,
-				'release-review'
-			);
+			const worktree = await ensureWorktree(mkdtempSync(join(tmpdir(), 'geordi-test-trees-')), {
+				repoPath: path,
+				worktreeId: 'release-review'
+			});
 			// The checked-out worktree is deliberately missing the PR commit and has invalid local files.
 			writeFileSync(join(worktree.path, sweet ? '.sweet.yml' : 'package.json'), 'unpublished!');
 			const target = { number: '42', head, base, branch: 'main' };
