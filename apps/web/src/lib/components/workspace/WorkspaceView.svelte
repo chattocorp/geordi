@@ -692,12 +692,19 @@
 	// A link to an agent working alongside leads here, to its conversation (`?agent=`). So
 	// does beginning one: it takes the place of the window it was begun in.
 	$effect(() => {
-		const tab = `agent:${page.url.searchParams.get('agent')}`;
+		const requested = page.url.searchParams.get('agent');
+		if (!requested || page.params.id !== id) return;
+		const tab = requested === id ? CHAT : `agent:${requested}`;
 		untrack(() => {
-			const at = aideOf(tab) && areaOf(tab);
+			const at = areaOf(tab);
 			if (!at) return;
-			const begun = areaOf(DRAFT);
-			if (!begun) return arrange({ [at]: open(layouts[at], tab) });
+			void goto(resolve('/workspaces/[id]', { id }), {
+				shallow: true,
+				replace: true,
+				state: page.state
+			});
+			const begun = tab !== CHAT && areaOf(DRAFT);
+			if (!begun) return showTab(tab);
 			const group = groupsOf(layouts[begun]).find((group) => group.tabs.includes(DRAFT))!.id;
 			arrange(
 				begun === at
