@@ -58,7 +58,7 @@
 					? 'bg-ok text-on-ok'
 					: 'bg-accent text-on-accent'
 		],
-		secondary: 'rounded-full bg-sunken font-medium hover:bg-hover',
+		secondary: 'rounded-full bg-sunken font-medium shadow-soft hover:bg-hover',
 		ghost: 'rounded-control font-medium text-muted hover:bg-hover hover:text-ink',
 		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20',
 		tool: 'rounded-control text-muted hover:text-ink aria-checked:bg-sunken aria-checked:text-ink aria-pressed:bg-sunken aria-pressed:text-ink'
