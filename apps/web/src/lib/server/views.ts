@@ -48,7 +48,6 @@ export const navigation = () =>
 					)?.activeAction;
 				const state = {
 					...known,
-					continued: workspace.continued,
 					failed: workspace.lastTurn === 'failed',
 					child: !!parentId
 				};

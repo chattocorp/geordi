@@ -133,9 +133,8 @@ describe('actionsFor', () => {
 		expect(ids({ changes, upstream: null, failed: true })).toEqual(['retry']);
 	});
 
-	it('offers Archive once the workspace is known to be clean, unless it was continued', () => {
+	it('offers Archive once the workspace is known to be clean', () => {
 		expect(ids({ changes: null, upstream: upstream() })).toEqual([]);
-		expect(ids({ changes: clean, upstream: null, continued: true })).toEqual([]);
 		expect(ids({ changes: clean, upstream: upstream() })).toEqual(['archive']);
 		expect(ids({ changes: clean, upstream: null })).toEqual(['archive']);
 	});

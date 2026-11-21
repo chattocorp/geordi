@@ -338,7 +338,6 @@ export type Workspace = {
 	 * happened to its workspace since it last looked.
 	 */
 	briefing: string | null;
-	continued?: boolean;
 	/** Who sent the messages that wait, in step with `queue`: workspace IDs, `null` for people. */
 	sentBy: { queue: (string | null)[] };
 	/** When the workspace was archived; `null` while it is in use. */
@@ -422,7 +421,6 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				at,
 				actor
 			);
-			if (workspaces.get(workspace.worktreeId)?.continued) workspace.continued = true;
 			workspaces.set(workspace.id, workspace);
 			return;
 		}
@@ -488,7 +486,6 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			// everyone who works in that worktree is on the new branch, measured against where it starts
 			for (const other of workspaces.values()) {
 				if (other.worktreeId !== workspace.worktreeId) continue;
-				other.continued = true;
 				other.base = null;
 				other.briefing = continuedBriefing(branch);
 			}
