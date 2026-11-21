@@ -65,6 +65,8 @@
 	const folded = persisted<string[]>('geordi:folded', []);
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
+	/** Whether the sidebar groups workspaces by repository, or lists them as one. */
+	const grouped = persisted('geordi:grouped', true);
 
 	let todayOnly = $state(false);
 	let day = $state('');
@@ -101,7 +103,7 @@
 				focus.current
 			).map(({ id }) => id),
 			folded.current,
-			step === 'unread'
+			{ includeProjects: step === 'unread', grouped: grouped.current }
 		);
 		const to =
 			step === 'unread' ? nextUnread(order, viewed, unread) : stepThrough(order, viewed, step);
@@ -229,6 +231,7 @@
 					path={page.url.pathname}
 					{folded}
 					{focus}
+					{grouped}
 					bind:todayOnly
 					bind:repositoryPickerOpen
 				/>

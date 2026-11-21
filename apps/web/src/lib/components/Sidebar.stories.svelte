@@ -14,6 +14,7 @@
 			filters.todayOnly = false;
 			focus.current = null;
 			folded.current = [];
+			grouped.current = true;
 			arrived.current = false;
 			loaded.current = false;
 		}
@@ -25,6 +26,8 @@
 	const folded = $state({ current: [] as string[] });
 	/** The repository shown alone: in the app, remembered in the browser too. */
 	const focus = $state({ current: null as string | null });
+	/** Whether workspaces are grouped by repository: in the app, remembered in the browser too. */
+	const grouped = $state({ current: true });
 
 	const filters = $state({ todayOnly: false });
 	/** Whether a workspace has come along since the story began. */
@@ -184,6 +187,7 @@
 			{path}
 			{folded}
 			{focus}
+			{grouped}
 			bind:todayOnly={filters.todayOnly}
 			{lost}
 		/>
@@ -326,6 +330,30 @@
 	</div>
 </Story>
 
+<Story
+	name="As one list"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces as one list' }));
+		await expect(grouped.current).toBe(false);
+		// no repository names above them: each has its repository's picture instead
+		await waitFor(() => expect(canvas.queryByText('Projects')).toBeNull());
+		const main = within(canvas.getByRole('navigation', { name: 'Main' }));
+		// the titles, without the links to parents beside them
+		const titles = main
+			.getAllByRole('link')
+			.map((link) => link.textContent?.trim())
+			.filter(Boolean);
+		// what a project's agent started stays under it, though it is in a repository
+		await expect(titles.indexOf('Bump the protocol in the daemon')).toBe(
+			titles.indexOf('Ship the protocol bump everywhere') + 1
+		);
+	}}
+>
+	{@render frame(withProjects, '/workspaces/ready')}
+</Story>
+
 <Story name="On the archive" asChild>
 	{@render frame(nav, '/archive')}
 </Story>
@@ -379,6 +407,28 @@
 		await expect(last).toHaveClass('row-drop-after');
 		await fireEvent.dragEnd(first);
 		await expect(markers()).toHaveLength(0);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Reorder in one list"
+	asChild
+	play={async ({ canvasElement }) => {
+		grouped.current = false;
+		const canvas = within(canvasElement);
+		// the groups slide away
+		await waitFor(() => expect(canvas.getAllByText('Choose a storage engine')).toHaveLength(1));
+		const row = (title: string) => canvas.getByText(title).closest('li')!;
+		const first = row('Choose a storage engine');
+		// a workspace of another repository
+		const target = row('Try out the new parser');
+		await fireEvent.dragStart(first);
+		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
+		await expect(target).toHaveClass('row-drop-before');
+		await fireEvent.dragEnd(first);
+		await expect(canvasElement.querySelectorAll('.row-drop-before')).toHaveLength(0);
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}

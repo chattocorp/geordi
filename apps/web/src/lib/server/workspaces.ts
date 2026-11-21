@@ -1215,16 +1215,15 @@ export function createWorkspaces(
 		retitle,
 
 		/**
-		 * Moves a workspace in the list: right above `before`, another of its repository's,
-		 * or to the end where that is `null`.
+		 * Moves a workspace in the list: right above `before`, or to the end where that is
+		 * `null`. There is one list: listed by repository, each keeps its order there.
 		 */
 		move(id: string, before: string | null, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (before !== null) {
 				const other = find(before);
-				if (other.archivedAt || other.repoId !== workspace.repoId)
-					error(400, 'Workspaces move among their repository’s');
+				if (other.archivedAt) error(400, 'That workspace is archived');
 			}
 			if (before === id) return;
 			store.append(

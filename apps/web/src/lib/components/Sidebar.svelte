@@ -16,7 +16,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
+	import { asOneList, byRepository, inFocus, shownUngrouped, unfolded } from '#lib/family.ts';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -31,7 +31,8 @@
 	 * The sidebar groups workspaces by repository and keeps navigation links below the list. `nav` is what there is, once known; `path` is the
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
 	 * repository under its name, and those its agents started under a workspace. `focus` is
-	 * the repository shown alone, if any. `visibleWorkspaces` are those shown, `todayOnly` whether
+	 * the repository shown alone, if any; `grouped` whether workspaces are listed under their
+	 * repositories, or as one list, each with its repository's picture. `visibleWorkspaces` are those shown, `todayOnly` whether
 	 * they are only those active today.
 	 */
 	let {
@@ -40,6 +41,7 @@
 		path,
 		folded,
 		focus,
+		grouped,
 		todayOnly = $bindable(false),
 		repositoryPickerOpen = $bindable(false),
 		lost = false
@@ -49,6 +51,7 @@
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
+		grouped: { current: boolean };
 		todayOnly?: boolean;
 		repositoryPickerOpen?: boolean;
 		lost?: boolean;
@@ -69,6 +72,15 @@
 		...(listed.get(null)?.length ? [{ id: null, name: 'Projects' }] : []),
 		...sidebarRepos.filter((repo) => listed.has(repo.id))
 	]);
+	/** All of them as one list, where they are not grouped: the projects, and the repositories shown. */
+	const oneList = $derived(
+		asOneList(
+			shownUngrouped(
+				visibleWorkspaces,
+				sidebarRepos.map(({ id }) => id)
+			)
+		)
+	);
 	/** What stands for the projects among the folded: no repository has it as its ID. */
 	const PROJECTS = 'projects';
 	const repositoryOptions = $derived([
@@ -196,16 +208,19 @@
 	type Row = { workspace: Item; parent: Item | null; depth: number };
 
 	/**
-	 * The workspace being dragged to another place in its repository's list, and where it
+	 * The workspace being dragged to another place in the list (grouped, its repository's), and where it
 	 * would go: above that workspace, `null` for the end, `undefined` for nowhere new. Only
 	 * workspaces that stand at the top move; the ones their agents started go along.
 	 */
 	let dragged = $state<Item | null>(null);
 	let dropBefore = $state<string | null | undefined>(undefined);
+	/** Whether the one being dragged may go among `repoId`'s: in one list, anywhere. */
+	const droppable = (repoId: string | null) =>
+		!!dragged && (!grouped.current || dragged.repoId === repoId);
 
 	/** Over a row: above it, if that stands at the top and the pointer is on its upper half; else above the next that does. */
 	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
-		if (!dragged || dragged.repoId !== rows[index].workspace.repoId) {
+		if (!dragged || !droppable(rows[index].workspace.repoId)) {
 			dropBefore = undefined;
 			return;
 		}
@@ -227,7 +242,7 @@
 
 	function drop(event: DragEvent, repoId: string | null) {
 		event.preventDefault();
-		if (dragged?.repoId === repoId && dropBefore !== undefined)
+		if (dragged && droppable(repoId) && dropBefore !== undefined)
 			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
 		endDrag();
 	}
@@ -371,6 +386,15 @@
 				class="aria-pressed:bg-sunken aria-pressed:text-ink"
 				onclick={() => (todayOnly = !todayOnly)}
 			/>
+			<Button
+				variant="ghost"
+				icon="icon-[lucide--list]"
+				label="Show workspaces as one list"
+				title="Show workspaces as one list"
+				aria-pressed={!grouped.current}
+				class="aria-pressed:bg-sunken aria-pressed:text-ink"
+				onclick={() => (grouped.current = !grouped.current)}
+			/>
 		</div>
 
 		<!--
@@ -379,7 +403,23 @@
 		-->
 		<div class="scroller scroll-fade" {@attach watchScrollEdges}>
 			<div aria-hidden="true"></div>
-			{#if nav}
+			{#if nav && !grouped.current}
+				{@const rows = unfolded(oneList, folded.current)}
+				<ul
+					class="space-y-px pb-4"
+					ondragleave={(event) => {
+						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+							dropBefore = undefined;
+					}}
+				>
+					{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
+						{@render row(workspace, parent, depth, under, rows, index)}
+					{/each}
+				</ul>
+				{#if todayOnly && rows.length === 0}
+					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{/if}
+			{:else if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
 					{@const all = listed.get(repo.id) ?? []}
 					{@const rows = unfolded(all, folded.current)}
@@ -517,13 +557,14 @@
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
+	{#snippet repoIcon()}<RepoIcon id={workspace.repoId!} small />{/snippet}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
 	<li
 		style:margin-inline-start="calc(var(--spacing) * {3 * depth})"
 		class={[
 			dropBefore === workspace.id && 'row-drop-before',
-			dragged?.repoId === workspace.repoId &&
+			droppable(workspace.repoId) &&
 				dropBefore === null &&
 				index === rows.length - 1 &&
 				'row-drop-after'
@@ -547,7 +588,11 @@
 			parentHref={workspace.parentId
 				? resolve('/workspaces/[id]', { id: workspace.parentId })
 				: undefined}
-			icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : undefined}
+			icon={workspace.repoId === null
+				? 'icon-[lucide--folder-kanban]'
+				: grouped.current
+					? undefined
+					: repoIcon}
 			{current}
 			{leaving}
 			dragging={dragged?.id === workspace.id}

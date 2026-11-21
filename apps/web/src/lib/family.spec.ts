@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	byRepository,
 	inFocus,
+	asOneList,
 	inSidebarOrder,
 	nextUnread,
 	stepThrough,
@@ -9,7 +10,7 @@ import {
 	withAides
 } from './family.ts';
 
-const workspace = (id: string, repoId: string, parentId: string | null = null) => ({
+const workspace = (id: string, repoId: string | null, parentId: string | null = null) => ({
 	id,
 	repoId,
 	parentId
@@ -114,6 +115,25 @@ describe('inSidebarOrder', () => {
 	it('leaves out what is folded away', () => {
 		expect(inSidebarOrder(all, ['one', 'two'], ['a']).map(({ id }) => id)).toEqual(['a', 'c', 'b']);
 		expect(inSidebarOrder(all, ['one', 'two'], ['one']).map(({ id }) => id)).toEqual(['b']);
+	});
+
+	it('lists as one, in the order given, when not grouped', () => {
+		const order = (folded: string[]) =>
+			inSidebarOrder(all, ['one', 'two'], folded, { grouped: false }).map(({ id }) => id);
+		expect(order([])).toEqual(['a', 'child', 'b', 'c']);
+		expect(order(['a'])).toEqual(['a', 'b', 'c']);
+		expect(order(['one'])).toEqual(['a', 'child', 'b', 'c']);
+	});
+});
+
+describe('asOneList', () => {
+	it('keeps a started one under its parent, from another repository too', () => {
+		const all = [workspace('p', null), workspace('a', 'one'), workspace('child', 'one', 'p')];
+		expect(asOneList(all).map(({ workspace, depth }) => [workspace.id, depth])).toEqual([
+			['p', 0],
+			['child', 1],
+			['a', 0]
+		]);
 	});
 });
 

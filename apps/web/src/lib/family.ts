@@ -22,24 +22,43 @@ export function activeOnDay<T extends { updatedAt: string }>(workspaces: T[], da
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */
 export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
+	return nested(all, (workspace) => workspace.repoId);
+}
+
+/**
+ * All workspaces as one list, in the order given, each right after the one that started
+ * it: also where that is in another repository, or a project.
+ */
+export function asOneList<T extends Member>(all: T[]): Listed<T>[] {
+	return nested(all, () => null).get(null) ?? [];
+}
+
+/** The workspaces by `groupOf`, each right after the one that started it, where that is in its group. */
+function nested<T extends Member>(
+	all: T[],
+	groupOf: (workspace: T) => string | null
+): Map<string | null, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
 	const parentOf = (workspace: T) => byId.get(workspace.parentId ?? '') ?? null;
-	// a workspace follows its parent only where the parent is listed: in the same repository
-	const follows = (workspace: T) => parentOf(workspace)?.repoId === workspace.repoId;
+	// a workspace follows its parent only where the parent is listed: in the same group
+	const follows = (workspace: T) => {
+		const parent = parentOf(workspace);
+		return !!parent && groupOf(parent) === groupOf(workspace);
+	};
 
-	const repos = new Map<string | null, Listed<T>[]>();
+	const groups = new Map<string | null, Listed<T>[]>();
 	const visited = new Set<string>();
 	const list = (workspace: T, depth: number) => {
 		if (visited.has(workspace.id)) return; // a cycle: list it once
 		visited.add(workspace.id);
-		const listed = repos.get(workspace.repoId) ?? [];
-		repos.set(workspace.repoId, listed);
+		const listed = groups.get(groupOf(workspace)) ?? [];
+		groups.set(groupOf(workspace), listed);
 		listed.push({ workspace, parent: parentOf(workspace), depth });
 		for (const child of all)
 			if (child.parentId === workspace.id && follows(child)) list(child, depth + 1);
 	};
 	for (const workspace of all) if (!follows(workspace)) list(workspace, 0);
-	return repos;
+	return groups;
 }
 
 /**
@@ -86,20 +105,30 @@ export function unfolded<T extends { id: string }>(
 
 /**
  * The workspaces the sidebar shows, top to bottom: by repository (in `repoIds`' order),
- * leaving out what is folded away. What the previous and next workspace are.
+ * or, not `grouped`, as one list of those in `repoIds` and the projects; leaving out what
+ * is folded away. What the previous and next workspace are.
  */
 export function inSidebarOrder<T extends Member>(
 	all: T[],
 	repoIds: readonly string[],
 	folded: readonly string[],
-	includeProjects = false
+	{ includeProjects = false, grouped = true } = {}
 ): T[] {
+	if (!grouped)
+		return unfolded(asOneList(shownUngrouped(all, repoIds)), folded).map(
+			({ workspace }) => workspace
+		);
 	const listed = byRepository(all);
 	const groups = includeProjects ? [null, ...repoIds] : repoIds;
 	return groups
 		.filter((repoId) => !folded.includes(repoId ?? 'projects'))
 		.flatMap((repoId) => unfolded(listed.get(repoId) ?? [], folded))
 		.map(({ workspace }) => workspace);
+}
+
+/** What the sidebar lists as one list: the workspaces in `repoIds`, and the projects. */
+export function shownUngrouped<T extends Member>(all: T[], repoIds: readonly string[]): T[] {
+	return all.filter(({ repoId }) => repoId === null || repoIds.includes(repoId));
 }
 
 /**
