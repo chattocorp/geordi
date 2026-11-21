@@ -4,6 +4,8 @@
 	import { drawDiagrams } from '#lib/diagrams.ts';
 	import { changedFileIn, renderMarkdown } from '#lib/markdown.ts';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
+	import SoundPlayer from '#lib/ui/SoundPlayer.svelte';
+	import { mount, unmount } from 'svelte';
 
 	/** `pictures` is where the pictures of the workspace this was written in are served. */
 	let {
@@ -40,6 +42,28 @@
 	$effect(() => {
 		void html;
 		if (content) return drawDiagrams(content);
+	});
+
+	// A sound the agent shows gets a player where it is named (see markdown.ts); one that
+	// cannot be had leaves its path, as a missing picture does
+	$effect(() => {
+		void html;
+		if (!content) return;
+		const players = [...content.querySelectorAll<HTMLElement>('[data-sound]')].map((place) =>
+			mount(SoundPlayer, {
+				target: place,
+				props: {
+					src: place.dataset.sound!,
+					label: place.dataset.label!,
+					onfail: () => {
+						const path = document.createElement('code');
+						path.textContent = place.dataset.path!;
+						place.replaceWith(path);
+					}
+				}
+			})
+		);
+		return () => players.forEach((player) => void unmount(player));
 	});
 
 	// A path that may be a directory (`data-folder`) becomes a button that opens it once the
