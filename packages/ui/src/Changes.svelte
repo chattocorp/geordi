@@ -39,6 +39,11 @@
 	 */
 	const PAGE = 200;
 	let drawn = $state(PAGE);
+	// shown another way, it starts again from the top
+	$effect.pre(() => {
+		void view;
+		drawn = PAGE;
+	});
 	const more: Attachment<HTMLElement> = (node) => {
 		const observer = new IntersectionObserver(
 			(entries) => {

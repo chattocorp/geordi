@@ -73,7 +73,8 @@
 				near = true;
 				observer.disconnect();
 			},
-			{ rootMargin: '400px' }
+			// within what scrolls it (a conversation), else the page
+			{ root: node.closest('.scroller'), rootMargin: '400px' }
 		);
 		observer.observe(node);
 		return () => observer.disconnect();
@@ -107,6 +108,8 @@
 			});
 		return () => {
 			stop.abort();
+			// (another sound: this one stops before its bytes go)
+			audio?.pause();
 			if (url) URL.revokeObjectURL(url);
 		};
 	});
@@ -182,8 +185,8 @@
 		<p class="text-sm text-muted">This sound could not be played.</p>
 	{:else}
 		<Button
-			icon={paused ? 'icon-[lucide--play]' : 'icon-[lucide--pause]'}
-			label={paused ? `Play ${caption ?? label}` : `Pause ${caption ?? label}`}
+			icon={paused && !waiting ? 'icon-[lucide--play]' : 'icon-[lucide--pause]'}
+			label={paused && !waiting ? `Play ${caption ?? label}` : `Pause ${caption ?? label}`}
 			onclick={toggle}
 		/>
 		{#if caption}<span class="w-12 shrink-0 label">{caption}</span>{/if}
