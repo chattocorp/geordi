@@ -845,7 +845,8 @@ export function createWorkspaces(
 
 		/** Any workspace (`id`), or the caller's own. */
 		workspace(callerId: string, id?: string): Workspace {
-			if (id === undefined && isExternal(callerId)) error(400, 'Say which workspace (agent_id)');
+			if (id === undefined && isExternal(callerId))
+				error(400, 'Say which workspace (workspace_id)');
 			const workspace = findFor(callerId, id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
