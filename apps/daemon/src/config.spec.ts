@@ -420,8 +420,24 @@ describe('unified tasks', () => {
 		expect(config.ports).toBe(2);
 		expect(parseConfig('tasks: {run: {command: dev}}').tasks?.[0].default).toBe(false);
 	});
+	it("reads $PORT in a task's URL as its own port", () => {
+		const config = parseConfig(
+			JSON.stringify({
+				tasks: {
+					web: { command: 'serve --port $PORT', url: 'http://localhost:$PORT/?ports=$PORTS' },
+					page: { url: 'http://localhost:{web}/' }
+				}
+			})
+		);
+		expect(config.urls).toMatchObject([
+			{ name: 'web', url: 'http://localhost:{web}/?ports=$PORTS', needs: ['web'] },
+			{ name: 'page', needs: ['web'] }
+		]);
+		expect(config.jobs[0].command).toBe('serve --port $PORT');
+	});
 	it.each([
 		{ a: {} },
+		{ a: { url: 'http://localhost:$PORT/' } },
 		{ a: { url: 'https://example.org' } },
 		{ a: { command: 'run', default: 'true' } },
 		{ a: { command: 'run', needs: ['b'] } },

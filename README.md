@@ -88,7 +88,7 @@ Workspaces get a **Tasks** tab for it, and ports of their own:
 tasks:
   web:
     command: pnpm dev --port $PORT
-    url: http://localhost:{web}/
+    url: http://localhost:$PORT/
     default: true
 ```
 

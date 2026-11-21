@@ -27,7 +27,7 @@ tasks:
   website:
     label: Website
     command: pnpm --filter @geordi/website dev --port $PORT
-    url: http://localhost:{website}/
+    url: http://localhost:$PORT/
 
   desktop:
     label: Electron dev app

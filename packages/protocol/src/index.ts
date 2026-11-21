@@ -333,9 +333,9 @@ export type RepoConfig = {
  */
 export const CONFIG_SETTINGS = {
 	tasks: {
-		does: "Named Run tasks. Give each a command, a local HTTP(S) url, or both. A command receives its assigned port as PORT. Use {name} in a URL for a command task's port. List prerequisites under needs. Selecting a task starts its dependencies and opens only its own URL once reachable. Set default: true on each task the Run shortcut should launch. Without defaults the shortcut shows the Run panel. Use tasks in place of jobs, urls, run and the top-level default.",
+		does: "Named Run tasks. Give each a command, a local HTTP(S) url, or both. A command receives its assigned port as $PORT, and its URL can say $PORT too. Use {name} in a URL for another command task's port. List prerequisites under needs. Selecting a task starts its dependencies and opens only its own URL once reachable. Set default: true on each task the Run shortcut should launch. Without defaults the shortcut shows the Run panel. Use tasks in place of jobs, urls, run and the top-level default.",
 		example:
-			'tasks:\n  web:\n    command: pnpm dev --port $PORT\n    url: http://localhost:{web}/\n    default: true'
+			'tasks:\n  web:\n    command: pnpm dev --port $PORT\n    url: http://localhost:$PORT/\n    default: true'
 	},
 	default: {
 		does: 'The first action in the Run pane. Use a job or URL key, such as `jobs.web` or `urls.app`. If omitted, Geordi uses the `run` job when present.',
