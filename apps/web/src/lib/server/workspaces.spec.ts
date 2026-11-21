@@ -1483,6 +1483,60 @@ describe('agents talking to the agents they started', () => {
 		expect(said().at(-1)).toEqual(['Thanks', undefined]);
 	});
 
+	it('tells a parent when its agent ends a turn, with what it said', async () => {
+		const { workspaces, lead, child } = family();
+		const parentSaid = () =>
+			workspaces
+				.get(lead)
+				.transcript.flatMap((item) => (item.kind === 'user' ? [[item.text, item.from]] : []));
+
+		// a parent at work hears it when its own turn ends
+		workspaces.record(child, { kind: 'text', text: 'Built it.' });
+		workspaces.record(child, { kind: 'turn.completed' });
+		const notice = `Your agent “Build” (${child}) finished its turn.\n\nBuilt it.`;
+		expect(workspaces.get(lead).queue).toEqual([notice]);
+		workspaces.record(lead, { kind: 'turn.completed' });
+		expect(workspaces.get(lead).status).toBe('running');
+		expect(parentSaid().at(-1)).toEqual([notice, child]);
+
+		// an idle parent is woken by a failure too
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.agents.send(lead, child, 'Again');
+		workspaces.record(child, { kind: 'turn.failed', error: 'boom' });
+		expect(parentSaid().at(-1)).toEqual([`Your agent “Build” (${child}) stopped: boom`, child]);
+
+		// a parent waiting for it hears it from the wait alone
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.agents.send(lead, child, 'Once more');
+		const waited = workspaces.agents.wait(lead, child, 5000);
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(await waited).toMatchObject({ status: 'idle' });
+		expect(workspaces.get(lead)).toMatchObject({ status: 'idle', queue: [] });
+
+		// what a person talks over with it is theirs
+		const before = parentSaid().length;
+		workspaces.send(child, 'Rename that');
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(workspaces.get(lead).status).toBe('idle');
+
+		// news goes up a chain: a turn begun by its own agent's report is reported on
+		workspaces.agents.send(lead, child, 'Delegate');
+		workspaces.record(child, { kind: 'worktree', path: '/wt/child', branch: 'geordi/child' });
+		const grandchild = workspaces.agents.start(child, { worktree: 'shared', prompt: 'Part' }).id;
+		workspaces.record(child, { kind: 'turn.completed' });
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.record(grandchild, { kind: 'turn.completed' });
+		expect(workspaces.get(child).status).toBe('running');
+		workspaces.record(child, { kind: 'text', text: 'All parts done.' });
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(
+			parentSaid()
+				.slice(before)
+				.map(([, from]) => from)
+		).toEqual([child, child]);
+		expect(parentSaid().at(-1)?.[0]).toMatch(/All parts done\.$/);
+	});
+
 	it('tells a working agent at once what a message that interrupts says', () => {
 		const { workspaces, lead, child, said, sent } = family();
 		workspaces.agents.send(lead, child, 'Stop: wrong directory', true);
@@ -1719,7 +1773,11 @@ describe('purging archived workspaces', () => {
 	);
 	const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/lead' } as const;
 	const done = (workspaces: ReturnType<typeof createWorkspaces>, ...ids: string[]) =>
-		ids.forEach((id) => workspaces.record(id, { kind: 'turn.completed' }));
+		// until all are idle: a parent is woken by what its agents report
+		{
+			while (ids.some((id) => workspaces.get(id).status === 'running'))
+				ids.forEach((id) => workspaces.record(id, { kind: 'turn.completed' }));
+		};
 
 	it('deletes a workspace with the agents it started and those alongside, and nothing else', () => {
 		const { store, repos, workspaces, create, dispatch } = setup();

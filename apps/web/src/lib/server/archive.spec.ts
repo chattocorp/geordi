@@ -44,21 +44,28 @@ function setup() {
 		closeProject: async (id) => void projectsClosed.push(id)
 	});
 
+	/** Ends turns until the agent is idle: a parent is woken by what its agents report. */
+	const finish = (id: string) => {
+		while (workspaces.get(id).status === 'running')
+			workspaces.record(id, { kind: 'turn.completed' });
+	};
 	/** A workspace whose agent has a worktree and is idle. */
 	const settle = (id: string) => {
 		workspaces.record(id, { kind: 'worktree', path: `/wt/${id}`, branch: `geordi/${id}` });
-		workspaces.record(id, { kind: 'turn.completed' });
+		finish(id);
 		return id;
 	};
 	const lead = settle(workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Lead' }));
 	const start = (parent: string, worktree: 'own' | 'shared', prompt: string) => {
 		workspaces.send(parent, 'Delegate'); // only a working agent can start others
 		const { id } = workspaces.agents.start(parent, { worktree, prompt });
-		workspaces.record(parent, { kind: 'turn.completed' });
-		return settle(id);
+		settle(id);
+		finish(parent);
+		return id;
 	};
 	return {
 		stops,
+		finish,
 		workspaces,
 		repos,
 		store,
@@ -231,7 +238,7 @@ describe('archiving', () => {
 	});
 
 	it('archives a project with the agents in it, ending its agents: what it started in a repository carries on', async () => {
-		const { workspaces, repo, archive, removed, projectsClosed } = setup();
+		const { workspaces, repo, archive, removed, projectsClosed, finish } = setup();
 		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Orchestrate' });
 		workspaces.record(project, { kind: 'turn.started' });
 		const { id: child } = workspaces.agents.start(project, {
@@ -241,7 +248,7 @@ describe('archiving', () => {
 		});
 		const { id: helper } = workspaces.agents.start(project, { worktree: 'shared', prompt: 'Help' });
 		workspaces.record(helper, { kind: 'turn.completed' });
-		workspaces.record(project, { kind: 'turn.completed' });
+		finish(project);
 
 		await archive(helper, false);
 		expect(projectsClosed).toEqual([]); // the project still works in its folder

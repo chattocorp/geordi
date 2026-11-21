@@ -485,7 +485,7 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				instructions: [
 					introduction[kind],
 					reportGuide,
-					'Call start_agent to delegate work and wait_for_agent with the returned id to follow its turn. Questions are for the person to answer. If the forge restarts, reconnect and continue waiting. Agents keep running.'
+					'Call start_agent to delegate work and wait_for_agent with the returned id to follow its turn. When an agent you started ends a turn you are not waiting for, you get a message with its reply; a long task needs no repeated waits. Questions are for the person to answer. If the forge restarts, reconnect and continue waiting. Agents keep running.'
 				].join(' ')
 			});
 		}

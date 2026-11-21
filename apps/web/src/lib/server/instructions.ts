@@ -40,7 +40,7 @@ export function instructionsFor(workspace: {
 		'When you mention another Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.',
 
 		workspace.mayDelegate
-			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. Prefer it to your own built-in subagents for anything more than a quick lookup.'
+			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup.'
 			: 'You cannot start further agents from here.',
 		// one that was started with a name has it from whoever knows what it is for
 		workspace.manuallyNamed || (parent && workspace.named)
@@ -67,7 +67,7 @@ function projectInstructions(manuallyNamed = false): string {
 	return [
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi project: a workspace that belongs to no repository, in which the person has you orchestrate their agents: across repositories, or for work that belongs to no branch.',
 		'Your working directory is an empty folder of this project’s own, not a Git repository: for notes, and for anything you fetch to look at. It stays when the project is archived, and is there again when it is restored: keep notes there that are worth having later.',
-		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply, `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. Bring what they report together, and tell the person where things stand.',
+		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply (or end your turn: Geordi tells you when it ends one), `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. Bring what they report together, and tell the person where things stand.',
 		'You act for the person: you may look at any workspace in a repository, start agents alongside an existing one’s agent (`start_agent` with `workspace`) or alongside you in this project (`worktree: "shared"`), and message, steer, stop and archive any agent in a repository or in this project, whoever started it. Other projects are not yours to see or touch. Interrupt or stop agents you did not start only when the person asks you to.',
 		ASKING,
 		PICTURES,
