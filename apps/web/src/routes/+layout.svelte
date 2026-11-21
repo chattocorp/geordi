@@ -10,6 +10,7 @@
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { initRibbonPosition, openSettings } from '#lib/components/settings.svelte.ts';
+	import { daemon } from '#lib/daemon.svelte.ts';
 	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
@@ -48,6 +49,13 @@
 		if (viewed && isLooking()) seen(viewed);
 	});
 	$effect(badge);
+	// A daemon has connected: what none could say before is asked again (`daemon.svelte.ts`).
+	let daemonConnected = false;
+	$effect(() => {
+		const connected = !!nav.current && nav.current.harnesses !== null;
+		if (connected && !daemonConnected) daemon.connections++;
+		daemonConnected = connected;
+	});
 
 	// The sidebar can be hidden and made wider or narrower; both are remembered here.
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
@@ -65,6 +73,8 @@
 	const folded = persisted<string[]>('geordi:folded', []);
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
+	/** Whether the sidebar groups workspaces by repository, or lists them as one. */
+	const grouped = persisted('geordi:grouped', true);
 
 	let todayOnly = $state(false);
 	let day = $state('');
@@ -101,7 +111,7 @@
 				focus.current
 			).map(({ id }) => id),
 			folded.current,
-			step === 'unread'
+			{ includeProjects: step === 'unread', grouped: grouped.current }
 		);
 		const to =
 			step === 'unread' ? nextUnread(order, viewed, unread) : stepThrough(order, viewed, step);
@@ -158,6 +168,9 @@
 		} else if (pressed(event, 'todayOnly')) {
 			event.preventDefault();
 			if (!event.repeat) todayOnly = !todayOnly;
+		} else if (pressed(event, 'groupByRepo')) {
+			event.preventDefault();
+			if (!event.repeat) grouped.current = !grouped.current;
 		} else if (
 			pressed(event, 'repositoryFilter') &&
 			window.matchMedia('(min-width: 48rem)').matches
@@ -229,6 +242,7 @@
 					path={page.url.pathname}
 					{folded}
 					{focus}
+					{grouped}
 					bind:todayOnly
 					bind:repositoryPickerOpen
 				/>

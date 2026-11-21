@@ -50,6 +50,12 @@ export const shortcuts = {
 		label: 'Toggle workspaces active today (experimental)',
 		group: 'General'
 	},
+	groupByRepo: {
+		code: 'KeyG',
+		shift: true,
+		label: 'Group workspaces by repository, or show them as one list',
+		group: 'General'
+	},
 	toggleSidebar: { code: 'KeyB', label: 'Toggle the sidebar', group: 'General' },
 	settings: { key: ',', label: 'Open the settings', group: 'General' },
 	toggleSide: {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import WorkspaceActivity from './WorkspaceActivity.svelte';
 	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
@@ -32,8 +33,8 @@
 		href?: string;
 		parentTitle?: string;
 		parentHref?: string;
-		/** What it is, where it is not a branch: an Iconify class (a project's, say). */
-		icon?: string;
+		/** What it is, where it is not a branch: an Iconify class (a project's, say), or a picture (its repository's). */
+		icon?: string | Snippet;
 		current?: boolean;
 		leaving?: boolean;
 		dragging?: boolean;
@@ -152,6 +153,8 @@
 {#snippet statusIcon()}
 	{#if waiting}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
+	{:else if typeof icon === 'function'}
+		{@render icon()}
 	{:else if icon}
 		<span class={[icon, 'size-4 text-muted/50']}></span>
 	{:else if parentHref && fold}

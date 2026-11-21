@@ -1039,14 +1039,15 @@ describe('moving', () => {
 		expect(titles(setup({ database }).workspaces.all())).toEqual(['D', 'C', 'A', 'B']);
 	});
 
-	it('moves workspaces only among their repository’s', () => {
+	it('moves workspaces across repositories, as one list', () => {
 		const { workspaces, repos, create } = setup();
 		const id = create('A');
 		const path = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
 		execFileSync('git', ['init', '-q', path]);
 		const elsewhere = repos.register(path);
 		const other = workspaces.create({ repoId: elsewhere.id, agent: 'claude', prompt: 'B' });
-		expect(() => workspaces.move(id, other)).toThrow();
+		workspaces.move(id, other);
+		expect(workspaces.all().map(({ title }) => title)).toEqual(['A', 'B']);
 		expect(() => workspaces.move(id, 'missing')).toThrow();
 	});
 });
