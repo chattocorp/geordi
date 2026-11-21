@@ -1300,6 +1300,17 @@ export function createWorkspaces(
 			);
 		},
 
+		/** Puts the workspace out of today's list until a person next prompts it ("Remove from Today"). */
+		setAside(id: string, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (workspace.setAside) return;
+			store.append(
+				{ type: 'workspace.setAside', stream: `workspace:${id}`, data: { id } },
+				{ actor }
+			);
+		},
+
 		/** Marks the workspace as done with. Its conversation stays readable. */
 		archive(id: string, actor: string | null = null) {
 			const workspace = find(id);

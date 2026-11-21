@@ -387,6 +387,10 @@ export const moveWorkspace = command(
 	({ workspaceId, before }) => workspaces().move(workspaceId, before)
 );
 
+export const setWorkspaceAside = command(v.string(), (workspaceId) =>
+	workspaces().setAside(workspaceId)
+);
+
 export const stopTask = command(
 	v.object({ workspaceId: v.string(), stopId: v.string() }),
 	({ workspaceId, stopId }) => {

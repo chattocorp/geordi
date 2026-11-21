@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	activeOnDay,
 	byRepository,
 	dropTarget,
 	inFocus,
@@ -18,6 +19,21 @@ const workspace = (id: string, repoId: string | null, parentId: string | null = 
 });
 const ids = (listed: { workspace: { id: string } }[] | undefined) =>
 	listed?.map(({ workspace }) => workspace.id);
+
+describe('activeOnDay', () => {
+	const now = new Date().toISOString();
+	const day = new Date(now).toDateString();
+	const all = [
+		{ id: 'today', updatedAt: now },
+		{ id: 'aside', updatedAt: now, setAside: true },
+		{ id: 'before', updatedAt: '2001-01-01T12:00:00Z' }
+	];
+
+	it("lists those active today, but for those set aside ('Remove from Today')", () => {
+		expect(activeOnDay(all, day).map(({ id }) => id)).toEqual(['today']);
+		expect(activeOnDay(all, null)).toBe(all);
+	});
+});
 
 describe('byRepository', () => {
 	it('lists workspaces by repository, in the order given', () => {

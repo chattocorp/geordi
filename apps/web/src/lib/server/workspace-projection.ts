@@ -118,6 +118,8 @@ export type WorkspacesEvent =
 	  }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
+	/** A person put the workspace out of today's list, until they next say something to it. */
+	| { type: 'workspace.setAside'; stream: WorkspaceStream; data: { id: string } }
 	| { type: 'workspace.restored'; stream: WorkspaceStream; data: { id: string } }
 	/** What a person answered to a question the agent asked: one answer per question, in their order. */
 	| {
@@ -353,6 +355,8 @@ export type Workspace = {
 	sentBy: { queue: (string | null)[] };
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
+	/** Whether a person put it out of today's list ("Remove from Today"), and has not prompted it since. */
+	setAside: boolean;
 	createdAt: string;
 	updatedAt: string;
 	transcript: TranscriptItem[];
@@ -401,6 +405,7 @@ function initialWorkspace(
 		sentBy: { queue: [] },
 		briefing: null,
 		archivedAt: null,
+		setAside: false,
 		createdAt: at,
 		updatedAt: at,
 		transcript: []
@@ -474,6 +479,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			if (suggesting) suggesting.suggestion = event.data.text;
 			return;
 		}
+		if (event.type === 'workspace.setAside') {
+			const aside = workspaces.get(event.data.id);
+			if (aside) aside.setAside = true;
+			return;
+		}
 
 		const workspace = workspaces.get(event.data.id);
 		if (!workspace) return;
@@ -485,6 +495,14 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				for (const listener of listeners.get(id) ?? []) listener([index, remove, ...items]);
 		}
 		const append = (item: TranscriptItem) => edit(transcript.length, 0, item);
+		/** Whether `sender` is an agent (a workspace, or an external client) rather than a person. */
+		const byAgent = (sender: string | null): sender is string =>
+			!!sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq);
+		/** A person prompted it: back into today's list, with the workspace whose worktree it works in. */
+		const prompted = () => {
+			for (const each of [workspace, workspaces.get(workspace.worktreeId)])
+				if (each) each.setAside = false;
+		};
 		const replace = (item: TranscriptItem, next: TranscriptItem) =>
 			edit(transcript.indexOf(item), 1, next);
 		function closeQuestion(question: Asked) {
@@ -548,6 +566,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			workspace.queue.push(event.data.text);
 			workspace.attachments.queue.push(event.data.images ?? []);
 			workspace.sentBy.queue.push(actor);
+			if (!byAgent(actor)) prompted();
 			return;
 		}
 		if (event.type === 'workspace.dequeued') {
@@ -606,10 +625,8 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			startTurn(workspace, at);
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
-			const from =
-				sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq)
-					? sender
-					: undefined;
+			const from = byAgent(sender) ? sender : undefined;
+			if (!from) prompted();
 			append({
 				kind: 'user',
 				text: event.data.text,

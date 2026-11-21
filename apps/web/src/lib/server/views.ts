@@ -73,6 +73,8 @@ export const navigation = () =>
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
+					// put out of today's list until a person prompts it again
+					...(workspace.setAside && { setAside: true }),
 					// when anything last happened in it, also in the agents working alongside
 					updatedAt: [workspace, ...aides]
 						.map((member) => member.updatedAt)
