@@ -195,7 +195,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('link', { name: /Raise light mode/ })).toHaveAttribute(
+		await expect(canvas.getByRole('link', { name: /^Raise light mode/ })).toHaveAttribute(
 			'aria-current',
 			'page'
 		);
@@ -409,6 +409,9 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Projects')).toBeVisible();
+		await expect(
+			canvas.getByRole('link', { name: 'Open parent workspace: Ship the protocol bump everywhere' })
+		).toHaveAttribute('href', '/workspaces/project');
 		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',

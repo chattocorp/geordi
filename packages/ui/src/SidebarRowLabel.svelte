@@ -12,7 +12,7 @@
 		class: extraClass
 	}: {
 		title: string;
-		icon: Snippet;
+		icon?: Snippet;
 		href?: string;
 		current?: boolean;
 		hint?: string;
@@ -26,19 +26,21 @@
 </script>
 
 {#snippet label()}
-	<span class="grid size-5 shrink-0 place-items-center text-muted/80">
-		<span class={['col-start-1 row-start-1 grid place-items-center', fold && 'reveal:opacity-0']}>
-			{@render icon()}
+	{#if icon}
+		<span class="grid size-5 shrink-0 place-items-center text-muted/80">
+			<span class={['col-start-1 row-start-1 grid place-items-center', fold && 'reveal:opacity-0']}>
+				{@render icon()}
+			</span>
+			{#if fold}
+				<span
+					class={[
+						'pointer-events-none col-start-1 row-start-1 size-4 opacity-0 reveal:opacity-100',
+						fold.folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'
+					]}
+				></span>
+			{/if}
 		</span>
-		{#if fold}
-			<span
-				class={[
-					'pointer-events-none col-start-1 row-start-1 size-4 opacity-0 reveal:opacity-100',
-					fold.folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'
-				]}
-			></span>
-		{/if}
-	</span>
+	{/if}
 	<span class="min-w-0 truncate">{title}</span>
 	{#if fold?.folded}
 		<span aria-hidden="true" class="shrink-0 font-normal text-muted/60 tabular-nums"

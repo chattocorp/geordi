@@ -11,7 +11,7 @@
 		title,
 		href,
 		parentTitle,
-		child = false,
+		parentHref,
 		icon,
 		current = false,
 		leaving = false,
@@ -31,7 +31,7 @@
 		title: string;
 		href?: string;
 		parentTitle?: string;
-		child?: boolean;
+		parentHref?: string;
 		/** What it is, where it is not a branch: an Iconify class (a project's, say). */
 		icon?: string;
 		current?: boolean;
@@ -92,16 +92,35 @@
 		highlighted && 'bg-surface/60 text-ink'
 	]}
 >
-	<SidebarRowLabel
-		{title}
-		{href}
-		{current}
-		{onpoint}
-		icon={statusIcon}
-		hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
-		fold={leaving ? undefined : fold}
-		class="py-1"
-	/>
+	{#if parentHref}
+		{@const label = parentTitle ? `Open parent workspace: ${parentTitle}` : 'Open parent workspace'}
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes a resolved URL -->
+		<a
+			href={parentHref}
+			class="ml-1.5 grid size-5 shrink-0 place-items-center rounded-control text-muted/50 hover:text-ink focus-visible:text-ink"
+			aria-label={label}
+			title={label}
+			draggable="false"
+			onpointerenter={() => onpoint?.(true)}
+			onpointerleave={() => onpoint?.(false)}
+			onfocus={() => onpoint?.(true)}
+			onblur={() => onpoint?.(false)}
+		>
+			<span class="icon-[lucide--link] size-4"></span>
+		</a>
+	{/if}
+	<div class="relative flex min-w-0 flex-1">
+		<SidebarRowLabel
+			{title}
+			{href}
+			{current}
+			{onpoint}
+			icon={parentHref && !fold && !waiting ? undefined : statusIcon}
+			hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
+			fold={leaving ? undefined : fold}
+			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
+		/>
+	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if asking && href}
@@ -134,11 +153,15 @@
 	{#if waiting}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
 	{:else if icon}
-		<span class={[icon, 'size-4']}></span>
-	{:else if child}
-		<!-- started by an agent: the one above it, where that is still around -->
-		<span class="icon-[lucide--corner-down-right] size-4"></span>
+		<span class={[icon, 'size-4 text-muted/50']}></span>
+	{:else if parentHref && fold}
+		<span
+			class={[
+				fold.folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]',
+				'size-4'
+			]}
+		></span>
 	{:else}
-		<span class="icon-[lucide--git-branch] size-4"></span>
+		<span class="icon-[lucide--git-branch] size-4 text-muted/50"></span>
 	{/if}
 {/snippet}
