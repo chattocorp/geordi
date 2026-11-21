@@ -538,9 +538,10 @@
 		@apply decoration-accent underline-offset-2;
 	}
 
-	/* A file the workspace has changed, named in code (see markdown.ts): opens its diff. */
+	/* A file named in code (see markdown.ts): opens its diff or source; a directory opens in the file manager. */
 	[data-file],
-	[data-source] {
+	[data-source],
+	button[data-folder] {
 		@apply file-link;
 	}
 

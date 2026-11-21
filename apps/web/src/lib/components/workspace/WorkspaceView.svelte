@@ -69,7 +69,9 @@
 		continueWorkspace,
 		approveRun,
 		editReleaseNote,
+		findFolders,
 		jobsReady,
+		openFolder,
 		openLink,
 		restoreWorktree,
 		restoreWorkspace,
@@ -683,6 +685,37 @@
 	);
 	const changedPaths = $derived(new Set(changedList.split('\n').filter(Boolean)));
 	const citations = new SvelteMap<string, { line?: number }>();
+
+	// Paths its conversations name that may be directories: asked of the daemon together,
+	// once each, since a reply names many and renders again with every word it gets.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
+	const folders = new Map<string, Promise<boolean>>();
+	let folderBatch: Map<string, (found: boolean) => void> | undefined;
+	function isFolder(path: string) {
+		const known = folders.get(path);
+		if (known) return known;
+		const answer = new Promise<boolean>((done) => {
+			if (!folderBatch) {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
+				const batch = (folderBatch = new Map());
+				queueMicrotask(() => {
+					folderBatch = undefined;
+					const paths = [...batch.keys()];
+					for (let i = 0; i < paths.length; i += 100) {
+						const some = paths.slice(i, i + 100);
+						findFolders({ workspaceId: id, paths: some }).then(
+							(found) => some.forEach((path) => batch.get(path)!(found.includes(path))),
+							() => some.forEach((path) => (folders.delete(path), batch.get(path)!(false)))
+						);
+					}
+				});
+			}
+			folderBatch.set(path, done);
+		});
+		folders.set(path, answer);
+		return answer;
+	}
+
 	setChangedFiles({
 		get paths() {
 			return changedPaths;
@@ -694,7 +727,12 @@
 			citations.set(path, { line });
 			showTab(`source:${path}`);
 		},
-		open: openDiff
+		open: openDiff,
+		isFolder,
+		openFolder: (path) =>
+			void openFolder({ workspaceId: id, path }).catch((error) =>
+				console.warn(`Could not open ${path}:`, error)
+			)
 	});
 
 	const askingAgent = $derived([workspace, ...workspace.aides].find((agent) => agent.asking));

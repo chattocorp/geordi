@@ -550,6 +550,10 @@ export type DaemonRequest =
 	| ({ kind: 'source'; path: string } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
+	/** Which of these worktree-relative paths are directories in the worktree. */
+	| ({ kind: 'folders'; paths: string[] } & WorktreeRef)
+	/** Opens a directory in the worktree in the file manager of the daemon's machine (Finder). */
+	| ({ kind: 'openFolder'; path: string } & WorktreeRef)
 	/**
 	 * A picture on the daemon's machine that the workspace's agent referred to, to be shown
 	 * where it did. `path` is as the agent wrote it: from the worktree, or absolute. `null`
@@ -614,6 +618,8 @@ export type DaemonResults = {
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: FileContent | null;
+	folders: string[];
+	openFolder: null;
 	picture: Picture | null;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;

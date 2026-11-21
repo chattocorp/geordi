@@ -145,16 +145,23 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 	const root = (state.env as Options).root;
 	for (const block of state.tokens) {
 		let inLink = false;
-		let button = false;
+		let tag: string | undefined;
 		for (const token of block.children ?? []) {
 			if (token.type === 'link_open') {
 				inLink = true;
 				const href = String(token.attrGet('href') ?? '');
+				// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
+				const folder = href.endsWith('/') && !/[?#]/.test(href) && folderPath(decoded(href), root);
+				if (folder) {
+					tag = token.tag = 'span';
+					token.attrs = [['data-folder', folder]];
+					continue;
+				}
 				const citation = sourceLink(href, root);
 				const doc = (state.env as Options).documentPath;
 				const path = citation?.file ?? (doc ? documentLink(href, doc) : root && diffLink(href));
 				if (!path) continue;
-				button = true;
+				tag = 'button';
 				const title = token.attrGet('title');
 				token.tag = 'button';
 				token.attrs = [
@@ -164,12 +171,38 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 				if (title !== null) token.attrSet('title', title);
 				if (citation?.line) token.attrSet('data-line', citation.line);
 			} else if (token.type === 'link_close') {
-				if (button) token.tag = 'button';
-				button = inLink = false;
+				if (tag) token.tag = tag;
+				tag = undefined;
+				inLink = false;
 			} else if (inLink && token.type === 'code_inline') token.meta = { inLink: true };
 		}
 	}
 });
+
+const decoded = (href: string) => {
+	try {
+		return decodeURIComponent(href);
+	} catch {
+		return href;
+	}
+};
+
+/**
+ * The worktree-relative path (`.` for the worktree itself) of what may be a directory
+ * there: a path with a slash in it, relative to the worktree (`root`) or absolute within
+ * it. Whether it is one only the daemon knows.
+ */
+export function folderPath(text: string, root?: string): string | undefined {
+	if (!root) return;
+	let path = text.trim();
+	if (path === root || path === `${root}/`) return '.';
+	if (path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
+	else if (path.startsWith('/') || path.startsWith('~') || !path.includes('/')) return;
+	path = path.replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+	if (!path || !local(path) || /[\s\\\0]/.test(path)) return;
+	if (path.split('/').some((part) => part === '' || part === '.' || part === '..')) return;
+	return path;
+}
 
 /** Code blocks in these languages are drawn (`diagrams.ts`); until then, or if they cannot be, they stay code. */
 const DIAGRAMS = ['mermaid', 'svg'];
@@ -189,7 +222,11 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 	const code = codeInline(tokens, index, options, env, self);
 	if (tokens[index].meta?.inLink) return code;
 	const path = (env as Options | undefined)?.file?.(tokens[index].content);
-	if (!path) return code;
+	if (!path) {
+		// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
+		const folder = folderPath(tokens[index].content, (env as Options | undefined)?.root);
+		return folder ? code.replace('<code', `<code data-folder="${escapeHtml(folder)}"`) : code;
+	}
 	return `<button type="button" data-file="${escapeHtml(path)}" title="Show the changes to this file">${code}</button>`;
 };
 

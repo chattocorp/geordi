@@ -1,7 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { changedFileIn, renderMarkdown } from './markdown.ts';
+import { changedFileIn, folderPath, renderMarkdown } from './markdown.ts';
+
+describe('folderPath', () => {
+	const root = '/work/tree';
+
+	it('takes paths relative to the worktree, or absolute within it', () => {
+		expect(folderPath('assets/audio/', root)).toBe('assets/audio');
+		expect(folderPath('./assets/audio', root)).toBe('assets/audio');
+		expect(folderPath('/work/tree/assets/', root)).toBe('assets');
+		expect(folderPath('/work/tree', root)).toBe('.');
+	});
+
+	it('leaves alone what cannot be a directory in the worktree', () => {
+		expect(folderPath('assets', root)).toBeUndefined();
+		expect(folderPath('/tmp/shots/', root)).toBeUndefined();
+		expect(folderPath('~/src/', root)).toBeUndefined();
+		expect(folderPath('../other/', root)).toBeUndefined();
+		expect(folderPath('https://example.com/a/', root)).toBeUndefined();
+		expect(folderPath('pnpm --filter web/', root)).toBeUndefined();
+		expect(folderPath('assets/', undefined)).toBeUndefined();
+	});
+});
 
 describe('renderMarkdown', () => {
+	it('marks code and links that may name a directory in the worktree', () => {
+		const root = '/work/tree';
+		expect(renderMarkdown('Under `assets/audio/`.', { root })).toContain(
+			'<code data-folder="assets/audio">assets/audio/</code>'
+		);
+		expect(renderMarkdown('[the takes](assets/audio/)', { root })).toContain(
+			'<span data-folder="assets/audio">the takes</span>'
+		);
+		expect(renderMarkdown('`assets/audio/`')).not.toContain('data-folder');
+	});
+
 	it('escapes raw HTML', () => {
 		expect(renderMarkdown('<img src=x onerror=alert(1)>')).not.toContain('<img');
 	});
@@ -71,7 +103,6 @@ describe('renderMarkdown', () => {
 			'../outside',
 			'src/%2e%2e/%2e%2e/private',
 			'?query',
-			'dir/',
 			'/repos',
 			'//example.com/x',
 			'https://example.com/x',

@@ -188,6 +188,10 @@ export type ChangedFiles = {
 	readonly root?: string;
 	openSource: (path: string, line?: number) => void;
 	open: (path: string) => void;
+	/** Whether a worktree-relative path names a directory there, which `openFolder` opens. */
+	isFolder?: (path: string) => Promise<boolean>;
+	/** Opens a directory in the worktree in the file manager (Finder). */
+	openFolder?: (path: string) => void;
 };
 
 export type ToolEntry = ToolInfo & {
