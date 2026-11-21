@@ -1,8 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
-index 31aee0baeed9fd7703253bbc8b9bdf18266bbce3..3593355e13c3346e9438e772df2cb72307bc29af 100755
+index 89480ad6ab82c61973f82724e0a5205da5ed1edb..20b0a5cb32e9e5fc4971a770c711fa1c25b61491 100755
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -39142,7 +39142,7 @@ ${params.turnId}`;
+@@ -40134,7 +40134,7 @@ ${params.turnId}`;
          ));
        case "account/rateLimits/updated":
          this.handleRateLimitsUpdated(notification.params);
@@ -11,7 +11,7 @@ index 31aee0baeed9fd7703253bbc8b9bdf18266bbce3..3593355e13c3346e9438e772df2cb723
        case "account/updated":
          this.onAccountUpdated?.(notification.params);
          return null;
-@@ -39764,6 +39764,23 @@ ${event.details}` : event.summary;
+@@ -40763,6 +40763,23 @@ ${event.details}` : event.summary;
        size
      };
    }

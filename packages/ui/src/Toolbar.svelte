@@ -62,8 +62,9 @@
 				onfocus={() => (focused = item.label)}
 				onclick={item.onclick}
 				class="px-2 aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-soft"
-				>{item.label}</Button
 			>
+				{item.label}
+			</Button>
 		{/each}
 		{#if status}<span class="ml-auto pr-2 text-xs text-muted">{status}</span>{/if}
 	</div>

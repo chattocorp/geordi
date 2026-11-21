@@ -157,13 +157,17 @@
 									<span class="min-w-0 flex-1">
 										<span
 											class="line-clamp-2 font-medium wrap-anywhere text-ink sm:block sm:truncate"
-											>{entry.title}</span
 										>
+											{entry.title}
+										</span>
 										<span class="block truncate text-xs text-muted">{entry.repository}</span>
 									</span>
-									<time class="shrink-0 text-xs text-muted tabular-nums" datetime={entry.archivedAt}
-										>{time.format(new Date(entry.archivedAt))}</time
+									<time
+										class="shrink-0 text-xs text-muted tabular-nums"
+										datetime={entry.archivedAt}
 									>
+										{time.format(new Date(entry.archivedAt))}
+									</time>
 								</button>
 							</li>
 						{/each}

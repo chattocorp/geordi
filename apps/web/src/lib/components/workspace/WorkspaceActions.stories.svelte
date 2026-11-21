@@ -138,9 +138,9 @@
 	)}
 </Story>
 
-<Story name="Ready to merge" asChild
-	>{@render bar({ changes: pushed, upstream: upstream({}) })}</Story
->
+<Story name="Ready to merge" asChild>
+	{@render bar({ changes: pushed, upstream: upstream({}) })}
+</Story>
 
 <Story
 	name="Merge blocked by rules"
@@ -154,12 +154,12 @@
 	{@render bar({ changes: pushed, upstream: upstream({ blocked: 'rules' }) })}
 </Story>
 
-<Story name="Behind base branch, which must be up to date" asChild
-	>{@render bar({
+<Story name="Behind base branch, which must be up to date" asChild>
+	{@render bar({
 		changes: { ...pushed, incoming: { branch: 'refs/remotes/origin/main', commits: 3 } },
 		upstream: upstream({ blocked: 'behind' })
-	})}</Story
->
+	})}
+</Story>
 
 <Story
 	name="Waiting for merged standing"

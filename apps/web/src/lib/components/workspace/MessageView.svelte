@@ -251,9 +251,9 @@
 			>
 				<span class="icon-[lucide--file-diff] size-3.5 shrink-0 text-muted"></span>
 				{#if files.length === 1}
-					<span class="truncate code-dense" title={files[0].path}
-						>{files[0].path.split('/').at(-1)}</span
-					>
+					<span class="truncate code-dense" title={files[0].path}>
+						{files[0].path.split('/').at(-1)}
+					</span>
 				{:else}
 					<span class="font-medium">{summary}</span>
 				{/if}
@@ -369,15 +369,16 @@
 								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
 									<span class="icon-[lucide--bot] size-3.5"></span>
 									{#if block.from && !block.from.startsWith('external:') && (title || block.senderName)}
-										<span
-											>{title ? 'From the agent in “' : 'From '}<a
+										<span>
+											{title ? 'From the agent in “' : 'From '}<a
 												href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`, {
 													id: block.from
 												})}
 												class="rounded-control hover:text-ink hover:underline focus-visible:underline"
-												>{title || block.senderName}</a
-											>{title ? '”' : ''}</span
-										>
+											>
+												{title || block.senderName}
+											</a>{title ? '”' : ''}
+										</span>
 									{:else}
 										{block.senderName ? `From ${block.senderName}` : 'From another agent'}
 									{/if}

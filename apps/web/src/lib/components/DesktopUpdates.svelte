@@ -54,9 +54,9 @@
 				: messages[state.status]}
 		</p>
 		{#if state.ready}
-			<Button variant="primary" busy={state.busy} onclick={controls.restart}
-				>Restart to update</Button
-			>
+			<Button variant="primary" busy={state.busy} onclick={controls.restart}>
+				Restart to update
+			</Button>
 		{:else}
 			<Button busy={state.busy} onclick={controls.check}>Check for updates</Button>
 		{/if}

@@ -154,13 +154,15 @@
 		await expect(canvas.getByText('Show: check')).toBeVisible();
 		await userEvent.click(canvas.getByTitle('Open http://localhost:20000/'));
 		await expect(canvas.getByText('Open: site')).toBeVisible();
-	}}>{@render pane(jobs, links, (name) => states[name] ?? 'stopped')}</Story
+	}}
 >
+	{@render pane(jobs, links, (name) => states[name] ?? 'stopped')}
+</Story>
 <Story name="Nothing running" asChild>{@render pane(jobs, links, () => 'stopped')}</Story>
 <Story name="Only links" asChild>{@render pane([], links, () => 'stopped')}</Story>
-<Story name="Unreadable configuration" asChild
-	>{@render pane([], [], () => 'stopped', 'jobs.web: command is missing')}</Story
->
+<Story name="Unreadable configuration" asChild>
+	{@render pane([], [], () => 'stopped', 'jobs.web: command is missing')}
+</Story>
 
 <Story
 	name="Default link"
@@ -288,9 +290,11 @@
 		await userEvent.click(canvas.getByRole('button', { name: 'Stop Agent daemon' }));
 		await expect(canvas.getByText('Stop: daemon')).toBeVisible();
 		await expect(canvas.getByTitle('Ended with status 1')).toBeVisible();
-	}}>{@render unified((name) => taskStates[name] ?? 'stopped')}</Story
+	}}
 >
+	{@render unified((name) => taskStates[name] ?? 'stopped')}
+</Story>
 <Story name="Tasks, nothing running" asChild>{@render unified(() => 'stopped')}</Story>
-<Story name="Tasks, link blocked" asChild
-	>{@render unified((name) => (name === 'storybook' ? 'stopped' : 'running'), true)}</Story
->
+<Story name="Tasks, link blocked" asChild>
+	{@render unified((name) => (name === 'storybook' ? 'stopped' : 'running'), true)}
+</Story>

@@ -505,8 +505,9 @@
 								>
 									{#snippet options()}<span
 											class="inline-flex items-center gap-1.5 text-sm text-muted"
-											><AgentAvatar agent="claude" bare />Claude</span
-										>{/snippet}
+										>
+											<AgentAvatar agent="claude" bare />Claude
+										</span>{/snippet}
 								</ReplyComposer>
 							</div>
 						{:else if id === 'pull' && upstream.pull}

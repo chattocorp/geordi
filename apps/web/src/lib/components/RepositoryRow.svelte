@@ -59,8 +59,9 @@
 		<span
 			aria-hidden="true"
 			class="grid size-8 shrink-0 place-items-center rounded-control bg-sunken"
-			><RepoIcon id={repo.id} /></span
 		>
+			<RepoIcon id={repo.id} />
+		</span>
 		<span class="min-w-0 flex-1">
 			<span class="block truncate text-sm font-medium">{repo.name}</span>
 			<span role="status" class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
@@ -88,9 +89,9 @@
 			{/snippet}
 			{#snippet path(text: string)}
 				<!-- Long paths wrap after a slash, never inside a name. -->
-				<span class="code-dense break-words text-prose"
-					>{#each text.split('/') as part, i (i)}{#if i}/<wbr />{/if}{part}{/each}</span
-				>
+				<span class="code-dense break-words text-prose">
+					{#each text.split('/') as part, i (i)}{#if i}/<wbr />{/if}{part}{/each}
+				</span>
 			{/snippet}
 			{#snippet directory()}{@render path(repo.path)}{/snippet}
 			{#snippet origin()}
@@ -112,8 +113,10 @@
 						class="ml-1 font-medium text-ink hover:underline"
 						href={FORGE_SETUP_URL}
 						target="_blank"
-						rel="noreferrer">Setup guide</a
+						rel="noreferrer"
 					>
+						Setup guide
+					</a>
 					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				{/if}
 			{/snippet}
@@ -123,9 +126,9 @@
 			{#if forge?.status === 'problem'}{@render row('Problem', problem)}{/if}
 		</dl>
 		<div class="flex flex-wrap items-center gap-2">
-			<Button size="sm" icon="icon-[lucide--refresh-cw]" busy={checking} onclick={run}
-				>Check again</Button
-			>
+			<Button size="sm" icon="icon-[lucide--refresh-cw]" busy={checking} onclick={run}>
+				Check again
+			</Button>
 			<Button
 				size="sm"
 				variant="ghost"
@@ -134,8 +137,10 @@
 				title={repo.workspaceCount
 					? `Archive ${repo.name}'s workspaces to remove it`
 					: 'Geordi forgets it; nothing on disk changes'}
-				onclick={onremove}>Remove</Button
+				onclick={onremove}
 			>
+				Remove
+			</Button>
 		</div>
 	</div>
 </Disclosure>

@@ -203,8 +203,9 @@
 						<p class="empty">No repositories yet. Add one below.</p>
 					{/if}
 
-					<Button icon="icon-[lucide--plus]" onclick={() => adding?.start()}>Add repository…</Button
-					>
+					<Button icon="icon-[lucide--plus]" onclick={() => adding?.start()}>
+						Add repository…
+					</Button>
 					<AddRepository
 						bind:this={adding}
 						onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
@@ -240,8 +241,10 @@
 							href="https://chat.chatto.run/chat/-/RHrVQGGG3fvnU0w"
 							target="_blank"
 							rel="noreferrer"
-							class="file-link">#geordi channel on Chatto HQ</a
-						>.
+							class="file-link"
+						>
+							#geordi channel on Chatto HQ
+						</a>.
 					</p>
 				</div>
 				{#if updates && updateState}<DesktopUpdates state={updateState} controls={updates} />{/if}

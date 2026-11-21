@@ -34,9 +34,9 @@
 			{#if conflict.problem}<p class="text-sm text-danger">{conflict.problem}</p>{/if}
 			<div class="dialog-actions">
 				<Button onclick={cancel}>Cancel</Button>
-				<Button variant="primary" onclick={retry}
-					>{conflict.confirmation ? 'Stop process and retry' : 'Retry'}</Button
-				>
+				<Button variant="primary" onclick={retry}>
+					{conflict.confirmation ? 'Stop process and retry' : 'Retry'}
+				</Button>
 			</div>
 		</div>
 	{/if}

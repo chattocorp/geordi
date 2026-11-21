@@ -131,16 +131,18 @@
 							}}></textarea>
 						{#if problem}<p role="alert" class="text-xs text-danger">{problem}</p>{/if}
 						<div class="mt-2 flex justify-end gap-2">
-							<Button size="sm" variant="ghost" disabled={saving} onclick={() => (editing = null)}
-								>Cancel</Button
-							>
+							<Button size="sm" variant="ghost" disabled={saving} onclick={() => (editing = null)}>
+								Cancel
+							</Button>
 							<Button
 								size="sm"
 								variant="primary"
 								busy={saving}
 								disabled={!draft.trim() || draft === original}
-								onclick={() => save(note.path)}>Save</Button
+								onclick={() => save(note.path)}
 							>
+								Save
+							</Button>
 						</div>
 					{:else}
 						<Markdown text={note.body} />

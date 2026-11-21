@@ -171,15 +171,18 @@
 							rel="external noreferrer"
 							title={standing.hint.text}
 							class="inline-flex items-center gap-2 pr-1.5 font-medium whitespace-nowrap underline decoration-current/40 decoration-dotted underline-offset-4 hover:text-ink"
-							>{@render status()}</a
 						>
+							{@render status()}
+						</a>
 					{:else}
 						<span
 							class="inline-flex items-center gap-2 pr-1.5 font-medium whitespace-nowrap"
 							title={standing.label}
 							role={worded ? undefined : 'img'}
-							aria-label={worded ? undefined : standing.label}>{@render status()}</span
+							aria-label={worded ? undefined : standing.label}
 						>
+							{@render status()}
+						</span>
 					{/if}
 				{/if}
 				{#if ordered.length > 0}
@@ -210,12 +213,12 @@
 							>
 								<span class="@max-md/titlebar:sr-only">{action.label}</span>
 								{#if action.incomingCommits !== undefined}
-									<span class="font-normal tabular-nums opacity-60 @max-md/titlebar:sr-only"
-										>{action.incomingCommits}</span
-									>
-									<span class="sr-only"
-										>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
-									>
+									<span class="font-normal tabular-nums opacity-60 @max-md/titlebar:sr-only">
+										{action.incomingCommits}
+									</span>
+									<span class="sr-only">
+										incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}
+									</span>
 								{/if}
 							</Button>
 						{/each}

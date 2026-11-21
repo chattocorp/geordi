@@ -47,9 +47,9 @@
 
 {#snippet iconOf(id: string)}
 	{#if id === ':add'}
-		<span class="grid size-5 place-items-center"
-			><span class="icon-[lucide--plus] size-4 text-muted"></span></span
-		>
+		<span class="grid size-5 place-items-center">
+			<span class="icon-[lucide--plus] size-4 text-muted"></span>
+		</span>
 	{:else}
 		<RepoIcon {id} />
 	{/if}
