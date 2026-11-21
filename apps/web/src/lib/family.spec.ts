@@ -108,28 +108,50 @@ describe('dropTarget', () => {
 	]).get('one')!;
 
 	it('moves a child among its siblings, past their own children', () => {
-		expect(dropTarget(rows, 1, 3, false)).toEqual({ before: 'third', after: 'third' });
-		expect(dropTarget(rows, 1, 4, false)).toEqual({ before: null, after: 'third' });
-		expect(dropTarget(rows, 4, 2, false)).toEqual({ before: 'sibling', after: 'third' });
-		expect(dropTarget(rows, 4, 1, true)).toEqual({ before: 'child', after: 'third' });
+		expect(dropTarget(rows, rows[1].workspace, 3, false)).toEqual({
+			before: 'third',
+			after: 'third'
+		});
+		expect(dropTarget(rows, rows[1].workspace, 4, false)).toEqual({ before: null, after: 'third' });
+		expect(dropTarget(rows, rows[4].workspace, 2, false)).toEqual({
+			before: 'sibling',
+			after: 'third'
+		});
+		expect(dropTarget(rows, rows[4].workspace, 1, true)).toEqual({
+			before: 'child',
+			after: 'third'
+		});
 	});
 
 	it('never changes the parent', () => {
-		expect(dropTarget(rows, 1, 0, false)).toBeUndefined();
-		expect(dropTarget(rows, 1, 5, true)).toBeUndefined();
-		expect(dropTarget(rows, 2, 3, true)).toBeUndefined();
+		expect(dropTarget(rows, rows[1].workspace, 0, false)).toBeUndefined();
+		expect(dropTarget(rows, rows[1].workspace, 5, true)).toBeUndefined();
+		expect(dropTarget(rows, rows[2].workspace, 3, true)).toBeUndefined();
 	});
 
 	it('says nothing where the row would stay', () => {
-		expect(dropTarget(rows, 1, 1, true)).toBeUndefined();
-		expect(dropTarget(rows, 1, 2, false)).toBeUndefined();
-		expect(dropTarget(rows, 1, 3, true)).toBeUndefined();
+		expect(dropTarget(rows, rows[1].workspace, 1, true)).toBeUndefined();
+		expect(dropTarget(rows, rows[1].workspace, 2, false)).toBeUndefined();
+		expect(dropTarget(rows, rows[1].workspace, 3, true)).toBeUndefined();
+	});
+
+	it('accepts an incoming row before, between or after destination siblings', () => {
+		const incoming = workspace('incoming', 'one');
+		expect(dropTarget(rows, incoming, 0, true)?.before).toBe('parent');
+		expect(dropTarget(rows, incoming, 0, false)?.before).toBe('other');
+		expect(dropTarget(rows, incoming, 5, false)?.before).toBeNull();
+		const child = workspace('incoming', 'one', 'parent');
+		expect(dropTarget(rows, child, 3, true)?.before).toBe('sibling');
+		expect(dropTarget(rows, child, 5, true)).toBeUndefined();
 	});
 
 	it('moves a workspace at the top with its family', () => {
-		expect(dropTarget(rows, 0, 5, false)).toEqual({ before: null, after: 'other' });
-		expect(dropTarget(rows, 5, 3, false)).toBeUndefined();
-		expect(dropTarget(rows, 5, 0, true)).toEqual({ before: 'parent', after: 'other' });
+		expect(dropTarget(rows, rows[0].workspace, 5, false)).toEqual({ before: null, after: 'other' });
+		expect(dropTarget(rows, rows[5].workspace, 3, false)).toBeUndefined();
+		expect(dropTarget(rows, rows[5].workspace, 0, true)).toEqual({
+			before: 'parent',
+			after: 'other'
+		});
 	});
 });
 

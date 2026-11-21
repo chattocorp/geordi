@@ -3,7 +3,6 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { activeOnDay } from '#lib/family.ts';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import Sidebar from './Sidebar.svelte';
 
@@ -11,7 +10,6 @@
 		title: 'Geordi/Sidebar',
 		component: Sidebar,
 		beforeEach() {
-			filters.todayOnly = false;
 			focus.current = null;
 			folded.current = [];
 			grouped.current = true;
@@ -29,7 +27,6 @@
 	/** Whether workspaces are grouped by repository: in the app, remembered in the browser too. */
 	const grouped = $state({ current: true });
 
-	const filters = $state({ todayOnly: false });
 	/** Whether a workspace has come along since the story began. */
 	const arrived = $state({ current: false });
 	/** Whether navigation has arrived, in the story where it comes late. */
@@ -62,7 +59,7 @@
 		standing: null,
 		actions: [],
 		branch: `geordi/${id}`,
-		updatedAt: '2026-11-18T12:00:00.000Z',
+		deferred: false,
 		...rest
 	});
 
@@ -173,24 +170,10 @@
 	};
 </script>
 
-{#snippet frame(
-	nav: Navigation | undefined,
-	path: string,
-	lost = false,
-	day = new Date(2026, 10, 20).toDateString()
-)}
+{#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh max-h-full w-64 bg-frame p-2">
-		<Sidebar
-			visibleWorkspaces={activeOnDay(nav?.workspaces ?? [], filters.todayOnly ? day : null)}
-			{nav}
-			{path}
-			{folded}
-			{focus}
-			{grouped}
-			bind:todayOnly={filters.todayOnly}
-			{lost}
-		/>
+		<Sidebar {nav} {path} {folded} {focus} {grouped} {lost} />
 	</div>
 {/snippet}
 
@@ -275,38 +258,23 @@
 </Story>
 
 <Story
-	name="Active today"
+	name="Filter set-aside workspaces by repository"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const today = canvas.getByRole('button', { name: 'Show workspaces active today' });
-		await fireEvent.click(today);
-		await expect(today).toHaveAttribute('aria-pressed', 'true');
-		await waitFor(() => expect(canvas.getByText('Review the daemon')).toBeVisible());
-		await waitFor(() =>
-			expect(canvas.queryByText('Scale live views and the event log')).toBeNull()
-		);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces as one list' }));
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
-		await expect(canvas.getByText('No workspaces active today.')).toBeVisible();
-		await fireEvent.click(today);
-		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
-		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));
-		await fireEvent.click(await canvas.findByRole('option', { name: 'All repositories' }));
+		await expect(canvas.getByText('No current workspaces.')).toBeVisible();
+		const aside = canvas.getByRole('group', { name: 'Set aside' });
+		await fireEvent.click(within(aside).getByText('Set aside'));
+		await expect(within(aside).getByRole('link', { name: /Try out the new parser/ })).toBeVisible();
+		await expect(within(aside).queryByText('Review the daemon')).toBeNull();
 	}}
 >
 	{@render frame(
-		{
-			...nav,
-			workspaces: nav.workspaces.map((w) =>
-				w.id === 'aide'
-					? { ...w, updatedAt: new Date(2026, 10, 20).toISOString() }
-					: { ...w, updatedAt: new Date(2026, 10, 19, 23, 59).toISOString() }
-			)
-		},
-		'/',
-		false,
-		new Date(2026, 10, 20).toDateString()
+		{ ...nav, workspaces: nav.workspaces.map((w) => ({ ...w, deferred: w.repoId === 'sample' })) },
+		'/'
 	)}
 </Story>
 
@@ -398,7 +366,7 @@
 		await expect(markers()).toHaveLength(1);
 		await expect(last).toHaveClass('row-drop-after');
 
-		await fireEvent.dragLeave(sourceList, { relatedTarget: otherList });
+		await fireEvent.dragLeave(last, { relatedTarget: otherList });
 		await expect(markers()).toHaveLength(0);
 		await fireEvent.dragOver(within(otherList).getAllByRole('listitem')[0]);
 		await expect(markers()).toHaveLength(0);
@@ -511,4 +479,85 @@
 >
 	{@render frame(nav, '/workspaces/ready')}
 	<ContextMenu />
+</Story>
+
+<Story
+	name="Set aside menu action"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.contextMenu(canvas.getByText('Review the daemon'));
+		const defer = await canvas.findByRole('menuitem', { name: 'Set aside' });
+		await expect(defer).toBeVisible();
+		await expect(defer.nextElementSibling).toBe(canvas.getByRole('menuitem', { name: 'Archive' }));
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: [workspace('aide', 'Review the daemon')]
+		},
+		'/'
+	)}
+	<ContextMenu />
+</Story>
+
+<Story
+	name="Current and set aside"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const targets = () => canvas.queryAllByRole('group', { name: 'Set aside' });
+		await expect(targets()).toHaveLength(2);
+		const [own, other] = targets();
+		await expect(within(own).getByText('1')).toBeVisible();
+		const row = canvas.getByText('Review the daemon').closest('li')!;
+		await fireEvent.dragStart(row);
+		await expect(within(own).getByText('Drop to set aside')).toBeVisible();
+		await expect(within(other).queryByText('Drop to set aside')).toBeNull();
+		await fireEvent.dragOver(within(own).getByText('Drop to set aside'));
+		await expect(own).not.toHaveAttribute('open');
+		await waitFor(() => expect(own).toHaveAttribute('open'));
+		const revealed = within(own).getByText('Revisit the parser').closest('li')!;
+		await fireEvent.dragOver(revealed, { clientY: revealed.getBoundingClientRect().top + 1 });
+		await expect(revealed).toHaveClass('row-drop-before');
+		await fireEvent.dragEnd(row);
+		await expect(own).not.toHaveAttribute('open');
+		await fireEvent.click(within(own).getByText('Set aside'));
+		await fireEvent.dragStart(row);
+		await fireEvent.dragOver(within(own).getByText('Drop to set aside'));
+		await fireEvent.dragEnd(row);
+		await expect(own).toHaveAttribute('open');
+		await expect(within(own).getByRole('link', { name: 'Revisit the parser' })).toHaveAttribute(
+			'href',
+			'/workspaces/later'
+		);
+		const deferredRow = within(own).getByText('Revisit the parser').closest('li')!;
+		await fireEvent.dragStart(deferredRow);
+		await fireEvent.dragOver(row, { clientY: row.getBoundingClientRect().top + 1 });
+		await expect(row).toHaveClass('row-drop-before');
+		await fireEvent.dragEnd(deferredRow);
+		await expect(row).not.toHaveClass('row-drop-before');
+		await expect(within(own).getByLabelText('Ready to merge')).toBeVisible();
+		await expect(other).not.toHaveAttribute('open');
+		await fireEvent.click(within(own).getByText('Set aside'));
+		await expect(own).not.toHaveAttribute('open');
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces as one list' }));
+		await waitFor(() => expect(targets()).toHaveLength(1));
+		await expect(within(targets()[0]).getByText('2')).toBeVisible();
+		await fireEvent.click(within(targets()[0]).getByText('Set aside'));
+		await expect(within(targets()[0]).getAllByRole('link')).toHaveLength(2);
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: [
+				workspace('active', 'Review the daemon'),
+				workspace('later', 'Revisit the parser', { deferred: true, standing: ready }),
+				workspace('another', 'Review the styling', { repoId: 'sample', deferred: true })
+			]
+		},
+		'/'
+	)}
 </Story>

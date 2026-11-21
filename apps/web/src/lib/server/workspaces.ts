@@ -22,6 +22,8 @@ import {
 import type { EventStore, GeordiEvent } from './events/index.ts';
 import {
 	createWorkspaceProjection,
+	isSetAside,
+	isUserPrompt,
 	questionById,
 	toolById,
 	type ActionId,
@@ -47,6 +49,7 @@ export type {
 
 export type WorkspaceSummary = Omit<Workspace, 'transcript' | 'pendingMessages'> & {
 	pendingDelivery?: boolean;
+	deferred: boolean;
 };
 
 /** What an agent sees of an agent it started (FDR-002). */
@@ -143,6 +146,7 @@ export function createWorkspaces(
 
 		return structuredClone({
 			...workspace,
+			deferred: isSetAside(workspace),
 			...(pendingMessages?.length && { pendingDelivery: true }),
 			usage: usages.get(workspace.id) ?? workspace.usage,
 			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
@@ -316,6 +320,44 @@ export function createWorkspaces(
 		});
 	}
 
+	function todayEvent(id: string, deferred: boolean) {
+		return { type: 'workspace.today', stream: `workspace:${id}`, data: { id, deferred } } as const;
+	}
+
+	function appendPrompt(
+		event: Extract<GeordiEvent, { type: 'workspace.message' | 'workspace.queued' }>,
+		actor: string | null
+	) {
+		const events: GeordiEvent[] = [];
+		if (isUserPrompt(event, actor)) {
+			const workspace = find(event.data.id);
+			const owner = projection.get().get(workspace.worktreeId);
+
+			// Record this on the sidebar row so it survives deletion of an agent alongside it.
+			if (owner && owner !== workspace && !owner.archivedAt)
+				events.push(todayEvent(owner.id, false));
+		}
+		events.push(event);
+		store.append(events, { actor });
+	}
+
+	function queuePrompt(
+		id: string,
+		text: string,
+		actor: string | null,
+		images: string[] = [],
+		action?: ActionId
+	) {
+		appendPrompt(
+			{
+				type: 'workspace.queued',
+				stream: `workspace:${id}`,
+				data: { id, text, ...(images.length && { images }), ...(action && { action }) }
+			},
+			actor
+		);
+	}
+
 	function say(
 		workspace: Workspace,
 		text: string,
@@ -326,15 +368,7 @@ export function createWorkspaces(
 	) {
 		const { id } = workspace;
 		if (workspace.agent === 'opencode' && workspace.status !== 'idle' && !from) {
-			store.append(
-				{
-					type: 'workspace.queued',
-					stream: `workspace:${id}`,
-					data: { id, text, ...(images.length && { images }), ...(action && { action }) }
-				},
-				{ actor }
-			);
-			return;
+			return queuePrompt(id, text, actor, images, action);
 		}
 		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
 		const senderName = sender
@@ -343,7 +377,7 @@ export function createWorkspaces(
 		if (from === 'queued') images = workspace.attachments.queue[0];
 		const deliveryId = randomUUID();
 		const working = workspace.status === 'running';
-		store.append(
+		appendPrompt(
 			{
 				type: 'workspace.message',
 				stream: `workspace:${id}`,
@@ -357,7 +391,7 @@ export function createWorkspaces(
 					...(senderName && { senderName })
 				}
 			},
-			{ actor }
+			actor
 		);
 		// append applies the projection synchronously, including the briefing and attachments.
 		const pending = workspace.pendingMessages?.find((message) => message.deliveryId === deliveryId);
@@ -828,18 +862,15 @@ export function createWorkspaces(
 					403,
 					'You can only interrupt agents you started; without interrupt, it gets the message when its turn ends'
 				);
-			const stream = `workspace:${workspace.id}` as const;
-			const data = { id: workspace.id, text };
 			if (workspace.status === 'idle') {
 				const starter = starterOf(workspace);
 				if (starter) ensureCapacity(starter);
 				if (workspace.queue.length === 0) return say(workspace, text, callerId);
 				// messages are waiting (its last turn failed): this one joins them, and sets them off
-				store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
+				queuePrompt(id, text, callerId);
 				return say(workspace, workspace.queue[0], null, 'queued');
 			}
-			if (!interrupt)
-				return void store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
+			if (!interrupt) return queuePrompt(id, text, callerId);
 			say(workspace, text, callerId);
 		},
 
@@ -1017,14 +1048,7 @@ export function createWorkspaces(
 			nameAfter(workspace, text);
 			if (workspace.status === 'idle' && workspace.queue.length === 0)
 				return say(workspace, text, actor, undefined, images, action);
-			store.append(
-				{
-					type: 'workspace.queued',
-					stream: `workspace:${id}`,
-					data: { id, text, ...(action && { action }), ...(images.length && { images }) }
-				},
-				{ actor }
-			);
+			queuePrompt(id, text, actor, images, action);
 			// idle with messages waiting: the turn before failed, and this is the nudge to go on
 			if (workspace.status === 'idle') say(workspace, workspace.queue[0], actor, 'queued');
 		},
@@ -1201,6 +1225,13 @@ export function createWorkspaces(
 			);
 		},
 
+		setDeferred(id: string, deferred: boolean) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (isSetAside(workspace) === deferred) return;
+			store.append(todayEvent(id, deferred), { actor: 'person' });
+		},
+
 		rename(id: string, title: string) {
 			const workspace = find(id);
 			const clean = title.trim();
@@ -1218,7 +1249,7 @@ export function createWorkspaces(
 		 * Moves a workspace in the list: right above `before`, or to the end where that is
 		 * `null`. There is one list: listed by repository, each keeps its order there.
 		 */
-		move(id: string, before: string | null, actor: string | null = null) {
+		move(id: string, before: string | null, actor: string | null = null, deferred?: boolean) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (before !== null) {
@@ -1226,10 +1257,12 @@ export function createWorkspaces(
 				if (other.archivedAt) error(400, 'That workspace is archived');
 			}
 			if (before === id) return;
-			store.append(
-				{ type: 'workspace.moved', stream: `workspace:${id}`, data: { id, before } },
-				{ actor }
-			);
+			const events: GeordiEvent[] = [
+				{ type: 'workspace.moved', stream: `workspace:${id}`, data: { id, before } }
+			];
+			if (deferred !== undefined && isSetAside(workspace) !== deferred)
+				events.push(todayEvent(id, deferred));
+			store.append(events, { actor });
 		},
 
 		/** Marks the workspace as done with. Its conversation stays readable. */

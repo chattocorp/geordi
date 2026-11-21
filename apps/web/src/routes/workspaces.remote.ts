@@ -47,6 +47,11 @@ const agentSettings = {
 	permissionMode: v.optional(v.picklist(PERMISSION_MODES))
 };
 
+export const setWorkspaceDeferred = command(
+	v.object({ workspaceId: v.string(), deferred: v.boolean() }),
+	({ workspaceId, deferred }) => workspaces().setDeferred(workspaceId, deferred)
+);
+
 export const renameWorkspace = command(
 	v.object({ workspaceId: v.string(), title: v.string() }),
 	({ workspaceId, title }) => workspaces().rename(workspaceId, title)
@@ -383,8 +388,12 @@ export const answerQuestion = command(
 
 /** The person moved a workspace in the sidebar: above `before`, or to the end. */
 export const moveWorkspace = command(
-	v.object({ workspaceId: v.string(), before: v.nullable(v.string()) }),
-	({ workspaceId, before }) => workspaces().move(workspaceId, before)
+	v.object({
+		workspaceId: v.string(),
+		before: v.nullable(v.string()),
+		deferred: v.optional(v.boolean())
+	}),
+	({ workspaceId, before, deferred }) => workspaces().move(workspaceId, before, 'person', deferred)
 );
 
 export const stopTask = command(

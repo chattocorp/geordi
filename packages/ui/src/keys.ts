@@ -44,12 +44,6 @@ export const shortcuts = {
 		label: 'Show only the repository of this workspace, or all again',
 		group: 'General'
 	},
-	todayOnly: {
-		code: 'KeyT',
-		shift: true,
-		label: 'Toggle workspaces active today (experimental)',
-		group: 'General'
-	},
 	groupByRepo: {
 		code: 'KeyG',
 		shift: true,

@@ -50,6 +50,84 @@ const refusal = (message: RegExp) =>
 	});
 
 describe('workspaces', () => {
+	it('expires exactly 24 hours after a person prompts or returns the workspace', () => {
+		vi.useFakeTimers();
+		try {
+			const start = Date.parse('2026-11-20T23:45:00Z');
+			const day = 24 * 60 * 60 * 1000;
+			vi.setSystemTime(start);
+			const { workspaces, create, store, repos, dispatch } = setup();
+			const id = create('');
+			vi.setSystemTime(start + day - 1);
+			expect(workspaces.summary(id).deferred).toBe(false);
+			workspaces.steer(id, 'Agent update', 'peer');
+			workspaces.rename(id, 'A new title');
+			vi.setSystemTime(start + day);
+			const replay = createWorkspaces(store, repos, dispatch);
+			expect(replay.summary(id).deferred).toBe(true);
+			replay.move(id, null, 'person', false);
+			expect(replay.summary(id).currentUntil).toBe(start + 2 * day);
+			vi.setSystemTime(start + 2 * day);
+			replay.setDeferred(id, false);
+			expect(replay.summary(id).currentUntil).toBe(start + 3 * day);
+			vi.setSystemTime(start + 3 * day);
+			replay.send(id, 'My new prompt');
+			expect(replay.summary(id).currentUntil).toBe(start + 4 * day);
+			vi.setSystemTime(start + 4 * day);
+			replay.record(id, { kind: 'turn.completed' });
+			expect(replay.summary(id).deferred).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps a workspace set aside through background work and replay until a new prompt', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Review');
+		workspaces.send(id, 'Already queued');
+		const before = workspaces.summary(id);
+		workspaces.setDeferred(id, true);
+		expect(workspaces.summary(id)).toEqual({ ...before, currentUntil: 0, deferred: true });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.rename(id, 'Review again');
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.summary(id).deferred).toBe(true);
+		replay.steer(id, 'Peer update', 'peer');
+		expect(replay.summary(id).deferred).toBe(true);
+		replay.send(id, 'My next prompt');
+		expect(replay.summary(id).deferred).toBe(false);
+		replay.setDeferred(id, true);
+		replay.steer(id, 'Change of plan');
+		expect(replay.summary(id).deferred).toBe(false);
+	});
+
+	it('returns a deferred workspace to Current without sending a prompt', () => {
+		const { workspaces, create, store, repos, dispatch, sent } = setup();
+		const id = create('Review');
+		workspaces.setDeferred(id, true);
+		const before = workspaces.get(id);
+		const commands = sent.length;
+		workspaces.setDeferred(id, false);
+		expect(createWorkspaces(store, repos, dispatch).get(id)).toMatchObject({
+			deferred: false,
+			status: before.status,
+			transcript: before.transcript
+		});
+		expect(sent).toHaveLength(commands);
+	});
+
+	it('brings the sidebar workspace back when the person prompts an agent alongside it', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Review');
+		const aide = workspaces.join(id);
+		workspaces.setDeferred(id, true);
+		workspaces.steer(aide, 'Review this file');
+		workspaces.record(aide, { kind: 'turn.completed' });
+		workspaces.archive(aide);
+		workspaces.purge([aide]);
+		expect(createWorkspaces(store, repos, dispatch).summary(id).deferred).toBe(false);
+	});
+
 	it('replays an older worktree without assigning it a new parent directory', () => {
 		const { repo, store, repos, dispatch } = setup();
 		store.append({
@@ -1037,6 +1115,31 @@ describe('moving', () => {
 		create('D');
 		expect(titles()).toEqual(['D', 'C', 'A', 'B']);
 		expect(titles(setup({ database }).workspaces.all())).toEqual(['D', 'C', 'A', 'B']);
+	});
+
+	it('remembers the list and insertion position when moving across the Today boundary', () => {
+		const { workspaces, repo, create, store, repos, dispatch } = setup();
+		const [a, b, c, d] = ['A', 'B', 'C', 'D'].map((title) => create(title));
+		workspaces.setDeferred(a, true);
+		workspaces.setDeferred(b, true);
+		workspaces.move(d, a, 'person', true);
+		const listing = () => createWorkspaces(store, repos, dispatch).list(repo.id);
+		expect(
+			listing()
+				.filter((w) => w.deferred)
+				.map((w) => w.id)
+		).toEqual([b, d, a]);
+		workspaces.move(d, c, 'person', false);
+		expect(
+			listing()
+				.filter((w) => !w.deferred)
+				.map((w) => w.id)
+		).toEqual([d, c]);
+		expect(
+			listing()
+				.filter((w) => w.deferred)
+				.map((w) => w.id)
+		).toEqual([b, a]);
 	});
 
 	it('moves workspaces across repositories, as one list', () => {
