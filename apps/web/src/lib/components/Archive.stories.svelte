@@ -24,6 +24,30 @@
 
 <Story name="Archived workspaces" args={{ entries }} />
 <Story
+	name="Archive by month"
+	args={{
+		entries: [
+			...entries,
+			{
+				id: 'project',
+				repoId: null,
+				title: 'Plan the next release',
+				repository: 'Project',
+				archivedAt: '2026-10-12T12:00:00Z'
+			}
+		],
+		onpurge: fn(async () => ({ purged: 3, freed: 0 }))
+	}}
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(2);
+		await userEvent.type(canvas.getByRole('searchbox'), 'Project');
+		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(1);
+		await expect(canvas.getByRole('link')).toHaveAttribute('href', '/workspaces/project');
+		await userEvent.clear(canvas.getByRole('searchbox'));
+	}}
+/>
+<Story
 	name="Search by repository"
 	args={{ entries }}
 	play={async ({ canvasElement }) => {

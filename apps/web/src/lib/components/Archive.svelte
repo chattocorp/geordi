@@ -5,6 +5,7 @@
 	import Page from '#lib/ui/Page.svelte';
 	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
+	import RepoIcon from './RepoIcon.svelte';
 	import WaitingForView from './WaitingForView.svelte';
 	import type { ArchiveEntry } from '#lib/server/views.ts';
 
@@ -21,6 +22,12 @@
 		entries?.filter(({ title, repository }) =>
 			(title + ' ' + repository).toLowerCase().includes(search.trim().toLowerCase())
 		)
+	);
+
+	const month = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
+	const day = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+	const months = $derived(
+		Map.groupBy(filtered ?? [], (entry) => month.format(new Date(entry.archivedAt)))
 	);
 
 	/** What is about to be deleted, once the person says so. */
@@ -109,7 +116,7 @@
 		<div class="flex items-center gap-2">
 			<input
 				type="search"
-				class="flex-1 input"
+				class="min-w-0 flex-1 input"
 				aria-label="Search archived workspaces"
 				placeholder="Search by title or repository"
 				bind:value={search}
@@ -121,33 +128,55 @@
 			{/if}
 		</div>
 		{#if outcome}<p class="text-sm text-muted">{outcome}</p>{/if}
-		<ul>
-			{#each filtered ?? [] as entry (entry.id)}
-				<li>
-					<a
-						class="item justify-between gap-4 px-3 py-2"
-						href={resolve('/workspaces/[id]', { id: entry.id })}
-						{@attach contextMenu(() => menu(entry))}
-					>
-						<span class="min-w-0"
-							><span class="block truncate font-medium text-ink">{entry.title}</span><span
-								class="text-xs text-muted">{entry.repository}</span
-							></span
-						>
-						<time class="shrink-0 text-xs text-muted" datetime={entry.archivedAt}
-							>{restoring[entry.id]
-								? 'Restoring…'
-								: new Date(entry.archivedAt).toLocaleDateString()}</time
-						>
-					</a>
-					{#if restoreProblems[entry.id]}
-						<p class="px-3 text-sm text-danger" role="alert">{restoreProblems[entry.id]}</p>
-					{/if}
-				</li>
+		<div class="space-y-6">
+			{#each months as [heading, workspaces] (heading)}
+				<section class="space-y-2">
+					<h2 class="label">{heading}</h2>
+					<ul class="card p-2">
+						{#each workspaces as entry (entry.id)}
+							<li>
+								<a
+									class="item gap-3 px-3 py-2 hover:bg-hover focus-visible:bg-hover"
+									href={resolve('/workspaces/[id]', { id: entry.id })}
+									{@attach contextMenu(() => menu(entry))}
+								>
+									<span
+										class="grid size-9 shrink-0 place-items-center rounded-control bg-sunken text-muted"
+										aria-hidden="true"
+									>
+										{#if entry.repoId !== null}
+											<RepoIcon id={entry.repoId} />
+										{:else}
+											<span class="icon-[lucide--folders] size-5"></span>
+										{/if}
+									</span>
+									<span class="min-w-0 flex-1">
+										<span
+											class="line-clamp-2 font-medium wrap-anywhere text-ink sm:block sm:truncate"
+											>{entry.title}</span
+										>
+										<span class="block truncate text-xs text-muted">{entry.repository}</span>
+									</span>
+									{#if restoring[entry.id]}
+										<span class="text-xs text-muted" role="status">Restoring…</span>
+									{:else}
+										<time
+											class="shrink-0 text-xs text-muted tabular-nums"
+											datetime={entry.archivedAt}>{day.format(new Date(entry.archivedAt))}</time
+										>
+									{/if}
+								</a>
+								{#if restoreProblems[entry.id]}
+									<p class="px-3 text-sm text-danger" role="alert">{restoreProblems[entry.id]}</p>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</section>
 			{:else}
-				<li class="empty">No matching workspaces.</li>
+				<p class="empty">No matching workspaces.</p>
 			{/each}
-		</ul>
+		</div>
 	{/if}
 </Page>
 
