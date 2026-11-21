@@ -167,7 +167,11 @@
 			},
 			toggleGrouped: () => (grouped.current = !grouped.current),
 			toggleToday: () => (today.current = !today.current),
-			setFocus: (repo) => (focus.current = repo),
+			setFocus: (repo) => {
+				focus.current = repo;
+				// showing a repository alone is only seen in the sidebar
+				if (repo && !sidebar.current.open) toggleSidebar();
+			},
 			setTheme: (next) => (theme.current = next)
 		})
 	);

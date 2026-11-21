@@ -164,16 +164,21 @@ export function globalCommands(at: Everywhere): Command[] {
 			shortcut: !viewedRepo || viewedRepo === at.focus ? 'focusRepo' : undefined,
 			run: () => at.setFocus(null)
 		});
-	for (const repo of repos)
-		if (repo.workspaceCount > 0 && repo.id !== at.focus)
-			commands.push({
-				id: `focus:${repo.id}`,
-				label: `Show only ${repo.name}`,
-				group: sidebar,
-				icon: 'icon-[lucide--folder-git-2]',
-				shortcut: repo.id === viewedRepo ? 'focusRepo' : undefined,
-				run: () => at.setFocus(repo.id)
-			});
+	// Each repository the sidebar can show alone (those with workspaces), by name.
+	const filterable = repos
+		.filter((repo) => repo.workspaceCount > 0)
+		.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+	for (const repo of filterable)
+		commands.push({
+			id: `focus:${repo.id}`,
+			label: repo.name,
+			group: 'Repositories',
+			icon: 'icon-[lucide--folder-git-2]',
+			detail: repo.id === at.focus ? 'Shown alone' : undefined,
+			keywords: 'repository show only filter',
+			shortcut: repo.id === viewedRepo && repo.id !== at.focus ? 'focusRepo' : undefined,
+			run: () => at.setFocus(repo.id)
+		});
 
 	commands.push({
 		id: 'settings',

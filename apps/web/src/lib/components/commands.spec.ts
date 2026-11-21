@@ -95,6 +95,29 @@ it('gives the focus shortcut to the repository on screen, or to showing all agai
 	expect(focusing({ viewed: null })).toBeUndefined();
 });
 
+it('lists the repositories with workspaces by name, saying which is shown alone', () => {
+	const repos = (at: Partial<Everywhere>) =>
+		globalCommands(everywhere(at))
+			.filter((command) => command.group === 'Repositories')
+			.map((command) => [command.label, command.detail]);
+	const many = {
+		...nav,
+		repos: [
+			{ id: 'z', name: 'zeta', workspaceCount: 2 },
+			{ id: 'e', name: 'Empty', workspaceCount: 0 },
+			{ id: 'a', name: 'Alpha', workspaceCount: 1 }
+		]
+	} as unknown as Navigation;
+	expect(repos({ nav: many })).toEqual([
+		['Alpha', undefined],
+		['zeta', undefined]
+	]);
+	expect(repos({ nav: many, focus: 'z' })).toEqual([
+		['Alpha', undefined],
+		['zeta', 'Shown alone']
+	]);
+});
+
 const workspace = (at: Partial<WorkspaceSource> = {}): WorkspaceSource =>
 	new Proxy(
 		{
