@@ -167,7 +167,8 @@ function lastPage() {
 	}
 }
 
-function open() {
+/** Opens a window: on `page` (a path of the forge's) if given, else where the last one was. */
+function open(page) {
 	// the first window goes where it was and shows what it did; any further one starts afresh
 	const first = BrowserWindow.getAllWindows().length === 0;
 	const place = first ? lastPlace() : {};
@@ -206,10 +207,11 @@ function open() {
 		}
 	});
 	const { webContents } = window;
-	// Geordi's own pages get a window; everything else belongs in the browser.
+	// Geordi's own pages get a window of our own (with its title bar and handlers, which
+	// one Electron makes would lack); everything else belongs in the browser.
 	webContents.setWindowOpenHandler(({ url: target }) => {
-		if (target.startsWith(`${url}/`)) return { action: 'allow' };
-		if (/^https?:/.test(target)) shell.openExternal(target);
+		if (target.startsWith(`${url}/`)) open(target.slice(url.length));
+		else if (/^https?:/.test(target)) shell.openExternal(target);
 		return { action: 'deny' };
 	});
 	webContents.on('will-navigate', (event, target) => {
@@ -218,7 +220,7 @@ function open() {
 		if (/^https?:/.test(target)) shell.openExternal(target);
 	});
 	webContents.on('context-menu', (_event, params) => contextMenu(window, params));
-	window.loadURL(first ? url + lastPage() : url);
+	window.loadURL(url + (page ?? (first ? lastPage() : '/')));
 }
 
 /**
