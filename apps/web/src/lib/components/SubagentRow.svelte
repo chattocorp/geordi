@@ -42,7 +42,7 @@
 				child.state === 'failed' ? 'text-danger' : 'text-muted'
 			]}
 		>
-			{#if child.state === 'running'}<span aria-hidden="true"><Spinner /></span>
+			{#if child.state === 'running'}<span class="flex" aria-hidden="true"><Spinner /></span>
 			{/if}{labels[child.state]}
 		</span>
 	{/snippet}
