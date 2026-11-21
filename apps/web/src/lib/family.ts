@@ -132,3 +132,37 @@ export function nextUnread<T extends { id: string }>(
 	const isUnread = (row: T) => unread.has(row.id);
 	return order.slice(at + 1).find(isUnread) ?? order.slice(0, Math.max(0, at)).find(isUnread);
 }
+
+/**
+ * Where the row at `from` would go, dropped onto the row at `over` (on its upper half, or
+ * not): among its siblings only, so that it keeps its parent. `before` is the sibling it
+ * would go right above, `null` for after the last of them, where `after` is the row the
+ * line shows below. Nothing where it would stay where it is, or the row is not among
+ * its siblings' (their parent, or another family).
+ */
+export function dropTarget<T extends { id: string }>(
+	rows: Listed<T>[],
+	from: number,
+	over: number,
+	upper: boolean
+): { before: string | null; after: string } | undefined {
+	const { depth } = rows[from];
+	// the siblings and theirs: everything under the parent, or the whole list
+	let start = from;
+	while (start > 0 && rows[start - 1].depth >= depth) start--;
+	let end = from;
+	while (end < rows.length - 1 && rows[end + 1].depth >= depth) end++;
+	if (over < start || over > end) return undefined;
+
+	const siblingFrom = (at: number) => {
+		for (let index = at; index <= end; index++) if (rows[index].depth === depth) return index;
+		return -1;
+	};
+	const next = siblingFrom(upper ? over : over + 1);
+	const before = next === -1 ? null : rows[next].workspace.id;
+	const after = siblingFrom(from + 1);
+	const stays =
+		before === rows[from].workspace.id ||
+		before === (after === -1 ? null : rows[after].workspace.id);
+	return stays ? undefined : { before, after: rows[end].workspace.id };
+}

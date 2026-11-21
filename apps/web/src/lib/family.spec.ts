@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	byRepository,
+	dropTarget,
 	inFocus,
 	inSidebarOrder,
 	nextUnread,
@@ -91,6 +92,43 @@ describe('unfolded', () => {
 
 	it('ignores a folded workspace with nothing under it', () => {
 		expect(ids(unfolded(rows, ['other', 'grandchild']))).toEqual(ids(rows));
+	});
+});
+
+describe('dropTarget', () => {
+	// 0 parent, 1 child, 2 grandchild, 3 sibling, 4 third, 5 other
+	const rows = byRepository([
+		workspace('parent', 'one'),
+		workspace('child', 'one', 'parent'),
+		workspace('grandchild', 'one', 'child'),
+		workspace('sibling', 'one', 'parent'),
+		workspace('third', 'one', 'parent'),
+		workspace('other', 'one')
+	]).get('one')!;
+
+	it('moves a child among its siblings, past their own children', () => {
+		expect(dropTarget(rows, 1, 3, false)).toEqual({ before: 'third', after: 'third' });
+		expect(dropTarget(rows, 1, 4, false)).toEqual({ before: null, after: 'third' });
+		expect(dropTarget(rows, 4, 2, false)).toEqual({ before: 'sibling', after: 'third' });
+		expect(dropTarget(rows, 4, 1, true)).toEqual({ before: 'child', after: 'third' });
+	});
+
+	it('never changes the parent', () => {
+		expect(dropTarget(rows, 1, 0, false)).toBeUndefined();
+		expect(dropTarget(rows, 1, 5, true)).toBeUndefined();
+		expect(dropTarget(rows, 2, 3, true)).toBeUndefined();
+	});
+
+	it('says nothing where the row would stay', () => {
+		expect(dropTarget(rows, 1, 1, true)).toBeUndefined();
+		expect(dropTarget(rows, 1, 2, false)).toBeUndefined();
+		expect(dropTarget(rows, 1, 3, true)).toBeUndefined();
+	});
+
+	it('moves a workspace at the top with its family', () => {
+		expect(dropTarget(rows, 0, 5, false)).toEqual({ before: null, after: 'other' });
+		expect(dropTarget(rows, 5, 3, false)).toBeUndefined();
+		expect(dropTarget(rows, 5, 0, true)).toEqual({ before: 'parent', after: 'other' });
 	});
 });
 
