@@ -14,7 +14,7 @@ tasks:
     label: Development server
     command: pnpm dev --port $PORT
     needs: [db]
-    url: http://localhost:{web}/
+    url: http://localhost:$PORT/
     default: true
 ```
 
@@ -30,8 +30,9 @@ browser blocks the tab, select the ready link in Tasks. For a command-only task,
 select its name to start it or to read its terminal once it has run. The control
 beside the name lets you stop a running command or run it again after it ends.
 
-- Use `needs` to name tasks that must be ready first. A URL can use `{web}` for the
-  port assigned to the command named `web`. This also starts that command when needed.
+- Use `needs` to name tasks that must be ready first. A task's URL can use `$PORT` for
+  its own command's port, and `{web}` for the port of the command named `web`, which it
+  then also starts when needed.
 - Set `default: true` on each task you want to launch together. The shortcut appears beside
   each default task. Press ⌥⌘R on macOS or Ctrl+Alt+R elsewhere. Shared dependencies start
   once. Geordi opens the URLs of the selected tasks and reuses running commands.

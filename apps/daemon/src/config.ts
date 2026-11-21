@@ -21,6 +21,8 @@ const MAX_URL = 500;
 const MAX_PORTS = 100;
 /** A job's port in a link: `{web}`. */
 const PLACEHOLDER = /\{([^{}]*)\}/g;
+/** A task's own port in its link, as in its command: `$PORT`. */
+const OWN_PORT = /\$PORT\b/g;
 /** Links only ever lead to this machine: the file is not to be a way to send people anywhere. */
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
 
@@ -91,17 +93,23 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
 		if (task.default !== undefined && typeof task.default !== 'boolean')
 			fail(`tasks.${name}.default must be a boolean`);
 		const needs = names(task.needs, `tasks.${name}.needs`, known);
-		// A port reference also starts its owner, except for the task's own port.
-		if (typeof task.url === 'string')
-			for (const [, owner] of task.url.matchAll(PLACEHOLDER))
+		let url = task.url;
+		if (typeof url === 'string') {
+			const said = url;
+			url = said.replace(OWN_PORT, `{${name}}`);
+			if (url !== said && task.command === undefined)
+				fail(`tasks.${name}.url: only a task with a command has a $PORT`);
+			// A port reference also starts its owner, except for the task's own port.
+			for (const [, owner] of (url as string).matchAll(PLACEHOLDER))
 				if (owner !== name && !needs.includes(owner)) needs.push(owner);
+		}
 		return {
 			name,
 			...displayLabel(task.label, `tasks.${name}`),
 			needs,
 			default: task.default === true,
 			command: task.command,
-			url: task.url
+			url
 		};
 	});
 	const byName = new Map(tasks.map((task) => [task.name, task]));
