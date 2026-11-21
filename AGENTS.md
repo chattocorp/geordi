@@ -105,8 +105,8 @@ it, perhaps you.
   - A **project** (FDR-012) is a workspace in no repository (`repoId: null`), for
     orchestrating: its agent works in a folder of its own (`ProjectRef`, `projects.ts` in the
     daemon; kept when archived), with no worktree, so `ref()` refuses it and `locate()` says
-    where it works. Projects are started from the repository chooser and listed above the
-    repositories. Code that assumes a repository must leave projects out.
+    where it works. Projects are deprecated: new ones can't be started (planning `nzqqn`
+    removes them); existing ones are listed above the repositories. Code that assumes a repository must leave projects out.
   - Turns are the agent's to begin and end (ADR-010): the daemon says `turn.started` (an
     agent may start one unasked, when something it ran in the background ends) and how it
     ended. The forge drops what a daemon says of a workspace that is not working, as far as
