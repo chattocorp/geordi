@@ -2,7 +2,7 @@
 	import type { ComponentProps, Snippet } from 'svelte';
 	import type { HTMLButtonAttributes } from 'svelte/elements';
 	import Composer from './Composer.svelte';
-	import Button from './Button.svelte';
+	import ComposerButton from './ComposerButton.svelte';
 	import { hint, pressed } from './keys.ts';
 
 	let {
@@ -73,7 +73,7 @@
 			{:else}{@render options?.()}{/if}
 			{@render meter?.()}
 		</div>
-		<div class="ml-auto flex h-9 items-center gap-2">
+		<div class="ml-auto flex h-7 items-center gap-2">
 			<!-- how to send: said while writing, and where there is room for it -->
 			<p
 				class="invisible hidden pr-1 text-xs whitespace-nowrap text-muted group-focus-within/composer:visible @4xl:block"
@@ -85,13 +85,13 @@
 					: 'Enter to send, Shift+Enter for a new line'}
 			</p>
 			{#if running}
-				<Button
+				<ComposerButton
 					class={secondaryAction}
 					icon="icon-[lucide--square]"
 					label="Stop the agent"
 					onclick={onstop}
 				/>
-				<Button
+				<ComposerButton
 					{...queueButton}
 					class={canSteer ? [queueButton.class, secondaryAction] : queueButton.class}
 					variant={canSteer ? undefined : 'primary'}
@@ -99,17 +99,22 @@
 					label="Queue: send this when the agent is done"
 				>
 					Queue
-				</Button>
-				{#if canSteer}<Button
+				</ComposerButton>
+				{#if canSteer}<ComposerButton
 						{...sendButton}
 						variant="primary"
 						icon="icon-[lucide--corner-down-right]"
 						label="Steer: send to the working agent"
 					>
 						Steer
-					</Button>{/if}
+					</ComposerButton>{/if}
 			{:else}
-				<Button {...sendButton} variant="primary" icon="icon-[lucide--arrow-up]" label="Send" />
+				<ComposerButton
+					{...sendButton}
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					label="Send"
+				/>
 			{/if}
 		</div>
 	{/snippet}

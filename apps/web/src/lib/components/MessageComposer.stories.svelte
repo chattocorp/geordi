@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, userEvent, waitFor, within } from 'storybook/test';
-	import Button from '@geordi/ui/Button.svelte';
+	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 	import MessageComposer from './MessageComposer.svelte';
 
 	const { Story } = defineMeta({ title: 'Workspace/MessageComposer', component: MessageComposer });
@@ -75,7 +75,7 @@
 	<div class="max-w-2xl">
 		<MessageComposer imageField={{ name: 'images' }} {form} placeholder="Reply to the agent">
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"

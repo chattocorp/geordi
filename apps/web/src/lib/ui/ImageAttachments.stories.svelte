@@ -3,7 +3,7 @@
 	import { expect, fn, userEvent, waitFor } from 'storybook/test';
 	import ImageAttachments from './ImageAttachments.svelte';
 	import Composer from '@geordi/ui/Composer.svelte';
-	import Button from '@geordi/ui/Button.svelte';
+	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Image attachments', component: ImageAttachments });
 	const picture = (width: number, height: number) =>
@@ -34,7 +34,7 @@
 				/>
 			{/snippet}
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -81,7 +81,7 @@
 			placeholder="Describe these images"
 		>
 			{#snippet attachments()}<ImageAttachments images={samples} onremove={removed} />{/snippet}
-			{#snippet footer()}<Button
+			{#snippet footer()}<ComposerButton
 					label="Send"
 					icon="icon-[lucide--arrow-up]"
 					variant="primary"

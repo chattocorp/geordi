@@ -3,7 +3,7 @@
 	import { fuzzyMatch } from '@geordi/protocol/fuzzy';
 	import { expect, fn, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Button from '@geordi/ui/Button.svelte';
+	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
 	import Composer from '@geordi/ui/Composer.svelte';
 	import Select from './Select.svelte';
@@ -70,9 +70,14 @@
 	<div class="max-w-2xl">
 		<Composer {form} bind:value={prompt} focused rows={5} placeholder="What should the agent do?">
 			{#snippet footer()}
-				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
+				<ComposerButton
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					class="ml-auto"
+				>
 					{prompt.trim() ? 'Make it so' : 'Start workspace'}
-				</Button>
+				</ComposerButton>
 			{/snippet}
 		</Composer>
 	</div>
@@ -91,9 +96,14 @@
 						{ value: 'sonnet', label: 'Sonnet' }
 					]}
 				/>
-				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
+				<ComposerButton
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					class="ml-auto"
+				>
 					Start workspace
-				</Button>
+				</ComposerButton>
 			{/snippet}
 		</Composer>
 	</div>
@@ -155,7 +165,7 @@
 		<div class="max-w-2xl">
 			<Composer {form} live={args.live} rows={6} placeholder="Steer the agent, or queue a message">
 				{#snippet footer()}
-					<Button
+					<ComposerButton
 						type="submit"
 						variant="primary"
 						icon="icon-[lucide--arrow-up]"
@@ -178,7 +188,7 @@
 			problems={['Write something first']}
 		>
 			{#snippet footer()}
-				<Button icon="icon-[lucide--square]" class="ml-auto">Stop</Button>
+				<ComposerButton icon="icon-[lucide--square]" class="ml-auto">Stop</ComposerButton>
 			{/snippet}
 		</Composer>
 	</div>
@@ -197,7 +207,7 @@
 				</div>
 			{/snippet}
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -238,7 +248,7 @@
 	<div class="max-w-2xl pt-80">
 		<Composer {form} rows={2} completions={commands} placeholder="Reply to the agent">
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -264,7 +274,7 @@
 	<div class="max-w-2xl pt-80">
 		<Composer {form} rows={2} completions={many} placeholder="Reply to the agent">
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -286,7 +296,7 @@
 			suggestion="Merge PR #308 once the checks pass."
 		>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -325,7 +335,7 @@
 	<div class="max-w-sm">
 		<Composer {form} rows={2} placeholder="Reply to the agent" suggestion={longSuggestion}>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -366,7 +376,7 @@
 			suggestion={Array(12).fill(longSuggestion).join('\n\n')}
 		>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -388,7 +398,7 @@
 			suggestion="Run the tests again."
 		>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -462,7 +472,7 @@
 		placeholder="Reply to the agent"
 		suggestion="Run the tests again."
 	>
-		{#snippet footer()}<Button type="submit">Send</Button>{/snippet}
+		{#snippet footer()}<ComposerButton type="submit">Send</ComposerButton>{/snippet}
 	</Composer>
 </Story>
 
@@ -531,9 +541,9 @@
 					return indices ? [{ path, indices }] : [];
 				})}
 		>
-			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">
+			{#snippet footer()}<ComposerButton type="submit" variant="primary" class="ml-auto">
 					Send
-				</Button>{/snippet}
+				</ComposerButton>{/snippet}
 		</Composer>
 	</div>
 </Story>
@@ -574,9 +584,9 @@
 >
 	<div class="mx-auto mt-64 max-w-2xl">
 		<Composer form={suggestionForm} files={slowFiles} placeholder="Reply to the agent">
-			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">
+			{#snippet footer()}<ComposerButton type="submit" variant="primary" class="ml-auto">
 					Send
-				</Button>{/snippet}
+				</ComposerButton>{/snippet}
 		</Composer>
 	</div>
 </Story>

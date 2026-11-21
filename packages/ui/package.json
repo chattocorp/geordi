@@ -11,6 +11,7 @@
 		"./ButtonGroup.svelte": "./src/ButtonGroup.svelte",
 		"./Changes.svelte": "./src/Changes.svelte",
 		"./Composer.svelte": "./src/Composer.svelte",
+		"./ComposerButton.svelte": "./src/ComposerButton.svelte",
 		"./DiffSection.svelte": "./src/DiffSection.svelte",
 		"./DiffStat.svelte": "./src/DiffStat.svelte",
 		"./DiffView.svelte": "./src/DiffView.svelte",
