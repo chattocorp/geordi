@@ -14,6 +14,7 @@ import { isAbsolute, join, sep } from 'node:path';
 import {
 	MAX_IMAGE_BYTES,
 	pictureTypeOf,
+	soundTypeOf,
 	type FileContent,
 	type Changes,
 	type FileChange,
@@ -124,6 +125,8 @@ export function readText(worktree: Worktree, path: string) {
 
 function fileContent(bytes: Buffer | null): FileContent | null {
 	if (!bytes || bytes.length > MAX_IMAGE_BYTES) return null;
+	const sound = soundTypeOf(bytes);
+	if (sound) return { mediaType: sound, data: bytes.toString('base64') };
 	const mediaType = pictureTypeOf(bytes);
 	if (mediaType && mediaType !== 'image/svg+xml')
 		return { mediaType, data: bytes.toString('base64') };
@@ -132,8 +135,11 @@ function fileContent(bytes: Buffer | null): FileContent | null {
 
 export function readWorktreePicture(worktree: Worktree, path: string) {
 	const bytes = readBytes(worktree, path, MAX_IMAGE_BYTES);
-	const mediaType = bytes && pictureTypeOf(bytes);
-	return bytes && mediaType && { mediaType, data: bytes.toString('base64') };
+	if (!bytes) return null;
+	const sound = soundTypeOf(bytes);
+	if (sound) return { mediaType: sound, data: bytes.toString('base64') };
+	const mediaType = pictureTypeOf(bytes);
+	return mediaType && { mediaType, data: bytes.toString('base64') };
 }
 
 export function readSource(worktree: Worktree, path: string) {

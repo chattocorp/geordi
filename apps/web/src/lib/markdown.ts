@@ -68,6 +68,9 @@ md.renderer.rules.code_comment = (tokens, index, _options, env) => {
 	return `<p><strong>${escapeHtml(title)}</strong> · ${link}<br>${escapeHtml(body)}</p>\n`;
 };
 
+/** Names of sound files, which a Markdown image of them plays. */
+const SOUND = /\.(wav|mp3|ogg|oga|opus|flac|m4a)$/i;
+
 /** Whether a link leads to a file where the agent works, rather than somewhere on the net. */
 const local = (src: string) => src !== '' && !/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src);
 
@@ -95,6 +98,9 @@ md.renderer.rules.image = (tokens, index, _options, env) => {
 	const url = escapeHtml(
 		`${pictures}${pictures.includes('?') ? '&' : '?'}path=${encodeURIComponent(path)}`
 	);
+	// A sound gets a player. Its name only picks the element: the forge serves what the bytes are.
+	if (SOUND.test(path))
+		return `<audio controls preload="metadata" src="${url}" aria-label="${alt || escapeHtml(path)}" data-picture="${escapeHtml(path)}"></audio>`;
 	return `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${alt}" data-picture="${escapeHtml(path)}" loading="lazy"></a>`;
 };
 

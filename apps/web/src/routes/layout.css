@@ -546,9 +546,13 @@
 	}
 
 	/* A picture the agent shows (see markdown.ts): no taller than leaves the words around it in view. */
-	[data-picture],
+	img[data-picture],
 	[data-svg] {
 		@apply max-h-96 rounded-control ring-1 ring-line/60;
+	}
+	/* A sound the agent shows: played where it is named. */
+	audio[data-picture] {
+		@apply my-3 w-full max-w-md;
 	}
 	[data-svg] {
 		@apply my-5 cursor-zoom-in;

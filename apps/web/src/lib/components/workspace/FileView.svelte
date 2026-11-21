@@ -26,15 +26,19 @@
 	let side = $state('after');
 	let mode = $derived(diff || line !== undefined ? 'text' : 'rendered');
 	const file = $derived((binaryPair && side === 'before' ? old : current) ?? old);
+	const media = $derived(
+		file && typeof file === 'object' ? `data:${file.mediaType};base64,${file.data}` : undefined
+	);
+	const sound = $derived(media?.startsWith('data:audio/') ? media : undefined);
 	const image = $derived(
-		file && typeof file === 'object'
-			? `data:${file.mediaType};base64,${file.data}`
+		media && !sound
+			? media
 			: typeof file === 'string' && /\.svg$/i.test(path)
 				? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file)}`
 				: undefined
 	);
 	const markdown = $derived(typeof file === 'string' && /\.(md|markdown|mdown|mkd)$/i.test(path));
-	const rich = $derived(Boolean(image || markdown));
+	const rich = $derived(Boolean(image || sound || markdown));
 	let expanded = $state(false);
 	let failed = $state<string>();
 	let ready = $state(false);
@@ -42,7 +46,7 @@
 
 {#if binaryPair}
 	<Toolbar
-		label="Image version"
+		label="File version"
 		items={[
 			{
 				label: 'Before',
@@ -52,7 +56,7 @@
 			},
 			{
 				label: 'After',
-				icon: 'icon-[lucide--image]',
+				icon: sound ? 'icon-[lucide--audio-lines]' : 'icon-[lucide--image]',
 				pressed: side === 'after',
 				onclick: () => (side = 'after')
 			}
@@ -77,13 +81,25 @@
 			}
 		]}
 	/>
-{:else if image && current === null}
+{:else if (image || sound) && current === null}
 	<p class="px-5 text-xs text-muted">Deleted file</p>
 {/if}
 
 {#if rich && (mode === 'rendered' || typeof file !== 'string')}
 	<div class="scroller p-5">
-		{#if image}
+		{#if sound}
+			{#if failed === sound}
+				<p class="text-sm text-muted">This sound could not be played.</p>
+			{:else}
+				<audio
+					controls
+					src={sound}
+					aria-label={path}
+					class="mx-auto w-full max-w-prose"
+					onerror={() => (failed = sound)}
+				></audio>
+			{/if}
+		{:else if image}
 			{#if failed === image}
 				<p class="text-sm text-muted">This image could not be displayed.</p>
 			{:else}
