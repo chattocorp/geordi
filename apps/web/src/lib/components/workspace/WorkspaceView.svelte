@@ -194,10 +194,19 @@
 	const ribbonPosition = getRibbonPosition();
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
-	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
+	const frame = persisted<{
+		side: number;
+		changes: number;
+		open: boolean;
+		/** The sheet beside the conversation folded to its tab row, if one is. */
+		fold?: 'side' | 'dock' | null;
+	}>('geordi:frame', { side: 0.28, changes: 0.45, open: true, fold: null });
 	/** How the Changes tab shows its files: a preference of this browser, like the frame. */
 	const changesView = persisted<'list' | 'tree'>('geordi:changes-view', 'list');
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
+	/** Folds one of the two sheets beside the conversation, or unfolds it: never both at once. */
+	const toggleFold = (area: 'side' | 'dock') =>
+		(frame.current = { ...frame.current, fold: frame.current.fold === area ? null : area });
 
 	const terminalTitles = new SvelteMap<string, string>();
 	/** Terminals asked for just now, whose shells are still starting. */
@@ -594,6 +603,13 @@
 				if (job) stop(job);
 				else closeTerminal({ workspaceId: id, terminal }).catch(() => {});
 			}
+		}
+		// Using a folded sheet's tabs, or opening a window in it, unfolds it; closing one doesn't.
+		const folded = frame.current.fold;
+		if (folded && next[folded]) {
+			const tabs = new Set(tabsOf(after[folded]));
+			if (tabsOf(layouts[folded]).every((tab) => tabs.has(tab)))
+				frame.current = { ...frame.current, fold: null };
 		}
 		arrangement.current = { ...after, diffPath: remaining.includes('diff') ? diffPath : undefined };
 	}
@@ -1263,11 +1279,22 @@
 		{/snippet}
 		{#snippet b()}
 			{#if workspace.worktree}
+				{#snippet foldButton(area: 'side' | 'dock')}
+					{@const folded = frame.current.fold === area}
+					<Button
+						variant="ghost"
+						size="sm"
+						icon={folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'}
+						label={folded ? 'Unfold' : 'Fold'}
+						onclick={() => toggleFold(area)}
+					/>
+				{/snippet}
 				<!-- each a sheet of its own, like the conversation: their shapes are what parts them -->
 				<Split
 					dir="column"
 					bare
 					min={[120, 120]}
+					fold={frame.current.fold === 'side' ? 'a' : frame.current.fold === 'dock' ? 'b' : null}
 					bind:ratio={
 						() => frame.current.changes,
 						(changes) => (frame.current = { ...frame.current, changes })
@@ -1275,7 +1302,12 @@
 				>
 					{#snippet a()}
 						<!-- what the workspace has done: its changes, and what they mean for the next releases -->
-						<div class="mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
+						<div
+							class={[
+								'mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet',
+								frame.current.fold === 'side' && 'overflow-hidden'
+							]}
+						>
 							<Panes
 								layout={layouts.side}
 								onchange={(next) => arrange({ side: next })}
@@ -1286,11 +1318,18 @@
 								onreceive={receive('side')}
 								ondoubleclick={promote}
 								splits={false}
-							/>
+							>
+								{#snippet lead()}{@render foldButton('side')}{/snippet}
+							</Panes>
 						</div>
 					{/snippet}
 					{#snippet b()}
-						<div class="mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
+						<div
+							class={[
+								'mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet',
+								frame.current.fold === 'dock' && 'overflow-hidden'
+							]}
+						>
 							<Panes
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
@@ -1304,7 +1343,9 @@
 								newTab={workspace.archivedAt ? undefined : newTerminal}
 								newLabel="New terminal"
 								newIcon="icon-[lucide--square-terminal]"
-							/>
+							>
+								{#snippet lead()}{@render foldButton('dock')}{/snippet}
+							</Panes>
 						</div>
 					{/snippet}
 				</Split>

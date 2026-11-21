@@ -16,6 +16,11 @@
 		 * whatever room there is: in a small window it alone would squeeze them to nothing.
 		 */
 		min?: [a: number, b: number];
+		/**
+		 * Folds one side to what it needs of itself (its own content's size, such as a tab
+		 * row), giving the other the rest; without the divider meanwhile.
+		 */
+		fold?: 'a' | 'b' | null;
 		/** No line between the two: for where their shapes already set them apart. */
 		bare?: boolean;
 	};
@@ -25,6 +30,7 @@
 		a,
 		b,
 		collapsed = false,
+		fold = null,
 		min = [0, 0],
 		minRatio = 0.12,
 		bare = false
@@ -38,6 +44,9 @@
 		// too little room for both: no dragging will help
 		return least > most ? share : Math.min(most, Math.max(least, value));
 	}
+	/** How each side grows: the share it has, all the room left over, or none. */
+	const flexOf = (side: 'a' | 'b', own: number) =>
+		fold === side ? '0 0 auto' : fold ? '1 1 0' : `${own} 1 0`;
 	const extent = $derived(dir === 'row' ? 'width' : 'height');
 
 	let root: HTMLElement;
@@ -72,9 +81,9 @@
 	<!-- a share below 1 would leave room unused once `b` is hidden -->
 	<div
 		class="flex min-h-0 min-w-0 flex-col"
-		style:flex="{collapsed ? 1 : share} 1 0"
-		style:min-width={dir === 'row' ? `${min[0]}px` : undefined}
-		style:min-height={dir === 'column' ? `${min[0]}px` : undefined}
+		style:flex={collapsed ? '1 1 0' : flexOf('a', share)}
+		style:min-width={dir === 'row' && fold !== 'a' ? `${min[0]}px` : undefined}
+		style:min-height={dir === 'column' && fold !== 'a' ? `${min[0]}px` : undefined}
 	>
 		{@render a()}
 	</div>
@@ -88,7 +97,7 @@
 		onpointerdown={drag}
 		onkeydown={nudge}
 		class={[
-			collapsed && 'hidden',
+			(collapsed || fold) && 'hidden',
 			!bare && 'bg-line',
 			'relative z-10 shrink-0 touch-none select-none after:absolute focus-visible:bg-accent',
 			dir === 'row'
@@ -98,9 +107,9 @@
 	></div>
 	<div
 		class={['min-h-0 min-w-0 flex-col', collapsed ? 'hidden' : 'flex']}
-		style:flex="{1 - share} 1 0"
-		style:min-width={dir === 'row' ? `${min[1]}px` : undefined}
-		style:min-height={dir === 'column' ? `${min[1]}px` : undefined}
+		style:flex={flexOf('b', 1 - share)}
+		style:min-width={dir === 'row' && fold !== 'b' ? `${min[1]}px` : undefined}
+		style:min-height={dir === 'column' && fold !== 'b' ? `${min[1]}px` : undefined}
 	>
 		{@render b()}
 	</div>

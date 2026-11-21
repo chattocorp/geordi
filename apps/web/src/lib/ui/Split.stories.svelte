@@ -70,3 +70,21 @@
 		</Split>
 	</div>
 </Story>
+
+<!-- A folded side keeps only what it needs of itself, such as a sheet's tab row. -->
+<Story
+	name="Folded"
+	asChild
+	play={async ({ canvas }) => {
+		await expect(canvas.getByText('Folded to its bar').getBoundingClientRect().height).toBeLessThan(
+			48
+		);
+	}}
+>
+	<div class="flex h-48 card">
+		<Split dir="column" ratio={0.5} fold="a">
+			{#snippet a()}<div class="pane-bar px-2 text-sm">Folded to its bar</div>{/snippet}
+			{#snippet b()}{@render pane('B has the rest')}{/snippet}
+		</Split>
+	</div>
+</Story>
