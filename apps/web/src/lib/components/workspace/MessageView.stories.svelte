@@ -622,10 +622,10 @@
 	asChild
 	play={async ({ canvas }) => {
 		for (const [name, id] of [
-			['From the agent in “Simplify release CI”', 'parent'],
-			['From Review', 'peer']
+			['Simplify release CI', 'parent'],
+			['Review', 'peer']
 		]) {
-			await expect(await canvas.findByRole('link', { name })).toHaveAttribute(
+			await expect(await canvas.findByRole('link', { name, exact: true })).toHaveAttribute(
 				'href',
 				`/workspaces/${id}?agent=${id}`
 			);

@@ -2,4 +2,4 @@
 type: fix
 ---
 
-Select an agent’s name above a message to open its conversation.
+Select the workspace title above a message to open its conversation.
