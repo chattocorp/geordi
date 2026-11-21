@@ -9,7 +9,12 @@
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
-	import { initRibbonPosition, openSettings } from '#lib/components/settings.svelte.ts';
+	import { initRibbonPosition, openSettings, sections } from '#lib/components/settings.svelte.ts';
+	import CommandPalette from '#lib/ui/CommandPalette.svelte';
+	import { runShortcut } from '#lib/commands.ts';
+	import { globalCommands } from '#lib/components/commands.ts';
+	import AddRepository from '#lib/components/AddRepository.svelte';
+	import { theme } from '#lib/theme.svelte.ts';
 	import { daemon } from '#lib/daemon.svelte.ts';
 	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
@@ -94,12 +99,6 @@
 		activeOnDay(nav.current?.workspaces ?? [], todayOnly ? day : null)
 	);
 
-	/** Shows only the repository of the workspace on screen; with that shown alone already, or none on screen, all again. */
-	function toggleFocus() {
-		const repoId = nav.current?.workspaces.find(({ id }) => id === viewed)?.repoId ?? null;
-		focus.current = repoId === focus.current ? null : repoId;
-	}
-
 	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
 	function stepWorkspace(step: 1 | -1 | 'unread') {
 		const all = nav.current;
@@ -117,6 +116,59 @@
 			step === 'unread' ? nextUnread(order, viewed, unread) : stepThrough(order, viewed, step);
 		if (to) void goto(resolve('/workspaces/[id]', { id: to.id }));
 	}
+
+	/** Begins a workspace, on the start page; `choosing` its repository first. */
+	function newWorkspace(choosing = false) {
+		if (choosing) pickRepo();
+		if (page.url.pathname !== resolve('/')) void goto(resolve('/'));
+	}
+
+	// Every workspace to go to, and what can be done from anywhere, found by typing a few letters.
+	let commands = $state(false);
+	let adding = $state<AddRepository>();
+	/**
+	 * The workspaces as recently active as they were when the palette opened: kept while it
+	 * is open, so that agents at work don't reorder the list under the keyboard.
+	 */
+	let recency = $state.raw<string[]>([]);
+	$effect.pre(() => {
+		if (!commands) return;
+		recency = untrack(() =>
+			[...(nav.current?.workspaces ?? [])]
+				.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+				.map(({ id }) => id)
+		);
+	});
+	const commandList = $derived(
+		globalCommands({
+			nav: nav.current,
+			viewed,
+			recency,
+			anyUnread: unread.size > 0,
+			sidebarOpen: sidebar.current.open,
+			wide: (innerWidth.current ?? 0) >= 768,
+			grouped: grouped.current,
+			todayOnly,
+			focus: focus.current,
+			theme: theme.current,
+			sections,
+			newWorkspace,
+			open: (id) => void goto(resolve('/workspaces/[id]', { id })),
+			step: stepWorkspace,
+			addRepository: () => adding?.start(),
+			openArchive: () => void goto(resolve('/archive')),
+			openSettings,
+			toggleSidebar,
+			filterRepositories: () => {
+				if (!sidebar.current.open) toggleSidebar();
+				repositoryPickerOpen = true;
+			},
+			toggleGrouped: () => (grouped.current = !grouped.current),
+			toggleToday: () => (todayOnly = !todayOnly),
+			setFocus: (repo) => (focus.current = repo),
+			setTheme: (next) => (theme.current = next)
+		})
+	);
 
 	function resize(event: PointerEvent & { currentTarget: HTMLElement }) {
 		const handle = event.currentTarget;
@@ -150,42 +202,9 @@
 <svelte:window
 	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
-		const newIn = pressed(event, 'newWorkspaceIn');
-		if (newIn || pressed(event, 'newWorkspace')) {
-			event.preventDefault();
-			if (event.repeat) return;
-			if (newIn) pickRepo();
-			if (page.url.pathname !== resolve('/')) void goto(resolve('/'));
-		} else if (pressed(event, 'previousWorkspace') || pressed(event, 'nextWorkspace')) {
-			event.preventDefault();
-			stepWorkspace(pressed(event, 'nextWorkspace') ? 1 : -1);
-		} else if (pressed(event, 'nextUnreadWorkspace')) {
-			event.preventDefault();
-			if (!event.repeat) stepWorkspace('unread');
-		} else if (pressed(event, 'settings')) {
-			event.preventDefault();
-			openSettings();
-		} else if (pressed(event, 'todayOnly')) {
-			event.preventDefault();
-			if (!event.repeat) todayOnly = !todayOnly;
-		} else if (pressed(event, 'groupByRepo')) {
-			event.preventDefault();
-			if (!event.repeat) grouped.current = !grouped.current;
-		} else if (
-			pressed(event, 'repositoryFilter') &&
-			window.matchMedia('(min-width: 48rem)').matches
-		) {
-			event.preventDefault();
-			if (event.repeat) return;
-			if (!sidebar.current.open) toggleSidebar();
-			repositoryPickerOpen = true;
-		} else if (pressed(event, 'focusRepo')) {
-			event.preventDefault();
-			toggleFocus();
-		} else if (pressed(event, 'toggleSidebar')) {
-			event.preventDefault();
-			toggleSidebar();
-		}
+		if (!pressed(event, 'commands')) return void runShortcut(event, commandList);
+		event.preventDefault();
+		if (!event.repeat) commands = !commands;
 	}}
 />
 <!-- the desktop app's "Settings…" menu item asks for them this way -->
@@ -282,6 +301,16 @@
 </div>
 
 <ContextMenu />
+<CommandPalette
+	bind:open={commands}
+	label="Go to a workspace, or do something"
+	placeholder="Workspaces and commands…"
+	items={commandList}
+/>
+<AddRepository
+	bind:this={adding}
+	onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
+/>
 <ArchiveConfirm asking={archiving.asking} />
 
 <ReleaseConfirm asking={releaseReview.asking} />

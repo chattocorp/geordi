@@ -57,7 +57,18 @@ export const shortcuts = {
 		group: 'General'
 	},
 	toggleSidebar: { code: 'KeyB', label: 'Toggle the sidebar', group: 'General' },
+	commands: {
+		code: 'KeyP',
+		shift: true,
+		label: 'Find workspaces and commands',
+		group: 'General'
+	},
 	settings: { key: ',', label: 'Open the settings', group: 'General' },
+	palette: {
+		code: 'KeyP',
+		label: 'Find conversations, terminals, tasks and files of this workspace',
+		group: 'Workspace'
+	},
 	toggleSide: {
 		code: 'KeyB',
 		alt: true,
