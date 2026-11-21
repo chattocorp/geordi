@@ -55,6 +55,9 @@
 	import Button from '@geordi/ui/Button.svelte';
 	import PortConflictDialog from './PortConflictDialog.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
+	import CommandPalette from '#lib/ui/CommandPalette.svelte';
+	import { runShortcut } from '#lib/commands.ts';
+	import { workspaceCommands } from './commands.ts';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
 	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
@@ -541,31 +544,25 @@
 		return `terminal:${name}`;
 	}
 
-	function terminalShortcut(event: KeyboardEvent) {
-		if (
-			!pressed(event, 'terminal') ||
-			project ||
-			workspace.archivedAt ||
-			!workspace.worktree ||
-			worktreeGone
-		)
-			return;
-		event.preventDefault();
-		event.stopPropagation();
-		if (event.repeat) return;
-
-		const shells = everywhere().filter((tab) => terminalOf(tab) && !jobOf(terminalOf(tab)));
+	/** Focuses the terminal in view (or the first), or opens a new one when already in one. */
+	function goToTerminal() {
+		const shells = shellTabs();
 		const selected = Object.values(layouts)
 			.flatMap(groupsOf)
 			.find((group) => group.active && shells.includes(group.active));
 		const existing = selected?.active ?? shells[0];
-		if (existing && !document.activeElement?.closest('.xterm')) {
-			focusTerminal = terminalOf(existing);
-			showTab(existing);
-		} else {
-			if (!frame.current.open) toggleSide();
-			arrange({ dock: open(dock, newTerminal()) });
-		}
+		if (existing && !document.activeElement?.closest('.xterm')) showShell(existing);
+		else openNewTerminal();
+	}
+	function showShell(tab: string) {
+		focusTerminal = terminalOf(tab);
+		showTab(tab);
+	}
+	/** Terminals without a job in them, in the order they were opened. */
+	const shellTabs = () => everywhere().filter((tab) => terminalOf(tab) && !jobOf(terminalOf(tab)));
+	function openNewTerminal() {
+		if (!frame.current.open) toggleSide();
+		arrange({ dock: open(dock, newTerminal()) });
 	}
 
 	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
@@ -763,6 +760,10 @@
 	const worktreeGone = $derived(
 		!!workspace.worktree && !!checked?.missing && !running && !workspace.archivedAt
 	);
+	/** Terminals are for a workspace with a worktree to work in. */
+	const terminalsOpen = $derived(
+		!project && !workspace.archivedAt && !!workspace.worktree && !worktreeGone
+	);
 	const standingState = $derived(
 		workspace.archivedAt
 			? { archived: true, changes: null, upstream: null }
@@ -901,24 +902,99 @@
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
+
+	// Everything in the workspace to go to, or do, found by typing a few letters of it.
+	let palette = $state(false);
+	const commandList = $derived(
+		workspaceCommands({
+			conversations: [
+				{ tab: CHAT, label: agentName[workspace.agent], icon: 'icon-[lucide--message-square]' },
+				...workspace.aides.map((aide) => ({
+					tab: `agent:${aide.id}`,
+					label: aide.title,
+					icon: 'icon-[lucide--message-square]',
+					keywords: agentName[aide.agent]
+				})),
+				...[...reviewers].map(([tab, { child, parentName }]) => ({
+					tab,
+					label: child.title || 'Subagent',
+					icon: 'icon-[lucide--bot]',
+					keywords: parentName
+				}))
+			],
+			canBegin: !workspace.archivedAt,
+			shells: terminalsOpen
+				? shellTabs()
+						.sort()
+						.map((tab, index) => ({
+							tab,
+							title: terminalTitles.get(tab) || `Terminal ${index + 1}`
+						}))
+				: null,
+			canRunDefault: !!(runJob || runLink || (config?.tasks && runnable)) && !workspace.archivedAt,
+			// nothing to run without a worktree to run it in
+			tasks: !terminalsOpen
+				? []
+				: (config?.tasks?.map(({ name, label }) => ({ name, label: label ?? name })) ?? null),
+			jobs: !terminalsOpen
+				? []
+				: jobs.map(({ name }) => ({ name, label: labelOf(name), live: runLive(name) })),
+			links: !terminalsOpen ? [] : links.map(({ name, label }) => ({ name, label: label ?? name })),
+			outputs: workspace.terminals
+				.filter(isRunTerminal)
+				.map((terminal) => jobOf(terminal)!)
+				.map((name) => ({ name, label: labelOf(name) })),
+			windows: project
+				? null
+				: (
+						[
+							[CHANGES, 'Changes', 'icon-[lucide--file-diff]'],
+							[COMBINED, 'Combined diff', 'icon-[lucide--files]'],
+							[PR, `Pull request #${pull?.number}`, 'icon-[lucide--git-pull-request]'],
+							[CHANGESET, 'Changeset', 'icon-[lucide--package]'],
+							[RUN, 'Run', 'icon-[lucide--play]']
+						] as const
+					)
+						.filter(([tab]) => exists(tab))
+						.map(([tab, label, icon]) => ({ tab, label, icon })),
+			sideOpen: project || workspace.archivedAt ? null : frame.current.open,
+			changedFiles: git?.changes?.files.map((file) => file.path) ?? [],
+			actions: offered.filter((action) => !pending.includes(action.id)),
+
+			show: (tab) => {
+				if (terminalOf(tab)) return showShell(tab);
+				showTab(tab);
+				if (tab === CHAT) focusChat = true;
+			},
+			newConversation: () => showTab(newConversation()),
+			terminal: goToTerminal,
+			newTerminal: openNewTerminal,
+			runDefault,
+			runTask: (name) => launchTasks([name]),
+			start: (job) => start([job]),
+			stop,
+			visit: (name) => {
+				const link = links.find((link) => link.name === name);
+				if (link) visit(link);
+			},
+			showOutput: show,
+			toggleSide,
+			openDiff,
+			act: (action) => void act(action)
+		})
+	);
 </script>
 
 <svelte:head><title>{workspace.title} · Geordi</title></svelte:head>
 
 <svelte:window
-	onkeydowncapture={terminalShortcut}
-	onkeydown={(event) => {
-		if (pressed(event, 'toggleSide')) {
+	onkeydowncapture={(event) => {
+		// before a terminal or the reply box can make them their own
+		if (pressed(event, 'palette')) {
 			event.preventDefault();
-			toggleSide();
-		} else if (
-			pressed(event, 'runDefault') &&
-			(runJob || runLink || (config?.tasks && runnable)) &&
-			!workspace.archivedAt
-		) {
-			event.preventDefault();
-			runDefault();
-		}
+			if (!event.repeat) palette = !palette;
+		} else if (!runShortcut(event, commandList)) return;
+		event.stopPropagation();
 	}}
 />
 
@@ -1402,6 +1478,13 @@
 		</div>
 	</div>
 </Dialog>
+
+<CommandPalette
+	bind:open={palette}
+	label="Go to or do in this workspace"
+	placeholder="Conversations, terminals, tasks, files…"
+	items={commandList}
+/>
 
 <PortConflictDialog
 	conflict={blocked?.workspaceId === id ? blocked.conflict : null}
