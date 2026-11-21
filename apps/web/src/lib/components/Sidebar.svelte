@@ -571,7 +571,17 @@
 
 {#snippet setAside(repoId: string | null, items: Item[])}
 	{@const canSetAside = !!dragged && !dragged.deferred && droppable(repoId)}
-	<details aria-label="Set aside" class="group/aside mt-1">
+	<details
+		aria-label="Set aside"
+		class="group/aside mt-1"
+		{@attach (details) => {
+			if (!canSetAside || overSetAside !== repoId || details.open) return;
+			const timer = setTimeout(() => {
+				details.open = true;
+			}, 500);
+			return () => clearTimeout(timer);
+		}}
+	>
 		<summary
 			title="Show set-aside workspaces or drop a workspace here"
 			class={[

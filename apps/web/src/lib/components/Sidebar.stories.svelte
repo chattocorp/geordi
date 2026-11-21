@@ -550,8 +550,13 @@
 		await fireEvent.dragStart(row);
 		await expect(within(own).getByText('Drop to set aside')).toBeVisible();
 		await expect(within(other).queryByText('Drop to set aside')).toBeNull();
+		await fireEvent.dragOver(within(own).getByText('Drop to set aside'));
+		await expect(own).not.toHaveAttribute('open');
+		await waitFor(() => expect(own).toHaveAttribute('open'));
+		const revealed = within(own).getByText('Revisit the parser').closest('li')!;
+		await fireEvent.dragOver(revealed, { clientY: revealed.getBoundingClientRect().top + 1 });
+		await expect(revealed).toHaveClass('row-drop-before');
 		await fireEvent.dragEnd(row);
-		await fireEvent.click(within(own).getByText('Set aside'));
 		await expect(within(own).getByRole('link', { name: 'Revisit the parser' })).toHaveAttribute(
 			'href',
 			'/workspaces/later'

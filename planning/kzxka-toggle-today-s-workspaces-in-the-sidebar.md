@@ -23,3 +23,5 @@ Revealed workspaces use the regular sidebar rows. Verified matching typography a
 Drag a workspace out of Set aside to return it to Today, or use Return to Today in its menu. Verified a drop into an empty repository list and onto an active workspace in flat view. Returning the workspace keeps its conversation and agent state.
 
 Today and Set aside share row reordering. Verified exact insertion positions within and across both lists in the running forge, including the flat view. The move records the new order and Today membership together.
+
+Holding a dragged workspace over the closed Set aside header for 500 ms opens it. Verified that leaving early cancels expansion and that the same drag can insert a workspace between two revealed rows.
