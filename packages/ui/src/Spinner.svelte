@@ -1,11 +1,15 @@
 <script lang="ts">
 	import type { Attachment } from 'svelte/attachments';
 
-	/** Something is working. `label` says what, for those who can't see it turn. */
+	/**
+	 * Something is working. `label` says what, for those who can't see it turn. `still`
+	 * stands it still, all dots unlit: work goes on, but not the agent's own (its background tasks).
+	 */
 	type Props = {
 		label?: string;
+		still?: boolean;
 	};
-	let { label = 'Working' }: Props = $props();
+	let { label = 'Working', still = false }: Props = $props();
 
 	/**
 	 * The classic Braille dots going round: two columns of three, half of them lit. Drawn
@@ -33,7 +37,13 @@
 	Turned by the browser, not by us: it goes round also while the page is busy with
 	something else (waiting for the server, say), which is just when it is looked at.
 -->
-<span role="img" aria-label={label} title={label} class="spinner shrink-0" {@attach inStep}>
+<span
+	role="img"
+	aria-label={label}
+	title={label}
+	class={['spinner shrink-0', still && 'still']}
+	{@attach inStep}
+>
 	{#each DOTS as [column, row], index (index)}
 		<span style:grid-area="{row} / {column}" style:--i={index}></span>
 	{/each}
@@ -74,5 +84,10 @@
 		.spinner > span:nth-child(-n + 3) {
 			opacity: 1;
 		}
+	}
+	/* one that stands still has none of its dots lit, whatever the preference */
+	.spinner.still > span {
+		animation: none;
+		opacity: 0.2;
 	}
 </style>

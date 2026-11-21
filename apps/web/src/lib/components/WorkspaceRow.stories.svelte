@@ -116,10 +116,10 @@
 		const icon = canvas.getByRole('img', { name: '2 running in the background' });
 		await expect(icon.closest('a, button')).toBeNull();
 		await expect(getComputedStyle(icon).backgroundColor).toBe('rgba(0, 0, 0, 0)');
-		// beside the agent's own activity, first
-		const beside = canvas.getByRole('img', { name: '1 running in the background' });
-		const working = canvas.getByRole('img', { name: 'Working' });
-		await expect(beside.compareDocumentPosition(working)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+		// a spinner standing still
+		await expect(icon.querySelector('.spinner')).toHaveClass('still');
+		// while the agent works, its own spinner says enough
+		await expect(canvas.queryByRole('img', { name: '1 running in the background' })).toBeNull();
 	}}
 >
 	<div class="w-64 sheet-quiet p-2">

@@ -6,6 +6,7 @@
 
 	import QuestionLink from './QuestionLink.svelte';
 	import StandingIcon from './StandingIcon.svelte';
+	import Spinner from './Spinner.svelte';
 	import StatusIcon from './StatusIcon.svelte';
 
 	let {
@@ -126,7 +127,7 @@
 		/>
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
-	<span class="flex h-6 min-w-6 shrink-0 items-center justify-center">
+	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if asking && href}
 			<QuestionLink workspaceHref={href} />
 		{:else if asking}
@@ -134,10 +135,11 @@
 				<span class="icon-[lucide--message-circle-question] size-4"></span>
 			</StatusIcon>
 		{:else if activity}
-			{#if background}{@render backgroundIcon()}{/if}
 			<WorkspaceActivity {activity} />
 		{:else if background}
-			{@render backgroundIcon()}
+			<StatusIcon label="{background} running in the background">
+				<span aria-hidden="true" class="inline-flex"><Spinner still /></span>
+			</StatusIcon>
 		{:else if primary && pillColor}
 			<button
 				type="button"
@@ -156,11 +158,6 @@
 		{/if}
 	</span>
 </div>
-{#snippet backgroundIcon()}
-	<StatusIcon label="{background} running in the background">
-		<span class="icon-[lucide--activity] size-4"></span>
-	</StatusIcon>
-{/snippet}
 {#snippet statusIcon()}
 	{#if waiting}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
