@@ -19,6 +19,8 @@
 
 	const openDiff = fn();
 	const openSource = fn();
+	const openFolder = fn();
+	const FOLDERS = new Set(['.', 'assets/audio']);
 	const reply = [
 		'## What I changed',
 		'',
@@ -210,7 +212,9 @@
 		root: '/work',
 		paths: new Set(['src/git.ts']),
 		open: openDiff,
-		openSource
+		openSource,
+		isFolder: async (path) => FOLDERS.has(path),
+		openFolder
 	});
 </script>
 
@@ -227,6 +231,24 @@
 >
 	<Markdown
 		text="Review the changes in [`changes.ts`](./src/changes.ts &quot;View the diff&quot;)."
+	/>
+</Story>
+
+<Story
+	name="Folder link"
+	asChild
+	play={async ({ canvas }) => {
+		openFolder.mockClear();
+		const folder = await canvas.findByRole('button', { name: 'assets/audio/' });
+		await expect(folder).toHaveAttribute('title', 'Open this folder');
+		await userEvent.click(folder);
+		await expect(openFolder).toHaveBeenCalledWith('assets/audio');
+		await expect(canvas.getByRole('button', { name: 'the worktree' })).toBeInTheDocument();
+		await expect(canvas.queryByRole('button', { name: 'mistake/' })).toBeNull();
+	}}
+>
+	<Markdown
+		text="The new takes are under `assets/audio/`, in `mistake/` and `orders/`. Everything else is in [the worktree](/work/)."
 	/>
 </Story>
 
