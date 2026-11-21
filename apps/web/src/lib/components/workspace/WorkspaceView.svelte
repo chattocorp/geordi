@@ -563,6 +563,17 @@
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
 		if (!remaining.includes(DRAFT)) drafting = false;
+		// A closed terminal hands the keyboard to the terminal shown in its place.
+		const before = new Map(
+			Object.values(layouts)
+				.flatMap(groupsOf)
+				.map((g) => [g.id, g.active])
+		);
+		for (const group of Object.values(after).flatMap(groupsOf)) {
+			const was = before.get(group.id);
+			if (was && terminalOf(was) && !remaining.includes(was) && terminalOf(group.active ?? ''))
+				focusTerminal = terminalOf(group.active!);
+		}
 		for (const tab of everywhere()) {
 			const terminal = terminalOf(tab);
 			const source = sourceOf(tab);
