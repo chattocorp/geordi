@@ -16,7 +16,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { byRepository, inFocus, unfolded } from '#lib/family.ts';
+	import { byRepository, dropTarget, inFocus, unfolded } from '#lib/family.ts';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -196,33 +196,24 @@
 	type Row = { workspace: Item; parent: Item | null; depth: number };
 
 	/**
-	 * The workspace being dragged to another place in its repository's list, and where it
-	 * would go: above that workspace, `null` for the end, `undefined` for nowhere new. Only
-	 * workspaces that stand at the top move; the ones their agents started go along.
+	 * The workspace being dragged to another place among its siblings, and where it would
+	 * go: above that workspace, `null` for below the last of them (`dropAfter`, the row the
+	 * line shows under), `undefined` for nowhere new. What its agent started goes along; its
+	 * parent stays the same.
 	 */
 	let dragged = $state<Item | null>(null);
 	let dropBefore = $state<string | null | undefined>(undefined);
+	let dropAfter = $state<string | null>(null);
 
-	/** Over a row: above it, if that stands at the top and the pointer is on its upper half; else above the next that does. */
 	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
-		if (!dragged || dragged.repoId !== rows[index].workspace.repoId) {
-			dropBefore = undefined;
-			return;
-		}
+		const from = dragged ? rows.findIndex((row) => row.workspace.id === dragged!.id) : -1;
+		if (from === -1) return;
 		event.preventDefault();
-		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 		const rect = event.currentTarget.getBoundingClientRect();
-		const upper = event.clientY < rect.top + rect.height / 2;
-		const next = rows.findIndex(
-			(row, at) => row.depth === 0 && (at > index || (upper && at === index))
-		);
-		const before = next === -1 ? null : rows[next].workspace.id;
-		// where it is already: above itself, or above the one after it
-		const at = rows.findIndex((row) => row.workspace.id === dragged!.id);
-		const after = rows.findIndex((row, i) => i > at && row.depth === 0);
-		const stays =
-			before === dragged.id || before === (after === -1 ? null : rows[after].workspace.id);
-		dropBefore = stays ? undefined : before;
+		const target = dropTarget(rows, from, index, event.clientY < rect.top + rect.height / 2);
+		if (event.dataTransfer) event.dataTransfer.dropEffect = target ? 'move' : 'none';
+		dropBefore = target?.before;
+		dropAfter = target?.after ?? null;
 	}
 
 	function drop(event: DragEvent, repoId: string | null) {
@@ -235,6 +226,7 @@
 	function endDrag() {
 		dragged = null;
 		dropBefore = undefined;
+		dropAfter = null;
 	}
 
 	/**
@@ -525,14 +517,11 @@
 		style:margin-inline-start="calc(var(--spacing) * {3 * depth})"
 		class={[
 			dropBefore === workspace.id && 'row-drop-before',
-			dragged?.repoId === workspace.repoId &&
-				dropBefore === null &&
-				index === rows.length - 1 &&
-				'row-drop-after'
+			dropBefore === null && dropAfter === workspace.id && 'row-drop-after'
 		]}
 		transition:slide={motion()}
 		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
-		draggable={depth === 0 && !leaving}
+		draggable={!leaving}
 		ondragstart={(event) => {
 			dragged = workspace;
 			event.dataTransfer?.setData('text/plain', workspace.title);
