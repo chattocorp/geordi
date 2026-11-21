@@ -315,24 +315,28 @@ export async function concernsAboutArchiving(id: string) {
 			const concerns = archiveConcerns(standing);
 			const stopAgents = workspaces().summary(workspace.id).status === 'running';
 			if (stopAgents) concerns.push('Busy agents will be stopped.');
-			const active = terminals().running(workspace.id).length
-				? await hub()
-						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
-						.catch(() => null)
-				: false;
 			return {
 				concerns,
-				active,
 				discard: !!standing.changes?.uncommitted,
 				stopAgents
 			};
 		})
 	);
 	const concerns = [...new Set(previews.flatMap((preview) => preview.concerns))];
-	if (previews.some((preview) => preview.active))
-		concerns.push('Running processes will be stopped.');
-	else if (previews.some((preview) => preview.active === null))
-		concerns.push('Any running terminal processes will be stopped.');
+	if (concerns.length) {
+		const activity = await Promise.all(
+			family
+				.filter((workspace) => terminals().running(workspace.id).length)
+				.map((workspace) =>
+					hub()
+						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
+						.catch(() => null)
+				)
+		);
+		if (activity.includes(true)) concerns.push('Running processes will be stopped.');
+		else if (activity.includes(null))
+			concerns.push('Any running terminal processes will be stopped.');
+	}
 	return {
 		concerns,
 		discard: previews.some((preview) => preview.discard),
