@@ -209,6 +209,6 @@
 				{entry.path.slice(entry.path.lastIndexOf('/') + 1)}
 			</span>
 		{/if}
-		<DiffStat class="tabular-nums" added={entry.added} removed={entry.removed} />
+		<DiffStat class="text-xs tabular-nums" added={entry.added} removed={entry.removed} />
 	</button>
 {/snippet}
