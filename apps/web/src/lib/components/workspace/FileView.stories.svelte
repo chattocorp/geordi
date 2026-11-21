@@ -51,6 +51,33 @@
 />
 
 <Story
+	name="New sound"
+	args={{
+		path: 'assets/beep.wav',
+		old: null,
+		current: { mediaType: 'audio/wav', data: tone(440, 1) }
+	}}
+	play={async ({ canvas }) => {
+		await expect(canvas.getByText('New file')).toBeVisible();
+		await expect(canvas.getAllByRole('slider')).toHaveLength(1);
+		await expect(canvas.queryByText('Before')).toBeNull();
+	}}
+/>
+
+<Story
+	name="Moved sound"
+	args={{
+		path: 'assets/beep.wav',
+		old: { mediaType: 'audio/wav', data: tone(440, 1) },
+		current: { mediaType: 'audio/wav', data: tone(440, 1) }
+	}}
+	play={async ({ canvas }) => {
+		await expect(canvas.getByText('Content unchanged')).toBeVisible();
+		await expect(canvas.getAllByRole('slider')).toHaveLength(1);
+	}}
+/>
+
+<Story
 	name="Changed image"
 	args={{ path: 'logo.svg', old: logo, current: { mediaType: 'image/png', data: dot } }}
 	play={async ({ canvas, userEvent }) => {

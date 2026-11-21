@@ -21,8 +21,29 @@
 		pictures?: string;
 	} = $props();
 	const diff = $derived(old !== undefined);
+	/** A picture or sound whose bytes did not change (a file moved or copied as it is). */
+	const same = $derived(
+		typeof old === 'object' &&
+			old !== null &&
+			typeof current === 'object' &&
+			current !== null &&
+			old.mediaType === current.mediaType &&
+			old.data === current.data
+	);
 	const binaryPair = $derived(
-		old != null && current !== null && (typeof old === 'object' || typeof current === 'object')
+		old != null &&
+			current !== null &&
+			!same &&
+			(typeof old === 'object' || typeof current === 'object')
+	);
+	const status = $derived(
+		current === null
+			? 'Deleted file'
+			: diff && old === null
+				? 'New file'
+				: same
+					? 'Content unchanged'
+					: undefined
 	);
 	let mode = $derived(diff || line !== undefined ? 'text' : 'rendered');
 	const file = $derived(current ?? old);
@@ -93,7 +114,7 @@
 {#if rich && typeof file === 'string' && !binaryPair}
 	<Toolbar
 		label="File view"
-		status={current === null ? 'Deleted file' : undefined}
+		{status}
 		items={[
 			{
 				label: 'Preview',
@@ -109,8 +130,8 @@
 			}
 		]}
 	/>
-{:else if shown && current === null}
-	<p class="px-5 text-xs text-muted">Deleted file</p>
+{:else if shown && status}
+	<p class="px-5 text-xs text-muted">{status}</p>
 {/if}
 
 {#if versions && sounds}
