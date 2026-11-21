@@ -910,6 +910,9 @@
 		continuing = true;
 		try {
 			await continueWorkspace(id);
+			// on with the new work: the conversation, ready to write in
+			showTab(CHAT);
+			focusChat = true;
 		} catch (error) {
 			mergeProblem = problemOf(error, 'Could not continue the workspace');
 		} finally {
