@@ -4,7 +4,8 @@
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { fileTree, treeRows } from './tree.ts';
+	import { Virtualizer } from 'virtua/svelte';
+	import { fileTree, treeRows, type TreeRow } from './tree.ts';
 	import type { Changes } from '@geordi/protocol';
 
 	type View = 'list' | 'tree';
@@ -29,7 +30,16 @@
 	const listed = $derived(!gone && !git?.unavailable && files.length > 0);
 	/** Directories folded shut in the tree, by path; all are open to begin with. */
 	const folded = new SvelteSet<string>();
-	const rows = $derived(view === 'tree' ? treeRows(fileTree(files), folded) : []);
+	/**
+	 * What is listed, a row each: a branch may change thousands of files, so only the rows in
+	 * view are drawn. In the list, a file has no depth.
+	 */
+	type Row = TreeRow<File> | { kind: 'file'; path: string; file: File; depth?: undefined };
+	const rows: Row[] = $derived(
+		view === 'tree'
+			? treeRows(fileTree(files), folded)
+			: files.map((file) => ({ kind: 'file' as const, path: file.path, file }))
+	);
 	const views: { value: View; label: string; icon: string }[] = [
 		{ value: 'list', label: 'As a list', icon: 'icon-[lucide--list]' },
 		{ value: 'tree', label: 'As a tree', icon: 'icon-[lucide--list-tree]' }
@@ -115,40 +125,35 @@
 				<span class="icon-[lucide--file-diff] size-6 text-muted opacity-60"></span>
 				<p class="font-medium text-ink">No changes yet</p>
 			</div>
-		{:else if view === 'tree'}
-			<ul>
-				{#each rows as row (row.path)}
-					<li>
-						{#if row.kind === 'dir'}
-							<button
-								type="button"
-								aria-label={row.name}
-								aria-expanded={row.open}
-								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
-								title={row.path}
-								style:padding-left="{0.875 + row.depth * 1.25}rem"
-								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap text-muted hover:bg-hover"
-							>
-								<span
-									class={[
-										'icon-[lucide--chevron-right] size-3.5 shrink-0',
-										row.open && 'rotate-90'
-									]}
-								></span>
-								<FittedPath path={row.name} />
-							</button>
-						{:else}
-							{@render file(row.file, row.depth)}
-						{/if}
-					</li>
-				{/each}
-			</ul>
 		{:else}
-			<ul>
-				{#each files as entry (entry.path)}
-					<li>{@render file(entry)}</li>
-				{/each}
-			</ul>
+			<Virtualizer
+				data={rows}
+				getKey={(row) => row.path}
+				as="ul"
+				item="li"
+				ssrCount={Math.min(rows.length, 40)}
+			>
+				{#snippet children(row)}
+					{#if row.kind === 'dir'}
+						<button
+							type="button"
+							aria-label={row.name}
+							aria-expanded={row.open}
+							onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
+							title={row.path}
+							style:padding-left="{0.875 + row.depth * 1.25}rem"
+							class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap text-muted hover:bg-hover"
+						>
+							<span
+								class={['icon-[lucide--chevron-right] size-3.5 shrink-0', row.open && 'rotate-90']}
+							></span>
+							<FittedPath path={row.name} />
+						</button>
+					{:else}
+						{@render file(row.file, row.depth)}
+					{/if}
+				{/snippet}
+			</Virtualizer>
 		{/if}
 	</div>
 </section>

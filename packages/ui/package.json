@@ -57,7 +57,8 @@
 	},
 	"dependencies": {
 		"@geordi/protocol": "workspace:*",
-		"@pierre/diffs": "catalog:"
+		"@pierre/diffs": "catalog:",
+		"virtua": "catalog:"
 	},
 	"peerDependencies": {
 		"svelte": "^5.57.2"

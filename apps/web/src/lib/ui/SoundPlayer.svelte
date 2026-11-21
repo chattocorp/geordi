@@ -9,8 +9,7 @@
 	 * How loud the sound is along its length, in `STEPS` steps from 0 to 1. Decoded without an
 	 * output device (`OfflineAudioContext`): opening one could have macOS ask for the microphone.
 	 */
-	async function waveform(src: string): Promise<number[]> {
-		const bytes = await (await fetch(src)).arrayBuffer();
+	async function waveform(bytes: ArrayBuffer): Promise<number[]> {
 		const sound = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(bytes);
 		const samples = sound.getChannelData(0);
 		const step = Math.max(1, Math.floor(samples.length / STEPS));
@@ -36,6 +35,7 @@
 
 <script lang="ts">
 	import Button from '@geordi/ui/Button.svelte';
+	import type { Attachment } from 'svelte/attachments';
 
 	type Props = {
 		src: string;
@@ -61,14 +61,56 @@
 	let failed = $state(false);
 	let peaks = $state<number[]>();
 
-	$effect(() => {
-		const from = src;
-		peaks = undefined;
-		waveform(from).then(
-			(found) => from === src && (peaks = found),
-			() => {} // a flat line, then: it may still play
+	/** Whether the player is on screen, or nearly: only then is its sound fetched. */
+	let near = $state(false);
+	/** The sound, once fetched: the player plays what the waveform was drawn from. */
+	let loaded = $state<string>();
+
+	const nearby: Attachment<HTMLElement> = (node) => {
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (!entries.some((entry) => entry.isIntersecting)) return;
+				near = true;
+				observer.disconnect();
+			},
+			{ rootMargin: '400px' }
 		);
+		observer.observe(node);
+		return () => observer.disconnect();
+	};
+
+	// fetched once, for the waveform and the player both
+	$effect(() => {
+		if (!near) return;
+		const from = src;
+		const stop = new AbortController();
+		let url: string | undefined;
+		peaks = undefined;
+		loaded = undefined;
+		fetch(from, { signal: stop.signal })
+			.then((response) => {
+				if (!response.ok) throw new Error(`${response.status}`);
+				const type = response.headers.get('Content-Type') ?? '';
+				return response.arrayBuffer().then((bytes) => ({ bytes, type }));
+			})
+			.then(({ bytes, type }) => {
+				// (the blob first: decoding takes the bytes away)
+				loaded = url = URL.createObjectURL(new Blob([bytes], { type }));
+				return waveform(bytes).then(
+					(found) => (peaks = found),
+					() => {} // a flat line, then: it may still play
+				);
+			})
+			.catch(() => {
+				if (!stop.signal.aborted) fail();
+			});
+		return () => {
+			stop.abort();
+			if (url) URL.revokeObjectURL(url);
+		};
 	});
+
+	const fail = () => (onfail ? onfail() : (failed = true));
 
 	const progress = $derived(duration ? currentTime / duration : 0);
 	const width = $derived(span && duration ? Math.min(1, duration / span) : 1);
@@ -89,7 +131,7 @@
 	});
 
 	function toggle() {
-		if (!audio) return;
+		if (!audio || !loaded) return;
 		if (!paused) return audio.pause();
 		if (playing !== audio) playing?.pause();
 		playing = audio;
@@ -111,15 +153,15 @@
 	}
 </script>
 
-<div class="flex items-center gap-3">
+<div class="flex items-center gap-3" {@attach nearby}>
 	<audio
 		bind:this={audio}
 		bind:paused
 		bind:currentTime
 		bind:duration
-		{src}
+		src={loaded}
 		preload="metadata"
-		onerror={() => (onfail ? onfail() : (failed = true))}
+		onerror={() => loaded && fail()}
 	></audio>
 	{#if failed}
 		<p class="text-sm text-muted">This sound could not be played.</p>

@@ -18,6 +18,7 @@ catalog:
   typescript: ^6.0.3
   vitest: ^4.1.12
   '@vitest/browser-playwright': ^4.1.12
+  virtua: ^0.55.0
 patchedDependencies:
   '@agentclientprotocol/codex-acp@2.8.0': patches/@agentclientprotocol__codex-acp@2.8.0.patch
   forges@0.3.2: patches/forges@0.3.2.patch
