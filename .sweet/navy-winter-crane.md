@@ -1,5 +1,5 @@
 ---
-type: fix
+type: feature
 ---
 
-Dark repository icons now stand out in dark mode: a dark tile gets a faint edge, and a dark logo on a transparent background sits on a pale plate.
+Repository icons in the sidebar are raised like the cards around them, with a faint edge and a glassy sheen, so dark ones stand out in dark mode. A dark logo with no background of its own sits on a pale plate.
