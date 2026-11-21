@@ -160,6 +160,9 @@
 		} else if (pressed(event, 'todayOnly')) {
 			event.preventDefault();
 			if (!event.repeat) todayOnly = !todayOnly;
+		} else if (pressed(event, 'groupByRepo')) {
+			event.preventDefault();
+			if (!event.repeat) grouped.current = !grouped.current;
 		} else if (
 			pressed(event, 'repositoryFilter') &&
 			window.matchMedia('(min-width: 48rem)').matches
