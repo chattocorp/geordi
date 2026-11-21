@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { daemon } from '#lib/daemon.svelte.ts';
+	import { needsPlate } from './repo-icon.ts';
 
 	/**
 	 * What stands for a repository beside its name: the picture it has of itself (a favicon,
@@ -10,6 +11,7 @@
 
 	let loaded = $state(false);
 	let failed = $state(false);
+	let plate = $state(false);
 	/**
 	 * Asked once; asked again, where that found nothing, each time a daemon connects: no
 	 * daemon may have been there to say, the first time.
@@ -23,14 +25,24 @@
 	{#if !loaded}<span
 			class={['icon-[lucide--folder-git-2] text-muted/70', small ? 'size-4' : 'size-4.5']}
 		></span>{/if}
-	<img
-		{src}
-		alt=""
-		class={['absolute inset-0 size-full rounded-control object-contain', !loaded && 'invisible']}
-		onload={() => (loaded = true)}
-		onerror={() => {
-			loaded = false;
-			failed = true;
-		}}
-	/>
+	<span class={['absolute inset-0 picture-raised', !loaded && 'invisible']}>
+		<img
+			{src}
+			alt=""
+			class={['block size-full rounded-control object-contain', plate && 'picture-plate']}
+			onload={(event) => {
+				plate = needsPlate(event.currentTarget as HTMLImageElement);
+				loaded = true;
+			}}
+			onerror={() => {
+				loaded = false;
+				failed = true;
+			}}
+		/>
+		<!-- the sheen, in the picture's own shape (or the plate's, where it has one) -->
+		<span
+			class={['absolute inset-0 rounded-control picture-gloss', plate && 'dark:mask-none']}
+			style:--picture="url({src})"
+		></span>
+	</span>
 </span>

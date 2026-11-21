@@ -76,6 +76,10 @@
 	--codex: #0ea5a4;
 	--shadow: 0 1px 2px rgb(20 20 40 / 0.04), 0 4px 16px rgb(20 20 40 / 0.06);
 	--shadow-lg: 0 2px 6px rgb(20 20 40 / 0.05), 0 16px 40px rgb(20 20 40 / 0.1);
+	/* A picture raised like a card: shadows that follow its shape (`picture-raised`). */
+	--picture-lift: drop-shadow(0 0 0.5px rgb(20 20 40 / 0.25))
+		drop-shadow(0 1px 1.5px rgb(20 20 40 / 0.15));
+	--picture-gloss: linear-gradient(to bottom, rgb(255 255 255 / 0.3), transparent 60%);
 }
 
 .dark {
@@ -105,6 +109,9 @@
 	--codex: #2dd4bf;
 	--shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 16px rgb(0 0 0 / 0.18);
 	--shadow-lg: 0 2px 6px rgb(0 0 0 / 0.2), 0 16px 40px rgb(0 0 0 / 0.3);
+	--picture-lift: drop-shadow(0 -0.5px 0 rgb(255 255 255 / 0.2))
+		drop-shadow(0 0 0.5px rgb(255 255 255 / 0.12)) drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.6));
+	--picture-gloss: linear-gradient(to bottom, rgb(255 255 255 / 0.16), transparent 55%);
 }
 
 @theme inline {
@@ -426,6 +433,26 @@
 }
 @utility status-merged {
 	@apply bg-merged/15 text-merged;
+}
+
+/*
+ * A picture someone else drew (a repository's icon), raised like a card: a light top edge
+ * and a shadow beneath that follow its own shape, and `picture-gloss` over it (masked to that
+ * shape, given as `--picture`) for a glassy sheen. `picture-plate` puts a mostly dark mark with no background of
+ * its own on a pale one in dark mode, where it can be seen.
+ */
+@utility picture-raised {
+	filter: var(--picture-lift);
+}
+@utility picture-gloss {
+	background: var(--picture-gloss);
+	/* `--picture`: the picture's `url()` */
+	mask: var(--picture) center / contain no-repeat;
+}
+@utility picture-plate {
+	@variant dark {
+		@apply bg-muted p-px;
+	}
 }
 
 /* A status dot. Add `dot-live` while the thing it stands for is working. */
