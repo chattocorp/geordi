@@ -156,7 +156,7 @@ function nextActions(state: State): WorkspaceAction[] {
 				label: 'Retry',
 				icon: 'icon-[lucide--rotate-cw]',
 				prompt:
-					'Your last turn ended with an error before you were done. No problem: carry on where you left off.'
+					'Your last turn ended with an error before you were done. Carry on where you left off.'
 			}
 		];
 	const archive: WorkspaceAction = {
