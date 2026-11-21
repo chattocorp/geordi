@@ -5,5 +5,5 @@ permissions:
   contents: read
 jobs:
   doctor:
-    # Unreleased Sweet Release commit (PRs #62 and #63): move to the next release tag.
-    uses: chattocorp/sweet-release/.github/workflows/doctor.yml@3e714d17a99e4125dd758af128550cc6fedd1397
+    # Unreleased Sweet Release commit (PRs #62, #63 and #64): move to the next release tag.
+    uses: chattocorp/sweet-release/.github/workflows/doctor.yml@7e618be0b38acb105fe128f030f2f9b71527a0f6
