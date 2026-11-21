@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import type { HostEvent, Meta } from './host.ts';
 import { signalTree } from './session-process.ts';
 import { resumeSessions, startSession, type Session } from './session.ts';
@@ -882,7 +882,7 @@ describe('a daemon restart', () => {
 	});
 });
 
-describe('a launched daemon', () => {
+describe('a launched daemon', { timeout: 60_000 }, () => {
 	// The app and the command start the daemon as a child of theirs (on Windows, in a job
 	// object that ends its members with it). The agent's session is to outlive both.
 	// Linux CI is headless. On the desktop runners, exercise the app's utilityProcess too.
@@ -893,6 +893,7 @@ describe('a launched daemon', () => {
 		const sessions = root();
 		const dir = join(sessions, 'w');
 		const scripts = mkdtempSync(join(tmpdir(), 'geordi-launch-'));
+		const wrapperPid = join(scripts, 'wrapper.pid');
 		const daemon = join(scripts, 'daemon.mjs');
 		const launcher = join(scripts, 'launcher.cjs');
 		writeFileSync(
@@ -901,7 +902,7 @@ describe('a launched daemon', () => {
 const { readFileSync } = await import('node:fs');
 const { startSession } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'session.ts')).href)});
 // nobody to report to: what the host writes waits in its files for the next daemon
-startSession(${JSON.stringify(meta())}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
+startSession(${JSON.stringify(meta({ PID_FILE: wrapperPid }))}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
 const out = dir + '/out.jsonl';
 setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);
 setTimeout(() => { console.error(readFileSync(dir + '/host.log', 'utf8')); process.exit(1); }, 20000);`
@@ -928,16 +929,34 @@ if (process.versions.electron) {
 				: process.execPath;
 		const launched = spawn(executable, [launcher], {
 			stdio: 'inherit',
+			timeout: 30_000,
+			killSignal: 'SIGKILL',
 			env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined }
 		});
-		expect((await once(launched, 'exit'))[0]).toBe(0);
+		const exited = once(launched, 'exit');
+		let session: Session | undefined;
+		onTestFinished(async () => {
+			// The launcher can fail after starting the host but before we resume it.
+			await exited;
+			const hostFile = join(dir, 'host.json');
+			const host = existsSync(hostFile)
+				? JSON.parse(readFileSync(hostFile, 'utf8')).pid
+				: undefined;
+			const wrapper = existsSync(wrapperPid) ? Number(readFileSync(wrapperPid, 'utf8')) : undefined;
+			const remaining = session ?? resumeSessions(sessions, () => () => true).get('w');
+			remaining?.kill();
+			await remaining?.done;
+			await until(() => (!host || !alive(host)) && (!wrapper || !alive(wrapper)));
+			rmSync(scripts, { recursive: true, force: true });
+			rmSync(sessions, { recursive: true, force: true });
+		});
+		expect((await exited)[0]).toBe(0);
 		await sleep(500); // for a job object to have ended its members
 
 		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
 		expect(alive(host)).toBe(true);
 		const events: HostEvent[] = [];
-		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
-		started.push(session);
+		session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
 		expect(session.working()).toBe(true);
 		session.say({ prompt: 'slow', deliveryId: 'first' }); // a retry, which it has heard
 		session.say({ prompt: 'still there?' });
