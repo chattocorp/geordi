@@ -5,10 +5,11 @@
 type Combo = {
 	/** The physical key (`KeyN`), for letters: the same place on every layout. */
 	code?: string;
-	/** The character (`[`), for punctuation: wherever the layout has it, Option or not. */
+	/**
+	 * The character (`[`), for punctuation: wherever the layout has it, Option or not. With a
+	 * `code`, only what the key is shown as (Option changes the character `/` types).
+	 */
 	key?: string;
-	/** Alternate character produced by Shift on another keyboard layout. */
-	shiftedKey?: string;
 	shift?: boolean;
 	alt?: boolean;
 };
@@ -58,9 +59,9 @@ export const shortcuts = {
 		group: 'Workspace'
 	},
 	terminal: {
+		code: 'Slash',
 		key: '/',
-		shiftedKey: '?',
-		shift: true,
+		alt: true,
 		label: 'Focus a terminal, or open a new terminal',
 		group: 'Workspace'
 	},
@@ -88,12 +89,7 @@ export function pressed(event: KeyboardEvent, id: ShortcutId): boolean {
 	const mac = isMac();
 	if (event.isComposing || event.shiftKey !== !!shortcut.shift) return false;
 	if (!(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) return false;
-	if (
-		shortcut.code
-			? event.code !== shortcut.code
-			: event.key !== shortcut.key && event.key !== shortcut.shiftedKey
-	)
-		return false;
+	if (shortcut.code ? event.code !== shortcut.code : event.key !== shortcut.key) return false;
 	// a character may take Option to type (`[` on a German Mac): only letters care about Alt
 	if (shortcut.code && event.altKey !== !!shortcut.alt) return false;
 	return mac || id === 'terminal' || !(event.target as Element | null)?.closest?.('.xterm');
@@ -102,7 +98,7 @@ export function pressed(event: KeyboardEvent, id: ShortcutId): boolean {
 /** How a shortcut is written, as people know it on their platform: `⌥⌘B`, `Ctrl+Alt+B`. */
 export function hint(id: ShortcutId): string {
 	const shortcut: Shortcut = shortcuts[id];
-	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
+	const key = shortcut.key ?? shortcut.code?.replace(/^Key/, '') ?? '';
 	if (isMac()) return `${shortcut.alt ? '⌥' : ''}${shortcut.shift ? '⇧' : ''}⌘${key}`;
 	return ['Ctrl', shortcut.alt && 'Alt', shortcut.shift && 'Shift', key].filter(Boolean).join('+');
 }
@@ -114,7 +110,7 @@ export function hint(id: ShortcutId): string {
  */
 export function keysOf(id: ShortcutId): string[] {
 	const shortcut: Shortcut = shortcuts[id];
-	const key = shortcut.code?.replace(/^Key/, '') ?? shortcut.key ?? '';
+	const key = shortcut.key ?? shortcut.code?.replace(/^Key/, '') ?? '';
 	if (isMac())
 		return [shortcut.alt && 'alt', shortcut.shift && 'shift', 'cmd', key].filter(
 			Boolean
