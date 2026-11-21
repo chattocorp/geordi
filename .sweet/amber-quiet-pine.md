@@ -2,4 +2,4 @@
 type: feature
 ---
 
-Choose **Not Today** in a workspace’s sidebar menu to hide it from Today until you send a new prompt.
+Drag a workspace to **Set aside** in Today, or choose **Not Today** from its sidebar menu. It returns when you send a new prompt.

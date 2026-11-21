@@ -76,14 +76,22 @@
 	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
+	const deferredByRepo = $derived(
+		Map.groupBy(
+			todayOnly ? (nav?.workspaces ?? []).filter((workspace) => workspace.deferred) : [],
+			(workspace) => workspace.repoId
+		)
+	);
+	const deferredCount = (repoId: string | null) => deferredByRepo.get(repoId)?.length ?? 0;
+	const hasRows = (id: string | null) => listed.has(id) || deferredByRepo.has(id);
 	/**
 	 * What the sidebar groups workspaces under: projects first (FDR-012: workspaces in no
 	 * repository, `id` `null`), where there are any, then the repositories that have some.
 	 * Focusing a repository leaves the projects, which are in none.
 	 */
 	const groups = $derived([
-		...(listed.get(null)?.length ? [{ id: null, name: 'Projects' }] : []),
-		...sidebarRepos.filter((repo) => listed.has(repo.id))
+		...(hasRows(null) ? [{ id: null, name: 'Projects' }] : []),
+		...sidebarRepos.filter((repo) => hasRows(repo.id))
 	]);
 	/** All of them as one list, where they are not grouped: the projects, and the repositories shown. */
 	const oneList = $derived(
@@ -238,6 +246,7 @@
 	let dragged = $state<Item | null>(null);
 	let dropBefore = $state<string | null | undefined>(undefined);
 	let dropAfter = $state<string | null>(null);
+	let overSetAside = $state<string | null | undefined>(undefined);
 	/** Whether the one being dragged may be dropped among `repoId`'s: in one list, anywhere. */
 	const droppable = (repoId: string | null) =>
 		!!dragged && (!grouped.current || dragged.repoId === repoId);
@@ -261,6 +270,7 @@
 	}
 
 	function endDrag() {
+		overSetAside = undefined;
 		dragged = null;
 		dropBefore = undefined;
 		dropAfter = null;
@@ -428,7 +438,7 @@
 			{#if nav && !grouped.current}
 				{@const rows = unfolded(oneList, folded.current)}
 				<ul
-					class="space-y-px pb-4"
+					class={['space-y-px', !todayOnly && 'pb-4']}
 					ondragleave={(event) => {
 						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
 							dropBefore = undefined;
@@ -440,6 +450,12 @@
 				</ul>
 				{#if todayOnly && rows.length === 0}
 					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{/if}
+				{#if todayOnly}
+					{@render setAside(
+						null,
+						groups.reduce((sum, group) => sum + deferredCount(group.id), 0)
+					)}
 				{/if}
 			{:else if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
@@ -542,6 +558,9 @@
 									{@render row(workspace, parent, depth, under, rows, index)}
 								{/each}
 							</ul>
+							{#if todayOnly}
+								{@render setAside(repo.id, deferredCount(repo.id))}
+							{/if}
 						{/if}
 					</div>
 				{/each}
@@ -568,6 +587,43 @@
 		</a>
 	</nav>
 </div>
+
+{#snippet setAside(repoId: string | null, count: number)}
+	{@const over = overSetAside === repoId && droppable(repoId)}
+	<div
+		role="group"
+		aria-label="Set aside"
+		title="Drop a workspace here to remove it from Today"
+		class={[
+			'mt-1 flex min-h-8 items-center gap-2 rounded-control border border-dashed border-line px-2.5 text-xs',
+			over ? 'bg-accent-soft text-accent-ink' : 'text-muted',
+			!over && droppable(repoId) && 'bg-sunken'
+		]}
+		ondragover={(event) => {
+			if (!droppable(repoId)) return;
+			event.preventDefault();
+			if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+			dropBefore = undefined;
+			overSetAside = repoId;
+		}}
+		ondragleave={(event) => {
+			if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+				overSetAside = undefined;
+		}}
+		ondrop={(event) => {
+			if (!dragged || !droppable(repoId)) return;
+			event.preventDefault();
+			void deferWorkspace(dragged.id);
+			endDrag();
+		}}
+	>
+		<span class="icon-[lucide--calendar-minus] size-4 shrink-0"></span>
+		<span>{droppable(repoId) ? 'Drop to set aside' : 'Set aside'}</span>
+		{#if count > 0}<span class="ml-auto tabular-nums" aria-label={`${count} set aside`}
+				>{count}</span
+			>{/if}
+	</div>
+{/snippet}
 
 {#snippet row(
 	workspace: Item,

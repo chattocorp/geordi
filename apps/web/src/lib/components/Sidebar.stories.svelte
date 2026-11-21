@@ -534,3 +534,39 @@
 	)}
 	<ContextMenu />
 </Story>
+
+<Story
+	name="Set aside in Today"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const targets = () => canvas.queryAllByRole('group', { name: 'Set aside' });
+		await expect(targets()).toHaveLength(0);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces active today' }));
+		await expect(targets()).toHaveLength(2);
+		const [own, other] = targets();
+		await expect(within(own).getByText('1')).toBeVisible();
+		const row = canvas.getByText('Review the daemon').closest('li')!;
+		await fireEvent.dragStart(row);
+		await expect(within(own).getByText('Drop to set aside')).toBeVisible();
+		await expect(within(other).queryByText('Drop to set aside')).toBeNull();
+		await fireEvent.dragEnd(row);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces as one list' }));
+		await waitFor(() => expect(targets()).toHaveLength(1));
+		await expect(within(targets()[0]).getByText('2')).toBeVisible();
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: [
+				workspace('active', 'Review the daemon', {
+					updatedAt: new Date(2026, 10, 20).toISOString()
+				}),
+				workspace('later', 'Revisit the parser', { deferred: true }),
+				workspace('another', 'Review the styling', { repoId: 'sample', deferred: true })
+			]
+		},
+		'/'
+	)}
+</Story>

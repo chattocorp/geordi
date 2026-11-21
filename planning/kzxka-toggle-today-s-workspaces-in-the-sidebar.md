@@ -13,3 +13,5 @@ Verified the toggle and local midnight rollover with both Mac and Linux shortcut
 The sidebar now has a repository picker and calendar button at the top. New workspace is the first link in the bottom menu. Browser stories cover selecting a repository while Today is active, the empty result, and clearing each filter. Cmd+Option+F on Mac or Ctrl+Alt+F elsewhere opens repository search. Verified keyboard selection with the sidebar open and collapsed.
 
 The sidebar menu offers Not Today on workspaces active today. Verified in the running forge that a deferred row stays in the full list, stays hidden from Today after a restart, and returns when you send a prompt.
+
+Today also accepts workspace drops on Set aside. The grouped view shows one target and count per expanded repository. The flat view shows one for the current filter. Verified a native drag in the running forge, including rejection by another repository and the count after dropping the last workspace.
