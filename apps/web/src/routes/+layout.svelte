@@ -248,8 +248,9 @@
 			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag mac:pl-22">
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
-				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
-				>
+				<span class="flex desktop:order-1">
+					{@render toggle('icon-[lucide--panel-left-close]')}
+				</span>
 			</div>
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->

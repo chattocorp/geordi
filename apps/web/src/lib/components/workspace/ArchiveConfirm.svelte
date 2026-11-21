@@ -21,9 +21,9 @@
 		</ul>
 		<p class="text-sm text-muted">Your conversations and Git branches are kept.</p>
 		<div class="dialog-actions">
-			<Button variant="soft" disabled={asking?.busy} onclick={() => asking?.answer(false)}
-				>Cancel</Button
-			>
+			<Button variant="soft" disabled={asking?.busy} onclick={() => asking?.answer(false)}>
+				Cancel
+			</Button>
 			<Button variant="primary" busy={asking?.busy} onclick={() => asking?.answer(true)}>
 				{asking?.stopAgents ? 'Stop and archive' : 'Archive'}
 			</Button>

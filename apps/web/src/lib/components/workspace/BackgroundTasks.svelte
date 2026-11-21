@@ -36,15 +36,17 @@
 					: toolIcon(row.kind)
 		]}
 	></span>
-	<span class={['min-w-0 flex-1 truncate text-left', row.kind === 'Terminal' && 'font-mono']}
-		>{row.label}</span
-	>
+	<span class={['min-w-0 flex-1 truncate text-left', row.kind === 'Terminal' && 'font-mono']}>
+		{row.label}
+	</span>
 	{#if row.label !== row.kind}
 		<span
 			class={row.kind === 'Terminal' || row.kind === 'Subagent'
 				? 'sr-only'
-				: 'hidden shrink-0 text-xs text-muted @sm:block'}>{row.kind}</span
+				: 'hidden shrink-0 text-xs text-muted @sm:block'}
 		>
+			{row.kind}
+		</span>
 	{/if}
 	{#if row.open}<span
 			aria-hidden="true"
@@ -62,12 +64,12 @@
 	>
 		{#snippet heading()}
 			<span class="shrink-0 font-semibold">Background tasks</span>
-			<span class="rounded-control bg-sunken px-1.5 text-xs font-semibold text-muted tabular-nums"
-				>{rows.length}</span
-			>
-			{#if !open}<span class="ml-1 min-w-0 truncate text-xs text-muted" title={rows[0].label}
-					>{rows[0].label}</span
-				>{/if}
+			<span class="rounded-control bg-sunken px-1.5 text-xs font-semibold text-muted tabular-nums">
+				{rows.length}
+			</span>
+			{#if !open}<span class="ml-1 min-w-0 truncate text-xs text-muted" title={rows[0].label}>
+					{rows[0].label}
+				</span>{/if}
 		{/snippet}
 		{#if open}
 			<ul class="max-h-40 overflow-y-auto pb-1">

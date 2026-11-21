@@ -43,9 +43,9 @@
 	{/if}
 	<span class="min-w-0 truncate">{title}</span>
 	{#if fold?.folded}
-		<span aria-hidden="true" class="shrink-0 font-normal text-muted/60 tabular-nums"
-			>{fold.count}</span
-		>
+		<span aria-hidden="true" class="shrink-0 font-normal text-muted/60 tabular-nums">
+			{fold.count}
+		</span>
 	{/if}
 {/snippet}
 

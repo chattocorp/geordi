@@ -60,15 +60,15 @@
 </p>
 
 <form class="space-y-3" onsubmit={create}>
-	<label class="block text-sm"
-		>Agent name
+	<label class="block text-sm">
+		Agent name
 		<input
 			class="mt-1 w-full input"
 			bind:value={name}
 			maxlength="80"
 			placeholder="Release assistant"
-		/></label
-	>
+		/>
+	</label>
 	<div role="group" aria-labelledby="access-repos">
 		<div class="mb-1 flex items-center gap-1">
 			<p id="access-repos" class="flex-1 text-sm">Repositories</p>
@@ -76,8 +76,10 @@
 				type="button"
 				variant="ghost"
 				size="sm"
-				onclick={() => (chosen = repos.map((r) => r.id))}>All</Button
+				onclick={() => (chosen = repos.map((r) => r.id))}
 			>
+				All
+			</Button>
 			<Button type="button" variant="ghost" size="sm" onclick={() => (chosen = [])}>None</Button>
 		</div>
 		{#if repos.length}
@@ -100,9 +102,9 @@
 			<p class="empty">No repositories yet. Add one in Repositories.</p>
 		{/if}
 	</div>
-	<Button type="submit" variant="primary" disabled={busy || !name.trim() || !repoIds.length}
-		>Create token</Button
-	>
+	<Button type="submit" variant="primary" disabled={busy || !name.trim() || !repoIds.length}>
+		Create token
+	</Button>
 </form>
 
 {#if token}

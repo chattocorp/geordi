@@ -362,8 +362,10 @@
 					type="submit"
 					variant="primary"
 					busy={renaming.saving}
-					disabled={!renaming.title.trim()}>Rename</Button
+					disabled={!renaming.title.trim()}
 				>
+					Rename
+				</Button>
 			</div>
 		</form>
 	{/if}

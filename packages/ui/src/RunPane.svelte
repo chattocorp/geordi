@@ -65,8 +65,9 @@
 	<span class="min-w-0 flex-1 truncate text-ink">{job.label ?? job.name}</span>
 	<span
 		class="hidden shrink-0 code-dense text-xs text-muted group-hover/job:inline group-has-focus-visible/job:inline"
-		>:{job.port}</span
 	>
+		:{job.port}
+	</span>
 {/snippet}
 
 {#snippet linkRow(link: Link, first = false)}
@@ -88,13 +89,14 @@
 				></span>
 			{/if}
 		</span>
-		<span class="min-w-0 flex-1 truncate text-ink"
-			>{first ? 'Open ' : ''}{link.label ?? link.name}</span
-		>
+		<span class="min-w-0 flex-1 truncate text-ink">
+			{first ? 'Open ' : ''}{link.label ?? link.name}
+		</span>
 		<span
 			class="hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
-			>{where(link.href)}</span
 		>
+			{where(link.href)}
+		</span>
 		{#if first && shortcut}<Keys id={shortcut} />{/if}
 	</button>
 {/snippet}
@@ -160,8 +162,9 @@
 			{#if link || job}
 				<span
 					class="ml-1 hidden max-w-1/2 shrink-0 truncate code-dense text-xs text-muted group-hover/task:inline group-has-focus-visible/task:inline"
-					>{link ? where(link.href) : `:${job?.port}`}</span
 				>
+					{link ? where(link.href) : `:${job?.port}`}
+				</span>
 			{/if}
 			{#if task.default && shortcut}<span class="ml-1"><Keys id={shortcut} /></span>{/if}
 			{#if link}
@@ -208,10 +211,10 @@
 							onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
 							class="flex h-8 min-w-0 flex-1 items-center gap-1 rounded-control pr-2 pl-0.5 text-left text-sm hover:bg-hover"
 						>
-							<span class="grid size-6 shrink-0 place-items-center text-muted"
-								>{#if state === 'stopped'}<span class="icon-[lucide--play] size-3.5"
-									></span>{:else}<JobMark {state} />{/if}</span
-							>
+							<span class="grid size-6 shrink-0 place-items-center text-muted">
+								{#if state === 'stopped'}<span class="icon-[lucide--play] size-3.5"
+									></span>{:else}<JobMark {state} />{/if}
+							</span>
 							<span class="flex-1 truncate">{live(state) ? 'Stop' : 'Start'} {name}</span>
 							{#if shortcut}<Keys id={shortcut} />{/if}
 						</button>

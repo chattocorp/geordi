@@ -104,15 +104,18 @@
 			<Button
 				onclick={() =>
 					(blocks = [...blocks, { kind: 'agent', parts: [{ kind: 'text', text: 'New reply' }] }])}
-				>Append reply</Button
 			>
+				Append reply
+			</Button>
 			<Button
 				onclick={() =>
 					(blocks = [
 						...blocks.slice(0, -1),
 						{ kind: 'agent', parts: [{ kind: 'text', text: 'Growing output.\n\n'.repeat(40) }] }
-					])}>Grow reply</Button
+					])}
 			>
+				Grow reply
+			</Button>
 			<Button onclick={() => view?.toLatest()}>Jump to latest</Button>
 			<Button onclick={() => conversation++}>Switch workspace</Button>
 			<span>{following ? 'Following' : 'Reading history'}</span>
@@ -797,8 +800,9 @@
 	<button
 		type="button"
 		onclick={() => (questionTarget = { id: 'q1', done: () => (questionTarget = undefined) })}
-		>Open question</button
 	>
+		Open question
+	</button>
 	<div class="flex h-96 flex-col overflow-hidden card">
 		<MessageView
 			blocks={[

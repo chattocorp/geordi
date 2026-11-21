@@ -117,15 +117,15 @@
 					<span class={['size-4 shrink-0', item.icon ?? 'icon-[lucide--chevron-right]']}></span>
 					<span class="min-w-0 flex-1 truncate">
 						{#each fuzzySegments(item.label, indices) as segment, at (at)}
-							{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink"
-									>{segment.text}</mark
-								>{:else}{segment.text}{/if}
+							{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink">
+									{segment.text}
+								</mark>{:else}{segment.text}{/if}
 						{/each}
 					</span>
 					{#if item.detail || !grouped}
-						<span class="max-w-1/2 shrink-0 truncate text-xs text-muted"
-							>{item.detail ?? item.group}</span
-						>
+						<span class="max-w-1/2 shrink-0 truncate text-xs text-muted">
+							{item.detail ?? item.group}
+						</span>
 					{/if}
 					{#if item.shortcut}<Keys id={item.shortcut} />{/if}
 				</button>

@@ -37,9 +37,9 @@
 		<div class="pane-bar px-2">
 			<span class="flex items-center gap-2 tab-active px-2 py-1"><PullRequestTab {pull} /></span>
 		</div>
-		<PullRequestPane {pull}
-			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
-		>
+		<PullRequestPane {pull}>
+			{#snippet description(text: string)}<Markdown {text} />{/snippet}
+		</PullRequestPane>
 	</div>
 {/snippet}
 
@@ -190,7 +190,9 @@
 				body: 'Build report: https://example.test/' + 'a'.repeat(180),
 				checks: null,
 				review: null
-			})}>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
+			})}
 		>
+			{#snippet description(text: string)}<Markdown {text} />{/snippet}
+		</PullRequestPane>
 	</div>
 </Story>

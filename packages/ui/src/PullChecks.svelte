@@ -103,8 +103,9 @@
 				aria-expanded={expanded.current}
 				onclick={() => (expanded.current = !expanded.current)}
 				class="block w-full space-y-1 rounded-card p-2 text-left hover:bg-hover"
-				>{@render checksSummary()}</button
 			>
+				{@render checksSummary()}
+			</button>
 		{:else}
 			<div class="space-y-1 p-2">{@render checksSummary()}</div>
 		{/if}
@@ -117,8 +118,9 @@
 				aria-label="Open checks on forge"
 				title="Open checks on forge"
 				class="absolute top-2 right-2 flex rounded-control p-1.5 text-muted hover:bg-hover hover:text-ink"
-				><span class="icon-[lucide--external-link] size-4"></span></a
 			>
+				<span class="icon-[lucide--external-link] size-4"></span>
+			</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{/if}
 	</div>
@@ -141,8 +143,10 @@
 							class={[
 								'min-w-0 flex-1 text-sm wrap-anywhere',
 								check.url && 'group-hover/row:underline'
-							]}>{check.name}</span
+							]}
 						>
+							{check.name}
+						</span>
 						<span class="shrink-0 text-xs whitespace-nowrap text-muted tabular-nums">
 							<span class:sr-only={label(check) === 'Running'}>{label(check)}</span>
 							{#if timed(check)}{duration(now - check.startedAt)}{/if}

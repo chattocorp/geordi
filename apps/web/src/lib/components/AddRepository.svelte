@@ -67,9 +67,9 @@
 		{#if problem}<Notice>{problem}</Notice>{/if}
 		<div class="flex justify-end gap-2">
 			<Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-			<Button type="submit" variant="primary" {busy} disabled={!chooseFolder && !path.trim()}
-				>{chooseFolder ? 'Choose folder…' : 'Add repository'}</Button
-			>
+			<Button type="submit" variant="primary" {busy} disabled={!chooseFolder && !path.trim()}>
+				{chooseFolder ? 'Choose folder…' : 'Add repository'}
+			</Button>
 		</div>
 	</form>
 </Dialog>

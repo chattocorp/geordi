@@ -47,9 +47,9 @@
 							icons[entry.status] ?? 'icon-[lucide--circle]'
 						]}
 					></span>
-					<span class="min-w-0"
-						><span class="sr-only">{entry.status.replaceAll('_', ' ')}. </span>{entry.content}</span
-					>
+					<span class="min-w-0">
+						<span class="sr-only">{entry.status.replaceAll('_', ' ')}. </span>{entry.content}
+					</span>
 				</li>
 			{/each}
 		</ol>

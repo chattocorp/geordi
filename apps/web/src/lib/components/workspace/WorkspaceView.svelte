@@ -1137,9 +1137,9 @@
 		>
 			{#each readyLinks as [name, href] (name)}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
-				<a class="item" {href} target="_blank" rel="noopener"
-					>Open {links.find((link) => link.name === name)?.label ?? name} in browser</a
-				>
+				<a class="item" {href} target="_blank" rel="noopener">
+					Open {links.find((link) => link.name === name)?.label ?? name} in browser
+				</a>
 			{/each}
 			{#if config?.problem}
 				<Notice>The repository's configuration can't be read: {config.problem}</Notice>
@@ -1154,9 +1154,9 @@
 			bind:view={changesView.current}
 		/>
 	{:else if tab === PR && pull}
-		<PullRequestPane {pull}
-			>{#snippet description(text: string)}<Markdown {text} />{/snippet}</PullRequestPane
-		>
+		<PullRequestPane {pull}>
+			{#snippet description(text: string)}<Markdown {text} />{/snippet}
+		</PullRequestPane>
 	{:else if tab === CHANGESET}
 		{#if git?.release}
 			<Changeset
@@ -1266,9 +1266,9 @@
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
-						<span class="truncate code-dense" title={workspace.worktree.branch}
-							>{workspace.worktree.branch}</span
-						>
+						<span class="truncate code-dense" title={workspace.worktree.branch}>
+							{workspace.worktree.branch}
+						</span>
 					</span>
 				{/if}
 			</div>
@@ -1328,8 +1328,10 @@
 				onclick={() => {
 					mergeProblem = null;
 					delete reviewProblems[id];
-				}}>Dismiss</Button
+				}}
 			>
+				Dismiss
+			</Button>
 		</div>
 	{/if}
 

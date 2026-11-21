@@ -12,9 +12,9 @@
 		<Button icon="icon-[lucide--square]">Stop</Button>
 		<Button>Secondary</Button>
 		<Button variant="ghost">Ghost</Button>
-		<span class="rounded-full bg-merged/15 p-1 text-merged"
-			><Button variant="soft">Soft</Button></span
-		>
+		<span class="rounded-full bg-merged/15 p-1 text-merged">
+			<Button variant="soft">Soft</Button>
+		</span>
 		<Button variant="primary" disabled>Disabled</Button>
 	</div>
 </Story>

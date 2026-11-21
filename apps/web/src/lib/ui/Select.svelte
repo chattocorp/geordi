@@ -214,9 +214,9 @@
 				{@render icon?.(item)}
 				<span class="min-w-0 flex-1 truncate">
 					{#each fuzzySegments(item.label, indices) as segment, at (at)}
-						{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink"
-								>{segment.text}</mark
-							>{:else}{segment.text}{/if}
+						{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink">
+								{segment.text}
+							</mark>{:else}{segment.text}{/if}
 					{/each}
 				</span>
 				{#if item === selected}<span class="icon-[lucide--check] size-3.5 shrink-0"></span>{/if}

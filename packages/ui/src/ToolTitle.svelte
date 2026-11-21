@@ -5,8 +5,8 @@
 	let { parts, class: extra }: { parts: TitlePart[]; class?: string } = $props();
 </script>
 
-<span class={['min-w-0 truncate', extra]}
-	>{#each parts as part, i (i)}<span class={part.code ? 'code-dense text-muted' : 'font-medium'}
-			>{part.text}</span
-		>{/each}</span
->
+<span class={['min-w-0 truncate', extra]}>
+	{#each parts as part, i (i)}<span class={part.code ? 'code-dense text-muted' : 'font-medium'}>
+			{part.text}
+		</span>{/each}
+</span>

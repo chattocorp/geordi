@@ -530,8 +530,9 @@
 					return indices ? [{ path, indices }] : [];
 				})}
 		>
-			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
-				>{/snippet}
+			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">
+					Send
+				</Button>{/snippet}
 		</Composer>
 	</div>
 </Story>
@@ -572,8 +573,9 @@
 >
 	<div class="mx-auto mt-64 max-w-2xl">
 		<Composer form={suggestionForm} files={slowFiles} placeholder="Reply to the agent">
-			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
-				>{/snippet}
+			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">
+					Send
+				</Button>{/snippet}
 		</Composer>
 	</div>
 </Story>
