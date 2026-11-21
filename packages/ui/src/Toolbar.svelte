@@ -50,7 +50,7 @@
 		tabindex="-1"
 		aria-label={label}
 		onkeydown={navigate}
-		class="mx-2 flex shrink-0 items-center gap-1 overflow-x-auto rounded-control bg-sunken/60 p-1"
+		class="mx-2 scrollbar-none flex shrink-0 items-center gap-1 overflow-x-auto rounded-control bg-sunken/60 p-1"
 	>
 		{#each items as item (item.label)}
 			<Button

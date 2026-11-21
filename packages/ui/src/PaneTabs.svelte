@@ -81,7 +81,7 @@
 		bind:this={list}
 		onscroll={edges}
 		class={[
-			'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scroll-fade-x',
+			'scroll-fade-x flex min-w-0 flex-1 items-center gap-1 overflow-x-auto',
 			lead ? 'pl-1' : 'pl-2',
 			actions ? 'pr-1' : 'pr-2',
 			moreLeft && 'more-left',
