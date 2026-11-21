@@ -2,31 +2,12 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, waitFor } from 'storybook/test';
 	import FileView from './FileView.svelte';
+	import { tone } from '#lib/ui/tone.ts';
 	import logo from '#lib/assets/favicon.svg?raw';
 
-	/** Half a second of a 440 Hz tone, as a WAV file in base64. */
-	function tone() {
-		const rate = 8000;
-		const samples = rate / 2;
-		const view = new DataView(new ArrayBuffer(44 + samples));
-		const text = (at: number, value: string) =>
-			[...value].forEach((char, index) => view.setUint8(at + index, char.charCodeAt(0)));
-		text(0, 'RIFF');
-		view.setUint32(4, 36 + samples, true);
-		text(8, 'WAVEfmt ');
-		view.setUint32(16, 16, true);
-		view.setUint16(20, 1, true);
-		view.setUint16(22, 1, true);
-		view.setUint32(24, rate, true);
-		view.setUint32(28, rate, true);
-		view.setUint16(32, 1, true);
-		view.setUint16(34, 8, true);
-		text(36, 'data');
-		view.setUint32(40, samples, true);
-		for (let index = 0; index < samples; index++)
-			view.setUint8(44 + index, 128 + 64 * Math.sin((2 * Math.PI * 440 * index) / rate));
-		return btoa(String.fromCharCode(...new Uint8Array(view.buffer)));
-	}
+	/** A PNG of one red pixel. */
+	const dot =
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
 
 	const { Story } = defineMeta({ title: 'Geordi/File preview', component: FileView });
 </script>
@@ -46,11 +27,12 @@
 
 <Story
 	name="Sound"
-	args={{ path: 'assets/beep.wav', current: { mediaType: 'audio/wav', data: tone() } }}
-	play={async ({ canvasElement }) => {
-		const audio = canvasElement.querySelector('audio');
-		await expect(audio).toHaveAttribute('controls');
-		await waitFor(() => expect(audio?.duration).toBeCloseTo(0.5));
+	args={{ path: 'assets/beep.wav', current: { mediaType: 'audio/wav', data: tone(440, 2) } }}
+	play={async ({ canvas }) => {
+		await expect(canvas.getByRole('button', { name: 'Play assets/beep.wav' })).toBeVisible();
+		await waitFor(() =>
+			expect(canvas.getByRole('slider')).toHaveAttribute('aria-valuetext', '0:00.0 of 0:02.0')
+		);
 	}}
 />
 
@@ -58,12 +40,36 @@
 	name="Changed sound"
 	args={{
 		path: 'assets/beep.wav',
-		old: { mediaType: 'audio/wav', data: tone() },
-		current: { mediaType: 'audio/wav', data: tone() }
+		old: { mediaType: 'audio/wav', data: tone(330, 1.5) },
+		current: { mediaType: 'audio/wav', data: tone(660, 0.8) }
 	}}
-	play={async ({ canvas, canvasElement, userEvent }) => {
-		await userEvent.click(canvas.getByRole('button', { name: 'Before' }));
-		await expect(canvasElement.querySelector('audio')).toBeTruthy();
+	play={async ({ canvas }) => {
+		await expect(canvas.getByRole('button', { name: 'Play Before' })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Play After' })).toBeVisible();
+		await expect(canvas.getAllByRole('slider')).toHaveLength(2);
+	}}
+/>
+
+<Story
+	name="Changed image"
+	args={{ path: 'logo.svg', old: logo, current: { mediaType: 'image/png', data: dot } }}
+	play={async ({ canvas, userEvent }) => {
+		await expect(canvas.getAllByRole('img')).toHaveLength(2);
+		await expect(canvas.getByText('Before')).toBeVisible();
+		await userEvent.click(canvas.getAllByRole('button', { name: 'Enlarge image' })[1]);
+		await expect(canvas.getByRole('dialog')).toBeVisible();
+	}}
+/>
+
+<Story
+	name="Changed SVG"
+	args={{
+		path: 'logo.svg',
+		old: logo,
+		current: { mediaType: 'image/svg+xml', data: btoa(logo.replace('#2c2f3b', '#b8862b')) }
+	}}
+	play={async ({ canvas }) => {
+		await expect(canvas.getAllByRole('img')).toHaveLength(2);
 	}}
 />
 

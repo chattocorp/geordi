@@ -63,12 +63,12 @@ describe('renderMarkdown', () => {
 
 	it('plays sounds the agent has where it works', () => {
 		const html = renderMarkdown('![Jump](assets/jump.wav)', { pictures: '/workspaces/w1/picture' });
-		expect(html).toContain('<audio controls');
-		expect(html).toContain('src="/workspaces/w1/picture?path=assets%2Fjump.wav"');
-		expect(html).toContain('data-picture="assets/jump.wav"');
+		expect(html).toContain('data-sound="/workspaces/w1/picture?path=assets%2Fjump.wav"');
+		expect(html).toContain('data-label="Jump"');
+		expect(html).toContain('data-path="assets/jump.wav"');
 		expect(html).not.toContain('<img');
 		expect(renderMarkdown('![x](https://example.com/a.mp3)', { pictures: '/p' })).not.toContain(
-			'<audio'
+			'data-sound'
 		);
 	});
 

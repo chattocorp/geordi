@@ -98,9 +98,10 @@ md.renderer.rules.image = (tokens, index, _options, env) => {
 	const url = escapeHtml(
 		`${pictures}${pictures.includes('?') ? '&' : '?'}path=${encodeURIComponent(path)}`
 	);
-	// A sound gets a player. Its name only picks the element: the forge serves what the bytes are.
+	// A sound gets a player (`Markdown.svelte` puts it here). Its name only says so: the forge
+	// serves what the bytes are.
 	if (SOUND.test(path))
-		return `<audio controls preload="metadata" src="${url}" aria-label="${alt || escapeHtml(path)}" data-picture="${escapeHtml(path)}"></audio>`;
+		return `<span class="not-prose my-3 block max-w-md card px-3 py-2" data-sound="${url}" data-label="${alt || escapeHtml(path)}" data-path="${escapeHtml(path)}"></span>`;
 	return `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${alt}" data-picture="${escapeHtml(path)}" loading="lazy"></a>`;
 };
 
