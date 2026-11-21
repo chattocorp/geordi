@@ -156,6 +156,8 @@ export function createUpcaster() {
 			case 'workspace.archived':
 			case 'workspace.moved':
 			case 'workspace.setAside':
+			case 'workspace.locked':
+			case 'workspace.unlocked':
 			case 'workspace.usage':
 			case 'workspace.suggested':
 			case 'workspace.purged':

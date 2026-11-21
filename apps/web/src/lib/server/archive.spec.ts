@@ -104,6 +104,47 @@ describe('archiving', () => {
 		expect(removed.indexOf(grandchild)).toBeLessThan(removed.indexOf(child));
 	});
 
+	it('archives nothing while it or anything archived with it is locked (FDR-015)', async () => {
+		const { workspaces, archive, removed, closed, lead, start } = setup();
+		const child = start(lead, 'own', 'Build');
+		workspaces.lock(child, true);
+
+		await expect(archive(lead, false)).rejects.toEqual(refusal(/“Build” is locked/));
+		await expect(archive(child, false)).rejects.toEqual(refusal(/locked/));
+		expect(removed).toEqual([]);
+		expect(closed).toEqual([]);
+		expect(workspaces.get(lead).archivedAt).toBeNull();
+
+		workspaces.lock(child, false);
+		await archive(lead, false);
+		expect(workspaces.get(child).archivedAt).not.toBeNull();
+		expect(() => workspaces.lock(child, true)).toThrow();
+	});
+
+	it('locks the workspace an agent works alongside in, not the agent itself', () => {
+		const { workspaces, lead, start } = setup();
+		const reviewer = start(lead, 'shared', 'Review');
+		expect(() => workspaces.lock(reviewer, true)).toThrow();
+		expect(workspaces.get(reviewer).locked).toBe(false);
+	});
+
+	it('cannot lock a workspace while it is being archived', async () => {
+		const { workspaces, lead } = setup();
+		const removing = Promise.withResolvers<void>();
+		const archive = createArchiver({
+			workspaces,
+			closeTerminals: () => {},
+			removeWorktree: () => removing.promise,
+			closeProject: async () => {}
+		});
+		const archiving = archive(lead, false);
+		expect(() => workspaces.lock(lead, true)).toThrow();
+		removing.resolve();
+		await archiving;
+		expect(workspaces.get(lead).archivedAt).not.toBeNull();
+		expect(workspaces.get(lead).locked).toBe(false);
+	});
+
 	it('keeps reviewers with their worktrees across an A → B → A delegation chain', async () => {
 		const { workspaces, repos, store, archive, lead, start, removed, closed } = setup();
 		const local = start(lead, 'own', 'Local work');

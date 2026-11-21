@@ -110,6 +110,7 @@ const workspace = (at: Partial<WorkspaceSource> = {}): WorkspaceSource =>
 			sideOpen: true,
 			changedFiles: [],
 			actions: [],
+			locked: null,
 			...at
 		} as WorkspaceSource,
 		{ get: (target, name) => (name in target ? target[name as keyof WorkspaceSource] : vi.fn()) }

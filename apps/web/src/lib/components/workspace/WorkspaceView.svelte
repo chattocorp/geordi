@@ -71,6 +71,7 @@
 		editReleaseNote,
 		findFolders,
 		jobsReady,
+		lockWorkspace,
 		openFolder,
 		openLink,
 		restoreWorktree,
@@ -812,7 +813,8 @@
 						changes: checked.changes,
 						upstream: checked.upstream,
 						failed: workspace.lastTurn === 'failed',
-						child: !!workspace.parentId
+						child: !!workspace.parentId,
+						locked: workspace.locked
 					}
 	);
 	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
@@ -1006,6 +1008,7 @@
 			sideOpen: project || workspace.archivedAt ? null : frame.current.open,
 			changedFiles: git?.changes?.files.map((file) => file.path) ?? [],
 			actions: offered.filter((action) => !pending.includes(action.id) && !action.unavailable),
+			locked: workspace.archivedAt ? null : workspace.locked,
 
 			show: (tab) => {
 				if (terminalOf(tab)) return showShell(tab);
@@ -1026,7 +1029,8 @@
 			showOutput: show,
 			toggleSide,
 			openDiff,
-			act: (action) => void act(action)
+			act: (action) => void act(action),
+			lock: (locked) => void lockWorkspace({ workspaceId: workspace.id, locked })
 		})
 	);
 </script>

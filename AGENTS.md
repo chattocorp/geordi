@@ -257,7 +257,7 @@ it, perhaps you.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
   the primary action and things that are live. The only ambient motion is for things at
   work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` (and the light round a `Ring`) for checks still running, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
-  `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
+  `icon-[lucide--name]`; Heroicons (`icon-[heroicons--name-solid]`) only where a filled icon is needed. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).
 - **Settings (FDR-005):** one page, `/settings/[[section]]` (`#lib/components/Settings.svelte`),

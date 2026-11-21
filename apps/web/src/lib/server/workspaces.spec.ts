@@ -547,6 +547,18 @@ describe('workspaces', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).setAside).toBe(false);
 	});
 
+	it('keeps a workspace locked against archiving until a person unlocks it, across a restart', () => {
+		const { workspaces, store, repos, dispatch, create } = setup();
+		const id = create('One');
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.lock(id, true);
+		expect(() => workspaces.archive(id)).toThrow();
+		const restored = createWorkspaces(store, repos, dispatch);
+		expect(restored.get(id).locked).toBe(true);
+		restored.lock(id, false);
+		expect(createWorkspaces(store, repos, dispatch).get(id).locked).toBe(false);
+	});
+
 	it('lets a waiting message be taken back', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');

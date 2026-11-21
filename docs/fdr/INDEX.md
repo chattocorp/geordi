@@ -16,3 +16,4 @@
 | [FDR-012](FDR-012-projects.md)                            | Projects: workspaces for orchestrating, not tied to a repository | Deprecated | 2026-11-21    |
 | [FDR-013](FDR-013-repository-issues-and-pull-requests.md) | Repository issues and pull requests                              | Withdrawn  | 2026-11-20    |
 | [FDR-014](FDR-014-purging-archived-workspaces.md)         | Deleting archived workspaces for good                            | Active     | 2026-11-20    |
+| [FDR-015](FDR-015-locked-workspaces.md)                   | Locked workspaces                                                | Active     | 2026-11-21    |

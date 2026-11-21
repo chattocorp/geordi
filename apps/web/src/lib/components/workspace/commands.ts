@@ -26,6 +26,8 @@ export type WorkspaceSource = {
 	changedFiles: string[];
 	/** The next steps on offer. */
 	actions: WorkspaceAction[];
+	/** Whether it is locked against archiving (FDR-015); `null` where it can't be (un)locked. */
+	locked: boolean | null;
 
 	show(tab: string): void;
 	newConversation(): void;
@@ -41,6 +43,7 @@ export type WorkspaceSource = {
 	toggleSide(): void;
 	openDiff(path: string): void;
 	act(action: WorkspaceAction): void;
+	lock(locked: boolean): void;
 };
 
 /** What can be done in a workspace: its command palette, and its shortcuts. */
@@ -187,5 +190,13 @@ export function workspaceCommands(at: WorkspaceSource): Command[] {
 			run: () => at.act(action)
 		}))
 	);
+	if (at.locked !== null)
+		add('Workspace', {
+			id: 'lock',
+			label: at.locked ? 'Unlock workspace' : 'Lock workspace',
+			keywords: 'archive keep',
+			icon: at.locked ? 'icon-[lucide--lock-open]' : 'icon-[lucide--lock]',
+			run: () => at.lock(!at.locked)
+		});
 	return commands;
 }

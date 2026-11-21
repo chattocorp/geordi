@@ -21,7 +21,7 @@ type Parts = {
  * has its shells ended, its worktree removed (unless a workspace that stays still works in
  * it) and is taken out of the lists. Branches and conversations stay.
  *
- * Nothing is archived while any of them is still working, and none of them can be given
+ * Nothing is archived while any of them is locked (FDR-015) or still working, and none of them can be given
  * anything to do while it goes on: removing a worktree means waiting for a daemon, and an
  * agent must not start in a directory that is on its way out. A worktree with uncommitted
  * or untracked files stops the archiving there (422), unless `discard` is set; what was
@@ -45,6 +45,8 @@ export function createArchiver({
 	) {
 		// children before their parents, so a shared worktree goes with its last user
 		const family = [id, ...workspaces.descendants(id)].reverse().map(workspaces.summary);
+		// a locked workspace stays, and so does everything archived with it (FDR-015)
+		workspaces.refuseLocked(family.map((workspace) => workspace.id));
 
 		const busy = family.find((workspace) => workspace.status === 'running');
 		if (busy && (!stopAgents || actor !== null))

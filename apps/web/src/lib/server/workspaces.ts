@@ -1311,10 +1311,37 @@ export function createWorkspaces(
 			);
 		},
 
+		/**
+		 * Locks the workspace against archiving, or unlocks it (FDR-015). For people only: the
+		 * agent API has no way to do it, so no agent can unlock what it then archives.
+		 */
+		lock(id: string, locked: boolean, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			// an agent working alongside goes with the workspace it works in, which is what is locked
+			if (workspace.worktreeId !== id) error(409, 'Lock the workspace this agent works in');
+			// not while it is busy (being archived, say): its worktree may be on its way out already
+			refuseHeld(id);
+			if (workspace.locked === locked) return;
+			store.append(
+				locked
+					? { type: 'workspace.locked', stream: `workspace:${id}`, data: { id } }
+					: { type: 'workspace.unlocked', stream: `workspace:${id}`, data: { id } },
+				{ actor }
+			);
+		},
+
+		/** Refuses (409) if any of these workspaces is locked against archiving (FDR-015). */
+		refuseLocked(ids: string[]) {
+			const locked = ids.map(find).find((workspace) => workspace.locked && !workspace.archivedAt);
+			if (locked) error(409, `“${locked.title}” is locked. Unlock it to archive it.`);
+		},
+
 		/** Marks the workspace as done with. Its conversation stays readable. */
 		archive(id: string, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) return;
+			if (workspace.locked) error(409, `“${workspace.title}” is locked. Unlock it to archive it.`);
 			if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
 			store.append(
 				{ type: 'workspace.archived', stream: `workspace:${id}`, data: { id } },

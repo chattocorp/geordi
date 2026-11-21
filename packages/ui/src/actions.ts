@@ -64,6 +64,8 @@ type State = {
 	failed?: boolean;
 	/** Whether an agent started the workspace: its work goes back to that one. */
 	child?: boolean;
+	/** Whether a person locked it against archiving (FDR-015): archiving is not offered. */
+	locked?: boolean;
 };
 
 /** Whether everything the workspace did is in the branch it started from, with no pull request to say so. */
@@ -90,7 +92,7 @@ const mergeFrom = (branch: string | null) =>
 export function actionsFor(state: State): WorkspaceAction[] {
 	if (state.archived)
 		return [{ id: 'restore-workspace', label: 'Restore', icon: 'icon-[lucide--archive-restore]' }];
-	const actions = nextActions(state);
+	const actions = state.locked ? lockedActions(state) : nextActions(state);
 	const incoming = state.changes?.incoming;
 	const pull = state.upstream?.pull;
 	if (
@@ -118,6 +120,30 @@ export function actionsFor(state: State): WorkspaceAction[] {
 	};
 	return at < 0 ? [...actions, sync] : actions.toSpliced(at, 0, sync);
 }
+
+/**
+ * A locked workspace's actions (FDR-015): never archiving. Where archiving was all there was
+ * (its work landed), it carries on instead.
+ */
+function lockedActions(state: State): WorkspaceAction[] {
+	if (landedLocally(state)) return [CARRY_ON];
+	return withoutArchive(nextActions(state));
+}
+
+/** The actions but archiving; what was offered beside it becomes the next step, if nothing else is. */
+function withoutArchive(actions: WorkspaceAction[]): WorkspaceAction[] {
+	const rest = actions.filter((action) => action.id !== 'archive');
+	return rest.length < actions.length && rest.every((action) => action.aside)
+		? rest.map((action) => ({ ...action, aside: false }))
+		: rest;
+}
+
+/** Carrying on in the workspace, on a fresh branch. */
+const CARRY_ON: WorkspaceAction = {
+	id: 'continue',
+	label: 'Continue',
+	icon: 'icon-[lucide--git-branch-plus]'
+};
 
 function nextActions(state: State): WorkspaceAction[] {
 	const { changes, upstream } = state;
@@ -179,12 +205,7 @@ function nextActions(state: State): WorkspaceAction[] {
 	// more to do in it. Then it carries on, on a fresh branch. Work begun since (an agent
 	// may start a turn unasked) has only that way to go: it comes along.
 	if (pull.state === 'merged' || pull.state === 'closed') {
-		const carryOn: WorkspaceAction = {
-			id: 'continue',
-			label: 'Continue',
-			icon: 'icon-[lucide--git-branch-plus]'
-		};
-		return uncommitted ? [carryOn] : [{ ...carryOn, aside: true }, archive];
+		return uncommitted ? [CARRY_ON] : [{ ...CARRY_ON, aside: true }, archive];
 	}
 
 	const number = `pull request #${pull.number}`;

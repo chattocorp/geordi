@@ -125,6 +125,22 @@ describe('actionsFor', () => {
 		expect(ids({ changes: { ...clean, incoming: null }, upstream: null })).toEqual(['archive']);
 	});
 
+	it('never offers archiving a locked workspace (FDR-015)', () => {
+		const locked = true;
+		expect(ids({ changes: clean, upstream: null, locked })).toEqual([]);
+		const merged = actionsFor({ changes: clean, upstream: upstream({ state: 'merged' }), locked });
+		// carrying on is then the next step, not one beside it
+		expect(merged).toMatchObject([{ id: 'continue', aside: false }]);
+		// its work landed without a pull request: it carries on instead of being archived
+		expect(ids({ changes: { ...clean, landed: true }, upstream: null, locked })).toEqual([
+			'continue'
+		]);
+		const incoming = { branch: 'refs/heads/main', commits: 2 };
+		expect(actionsFor({ changes: { ...clean, incoming }, upstream: null, locked })).toMatchObject([
+			{ id: 'merge-upstream', aside: false }
+		]);
+	});
+
 	it('does not offer upstream merges for completed work or a failed turn', () => {
 		const changes = { ...clean, incoming: { branch: 'refs/heads/parent', commits: 1 } };
 		for (const state of ['closed', 'merged'] as const)
