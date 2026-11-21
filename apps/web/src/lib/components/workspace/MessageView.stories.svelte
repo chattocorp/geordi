@@ -831,6 +831,8 @@
 		await userEvent.click(button);
 		const dialog = await canvas.findByRole('dialog', { name: 'Attached image 2' });
 		expect(dialog.querySelector('img')!.src).toBe(src);
+		// In CI the dialog has briefly reported `pointer-events: none` right after opening
+		await waitFor(() => expect(getComputedStyle(dialog).pointerEvents).not.toBe('none'));
 		await userEvent.click(dialog);
 		await waitFor(() => expect(canvas.queryByRole('dialog')).toBeNull());
 	}}
