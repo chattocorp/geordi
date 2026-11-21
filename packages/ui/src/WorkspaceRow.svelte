@@ -61,8 +61,9 @@
 		archive: 'status-merged hover:bg-merged/25'
 	};
 
-	/** One with a link to its parent needs no icon of its own: but a picture (its repository's) still shows. */
-	const bare = $derived(!!parentHref && !fold && !waiting && typeof icon !== 'function');
+	/** Right after the link to its parent, which stands for it: no icon of its own, but a picture (its repository's), close by. */
+	const besideLink = $derived(!!parentHref && !fold && !waiting);
+	const picture = $derived(typeof icon === 'function');
 	const primary = $derived(actions.find((action) => !action.aside));
 	const pillColor = $derived(standing && primary && onaction && pillColors[primary.id]);
 	const visibleStanding = $derived(standing?.tone === 'accent' ? null : standing);
@@ -118,10 +119,10 @@
 			{href}
 			{current}
 			{onpoint}
-			icon={bare ? undefined : statusIcon}
+			icon={besideLink && !picture ? undefined : statusIcon}
 			hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
 			fold={leaving ? undefined : fold}
-			class={bare ? 'py-1 pl-0' : 'py-1'}
+			class={besideLink ? 'py-1 pl-0' : 'py-1'}
 		/>
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
