@@ -36,8 +36,10 @@
 		onreceive?: (tab: string, groupId: string, zone: Zone, before?: string | null) => void;
 		/** Whether a tab dropped at the side of a group opens a new group there. It does, by default. */
 		splits?: boolean;
-		/** Label of the "+" button. */
+		/** Label of the button that opens a new window. */
 		newLabel?: string;
+		/** Icon of that button (an Iconify class). */
+		newIcon?: string;
 		/** Shown in a group without tabs. Without it, such a group is simply empty. */
 		empty?: Snippet;
 		/**
@@ -58,6 +60,7 @@
 		onreceive,
 		splits = true,
 		newLabel = 'New window',
+		newIcon = 'icon-[lucide--plus]',
 		empty,
 		actions
 	}: Props = $props();
@@ -138,7 +141,7 @@
 					<Button
 						variant="ghost"
 						size="sm"
-						icon="icon-[lucide--plus]"
+						icon={newIcon}
 						label={newLabel}
 						onclick={() => onchange(open(layout, newTab(), n.id))}
 					/>

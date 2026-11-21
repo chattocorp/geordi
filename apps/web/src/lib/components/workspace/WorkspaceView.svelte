@@ -1246,6 +1246,7 @@
 					ondoubleclick={demote}
 					newTab={workspace.archivedAt ? undefined : newConversation}
 					newLabel="New conversation"
+					newIcon="icon-[lucide--message-square-plus]"
 				/>
 			</div>
 		{/snippet}
@@ -1291,6 +1292,7 @@
 								splits={false}
 								newTab={workspace.archivedAt ? undefined : newTerminal}
 								newLabel="New terminal"
+								newIcon="icon-[lucide--square-terminal]"
 							/>
 						</div>
 					{/snippet}
