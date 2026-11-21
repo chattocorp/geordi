@@ -506,3 +506,7 @@
 		{ unreachable: 'GitHub did not answer' }
 	)}
 </Story>
+
+<Story name="Archived workspace" asChild>
+	{@render bar({ archived: true, changes: null, upstream: null })}
+</Story>
