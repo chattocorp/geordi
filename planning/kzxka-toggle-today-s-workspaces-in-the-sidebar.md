@@ -29,3 +29,5 @@ Holding a dragged workspace over the closed Set aside header for 500 ms opens it
 A Set aside list opened by hovering closes when the drag ends. Verified a drop and Escape cancellation in the running forge, and that a manually opened list stays open.
 
 All workspace drops now commit the destination shown by the drag preview through one sidebar handler. Verified the exact order for moves in both directions and within each list, in grouped and flat views.
+
+The sidebar now always shows Current and Set aside. Creation, a new user prompt or an explicit return starts a 24-hour current period. Verified automatic expiry in an open sidebar with recent agent output, both menu actions, grouped and flat views, and state reconstruction from the event log.

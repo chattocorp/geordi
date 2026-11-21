@@ -2,4 +2,4 @@
 type: feature
 ---
 
-Drag a workspace to **Set aside** in Today, or choose **Not Today** from its sidebar menu. Click **Set aside** to see its workspaces, or hold a dragged workspace over it for half a second to open it for the duration of the drag. Drag workspaces into order within either list or between them. Sending a new prompt also brings a workspace back to Today.
+The sidebar now shows current and set-aside workspaces together. A workspace is set aside after 24 hours without a prompt from you. Send a prompt, drag it back, or choose **Return to Current** to bring it back. You can also set it aside early from its menu or by dragging it.

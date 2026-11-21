@@ -50,13 +50,44 @@ const refusal = (message: RegExp) =>
 	});
 
 describe('workspaces', () => {
-	it('keeps a workspace out of Today through background work and replay until a new prompt', () => {
+	it('expires exactly 24 hours after a person prompts or returns the workspace', () => {
+		vi.useFakeTimers();
+		try {
+			const start = Date.parse('2026-11-20T23:45:00Z');
+			const day = 24 * 60 * 60 * 1000;
+			vi.setSystemTime(start);
+			const { workspaces, create, store, repos, dispatch } = setup();
+			const id = create('');
+			vi.setSystemTime(start + day - 1);
+			expect(workspaces.summary(id).deferred).toBe(false);
+			workspaces.steer(id, 'Agent update', 'peer');
+			workspaces.rename(id, 'A new title');
+			vi.setSystemTime(start + day);
+			const replay = createWorkspaces(store, repos, dispatch);
+			expect(replay.summary(id).deferred).toBe(true);
+			replay.move(id, null, 'person', false);
+			expect(replay.summary(id).currentUntil).toBe(start + 2 * day);
+			vi.setSystemTime(start + 2 * day);
+			replay.setDeferred(id, false);
+			expect(replay.summary(id).currentUntil).toBe(start + 3 * day);
+			vi.setSystemTime(start + 3 * day);
+			replay.send(id, 'My new prompt');
+			expect(replay.summary(id).currentUntil).toBe(start + 4 * day);
+			vi.setSystemTime(start + 4 * day);
+			replay.record(id, { kind: 'turn.completed' });
+			expect(replay.summary(id).deferred).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps a workspace set aside through background work and replay until a new prompt', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Review');
 		workspaces.send(id, 'Already queued');
 		const before = workspaces.summary(id);
 		workspaces.setDeferred(id, true);
-		expect(workspaces.summary(id)).toEqual({ ...before, deferred: true });
+		expect(workspaces.summary(id)).toEqual({ ...before, currentUntil: 0, deferred: true });
 		workspaces.record(id, { kind: 'turn.completed' });
 		workspaces.rename(id, 'Review again');
 		const replay = createWorkspaces(store, repos, dispatch);
@@ -70,7 +101,7 @@ describe('workspaces', () => {
 		expect(replay.summary(id).deferred).toBe(false);
 	});
 
-	it('returns a deferred workspace to Today without sending a prompt', () => {
+	it('returns a deferred workspace to Current without sending a prompt', () => {
 		const { workspaces, create, store, repos, dispatch, sent } = setup();
 		const id = create('Review');
 		workspaces.setDeferred(id, true);

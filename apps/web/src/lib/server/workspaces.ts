@@ -22,6 +22,8 @@ import {
 import type { EventStore, GeordiEvent } from './events/index.ts';
 import {
 	createWorkspaceProjection,
+	isSetAside,
+	isUserPrompt,
 	questionById,
 	toolById,
 	type ActionId,
@@ -47,6 +49,7 @@ export type {
 
 export type WorkspaceSummary = Omit<Workspace, 'transcript' | 'pendingMessages'> & {
 	pendingDelivery?: boolean;
+	deferred: boolean;
 };
 
 /** What an agent sees of an agent it started (FDR-002). */
@@ -143,6 +146,7 @@ export function createWorkspaces(
 
 		return structuredClone({
 			...workspace,
+			deferred: isSetAside(workspace),
 			...(pendingMessages?.length && { pendingDelivery: true }),
 			usage: usages.get(workspace.id) ?? workspace.usage,
 			worktree: projection.get().get(workspace.worktreeId)?.worktree ?? null
@@ -325,13 +329,13 @@ export function createWorkspaces(
 		actor: string | null
 	) {
 		const events: GeordiEvent[] = [];
-		const fresh = event.type === 'workspace.queued' || !event.data.queued;
-		if (actor === null && fresh) {
+		if (isUserPrompt(event, actor)) {
 			const workspace = find(event.data.id);
 			const owner = projection.get().get(workspace.worktreeId);
-			const row = owner && !owner.archivedAt ? owner : workspace;
+
 			// Record this on the sidebar row so it survives deletion of an agent alongside it.
-			if (row.deferred) events.push(todayEvent(row.id, false));
+			if (owner && owner !== workspace && !owner.archivedAt)
+				events.push(todayEvent(owner.id, false));
 		}
 		events.push(event);
 		store.append(events, { actor });
@@ -1224,7 +1228,7 @@ export function createWorkspaces(
 		setDeferred(id: string, deferred: boolean) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (workspace.deferred === deferred) return;
+			if (isSetAside(workspace) === deferred) return;
 			store.append(todayEvent(id, deferred), { actor: 'person' });
 		},
 
@@ -1256,7 +1260,7 @@ export function createWorkspaces(
 			const events: GeordiEvent[] = [
 				{ type: 'workspace.moved', stream: `workspace:${id}`, data: { id, before } }
 			];
-			if (deferred !== undefined && workspace.deferred !== deferred)
+			if (deferred !== undefined && isSetAside(workspace) !== deferred)
 				events.push(todayEvent(id, deferred));
 			store.append(events, { actor });
 		},

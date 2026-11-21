@@ -21,7 +21,6 @@
 		byRepository,
 		dropTarget,
 		inFocus,
-		isActiveOnDay,
 		shownUngrouped,
 		unfolded
 	} from '#lib/family.ts';
@@ -45,27 +44,22 @@
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
 	 * repository under its name, and those its agents started under a workspace. `focus` is
 	 * the repository shown alone, if any; `grouped` whether workspaces are listed under their
-	 * repositories, or as one list, each with its repository's picture. `visibleWorkspaces` are those shown, `todayOnly` whether
-	 * they are only those active today.
+	 * repositories, or as one list, each with its repository's picture.
 	 */
 	let {
 		nav,
-		visibleWorkspaces = nav?.workspaces ?? [],
 		path,
 		folded,
 		focus,
 		grouped,
-		todayOnly = $bindable(false),
 		repositoryPickerOpen = $bindable(false),
 		lost = false
 	}: {
 		nav: Navigation | undefined;
-		visibleWorkspaces?: Navigation['workspaces'];
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
 		grouped: { current: boolean };
-		todayOnly?: boolean;
 		repositoryPickerOpen?: boolean;
 		lost?: boolean;
 	} = $props();
@@ -73,33 +67,32 @@
 	type Item = Navigation['workspaces'][number];
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(visibleWorkspaces));
+	const current = $derived((nav?.workspaces ?? []).filter((workspace) => !workspace.deferred));
+	const listed = $derived(byRepository(current));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
 	const deferred = $derived(
-		todayOnly
-			? shownUngrouped(
-					(nav?.workspaces ?? []).filter((workspace) => workspace.deferred),
-					sidebarRepos.map(({ id }) => id)
-				)
-			: []
+		shownUngrouped(
+			(nav?.workspaces ?? []).filter((workspace) => workspace.deferred),
+			sidebarRepos.map(({ id }) => id)
+		)
 	);
 	const deferredByRepo = $derived(Map.groupBy(deferred, (workspace) => workspace.repoId));
-	const hasRows = (id: string | null) => listed.has(id) || deferredByRepo.has(id);
+
 	/**
 	 * What the sidebar groups workspaces under: projects first (FDR-012: workspaces in no
 	 * repository, `id` `null`), where there are any, then the repositories that have some.
 	 * Focusing a repository leaves the projects, which are in none.
 	 */
 	const groups = $derived([
-		...(hasRows(null) ? [{ id: null, name: 'Projects' }] : []),
-		...sidebarRepos.filter((repo) => hasRows(repo.id))
+		...(listed.has(null) || deferredByRepo.has(null) ? [{ id: null, name: 'Projects' }] : []),
+		...sidebarRepos
 	]);
 	/** All of them as one list, where they are not grouped: the projects, and the repositories shown. */
 	const oneList = $derived(
 		asOneList(
 			shownUngrouped(
-				visibleWorkspaces,
+				current,
 				sidebarRepos.map(({ id }) => id)
 			)
 		)
@@ -113,7 +106,7 @@
 
 	/**
 	 * Repositories and workspaces slide in and out whenever they come or go: by a filter (the
-	 * focus, today only) or on their own. Not when the list first arrives: it is drawn in
+	 * repository focus) or on their own. Not when the list first arrives: it is drawn in
 	 * `{#if nav}`, and a transition is local, so it plays only when its own block changes.
 	 */
 	const motion = () => ({
@@ -218,18 +211,12 @@
 				disabled: !running,
 				onselect: () => stopAgent(workspace.id)
 			},
-			...(workspace.deferred || isActiveOnDay(workspace, new Date().toDateString())
-				? [
-						{
-							label: workspace.deferred ? 'Return to Today' : 'Not Today',
-							icon: workspace.deferred
-								? 'icon-[lucide--calendar-plus]'
-								: 'icon-[lucide--calendar-minus]',
-							onselect: () =>
-								setWorkspaceDeferred({ workspaceId: workspace.id, deferred: !workspace.deferred })
-						}
-					]
-				: []),
+			{
+				label: workspace.deferred ? 'Return to Current' : 'Set aside',
+				icon: workspace.deferred ? 'icon-[lucide--list-plus]' : 'icon-[lucide--list-minus]',
+				onselect: () =>
+					setWorkspaceDeferred({ workspaceId: workspace.id, deferred: !workspace.deferred })
+			},
 			{
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
@@ -242,11 +229,11 @@
 
 	type Row = { workspace: Item; parent: Item | null; depth: number };
 
-	// Every workspace drop has an insertion point. A Today list also specifies membership.
+	// Every workspace drop has an insertion point. Its destination list specifies membership.
 	type Position = { before: string | null; after?: string };
 	type Destination = Position & {
 		element: HTMLElement;
-		deferred?: boolean;
+		deferred: boolean;
 		header?: string | null;
 	};
 	let dragged = $state<Item | null>(null);
@@ -267,7 +254,7 @@
 		destination = position
 			? {
 					...position,
-					deferred: todayOnly ? deferred : undefined,
+					deferred,
 					element: event.currentTarget,
 					header
 				}
@@ -422,26 +409,15 @@
 				options={repositoryOptions}
 				bind:value={() => focus.current ?? '', (value) => (focus.current = value || null)}
 			/>
-			<div class="flex shrink-0 items-center gap-1">
-				<Button
-					variant="ghost"
-					icon="icon-[lucide--list]"
-					label="Show workspaces as one list"
-					title={`Show workspaces as one list (${hint('groupByRepo')})`}
-					aria-pressed={!grouped.current}
-					class="aria-pressed:bg-sunken aria-pressed:text-ink"
-					onclick={() => (grouped.current = !grouped.current)}
-				/>
-				<Button
-					variant="ghost"
-					icon="icon-[lucide--calendar-days]"
-					label="Show workspaces active today"
-					title={`Show workspaces active today (${hint('todayOnly')})`}
-					aria-pressed={todayOnly}
-					class="aria-pressed:bg-sunken aria-pressed:text-ink"
-					onclick={() => (todayOnly = !todayOnly)}
-				/>
-			</div>
+			<Button
+				variant="ghost"
+				icon="icon-[lucide--list]"
+				label="Show workspaces as one list"
+				title={`Show workspaces as one list (${hint('groupByRepo')})`}
+				aria-pressed={!grouped.current}
+				class="aria-pressed:bg-sunken aria-pressed:text-ink"
+				onclick={() => (grouped.current = !grouped.current)}
+			/>
 		</div>
 
 		<!--
@@ -466,13 +442,11 @@
 			<div aria-hidden="true"></div>
 			{#if nav && !grouped.current}
 				{@const rows = unfolded(oneList, folded.current)}
-				{@render workspaceList(rows, null, false, !todayOnly && 'pb-4')}
-				{#if todayOnly && rows.length === 0 && !dragged?.deferred}
-					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{@render workspaceList(rows, null, false)}
+				{#if rows.length === 0 && !dragged?.deferred}
+					<p class="px-2 py-1 text-sm text-muted">No current workspaces.</p>
 				{/if}
-				{#if todayOnly}
-					{@render setAside(null, deferred)}
-				{/if}
+				{@render setAside(null, deferred)}
 			{:else if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
 					{@const all = listed.get(repo.id) ?? []}
@@ -564,14 +538,12 @@
 						</div>
 						{#if !isFolded}
 							{@render workspaceList(rows, repo.id, false)}
-							{#if todayOnly}
-								{@render setAside(repo.id, deferredByRepo.get(repo.id) ?? [])}
-							{/if}
+							{@render setAside(repo.id, deferredByRepo.get(repo.id) ?? [])}
 						{/if}
 					</div>
 				{/each}
-				{#if todayOnly && groups.length === 0}
-					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{#if groups.length === 0}
+					<p class="px-2 py-1 text-sm text-muted">No current workspaces.</p>
 				{/if}
 			{/if}
 			<div aria-hidden="true"></div>
@@ -619,7 +591,7 @@
 				if (canSetAside) previewDrop(event, { before: items[0]?.id ?? null }, true, repoId);
 			}}
 		>
-			<span class="icon-[lucide--calendar-minus] size-4 shrink-0"></span>
+			<span class="icon-[lucide--list-minus] size-4 shrink-0"></span>
 			<span>{canSetAside ? 'Drop to set aside' : 'Set aside'}</span>
 			{#if items.length}<span class="ml-auto tabular-nums">{items.length}</span>{/if}
 			<span
@@ -646,7 +618,7 @@
 		{#each rows as entry, index (entry.workspace.id)}
 			{@render row(entry, rows, index, deferred)}
 		{/each}
-		{#if todayOnly && !rows.length && dragged && droppable(repoId) && dragged.deferred !== deferred}
+		{#if !rows.length && dragged && droppable(repoId) && dragged.deferred !== deferred}
 			<li
 				ondragover={(event) => previewDrop(event, { before: null }, deferred)}
 				class="flex min-h-8 items-center gap-2 rounded-control border border-dashed border-muted px-2.5 text-xs text-muted"

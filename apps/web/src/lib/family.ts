@@ -13,17 +13,6 @@ export type Listed<T> = {
 	depth: number;
 };
 
-type Activity = { updatedAt: string; deferred: boolean };
-
-/** Compare calendar days in the viewer's time zone. */
-export function isActiveOnDay(workspace: Activity, day: string) {
-	return !workspace.deferred && new Date(workspace.updatedAt).toDateString() === day;
-}
-
-export function activeOnDay<T extends Activity>(workspaces: T[], day: string | null) {
-	return day === null ? workspaces : workspaces.filter((w) => isActiveOnDay(w, day));
-}
-
 /** Keeps the order given, but puts each workspace right after the one that started it. */
 export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
 	return nested(all, (workspace) => workspace.repoId);

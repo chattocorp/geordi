@@ -3,6 +3,7 @@ import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
+import { isSetAside } from './workspace-projection.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
 /**
@@ -24,8 +25,10 @@ export type View<T> = {
  * counts as started there. `outcome` is how all of their work came to rest, `null` while
  * any of it goes on (FDR-008).
  */
-export const navigation = () =>
-	({
+export const navigation = () => {
+	let notify: (() => void) | undefined;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	return {
 		read: () => {
 			const all = workspaces().all();
 			const harnesses = hub().harnesses();
@@ -33,8 +36,12 @@ export const navigation = () =>
 			const operations = new Map(
 				Array.from(hub().operations(), ({ worktreeId, action }) => [worktreeId, action])
 			);
+			const now = Date.now();
+			let nextExpiry = Infinity;
 			const listed = withAides(all).map(({ workspace, aides }) => {
 				const { id, title, repoId, parentId, status, worktree } = workspace;
+				const deferred = isSetAside(workspace, now);
+				if (!deferred) nextExpiry = Math.min(nextExpiry, workspace.currentUntil);
 				const busy = [workspace, ...aides].filter((w) => w.status === 'running');
 				const working = busy.length > 0;
 				const waiting = working && !harnesses && busy.every((w) => w.pendingDelivery);
@@ -69,13 +76,12 @@ export const navigation = () =>
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
-					deferred: workspace.deferred,
-					// when anything last happened in it, also in the agents working alongside
-					updatedAt: [workspace, ...aides]
-						.map((member) => member.updatedAt)
-						.reduce((a, b) => (a > b ? a : b))
+					deferred
 				};
 			});
+			clearTimeout(timer);
+			if (notify && Number.isFinite(nextExpiry))
+				timer = setTimeout(notify, nextExpiry - Date.now());
 			return {
 				repos: repos()
 					.list()
@@ -98,14 +104,20 @@ export const navigation = () =>
 			};
 		},
 		also: (changed) => {
+			notify = changed;
 			const stops = [
 				standings().subscribe(changed),
 				hub().subscribe(changed),
 				hub().followOperations(changed)
 			];
-			return () => stops.forEach((stop) => stop());
+			return () => {
+				clearTimeout(timer);
+				notify = undefined;
+				stops.forEach((stop) => stop());
+			};
 		}
-	}) satisfies View<unknown>;
+	} satisfies View<unknown>;
+};
 
 /**
  * One workspace with its conversation.
