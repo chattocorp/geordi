@@ -659,6 +659,30 @@
 	}
 }
 
+/*
+ * The same light for something still running as part of a ring (`Ring`): it goes round,
+ * clockwise. A transform on an HTML layer, so that the GPU turns it and nothing is
+ * painted again; whoever uses it masks it to the part that runs.
+ */
+@utility ring-running {
+	@apply absolute inset-0 rounded-full;
+	background: conic-gradient(
+		transparent 0 60%,
+		/* the accent, lit, as bar-running has it */ color-mix(in srgb, var(--accent), white 60%) 85%,
+		transparent
+	);
+	animation: ring-turn 1.6s linear infinite;
+
+	@media (prefers-reduced-motion: reduce) {
+		display: none;
+	}
+}
+@keyframes ring-turn {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 @keyframes visor-sweep {
 	from {
 		transform: translateX(-100%);
