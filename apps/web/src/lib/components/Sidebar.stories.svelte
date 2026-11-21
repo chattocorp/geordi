@@ -557,6 +557,12 @@
 		await fireEvent.dragOver(revealed, { clientY: revealed.getBoundingClientRect().top + 1 });
 		await expect(revealed).toHaveClass('row-drop-before');
 		await fireEvent.dragEnd(row);
+		await expect(own).not.toHaveAttribute('open');
+		await fireEvent.click(within(own).getByText('Set aside'));
+		await fireEvent.dragStart(row);
+		await fireEvent.dragOver(within(own).getByText('Drop to set aside'));
+		await fireEvent.dragEnd(row);
+		await expect(own).toHaveAttribute('open');
 		await expect(within(own).getByRole('link', { name: 'Revisit the parser' })).toHaveAttribute(
 			'href',
 			'/workspaces/later'

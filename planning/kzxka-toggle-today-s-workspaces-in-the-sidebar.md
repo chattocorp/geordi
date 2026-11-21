@@ -25,3 +25,5 @@ Drag a workspace out of Set aside to return it to Today, or use Return to Today 
 Today and Set aside share row reordering. Verified exact insertion positions within and across both lists in the running forge, including the flat view. The move records the new order and Today membership together.
 
 Holding a dragged workspace over the closed Set aside header for 500 ms opens it. Verified that leaving early cancels expansion and that the same drag can insert a workspace between two revealed rows.
+
+A Set aside list opened by hovering closes when the drag ends. Verified a drop and Escape cancellation in the running forge, and that a manually opened list stays open.

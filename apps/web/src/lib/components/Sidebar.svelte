@@ -251,6 +251,7 @@
 	let dragged = $state<Item | null>(null);
 	let dropBefore = $state<string | null | undefined>(undefined);
 	let dropAfter = $state<string | null>(null);
+	let openedByDrag: HTMLDetailsElement | undefined;
 	let overSetAside = $state<string | null | undefined>(undefined);
 	/** Whether the one being dragged may be dropped among `repoId`'s: in one list, anywhere. */
 	const droppable = (repoId: string | null) =>
@@ -274,6 +275,8 @@
 	}
 
 	function endDrag() {
+		if (openedByDrag) openedByDrag.open = false;
+		openedByDrag = undefined;
 		overSetAside = undefined;
 		dragged = null;
 		dropBefore = undefined;
@@ -577,6 +580,8 @@
 		{@attach (details) => {
 			if (!canSetAside || overSetAside !== repoId || details.open) return;
 			const timer = setTimeout(() => {
+				if (details.open) return;
+				openedByDrag = details;
 				details.open = true;
 			}, 500);
 			return () => clearTimeout(timer);
