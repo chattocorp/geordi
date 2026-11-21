@@ -556,6 +556,11 @@
 			'href',
 			'/workspaces/later'
 		);
+		const deferredRow = within(own).getByText('Revisit the parser').closest('li')!;
+		await fireEvent.dragStart(deferredRow);
+		await expect(canvas.getAllByText('Drop to return to Today')).toHaveLength(1);
+		await fireEvent.dragEnd(deferredRow);
+		await expect(canvas.queryByText('Drop to return to Today')).toBeNull();
 		await expect(within(own).getByLabelText('Ready to merge')).toBeVisible();
 		await expect(other).not.toHaveAttribute('open');
 		await fireEvent.click(within(own).getByText('Set aside'));

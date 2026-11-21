@@ -1221,11 +1221,11 @@ export function createWorkspaces(
 			);
 		},
 
-		defer(id: string) {
+		setDeferred(id: string, deferred: boolean) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (workspace.deferred) return;
-			store.append(todayEvent(id, true), { actor: 'person' });
+			if (workspace.deferred === deferred) return;
+			store.append(todayEvent(id, deferred), { actor: 'person' });
 		},
 
 		rename(id: string, title: string) {

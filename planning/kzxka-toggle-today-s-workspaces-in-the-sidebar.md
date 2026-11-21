@@ -19,3 +19,5 @@ Today also accepts workspace drops on Set aside. The grouped view shows one targ
 Set aside uses a muted dashed border. Expand it to open a deferred workspace while Today stays on. Verified opening a workspace and collapsing the list from the keyboard in the running forge.
 
 Revealed workspaces use the regular sidebar rows. Verified matching typography and row height in grouped and flat views, with status indicators visible under Set aside.
+
+Drag a workspace out of Set aside to return it to Today, or use Return to Today in its menu. Verified a drop into an empty repository list and onto an active workspace in flat view. Returning the workspace keeps its conversation and agent state.

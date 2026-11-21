@@ -55,7 +55,7 @@ describe('workspaces', () => {
 		const id = create('Review');
 		workspaces.send(id, 'Already queued');
 		const before = workspaces.summary(id);
-		workspaces.defer(id);
+		workspaces.setDeferred(id, true);
 		expect(workspaces.summary(id)).toEqual({ ...before, deferred: true });
 		workspaces.record(id, { kind: 'turn.completed' });
 		workspaces.rename(id, 'Review again');
@@ -65,16 +65,31 @@ describe('workspaces', () => {
 		expect(replay.summary(id).deferred).toBe(true);
 		replay.send(id, 'My next prompt');
 		expect(replay.summary(id).deferred).toBe(false);
-		replay.defer(id);
+		replay.setDeferred(id, true);
 		replay.steer(id, 'Change of plan');
 		expect(replay.summary(id).deferred).toBe(false);
+	});
+
+	it('returns a deferred workspace to Today without sending a prompt', () => {
+		const { workspaces, create, store, repos, dispatch, sent } = setup();
+		const id = create('Review');
+		workspaces.setDeferred(id, true);
+		const before = workspaces.get(id);
+		const commands = sent.length;
+		workspaces.setDeferred(id, false);
+		expect(createWorkspaces(store, repos, dispatch).get(id)).toMatchObject({
+			deferred: false,
+			status: before.status,
+			transcript: before.transcript
+		});
+		expect(sent).toHaveLength(commands);
 	});
 
 	it('brings the sidebar workspace back when the person prompts an agent alongside it', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Review');
 		const aide = workspaces.join(id);
-		workspaces.defer(id);
+		workspaces.setDeferred(id, true);
 		workspaces.steer(aide, 'Review this file');
 		workspaces.record(aide, { kind: 'turn.completed' });
 		workspaces.archive(aide);

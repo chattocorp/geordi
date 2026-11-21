@@ -33,7 +33,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
 	import {
-		deferWorkspace,
+		setWorkspaceDeferred,
 		moveWorkspace,
 		renameWorkspace,
 		stopAgent
@@ -218,12 +218,15 @@
 				disabled: !running,
 				onselect: () => stopAgent(workspace.id)
 			},
-			...(isActiveOnDay(workspace, new Date().toDateString())
+			...(workspace.deferred || isActiveOnDay(workspace, new Date().toDateString())
 				? [
 						{
-							label: 'Not Today',
-							icon: 'icon-[lucide--calendar-minus]',
-							onselect: () => deferWorkspace(workspace.id)
+							label: workspace.deferred ? 'Return to Today' : 'Not Today',
+							icon: workspace.deferred
+								? 'icon-[lucide--calendar-plus]'
+								: 'icon-[lucide--calendar-minus]',
+							onselect: () =>
+								setWorkspaceDeferred({ workspaceId: workspace.id, deferred: !workspace.deferred })
 						}
 					]
 				: []),
@@ -264,9 +267,9 @@
 		dropAfter = target?.after ?? null;
 	}
 
-	function drop(event: DragEvent, repoId: string | null) {
+	function drop(event: DragEvent) {
 		event.preventDefault();
-		if (dragged && droppable(repoId) && dropBefore !== undefined)
+		if (dragged && dropBefore !== undefined)
 			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
 		endDrag();
 	}
@@ -439,8 +442,8 @@
 			<div aria-hidden="true"></div>
 			{#if nav && !grouped.current}
 				{@const rows = unfolded(oneList, folded.current)}
-				{@render workspaceList(rows, !todayOnly && 'pb-4')}
-				{#if todayOnly && rows.length === 0}
+				{@render workspaceList(rows, null, !todayOnly && 'pb-4')}
+				{#if todayOnly && rows.length === 0 && !dragged?.deferred}
 					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
 				{/if}
 				{#if todayOnly}
@@ -536,7 +539,7 @@
 							{/if}
 						</div>
 						{#if !isFolded}
-							{@render workspaceList(rows)}
+							{@render workspaceList(rows, repo.id)}
 							{#if todayOnly}
 								{@render setAside(repo.id, deferredByRepo.get(repo.id) ?? [])}
 							{/if}
@@ -590,7 +593,7 @@
 			ondrop={(event) => {
 				if (!dragged || !canSetAside) return;
 				event.preventDefault();
-				void deferWorkspace(dragged.id);
+				void setWorkspaceDeferred({ workspaceId: dragged.id, deferred: true });
 				endDrag();
 			}}
 		>
@@ -605,16 +608,37 @@
 			></span>
 		</summary>
 		{#if items.length}
-			{@render workspaceList(unfolded(asOneList(items), folded.current), 'mt-1')}
+			{@render workspaceList(unfolded(asOneList(items), folded.current), undefined, 'mt-1')}
 		{:else}
 			<p class="px-2.5 py-1 text-xs text-muted">No workspaces set aside.</p>
 		{/if}
 	</details>
 {/snippet}
 
-{#snippet workspaceList(rows: (Row & { under: number })[], spacing: string | false = false)}
+{#snippet workspaceList(
+	rows: (Row & { under: number })[],
+	todayRepo: string | null | undefined,
+	spacing: string | false = false
+)}
+	{@const canReturn =
+		todayOnly && todayRepo !== undefined && dragged?.deferred && droppable(todayRepo)}
 	<ul
 		class={['space-y-px', spacing]}
+		ondragover={(event) => {
+			if (!canReturn) return;
+			event.preventDefault();
+			if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+			dropBefore = undefined;
+		}}
+		ondrop={(event) => {
+			if (canReturn && dragged) {
+				event.preventDefault();
+				void setWorkspaceDeferred({ workspaceId: dragged.id, deferred: false });
+				endDrag();
+			} else if (dragged && rows.some(({ workspace }) => workspace.id === dragged!.id)) {
+				drop(event);
+			}
+		}}
 		ondragleave={(event) => {
 			if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dropBefore = undefined;
 		}}
@@ -622,6 +646,13 @@
 		{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
 			{@render row(workspace, parent, depth, under, rows, index)}
 		{/each}
+		{#if canReturn}
+			<li
+				class="flex min-h-8 items-center gap-2 rounded-control border border-dashed border-muted px-2.5 text-xs text-muted"
+			>
+				<span class="icon-[lucide--calendar-plus] size-4"></span>Drop to return to Today
+			</li>
+		{/if}
 	</ul>
 {/snippet}
 
@@ -656,7 +687,6 @@
 		}}
 		ondragend={endDrag}
 		ondragover={(event) => overRow(event, rows, index)}
-		ondrop={(event) => drop(event, workspace.repoId)}
 	>
 		<WorkspaceRow
 			title={workspace.title}
