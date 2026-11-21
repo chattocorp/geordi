@@ -29,8 +29,10 @@ function windowName(minutes: number | undefined): string {
 const CLAUDE_WINDOWS: Record<string, string> = {
 	five_hour: '5h',
 	seven_day: 'Week',
+	seven_day_fable: 'Week (Fable)',
 	seven_day_opus: 'Week (Opus)',
-	seven_day_sonnet: 'Week (Sonnet)'
+	seven_day_sonnet: 'Week (Sonnet)',
+	seven_day_haiku: 'Week (Haiku)'
 };
 
 /** Claude's `rate_limit_event` info (`SDKRateLimitInfo`), as limits: all of its windows. */

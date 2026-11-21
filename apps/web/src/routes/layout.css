@@ -67,6 +67,8 @@
 	--on-accent: #2a1c00;
 	--danger: #b32a25;
 	--danger-soft: #fde7e5;
+	/* getting low: something that runs out (context, usage), before it is `danger` */
+	--warning: #9a6700;
 	--ok: #0f6b50;
 	/* done and landed: a merged pull request, as forges show it */
 	--merged: #8250df;
@@ -97,6 +99,7 @@
 	--on-accent: #2a1c00;
 	--danger: #ff7b72;
 	--danger-soft: #45292b;
+	--warning: #e3c35a;
 	--ok: #4fd1a5;
 	--merged: #a985f7;
 	--on-merged: #1c1330;
@@ -157,6 +160,7 @@
 	--color-on-accent: var(--on-accent);
 	--color-danger: var(--danger);
 	--color-danger-soft: var(--danger-soft);
+	--color-warning: var(--warning);
 	--color-ok: var(--ok);
 	--color-merged: var(--merged);
 	--color-on-merged: var(--on-merged);

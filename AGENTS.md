@@ -226,7 +226,7 @@ it, perhaps you.
   Tailwind:
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `frame`, `sidebar`,
     `surface`, `sunken`, `bubble`, `ink`, `prose` (long text), `muted`, `line`, `accent`, `accent-soft`,
-    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
+    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `warning`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
     it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,

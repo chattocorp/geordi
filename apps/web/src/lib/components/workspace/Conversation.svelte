@@ -91,6 +91,12 @@
 		return configureWorkspace({ workspaceId: workspace.id, model, effort, permissionMode });
 	};
 
+	// the model that answers next, by its name, for the limits that hold for it alone (`Week (Opus)`)
+	const model = $derived(
+		resolveChoice(harnesses ?? [], choice, workspace.sessionModel).model?.name ??
+			workspace.sessionModel?.model
+	);
+
 	// The agent's own commands and skills, offered as one types `/`: once it has said which.
 	const commands = follow<AgentCommand[] | null>('commands', () => workspace.id);
 	// how much of the subscription's usage limits is used: told on hovering the context meter
@@ -176,11 +182,12 @@
 										onchange={configure}
 									/>{/if}
 							{/snippet}
-							{#snippet meter()}{#if workspace.usage}<ContextMeter
-										usage={workspace.usage}
-										agent={workspace.agent}
-										limits={limits.current?.[workspace.agent]}
-									/>{/if}{/snippet}
+							{#snippet meter()}<ContextMeter
+									usage={workspace.usage}
+									agent={workspace.agent}
+									limits={limits.current?.[workspace.agent]}
+									{model}
+								/>{/snippet}
 						</ReplyComposer>
 					{/snippet}
 				</WithMessageImages>

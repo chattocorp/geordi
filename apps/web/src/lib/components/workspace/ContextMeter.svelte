@@ -1,24 +1,49 @@
 <script lang="ts">
 	import type { Agent, ContextUsage, UsageLimit } from '@geordi/protocol';
 	import { agentName } from '#lib/format.ts';
-	import { describeUsage, fullness, NEARLY_FULL } from '#lib/tokens.ts';
-	import Ring from '@geordi/ui/Ring.svelte';
+	import { describeUsage, fullness } from '#lib/tokens.ts';
+	import { charge, leftOf, limitTone, toneOf, type Tone } from '#lib/limits.ts';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 
 	/**
-	 * How full the agent's context is: a quiet ring beside the model it talks to. On hover,
-	 * what is left of it and of its subscription's usage limits, each as a bar with its
-	 * numbers in words. Only what is nearly used up stands out.
+	 * How the agent stands, as a phone would say it: its reception fades as its context fills
+	 * up, and its battery is what its usage limits leave of the model it talks to. On hover,
+	 * the same, one by one: the context's reception and each limit's battery, with their
+	 * numbers in words. Quiet until something runs low (yellow) or nearly out (red).
 	 */
 	let {
 		usage,
 		agent,
-		limits = []
-	}: { usage: ContextUsage; agent: Agent; limits?: UsageLimit[] } = $props();
+		limits = [],
+		model
+	}: {
+		/** How full the context is, once the agent has said. */
+		usage?: ContextUsage | null;
+		agent: Agent;
+		limits?: UsageLimit[];
+		/** The model that answers next, for the limits that hold for it alone. */
+		model?: string;
+	} = $props();
 
-	const share = $derived(fullness(usage));
-	const nearlyFull = $derived(share >= NEARLY_FULL);
-	const label = $derived(`Context: ${describeUsage(usage)}`);
+	const context = $derived(usage ? 1 - fullness(usage) : undefined);
+	const contextTone = $derived(toneOf(context));
+	const battery = $derived(charge(limits, model));
+
+	const fills: Record<Tone, string> = {
+		normal: 'fill-muted',
+		warning: 'fill-warning',
+		danger: 'fill-danger'
+	};
+	const strokes: Record<Tone, string> = {
+		normal: 'stroke-muted',
+		warning: 'stroke-warning',
+		danger: 'stroke-danger'
+	};
+	const texts: Record<Tone, string> = {
+		normal: '',
+		warning: 'font-medium text-warning',
+		danger: 'font-medium text-danger'
+	};
 
 	const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 	const day = new Intl.DateTimeFormat(undefined, {
@@ -26,64 +51,113 @@
 		hour: 'numeric',
 		minute: '2-digit'
 	});
-	/** How much of a limit is left, in whole percent, where its provider says how much is used. */
-	const remaining = ({ usedPercent }: UsageLimit) =>
-		usedPercent === undefined ? undefined : Math.max(0, Math.round(100 - usedPercent));
 	/** When a limit starts over: the time if that is today-ish, else the day and time. */
 	const resets = (at: number) =>
 		at - Date.now() < 20 * 60 * 60_000 ? time.format(at) : day.format(at);
+	const percent = (left: number) => `${Math.round(left * 100)}% left`;
 </script>
 
-<Tooltip>
-	<!-- the share beside the ring: without it, a ring that has barely begun looks like it loads -->
-	<span class="flex h-9 items-center gap-1.5 px-1.5 text-xs text-muted tabular-nums">
-		<Ring
-			{label}
-			parts={[
-				{ size: share, tone: nearlyFull ? 'danger' : 'muted' },
-				{ size: 1 - share, tone: 'empty' }
-			]}
-		/>
-		<span aria-hidden="true" class={{ 'text-danger': nearlyFull }}>{Math.round(share * 100)}%</span>
-	</span>
-	{#snippet tip()}
-		<!-- the context and each limit alike: what is left of it, as a bar and in words -->
-		<table class="tabular-nums">
-			<tbody>
-				{@render row('Context', Math.round((1 - share) * 100), nearlyFull, describeUsage(usage))}
-				{#if limits.length}
-					<tr><td colspan="4" class="pt-1.5 text-muted">{agentName[agent]} usage limits</td></tr>
-					{#each limits as limit (limit.name)}
-						{@render row(
-							limit.name,
-							remaining(limit),
-							limit.status !== 'ok',
-							limit.resetsAt ? `resets ${resets(limit.resetsAt)}` : ''
-						)}
-					{/each}
-				{/if}
-			</tbody>
-		</table>
-	{/snippet}
-</Tooltip>
-
-<!-- `low`: what is left is little enough to stand out -->
-{#snippet row(name: string, left: number | undefined, low: boolean, detail: string)}
-	<tr>
-		<td class="pr-3">{name}</td>
-		<td class="pr-2">
-			{#if left !== undefined}
-				<span class="block h-1.5 w-20 overflow-hidden rounded-full bg-sunken">
-					<span
-						class={['block h-full rounded-full', low ? 'bg-danger' : 'bg-muted']}
-						style:width="{left}%"
-					></span>
-				</span>
+{#if usage || battery}<Tooltip>
+		<span class="flex h-9 items-center gap-2 px-1.5">
+			{#if usage && context !== undefined}
+				{@render signal(context, contextTone, `Context: ${describeUsage(usage)}`)}
 			{/if}
-		</td>
-		<td class={['pr-3 text-right', low && 'font-medium text-danger']}>
-			{left === undefined ? '' : `${left}% left`}
-		</td>
-		<td class="text-muted">{detail}</td>
-	</tr>
+			{#if battery}
+				{@render cell(
+					battery.left,
+					battery.tone,
+					`${agentName[agent]} usage: ${percent(battery.left)}`
+				)}
+			{/if}
+		</span>
+		{#snippet tip()}
+			<table class="tabular-nums">
+				<tbody>
+					{#if usage && context !== undefined}
+						<tr>
+							<!-- the icons centred in a column as wide as the battery, so that they line up -->
+							<td class="pr-2">
+								<span class="flex w-8 justify-center">{@render signal(context, contextTone)}</span>
+							</td>
+							<td class="pr-3">Context</td>
+							<td class={['pr-3 text-right', texts[contextTone]]}>{percent(context)}</td>
+							<td class="text-muted">{describeUsage(usage)}</td>
+						</tr>
+					{/if}
+					{#if usage && limits.length}
+						<!-- the limits, set a little apart: their batteries say what they are -->
+						<tr aria-hidden="true"><td colspan="4" class="h-1.5"></td></tr>
+					{/if}
+					{#if limits.length}
+						{#each limits as limit (limit.name)}
+							{@const left = leftOf(limit)}
+							{@const tone = limitTone(limit)}
+							<tr>
+								<td class="pr-2">
+									<span class="flex w-8 justify-center">
+										{#if left !== undefined}{@render cell(left, tone)}{/if}
+									</span>
+								</td>
+								<td class="pr-3">{limit.name}</td>
+								<td class={['pr-3 text-right', texts[tone]]}>
+									{left !== undefined ? percent(left) : tone === 'warning' ? 'running low' : ''}
+								</td>
+								<td class="text-muted">
+									{limit.resetsAt ? `resets ${resets(limit.resetsAt)}` : ''}
+								</td>
+							</tr>
+						{/each}
+					{/if}
+				</tbody>
+			</table>
+		{/snippet}
+	</Tooltip>{/if}
+
+<!--
+	Drawn like a phone's status bar, in one colour each: what is there in its tone, what is
+	gone faint. Bars and battery share their top and bottom (y 2.5 to 17.5). Without a `label`,
+	they only illustrate the words beside them.
+-->
+{#snippet signal(left: number, tone: Tone, label?: string)}
+	<!-- one bar at least, so that a full context still shows its red -->
+	{@const bars = Math.max(1, Math.ceil(left * 4))}
+	<svg
+		viewBox="0 0 20 20"
+		class="block size-5"
+		role={label ? 'img' : undefined}
+		aria-label={label}
+		aria-hidden={!label}
+	>
+		{#each [0, 1, 2, 3] as bar (bar)}
+			<rect
+				x={1 + bar * 4.75}
+				y={11.5 - bar * 3}
+				width="3.75"
+				height={6 + bar * 3}
+				rx="1"
+				class={bar < bars ? fills[tone] : 'fill-muted/30'}
+			/>
+		{/each}
+	</svg>
+{/snippet}
+
+{#snippet cell(left: number, tone: Tone, label?: string)}
+	<svg
+		viewBox="0 0 32 20"
+		class={['block h-5 w-8', strokes[tone]]}
+		role={label ? 'img' : undefined}
+		aria-label={label}
+		aria-hidden={!label}
+	>
+		<rect x="2" y="3.5" width="25" height="13" rx="4" class="fill-none" stroke-width="2" />
+		<rect x="29" y="7.5" width="2" height="5" rx="1" class={['stroke-none', fills[tone]]} />
+		<rect
+			x="4.5"
+			y="6"
+			width={20 * left}
+			height="8"
+			rx="1.5"
+			class={['stroke-none', fills[tone]]}
+		/>
+	</svg>
 {/snippet}
