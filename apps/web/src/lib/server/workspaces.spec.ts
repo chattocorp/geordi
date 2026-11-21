@@ -1453,7 +1453,7 @@ describe('agents starting agents', () => {
 		expect(workspaces.ref(child.id)).toEqual(workspaces.ref(caller));
 	});
 
-	it('reports what a child said in its latest turn', async () => {
+	it('reports the last thing a child said in its latest turn', async () => {
 		const { workspaces, agents, lead: caller } = lead();
 		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
 		workspaces.record(id, { kind: 'text', text: 'Looking.' });
@@ -1463,7 +1463,7 @@ describe('agents starting agents', () => {
 		workspaces.record(id, { kind: 'turn.completed' });
 		expect(await waiting).toMatchObject({
 			status: 'idle',
-			reply: 'Looking.\n\nDone.',
+			reply: 'Done.',
 			error: null
 		});
 
@@ -1621,6 +1621,17 @@ describe('agents talking to the agents they started', () => {
 				.map(([, from]) => from)
 		).toEqual([child, child]);
 		expect(parentSaid().at(-1)?.[0]).toMatch(/All parts done\.$/);
+
+		// a long answer keeps its conclusion, not its start
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.agents.send(lead, child, 'Write it up');
+		workspaces.record(child, { kind: 'text', text: 'Looking into it.' });
+		workspaces.record(child, { kind: 'text', text: `${'x'.repeat(5000)} In short: yes.` });
+		workspaces.record(child, { kind: 'turn.completed' });
+		const long = parentSaid().at(-1)?.[0] ?? '';
+		expect(long).toMatch(/begins earlier; see read_workspace/);
+		expect(long).toMatch(/In short: yes\.$/);
+		expect(long).not.toMatch(/Looking into it/);
 	});
 
 	it.each([false, true])(

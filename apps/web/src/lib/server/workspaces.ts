@@ -60,7 +60,7 @@ export type AgentReport = {
 	branch: string | null;
 	/** Whether it works in the same directory as the agent that started it. */
 	sharesWorktree: boolean;
-	/** What the agent said in its latest turn; `error` if that turn failed. */
+	/** The agent's latest message in its latest turn: its answer, once the turn is over. */
 	reply: string;
 	error: string | null;
 };
@@ -275,8 +275,9 @@ export function createWorkspaces(
 			error
 				? `Your agent “${child.title}” (${child.id}) stopped: ${error}`
 				: `Your agent “${child.title}” (${child.id}) finished its turn.`,
+			// an answer ends with its conclusion, so a long one loses its start
 			reply.length > MAX_NOTICE
-				? `${reply.slice(0, MAX_NOTICE)}…\n\n(Its reply goes on; see read_workspace.)`
+				? `(Its reply begins earlier; see read_workspace.)\n\n…${reply.slice(-MAX_NOTICE)}`
 				: reply
 		]
 			.filter(Boolean)
@@ -663,7 +664,6 @@ export function createWorkspaces(
 	function report(workspace: Workspace): AgentReport {
 		const transcript = transcriptOf(workspace);
 		const turn = transcript.slice(transcript.findLastIndex((item) => item.kind === 'user') + 1);
-		const texts = turn.flatMap((item) => (item.kind === 'text' ? [item.text] : []));
 		return {
 			id: workspace.id,
 			parentId: workspace.parentId,
@@ -672,7 +672,8 @@ export function createWorkspaces(
 			status: workspace.status,
 			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
 			sharesWorktree: workspace.worktreeId !== workspace.id,
-			reply: texts.join('\n\n'),
+			// what it said on the way there is in the transcript, for read_workspace
+			reply: turn.findLast((item) => item.kind === 'text')?.text ?? '',
 			error: turn.findLast((item) => item.kind === 'error')?.error ?? null
 		};
 	}

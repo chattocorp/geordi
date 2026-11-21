@@ -84,7 +84,7 @@ const introduction = {
 };
 
 const reportGuide =
-	'An agent report gives the workspace id, parentId, agent kind, title, branch and sharesWorktree flag. Read status (running or idle), reply (text from the latest turn so far), and error (the latest reported error, or null). For its pull request and checks, call workspace_status.';
+	'An agent report gives the workspace id, parentId, agent kind, title, branch and sharesWorktree flag. Read status (running or idle), reply (its latest message in the current or last turn: its answer once the turn is over), and error (the latest reported error, or null). For its pull request and checks, call workspace_status.';
 
 const controlledTarget = (kind: CallerKind) =>
 	kind === 'project'
