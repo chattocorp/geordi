@@ -23,6 +23,7 @@
 		asking = false,
 		waiting = false,
 		working = false,
+		locked = false,
 		background = 0,
 		progress,
 		standing = null,
@@ -45,6 +46,8 @@
 		asking?: boolean;
 		waiting?: boolean;
 		working?: boolean;
+		/** Whether a person locked it against archiving (FDR-015): shown in the status slot while it has no other status. */
+		locked?: boolean;
 		/** How many tasks its agents left running in the background. */
 		background?: number;
 		progress?: ActivityId;
@@ -155,6 +158,10 @@
 			<WorkspaceActivity activity={visibleStanding.activity} />
 		{:else if visibleStanding}
 			<StandingIcon standing={visibleStanding} />
+		{:else if locked}
+			<StatusIcon label="Locked: can't be archived">
+				<span class="icon-[heroicons--lock-closed-solid] size-4"></span>
+			</StatusIcon>
 		{/if}
 	</span>
 </div>

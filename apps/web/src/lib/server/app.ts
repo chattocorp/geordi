@@ -301,6 +301,7 @@ export const limits = lazy(() => createLimits());
 /** Check every workspace affected by the archive, including agents sharing a worktree. */
 export async function concernsAboutArchiving(id: string) {
 	const family = [id, ...workspaces().descendants(id)].map(workspaces().summary);
+	workspaces().refuseLocked(family.map((workspace) => workspace.id));
 	const previews = await Promise.all(
 		family.map(async (workspace) => {
 			let standing: Standing = { changes: null };

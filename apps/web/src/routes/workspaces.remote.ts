@@ -387,6 +387,11 @@ export const moveWorkspace = command(
 	({ workspaceId, before }) => workspaces().move(workspaceId, before)
 );
 
+export const lockWorkspace = command(
+	v.object({ workspaceId: v.string(), locked: v.boolean() }),
+	({ workspaceId, locked }) => workspaces().lock(workspaceId, locked)
+);
+
 export const setWorkspaceAside = command(v.string(), (workspaceId) =>
 	workspaces().setAside(workspaceId)
 );

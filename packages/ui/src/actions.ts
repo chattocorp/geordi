@@ -64,6 +64,8 @@ type State = {
 	failed?: boolean;
 	/** Whether an agent started the workspace: its work goes back to that one. */
 	child?: boolean;
+	/** Whether a person locked it against archiving (FDR-015): archiving is not offered. */
+	locked?: boolean;
 };
 
 /** Whether everything the workspace did is in the branch it started from, with no pull request to say so. */
@@ -90,7 +92,7 @@ const mergeFrom = (branch: string | null) =>
 export function actionsFor(state: State): WorkspaceAction[] {
 	if (state.archived)
 		return [{ id: 'restore-workspace', label: 'Restore', icon: 'icon-[lucide--archive-restore]' }];
-	const actions = nextActions(state);
+	const actions = state.locked ? withoutArchive(nextActions(state)) : nextActions(state);
 	const incoming = state.changes?.incoming;
 	const pull = state.upstream?.pull;
 	if (
@@ -117,6 +119,14 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		prompt: mergeFrom(incoming.branch)
 	};
 	return at < 0 ? [...actions, sync] : actions.toSpliced(at, 0, sync);
+}
+
+/** The actions but archiving; what was offered beside it becomes the next step, if nothing else is. */
+function withoutArchive(actions: WorkspaceAction[]): WorkspaceAction[] {
+	const rest = actions.filter((action) => action.id !== 'archive');
+	return rest.length < actions.length && rest.every((action) => action.aside)
+		? rest.map((action) => ({ ...action, aside: false }))
+		: rest;
 }
 
 function nextActions(state: State): WorkspaceAction[] {

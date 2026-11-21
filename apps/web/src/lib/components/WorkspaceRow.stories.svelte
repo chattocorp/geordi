@@ -64,6 +64,30 @@
 	</div>
 </Story>
 
+<Story
+	name="Locked"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// in the status slot, only while there is no other status to show
+		const locks = canvas.getAllByRole('img', { name: "Locked: can't be archived" });
+		await expect(locks).toHaveLength(1);
+		await expect(locks[0].closest('.item')).toHaveTextContent('Scratchpad');
+	}}
+>
+	<div class="w-64 space-y-px sheet-quiet p-2">
+		<WorkspaceRow title="Scratchpad" href="#scratch" locked />
+		<WorkspaceRow title="Notes" href="#notes" locked working />
+		<WorkspaceRow
+			title="Release train"
+			href="#release"
+			locked
+			standing={standingOf(checking)}
+			actions={actionsFor({ ...checking, locked: true })}
+		/>
+	</div>
+</Story>
+
 <Story name="A project" asChild>
 	<div class="w-64 space-y-px sheet-quiet p-2">
 		<WorkspaceRow title="Plan the 0.7 release" icon="icon-[lucide--folder-kanban]" />

@@ -275,7 +275,7 @@ const tools = {
 				kind === 'project'
 					? 'Archiving a project closes the agents in its folder and preserves the folder. Agents it started in repositories continue working.'
 					: '',
-				'If any affected agent is running, the whole request fails before archiving starts. Geordi processes children first, closes the terminals of each archived workspace, and removes it from the active list. When removing a worktree, Geordi ends agent sessions there and releases its ports. A worktree still in use stays in place. Branches and conversations are kept. MCP archiving skips the repository teardown script.',
+				'If any affected workspace is locked or its agent is running, the whole request fails before archiving starts. Only the person can lock or unlock a workspace. Geordi processes children first, closes the terminals of each archived workspace, and removes it from the active list. When removing a worktree, Geordi ends agent sessions there and releases its ports. A worktree still in use stays in place. Branches and conversations are kept. MCP archiving skips the repository teardown script.',
 				'Staged changes, unstaged changes and non-ignored untracked files block removal. Git-ignored untracked files go with the directory. If removal fails partway, earlier workspaces stay archived. Resolve the problem and retry the target. On success, archived contains the target ID.'
 			]
 				.filter(Boolean)
@@ -362,7 +362,8 @@ const tools = {
 				changes,
 				upstream,
 				failed: workspace.lastTurn === 'failed',
-				child: !!workspace.parentId
+				child: !!workspace.parentId,
+				locked: workspace.locked
 			};
 			const pull = upstream?.pull;
 			return {

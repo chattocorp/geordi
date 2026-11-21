@@ -120,6 +120,9 @@ export type WorkspacesEvent =
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
 	/** A person put the workspace out of today's list, until they next say something to it. */
 	| { type: 'workspace.setAside'; stream: WorkspaceStream; data: { id: string } }
+	/** A person locked the workspace: it can't be archived until they unlock it (FDR-015). */
+	| { type: 'workspace.locked'; stream: WorkspaceStream; data: { id: string } }
+	| { type: 'workspace.unlocked'; stream: WorkspaceStream; data: { id: string } }
 	| { type: 'workspace.restored'; stream: WorkspaceStream; data: { id: string } }
 	/** What a person answered to a question the agent asked: one answer per question, in their order. */
 	| {
@@ -357,6 +360,8 @@ export type Workspace = {
 	archivedAt: string | null;
 	/** Whether a person put it out of today's list ("Remove from Today"), and has not prompted it since. */
 	setAside: boolean;
+	/** Whether a person locked it against archiving (FDR-015). */
+	locked: boolean;
 	createdAt: string;
 	updatedAt: string;
 	transcript: TranscriptItem[];
@@ -406,6 +411,7 @@ function initialWorkspace(
 		briefing: null,
 		archivedAt: null,
 		setAside: false,
+		locked: false,
 		createdAt: at,
 		updatedAt: at,
 		transcript: []
@@ -477,6 +483,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		if (event.type === 'workspace.suggested') {
 			const suggesting = workspaces.get(event.data.id);
 			if (suggesting) suggesting.suggestion = event.data.text;
+			return;
+		}
+		if (event.type === 'workspace.locked' || event.type === 'workspace.unlocked') {
+			const locking = workspaces.get(event.data.id);
+			if (locking) locking.locked = event.type === 'workspace.locked';
 			return;
 		}
 		if (event.type === 'workspace.setAside') {

@@ -33,6 +33,7 @@
 	import { slide } from 'svelte/transition';
 	import { foreground } from '#lib/foreground.svelte.ts';
 	import {
+		lockWorkspace,
 		moveWorkspace,
 		renameWorkspace,
 		setWorkspaceAside,
@@ -219,12 +220,22 @@
 					]
 				: []),
 			{
-				label: 'Archive',
-				icon: 'icon-[lucide--archive]',
-				tone: 'merged',
-				disabled: beingArchived.has(workspace.id),
-				onselect: () => archiveAndNavigate(workspace)
-			}
+				label: workspace.locked ? 'Unlock' : 'Lock',
+				icon: workspace.locked ? 'icon-[lucide--lock-open]' : 'icon-[lucide--lock]',
+				onselect: () => lockWorkspace({ workspaceId: workspace.id, locked: !workspace.locked })
+			},
+			// a locked workspace can't be archived (FDR-015)
+			...(workspace.locked
+				? []
+				: [
+						{
+							label: 'Archive',
+							icon: 'icon-[lucide--archive]',
+							tone: 'merged' as const,
+							disabled: beingArchived.has(workspace.id),
+							onselect: () => archiveAndNavigate(workspace)
+						}
+					])
 		];
 	}
 
@@ -636,6 +647,7 @@
 			asking={workspace.outcome === 'asking'}
 			waiting={workspace.waiting}
 			working={workspace.working || (isFolded && busy)}
+			locked={workspace.locked}
 			background={workspace.background}
 			progress={pendingPullAction.get(workspace.id) ??
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))

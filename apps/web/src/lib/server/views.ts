@@ -49,7 +49,8 @@ export const navigation = () =>
 				const state = {
 					...known,
 					failed: workspace.lastTurn === 'failed',
-					child: !!parentId
+					child: !!parentId,
+					locked: workspace.locked
 				};
 				return {
 					id,
@@ -75,6 +76,8 @@ export const navigation = () =>
 					branch: worktree?.branch ?? null,
 					// put out of today's list until a person prompts it again
 					...(workspace.setAside && { setAside: true }),
+					// kept from archiving until a person unlocks it (FDR-015)
+					...(workspace.locked && { locked: true }),
 					// when anything last happened in it, also in the agents working alongside
 					updatedAt: [workspace, ...aides]
 						.map((member) => member.updatedAt)

@@ -104,6 +104,23 @@ describe('archiving', () => {
 		expect(removed.indexOf(grandchild)).toBeLessThan(removed.indexOf(child));
 	});
 
+	it('archives nothing while it or anything archived with it is locked (FDR-015)', async () => {
+		const { workspaces, archive, removed, closed, lead, start } = setup();
+		const child = start(lead, 'own', 'Build');
+		workspaces.lock(child, true);
+
+		await expect(archive(lead, false)).rejects.toEqual(refusal(/“Build” is locked/));
+		await expect(archive(child, false)).rejects.toEqual(refusal(/locked/));
+		expect(removed).toEqual([]);
+		expect(closed).toEqual([]);
+		expect(workspaces.get(lead).archivedAt).toBeNull();
+
+		workspaces.lock(child, false);
+		await archive(lead, false);
+		expect(workspaces.get(child).archivedAt).not.toBeNull();
+		expect(() => workspaces.lock(child, true)).toThrow();
+	});
+
 	it('keeps reviewers with their worktrees across an A → B → A delegation chain', async () => {
 		const { workspaces, repos, store, archive, lead, start, removed, closed } = setup();
 		const local = start(lead, 'own', 'Local work');
