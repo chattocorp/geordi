@@ -396,6 +396,10 @@ describe('the agent API as an MCP server', () => {
 			error: 'Your workspace has no worktree yet'
 		});
 		expect((await call('start_agent', {})).error).toMatch(/Invalid input/);
+		// a misspelt parameter is refused, not quietly dropped
+		expect(await call('start_agent', { prompt: 'Build', kind: 'codex' })).toEqual({
+			error: 'Invalid input: Unknown parameter kind'
+		});
 		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not found/);
 		expect((await call('send_message', { agent_id: 'nope', message: 'Hi' })).error).toMatch(
 			/not found/
