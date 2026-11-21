@@ -10,6 +10,8 @@ export {
 	type PictureType
 } from './images.ts';
 import type { MessageImage, Picture } from './images.ts';
+export { SOUND_TYPES, soundTypeOf, type Sound, type SoundType } from './sounds.ts';
+import type { Sound } from './sounds.ts';
 /**
  * Messages exchanged between the forge (apps/web) and daemons (apps/daemon).
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
@@ -155,7 +157,8 @@ export type Changes = {
 	unknownForge?: string;
 };
 
-export type FileContent = string | Picture;
+/** A file as the viewer shows it: its text, or a picture or sound in its bytes. */
+export type FileContent = string | Picture | Sound;
 
 /**
  * Both versions of a changed file: where the workspace branched off (`old`) and now (`new`),
@@ -553,7 +556,7 @@ export type DaemonRequest =
 	/**
 	 * A picture on the daemon's machine that the workspace's agent referred to, to be shown
 	 * where it did. `path` is as the agent wrote it: from the worktree, or absolute. `null`
-	 * if there is no such file, or it is not a picture. Set worktreeOnly for pictures in repository documents.
+	 * if there is no such file, or it is neither a picture nor a sound (shown as a player). Set worktreeOnly for pictures in repository documents.
 	 */
 	| ({ kind: 'picture'; path: string; worktreeOnly?: boolean } & WorktreeRef)
 	/** As `picture`, for a picture where a project's agent works: in its folder (FDR-012). */
@@ -600,7 +603,7 @@ export type DaemonResults = {
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
 	closeProject: null;
-	projectPicture: Picture | null;
+	projectPicture: Picture | Sound | null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
@@ -614,7 +617,7 @@ export type DaemonResults = {
 	repoIcon: RepoIcon | null;
 	diff: FileVersions;
 	source: FileContent | null;
-	picture: Picture | null;
+	picture: Picture | Sound | null;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */

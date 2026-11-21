@@ -48,3 +48,16 @@
 		expect(canvasElement.querySelector('.diagram image, .diagram a')).toBeNull();
 	}}
 />
+
+<Story
+	name="Sound that cannot be had"
+	args={{ text: 'Here is the jump:\n\n![Jump](assets/jump.wav)', pictures: '/nowhere' }}
+	play={async ({ canvasElement }) => {
+		await waitFor(
+			() => expect(canvasElement.querySelector('code')).toHaveTextContent('assets/jump.wav'),
+			// a player gives up on what is no sound in its own time
+			{ timeout: 5000 }
+		);
+		await expect(canvasElement.querySelector('audio')).toBeNull();
+	}}
+/>

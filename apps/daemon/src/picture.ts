@@ -1,16 +1,23 @@
 import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { MAX_IMAGE_BYTES, pictureTypeOf, type Picture } from '@geordi/protocol';
+import {
+	MAX_IMAGE_BYTES,
+	pictureTypeOf,
+	soundTypeOf,
+	type Picture,
+	type Sound
+} from '@geordi/protocol';
 
 /**
  * A picture an agent referred to in what it wrote (a screenshot it took, a chart it drew),
  * for showing it right there. The path is the agent's: from its working directory, from
  * the home directory (`~/`), or absolute, since screenshots tend to end up in `/tmp`. What
  * keeps this from reading out any file is that it only ever answers with a picture: a
- * file that begins as a PNG, JPEG, WebP, GIF or SVG does, whatever it is called.
+ * file that begins as a PNG, JPEG, WebP, GIF or SVG does, whatever it is called. A sound
+ * (WAV, MP3, Ogg, FLAC, M4A) is shown the same way, as a player.
  */
-export function readPicture(cwd: string, path: string): Picture | null {
+export function readPicture(cwd: string, path: string): Picture | Sound | null {
 	const file = path.startsWith('~/') ? join(homedir(), path.slice(2)) : resolve(cwd, path);
 	let fd: number;
 	try {
@@ -23,6 +30,8 @@ export function readPicture(cwd: string, path: string): Picture | null {
 		const { size } = fstatSync(fd);
 		if (!fstatSync(fd).isFile() || size === 0 || size > MAX_IMAGE_BYTES) return null;
 		const bytes = readFileSync(fd);
+		const sound = soundTypeOf(bytes);
+		if (sound) return { mediaType: sound, data: bytes.toString('base64') };
 		const mediaType = pictureTypeOf(bytes);
 		return mediaType && { mediaType, data: bytes.toString('base64') };
 	} catch {

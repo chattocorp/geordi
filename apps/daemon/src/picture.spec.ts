@@ -28,6 +28,11 @@ describe('readPicture', () => {
 		expect(readPicture(dir, 'page.svg')).toBeNull();
 	});
 
+	it('reads a sound, known by how it begins', () => {
+		writeFileSync(join(dir, 'jump.wav'), 'RIFF\0\0\0\0WAVEfmt ');
+		expect(readPicture(dir, 'jump.wav')?.mediaType).toBe('audio/wav');
+	});
+
 	it('answers with nothing but pictures', () => {
 		expect(readPicture(dir, 'notes.png')).toBeNull();
 		expect(readPicture(dir, 'empty.png')).toBeNull();

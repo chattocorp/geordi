@@ -29,6 +29,17 @@ describe('renderMarkdown', () => {
 		);
 	});
 
+	it('plays sounds the agent has where it works', () => {
+		const html = renderMarkdown('![Jump](assets/jump.wav)', { pictures: '/workspaces/w1/picture' });
+		expect(html).toContain('<audio controls');
+		expect(html).toContain('src="/workspaces/w1/picture?path=assets%2Fjump.wav"');
+		expect(html).toContain('data-picture="assets/jump.wav"');
+		expect(html).not.toContain('<img');
+		expect(renderMarkdown('![x](https://example.com/a.mp3)', { pictures: '/p' })).not.toContain(
+			'<audio'
+		);
+	});
+
 	it('never loads a picture from elsewhere, nor any without a workspace to ask', () => {
 		for (const src of ['https://evil.example/a.png', '//evil.example/a.png', 'HTTP://evil.example'])
 			expect(renderMarkdown(`![x](${src})`, { pictures: '/p' })).not.toContain('<img');
