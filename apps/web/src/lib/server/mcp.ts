@@ -84,7 +84,7 @@ const introduction = {
 };
 
 const reportGuide =
-	'An agent report gives the workspace id, parentId, agent kind, title, branch and sharesWorktree flag. Read status (running or idle), reply (text from the latest turn so far), and error (the latest reported error, or null).';
+	'An agent report gives the workspace id, parentId, agent kind, title, branch and sharesWorktree flag. Read status (running or idle), reply (text from the latest turn so far), and error (the latest reported error, or null). For its pull request and checks, call workspace_status.';
 
 const controlledTarget = (kind: CallerKind) =>
 	kind === 'project'
@@ -119,7 +119,7 @@ const startFields = {
 	)
 };
 const worktreeMode = v.optional(v.picklist(WORKTREE_MODES), 'own');
-const startInput = v.object({
+const startInput = v.strictObject({
 	...startFields,
 	repository: v.optional(repositoryId),
 	worktree: worktreeMode,
@@ -130,7 +130,7 @@ const startInput = v.object({
 // schema so the domain can still explain an invalid target or combination.
 function startCatalogInput(kind: CallerKind) {
 	if (kind === 'external')
-		return v.object({
+		return v.strictObject({
 			...startFields,
 			repository: repositoryId,
 			worktree: v.optional(v.literal('own'), 'own')
@@ -140,7 +140,7 @@ function startCatalogInput(kind: CallerKind) {
 
 const startLocation = {
 	repository:
-		'The default, worktree "own", creates a branch from your current commit. Merge its branch to bring the work back. Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". The branch starts from that repository’s base. Pass workspace instead to start a reviewer in the worktree of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode.',
+		'The default, worktree "own", creates a branch from your current commit. Merge its branch to bring the work back. Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". The branch starts from that repository’s base. Pass workspace instead to start a reviewer in your own worktree or in that of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode.',
 	project:
 		'Pass repository to start on a new branch from the repository base. Pass workspace to share that workspace’s directory and branch, regardless of worktree mode. With worktree "shared" and no workspace, the agent joins your project folder. The shared forms ignore repository.',
 	external:
@@ -178,14 +178,14 @@ const tools = {
 	},
 	name_workspace: {
 		description: `Give your workspace a short name (a few words, no quotes or full stop) when you know what the work is. Rename it only if the task changes. You may name it up to ${MAX_NAMES} times. A name chosen by the person takes precedence. Returns the saved title.`,
-		input: v.object({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
+		input: v.strictObject({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
 		run: (agents: Agents, caller: string, input: { title: string }) =>
 			agents.name(caller, input.title)
 	},
 	wait_for_agent: {
 		description:
-			'Wait for a visible workspace to finish its current turn and return its agent report. If it is still running at timeout, check read_workspace.pendingQuestions for a blocking question that needs the person, then wait again as needed. An idle report can include an error.',
-		input: v.object({
+			'Wait for a visible workspace to finish its current turn and return its agent report. For its pull request and checks, call workspace_status. If it is still running at timeout, check read_workspace.pendingQuestions for a blocking question that needs the person, then wait again as needed. An idle report can include an error.',
+		input: v.strictObject({
 			agent_id: v.pipe(v.string(), v.description('A workspace ID')),
 			timeout_seconds: v.pipe(
 				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), MAX_WAIT_SECONDS),
@@ -202,7 +202,7 @@ const tools = {
 	list_agents: {
 		description:
 			'List agent reports for your unarchived descendants, including agents started by your agents. Use list_workspaces with include_archived for archived workspaces.',
-		input: v.object({}),
+		input: v.strictObject({}),
 		run: (agents: Agents, caller: string) => agents.list(caller)
 	},
 	list_repositories: {
@@ -210,20 +210,20 @@ const tools = {
 			kind === 'external'
 				? 'List the repositories granted to your token, with id, name and local path.'
 				: 'List the repositories you can access, with id, name and local path.',
-		input: v.object({}),
+		input: v.strictObject({}),
 		run: (agents: Agents, caller: string) => agents.listRepositories(caller)
 	},
 	list_workspaces: {
 		description:
 			'List visible workspaces with id, repoId, title, url, branch, status and asking. A null repoId identifies a project workspace. Set include_archived to include archived entries.',
-		input: v.object({ include_archived: v.optional(v.boolean(), false) }),
+		input: v.strictObject({ include_archived: v.optional(v.boolean(), false) }),
 		run: (agents: Agents, caller: string, input: { include_archived: boolean }) =>
 			agents.listWorkspaces(caller, input.include_archived)
 	},
 	read_workspace: {
 		description:
 			'Read up to 50 messages in chronological order and all open questions in pendingQuestions. A user message with from identifies a workspace agent or named external client as its sender. Pass before to read the previous page. A null cursor marks the first page.',
-		input: v.object({
+		input: v.strictObject({
 			workspace_id: v.string(),
 			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
 		}),
@@ -239,7 +239,7 @@ const tools = {
 			]
 				.filter(Boolean)
 				.join(' '),
-		input: v.object({
+		input: v.strictObject({
 			agent_id: v.pipe(
 				v.string(),
 				v.description('A workspace ID, from start_agent or list_workspaces')
@@ -273,7 +273,7 @@ const tools = {
 			]
 				.filter(Boolean)
 				.join(' '),
-		input: v.object({ agent_id: agentId }),
+		input: v.strictObject({ agent_id: agentId }),
 		run: async (agents: Agents, caller: string, input: { agent_id: string }) => {
 			const agent = agents.get(caller, input.agent_id);
 			await agents.archive(caller, agent.id);
@@ -282,12 +282,12 @@ const tools = {
 	},
 	configuration_reference: {
 		description: `How to configure this repository for Geordi, in its ${CONFIG_FILE}: the settings there are and what they do. Read this before creating or changing that file.`,
-		input: v.object({}),
+		input: v.strictObject({}),
 		run: () => configurationReference()
 	},
 	check_configuration: {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including task defaults in the Tasks panel), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
-		input: v.object({}),
+		input: v.strictObject({}),
 		run: async (agents: Agents, caller: string) => {
 			const {
 				default: target,
@@ -341,11 +341,11 @@ const tools = {
 	workspace_status: {
 		description: (kind: CallerKind) =>
 			`Read Git changes, pull request, checks and suggested next steps for a visible repository worktree. ${kind === 'repository' ? 'Omit agent_id for your own worktree.' : 'Supply the repository workspace ID as agent_id.'} Projects have no Git standing. Upstream data can be absent or come from the last successful refresh, with no age bound. A step with a prompt can be sent to the workspace agent. Other steps are available to the person.`,
-		input: v.object({
+		input: v.strictObject({
 			agent_id: v.optional(workspaceId)
 		}),
 		catalogInput: (kind: CallerKind) =>
-			v.object({ agent_id: kind === 'repository' ? v.optional(workspaceId) : workspaceId }),
+			v.strictObject({ agent_id: kind === 'repository' ? v.optional(workspaceId) : workspaceId }),
 		run: async (agents: Agents, caller: string, input: { agent_id?: string }) => {
 			const workspace = agents.workspace(caller, input.agent_id);
 			const { changes, upstream } = await agents.standing(workspace.worktreeId);
@@ -399,7 +399,7 @@ const tools = {
 	stop_agent: {
 		description: (kind: CallerKind) =>
 			`Request a stop of the current turn of ${controlledTarget(kind)}. An idle agent stays idle. Returns its agent report immediately, which can still say running. Use wait_for_agent to confirm the turn ended.`,
-		input: v.object({ agent_id: agentId }),
+		input: v.strictObject({ agent_id: agentId }),
 		run: (agents: Agents, caller: string, input: { agent_id: string }) => {
 			agents.stop(caller, input.agent_id);
 			return agents.get(caller, input.agent_id);
@@ -432,6 +432,12 @@ const available = (kind: CallerKind, name: string) =>
 		? !workspaceTools.has(name)
 		: kind !== 'project' || !repositoryTools.has(name);
 
+// An unknown parameter is a mistake (a misspelt `agent`, say), never something to ignore.
+const describeIssue = (issue: v.BaseIssue<unknown>) =>
+	issue.type === 'strict_object'
+		? `Unknown parameter ${issue.path?.map((item) => item.key).join('.')}`
+		: issue.message;
+
 async function callTool(agents: Agents, caller: string, kind: CallerKind, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };
 	const tool = name && Object.hasOwn(tools, name) ? tools[name as keyof typeof tools] : null;
@@ -439,7 +445,7 @@ async function callTool(agents: Agents, caller: string, kind: CallerKind, params
 
 	const input = v.safeParse(tool.input, args);
 	if (!input.success)
-		return content(`Invalid input: ${input.issues.map((issue) => issue.message).join('; ')}`, true);
+		return content(`Invalid input: ${input.issues.map(describeIssue).join('; ')}`, true);
 
 	try {
 		const run = tool.run as (agents: Agents, caller: string, input: unknown) => unknown;

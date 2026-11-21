@@ -1677,6 +1677,13 @@ describe('projects (FDR-012)', () => {
 		expect(() =>
 			workspaces.agents.start(lead, { worktree: 'own', workspace: target, prompt: 'No' })
 		).toThrow();
+		// or with itself, as with a shared worktree
+		const { id: own } = workspaces.agents.start(lead, {
+			worktree: 'own',
+			workspace: lead,
+			prompt: 'Review mine'
+		});
+		expect(workspaces.get(own)).toMatchObject({ worktreeId: lead, parentId: lead });
 	});
 
 	it('leave other projects alone, and are left alone by them', () => {

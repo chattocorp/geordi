@@ -11,7 +11,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 
 - An agent can start another agent (of the same kind as itself, or another). The new agent is a workspace of its own, with its own conversation, and works in one of two places, as the parent decides each time:
   - **Its own worktree:** a new worktree and branch, branched from the parent workspace's branch, for parallel work. If the parent selects another accessible repository, the branch starts from that repository’s base.
-  - **A shared worktree:** the parent can share its own directory or start a reviewer in the worktree of any of its descendants. The reviewer sees uncommitted files and reports to the agent that started it.
+  - **A shared worktree:** the parent can share its own directory or start a reviewer in its own worktree or in that of any of its descendants. A tool call with a parameter the tool does not know is refused. The reviewer sees uncommitted files and reports to the agent that started it.
 - The parent can message a child, wait until it has finished its turn, read its latest reply, stop it, and archive it once it is done with it (after merging its branch, say). Archiving on an agent's behalf never discards uncommitted work. Children can start children of their own, up to a limit.
 - A message to a child that is working waits for its turn to end; the parent can have it interrupt instead, which gives the child the message at once, in the middle of what it is doing (ADR-010). In the child's conversation, what an agent said is marked as that agent's, by its workspace's name.
 - The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.

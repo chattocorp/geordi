@@ -748,7 +748,11 @@ export function createWorkspaces(
 			if (alongside !== undefined && external)
 				error(400, 'Only workspace agents can start a reviewer in a workspace');
 			if (caller && (alongside !== undefined || (project && worktree === 'shared'))) {
-				const target = findControlled(callerId, alongside ?? callerId);
+				// the caller's own workspace is where a reviewer may join it too, as with `shared`
+				const target =
+					alongside === undefined || alongside === callerId
+						? caller
+						: findControlled(callerId, alongside);
 				const owner = findFor(callerId, target.worktreeId);
 				if (target.archivedAt || owner.archivedAt) error(409, 'That workspace is archived');
 				where = {
