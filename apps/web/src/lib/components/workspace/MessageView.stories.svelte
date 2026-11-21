@@ -498,8 +498,15 @@
 		await expect(
 			await canvas.findByText('The focus indicator is visible on every tab.')
 		).toBeVisible();
-		await expect(canvas.getByText('Running')).toBeVisible();
+		const status = canvas.getByText('Running');
+		const dots = status.querySelector('[role="img"]')!.getBoundingClientRect();
+		const label = status.getBoundingClientRect();
+		await expect(
+			Math.abs(dots.top + dots.height / 2 - (label.top + label.height / 2))
+		).toBeLessThan(1);
 		const open = canvas.getByRole('button', { name: 'Open in tab' });
+		await expect(open).toHaveAttribute('title', 'Open in tab');
+		await expect(open).toHaveTextContent(/^$/);
 		await waitFor(() => userEvent.click(open));
 		await expect(openReviewer).toHaveBeenCalledWith('ui');
 	}}
