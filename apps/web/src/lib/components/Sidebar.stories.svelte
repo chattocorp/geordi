@@ -551,9 +551,19 @@
 		await expect(within(own).getByText('Drop to set aside')).toBeVisible();
 		await expect(within(other).queryByText('Drop to set aside')).toBeNull();
 		await fireEvent.dragEnd(row);
+		await fireEvent.click(within(own).getByText('Set aside'));
+		await expect(within(own).getByRole('link', { name: 'Revisit the parser' })).toHaveAttribute(
+			'href',
+			'/workspaces/later'
+		);
+		await expect(other).not.toHaveAttribute('open');
+		await fireEvent.click(within(own).getByText('Set aside'));
+		await expect(own).not.toHaveAttribute('open');
 		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces as one list' }));
 		await waitFor(() => expect(targets()).toHaveLength(1));
 		await expect(within(targets()[0]).getByText('2')).toBeVisible();
+		await fireEvent.click(within(targets()[0]).getByText('Set aside'));
+		await expect(within(targets()[0]).getAllByRole('link')).toHaveLength(2);
 	}}
 >
 	{@render frame(

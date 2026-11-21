@@ -76,13 +76,15 @@
 	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
-	const deferredByRepo = $derived(
-		Map.groupBy(
-			todayOnly ? (nav?.workspaces ?? []).filter((workspace) => workspace.deferred) : [],
-			(workspace) => workspace.repoId
-		)
+	const deferred = $derived(
+		todayOnly
+			? shownUngrouped(
+					(nav?.workspaces ?? []).filter((workspace) => workspace.deferred),
+					sidebarRepos.map(({ id }) => id)
+				)
+			: []
 	);
-	const deferredCount = (repoId: string | null) => deferredByRepo.get(repoId)?.length ?? 0;
+	const deferredByRepo = $derived(Map.groupBy(deferred, (workspace) => workspace.repoId));
 	const hasRows = (id: string | null) => listed.has(id) || deferredByRepo.has(id);
 	/**
 	 * What the sidebar groups workspaces under: projects first (FDR-012: workspaces in no
@@ -452,10 +454,7 @@
 					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
 				{/if}
 				{#if todayOnly}
-					{@render setAside(
-						null,
-						groups.reduce((sum, group) => sum + deferredCount(group.id), 0)
-					)}
+					{@render setAside(null, deferred)}
 				{/if}
 			{:else if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
@@ -559,7 +558,7 @@
 								{/each}
 							</ul>
 							{#if todayOnly}
-								{@render setAside(repo.id, deferredCount(repo.id))}
+								{@render setAside(repo.id, deferredByRepo.get(repo.id) ?? [])}
 							{/if}
 						{/if}
 					</div>
@@ -588,41 +587,64 @@
 	</nav>
 </div>
 
-{#snippet setAside(repoId: string | null, count: number)}
-	{@const over = overSetAside === repoId && droppable(repoId)}
-	<div
-		role="group"
-		aria-label="Set aside"
-		title="Drop a workspace here to remove it from Today"
-		class={[
-			'mt-1 flex min-h-8 items-center gap-2 rounded-control border border-dashed border-line px-2.5 text-xs',
-			over ? 'bg-accent-soft text-accent-ink' : 'text-muted',
-			!over && droppable(repoId) && 'bg-sunken'
-		]}
-		ondragover={(event) => {
-			if (!droppable(repoId)) return;
-			event.preventDefault();
-			if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-			dropBefore = undefined;
-			overSetAside = repoId;
-		}}
-		ondragleave={(event) => {
-			if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-				overSetAside = undefined;
-		}}
-		ondrop={(event) => {
-			if (!dragged || !droppable(repoId)) return;
-			event.preventDefault();
-			void deferWorkspace(dragged.id);
-			endDrag();
-		}}
-	>
-		<span class="icon-[lucide--calendar-minus] size-4 shrink-0"></span>
-		<span>{droppable(repoId) ? 'Drop to set aside' : 'Set aside'}</span>
-		{#if count > 0}<span class="ml-auto tabular-nums" aria-label={`${count} set aside`}
-				>{count}</span
-			>{/if}
-	</div>
+{#snippet setAside(repoId: string | null, items: Item[])}
+	<details aria-label="Set aside" class="group/aside mt-1 text-muted">
+		<summary
+			title="Show set-aside workspaces or drop a workspace here"
+			class={[
+				'flex min-h-8 list-none items-center gap-2 rounded-control border border-dashed px-2.5 text-xs hover:border-muted',
+				overSetAside === repoId && droppable(repoId) ? 'border-muted' : 'border-line'
+			]}
+			ondragover={(event) => {
+				if (!droppable(repoId)) return;
+				event.preventDefault();
+				if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+				dropBefore = undefined;
+				overSetAside = repoId;
+			}}
+			ondragleave={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+					overSetAside = undefined;
+			}}
+			ondrop={(event) => {
+				if (!dragged || !droppable(repoId)) return;
+				event.preventDefault();
+				void deferWorkspace(dragged.id);
+				endDrag();
+			}}
+		>
+			<span class="icon-[lucide--calendar-minus] size-4 shrink-0"></span>
+			<span>{droppable(repoId) ? 'Drop to set aside' : 'Set aside'}</span>
+			{#if items.length}<span class="ml-auto tabular-nums">{items.length}</span>{/if}
+			<span
+				class={[
+					'icon-[lucide--chevron-right] size-3 shrink-0 group-open/aside:rotate-90',
+					!items.length && 'ml-auto'
+				]}
+			></span>
+		</summary>
+		{#if items.length}
+			<ul class="mt-1">
+				{#each items as workspace (workspace.id)}
+					<li>
+						<a
+							href={resolve('/workspaces/[id]', { id: workspace.id })}
+							aria-current={path === `/workspaces/${workspace.id}` ? 'page' : undefined}
+							class="item gap-2 px-2.5 py-1 text-sm aria-[current=page]:item-active"
+						>
+							{#if !grouped.current && workspace.repoId}<RepoIcon
+									id={workspace.repoId}
+									small
+								/>{/if}
+							<span class="truncate">{workspace.title}</span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="px-2.5 py-1 text-xs">No workspaces set aside.</p>
+		{/if}
+	</details>
 {/snippet}
 
 {#snippet row(

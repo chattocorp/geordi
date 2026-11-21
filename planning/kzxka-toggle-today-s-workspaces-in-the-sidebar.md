@@ -15,3 +15,5 @@ The sidebar now has a repository picker and calendar button at the top. New work
 The sidebar menu offers Not Today on workspaces active today. Verified in the running forge that a deferred row stays in the full list, stays hidden from Today after a restart, and returns when you send a prompt.
 
 Today also accepts workspace drops on Set aside. The grouped view shows one target and count per expanded repository. The flat view shows one for the current filter. Verified a native drag in the running forge, including rejection by another repository and the count after dropping the last workspace.
+
+Set aside uses a muted dashed border. Expand it to open a deferred workspace while Today stays on. Verified opening a workspace and collapsing the list from the keyboard in the running forge.
