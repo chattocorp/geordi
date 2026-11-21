@@ -389,7 +389,7 @@ function initialWorkspace(
 
 /** What an agent is told, with its next message, after its workspace was continued. */
 const continuedBriefing = (branch: string) =>
-	`(A note from Geordi, not from the person: since your last turn, this workspace was continued. Its working directory is now on a new branch, \`${branch}\`, which starts from the latest state of the repository's main branch. What you did before is not on it unless it was merged; your earlier branch still exists. Look at the files as they are now before you rely on what you remember of them.)`;
+	`(A note from Geordi, not from the person: since your last turn, this workspace was continued: thank you for the work you did on it. Its working directory is now on a new branch, \`${branch}\`, which starts from the latest state of the repository's main branch. What you did before is not on it unless it was merged; your earlier branch still exists. Look at the files as they are now before you rely on what you remember of them.)`;
 
 /**
  * The workspaces projection. Mutates in place (O(1) per event during replay); whoever hands
