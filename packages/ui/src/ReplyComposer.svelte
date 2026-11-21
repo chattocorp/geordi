@@ -31,6 +31,8 @@
 		sendButton?: HTMLButtonAttributes;
 		queueButton?: HTMLButtonAttributes;
 	} = $props();
+	const secondaryAction = 'dark:bg-muted/80 dark:text-frame dark:hover:bg-muted';
+
 	/**
 	 * Enter says it now (steering the agent if it is working); with Cmd or Ctrl it waits for
 	 * the agent to finish. Each is one of the form's submit buttons, pressed for the user.
@@ -83,9 +85,15 @@
 					: 'Enter to send, Shift+Enter for a new line'}
 			</p>
 			{#if running}
-				<Button icon="icon-[lucide--square]" label="Stop the agent" onclick={onstop} />
+				<Button
+					class={secondaryAction}
+					icon="icon-[lucide--square]"
+					label="Stop the agent"
+					onclick={onstop}
+				/>
 				<Button
 					{...queueButton}
+					class={canSteer ? [queueButton.class, secondaryAction] : queueButton.class}
 					variant={canSteer ? undefined : 'primary'}
 					icon="icon-[lucide--list-plus]"
 					label="Queue: send this when the agent is done"

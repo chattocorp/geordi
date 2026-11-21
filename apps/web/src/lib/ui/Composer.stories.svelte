@@ -130,6 +130,7 @@
 
 <Story
 	name="While the agent works"
+	globals={{ theme: 'dark' }}
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		sentMode.mockClear();
