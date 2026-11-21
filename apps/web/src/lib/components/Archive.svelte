@@ -24,10 +24,10 @@
 		)
 	);
 
-	const month = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
-	const day = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-	const months = $derived(
-		Map.groupBy(filtered ?? [], (entry) => month.format(new Date(entry.archivedAt)))
+	const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
+	const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+	const days = $derived(
+		Map.groupBy(filtered ?? [], (entry) => day.format(new Date(entry.archivedAt)))
 	);
 
 	/** What is about to be deleted, once the person says so. */
@@ -129,7 +129,7 @@
 		</div>
 		{#if outcome}<p class="text-sm text-muted">{outcome}</p>{/if}
 		<div class="space-y-6">
-			{#each months as [heading, workspaces] (heading)}
+			{#each days as [heading, workspaces] (heading)}
 				<section class="space-y-2">
 					<h2 class="label">{heading}</h2>
 					<ul class="card p-2">
@@ -162,7 +162,7 @@
 									{:else}
 										<time
 											class="shrink-0 text-xs text-muted tabular-nums"
-											datetime={entry.archivedAt}>{day.format(new Date(entry.archivedAt))}</time
+											datetime={entry.archivedAt}>{time.format(new Date(entry.archivedAt))}</time
 										>
 									{/if}
 								</a>
