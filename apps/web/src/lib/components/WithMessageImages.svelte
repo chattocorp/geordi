@@ -75,7 +75,9 @@
 		const { selectionStart: start, selectionEnd: end, value } = text;
 		const before = start > 0 && !/\s/.test(value[start - 1]) ? ' ' : '';
 		const after = end < value.length && !/\s/.test(value[end]) ? ' ' : '';
-		text.setRangeText(before + paths.join(' ') + after, start, end, 'end');
+		// (quoted where they have spaces, so that several stay apart)
+		const named = paths.map((path) => (/\s/.test(path) ? `"${path}"` : path));
+		text.setRangeText(before + named.join(' ') + after, start, end, 'end');
 		text.dispatchEvent(new Event('input', { bubbles: true })); // (so bindings and fields see it)
 	}
 

@@ -72,13 +72,14 @@
 			try {
 				const other = new DataTransfer();
 				other.items.add(new File(['notes'], 'notes.md', { type: 'text/markdown' }));
+				other.items.add(new File(['plan'], 'my plan.txt', { type: 'text/plain' }));
 				other.items.add(file);
 				await userEvent.type(textarea, 'Read');
 				textarea.dispatchEvent(
 					new DragEvent('drop', { dataTransfer: other, bubbles: true, cancelable: true })
 				);
 				await canvas.findByRole('img', { name: 'Attached image 1' });
-				expect(textarea).toHaveValue('Read /Users/me/notes.md');
+				expect(textarea).toHaveValue('Read /Users/me/notes.md "/Users/me/my plan.txt"');
 				element.reset();
 			} finally {
 				delete desktop.geordiDesktop;
