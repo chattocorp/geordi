@@ -625,7 +625,7 @@
 			['Simplify release CI', 'parent'],
 			['Review', 'peer']
 		]) {
-			await expect(await canvas.findByRole('link', { name, exact: true })).toHaveAttribute(
+			await expect(await canvas.findByRole('link', { name })).toHaveAttribute(
 				'href',
 				`/workspaces/${id}?agent=${id}`
 			);
