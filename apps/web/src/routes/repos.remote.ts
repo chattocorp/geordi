@@ -22,3 +22,8 @@ export const checkRepoForge = command(v.string(), async (id) => {
 		error(503, 'Could not ask the daemon');
 	}
 });
+
+export const moveRepo = command(
+	v.object({ repoId: v.string(), before: v.nullable(v.string()) }),
+	({ repoId, before }) => repos().move(repoId, before, 'person')
+);
