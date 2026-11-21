@@ -388,8 +388,12 @@ export const answerQuestion = command(
 
 /** The person moved a workspace in the sidebar: above `before`, or to the end. */
 export const moveWorkspace = command(
-	v.object({ workspaceId: v.string(), before: v.nullable(v.string()) }),
-	({ workspaceId, before }) => workspaces().move(workspaceId, before)
+	v.object({
+		workspaceId: v.string(),
+		before: v.nullable(v.string()),
+		deferred: v.optional(v.boolean())
+	}),
+	({ workspaceId, before, deferred }) => workspaces().move(workspaceId, before, 'person', deferred)
 );
 
 export const stopTask = command(

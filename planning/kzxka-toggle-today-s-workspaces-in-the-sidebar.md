@@ -21,3 +21,5 @@ Set aside uses a muted dashed border. Expand it to open a deferred workspace whi
 Revealed workspaces use the regular sidebar rows. Verified matching typography and row height in grouped and flat views, with status indicators visible under Set aside.
 
 Drag a workspace out of Set aside to return it to Today, or use Return to Today in its menu. Verified a drop into an empty repository list and onto an active workspace in flat view. Returning the workspace keeps its conversation and agent state.
+
+Today and Set aside share row reordering. Verified exact insertion positions within and across both lists in the running forge, including the flat view. The move records the new order and Today membership together.

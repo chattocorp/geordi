@@ -257,20 +257,19 @@
 		!!dragged && (!grouped.current || dragged.repoId === repoId);
 
 	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
-		const from = dragged ? rows.findIndex((row) => row.workspace.id === dragged!.id) : -1;
-		if (from === -1) return;
+		if (!dragged || !droppable(rows[index].workspace.repoId)) return;
 		event.preventDefault();
 		const rect = event.currentTarget.getBoundingClientRect();
-		const target = dropTarget(rows, from, index, event.clientY < rect.top + rect.height / 2);
+		const target = dropTarget(rows, dragged, index, event.clientY < rect.top + rect.height / 2);
 		if (event.dataTransfer) event.dataTransfer.dropEffect = target ? 'move' : 'none';
 		dropBefore = target?.before;
 		dropAfter = target?.after ?? null;
 	}
 
-	function drop(event: DragEvent) {
+	function drop(event: DragEvent, deferred: boolean, before = dropBefore) {
 		event.preventDefault();
-		if (dragged && dropBefore !== undefined)
-			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
+		if (dragged && before !== undefined)
+			void moveWorkspace({ workspaceId: dragged.id, before, ...(todayOnly && { deferred }) });
 		endDrag();
 	}
 
@@ -442,7 +441,7 @@
 			<div aria-hidden="true"></div>
 			{#if nav && !grouped.current}
 				{@const rows = unfolded(oneList, folded.current)}
-				{@render workspaceList(rows, null, !todayOnly && 'pb-4')}
+				{@render workspaceList(rows, null, false, !todayOnly && 'pb-4')}
 				{#if todayOnly && rows.length === 0 && !dragged?.deferred}
 					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
 				{/if}
@@ -539,7 +538,7 @@
 							{/if}
 						</div>
 						{#if !isFolded}
-							{@render workspaceList(rows, repo.id)}
+							{@render workspaceList(rows, repo.id, false)}
 							{#if todayOnly}
 								{@render setAside(repo.id, deferredByRepo.get(repo.id) ?? [])}
 							{/if}
@@ -591,10 +590,8 @@
 					overSetAside = undefined;
 			}}
 			ondrop={(event) => {
-				if (!dragged || !canSetAside) return;
-				event.preventDefault();
-				void setWorkspaceDeferred({ workspaceId: dragged.id, deferred: true });
-				endDrag();
+				if (!canSetAside) return;
+				drop(event, true, items[0]?.id ?? null);
 			}}
 		>
 			<span class="icon-[lucide--calendar-minus] size-4 shrink-0"></span>
@@ -607,9 +604,8 @@
 				]}
 			></span>
 		</summary>
-		{#if items.length}
-			{@render workspaceList(unfolded(asOneList(items), folded.current), undefined, 'mt-1')}
-		{:else}
+		{@render workspaceList(unfolded(asOneList(items), folded.current), repoId, true, 'mt-1')}
+		{#if !items.length && !canSetAside}
 			<p class="px-2.5 py-1 text-xs text-muted">No workspaces set aside.</p>
 		{/if}
 	</details>
@@ -617,27 +613,21 @@
 
 {#snippet workspaceList(
 	rows: (Row & { under: number })[],
-	todayRepo: string | null | undefined,
+	repoId: string | null,
+	deferred: boolean,
 	spacing: string | false = false
 )}
-	{@const canReturn =
-		todayOnly && todayRepo !== undefined && dragged?.deferred && droppable(todayRepo)}
+	{@const emptyTarget =
+		todayOnly && !rows.length && dragged && droppable(repoId) && dragged.deferred !== deferred}
 	<ul
 		class={['space-y-px', spacing]}
 		ondragover={(event) => {
-			if (!canReturn) return;
+			if (!emptyTarget) return;
 			event.preventDefault();
 			if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-			dropBefore = undefined;
 		}}
 		ondrop={(event) => {
-			if (canReturn && dragged) {
-				event.preventDefault();
-				void setWorkspaceDeferred({ workspaceId: dragged.id, deferred: false });
-				endDrag();
-			} else if (dragged && rows.some(({ workspace }) => workspace.id === dragged!.id)) {
-				drop(event);
-			}
+			if (droppable(repoId)) drop(event, deferred, emptyTarget ? null : dropBefore);
 		}}
 		ondragleave={(event) => {
 			if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dropBefore = undefined;
@@ -646,11 +636,11 @@
 		{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
 			{@render row(workspace, parent, depth, under, rows, index)}
 		{/each}
-		{#if canReturn}
+		{#if emptyTarget}
 			<li
 				class="flex min-h-8 items-center gap-2 rounded-control border border-dashed border-muted px-2.5 text-xs text-muted"
 			>
-				<span class="icon-[lucide--calendar-plus] size-4"></span>Drop to return to Today
+				Drop here
 			</li>
 		{/if}
 	</ul>

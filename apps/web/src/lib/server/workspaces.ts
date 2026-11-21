@@ -1245,7 +1245,7 @@ export function createWorkspaces(
 		 * Moves a workspace in the list: right above `before`, or to the end where that is
 		 * `null`. There is one list: listed by repository, each keeps its order there.
 		 */
-		move(id: string, before: string | null, actor: string | null = null) {
+		move(id: string, before: string | null, actor: string | null = null, deferred?: boolean) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (before !== null) {
@@ -1253,10 +1253,12 @@ export function createWorkspaces(
 				if (other.archivedAt) error(400, 'That workspace is archived');
 			}
 			if (before === id) return;
-			store.append(
-				{ type: 'workspace.moved', stream: `workspace:${id}`, data: { id, before } },
-				{ actor }
-			);
+			const events: GeordiEvent[] = [
+				{ type: 'workspace.moved', stream: `workspace:${id}`, data: { id, before } }
+			];
+			if (deferred !== undefined && workspace.deferred !== deferred)
+				events.push(todayEvent(id, deferred));
+			store.append(events, { actor });
 		},
 
 		/** Marks the workspace as done with. Its conversation stays readable. */

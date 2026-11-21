@@ -167,35 +167,40 @@ export function nextUnread<T extends { id: string }>(
 }
 
 /**
- * Where the row at `from` would go, dropped onto the row at `over` (on its upper half, or
+ * Where `moving` would go, dropped onto the row at `over` (on its upper half, or
  * not): among its siblings only, so that it keeps its parent. `before` is the sibling it
  * would go right above, `null` for after the last of them, where `after` is the row the
  * line shows below. Nothing where it would stay where it is, or the row is not among
  * its siblings' (their parent, or another family).
  */
-export function dropTarget<T extends { id: string }>(
+export function dropTarget<T extends { id: string; parentId: string | null }>(
 	rows: Listed<T>[],
-	from: number,
+	moving: T,
 	over: number,
 	upper: boolean
 ): { before: string | null; after: string } | undefined {
-	const { depth } = rows[from];
-	// the siblings and theirs: everything under the parent, or the whole list
-	let start = from;
-	while (start > 0 && rows[start - 1].depth >= depth) start--;
-	let end = from;
-	while (end < rows.length - 1 && rows[end + 1].depth >= depth) end++;
-	if (over < start || over > end) return undefined;
+	const from = rows.findIndex(({ workspace }) => workspace.id === moving.id);
+	// A parent outside this list leaves its children at the top. A parent inside
+	// it keeps its children together, including one dragged in from the other list.
+	const parent = rows.findIndex(({ workspace }) => workspace.id === moving.parentId);
+	const depth = parent < 0 ? 0 : rows[parent].depth + 1;
+	const start = parent + 1;
+	let end = start;
+	while (end < rows.length && rows[end].depth >= depth) end++;
+	if (from === -1 && parent >= 0 && over === parent && !upper) {
+		return {
+			before: rows[start]?.depth === depth ? rows[start].workspace.id : null,
+			after: rows[parent].workspace.id
+		};
+	}
+	if (over < start || over >= end) return undefined;
 
 	const siblingFrom = (at: number) => {
-		for (let index = at; index <= end; index++) if (rows[index].depth === depth) return index;
-		return -1;
+		for (let index = at; index < end; index++)
+			if (rows[index].depth === depth) return rows[index].workspace.id;
+		return null;
 	};
-	const next = siblingFrom(upper ? over : over + 1);
-	const before = next === -1 ? null : rows[next].workspace.id;
-	const after = siblingFrom(from + 1);
-	const stays =
-		before === rows[from].workspace.id ||
-		before === (after === -1 ? null : rows[after].workspace.id);
-	return stays ? undefined : { before, after: rows[end].workspace.id };
+	const before = siblingFrom(upper ? over : over + 1);
+	if (from >= 0 && (before === moving.id || before === siblingFrom(from + 1))) return undefined;
+	return { before, after: rows[end - 1].workspace.id };
 }

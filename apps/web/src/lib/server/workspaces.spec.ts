@@ -1086,6 +1086,31 @@ describe('moving', () => {
 		expect(titles(setup({ database }).workspaces.all())).toEqual(['D', 'C', 'A', 'B']);
 	});
 
+	it('remembers the list and insertion position when moving across the Today boundary', () => {
+		const { workspaces, repo, create, store, repos, dispatch } = setup();
+		const [a, b, c, d] = ['A', 'B', 'C', 'D'].map((title) => create(title));
+		workspaces.setDeferred(a, true);
+		workspaces.setDeferred(b, true);
+		workspaces.move(d, a, 'person', true);
+		const listing = () => createWorkspaces(store, repos, dispatch).list(repo.id);
+		expect(
+			listing()
+				.filter((w) => w.deferred)
+				.map((w) => w.id)
+		).toEqual([b, d, a]);
+		workspaces.move(d, c, 'person', false);
+		expect(
+			listing()
+				.filter((w) => !w.deferred)
+				.map((w) => w.id)
+		).toEqual([d, c]);
+		expect(
+			listing()
+				.filter((w) => w.deferred)
+				.map((w) => w.id)
+		).toEqual([b, a]);
+	});
+
 	it('moves workspaces across repositories, as one list', () => {
 		const { workspaces, repos, create } = setup();
 		const id = create('A');

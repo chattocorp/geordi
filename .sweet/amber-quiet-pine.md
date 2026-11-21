@@ -2,4 +2,4 @@
 type: feature
 ---
 
-Drag a workspace to **Set aside** in Today, or choose **Not Today** from its sidebar menu. Click **Set aside** to see the workspaces there. Drag one back to Today or send it a new prompt to bring it back.
+Drag a workspace to **Set aside** in Today, or choose **Not Today** from its sidebar menu. Click **Set aside** to see the workspaces there. Drag workspaces into order within either list or between them. Sending a new prompt also brings a workspace back to Today.
