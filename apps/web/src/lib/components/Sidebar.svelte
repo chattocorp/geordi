@@ -313,6 +313,12 @@
 
 	const settingsHint = hint('settings');
 	const focusHint = hint('focusRepo');
+	/**
+	 * How far a workspace sits in from the one that started it, in one list: its picture under
+	 * the title above (a row's label padding, its icon, and the gap after it, less where the
+	 * smaller picture sits in its icon's place).
+	 */
+	const INDENT = 6.5;
 	/** How long repositories and workspaces take to slide away or back, in milliseconds. */
 	const MOTION = 200;
 	const inSettings = $derived(path.startsWith('/settings'));
@@ -564,7 +570,7 @@
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
 	<li
-		style:margin-inline-start="calc(var(--spacing) * {3 * depth})"
+		style:margin-inline-start="calc(var(--spacing) * {(grouped.current ? 3 : INDENT) * depth})"
 		class={[
 			dropBefore === workspace.id && 'row-drop-before',
 			dropBefore === null && dropAfter === workspace.id && 'row-drop-after'
@@ -585,7 +591,7 @@
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
-			parentHref={workspace.parentId
+			parentHref={grouped.current && workspace.parentId
 				? resolve('/workspaces/[id]', { id: workspace.parentId })
 				: undefined}
 			icon={workspace.repoId === null
