@@ -385,23 +385,21 @@
 				options={repositoryOptions}
 				bind:value={() => focus.current ?? '', (value) => (focus.current = value || null)}
 			/>
-			<div class="flex shrink-0 items-center gap-1">
+			<div class="flex shrink-0 items-center">
 				<Button
-					variant="ghost"
+					variant="tool"
 					icon="icon-[lucide--list]"
 					label="Show workspaces as one list"
 					title={`Show workspaces as one list (${hint('groupByRepo')})`}
 					aria-pressed={!grouped.current}
-					class="aria-pressed:bg-sunken aria-pressed:text-ink"
 					onclick={() => (grouped.current = !grouped.current)}
 				/>
 				<Button
-					variant="ghost"
+					variant="tool"
 					icon="icon-[lucide--calendar-days]"
 					label="Show workspaces active today"
 					title={`Show workspaces active today (${hint('todayOnly')})`}
 					aria-pressed={todayOnly}
-					class="aria-pressed:bg-sunken aria-pressed:text-ink"
 					onclick={() => (todayOnly = !todayOnly)}
 				/>
 			</div>

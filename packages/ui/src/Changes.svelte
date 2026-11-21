@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from './Button.svelte';
 	import ProgressIcon from './ProgressIcon.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
@@ -68,34 +69,27 @@
 					Compared with <span>{git.changes.comparisonTarget}</span>
 				{/if}
 			</p>
-			{#if onopencombined}
-				<button
-					type="button"
-					aria-label="Open combined diff"
-					title="Open combined diff"
-					onclick={onopencombined}
-					class="flex size-7 shrink-0 items-center justify-center rounded-control text-muted hover:bg-hover hover:text-ink"
-				>
-					<span class="icon-[lucide--files] size-4"></span>
-				</button>
-			{/if}
-			<div role="radiogroup" aria-label="Show the changes" class="flex shrink-0">
-				{#each views as option (option.value)}
-					<button
-						type="button"
-						role="radio"
-						aria-checked={view === option.value}
-						aria-label={option.label}
-						title={option.label}
-						onclick={() => (view = option.value)}
-						class={[
-							'flex size-7 items-center justify-center rounded-control',
-							view === option.value ? 'text-ink' : 'text-muted opacity-60 hover:opacity-100'
-						]}
-					>
-						<span class={[option.icon, 'size-4']}></span>
-					</button>
-				{/each}
+			<div class="flex shrink-0 items-center">
+				{#if onopencombined}
+					<Button
+						variant="tool"
+						icon="icon-[lucide--files]"
+						label="Open combined diff"
+						onclick={onopencombined}
+					/>
+				{/if}
+				<div role="radiogroup" aria-label="Show the changes" class="flex">
+					{#each views as option (option.value)}
+						<Button
+							variant="tool"
+							role="radio"
+							aria-checked={view === option.value}
+							icon={option.icon}
+							label={option.label}
+							onclick={() => (view = option.value)}
+						/>
+					{/each}
+				</div>
 			</div>
 		</div>
 	{/if}
