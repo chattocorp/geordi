@@ -72,6 +72,8 @@ type Handlers = {
 	onUsage(workspaceId: string, usage: ContextUsage): void;
 	/** The usage limits of a workspace's agent's subscription, as it just said. */
 	onLimits(workspaceId: string, limits: UsageLimit[]): void;
+	/** What the workspace's agent suggests saying next; `null` once withdrawn. */
+	onSuggestion(workspaceId: string, text: string | null): void;
 };
 
 const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
@@ -119,18 +121,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	 */
 	const commands = new Map<string, AgentCommand[]>();
 	const commandListeners = new Set<(workspaceId: string) => void>();
-	/**
-	 * What each workspace's agent suggests saying next. It outlives its daemon's connection
-	 * (the agent said it, whoever relays it); a reconnecting daemon says it again anyway.
-	 */
-	const suggestions = new Map<string, string>();
 	const sessionModels = new Map<string, SessionModel>();
-	function setSuggestion(id: string, text: string | null) {
-		if ((suggestions.get(id) ?? null) === text) return;
-		if (text) suggestions.set(id, text);
-		else suggestions.delete(id);
-		for (const listener of sessionListeners) listener(id);
-	}
 	/** Told when a daemon connects or goes away. */
 	const watching = new Set<() => void>();
 	const changed = () => watching.forEach((tell) => tell());
@@ -221,7 +212,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				const { workspaceId: id, live } = message;
 				if (!active.assigned.has(id)) return;
 				if (live.background) setTasks(id, live.background);
-				if (live.suggestion !== undefined) setSuggestion(id, live.suggestion);
+				if (live.suggestion !== undefined) handlers.onSuggestion(id, live.suggestion);
 				if (live.sessionModel) {
 					sessionModels.set(id, live.sessionModel);
 					for (const listener of sessionListeners) listener(id);
@@ -236,9 +227,6 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
 			else if (message.type !== 'workspace.event' || active.assigned.has(message.workspaceId)) {
-				// what was suggested was for the turn that ended, not for the next
-				if (message.type === 'workspace.event' && message.event.kind === 'turn.started')
-					setSuggestion(message.workspaceId, null);
 				handlers.onMessage(message);
 				if (message.type === 'workspace.event' && message.cursor) {
 					const ack: ForgeMessage = {
@@ -280,7 +268,6 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		},
 		background: (id: string) => background.get(id) ?? [],
 		sessionModel: (id: string) => sessionModels.get(id),
-		suggestion: (id: string) => suggestions.get(id) ?? null,
 		/** Calls `listener` when session data in the workspace view changes. */
 		followSession(listener: (workspaceId: string) => void) {
 			sessionListeners.add(listener);

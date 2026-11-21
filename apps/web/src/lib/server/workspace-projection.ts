@@ -131,6 +131,15 @@ export type WorkspacesEvent =
 	 * turns). What it says during a turn is only kept in memory: it says it after every step.
 	 */
 	| { type: 'workspace.usage'; stream: WorkspaceStream; data: { id: string; usage: ContextUsage } }
+	/**
+	 * What the agent suggests the person say next, now that its turn is over (`null`: it took
+	 * it back). Its next turn withdraws it, too.
+	 */
+	| {
+			type: 'workspace.suggested';
+			stream: WorkspaceStream;
+			data: { id: string; text: string | null };
+	  }
 	/** A waiting message was taken back; `index` is its place in the queue at the time. */
 	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
 	/** Whatever the daemon reports, stored verbatim. */
@@ -319,6 +328,8 @@ export type Workspace = {
 	lastTurn: TurnEnd | null;
 	/** How full its agent's context is, as it last said; `null` before it has. */
 	usage: ContextUsage | null;
+	/** What its agent suggests the person say next; `null` if nothing. */
+	suggestion: string | null;
 	/** The workspace whose agent started this one; `null` if a person did. */
 	parentId: string | null;
 	/** The external client (its grant) that started it, if one did: it may supervise it. */
@@ -347,6 +358,15 @@ export type Workspace = {
 	transcript: TranscriptItem[];
 };
 
+/** A turn begins: with a message to the agent, or because the agent says so. */
+function startTurn(workspace: Workspace, at: string) {
+	if (workspace.status !== 'running') workspace.turnStartedAt = at;
+	workspace.status = 'running';
+	workspace.lastTurn = null;
+	// what it suggested was for the turn that ended, not for this one
+	workspace.suggestion = null;
+}
+
 function initialWorkspace(
 	created: Extract<CurrentEvent, { type: 'workspace.created' }>['data'],
 	at: string,
@@ -369,6 +389,7 @@ function initialWorkspace(
 		asking: false,
 		lastTurn: null,
 		usage: null,
+		suggestion: null,
 		parentId,
 		startedBy: actor && isExternal(actor) ? actor : null,
 		worktreeId,
@@ -446,6 +467,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		if (event.type === 'workspace.usage') {
 			const measured = workspaces.get(event.data.id);
 			if (measured) measured.usage = event.data.usage;
+			return;
+		}
+		if (event.type === 'workspace.suggested') {
+			const suggesting = workspaces.get(event.data.id);
+			if (suggesting) suggesting.suggestion = event.data.text;
 			return;
 		}
 
@@ -577,9 +603,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				sender = steering.get(workspace.id) ?? null;
 				steering.delete(workspace.id);
 			}
-			if (workspace.status !== 'running') workspace.turnStartedAt = at;
-			workspace.status = 'running';
-			workspace.lastTurn = null;
+			startTurn(workspace, at);
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
 			const from =
@@ -676,9 +700,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				if (output.blocking !== false) workspace.asking = true;
 				break;
 			case 'turn.started':
-				if (workspace.status !== 'running') workspace.turnStartedAt = at;
-				workspace.status = 'running';
-				workspace.lastTurn = null;
+				startTurn(workspace, at);
 				break;
 			case 'turn.completed':
 			case 'turn.failed':

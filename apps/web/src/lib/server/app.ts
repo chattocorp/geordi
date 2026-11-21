@@ -276,6 +276,7 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 			void standings().tick(true);
 		},
 		onUsage: (workspaceId, usage) => workspaces().measure(workspaceId, usage),
+		onSuggestion: (workspaceId, text) => workspaces().suggest(workspaceId, text),
 		onLimits: (workspaceId, known) => limits().note(workspaces().summary(workspaceId).agent, known),
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {

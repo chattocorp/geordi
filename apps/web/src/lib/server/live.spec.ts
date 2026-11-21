@@ -13,7 +13,6 @@ vi.mock('./app.ts', () => ({
 	workspaces: vi.fn(),
 	hub: () => ({
 		background: () => [],
-		suggestion: () => null,
 		sessionModel: () => undefined,
 		followSession: () => () => {}
 	}),
