@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import Dialog from '#lib/ui/Dialog.svelte';
-	import Select from '#lib/ui/Select.svelte';
+	import RepoPicker from '#lib/components/workspace/RepoPicker.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
@@ -97,10 +97,6 @@
 	);
 	/** What stands for the projects among the folded: no repository has it as its ID. */
 	const PROJECTS = 'projects';
-	const repositoryOptions = $derived([
-		{ value: '', label: 'All repositories' },
-		...withWorkspaces.map(({ id, name }) => ({ value: id, label: name }))
-	]);
 
 	/**
 	 * Repositories and workspaces slide in and out whenever they come or go: by a filter (the
@@ -404,11 +400,12 @@
 			aria-label="Workspace filters"
 			class="mb-2 flex shrink-0 items-center justify-between gap-1"
 		>
-			<Select
-				label="Repository"
+			<RepoPicker
+				all="All repositories"
+				buttonIcon={false}
 				title={`Search repositories (${hint('repositoryFilter')})`}
 				bind:open={repositoryPickerOpen}
-				options={repositoryOptions}
+				repos={withWorkspaces}
 				bind:value={() => focus.current ?? '', (value) => (focus.current = value || null)}
 			/>
 			<div class="flex shrink-0 items-center">
