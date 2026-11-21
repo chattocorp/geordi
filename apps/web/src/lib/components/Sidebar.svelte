@@ -607,6 +607,7 @@
 			asking={workspace.outcome === 'asking'}
 			waiting={workspace.waiting}
 			working={workspace.working || (isFolded && busy)}
+			background={workspace.background}
 			progress={pendingPullAction.get(workspace.id) ??
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
 					? 'merge-pull'

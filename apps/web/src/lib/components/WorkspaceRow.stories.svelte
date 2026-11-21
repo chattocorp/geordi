@@ -109,6 +109,26 @@
 </Story>
 
 <Story
+	name="Running in the background"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const icon = canvas.getByRole('img', { name: '2 running in the background' });
+		await expect(icon.closest('a, button')).toBeNull();
+		await expect(getComputedStyle(icon).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+		// beside the agent's own activity, first
+		const beside = canvas.getByRole('img', { name: '1 running in the background' });
+		const working = canvas.getByRole('img', { name: 'Working' });
+		await expect(beside.compareDocumentPosition(working)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+	}}
+>
+	<div class="w-64 sheet-quiet p-2">
+		<WorkspaceRow title="Watch the build" href="/workspaces/build" background={2} />
+		<WorkspaceRow title="Run the tests" href="/workspaces/tests" working background={1} />
+	</div>
+</Story>
+
+<Story
 	name="Open agent question"
 	asChild
 	play={async ({ canvasElement }) => {

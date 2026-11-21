@@ -22,6 +22,7 @@
 		asking = false,
 		waiting = false,
 		working = false,
+		background = 0,
 		progress,
 		standing = null,
 		actions = [],
@@ -43,6 +44,8 @@
 		asking?: boolean;
 		waiting?: boolean;
 		working?: boolean;
+		/** How many tasks its agents left running in the background. */
+		background?: number;
 		progress?: ActivityId;
 		standing?: WorkspaceStanding | null;
 		actions?: WorkspaceAction[];
@@ -123,7 +126,7 @@
 		/>
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
-	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
+	<span class="flex h-6 min-w-6 shrink-0 items-center justify-center">
 		{#if asking && href}
 			<QuestionLink workspaceHref={href} />
 		{:else if asking}
@@ -131,7 +134,10 @@
 				<span class="icon-[lucide--message-circle-question] size-4"></span>
 			</StatusIcon>
 		{:else if activity}
+			{#if background}{@render backgroundIcon()}{/if}
 			<WorkspaceActivity {activity} />
+		{:else if background}
+			{@render backgroundIcon()}
 		{:else if primary && pillColor}
 			<button
 				type="button"
@@ -150,6 +156,11 @@
 		{/if}
 	</span>
 </div>
+{#snippet backgroundIcon()}
+	<StatusIcon label="{background} running in the background">
+		<span class="icon-[lucide--activity] size-4"></span>
+	</StatusIcon>
+{/snippet}
 {#snippet statusIcon()}
 	{#if waiting}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
