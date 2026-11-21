@@ -47,6 +47,8 @@
 		 * panes are split, the first group's bar has it.
 		 */
 		actions?: Snippet;
+		/** What comes before the tabs of the first group's bar. */
+		lead?: Snippet;
 	};
 	let {
 		layout,
@@ -62,7 +64,8 @@
 		newLabel = 'New window',
 		newIcon = 'icon-[lucide--plus]',
 		empty,
-		actions
+		actions,
+		lead
 	}: Props = $props();
 
 	const uid = $props.id();
@@ -152,6 +155,7 @@
 				tabs={n.tabs}
 				current={n.active}
 				{tab}
+				lead={groupsOf(layout)[0]?.id === n.id ? lead : undefined}
 				actions={newTab || (actions && groupsOf(layout)[0]?.id === n.id) ? barActions : undefined}
 				{ondoubleclick}
 				onselect={(id) => onchange(open(layout, id))}

@@ -2,6 +2,7 @@
 	import { expect, fireEvent, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { close, open, move, singleGroup, groupsOf, type Layout } from '#lib/layout.ts';
+	import Button from '@geordi/ui/Button.svelte';
 	import Panes from './Panes.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Panes', component: Panes });
@@ -110,6 +111,17 @@
 			{window}
 			newTab={() => `Tab ${++count}`}
 		/>
+	</div>
+</Story>
+
+<!-- What comes before the tabs: in a workspace, the button that folds a sheet beside the conversation. -->
+<Story name="With a lead" asChild>
+	<div class="flex h-48 sheet-quiet overflow-hidden">
+		<Panes layout={side} onchange={(next) => (side = next)} {tab} {window} splits={false}>
+			{#snippet lead()}
+				<Button variant="ghost" size="sm" icon="icon-[lucide--chevron-down]" label="Fold" />
+			{/snippet}
+		</Panes>
 	</div>
 </Story>
 

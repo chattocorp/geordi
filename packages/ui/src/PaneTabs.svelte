@@ -10,6 +10,8 @@
 		current: string | null;
 		tab: Snippet<[string]>;
 		actions?: Snippet;
+		/** What comes before the tabs, at the start of the bar. */
+		lead?: Snippet;
 		onselect?: (id: string) => void;
 		ondoubleclick?: (id: string) => void;
 		onclose?: (id: string) => void;
@@ -30,6 +32,7 @@
 		current,
 		tab,
 		actions,
+		lead,
 		onselect,
 		ondoubleclick,
 		onclose,
@@ -67,13 +70,19 @@
 
 <!-- Tabs scroll on their own; the actions beside them stay put, never over a tab. -->
 <div class="pane-bar" role="presentation" ondragover={drag?.overBar} ondrop={drag?.drop}>
+	{#if lead}
+		<div class="flex shrink-0 items-center pl-2">
+			{@render lead()}
+		</div>
+	{/if}
 	<div
 		role="tablist"
 		tabindex="-1"
 		bind:this={list}
 		onscroll={edges}
 		class={[
-			'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scroll-fade-x pl-2',
+			'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scroll-fade-x',
+			lead ? 'pl-1' : 'pl-2',
 			actions ? 'pr-1' : 'pr-2',
 			moreLeft && 'more-left',
 			moreRight && 'more-right'
