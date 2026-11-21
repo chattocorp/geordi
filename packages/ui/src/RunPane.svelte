@@ -268,49 +268,66 @@
 					{@const state = stateOf(job.name)}
 					{@const name = job.label ?? job.name}
 					{@const action = live(state) ? 'Stop' : 'Start'}
+					{@const terminal = hasTerminal(job.name)}
 					<div
 						class="group/job flex h-8 items-center gap-1 rounded-control pr-2 pl-0.5 hover:bg-hover"
 					>
-						<!-- how it is; pointed at (or reached with the keyboard), what can be done about it -->
-						<button
-							type="button"
-							aria-label="{action} {name}"
-							title="{action} {name}"
-							onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
-							class="group/mark grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink"
-						>
-							{#if state !== 'stopped'}
-								<span
-									class="grid place-items-center group-hover/mark:hidden group-focus-visible/mark:hidden"
-								>
-									<JobMark {state} />
-								</span>
-							{/if}
-							<span
-								class={[
-									'size-3.5',
-									state !== 'stopped' &&
-										'hidden group-hover/mark:block group-focus-visible/mark:block',
-									live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
-								]}
-							></span>
-						</button>
-						<!-- once it has a terminal, the rest of the row is the way to its output -->
-						{#if !hasTerminal(job.name)}
-							<div class="flex min-w-0 flex-1 items-center gap-2 text-sm" title={job.command}>
-								{@render about(job)}
-							</div>
-						{:else}
+						{#if !live(state) && !terminal}
+							<!-- nothing to show yet: the whole row starts it -->
 							<button
 								type="button"
-								aria-label="Open terminal for {name}"
-								title="Open terminal for {name}"
-								onclick={() => show(job.name)}
-								class="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-sm"
+								aria-label="Start {name}"
+								title={job.command}
+								onclick={() => start([job.name])}
+								class="flex h-full min-w-0 flex-1 items-center gap-1 text-left text-sm"
 							>
-								{@render about(job)}
-								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0 text-muted"></span>
+								<span class="grid size-6 shrink-0 place-items-center text-muted">
+									<span class="icon-[lucide--play] size-3.5"></span>
+								</span>
+								<span class="flex min-w-0 flex-1 items-center gap-2">{@render about(job)}</span>
 							</button>
+						{:else}
+							<!-- how it is; pointed at (or reached with the keyboard), what can be done about it -->
+							<button
+								type="button"
+								aria-label="{action} {name}"
+								title="{action} {name}"
+								onclick={() => (live(state) ? stop(job.name) : start([job.name]))}
+								class="group/mark grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink"
+							>
+								{#if state !== 'stopped'}
+									<span
+										class="grid place-items-center group-hover/mark:hidden group-focus-visible/mark:hidden"
+									>
+										<JobMark {state} />
+									</span>
+								{/if}
+								<span
+									class={[
+										'size-3.5',
+										state !== 'stopped' &&
+											'hidden group-hover/mark:block group-focus-visible/mark:block',
+										live(state) ? 'icon-[lucide--circle-stop] text-danger' : 'icon-[lucide--play]'
+									]}
+								></span>
+							</button>
+							<!-- once it has a terminal, the rest of the row is the way to its output -->
+							{#if !terminal}
+								<div class="flex min-w-0 flex-1 items-center gap-2 text-sm" title={job.command}>
+									{@render about(job)}
+								</div>
+							{:else}
+								<button
+									type="button"
+									aria-label="Open terminal for {name}"
+									title="Open terminal for {name}"
+									onclick={() => show(job.name)}
+									class="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-sm"
+								>
+									{@render about(job)}
+									<span class="icon-[lucide--square-terminal] size-3.5 shrink-0 text-muted"></span>
+								</button>
+							{/if}
 						{/if}
 					</div>
 				{/each}
