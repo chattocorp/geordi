@@ -64,8 +64,6 @@ type State = {
 	failed?: boolean;
 	/** Whether an agent started the workspace: its work goes back to that one. */
 	child?: boolean;
-	/** The workspace has carried on from a finished pull request. */
-	continued?: boolean;
 };
 
 /** Whether everything the workspace did is in the branch it started from, with no pull request to say so. */
@@ -148,7 +146,7 @@ function nextActions(state: State): WorkspaceAction[] {
 	const local = uncommitted || unpushed;
 	const pull = upstream?.pull;
 
-	if (!pull && !local && !changes.files.length && !state.continued)
+	if (!pull && !local && !changes.files.length)
 		return [{ ...archive, aside: (changes.incoming?.commits ?? 0) > 0 }];
 
 	// Without a forge to send work to, committing is as far as it goes.

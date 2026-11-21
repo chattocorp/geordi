@@ -31,7 +31,7 @@ The top bar of a workspace shows what could or should happen next: publish the w
 - Ready for review marks the open GitHub pull request ready through the upstream forge. A forge error appears in the workspace.
 - **Auto-merge** asks GitHub to merge the workspace pull request when its requirements pass. The action appears when GitHub allows it, the branch is published, and no fixes are pending. GitHub keeps the request through Geordi restarts. The ribbon shows **Checks running** while checks are pending. People with permission can select **Disable Auto-merge** while auto-merge is enabled.
 - Merge PR is done by Geordi itself, through the upstream forge's API: without an agent turn. Merge PR and enabling auto-merge check the pending release plan first (FDR-007). It merges only a pull request that is at the very commit the workspace has, the one way the repository allows, or squashed where it allows several. If the forge refuses, the top bar says why.
-- A clean workspace with no pull request offers a gray **Archive** button. A workspace continued on a fresh branch skips this shortcut.
+- A clean workspace with no pull request offers a gray **Archive** button.
 - Archive checks the workspace and its descendants. It opens a dialog only for active agents or unfinished Git work (FDR-001). It is also always available as a quiet button, not only when it is the obvious next step.
 - Nothing is offered while Geordi doesn't know the workspace's changes (no daemon connected).
 - A workspace whose own commits are all in the branch it started from, with no pull request to say so (an agent's work, merged by the agent that started it), stands as merged, and can be archived.

@@ -772,7 +772,6 @@
 				: {
 						changes: checked.changes,
 						upstream: checked.upstream,
-						continued: workspace.continued,
 						failed: workspace.lastTurn === 'failed',
 						child: !!workspace.parentId
 					}
