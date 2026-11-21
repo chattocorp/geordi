@@ -17,7 +17,6 @@ permissions:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || !contains(inputs.tag, '-')
     concurrency:
       group: website
       cancel-in-progress: false

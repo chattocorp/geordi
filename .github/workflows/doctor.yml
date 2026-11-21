@@ -6,4 +6,4 @@ permissions:
 jobs:
   doctor:
     # Sweet Release publishes no workflow tags yet: pinned to a commit of its main branch.
-    uses: chattocorp/sweet-release/.github/workflows/doctor.yml@11dc11d022585610ad9d751c3f0262f6ef754179
+    uses: chattocorp/sweet-release/.github/workflows/doctor.yml@7a7d348c2ec1b681c078a0ada9aa60b8ee260918

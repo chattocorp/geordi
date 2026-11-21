@@ -16,7 +16,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: chattocorp/sweet-release/.github/workflows/bump.yml@11dc11d022585610ad9d751c3f0262f6ef754179
+    # Unreleased Sweet Release commit (PR #62, `sweet github release`): move to the next release tag.
+    uses: chattocorp/sweet-release/.github/workflows/bump.yml@7a7d348c2ec1b681c078a0ada9aa60b8ee260918
     secrets:
       release-token: ${{ secrets.RELEASE_PR_TOKEN }}
 
@@ -24,23 +25,22 @@ jobs:
     if: github.event_name == 'push'
     permissions:
       contents: write
-    uses: chattocorp/sweet-release/.github/workflows/tag.yml@11dc11d022585610ad9d751c3f0262f6ef754179
-    secrets:
-      # This workflow builds the returned tags. A GITHUB_TOKEN push avoids a second beta build.
-      release-token: ${{ secrets.GITHUB_TOKEN }}
+    # Unreleased Sweet Release commit (PR #62, `sweet github release`): move to the next release tag.
+    # Tags are pushed with GITHUB_TOKEN, so they start no tag workflow (no second beta build):
+    # this run publishes them.
+    uses: chattocorp/sweet-release/.github/workflows/tag.yml@7a7d348c2ec1b681c078a0ada9aa60b8ee260918
 
   desktop:
     needs: tag
-    if: needs.tag.outputs.tags != '[]'
-    strategy:
-      matrix:
-        release: ${{ fromJSON(needs.tag.outputs.tags) }}
+    # `packages` maps the root package (`.`) to its new tag, or to null. It is empty when `tag`
+    # is skipped (workflow_dispatch), hence the fallback.
+    if: fromJSON(needs.tag.outputs.packages || '{}')['.'] != null
     permissions:
       contents: write
     uses: ./.github/workflows/desktop.yml
     with:
-      tag: ${{ matrix.release.tag }}
-      commit: ${{ matrix.release.commit }}
+      tag: ${{ fromJSON(needs.tag.outputs.packages)['.'].tag }}
+      commit: ${{ fromJSON(needs.tag.outputs.packages)['.'].commit }}
     secrets:
       MACOS_SIGNING_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_P12_BASE64 }}
       MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
@@ -50,29 +50,25 @@ jobs:
 
   website:
     needs: [tag, desktop]
-    if: needs.tag.outputs.tags != '[]'
-    strategy:
-      matrix:
-        release: ${{ fromJSON(needs.tag.outputs.tags) }}
+    # Stable releases only: betas are desktop downloads.
+    if: fromJSON(needs.tag.outputs.packages || '{}')['.'] != null && !fromJSON(needs.tag.outputs.packages || '{}')['.'].prerelease
     permissions:
       contents: read
     uses: ./.github/workflows/website.yml
     with:
-      tag: ${{ matrix.release.tag }}
+      tag: ${{ fromJSON(needs.tag.outputs.packages)['.'].tag }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   npm:
     needs: tag
-    if: needs.tag.outputs.tags != '[]'
-    strategy:
-      matrix:
-        release: ${{ fromJSON(needs.tag.outputs.tags) }}
+    # Stable releases only: betas are desktop downloads.
+    if: fromJSON(needs.tag.outputs.packages || '{}')['.'] != null && !fromJSON(needs.tag.outputs.packages || '{}')['.'].prerelease
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/npm.yml
     with:
-      tag: ${{ matrix.release.tag }}
-      commit: ${{ matrix.release.commit }}
+      tag: ${{ fromJSON(needs.tag.outputs.packages)['.'].tag }}
+      commit: ${{ fromJSON(needs.tag.outputs.packages)['.'].commit }}
