@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource-variable/ibm-plex-sans/wght-italic.css';
 @import '@fontsource-variable/jetbrains-mono';
 
 /*
