@@ -97,7 +97,8 @@
 				// (the blob first: decoding takes the bytes away)
 				loaded = url = URL.createObjectURL(new Blob([bytes], { type }));
 				return waveform(bytes).then(
-					(found) => (peaks = found),
+					// (unless another sound took its place while this one was decoded)
+					(found) => void (stop.signal.aborted || (peaks = found)),
 					() => {} // a flat line, then: it may still play
 				);
 			})
@@ -130,8 +131,22 @@
 		);
 	});
 
+	/** Asked to play before the sound was there: it plays once it is. */
+	let waiting = $state(false);
+	$effect(() => {
+		if (waiting && loaded && audio) {
+			waiting = false;
+			toggle();
+		}
+	});
+
 	function toggle() {
-		if (!audio || !loaded) return;
+		if (!audio) return;
+		if (!loaded) {
+			near = true;
+			waiting = !waiting;
+			return;
+		}
 		if (!paused) return audio.pause();
 		if (playing !== audio) playing?.pause();
 		playing = audio;

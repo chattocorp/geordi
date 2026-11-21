@@ -37,6 +37,8 @@
 
 <script lang="ts">
 	let selected = $state('');
+	let few = $state(false);
+	let unloaded = $state(false);
 	let layout = $state.raw<Layout>(singleGroup(['Conversation']));
 </script>
 
@@ -137,10 +139,10 @@
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		await expect(await canvas.findByRole('button', { name: /0000_nora\.ogg/ })).toBeVisible();
-		// only the rows in view are drawn, in the list and in the tree
-		await expect(canvas.getAllByRole('listitem').length).toBeLessThan(100);
+		// only the first rows are drawn, in the list and in the tree
+		await expect(canvas.getAllByRole('listitem').length).toBeLessThanOrEqual(200);
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
-		await expect(canvas.getAllByRole('listitem').length).toBeLessThan(100);
+		await expect(canvas.getAllByRole('listitem').length).toBeLessThanOrEqual(200);
 	}}
 >
 	<div class="flex h-96 w-80 flex-col">
@@ -156,6 +158,46 @@
 					files: many
 				}
 			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Another workspace with fewer files"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await canvas.findByRole('button', { name: /0000_nora\.ogg/ });
+		// in the tree, where a switch once broke the list
+		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Unload' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Switch' }));
+		await expect(await canvas.findByRole('button', { name: /message\.txt/ })).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /0000_nora\.ogg/ })).toBeNull();
+	}}
+>
+	<button type="button" onclick={() => ((few = !few), (unloaded = false))}>Switch</button>
+	<button type="button" onclick={() => (unloaded = true)}>Unload</button>
+	<div class="flex h-96 w-80 flex-col">
+		<Changes
+			git={unloaded
+				? null
+				: {
+						...pending,
+						changes: {
+							branch: 'feature',
+							comparisonTarget: 'main',
+							uncommitted: 0,
+							unpushed: null,
+							landed: false,
+							files: few
+								? [
+										{ path: 'message.txt', status: 'modified', added: 1, removed: 1 },
+										{ path: 'other.txt', status: 'added', added: 1, removed: 0 }
+									]
+								: many
+						}
+					}}
 			onopen={() => {}}
 		/>
 	</div>
