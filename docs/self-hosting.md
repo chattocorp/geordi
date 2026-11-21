@@ -128,7 +128,7 @@ Start a new session and ask: “Use Geordi to list my workspaces.” For other c
 Streamable HTTP, enter the MCP URL, and set the `Authorization` header to `Bearer <token>`.
 
 Call `list_workspaces` to find a workspace, then `read_workspace` with its `workspace_id`.
-Use the same ID as `agent_id` for `workspace_status`, `send_message` and `wait_for_agent`. A
+Use the same ID as `workspace_id` for `workspace_status`, `send_message` and `wait_for_agent`. A
 message starts an idle agent; a busy one receives it after its turn.
 
 To start new work, find a repository with `list_repositories` and call `start_agent` with its

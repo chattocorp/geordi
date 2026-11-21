@@ -92,7 +92,6 @@ const controlledTarget = (kind: CallerKind) =>
 		: 'an agent you started directly or through another agent';
 
 const MAX_WAIT_SECONDS = 45;
-const agentId = v.pipe(v.string(), v.description('The target workspace ID.'));
 
 const repositoryId = v.pipe(v.string(), v.description('Repository ID from list_repositories.'));
 const workspaceId = v.pipe(v.string(), v.description('Workspace ID from list_workspaces.'));
@@ -186,7 +185,7 @@ const tools = {
 		description:
 			'Wait for a visible workspace to finish its current turn and return its agent report. For its pull request and checks, call workspace_status. If it is still running at timeout, check read_workspace.pendingQuestions for a blocking question that needs the person, then wait again as needed. An idle report can include an error.',
 		input: v.strictObject({
-			agent_id: v.pipe(v.string(), v.description('A workspace ID')),
+			workspace_id: workspaceId,
 			timeout_seconds: v.pipe(
 				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), MAX_WAIT_SECONDS),
 				v.description(
@@ -194,10 +193,18 @@ const tools = {
 				)
 			)
 		}),
-		run: (agents: Agents, caller: string, input: { agent_id: string; timeout_seconds: number }) =>
+		run: (
+			agents: Agents,
+			caller: string,
+			input: { workspace_id: string; timeout_seconds: number }
+		) =>
 			// Never longer than agent CLIs give a tool call (a minute): a wait that outlasts that
 			// comes back as a failure, and tells the caller nothing.
-			agents.wait(caller, input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
+			agents.wait(
+				caller,
+				input.workspace_id,
+				Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000
+			)
 	},
 	list_agents: {
 		description:
@@ -224,7 +231,7 @@ const tools = {
 		description:
 			'Read up to 50 messages in chronological order and all open questions in pendingQuestions. A user message with from identifies a workspace agent or named external client as its sender. Pass before to read the previous page. A null cursor marks the first page.',
 		input: v.strictObject({
-			workspace_id: v.string(),
+			workspace_id: workspaceId,
 			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
 		}),
 		run: (agents: Agents, caller: string, input: { workspace_id: string; before?: number }) =>
@@ -240,7 +247,7 @@ const tools = {
 				.filter(Boolean)
 				.join(' '),
 		input: v.strictObject({
-			agent_id: v.pipe(
+			workspace_id: v.pipe(
 				v.string(),
 				v.description('A workspace ID, from start_agent or list_workspaces')
 			),
@@ -255,10 +262,10 @@ const tools = {
 		run: (
 			agents: Agents,
 			caller: string,
-			input: { agent_id: string; message: string; interrupt: boolean }
+			input: { workspace_id: string; message: string; interrupt: boolean }
 		) => {
-			agents.send(caller, input.agent_id, input.message, input.interrupt);
-			return agents.reportWorkspace(caller, input.agent_id);
+			agents.send(caller, input.workspace_id, input.message, input.interrupt);
+			return agents.reportWorkspace(caller, input.workspace_id);
 		}
 	},
 	archive_agent: {
@@ -273,9 +280,9 @@ const tools = {
 			]
 				.filter(Boolean)
 				.join(' '),
-		input: v.strictObject({ agent_id: agentId }),
-		run: async (agents: Agents, caller: string, input: { agent_id: string }) => {
-			const agent = agents.get(caller, input.agent_id);
+		input: v.strictObject({ workspace_id: workspaceId }),
+		run: async (agents: Agents, caller: string, input: { workspace_id: string }) => {
+			const agent = agents.get(caller, input.workspace_id);
 			await agents.archive(caller, agent.id);
 			return { archived: agent.id };
 		}
@@ -340,14 +347,16 @@ const tools = {
 	},
 	workspace_status: {
 		description: (kind: CallerKind) =>
-			`Read Git changes, pull request, checks and suggested next steps for a visible repository worktree. ${kind === 'repository' ? 'Omit agent_id for your own worktree.' : 'Supply the repository workspace ID as agent_id.'} Projects have no Git standing. Upstream data can be absent or come from the last successful refresh, with no age bound. A step with a prompt can be sent to the workspace agent. Other steps are available to the person.`,
+			`Read Git changes, pull request, checks and suggested next steps for a visible repository worktree. ${kind === 'repository' ? 'Omit workspace_id for your own worktree.' : 'Supply the repository workspace ID as workspace_id.'} Projects have no Git standing. Upstream data can be absent or come from the last successful refresh, with no age bound. A step with a prompt can be sent to the workspace agent. Other steps are available to the person.`,
 		input: v.strictObject({
-			agent_id: v.optional(workspaceId)
+			workspace_id: v.optional(workspaceId)
 		}),
 		catalogInput: (kind: CallerKind) =>
-			v.strictObject({ agent_id: kind === 'repository' ? v.optional(workspaceId) : workspaceId }),
-		run: async (agents: Agents, caller: string, input: { agent_id?: string }) => {
-			const workspace = agents.workspace(caller, input.agent_id);
+			v.strictObject({
+				workspace_id: kind === 'repository' ? v.optional(workspaceId) : workspaceId
+			}),
+		run: async (agents: Agents, caller: string, input: { workspace_id?: string }) => {
+			const workspace = agents.workspace(caller, input.workspace_id);
 			const { changes, upstream } = await agents.standing(workspace.worktreeId);
 			const state = {
 				changes,
@@ -399,10 +408,10 @@ const tools = {
 	stop_agent: {
 		description: (kind: CallerKind) =>
 			`Request a stop of the current turn of ${controlledTarget(kind)}. An idle agent stays idle. Returns its agent report immediately, which can still say running. Use wait_for_agent to confirm the turn ended.`,
-		input: v.strictObject({ agent_id: agentId }),
-		run: (agents: Agents, caller: string, input: { agent_id: string }) => {
-			agents.stop(caller, input.agent_id);
-			return agents.get(caller, input.agent_id);
+		input: v.strictObject({ workspace_id: workspaceId }),
+		run: (agents: Agents, caller: string, input: { workspace_id: string }) => {
+			agents.stop(caller, input.workspace_id);
+			return agents.get(caller, input.workspace_id);
 		}
 	}
 };
@@ -432,11 +441,16 @@ const available = (kind: CallerKind, name: string) =>
 		? !workspaceTools.has(name)
 		: kind !== 'project' || !repositoryTools.has(name);
 
-// An unknown parameter is a mistake (a misspelt `agent`, say), never something to ignore.
-const describeIssue = (issue: v.BaseIssue<unknown>) =>
-	issue.type === 'strict_object'
-		? `Unknown parameter ${issue.path?.map((item) => item.key).join('.')}`
-		: issue.message;
+/**
+ * What is wrong with a tool call, by parameter name. An unknown parameter is a mistake (a
+ * misspelt `agent`, say), never something to ignore.
+ */
+function describeIssue(issue: v.BaseIssue<unknown>) {
+	const name = issue.path?.map((item) => item.key).join('.');
+	if (issue.type === 'strict_object')
+		return issue.expected === 'never' ? `Unknown parameter ${name}` : `Missing parameter ${name}`;
+	return name ? `${name}: ${issue.message}` : issue.message;
+}
 
 async function callTool(agents: Agents, caller: string, kind: CallerKind, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };

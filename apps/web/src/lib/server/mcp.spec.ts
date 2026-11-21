@@ -346,9 +346,9 @@ describe('the agent API as an MCP server', () => {
 			);
 		expect(repoTools.archive_agent.description).toContain('earlier workspaces stay archived');
 		expect(projectTools.archive_agent.description).toContain('preserves the folder');
-		expect(clientTools.workspace_status.inputSchema.required).toContain('agent_id');
-		expect(projectTools.workspace_status.inputSchema.required).toContain('agent_id');
-		expect(repoTools.workspace_status.inputSchema.required ?? []).not.toContain('agent_id');
+		expect(clientTools.workspace_status.inputSchema.required).toContain('workspace_id');
+		expect(projectTools.workspace_status.inputSchema.required).toContain('workspace_id');
+		expect(repoTools.workspace_status.inputSchema.required ?? []).not.toContain('workspace_id');
 	});
 
 	it('ignores notifications and rejects unknown methods', async () => {
@@ -366,7 +366,7 @@ describe('the agent API as an MCP server', () => {
 
 		workspaces.record(child.id, { kind: 'text', text: 'LGTM' });
 		workspaces.record(child.id, { kind: 'turn.completed' });
-		expect(await call('wait_for_agent', { agent_id: child.id })).toMatchObject({
+		expect(await call('wait_for_agent', { workspace_id: child.id })).toMatchObject({
 			status: 'idle',
 			reply: 'LGTM'
 		});
@@ -379,14 +379,16 @@ describe('the agent API as an MCP server', () => {
 		const child = await call('start_agent', { prompt: 'Build', worktree: 'own' });
 
 		// still working
-		expect((await call('archive_agent', { agent_id: child.id })).error).toMatch(/Stop the agent/);
+		expect((await call('archive_agent', { workspace_id: child.id })).error).toMatch(
+			/Stop the agent/
+		);
 		workspaces.record(child.id, { kind: 'turn.completed' });
-		expect(await call('archive_agent', { agent_id: child.id })).toEqual({ archived: child.id });
+		expect(await call('archive_agent', { workspace_id: child.id })).toEqual({ archived: child.id });
 		expect(archived).toEqual([child.id]);
 		expect(await call('list_agents')).toEqual([]);
 
 		// not its own, and not itself
-		expect((await call('archive_agent', { agent_id: caller })).error).toMatch(/not started/);
+		expect((await call('archive_agent', { workspace_id: caller })).error).toMatch(/not started/);
 	});
 
 	it('reports problems as tool errors the agent can read', async () => {
@@ -395,13 +397,16 @@ describe('the agent API as an MCP server', () => {
 		expect(await call('start_agent', { prompt: 'Build' })).toEqual({
 			error: 'Your workspace has no worktree yet'
 		});
-		expect((await call('start_agent', {})).error).toMatch(/Invalid input/);
+		expect((await call('start_agent', {})).error).toBe('Invalid input: Missing parameter prompt');
+		expect((await call('read_workspace', { workspace_id: 7 })).error).toMatch(
+			/^Invalid input: workspace_id: Invalid type/
+		);
 		// a misspelt parameter is refused, not quietly dropped
 		expect(await call('start_agent', { prompt: 'Build', kind: 'codex' })).toEqual({
 			error: 'Invalid input: Unknown parameter kind'
 		});
-		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not found/);
-		expect((await call('send_message', { agent_id: 'nope', message: 'Hi' })).error).toMatch(
+		expect((await call('wait_for_agent', { workspace_id: 'nope' })).error).toMatch(/not found/);
+		expect((await call('send_message', { workspace_id: 'nope', message: 'Hi' })).error).toMatch(
 			/not found/
 		);
 		expect((await call('launch_missiles')).error).toMatch(/Unknown tool/);
@@ -474,7 +479,7 @@ describe('workspace status', () => {
 		const child = await call('start_agent', { prompt: 'Review', worktree: 'shared' });
 		// it works in the caller's worktree: how that stands is how it stands
 		standings.set(caller, { changes: changes({ uncommitted: 2 }), upstream: null });
-		expect(await call('workspace_status', { agent_id: child.id })).toMatchObject({
+		expect(await call('workspace_status', { workspace_id: child.id })).toMatchObject({
 			id: child.id,
 			standing: 'Uncommitted changes',
 			upstream: null,
@@ -488,7 +493,9 @@ describe('workspace status', () => {
 			prompt: 'Unrelated'
 		});
 		standings.set(stranger, { changes: changes({ uncommitted: 1 }), upstream: null });
-		expect(await call('workspace_status', { agent_id: stranger })).toMatchObject({ id: stranger });
+		expect(await call('workspace_status', { workspace_id: stranger })).toMatchObject({
+			id: stranger
+		});
 	});
 
 	it('says so when no daemon can tell', async () => {
@@ -510,19 +517,20 @@ describe('installation-wide workspace access', () => {
 			text: 'Review the change'
 		});
 		workspaces.record(peer, { kind: 'turn.completed' });
-		expect(await call('wait_for_agent', { agent_id: peer })).toMatchObject({ status: 'idle' });
+		expect(await call('wait_for_agent', { workspace_id: peer })).toMatchObject({ status: 'idle' });
 
-		expect(await call('send_message', { agent_id: peer, message: 'Which version?' })).toMatchObject(
-			{ status: 'running' }
-		);
+		expect(
+			await call('send_message', { workspace_id: peer, message: 'Which version?' })
+		).toMatchObject({ status: 'running' });
 		expect(workspaces.get(peer).transcript.at(-1)).toMatchObject({
 			from: caller,
 			text: 'Which version?'
 		});
 		expect(
-			(await call('send_message', { agent_id: peer, message: 'Answer now', interrupt: true })).error
+			(await call('send_message', { workspace_id: peer, message: 'Answer now', interrupt: true }))
+				.error
 		).toMatch(/only interrupt/);
-		await call('send_message', { agent_id: peer, message: 'Also check v2' });
+		await call('send_message', { workspace_id: peer, message: 'Also check v2' });
 		expect(workspaces.get(peer).queue).toEqual(['Also check v2']);
 		workspaces.record(peer, { kind: 'turn.completed' });
 		expect(workspaces.get(peer).transcript.at(-1)).toMatchObject({
@@ -532,8 +540,8 @@ describe('installation-wide workspace access', () => {
 		expect((await call('start_agent', { workspace: peer, prompt: 'Review' })).error).toMatch(
 			/not started/
 		);
-		expect((await call('stop_agent', { agent_id: peer })).error).toBeTruthy();
-		expect((await call('archive_agent', { agent_id: peer })).error).toBeTruthy();
+		expect((await call('stop_agent', { workspace_id: peer })).error).toBeTruthy();
+		expect((await call('archive_agent', { workspace_id: peer })).error).toBeTruthy();
 	});
 
 	it('starts a child from the target repository base in its own worktree', async () => {
@@ -618,22 +626,22 @@ describe('installation-wide workspace access', () => {
 		expect(repoIds).not.toEqual(expect.arrayContaining([later]));
 		for (const [tool, input] of [
 			['read_workspace', { workspace_id: hidden }],
-			['workspace_status', { agent_id: hidden }],
-			['wait_for_agent', { agent_id: hidden, timeout_seconds: 0 }],
-			['send_message', { agent_id: hidden, message: 'Hi' }],
+			['workspace_status', { workspace_id: hidden }],
+			['wait_for_agent', { workspace_id: hidden, timeout_seconds: 0 }],
+			['send_message', { workspace_id: hidden, message: 'Hi' }],
 			['start_agent', { prompt: 'Fix it', repository: later }]
 		] as const)
 			expect((await call(tool, input)).error).toMatch(/not found|access to/);
 		expect(workspaces.get(hidden).queue).toEqual([]);
 
 		expect((await call('workspace_status')).error).toMatch(/Say which workspace/);
-		expect((await call('stop_agent', { agent_id: other })).error).toBeTruthy();
+		expect((await call('stop_agent', { workspace_id: other })).error).toBeTruthy();
 
 		// a person's agent at work is not turned around; the message waits for its turn to end
 		expect(
-			(await call('send_message', { agent_id: other, message: 'Now', interrupt: true })).error
+			(await call('send_message', { workspace_id: other, message: 'Now', interrupt: true })).error
 		).toMatch(/only interrupt agents you started/);
-		await call('send_message', { agent_id: other, message: 'Check the build' });
+		await call('send_message', { workspace_id: other, message: 'Check the build' });
 		expect(workspaces.get(other).queue).toEqual(['Check the build']);
 		workspaces.record(other, { kind: 'turn.completed' });
 
@@ -680,11 +688,17 @@ describe('installation-wide workspace access', () => {
 			started.id
 		]);
 
-		await call('send_message', { agent_id: started.id, message: 'Also the docs', interrupt: true });
+		await call('send_message', {
+			workspace_id: started.id,
+			message: 'Also the docs',
+			interrupt: true
+		});
 		expect(workspaces.get(started.id).transcript.at(-1)).toMatchObject({ text: 'Also the docs' });
-		await call('stop_agent', { agent_id: started.id });
+		await call('stop_agent', { workspace_id: started.id });
 		workspaces.record(started.id, { kind: 'turn.failed', error: 'Stopped' });
-		expect(await call('archive_agent', { agent_id: started.id })).toEqual({ archived: started.id });
+		expect(await call('archive_agent', { workspace_id: started.id })).toEqual({
+			archived: started.id
+		});
 		expect(archived).toEqual([started.id]);
 	});
 });
@@ -732,7 +746,7 @@ it('keeps the agents an external client started to its repositories', async () =
 		(await child('start_agent', { prompt: 'Build', repository: workspaces.get(caller).repoId }))
 			.error
 	).toMatch(/access to/);
-	expect((await child('send_message', { agent_id: caller, message: 'Hi' })).error).toMatch(
+	expect((await child('send_message', { workspace_id: caller, message: 'Hi' })).error).toMatch(
 		/not found/
 	);
 	expect(JSON.stringify(await child('list_workspaces'))).not.toContain(caller);
