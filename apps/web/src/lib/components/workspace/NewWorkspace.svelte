@@ -13,6 +13,7 @@
 	import AddRepository from '../AddRepository.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
+	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 	import RepoPicker from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -165,7 +166,7 @@
 			</div>
 			{#if alongside}
 				<!-- a conversation like the others there: sent as they are -->
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -174,7 +175,7 @@
 					disabled={!chosen}
 				/>
 			{:else}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -182,7 +183,7 @@
 					disabled={!chosen}
 				>
 					{prompt.value()?.trim() ? 'Make it so' : 'Start workspace'}
-				</Button>
+				</ComposerButton>
 			{/if}
 		{/snippet}
 	</MessageComposer>
