@@ -91,6 +91,7 @@
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
+	import { foreground } from '#lib/foreground.svelte.ts';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
@@ -660,6 +661,13 @@
 		if (area !== 'main' && !frame.current.open) toggleSide();
 		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath);
 	};
+	// Double-clicked in the sidebar: the conversation comes to the front, ready to write in.
+	let focusChat = $state(false);
+	$effect(() => {
+		if (!foreground.take(id)) return;
+		untrack(() => showTab(CHAT));
+		focusChat = true;
+	});
 	function openTurn(changes: TurnChanges) {
 		selectedTurn = changes;
 		showTab(TURN);
@@ -1136,6 +1144,8 @@
 	{:else}
 		<Conversation
 			{workspace}
+			autofocus={focusChat}
+			onautofocus={() => (focusChat = false)}
 			questionTarget={questionTarget?.owner === id ? questionTarget : undefined}
 			onopenturn={openTurn}
 			waiting={waiting(workspace)}

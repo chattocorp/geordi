@@ -31,6 +31,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
+	import { foreground } from '#lib/foreground.svelte.ts';
 	import { moveWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
 	import { moveRepo } from '../../routes/repos.remote';
 
@@ -584,6 +585,11 @@
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 		}}
 		ondragend={endDrag}
+		ondblclick={(event) => {
+			// not on what the row has to click besides its link
+			if (event.target instanceof Element && event.target.closest('button')) return;
+			foreground.ask(workspace.id);
+		}}
 		ondragover={(event) => overRow(event, rows, index)}
 		ondrop={(event) => drop(event, workspace.repoId)}
 	>
