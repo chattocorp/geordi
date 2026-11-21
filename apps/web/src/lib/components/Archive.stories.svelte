@@ -17,14 +17,14 @@
 			title: 'Publish the release guide',
 			repoId: 'website',
 			repository: 'Website',
-			archivedAt: '2026-11-16T12:00:00Z'
+			archivedAt: new Date(2026, 10, 16, 12).toISOString()
 		}
 	];
 </script>
 
 <Story name="Archived workspaces" args={{ entries }} />
 <Story
-	name="Archive by month"
+	name="Archive by day"
 	args={{
 		entries: [
 			...entries,
@@ -33,7 +33,7 @@
 				repoId: null,
 				title: 'Plan the next release',
 				repository: 'Project',
-				archivedAt: '2026-10-12T12:00:00Z'
+				archivedAt: new Date(2026, 10, 16, 9).toISOString()
 			}
 		],
 		onpurge: fn(async () => ({ purged: 3, freed: 0 }))
@@ -41,6 +41,9 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(2);
+		const lists = canvas.getAllByRole('list');
+		await expect(within(lists[0]).getAllByRole('link')).toHaveLength(1);
+		await expect(within(lists[1]).getAllByRole('link')).toHaveLength(2);
 		await userEvent.type(canvas.getByRole('searchbox'), 'Project');
 		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(1);
 		await expect(canvas.getByRole('link')).toHaveAttribute('href', '/workspaces/project');
