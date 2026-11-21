@@ -126,7 +126,7 @@ describe('upstream', () => {
 		git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
 		if (remote) git('remote', 'add', 'origin', remote);
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		const worktree = await ensureWorktree(base, repoPath, worktreeId);
+		const worktree = await ensureWorktree(base, { repoPath, worktreeId });
 		return { worktree, ref: { repoPath, worktreeId } };
 	}
 

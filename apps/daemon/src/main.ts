@@ -301,7 +301,7 @@ await pruneFileCheckpoints(fileCache).catch(() => {});
 const fileSearch = createFileSearch(fileCache);
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
-	({ repoPath, worktreeId }) => locateWorktree(worktreesDir, repoPath, worktreeId),
+	(ref) => locateWorktree(worktreesDir, ref),
 	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId }),
 	(worktreeId, changes) => fileSearch.invalidate(worktreeId, changes)
 );
@@ -513,9 +513,7 @@ function answer(request: DaemonRequest) {
 		case 'removeWorktree':
 		case 'editReleaseNote':
 		case 'config':
-			return inWorktree(worktreePath(worktreesDir, request.repoPath, request.worktreeId), () =>
-				readRequest(request)
-			);
+			return inWorktree(worktreePath(worktreesDir, request), () => readRequest(request));
 		default:
 			return readRequest(request);
 	}
@@ -525,11 +523,11 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'findFiles') {
-		const { repoPath, worktreeId, query } = request;
-		if (worktreeId) {
-			const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
-			return fileSearch.search(worktreeId, { worktree }, query, () =>
-				watches.hold({ repoPath, worktreeId }, worktree)
+		const { repoPath, query } = request;
+		if ('worktreeId' in request) {
+			const worktree = await locateWorktree(worktreesDir, request);
+			return fileSearch.search(request.worktreeId, { worktree }, query, () =>
+				watches.hold(request, worktree)
 			);
 		}
 		const revision = (
@@ -552,8 +550,8 @@ async function readRequest(request: DaemonRequest) {
 		return null;
 	}
 	if (request.kind === 'removeWorktree') {
-		const { repoPath, worktreeId, force } = request;
-		const worktree = await removable(worktreesDir, repoPath, worktreeId, force);
+		const { worktreeId, force } = request;
+		const worktree = await removable(worktreesDir, request, force);
 		if (worktree && request.teardown) await tearDown(worktree, request);
 		// what it comes back from if the workspace is brought back, which the agent may have renamed
 		let branch: string | null = null;
@@ -563,15 +561,15 @@ async function readRequest(request: DaemonRequest) {
 			// an unreadable HEAD (forced removal of a tampered worktree): the forge keeps what it knows
 		}
 		// an agent whose CLI is still running there (with nothing to do) goes with its directory
-		await removeWorktree(worktreesDir, repoPath, worktreeId, force, () => {
-			const path = worktreePath(worktreesDir, repoPath, worktreeId);
+		await removeWorktree(worktreesDir, request, force, () => {
+			const path = worktreePath(worktreesDir, request);
 			for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
 			for (const session of sessionsIn(path)) {
 				retired.add(session);
 				session.kill();
 			}
 		});
-		await fileSearch.discard(worktreeId, worktreePath(worktreesDir, repoPath, worktreeId));
+		await fileSearch.discard(worktreeId, worktreePath(worktreesDir, request));
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
 		return { branch };
@@ -600,7 +598,7 @@ async function readRequest(request: DaemonRequest) {
 	}
 	if (request.kind === 'continueWorktree') {
 		const { repoPath, worktreeId } = request;
-		const worktree = await locateWorktree(worktreesDir, repoPath, worktreeId);
+		const worktree = await locateWorktree(worktreesDir, request);
 		const requireIdle = () => {
 			if (workingIn(worktree.path)) throw new Error('Its agent is still at work');
 		};
@@ -623,27 +621,20 @@ async function readRequest(request: DaemonRequest) {
 		return { branch };
 	}
 	if (request.kind === 'prepareWorktree') {
-		const { repoPath, worktreeId, base, branch } = request;
+		const { repoPath, worktreeId, base } = request;
 		// a new one starts from where its upstream stands now, as with a first turn
-		if (!request.requireBranch && !base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+		if (!request.requireBranch && !base && !hasWorktree(worktreesDir, request)) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
-		const worktree = await ensureWorktree(
-			worktreesDir,
-			repoPath,
-			worktreeId,
-			base,
-			branch,
-			request.requireBranch
-		);
+		const worktree = await ensureWorktree(worktreesDir, request, request.requireBranch);
 		if (worktree.created || worktree.restored) setUp(worktree, request);
 		watches.restart(worktreeId);
 		sendLive({ type: 'worktree.changed', worktreeId });
 		return { path: worktree.path, branch: branchOf(worktree) ?? worktree.branch };
 	}
 
-	const worktree = await locateWorktree(worktreesDir, request.repoPath, request.worktreeId);
+	const worktree = await locateWorktree(worktreesDir, request);
 	switch (request.kind) {
 		case 'changes': {
 			const [changes, unknown] = await Promise.all([
@@ -734,64 +725,57 @@ async function handle(message: ForgeMessage) {
 		case 'terminal.open': {
 			const { terminalId } = message;
 			const { output, exit } = relay(terminalId);
-			return inWorktree(
-				worktreePath(worktreesDir, message.repoPath, message.worktreeId),
-				async () => {
-					try {
-						const worktree = await locateWorktree(
-							worktreesDir,
-							message.repoPath,
-							message.worktreeId
-						);
-						const guard = () => verifyLinks(worktree);
-						const { config, env } = await configFor(worktree, message);
-						// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
-						// the file is the agent's to change, also in the moment between their looking at
-						// the command and their asking for it. Otherwise the terminal says so, in words
-						// of ours, and nothing of the file's runs.
-						const asked = message.run;
-						// the setup script can be run again by hand: as a job without a port
-						const job =
-							asked?.job === 'setup'
-								? config.setup && { ...config.setup, port: null }
-								: config.jobs.find((job) => job.name === asked?.job);
-						const agreed = job && job.command === asked?.command && job.approved;
-						// A job's port stays its own (FDR-006): when another program has it, the job
-						// doesn't start (it would not be the one answering there), and says why.
-						const taken =
-							agreed &&
-							job.port !== null &&
-							(!runningTerminals().includes(terminalId) || terminalId in endedTerminals())
-								? await portTaken(job.port)
-								: null;
-						guard();
-						openTerminal(
-							terminalId,
-							worktree.path,
-							{
-								...message,
-								closeOnSuccess: asked?.job === 'setup',
-								command: asked && (taken ? PORT_TAKEN : agreed ? job.command : RUN_CHANGED),
-								// every terminal knows the workspace's ports; a job also which one is its own
-								env: {
-									...env,
-									...(agreed && job.port !== null && { PORT: String(job.port) }),
-									...(taken && { GEORDI_PORT_TAKEN: taken })
-								},
-								// a job that has ended is no longer running, though its terminal is still there
-								onEnded: (status) =>
-									status !== null && sendLive({ type: 'terminal.ended', terminalId, status })
+			return inWorktree(worktreePath(worktreesDir, message), async () => {
+				try {
+					const worktree = await locateWorktree(worktreesDir, message);
+					const guard = () => verifyLinks(worktree);
+					const { config, env } = await configFor(worktree, message);
+					// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
+					// the file is the agent's to change, also in the moment between their looking at
+					// the command and their asking for it. Otherwise the terminal says so, in words
+					// of ours, and nothing of the file's runs.
+					const asked = message.run;
+					// the setup script can be run again by hand: as a job without a port
+					const job =
+						asked?.job === 'setup'
+							? config.setup && { ...config.setup, port: null }
+							: config.jobs.find((job) => job.name === asked?.job);
+					const agreed = job && job.command === asked?.command && job.approved;
+					// A job's port stays its own (FDR-006): when another program has it, the job
+					// doesn't start (it would not be the one answering there), and says why.
+					const taken =
+						agreed &&
+						job.port !== null &&
+						(!runningTerminals().includes(terminalId) || terminalId in endedTerminals())
+							? await portTaken(job.port)
+							: null;
+					guard();
+					openTerminal(
+						terminalId,
+						worktree.path,
+						{
+							...message,
+							closeOnSuccess: asked?.job === 'setup',
+							command: asked && (taken ? PORT_TAKEN : agreed ? job.command : RUN_CHANGED),
+							// every terminal knows the workspace's ports; a job also which one is its own
+							env: {
+								...env,
+								...(agreed && job.port !== null && { PORT: String(job.port) }),
+								...(taken && { GEORDI_PORT_TAKEN: taken })
 							},
-							guard,
-							output,
-							exit
-						);
-					} catch (error) {
-						output(`${errorMessage(error)}\r\n`);
-						exit();
-					}
+							// a job that has ended is no longer running, though its terminal is still there
+							onEnded: (status) =>
+								status !== null && sendLive({ type: 'terminal.ended', terminalId, status })
+						},
+						guard,
+						output,
+						exit
+					);
+				} catch (error) {
+					output(`${errorMessage(error)}\r\n`);
+					exit();
 				}
-			);
+			});
 		}
 
 		case 'terminal.input':

@@ -1,3 +1,5 @@
+import type { WorktreeRef } from '@geordi/protocol';
+import { randomUUID } from 'node:crypto';
 import { git } from './git.ts';
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
@@ -14,7 +16,7 @@ import { describe, verifyLinks, type Worktree } from './worktree.ts';
 function discard(baseDir: string, path: string) {
 	const trash = join(baseDir, '.trash');
 	mkdirSync(trash, { recursive: true });
-	const doomed = join(trash, `${basename(path)}-${Date.now()}`);
+	const doomed = join(trash, `${basename(path)}-${randomUUID()}`);
 	renameSync(path, doomed); // the same disk: a matter of a moment
 	rm(doomed, { recursive: true, force: true }).catch(() => {});
 }
@@ -29,11 +31,10 @@ export const emptyTrash = (baseDir: string) =>
  */
 export async function removable(
 	baseDir: string,
-	repoPath: string,
-	worktreeId: string,
+	ref: WorktreeRef,
 	force: boolean
 ): Promise<Worktree | null> {
-	const worktree = await describe(baseDir, repoPath, worktreeId);
+	const worktree = await describe(baseDir, ref);
 	if (!existsSync(worktree.path)) return null;
 	if (!force) {
 		// if its Git metadata was tampered with, we can't tell what is in it: that takes `force`
@@ -55,13 +56,12 @@ export async function removable(
  */
 export async function removeWorktree(
 	baseDir: string,
-	repoPath: string,
-	worktreeId: string,
+	ref: WorktreeRef,
 	force: boolean,
 	beforeDiscard = () => {}
 ) {
-	const worktree = await removable(baseDir, repoPath, worktreeId, force);
+	const worktree = await removable(baseDir, ref, force);
 	beforeDiscard();
 	if (worktree) discard(baseDir, worktree.path);
-	await git(repoPath, ['worktree', 'prune']);
+	await git(ref.repoPath, ['worktree', 'prune']);
 }

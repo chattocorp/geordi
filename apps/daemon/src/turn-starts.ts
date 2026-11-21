@@ -58,7 +58,7 @@ export function turnStarts({
 		const cwd =
 			'project' in message
 				? projectPath(projectsDir, worktreeId)
-				: worktreePath(worktreesDir, message.repoPath, worktreeId);
+				: worktreePath(worktreesDir, message);
 		let canceled = false;
 		function checkStop() {
 			if (canceled) throw new Error('Stopped');
@@ -110,18 +110,12 @@ export function turnStarts({
 				// A workspace of its own starts from where its upstream stands now. (One started
 				// by an agent starts from that agent's branch, which is here already.)
 				const { repoPath, base } = message;
-				if (!base && !hasWorktree(worktreesDir, repoPath, worktreeId)) {
+				if (!base && !hasWorktree(worktreesDir, message)) {
 					const problem = await Promise.race([stopped.promise, fetchUpstream(repoPath)]);
 					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 				}
 				checkStop();
-				const worktree = await ensureWorktree(
-					worktreesDir,
-					repoPath,
-					worktreeId,
-					base,
-					message.branch
-				);
+				const worktree = await ensureWorktree(worktreesDir, message);
 				if (worktree.created)
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
 				if (worktree.created || worktree.restored) prepared(worktree, message);

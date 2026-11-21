@@ -29,7 +29,7 @@ async function setup() {
 	execFileSync('git', ['clone', '-q', upstream, repoPath]);
 	git(repoPath, 'config', 'user.name', 't');
 	git(repoPath, 'config', 'user.email', 't@t');
-	const worktree = await ensureWorktree(dir('base'), repoPath, 'update-1');
+	const worktree = await ensureWorktree(dir('base'), { repoPath, worktreeId: 'update-1' });
 	const read = (file: string) => readFileSync(join(worktree.path, file), 'utf8');
 	return { upstream, repoPath, worktree, origin: { repoPath }, read };
 }
@@ -129,7 +129,11 @@ describe('update', () => {
 
 	it("brings a parent workspace's commits into its child, without fetching", async () => {
 		const { repoPath, worktree } = await setup();
-		const child = await ensureWorktree(dir('base'), repoPath, 'update-2', worktree.branch);
+		const child = await ensureWorktree(dir('base'), {
+			repoPath,
+			worktreeId: 'update-2',
+			base: worktree.branch
+		});
 		commit(worktree.path, 'parent.txt', 'from the parent\n');
 
 		const fetch = () => Promise.reject(new Error('fetched'));

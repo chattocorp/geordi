@@ -13,7 +13,7 @@ async function worktree() {
 	git('init', '-q');
 	git('commit', '-q', '--allow-empty', '-m', 'init');
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-	return await ensureWorktree(base, repoPath, 'abcdefgh-1');
+	return await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' });
 }
 
 describe('reading Sweet Release', () => {

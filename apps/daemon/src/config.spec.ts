@@ -215,7 +215,11 @@ describe('which file applies', () => {
 		git('add', '.');
 		git('commit', '-q', '--allow-empty', '-m', 'init');
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-		return { repoPath, git, worktree: await ensureWorktree(base, repoPath, 'abcdefgh-1') };
+		return {
+			repoPath,
+			git,
+			worktree: await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' })
+		};
 	}
 	const run = (found: Awaited<ReturnType<typeof settingsOf>>) => found.settings?.jobs[0]?.command;
 

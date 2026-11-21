@@ -232,14 +232,18 @@ export function seed(data) {
 			// where and on which branch the daemon expects the worktree (`describe` in worktree.ts)
 			const id = randomUUID();
 			const short = id.slice(0, 8);
-			const worktree = join(data, 'worktrees', name, short);
+			const worktree = join(data, 'worktrees', repoId, short);
 			mkdirSync(dirname(worktree), { recursive: true });
 			git(repo, 'worktree', 'add', '-b', `geordi/${short}`, worktree, 'main');
 			writeFiles(worktree, files);
 			const stream = `workspace:${id}`;
 			store.append(
 				[
-					{ type: 'workspace.created', stream, data: { id, repoId, title, agent: 'claude' } },
+					{
+						type: 'workspace.created',
+						stream,
+						data: { id, repoId, worktreeParent: repoId, title, agent: 'claude' }
+					},
 					// what the daemon says once it has made a worktree
 					{
 						type: 'workspace.output',
