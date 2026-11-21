@@ -31,6 +31,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
+	import { foreground } from '#lib/foreground.svelte.ts';
 	import {
 		setWorkspaceDeferred,
 		moveWorkspace,
@@ -653,6 +654,11 @@
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 		}}
 		ondragend={endDrag}
+		ondblclick={(event) => {
+			// not on what the row has to click besides its link
+			if (event.target instanceof Element && event.target.closest('button')) return;
+			foreground.ask(workspace.id);
+		}}
 		ondragover={(event) => {
 			if (!dragged || !droppable(workspace.repoId)) return;
 			const rect = event.currentTarget.getBoundingClientRect();
@@ -680,6 +686,7 @@
 			asking={workspace.outcome === 'asking'}
 			waiting={workspace.waiting}
 			working={workspace.working || (isFolded && busy)}
+			background={workspace.background}
 			progress={pendingPullAction.get(workspace.id) ??
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
 					? 'merge-pull'

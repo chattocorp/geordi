@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Page from '#lib/ui/Page.svelte';
@@ -24,10 +23,10 @@
 		)
 	);
 
-	const month = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
-	const day = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-	const months = $derived(
-		Map.groupBy(filtered ?? [], (entry) => month.format(new Date(entry.archivedAt)))
+	const day = new Intl.DateTimeFormat(undefined, { dateStyle: 'long' });
+	const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+	const days = $derived(
+		Map.groupBy(filtered ?? [], (entry) => day.format(new Date(entry.archivedAt)))
 	);
 
 	/** What is about to be deleted, once the person says so. */
@@ -37,19 +36,24 @@
 	/** What the last deletion did. */
 	let outcome = $state<string | null>(null);
 
-	let restoring = $state<Record<string, boolean>>({});
-	let restoreProblems = $state<Record<string, string>>({});
+	/** What is about to be restored, once the person says so. */
+	let restoring = $state<ArchiveEntry | null>(null);
 
-	async function restore(id: string) {
-		if (!onrestore || restoring[id]) return;
-		restoring[id] = true;
-		delete restoreProblems[id];
+	function askToRestore(entry: ArchiveEntry) {
+		problem = null;
+		restoring = entry;
+	}
+
+	async function restore() {
+		if (!restoring || !onrestore) return;
+		busy = true;
 		try {
-			await onrestore(id);
+			await onrestore(restoring.id);
+			restoring = null;
 		} catch (error) {
-			restoreProblems[id] = problemOf(error, 'Could not restore the workspace');
+			problem = problemOf(error, 'Could not restore the workspace');
 		} finally {
-			delete restoring[id];
+			busy = false;
 		}
 	}
 
@@ -57,17 +61,15 @@
 		const items: MenuItem[] = [];
 		if (onrestore)
 			items.push({
-				label: 'Restore workspace',
+				label: 'Restore workspace…',
 				icon: 'icon-[lucide--archive-restore]',
-				disabled: restoring[entry.id],
-				onselect: () => restore(entry.id)
+				onselect: () => askToRestore(entry)
 			});
 		if (onpurge)
 			items.push({
 				label: 'Delete permanently…',
 				icon: 'icon-[lucide--trash-2]',
 				tone: 'danger',
-				disabled: restoring[entry.id],
 				onselect: () => ask([entry])
 			});
 		return items;
@@ -129,15 +131,17 @@
 		</div>
 		{#if outcome}<p class="text-sm text-muted">{outcome}</p>{/if}
 		<div class="space-y-6">
-			{#each months as [heading, workspaces] (heading)}
+			{#each days as [heading, workspaces] (heading)}
 				<section class="space-y-2">
 					<h2 class="label">{heading}</h2>
 					<ul class="card p-2">
 						{#each workspaces as entry (entry.id)}
 							<li>
-								<a
-									class="item gap-3 px-3 py-2 hover:bg-hover focus-visible:bg-hover"
-									href={resolve('/workspaces/[id]', { id: entry.id })}
+								<button
+									type="button"
+									class="item w-full gap-3 px-3 py-2 text-left hover:bg-hover focus-visible:bg-hover"
+									disabled={!onrestore}
+									onclick={() => askToRestore(entry)}
 									{@attach contextMenu(() => menu(entry))}
 								>
 									<span
@@ -157,18 +161,10 @@
 										>
 										<span class="block truncate text-xs text-muted">{entry.repository}</span>
 									</span>
-									{#if restoring[entry.id]}
-										<span class="text-xs text-muted" role="status">Restoring…</span>
-									{:else}
-										<time
-											class="shrink-0 text-xs text-muted tabular-nums"
-											datetime={entry.archivedAt}>{day.format(new Date(entry.archivedAt))}</time
-										>
-									{/if}
-								</a>
-								{#if restoreProblems[entry.id]}
-									<p class="px-3 text-sm text-danger" role="alert">{restoreProblems[entry.id]}</p>
-								{/if}
+									<time class="shrink-0 text-xs text-muted tabular-nums" datetime={entry.archivedAt}
+										>{time.format(new Date(entry.archivedAt))}</time
+									>
+								</button>
 							</li>
 						{/each}
 					</ul>
@@ -197,6 +193,26 @@
 		<div class="dialog-actions">
 			<Button variant="soft" disabled={busy} onclick={() => (asking = null)}>Cancel</Button>
 			<Button variant="primary" {busy} onclick={purge}>Delete</Button>
+		</div>
+	</div>
+</Dialog>
+
+<Dialog
+	bind:open={() => restoring !== null, (open) => !open && !busy && (restoring = null)}
+	label={restoring ? `Restore “${restoring.title}”?` : ''}
+	class="max-w-lg"
+>
+	<div class="flex flex-col gap-4 p-6">
+		<p class="heading wrap-anywhere">Restore “{restoring?.title}”?</p>
+		<p class="text-sm">
+			It returns to the sidebar{restoring?.repoId !== null
+				? ', with its worktree checked out again from its branch'
+				: ''}.
+		</p>
+		{#if problem}<p class="text-sm text-danger" role="alert">{problem}</p>{/if}
+		<div class="dialog-actions">
+			<Button variant="soft" disabled={busy} onclick={() => (restoring = null)}>Cancel</Button>
+			<Button variant="primary" {busy} onclick={restore}>Restore</Button>
 		</div>
 	</div>
 </Dialog>
