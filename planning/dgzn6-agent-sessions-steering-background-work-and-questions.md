@@ -16,6 +16,7 @@ Run each agent's CLI as a long-lived session instead of once per turn (ADR-010),
 - Daemon: `host.ts` (one host process per session, speaking the CLI's protocol) and `session.ts` (the daemon's side, through files; ADR-007 holds). Adapters are `Dialogue`s: Claude over `stream-json` with control requests, Codex over `app-server`.
 - Forge: turns are the agent's to begin and end (`turn.started`), no turn numbers; steering is a plain message; `question` / `workspace.answered`; `asking` in the sidebar, ribbon and notifications.
 - Verified against real Claude and Codex in a second instance: steering mid-turn, stop and carry on in the same CLI, a background task waking the agent across a daemon restart, a question answered in the UI, forge restart, resume after the idle exit.
+- The launcher-survival test now waits for its detached host and fixture wrapper to exit during teardown. Verified on macOS with both launchers, including a forced assertion failure before session recovery.
 
 ## Not done
 

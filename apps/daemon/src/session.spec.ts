@@ -934,7 +934,10 @@ if (process.versions.electron) {
 			env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined }
 		});
 		const exited = once(launched, 'exit');
-		let session: Session | undefined;
+		const events: HostEvent[] = [];
+		let resumed: Session | undefined;
+		const resume = () =>
+			(resumed ??= resumeSessions(sessions, () => (event) => events.push(event)).get('w'));
 		onTestFinished(async () => {
 			// The launcher can fail after starting the host but before we resume it.
 			await exited;
@@ -943,7 +946,7 @@ if (process.versions.electron) {
 				? JSON.parse(readFileSync(hostFile, 'utf8')).pid
 				: undefined;
 			const wrapper = existsSync(wrapperPid) ? Number(readFileSync(wrapperPid, 'utf8')) : undefined;
-			const remaining = session ?? resumeSessions(sessions, () => () => true).get('w');
+			const remaining = resume();
 			remaining?.kill();
 			await remaining?.done;
 			await until(() => (!host || !alive(host)) && (!wrapper || !alive(wrapper)));
@@ -955,8 +958,7 @@ if (process.versions.electron) {
 
 		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
 		expect(alive(host)).toBe(true);
-		const events: HostEvent[] = [];
-		session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
+		const session = resume()!;
 		expect(session.working()).toBe(true);
 		session.say({ prompt: 'slow', deliveryId: 'first' }); // a retry, which it has heard
 		session.say({ prompt: 'still there?' });
