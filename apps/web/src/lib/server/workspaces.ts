@@ -81,6 +81,8 @@ export const UNTITLED = 'New workspace';
 
 /** How often an agent may name its own workspace. */
 export const MAX_NAMES = 3;
+/** How much of an agent's reply its parent is told when its turn ends; the rest is read. */
+const MAX_NOTICE = 4000;
 
 type NewWorkspace = {
 	/** `null` for a project (FDR-012). */
@@ -239,6 +241,42 @@ export function createWorkspaces(
 		const measured = usages.get(id);
 		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
 		if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
+		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') tellParent(workspace);
+	}
+
+	/** How many of its parent's `wait_for_agent` calls are waiting for each workspace now. */
+	const awaited = new Map<string, number>();
+
+	/**
+	 * Tells an agent's parent that it has finished a turn, with what it said (FDR-002), unless
+	 * the parent is waiting for it already. A parent at work hears it when its own turn ends.
+	 * Only of turns on the parent's behalf: begun by the parent, or by what one of the agent's
+	 * own agents reported, so that news goes up a chain. A person's talk with it is theirs.
+	 */
+	function tellParent(child: Workspace) {
+		if (child.status !== 'idle' || !child.parentId || awaited.get(child.id)) return;
+		if (stoppingForArchive.has(child.id)) return;
+		const parent = projection.get().get(child.parentId);
+		if (!parent || parent.archivedAt || held.has(parent.id)) return;
+		const from = transcriptOf(child).findLast((item) => item.kind === 'user')?.from;
+		if (!from || (from !== parent.id && projection.get().get(from)?.parentId !== child.id)) return;
+		const { reply, error } = report(child);
+		const text = [
+			error
+				? `Your agent “${child.title}” (${child.id}) stopped: ${error}`
+				: `Your agent “${child.title}” (${child.id}) finished its turn.`,
+			reply.length > MAX_NOTICE
+				? `${reply.slice(0, MAX_NOTICE)}…\n\n(Its reply goes on; see read_workspace.)`
+				: reply
+		]
+			.filter(Boolean)
+			.join('\n\n');
+		// after a failed turn, a parent's waiting messages stay put (see `record`), and so does this
+		if (parent.status === 'idle' && parent.queue.length === 0) return say(parent, text, child.id);
+		store.append(
+			{ type: 'workspace.queued', stream: `workspace:${parent.id}`, data: { id: parent.id, text } },
+			{ actor: child.id }
+		);
 	}
 
 	/**
@@ -850,7 +888,19 @@ export function createWorkspaces(
 		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
 		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
 			const workspace = findFor(callerId, id);
-			await waitUntil(() => workspace.status === 'idle', timeoutMs);
+			// a parent waiting for its agent hears the end of its turn here, not as a message too
+			if (workspace.parentId !== callerId) {
+				await waitUntil(() => workspace.status === 'idle', timeoutMs);
+				return report(workspace);
+			}
+			awaited.set(id, (awaited.get(id) ?? 0) + 1);
+			try {
+				await waitUntil(() => workspace.status === 'idle', timeoutMs);
+			} finally {
+				const left = awaited.get(id)! - 1;
+				if (left) awaited.set(id, left);
+				else awaited.delete(id);
+			}
 			return report(workspace);
 		}
 	};
