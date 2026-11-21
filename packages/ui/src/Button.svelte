@@ -7,9 +7,11 @@
 		/**
 		 * `primary` for the one main action of a view (gold), `secondary` for other actions,
 		 * `ghost` for quiet ones that sit inside something else (toolbars, rows, tabs), `soft`
-		 * for other actions inside something coloured: it takes that colour, faintly.
+		 * for other actions inside something coloured: it takes that colour, faintly. `tool` for
+		 * the icons in a bar above a list: ink on hover, a background while on (`aria-pressed`,
+		 * or `aria-checked` in a radio group).
 		 */
-		variant?: 'primary' | 'secondary' | 'ghost' | 'soft';
+		variant?: 'primary' | 'secondary' | 'ghost' | 'soft' | 'tool';
 		/**
 		 * What a `primary` button is coloured in: the accent, as a rule. `merged` for the one
 		 * step left when work has landed, `ok` for the step that is clear to take, each in the
@@ -58,7 +60,8 @@
 		],
 		secondary: 'rounded-full bg-sunken font-medium inset-ring-1 inset-ring-line hover:bg-hover',
 		ghost: 'rounded-control font-medium text-muted hover:bg-hover hover:text-ink',
-		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20'
+		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20',
+		tool: 'rounded-control text-muted hover:text-ink aria-checked:bg-sunken aria-checked:text-ink aria-pressed:bg-sunken aria-pressed:text-ink'
 	});
 	const shapes = {
 		// with text, and as a bare icon

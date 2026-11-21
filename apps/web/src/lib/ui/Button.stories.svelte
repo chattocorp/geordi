@@ -44,6 +44,14 @@
 	</div>
 </Story>
 
+<Story name="Tools" asChild>
+	<div class="flex items-center">
+		<Button variant="tool" icon="icon-[lucide--files]" label="Open combined diff" />
+		<Button variant="tool" icon="icon-[lucide--list]" label="As a list" aria-pressed={true} />
+		<Button variant="tool" icon="icon-[lucide--list-tree]" label="As a tree" aria-pressed={false} />
+	</div>
+</Story>
+
 <Story name="Small" asChild>
 	<div class="flex flex-wrap items-center gap-3">
 		<Button size="sm" variant="primary">Primary</Button>
