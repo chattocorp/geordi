@@ -818,6 +818,39 @@ describe('workspaces', () => {
 		unfollow();
 	});
 
+	it('records what the agent suggests, until its next turn', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('Suggest');
+		workspaces.record(id, { kind: 'turn.started' });
+		// said while it works, it was meant for a turn that is over
+		workspaces.suggest(id, 'Too early');
+		expect(workspaces.summary(id).suggestion).toBeNull();
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.suggest(id, 'Ship it');
+		const recorded = () => store.readAll().filter((event) => event.type === 'workspace.suggested');
+		// after a restart, still there; a daemon that says it again records nothing new
+		const restarted = createWorkspaces(store, repos, dispatch);
+		expect(restarted.summary(id).suggestion).toBe('Ship it');
+		restarted.suggest(id, 'Ship it');
+		expect(recorded()).toHaveLength(1);
+		restarted.record(id, { kind: 'turn.started' });
+		expect(restarted.summary(id).suggestion).toBeNull();
+	});
+
+	it('withdraws a suggestion when a message starts the next turn', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('Suggest');
+		workspaces.record(id, { kind: 'turn.started' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.suggest(id, 'Ship it');
+		// the reply starts the turn, so the agent's own word of it is dropped
+		workspaces.send(id, 'Not yet');
+		workspaces.record(id, { kind: 'turn.started' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.summary(id).suggestion).toBeNull();
+		expect(createWorkspaces(store, repos, dispatch).summary(id).suggestion).toBeNull();
+	});
+
 	it('keeps the queue across a restart', () => {
 		const { store, repos, workspaces, dispatch, create } = setup();
 		const id = create('One');

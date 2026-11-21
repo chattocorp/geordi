@@ -187,7 +187,6 @@ export const workspace = (id: string) => {
 			return {
 				...workspace,
 				background: hub().background(id),
-				suggestion: hub().suggestion(id),
 				sessionModel: hub().sessionModel(id),
 				transcript: readTranscript(id),
 				// who but the person may have written in its conversation: the agents above it
@@ -196,7 +195,6 @@ export const workspace = (id: string) => {
 				aides: aides.map((aide) => ({
 					...aide,
 					background: hub().background(aide.id),
-					suggestion: hub().suggestion(aide.id),
 					sessionModel: hub().sessionModel(aide.id),
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title

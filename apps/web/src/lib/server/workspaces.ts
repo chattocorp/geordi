@@ -923,11 +923,24 @@ export function createWorkspaces(
 		for (const listener of usageListeners) listener(id);
 	}
 
+	/**
+	 * What a workspace's agent suggests saying next, as its daemon says. Recorded, so that it
+	 * is still there after a restart; a reconnecting daemon says it again, which changes nothing.
+	 * One said while the agent works was meant for a turn that is over.
+	 */
+	function suggest(id: string, text: string | null) {
+		const workspace = projection.get().get(id);
+		if (!workspace || workspace.archivedAt || workspace.suggestion === text) return;
+		if (text && workspace.status === 'running') return;
+		store.append({ type: 'workspace.suggested', stream: `workspace:${id}`, data: { id, text } });
+	}
+
 	return {
 		access,
 		agents,
 		followTranscript,
 		measure,
+		suggest,
 		/** Told which workspace's usage changed between events. */
 		followUsage(listener: (id: string) => void) {
 			usageListeners.add(listener);
