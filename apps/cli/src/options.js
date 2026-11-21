@@ -1,3 +1,4 @@
+import { resolve, join } from 'node:path';
 import { PORTS } from '@geordi/launch/services.js';
 
 /**
@@ -21,4 +22,19 @@ export function options(env) {
 			'Geordi has no authentication yet, so it only listens on 127.0.0.1. To reach it from elsewhere, use an SSH tunnel.'
 		);
 	return { web, daemon, live, origin: env.ORIGIN || `http://localhost:${web}` };
+}
+
+/** Local daemon paths for a CLI instance with its own forge data directory. */
+export function daemonDataPaths(env) {
+	if (!env.GEORDI_DATA_DIR) return {};
+	const directory = resolve(env.GEORDI_DATA_DIR);
+	return {
+		GEORDI_DAEMON_TOKEN_FILE: env.GEORDI_DAEMON_TOKEN_FILE || join(directory, 'daemon-token'),
+		GEORDI_WORKTREES_DIR: env.GEORDI_WORKTREES_DIR || join(directory, 'worktrees'),
+		GEORDI_SESSIONS_DIR: env.GEORDI_SESSIONS_DIR || join(directory, 'sessions'),
+		GEORDI_PROJECTS_DIR: env.GEORDI_PROJECTS_DIR || join(directory, 'projects'),
+		GEORDI_RUN_APPROVALS_FILE:
+			env.GEORDI_RUN_APPROVALS_FILE || join(directory, 'run-approvals.json'),
+		GEORDI_PORTS_FILE: env.GEORDI_PORTS_FILE || join(directory, 'ports.json')
+	};
 }

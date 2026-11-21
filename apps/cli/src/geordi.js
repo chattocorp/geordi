@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { forgeReady, services } from '@geordi/launch/services.js';
-import { options } from './options.js';
+import { daemonDataPaths, options } from './options.js';
 
 /**
  * Geordi without the desktop app: the forge and the daemon, started as the app starts them
@@ -40,7 +40,7 @@ let stopping = false;
 function start(/** @type {'forge' | 'daemon'} */ name) {
 	const { entry, env } = service[name];
 	const child = spawn(process.execPath, [join(here, entry)], {
-		env: { ...process.env, ...env },
+		env: { ...process.env, ...(name === 'daemon' && daemonDataPaths(process.env)), ...env },
 		stdio: ['ignore', 'pipe', 'pipe']
 	});
 	for (const [from, to] of [

@@ -19,7 +19,16 @@ It uses the desktop app's ports (7717 to 7719) and data (`~/.geordi`), so only o
 runs at a time, and prints what forge and daemon say. Ctrl+C stops Geordi and its agents;
 any other signal leaves the agents working for the next start. `PORT`, `GEORDI_DAEMON_PORT`,
 `GEORDI_LIVE_PORT` and `ORIGIN` (default `http://localhost:7717`) change where it runs, and
-the settings below apply to it too. It listens on 127.0.0.1 only. On a server, reach it
+the settings below apply to it too. To run a second CLI instance, give it a separate
+`GEORDI_DATA_DIR` and three distinct, unused ports. Its local daemon uses that directory
+for its token, worktrees, projects, sessions, run approvals and port assignments. Explicit
+daemon settings take precedence.
+
+If you already used a custom `GEORDI_DATA_DIR` with an earlier CLI, check where its daemon
+kept its files before upgrading. Set the daemon paths listed below to their existing
+locations to keep using those sessions, worktrees, approvals and port assignments.
+
+Geordi listens on 127.0.0.1 only. On a server, reach it
 through an SSH tunnel, for the web and the browsers' WebSocket:
 
 ```sh

@@ -240,12 +240,22 @@ export function createWorkspaces(
 		});
 		const measured = usages.get(id);
 		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
-		if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
-		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') tellParent(workspace);
+		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
+			// Capture the result while the completed turn is still the latest one.
+			const waits = waiting.get(id);
+			const parentWaiting =
+				waits && [...waits].some((wait) => wait.callerId === workspace.parentId);
+			if (waits) {
+				const result = report(workspace);
+				for (const wait of waits) wait.finish(result);
+			}
+			if (!parentWaiting) tellParent(workspace);
+			if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
+		}
 	}
 
-	/** How many of its parent's `wait_for_agent` calls are waiting for each workspace now. */
-	const awaited = new Map<string, number>();
+	type Wait = { callerId: string; finish(result: AgentReport): void };
+	const waiting = new Map<string, Set<Wait>>();
 
 	/**
 	 * Tells an agent's parent that it has finished a turn, with what it said (FDR-002), unless
@@ -254,7 +264,7 @@ export function createWorkspaces(
 	 * own agents reported, so that news goes up a chain. A person's talk with it is theirs.
 	 */
 	function tellParent(child: Workspace) {
-		if (child.status !== 'idle' || !child.parentId || awaited.get(child.id)) return;
+		if (child.status !== 'idle' || !child.parentId) return;
 		if (stoppingForArchive.has(child.id)) return;
 		const parent = projection.get().get(child.parentId);
 		if (!parent || parent.archivedAt || held.has(parent.id)) return;
@@ -893,20 +903,22 @@ export function createWorkspaces(
 		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
 		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
 			const workspace = findFor(callerId, id);
-			// a parent waiting for its agent hears the end of its turn here, not as a message too
-			if (workspace.parentId !== callerId) {
-				await waitUntil(() => workspace.status === 'idle', timeoutMs);
-				return report(workspace);
-			}
-			awaited.set(id, (awaited.get(id) ?? 0) + 1);
-			try {
-				await waitUntil(() => workspace.status === 'idle', timeoutMs);
-			} finally {
-				const left = awaited.get(id)! - 1;
-				if (left) awaited.set(id, left);
-				else awaited.delete(id);
-			}
-			return report(workspace);
+			if (workspace.status === 'idle') return report(workspace);
+			return new Promise<AgentReport>((resolve) => {
+				const waits = waiting.get(id) ?? new Set<Wait>();
+				const wait: Wait = {
+					callerId,
+					finish(result) {
+						clearTimeout(timer);
+						waits.delete(wait);
+						if (!waits.size) waiting.delete(id);
+						resolve(result);
+					}
+				};
+				const timer = setTimeout(() => wait.finish(report(workspace)), timeoutMs);
+				waits.add(wait);
+				waiting.set(id, waits);
+			});
 		}
 	};
 
@@ -1382,11 +1394,7 @@ export function createWorkspaces(
 				const owner = family.has(id) ? undefined : projection.get().get(id);
 				return owner?.worktree ? [{ id, ...owner.worktree }] : [];
 			});
-			const images = imageStore.forget(
-				[...family.values()].flatMap((workspace) =>
-					transcriptOf(workspace).flatMap((item) => (item.kind === 'user' && item.images) || [])
-				)
-			);
+			const images = imageStore.forget(projection.imagesOnlyIn(new Set(family.keys())));
 			const { freed, copy } = store.purge(
 				[...[...family.keys()].flatMap((id) => projection.streamsOf(id)), ...images.streams],
 				{
