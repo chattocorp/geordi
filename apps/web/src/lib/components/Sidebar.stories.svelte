@@ -278,15 +278,14 @@
 		const today = canvas.getByRole('button', { name: 'Show workspaces active today' });
 		await fireEvent.click(today);
 		await expect(today).toHaveAttribute('aria-pressed', 'true');
-		await waitFor(() => expect(canvas.getByText('Review the daemon')).toBeVisible());
-		await waitFor(() =>
-			expect(canvas.queryByText('Scale live views and the event log')).toBeNull()
-		);
+		// the list changes at once: nothing slides away
+		await expect(canvas.getByText('Review the daemon')).toBeVisible();
+		await expect(canvas.queryByText('Scale live views and the event log')).toBeNull();
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
 		await expect(canvas.getByText('No workspaces active today.')).toBeVisible();
 		await fireEvent.click(today);
-		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
+		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'All repositories' }));
 	}}

@@ -77,13 +77,23 @@
 	]);
 
 	/**
-	 * Repositories and workspaces slide in and out whenever they come or go: by a filter (the
-	 * focus, today only) or on their own. Not when the list first arrives: it is drawn in
-	 * `{#if nav}`, and a transition is local, so it plays only when its own block changes.
+	 * Repositories and workspaces slide in and out whenever they come or go: by the focus or on
+	 * their own. Not when the list first arrives: it is drawn in `{#if nav}`, and a transition
+	 * is local, so it plays only when its own block changes. Nor when today only is toggled:
+	 * the list changes at once.
 	 */
 	const motion = () => ({
-		duration: prefersReducedMotion.current ? 0 : MOTION,
+		duration: prefersReducedMotion.current || todayOnly !== drawnTodayOnly ? 0 : MOTION,
 		easing: cubicOut
+	});
+	/**
+	 * What today only was when the list was last drawn. Not state: nothing shows it. It catches
+	 * up once the update that toggled it is done, intros included.
+	 */
+	let drawnTodayOnly = todayOnly;
+	$effect(() => {
+		const now = todayOnly;
+		queueMicrotask(() => (drawnTodayOnly = now));
 	});
 	/**
 	 * A workspace counts as working, for archiving, while anything its agent started is. Not
