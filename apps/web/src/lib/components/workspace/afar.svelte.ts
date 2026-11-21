@@ -2,7 +2,6 @@ import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { navigating, page } from '$app/state';
 import type { WorkspaceAction } from '@geordi/ui/actions';
-import { spoken } from '@geordi/ui/thanks';
 import { problemOf } from '#lib/problem.ts';
 import { archive, archiveProblems } from './archive.svelte.ts';
 import { reviewProblems, runPullAction } from './review.svelte.ts';
@@ -58,11 +57,7 @@ export async function actFromAfar(workspace: Target, action: WorkspaceAction) {
 	if (action.id === 'merge-upstream' && action.prompt)
 		return updateWorkspace({ workspaceId: workspace.id, prompt: action.prompt });
 	if (action.prompt)
-		return say({
-			workspaceId: workspace.id,
-			text: spoken(action.id, action.prompt),
-			action: action.id
-		});
+		return say({ workspaceId: workspace.id, text: action.prompt, action: action.id });
 	// restoring a worktree, say: that is done in the workspace
 	return open(workspace.id);
 }

@@ -44,7 +44,6 @@
 		"./WorkspaceActions.svelte": "./src/WorkspaceActions.svelte",
 		"./WorkspaceRow.svelte": "./src/WorkspaceRow.svelte",
 		"./actions": "./src/actions.ts",
-		"./thanks": "./src/thanks.ts",
 		"./agents": "./src/agents.ts",
 		"./checks": "./src/checks.ts",
 		"./completions": "./src/completions.ts",
