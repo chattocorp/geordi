@@ -28,6 +28,9 @@
 	/** The tool that is running right now, if one is: the only one worth watching. */
 	const active = $derived(live ? tools.findLast((tool) => tool.output === null) : undefined);
 
+	/** Whether one of its tools still runs in the background, after the agent went on. */
+	const background = $derived(tools.some((tool) => backgroundIds.includes(tool.id)));
+
 	/** What was used, each kind once, with how often: all there is to say once it is over. */
 	const used = $derived(
 		Object.values(
@@ -68,6 +71,7 @@
 					<span class="sr-only">{name}{failed ? ', with failures' : ''}</span>
 				</span>
 			{/each}
+			{#if background}<ProgressIcon label="Running in the background" />{/if}
 		{/if}
 	{/snippet}
 

@@ -263,6 +263,8 @@
 		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" />
 		<!-- under way: the tool that is running -->
 		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" live />
+		<!-- over, but a tool still runs in the background -->
+		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" backgroundIds={[tools[0].id]} />
 	</div>
 </Story>
 
