@@ -18,6 +18,14 @@ describe('soundTypeOf', () => {
 		expect(soundTypeOf(bytes('\0\0\0\x20ftypisom'))).toBeNull();
 		expect(soundTypeOf(Uint8Array.of(0xff, 0xf1, 0x50, 0x80))).toBeNull();
 		expect(soundTypeOf(bytes('hello'))).toBeNull();
+		// UTF-16 text, and text that merely begins like an ID3 tag
+		expect(soundTypeOf(Uint8Array.of(0xff, 0xfe, 0x61, 0x00))).toBeNull();
+		expect(soundTypeOf(bytes('ID3 tags are nice'))).toBeNull();
+		// a reserved version, a free or bad bitrate, a reserved sample rate
+		expect(soundTypeOf(Uint8Array.of(0xff, 0xeb, 0x90, 0x64))).toBeNull();
+		expect(soundTypeOf(Uint8Array.of(0xff, 0xfb, 0x00, 0x64))).toBeNull();
+		expect(soundTypeOf(Uint8Array.of(0xff, 0xfb, 0xf0, 0x64))).toBeNull();
+		expect(soundTypeOf(Uint8Array.of(0xff, 0xfb, 0x9c, 0x64))).toBeNull();
 		expect(soundTypeOf(new Uint8Array())).toBeNull();
 	});
 });
