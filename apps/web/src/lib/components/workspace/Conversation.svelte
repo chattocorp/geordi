@@ -31,6 +31,8 @@
 		waiting = false,
 		questionTarget,
 		senders,
+		autofocus = false,
+		onautofocus,
 		onopenturn,
 		onopensubagent
 	}: {
@@ -40,7 +42,17 @@
 		onopenturn?: (changes: TurnChanges) => void;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
+		/** Put the cursor in the reply box now (it may be in a tab that was in the background). */
+		autofocus?: boolean;
+		onautofocus?: () => void;
 	} = $props();
+
+	let reply = $state<HTMLElement>();
+	$effect(() => {
+		if (!autofocus || !reply) return;
+		reply.querySelector('textarea')?.focus();
+		onautofocus?.();
+	});
 
 	const searchFiles = $derived.by(() => {
 		const workspaceId = workspace.id;
@@ -124,7 +136,7 @@
 	<div class="relative mx-auto flex max-h-full min-h-0 w-full max-w-5xl flex-col">
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
-			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest}>
+			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest} bind:this={reply}>
 				<WithMessageImages
 					{form}
 					bind:images={written.images}
