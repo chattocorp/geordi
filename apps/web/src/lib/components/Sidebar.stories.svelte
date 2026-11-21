@@ -556,6 +556,7 @@
 			'href',
 			'/workspaces/later'
 		);
+		await expect(within(own).getByLabelText('Ready to merge')).toBeVisible();
 		await expect(other).not.toHaveAttribute('open');
 		await fireEvent.click(within(own).getByText('Set aside'));
 		await expect(own).not.toHaveAttribute('open');
@@ -573,7 +574,7 @@
 				workspace('active', 'Review the daemon', {
 					updatedAt: new Date(2026, 10, 20).toISOString()
 				}),
-				workspace('later', 'Revisit the parser', { deferred: true }),
+				workspace('later', 'Revisit the parser', { deferred: true, standing: ready }),
 				workspace('another', 'Review the styling', { repoId: 'sample', deferred: true })
 			]
 		},

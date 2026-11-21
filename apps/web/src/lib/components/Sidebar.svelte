@@ -439,17 +439,7 @@
 			<div aria-hidden="true"></div>
 			{#if nav && !grouped.current}
 				{@const rows = unfolded(oneList, folded.current)}
-				<ul
-					class={['space-y-px', !todayOnly && 'pb-4']}
-					ondragleave={(event) => {
-						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-							dropBefore = undefined;
-					}}
-				>
-					{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-						{@render row(workspace, parent, depth, under, rows, index)}
-					{/each}
-				</ul>
+				{@render workspaceList(rows, !todayOnly && 'pb-4')}
 				{#if todayOnly && rows.length === 0}
 					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
 				{/if}
@@ -546,17 +536,7 @@
 							{/if}
 						</div>
 						{#if !isFolded}
-							<ul
-								class="space-y-px"
-								ondragleave={(event) => {
-									if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-										dropBefore = undefined;
-								}}
-							>
-								{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-									{@render row(workspace, parent, depth, under, rows, index)}
-								{/each}
-							</ul>
+							{@render workspaceList(rows)}
 							{#if todayOnly}
 								{@render setAside(repo.id, deferredByRepo.get(repo.id) ?? [])}
 							{/if}
@@ -588,15 +568,16 @@
 </div>
 
 {#snippet setAside(repoId: string | null, items: Item[])}
-	<details aria-label="Set aside" class="group/aside mt-1 text-muted">
+	{@const canSetAside = !!dragged && !dragged.deferred && droppable(repoId)}
+	<details aria-label="Set aside" class="group/aside mt-1">
 		<summary
 			title="Show set-aside workspaces or drop a workspace here"
 			class={[
-				'flex min-h-8 list-none items-center gap-2 rounded-control border border-dashed px-2.5 text-xs hover:border-muted',
-				overSetAside === repoId && droppable(repoId) ? 'border-muted' : 'border-line'
+				'flex min-h-8 list-none items-center gap-2 rounded-control border border-dashed px-2.5 text-xs text-muted hover:border-muted',
+				overSetAside === repoId && canSetAside ? 'border-muted' : 'border-line'
 			]}
 			ondragover={(event) => {
-				if (!droppable(repoId)) return;
+				if (!canSetAside) return;
 				event.preventDefault();
 				if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 				dropBefore = undefined;
@@ -607,14 +588,14 @@
 					overSetAside = undefined;
 			}}
 			ondrop={(event) => {
-				if (!dragged || !droppable(repoId)) return;
+				if (!dragged || !canSetAside) return;
 				event.preventDefault();
 				void deferWorkspace(dragged.id);
 				endDrag();
 			}}
 		>
 			<span class="icon-[lucide--calendar-minus] size-4 shrink-0"></span>
-			<span>{droppable(repoId) ? 'Drop to set aside' : 'Set aside'}</span>
+			<span>{canSetAside ? 'Drop to set aside' : 'Set aside'}</span>
 			{#if items.length}<span class="ml-auto tabular-nums">{items.length}</span>{/if}
 			<span
 				class={[
@@ -624,27 +605,24 @@
 			></span>
 		</summary>
 		{#if items.length}
-			<ul class="mt-1">
-				{#each items as workspace (workspace.id)}
-					<li>
-						<a
-							href={resolve('/workspaces/[id]', { id: workspace.id })}
-							aria-current={path === `/workspaces/${workspace.id}` ? 'page' : undefined}
-							class="item gap-2 px-2.5 py-1 text-sm aria-[current=page]:item-active"
-						>
-							{#if !grouped.current && workspace.repoId}<RepoIcon
-									id={workspace.repoId}
-									small
-								/>{/if}
-							<span class="truncate">{workspace.title}</span>
-						</a>
-					</li>
-				{/each}
-			</ul>
+			{@render workspaceList(unfolded(asOneList(items), folded.current), 'mt-1')}
 		{:else}
-			<p class="px-2.5 py-1 text-xs">No workspaces set aside.</p>
+			<p class="px-2.5 py-1 text-xs text-muted">No workspaces set aside.</p>
 		{/if}
 	</details>
+{/snippet}
+
+{#snippet workspaceList(rows: (Row & { under: number })[], spacing: string | false = false)}
+	<ul
+		class={['space-y-px', spacing]}
+		ondragleave={(event) => {
+			if (!event.currentTarget.contains(event.relatedTarget as Node | null)) dropBefore = undefined;
+		}}
+	>
+		{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
+			{@render row(workspace, parent, depth, under, rows, index)}
+		{/each}
+	</ul>
 {/snippet}
 
 {#snippet row(

@@ -17,3 +17,5 @@ The sidebar menu offers Not Today on workspaces active today. Verified in the ru
 Today also accepts workspace drops on Set aside. The grouped view shows one target and count per expanded repository. The flat view shows one for the current filter. Verified a native drag in the running forge, including rejection by another repository and the count after dropping the last workspace.
 
 Set aside uses a muted dashed border. Expand it to open a deferred workspace while Today stays on. Verified opening a workspace and collapsing the list from the keyboard in the running forge.
+
+Revealed workspaces use the regular sidebar rows. Verified matching typography and row height in grouped and flat views, with status indicators visible under Set aside.
