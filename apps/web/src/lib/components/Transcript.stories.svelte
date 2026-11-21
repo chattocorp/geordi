@@ -252,6 +252,12 @@
 	/>
 </Story>
 
+<Story name="User message" asChild>
+	<div class="max-w-2xl sheet p-4">
+		<UserMessage text="BTW why would we do the third one after the release?" />
+	</div>
+</Story>
+
 <Story name="Agent reply" asChild>
 	<div class="max-w-2xl space-y-6">
 		<UserMessage text="What changed?" />
