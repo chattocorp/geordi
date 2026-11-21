@@ -1598,6 +1598,24 @@ describe('agents talking to the agents they started', () => {
 		expect(parentSaid().at(-1)?.[0]).toMatch(/All parts done\.$/);
 	});
 
+	it.each([false, true])(
+		'reports the delegated turn before a personal follow-up (wait=%s)',
+		async (wait) => {
+			const { workspaces, lead, child } = family();
+			const result = wait && workspaces.agents.wait(lead, child, 5000);
+			workspaces.send(child, 'My follow-up');
+			workspaces.record(child, { kind: 'text', text: 'Build result' });
+			workspaces.record(child, { kind: 'turn.completed' });
+			expect(workspaces.get(child).status).toBe('running');
+			workspaces.record(child, { kind: 'text', text: 'Personal reply' });
+			workspaces.record(child, { kind: 'turn.completed' });
+			if (result) expect(await result).toMatchObject({ status: 'idle', reply: 'Build result' });
+			expect(workspaces.get(lead).queue).toEqual(
+				wait ? [] : [`Your agent “Build” (${child}) finished its turn.\n\nBuild result`]
+			);
+		}
+	);
+
 	it('tells a working agent at once what a message that interrupts says', () => {
 		const { workspaces, lead, child, said, sent } = family();
 		workspaces.agents.send(lead, child, 'Stop: wrong directory', true);
@@ -1918,6 +1936,26 @@ describe('purging archived workspaces', () => {
 		workspaces.purge([purged]);
 		expect(() => images.get(gone)).toThrow();
 		expect(images.get(kept).data).toBe(png.toString('base64'));
+	});
+
+	it('purges queued and withdrawn attachments after restart, preserving other workspaces’ images', () => {
+		const { store, workspaces, create, repos, dispatch } = setup();
+		const images = createImages(store);
+		const withdrawn = images.add(png);
+		const queued = images.add(png);
+		const shared = images.add(png);
+		const kept = create('Keep');
+		workspaces.send(kept, 'Still queued', null, [shared]);
+		const id = create('Work');
+		workspaces.send(id, 'Withdraw', null, [withdrawn]);
+		workspaces.dequeue(id, 0, 'Withdraw');
+		workspaces.send(id, 'Next', null, [queued, shared]);
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		workspaces.archive(id);
+		createWorkspaces(store, repos, dispatch).purge([id]);
+		expect(() => images.get(queued)).toThrow();
+		expect(() => images.get(withdrawn)).toThrow();
+		expect(images.get(shared).data).toBe(png.toString('base64'));
 	});
 
 	it('keeps the files of the images it deletes with the copy of the log it leaves', () => {

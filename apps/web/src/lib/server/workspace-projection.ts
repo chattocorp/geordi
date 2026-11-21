@@ -435,6 +435,8 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	const listeners = new Map<string, Set<(edit: TranscriptEdit) => void>>();
 	// The first session of an old workspace could have a different ID.
 	const sessionStreams = new Map<string, string>();
+	// All images ever attached, including messages withdrawn or still queued at archive.
+	const attachedImages = new Map<string, Set<string>>();
 	// Sender attribution on a later replay must reflect who existed at the time.
 	const born = new Map<string, number>();
 
@@ -461,6 +463,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			for (const { id } of event.data.workspaces) {
 				workspaces.delete(id);
 				sessionStreams.delete(id);
+				attachedImages.delete(id);
 				listeners.delete(id);
 			}
 			for (const { id, path, branch } of event.data.worktrees) {
@@ -787,6 +790,17 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 					born.set(current.data.id, event.seq);
 					if (event.type === 'session.created') sessionStreams.set(current.data.id, event.stream);
 				}
+				if (
+					(current.type === 'workspace.queued' ||
+						current.type === 'workspace.message' ||
+						current.type === 'workspace.steered') &&
+					current.data.images?.length
+				) {
+					const { id, images } = current.data;
+					const attached = attachedImages.get(id) ?? new Set<string>();
+					for (const image of images) attached.add(image);
+					attachedImages.set(id, attached);
+				}
 				apply(workspaces, current, event.at, event.actor, event.seq);
 			}
 			return workspaces;
@@ -826,6 +840,16 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		get: projection.get,
 		/** A workspace's transcript; an archived one's is read again from the log. */
 		transcriptOf,
+		/** Only release image IDs when every workspace that used them goes. */
+		imagesOnlyIn(ids: Set<string>): string[] {
+			const images = new Set<string>();
+			for (const id of ids) for (const image of attachedImages.get(id) ?? []) images.add(image);
+			for (const [id, attached] of attachedImages) {
+				if (!images.size) break;
+				if (!ids.has(id)) for (const image of attached) images.delete(image);
+			}
+			return [...images];
+		},
 		/** The streams a workspace's events are in: its own, and that of the session it began as. */
 		streamsOf(id: string): string[] {
 			const session = sessionStreams.get(id);
