@@ -42,9 +42,30 @@
 		if (content) return drawDiagrams(content);
 	});
 
+	// A path that may be a directory (`data-folder`) becomes a button that opens it once the
+	// daemon says it is one, so that what is not stays plain code
+	$effect(() => {
+		void html;
+		const isFolder = files?.isFolder;
+		if (!content || !isFolder) return;
+		for (const mark of content.querySelectorAll<HTMLElement>('[data-folder]:not(button)')) {
+			const path = mark.dataset.folder!;
+			void isFolder(path).then((found) => {
+				if (!found || !mark.isConnected) return;
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.dataset.folder = path;
+				button.title = 'Open this folder';
+				delete mark.dataset.folder;
+				mark.replaceWith(button);
+				button.append(mark);
+			});
+		}
+	});
+
 	/**
 	 * Clicks on what `renderMarkdown` made a button: a code block's copy button, a changed
-	 * file's name, which opens its diff, and a picture, which opens in the viewer (with a
+	 * file's name, which opens its diff, a directory's, which opens it in the file manager, and a picture, which opens in the viewer (with a
 	 * modifier key, its link opens it on its own instead), as a drawn SVG does.
 	 */
 	const buttons: Attachment<HTMLElement> = (node) => {
@@ -63,6 +84,8 @@
 			const source = target.closest<HTMLElement>('[data-source]')?.dataset;
 			if (source?.source)
 				return files?.openSource(source.source, source.line ? Number(source.line) : undefined);
+			const folder = target.closest<HTMLElement>('button[data-folder]')?.dataset.folder;
+			if (folder) return files?.openFolder?.(folder);
 			const file = target.closest<HTMLElement>('[data-file]')?.dataset.file;
 			if (file) return files?.open(file);
 			const button = target.closest<HTMLElement>('[data-copy]');

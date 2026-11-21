@@ -447,6 +447,20 @@ export const getSource = query(
 	}
 );
 
+/** Which of these paths, named in a conversation, are directories in the workspace's worktree. */
+export const findFolders = command(
+	v.object({ workspaceId: v.string(), paths: v.pipe(v.array(v.string()), v.maxLength(100)) }),
+	({ workspaceId, paths }) =>
+		hub().request({ kind: 'folders', paths, ...workspaces().ref(workspaceId) })
+);
+
+/** Opens a directory in the workspace's worktree in the file manager (Finder). */
+export const openFolder = command(
+	v.object({ workspaceId: v.string(), path: v.string() }),
+	({ workspaceId, path }) =>
+		hub().request({ kind: 'openFolder', path, ...workspaces().ref(workspaceId) })
+);
+
 const dimension = v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(500));
 const size = { cols: dimension, rows: dimension };
 /** One of a workspace's terminals; the browser that opens a terminal names it. */
