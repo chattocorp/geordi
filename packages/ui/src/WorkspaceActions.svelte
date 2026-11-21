@@ -202,8 +202,9 @@
 								tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
 								class={['@max-md/titlebar:size-7 @max-md/titlebar:p-0', quiet && 'text-ink']}
 								label={action.label}
+								title={action.unavailable ?? action.label}
 								icon={action.icon}
-								{disabled}
+								disabled={disabled || !!action.unavailable}
 								{busy}
 								onclick={() => onaction(action)}
 							>

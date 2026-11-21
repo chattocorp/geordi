@@ -268,6 +268,29 @@
 </Story>
 
 <Story
+	name="Merged, with an agent at work"
+	asChild
+	play={async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole('button', { name: /Continue$/ });
+		await expect(button).toBeDisabled();
+		await expect(button).toHaveAttribute('title', 'Continue once the agent is done');
+	}}
+>
+	{@const state = { changes: pushed, upstream: upstream({ state: 'merged' }) } as const}
+	<WorkspaceActions
+		standing={standingOf(state)}
+		pull={{ number: '42', url: 'https://example.com/pull/42' }}
+		actions={actionsFor(state).map((action) =>
+			action.id === 'continue'
+				? { ...action, unavailable: 'Continue once the agent is done' }
+				: action
+		)}
+		{onopenpull}
+		{onaction}
+	/>
+</Story>
+
+<Story
 	name="Archiving"
 	asChild
 	play={async ({ canvasElement }) => {

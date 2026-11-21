@@ -39,6 +39,8 @@ export type WorkspaceAction = {
 	pullNumber?: string;
 	/** An alternative to the next step rather than the next step itself: offered beside it, quietly. */
 	aside?: boolean;
+	/** Why it can't be taken right now, if it can't: it is shown, but can't be pressed. */
+	unavailable?: string;
 };
 
 /**
