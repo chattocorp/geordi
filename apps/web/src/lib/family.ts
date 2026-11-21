@@ -13,11 +13,17 @@ export type Listed<T> = {
 	depth: number;
 };
 
-/** Compare calendar days in the viewer's time zone. */
-export function activeOnDay<T extends { updatedAt: string }>(workspaces: T[], day: string | null) {
+/**
+ * The workspaces active on `day` (a calendar day in the viewer's time zone), but for those
+ * set aside ("Remove from Today"); all of them where `day` is `null`.
+ */
+export function activeOnDay<T extends { updatedAt: string; setAside?: boolean }>(
+	workspaces: T[],
+	day: string | null
+) {
 	return day === null
 		? workspaces
-		: workspaces.filter((w) => new Date(w.updatedAt).toDateString() === day);
+		: workspaces.filter((w) => !w.setAside && new Date(w.updatedAt).toDateString() === day);
 }
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */

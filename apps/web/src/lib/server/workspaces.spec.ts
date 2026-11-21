@@ -530,6 +530,23 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).lastTurn).toBe('stopped');
 	});
 
+	it('keeps a workspace out of today until a person prompts it, also across a restart', () => {
+		const { workspaces, store, repos, dispatch, create } = setup();
+		const id = create('One');
+		const other = create('Other');
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.setAside(id);
+		expect(workspaces.get(id).setAside).toBe(true);
+		// what an agent says or does leaves it aside
+		workspaces.send(id, 'From an agent', other);
+		workspaces.record(id, { kind: 'turn.completed' });
+		const restored = createWorkspaces(store, repos, dispatch);
+		expect(restored.get(id).setAside).toBe(true);
+		restored.send(id, 'Two');
+		expect(restored.get(id).setAside).toBe(false);
+		expect(createWorkspaces(store, repos, dispatch).get(id).setAside).toBe(false);
+	});
+
 	it('lets a waiting message be taken back', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');

@@ -32,7 +32,12 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
 	import { foreground } from '#lib/foreground.svelte.ts';
-	import { moveWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
+	import {
+		moveWorkspace,
+		renameWorkspace,
+		setWorkspaceAside,
+		stopAgent
+	} from '../../routes/workspaces.remote';
 	import { moveRepo } from '../../routes/repos.remote';
 
 	/**
@@ -203,6 +208,16 @@
 				disabled: !running,
 				onselect: () => stopAgent(workspace.id)
 			},
+			// out of today's list until the person next prompts it
+			...(todayOnly
+				? [
+						{
+							label: 'Remove from Today',
+							icon: 'icon-[lucide--calendar-x]',
+							onselect: () => setWorkspaceAside(workspace.id)
+						}
+					]
+				: []),
 			{
 				label: 'Archive',
 				icon: 'icon-[lucide--archive]',
@@ -585,6 +600,14 @@
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 		}}
 		ondragend={endDrag}
+		onclickcapture={(event) => {
+			// in today's list, shift-click is "Remove from Today": not on what the row has to click besides its link
+			if (!todayOnly || !event.shiftKey || leaving) return;
+			if (event.target instanceof Element && event.target.closest('button')) return;
+			event.preventDefault();
+			event.stopPropagation();
+			void setWorkspaceAside(workspace.id);
+		}}
 		ondblclick={(event) => {
 			// not on what the row has to click besides its link
 			if (event.target instanceof Element && event.target.closest('button')) return;
