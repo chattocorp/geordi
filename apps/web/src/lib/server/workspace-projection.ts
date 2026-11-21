@@ -5,6 +5,7 @@ import type {
 	Agent,
 	AgentEvent,
 	AgentPlan,
+	Compaction,
 	AgentSettings,
 	ContextUsage,
 	SubagentState,
@@ -270,6 +271,8 @@ export type TranscriptItem =
 			open: boolean;
 			at: string;
 	  }
+	/** The agent compacted its context here (or tried to): a note, said in passing. */
+	| ({ kind: 'compaction'; id: string; at: string } & Compaction)
 	/** Something that happened to the workspace, said in passing: neither side's words. */
 	| { kind: 'note'; text: string; at: string };
 
@@ -691,6 +694,16 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				}
 				break;
 			}
+			case 'compaction': {
+				const { kind, id, ...compaction } = output;
+				const previous = transcript.findLast(
+					(item) => item.kind === 'compaction' && item.id === id
+				);
+				// it stays where it began
+				if (previous) replace(previous, { kind, id, ...compaction, at: previous.at });
+				else append({ kind, id, ...compaction, at });
+				break;
+			}
 			case 'tool':
 				append({ ...output, output: null, isError: false, at });
 				break;
@@ -739,7 +752,12 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				workspace.status = 'idle';
 				// a turn that is over waits for no answer
 				workspace.asking = false;
-				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
+				for (const item of transcript) {
+					if (item.kind === 'question') closeQuestion(item);
+					// one its agent never said the end of ended with the turn
+					else if (item.kind === 'compaction' && item.status === 'running')
+						replace(item, { ...item, status: 'cancelled' });
+				}
 				if (output.kind === 'turn.failed') {
 					workspace.pendingMessages = [];
 					workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';

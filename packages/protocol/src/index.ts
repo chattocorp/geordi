@@ -792,6 +792,11 @@ export type AgentEvent =
 	| { kind: 'text'; text: string }
 	/** A complete snapshot, or null when the wrapper withdraws this plan. */
 	| { kind: 'plan'; id: string; plan: AgentPlan | null }
+	/**
+	 * The agent compacts its context: said when it begins and again when it ends, with how
+	 * full the context was before and after, where the agent says. Never what it kept.
+	 */
+	| ({ kind: 'compaction'; id: string } & Compaction)
 	| ({ kind: 'tool'; id: string; name: string; input: string } & ToolInfo)
 	/** What an agent said of a tool call after it began: only what changed. */
 	| ({ kind: 'tool.update'; id: string; input?: string } & ToolInfo)
@@ -811,6 +816,12 @@ export type AgentEvent =
 	/** Every turn ends with exactly one of these two, with what it used where the agent says. */
 	| { kind: 'turn.completed'; diff?: TurnDiff; usage?: TurnUsage }
 	| { kind: 'turn.failed'; diff?: TurnDiff; error: string; usage?: TurnUsage };
+
+export type Compaction = {
+	status: 'running' | 'completed' | 'failed' | 'cancelled';
+	tokensBefore?: number;
+	tokensAfter?: number;
+};
 
 /** The net worktree diff for a turn, with repository-relative paths. */
 export type TurnDiff = ToolDiff & { added: number; removed: number };

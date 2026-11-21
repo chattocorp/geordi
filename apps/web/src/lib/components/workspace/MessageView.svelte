@@ -24,6 +24,7 @@
 	import SubagentRow from '#lib/components/SubagentRow.svelte';
 	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
 	import Button from '@geordi/ui/Button.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 
@@ -392,7 +393,10 @@
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">
 								<span class="h-px flex-1 bg-line"></span>
-								{block.text}
+								<span class="flex items-center gap-1.5">
+									{#if block.working}<span class="flex" aria-hidden="true"><Spinner /></span>{/if}
+									{block.text}
+								</span>
 								<span class="h-px flex-1 bg-line"></span>
 							</p>
 						{:else}

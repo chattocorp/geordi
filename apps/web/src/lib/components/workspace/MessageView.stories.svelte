@@ -408,6 +408,24 @@
 	</div>
 </Story>
 
+<Story name="Compacting" asChild>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="claude"
+			running
+			onremove={() => {}}
+			onanswer={() => {}}
+			blocks={[
+				{ kind: 'user', text: 'Keep going with the login fix.' },
+				{ kind: 'agent', parts: [{ kind: 'text', text: 'Running the tests once more.' }] },
+				{ kind: 'note', text: 'Compacted the conversation, 183k → 21k tokens' },
+				{ kind: 'agent', parts: [{ kind: 'text', text: 'All green. On to the redirect.' }] },
+				{ kind: 'note', text: 'Compacting the conversation', working: true }
+			]}
+		/>
+	</div>
+</Story>
+
 <Story name="Live plan" asChild>
 	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
