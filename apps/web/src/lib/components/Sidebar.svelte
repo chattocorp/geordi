@@ -25,6 +25,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
 	import { moveWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
+	import { moveRepo } from '../../routes/repos.remote';
 
 	/**
 	 * The sidebar groups workspaces by repository and keeps navigation links below the list. `nav` is what there is, once known; `path` is the
@@ -236,6 +237,41 @@
 		dropBefore = undefined;
 	}
 
+	/**
+	 * The repository being dragged to another place among them, and where it would go: above
+	 * that one, `null` for the end, `undefined` for nowhere new. The projects stay on top.
+	 */
+	let draggedRepo = $state<string | null>(null);
+	let repoDropBefore = $state<string | null | undefined>(undefined);
+	/** The repositories shown, in their order: what one is dragged among. */
+	const shownRepos = $derived(groups.flatMap((group) => (group.id === null ? [] : [group.id])));
+
+	/** Over a repository: above it on its upper half, else above the one after it. */
+	function overRepo(event: DragEvent & { currentTarget: HTMLElement }, id: string) {
+		if (!draggedRepo) return;
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+		const rect = event.currentTarget.getBoundingClientRect();
+		const upper = event.clientY < rect.top + rect.height / 2;
+		const before = shownRepos[shownRepos.indexOf(id) + (upper ? 0 : 1)] ?? null;
+		// where it is already: above itself, or above the one after it
+		const after = shownRepos[shownRepos.indexOf(draggedRepo) + 1] ?? null;
+		repoDropBefore = before === draggedRepo || before === after ? undefined : before;
+	}
+
+	function dropRepo(event: DragEvent) {
+		if (!draggedRepo) return;
+		event.preventDefault();
+		if (repoDropBefore !== undefined)
+			void moveRepo({ repoId: draggedRepo, before: repoDropBefore });
+		endRepoDrag();
+	}
+
+	function endRepoDrag() {
+		draggedRepo = null;
+		repoDropBefore = undefined;
+	}
+
 	const toggleFolded = (id: string) =>
 		(folded.current = folded.current.includes(id)
 			? folded.current.filter((other) => other !== id)
@@ -349,13 +385,42 @@
 					{@const rows = unfolded(all, folded.current)}
 					{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
 					{@const focused = focus.current === repo.id}
-					<div class="pb-4" transition:slide={motion()}>
+					{@const last = repo.id !== null && repo.id === shownRepos.at(-1)}
+					<!-- where a repository being dragged would go: a line above this one, or below the last -->
+					<div
+						role="group"
+						aria-label={repo.name}
+						class={[
+							'pb-4',
+							repo.id !== null && draggedRepo === repo.id && 'opacity-60',
+							repo.id !== null && repoDropBefore === repo.id && 'row-drop-before',
+							last && repoDropBefore === null && 'row-drop-after'
+						]}
+						transition:slide={motion()}
+						ondragover={(event) => repo.id !== null && overRepo(event, repo.id)}
+						ondrop={dropRepo}
+						ondragleave={(event) => {
+							if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+								repoDropBefore = undefined;
+						}}
+					>
 						<!--
 				A label for what is under it: its picture, its name (quiet, by its colour: the
 				workspaces are what is read here), and the way to start something in it. What is
-				under it lines up with it: icon under picture, title under name.
+				under it lines up with it: icon under picture, title under name. A repository is
+				dragged by it, with the pointer only.
 			-->
-						<div class="group relative flex h-7 items-center pr-1.5">
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="group relative flex h-7 items-center pr-1.5"
+							draggable={repo.id !== null && shownRepos.length > 1}
+							ondragstart={(event) => {
+								draggedRepo = repo.id;
+								event.dataTransfer?.setData('text/plain', repo.name);
+								if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+							}}
+							ondragend={endRepoDrag}
+						>
 							<SidebarRowLabel
 								title={repo.name}
 								fold={{
@@ -481,7 +546,9 @@
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
-			child={!!workspace.parentId}
+			parentHref={workspace.parentId
+				? resolve('/workspaces/[id]', { id: workspace.parentId })
+				: undefined}
 			icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : undefined}
 			{current}
 			{leaving}

@@ -1,5 +1,54 @@
 # Geordi Changelog
 
+## 0.8.0-beta.2
+
+### Features
+
+- Your terminal tabs now show the title set by the shell or running program. ([#355](https://github.com/chattocorp/geordi/pull/355))
+- You can now reorder the repositories in the sidebar by dragging them by their name. ([#374](https://github.com/chattocorp/geordi/pull/374))
+- You can ask a workspace agent to start a child workspace in another repository it can access. ([#335](https://github.com/chattocorp/geordi/pull/335))
+- You can restore a workspace directly from its context menu in Archive. ([#372](https://github.com/chattocorp/geordi/pull/372))
+- At the top of the sidebar, you can use the calendar button to show workspaces active today. Press Cmd+Option+F on Mac or Ctrl+Alt+F elsewhere to search the repository picker. New workspace is now above Archive and Settings at the bottom of the sidebar. ([#338](https://github.com/chattocorp/geordi/pull/338))
+- Workspaces now slide into and out of the sidebar when they are started or archived, just as they do when you focus a repository or show only today’s. ([#363](https://github.com/chattocorp/geordi/pull/363))
+- Double-click a Changes, Run or terminal tab in the main area to send it back to its panel beside it. ([#364](https://github.com/chattocorp/geordi/pull/364))
+- Settings → Repositories now shows whether Geordi can read each repository on its forge. Unfold a repository to see its directory, origin and forge access, and what to fix when it fails. ([#350](https://github.com/chattocorp/geordi/pull/350))
+- You can choose OpenCode for a workspace and use your configured model, search models by name or ID, or enter a provider/model ID. Your workspace shows which model and reasoning level OpenCode selects for its defaults. For models with reasoning levels, you can choose the effort for your workspace. ([#353](https://github.com/chattocorp/geordi/pull/353))
+- Press Cmd+Shift+/ (Ctrl+Shift+/ elsewhere) to focus a workspace terminal. If you have no shell yet or a terminal already has focus, the shortcut opens a new shell. ([#359](https://github.com/chattocorp/geordi/pull/359))
+- Double-click a tab in either right panel to move it next to your conversation and select it. ([#345](https://github.com/chattocorp/geordi/pull/345))
+- You can run commands and open local URLs from one task. The Tasks panel shows a keyboard shortcut beside each default task. Use it to launch them together. The Tasks tab shows when a task is starting, even if another is already running. ([#356](https://github.com/chattocorp/geordi/pull/356))
+- Archived workspaces are grouped by month, with repository icons and clearer separation in dark mode. ([#372](https://github.com/chattocorp/geordi/pull/372))
+- Click the chain icon beside a child workspace in the sidebar to open its parent. ([#375](https://github.com/chattocorp/geordi/pull/375))
+- Find out where to get support: Settings → About and the website now point you to the #geordi channel on Chatto HQ. ([#357](https://github.com/chattocorp/geordi/pull/357))
+- Your workspace agents can message peers and start reviewers in a child’s worktree. Children working in another repository keep running when you archive their parent. Reviewers stay with the worktree they review. ([#335](https://github.com/chattocorp/geordi/pull/335))
+- When a job’s port is busy, you can stop the process using it and retry the job or link from the workspace. ([#341](https://github.com/chattocorp/geordi/pull/341))
+- See which agent providers are available and active in Settings. New workspaces offer only providers the daemon can find. ([#337](https://github.com/chattocorp/geordi/pull/337))
+
+### Fixes
+
+- The model picker in the composer now has even padding around the agent icon. ([#361](https://github.com/chattocorp/geordi/pull/361))
+- A down arrow lets you scroll to more workspaces in a long sidebar. The workspace list fades at each edge where you can scroll to see more. ([#343](https://github.com/chattocorp/geordi/pull/343))
+- Select the workspace title above a message to open its conversation. ([#367](https://github.com/chattocorp/geordi/pull/367))
+- Open the Run tab to find your default action first, followed by the other links and jobs. ([#341](https://github.com/chattocorp/geordi/pull/341))
+- The pull request Checks list starts collapsed and remembers whether you last opened or closed it in this browser. ([#331](https://github.com/chattocorp/geordi/pull/331))
+- Sidebar actions now show the same spinning arrows as the workspace ribbon while they run. ([#351](https://github.com/chattocorp/geordi/pull/351))
+- New workspaces use your repository ID for the worktree directory, so repositories with the same name stay separate. Existing workspaces keep their directories. ([#373](https://github.com/chattocorp/geordi/pull/373))
+- The website shows Geordi as it looks today: its demo has the Run tab and a terminal beside your changes, opens diffs and the combined diff next to the conversation, and the page tells you about reviewing changes and the keyboard shortcuts. ([#336](https://github.com/chattocorp/geordi/pull/336))
+- The Changeset pane says calmly, in its middle, when your workspace has no changesets yet, like the Changes pane beside it. ([#358](https://github.com/chattocorp/geordi/pull/358))
+- When you archive a workspace, Geordi stops its terminal processes and tasks without asking for confirmation unless an agent is busy or Git work is unfinished. ([#365](https://github.com/chattocorp/geordi/pull/365))
+- You can open images attached to a conversation message in the same viewer as images in agent replies. ([#362](https://github.com/chattocorp/geordi/pull/362))
+- The Run pane shows a larger default-action shortcut. Hover over a job’s status icon to see its stop control. ([#348](https://github.com/chattocorp/geordi/pull/348))
+- You can download the latest stable release or try the current beta from the website. ([#333](https://github.com/chattocorp/geordi/pull/333))
+- Hovering or focusing a workspace with no status icon keeps its sidebar row clear of the gray Archive button. ([#342](https://github.com/chattocorp/geordi/pull/342))
+- You can scroll the workspace list without a floating arrow covering the last visible row. ([#368](https://github.com/chattocorp/geordi/pull/368))
+- Archived workspaces now show a compact Restore button in the workspace action ribbon. ([#369](https://github.com/chattocorp/geordi/pull/369))
+- Sync now appears before the other workspace ribbon actions, including Archive. ([#360](https://github.com/chattocorp/geordi/pull/360))
+- You can open the source line from an agent review finding. Standalone browser completion markers are hidden in conversations. ([#352](https://github.com/chattocorp/geordi/pull/352))
+- The Run tab shows a gold play icon while any workspace job is running. ([#346](https://github.com/chattocorp/geordi/pull/346))
+- You can stop busy agents and archive their workspace in one confirmation. ([#354](https://github.com/chattocorp/geordi/pull/354))
+- The website now explains what you need to install and how to review changes, follow pull requests and run the default workspace action. It also shows how Geordi keeps many agents at once manageable for you. ([#349](https://github.com/chattocorp/geordi/pull/349))
+- You can click anywhere in the Checks summary, including the status bar, to open or close the list. ([#344](https://github.com/chattocorp/geordi/pull/344))
+- You can keep typing in the conversation after you send, steer, or queue a message. ([#340](https://github.com/chattocorp/geordi/pull/340))
+
 ## 0.8.0-beta.1
 
 ### Fixes
