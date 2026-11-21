@@ -240,7 +240,6 @@
 		(folded.current = folded.current.includes(id)
 			? folded.current.filter((other) => other !== id)
 			: [...folded.current, id]);
-	let workspaceList: HTMLDivElement;
 
 	/** The two markers stay at the ends as groups expand, fold or move. */
 	function watchScrollEdges(list: HTMLElement) {
@@ -314,7 +313,7 @@
 </Dialog>
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col sheet-quiet select-none">
-	<nav class="relative flex min-h-0 flex-1 flex-col p-2 pb-6" aria-label="Main">
+	<nav class="flex min-h-0 flex-1 flex-col p-2" aria-label="Main">
 		<div
 			role="group"
 			aria-label="Workspace filters"
@@ -342,7 +341,7 @@
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
 		-->
-		<div class="peer scroller scroll-fade" bind:this={workspaceList} {@attach watchScrollEdges}>
+		<div class="scroller scroll-fade" {@attach watchScrollEdges}>
 			<div aria-hidden="true"></div>
 			{#if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
@@ -423,15 +422,6 @@
 			{/if}
 			<div aria-hidden="true"></div>
 		</div>
-		<button
-			type="button"
-			aria-label="Scroll to more workspaces"
-			title="Scroll to more workspaces"
-			class="absolute bottom-0 left-1/2 hidden h-6 w-10 -translate-x-1/2 place-items-center rounded-full bg-surface text-ink shadow-sm peer-[.more-below]:grid hover:bg-sunken"
-			onclick={() => workspaceList.scrollBy({ top: workspaceList.clientHeight * 0.8 })}
-		>
-			<span class="icon-[lucide--chevron-down] size-4"></span>
-		</button>
 	</nav>
 
 	<nav class="p-2" aria-label="Workspace navigation">

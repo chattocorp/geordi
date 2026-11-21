@@ -11,3 +11,5 @@ The sidebar archive supports search by title or repository. Restoring a conversa
 You can also restore a workspace from its row menu in Archive. Verified the menu order in Storybook and restored a sample workspace through the local forge and daemon.
 
 Archive groups matching workspaces by month. Verified the dark desktop and narrow light layouts in Chromium.
+
+The action ribbon pairs the Archived status with a compact Restore button. The archived workspace story covers its appearance.

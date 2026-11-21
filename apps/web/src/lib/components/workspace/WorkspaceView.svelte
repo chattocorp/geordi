@@ -692,12 +692,19 @@
 	// A link to an agent working alongside leads here, to its conversation (`?agent=`). So
 	// does beginning one: it takes the place of the window it was begun in.
 	$effect(() => {
-		const tab = `agent:${page.url.searchParams.get('agent')}`;
+		const requested = page.url.searchParams.get('agent');
+		if (!requested || page.params.id !== id) return;
+		const tab = requested === id ? CHAT : `agent:${requested}`;
 		untrack(() => {
-			const at = aideOf(tab) && areaOf(tab);
+			const at = areaOf(tab);
 			if (!at) return;
-			const begun = areaOf(DRAFT);
-			if (!begun) return arrange({ [at]: open(layouts[at], tab) });
+			void goto(resolve('/workspaces/[id]', { id }), {
+				shallow: true,
+				replace: true,
+				state: page.state
+			});
+			const begun = tab !== CHAT && areaOf(DRAFT);
+			if (!begun) return showTab(tab);
 			const group = groupsOf(layouts[begun]).find((group) => group.tabs.includes(DRAFT))!.id;
 			arrange(
 				begun === at
@@ -722,15 +729,17 @@
 		!!workspace.worktree && !!checked?.missing && !running && !workspace.archivedAt
 	);
 	const standingState = $derived(
-		workspace.archivedAt || !checked?.changes
-			? null
-			: {
-					changes: checked.changes,
-					upstream: checked.upstream,
-					continued: workspace.continued,
-					failed: workspace.lastTurn === 'failed',
-					child: !!workspace.parentId
-				}
+		workspace.archivedAt
+			? { archived: true, changes: null, upstream: null }
+			: !checked?.changes
+				? null
+				: {
+						changes: checked.changes,
+						upstream: checked.upstream,
+						continued: workspace.continued,
+						failed: workspace.lastTurn === 'failed',
+						child: !!workspace.parentId
+					}
 	);
 	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
 	const actions = $derived<WorkspaceAction[]>(
@@ -764,6 +773,7 @@
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
 					: pullActionPending(id, action) ||
+						(action.id === 'restore-workspace' && restoringWorkspace) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
 			)
@@ -852,6 +862,7 @@
 			mergeProblem = null;
 			await runPullAction(id, action);
 		} else if (action.id === 'restore-worktree') restore();
+		else if (action.id === 'restore-workspace') await reopen();
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
@@ -1148,18 +1159,14 @@
 				pull={standingState?.upstream?.pull}
 				actions={offered}
 				unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
-				disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
+				disabled={!workspace.archivedAt &&
+					!!git?.checking &&
+					git.changes?.branch !== checked?.changes?.branch}
 				{pending}
 				askingIn={askingAgent ? resolve('/workspaces/[id]', { id }) : undefined}
 				onopenpull={() => showTab(PR)}
 				onaction={act}
 			/>
-			{#if workspace.archivedAt}
-				<Badge>Archived</Badge>
-				<Button onclick={reopen} disabled={restoringWorkspace}
-					>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
-				>
-			{/if}
 		{/snippet}
 		{#snippet trailing()}
 			{#if !workspace.archivedAt && !project}

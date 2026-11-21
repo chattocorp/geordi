@@ -20,6 +20,7 @@
 		'enable-auto-merge': 'Enabling auto-merge',
 		'cancel-auto-merge': 'Disabling auto-merge',
 		'auto-merge': 'Merging when ready',
+		'restore-workspace': 'Restoring workspace',
 		'restore-worktree': 'Restoring worktree',
 		continue: 'Continuing on a new branch',
 		retry: 'Retrying',
