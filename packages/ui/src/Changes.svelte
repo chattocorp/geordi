@@ -4,6 +4,7 @@
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
+	import type { Attachment } from 'svelte/attachments';
 	import { fileTree, treeRows } from './tree.ts';
 	import type { Changes } from '@geordi/protocol';
 
@@ -30,6 +31,29 @@
 	/** Directories folded shut in the tree, by path; all are open to begin with. */
 	const folded = new SvelteSet<string>();
 	const rows = $derived(view === 'tree' ? treeRows(fileTree(files), folded) : []);
+
+	/**
+	 * A branch may change thousands of files: rows are drawn some hundred at a time, more as
+	 * the end of what is drawn comes near. (Not a virtualized list: one broke as the page
+	 * rendered another workspace in the background.)
+	 */
+	const PAGE = 200;
+	let drawn = $state(PAGE);
+	// shown another way, it starts again from the top
+	$effect.pre(() => {
+		void view;
+		drawn = PAGE;
+	});
+	const more: Attachment<HTMLElement> = (node) => {
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) drawn += PAGE;
+			},
+			{ root: node.closest('.scroller'), rootMargin: '600px' }
+		);
+		observer.observe(node);
+		return () => observer.disconnect();
+	};
 	const views: { value: View; label: string; icon: string }[] = [
 		{ value: 'list', label: 'As a list', icon: 'icon-[lucide--list]' },
 		{ value: 'tree', label: 'As a tree', icon: 'icon-[lucide--list-tree]' }
@@ -117,7 +141,7 @@
 			</div>
 		{:else if view === 'tree'}
 			<ul>
-				{#each rows as row (row.path)}
+				{#each rows.slice(0, drawn) as row (row.path)}
 					<li>
 						{#if row.kind === 'dir'}
 							<button
@@ -145,10 +169,13 @@
 			</ul>
 		{:else}
 			<ul>
-				{#each files as entry (entry.path)}
+				{#each files.slice(0, drawn) as entry (entry.path)}
 					<li>{@render file(entry)}</li>
 				{/each}
 			</ul>
+		{/if}
+		{#if listed && (view === 'tree' ? rows : files).length > drawn}
+			{#key drawn}<div class="h-px" {@attach more}></div>{/key}
 		{/if}
 	</div>
 </section>

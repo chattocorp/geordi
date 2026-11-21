@@ -1,5 +1,26 @@
 <script module lang="ts">
-	let context: CanvasRenderingContext2D | null;
+	let context: CanvasRenderingContext2D | null | undefined;
+	/**
+	 * Widths already measured, by font and text: shared by every path shown, so that a long
+	 * list (or a pane being resized) measures each text once. Started over when fonts load.
+	 */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
+	const widths = new Map<string, number>();
+	/** Counts the fonts that finished loading, so that paths are fitted again with them. */
+	let fontsLoaded = $state(0);
+	let listening = false;
+
+	function width(font: string, text: string) {
+		const key = `${font}\n${text}`;
+		let found = widths.get(key);
+		if (found === undefined) {
+			// (a long session would otherwise keep every text it ever fitted)
+			if (widths.size > 10_000) widths.clear();
+			context!.font = font;
+			widths.set(key, (found = context!.measureText(text).width));
+		}
+		return found;
+	}
 </script>
 
 <script lang="ts">
@@ -15,24 +36,25 @@
 
 	let room = $state<DOMRectReadOnly>();
 	let element: HTMLSpanElement;
-	let measure = $state<(text: string) => number>();
+	let font = $state<string>();
+	const measure = $derived.by(() => {
+		void fontsLoaded;
+		const used = font;
+		return used ? (text: string) => width(used, text) : undefined;
+	});
 
 	onMount(() => {
 		context ??= document.createElement('canvas').getContext('2d');
 		if (!context) return;
-
-		function useFont() {
-			const style = getComputedStyle(element);
-			const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-			measure = (text) => {
-				context!.font = font;
-				return context!.measureText(text).width;
-			};
+		if (!listening) {
+			listening = true;
+			document.fonts.addEventListener('loadingdone', () => {
+				widths.clear();
+				fontsLoaded++;
+			});
 		}
-
-		useFont();
-		document.fonts.addEventListener('loadingdone', useFont);
-		return () => document.fonts.removeEventListener('loadingdone', useFont);
+		const style = getComputedStyle(element);
+		font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
 	});
 	const fitted = $derived(fitPath(path, measure && room ? room.width : Infinity, measure));
 </script>

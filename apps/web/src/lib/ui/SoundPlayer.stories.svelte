@@ -22,6 +22,24 @@
 	}}
 />
 
+<Story
+	name="Far below"
+	asChild
+	play={async ({ canvas, canvasElement }) => {
+		const slider = canvas.getByRole('slider', { name: 'far.wav' });
+		const audio = canvasElement.querySelector('audio')!;
+		// nothing is fetched while it is far from the screen
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		await expect(audio.getAttribute('src')).toBeNull();
+		slider.scrollIntoView();
+		await waitFor(() => expect(slider).toHaveAttribute('aria-valuemax', '1'));
+	}}
+>
+	<div class="h-screen"></div>
+	<div class="h-screen"></div>
+	<SoundPlayer src={wav(440, 1)} label="far.wav" />
+</Story>
+
 <Story name="Before and after" asChild>
 	<div class="flex max-w-prose flex-col gap-2 card p-3">
 		<SoundPlayer src={wav(330, 1.5)} label="jump.wav, before" caption="Before" />
