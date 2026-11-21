@@ -81,7 +81,9 @@
 	/** Whether the sidebar groups workspaces by repository, or lists them as one. */
 	const grouped = persisted('geordi:grouped', true);
 
-	let todayOnly = $state(false);
+	/** Whether the sidebar shows only the workspaces active today. */
+	const today = persisted('geordi:today-only', false);
+	const todayOnly = $derived(today.current);
 	let day = $state('');
 	$effect(() => {
 		if (!todayOnly) return;
@@ -164,7 +166,7 @@
 				repositoryPickerOpen = true;
 			},
 			toggleGrouped: () => (grouped.current = !grouped.current),
-			toggleToday: () => (todayOnly = !todayOnly),
+			toggleToday: () => (today.current = !today.current),
 			setFocus: (repo) => (focus.current = repo),
 			setTheme: (next) => (theme.current = next)
 		})
@@ -263,7 +265,7 @@
 					{folded}
 					{focus}
 					{grouped}
-					bind:todayOnly
+					bind:todayOnly={() => today.current, (value) => (today.current = value)}
 					bind:repositoryPickerOpen
 				/>
 			</div>
