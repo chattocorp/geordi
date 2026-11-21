@@ -722,15 +722,17 @@
 		!!workspace.worktree && !!checked?.missing && !running && !workspace.archivedAt
 	);
 	const standingState = $derived(
-		workspace.archivedAt || !checked?.changes
-			? null
-			: {
-					changes: checked.changes,
-					upstream: checked.upstream,
-					continued: workspace.continued,
-					failed: workspace.lastTurn === 'failed',
-					child: !!workspace.parentId
-				}
+		workspace.archivedAt
+			? { archived: true, changes: null, upstream: null }
+			: !checked?.changes
+				? null
+				: {
+						changes: checked.changes,
+						upstream: checked.upstream,
+						continued: workspace.continued,
+						failed: workspace.lastTurn === 'failed',
+						child: !!workspace.parentId
+					}
 	);
 	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
 	const actions = $derived<WorkspaceAction[]>(
@@ -764,6 +766,7 @@
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
 					: pullActionPending(id, action) ||
+						(action.id === 'restore-workspace' && restoringWorkspace) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
 			)
@@ -852,6 +855,7 @@
 			mergeProblem = null;
 			await runPullAction(id, action);
 		} else if (action.id === 'restore-worktree') restore();
+		else if (action.id === 'restore-workspace') await reopen();
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
@@ -1148,18 +1152,14 @@
 				pull={standingState?.upstream?.pull}
 				actions={offered}
 				unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
-				disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
+				disabled={!workspace.archivedAt &&
+					!!git?.checking &&
+					git.changes?.branch !== checked?.changes?.branch}
 				{pending}
 				askingIn={askingAgent ? resolve('/workspaces/[id]', { id }) : undefined}
 				onopenpull={() => showTab(PR)}
 				onaction={act}
 			/>
-			{#if workspace.archivedAt}
-				<Badge>Archived</Badge>
-				<Button onclick={reopen} disabled={restoringWorkspace}
-					>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
-				>
-			{/if}
 		{/snippet}
 		{#snippet trailing()}
 			{#if !workspace.archivedAt && !project}

@@ -13,6 +13,7 @@ export const ACTION_IDS = [
 	'ready-for-review',
 	'merge-pull',
 	'restore-worktree',
+	'restore-workspace',
 	'retry',
 	'continue',
 	'archive'
@@ -47,6 +48,7 @@ export type WorkspaceAction = {
 export type ActivityId = WorkspaceAction['id'] | 'working' | 'auto-merge';
 
 type State = {
+	archived?: boolean;
 	/** `null` while unknown (no daemon, or not asked yet). */
 	changes:
 		| (Pick<Changes, 'files' | 'uncommitted' | 'unpushed' | 'unknownForge'> & {
@@ -86,6 +88,8 @@ const mergeFrom = (branch: string | null) =>
  * presents as *the* next step.
  */
 export function actionsFor(state: State): WorkspaceAction[] {
+	if (state.archived)
+		return [{ id: 'restore-workspace', label: 'Restore', icon: 'icon-[lucide--archive-restore]' }];
 	const actions = nextActions(state);
 	const incoming = state.changes?.incoming;
 	const pull = state.upstream?.pull;
@@ -304,6 +308,7 @@ export const FORGE_SETUP_URL =
  * next to the actions. `null` when there is nothing worth saying.
  */
 export function standingOf(state: State): WorkspaceStanding | null {
+	if (state.archived) return { label: 'Archived', tone: 'neutral', icon: 'icon-[lucide--archive]' };
 	const { changes, upstream } = state;
 	if (!changes) return null;
 	if (state.failed)
