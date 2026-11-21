@@ -28,6 +28,7 @@ import { TerminalOutput } from './terminal-output.ts';
 import { nativeSubagents } from './subagents.ts';
 import { ToolInfos } from './tool-info.ts';
 import { ToolDiffs } from './diffs.ts';
+import { Compactions } from './compactions.ts';
 import { promptSuggestion } from './suggestions.ts';
 import { limitsIn } from './limits.ts';
 import { API_SERVER, type SessionOptions } from './adapter.ts';
@@ -135,6 +136,7 @@ export function connectAgent(
 	// Codex uses the tool call ID for its ACP terminal. Keep only a transcript-sized prefix.
 	const terminalOutput = new TerminalOutput();
 	const diffs = new ToolDiffs();
+	const compactions = new Compactions();
 	const questions = sessionQuestions(provider, () => id, emit);
 	let cost: ContextUsage['cost'];
 	/** The commands last passed on, to pass them on again only when they change. */
@@ -154,6 +156,14 @@ export function connectAgent(
 	}
 	function update(u: SessionUpdate) {
 		if (terminalOutput.receive(u)) return;
+		// what the agent said before it compacts comes first
+		if (
+			compactions.receive(u, (event) => {
+				flush();
+				emit(event);
+			})
+		)
+			return;
 		// Before the switch: the same update may carry other news (a title) for a case below.
 		const suggestion = promptSuggestion(u);
 		if (suggestion !== undefined) emit({ kind: 'suggestion', text: suggestion });

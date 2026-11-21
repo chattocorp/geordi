@@ -2,6 +2,7 @@ import type { TurnDiff, TurnUsage } from '@geordi/protocol';
 import type { SubagentItem, TranscriptItem } from '#lib/server/workspaces.ts';
 
 import { isBrowserCompletion } from './agent-directives.ts';
+import { tokens } from './tokens.ts';
 
 export type TurnChanges = { number: number; diff: TurnDiff };
 
@@ -28,7 +29,21 @@ export type Block =
 	 * long they `took` (ms), where they said when they began.
 	 */
 	| { kind: 'agent'; parts: Part[]; changes?: TurnChanges; usage?: TurnUsage; took?: number }
-	| { kind: 'note'; text: string };
+	/** `working`: what it says is still going on. */
+	| { kind: 'note'; text: string; working?: boolean };
+
+/** What a compaction says in passing. */
+export function compactionNote(item: Extract<TranscriptItem, { kind: 'compaction' }>) {
+	const { status, tokensBefore: before, tokensAfter: after } = item;
+	if (status === 'running') return 'Compacting the conversation';
+	if (status === 'failed') return 'Could not compact the conversation';
+	if (status === 'cancelled') return 'Stopped compacting the conversation';
+	const counts =
+		before !== undefined && after !== undefined
+			? `, ${tokens(before)} → ${tokens(after)} tokens`
+			: '';
+	return `Compacted the conversation${counts}`;
+}
 
 /** Groups a flat transcript into turns, merging consecutive tool calls into one part. */
 export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): Block[] {
@@ -49,6 +64,11 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 			blocks.push({ kind: 'note', text: item.text });
 			continue;
 		}
+		if (item.kind === 'compaction') {
+			const working = item.status === 'running';
+			blocks.push({ kind: 'note', text: compactionNote(item), ...(working && { working }) });
+			continue;
+		}
 		if (item.kind === 'user') {
 			blocks.push({
 				kind: 'user',
@@ -62,7 +82,8 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 
 		if (item.kind === 'turn') {
 			turnNumber++;
-			let agent = blocks.at(-1);
+			// the reply it ends, before anything said in passing since (a compaction)
+			let agent = blocks.findLast((block) => block.kind !== 'note');
 			if (item.diff && (agent?.kind !== 'agent' || agent.changes))
 				blocks.push((agent = { kind: 'agent', parts: [] }));
 			if (agent?.kind !== 'agent') continue;

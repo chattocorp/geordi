@@ -155,6 +155,31 @@ describe('workspaces', () => {
 		});
 	});
 
+	it('keeps a compaction where it began, and ends one left running with its turn', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Keep going');
+		workspaces.record(id, { kind: 'compaction', id: 'c1', status: 'running' });
+		workspaces.record(id, { kind: 'text', text: 'Carrying on.' });
+		const began = workspaces.get(id).transcript[1].at;
+		workspaces.record(id, {
+			kind: 'compaction',
+			id: 'c1',
+			status: 'completed',
+			tokensBefore: 183000,
+			tokensAfter: 21000
+		});
+		workspaces.record(id, { kind: 'compaction', id: 'c2', status: 'running' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).transcript).toMatchObject([
+			{ kind: 'user' },
+			{ kind: 'compaction', id: 'c1', status: 'completed', tokensAfter: 21000, at: began },
+			{ kind: 'text' },
+			{ kind: 'compaction', id: 'c2', status: 'cancelled' },
+			{ kind: 'turn' }
+		]);
+	});
+
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
 		const { workspaces, create, store, repos, dispatch } = setup();
 		const id = create('Plan the change');

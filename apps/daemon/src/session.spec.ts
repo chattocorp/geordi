@@ -71,6 +71,17 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    update({sessionUpdate:'plan_removed',planId:'review'});
    items('plan',[]);return done();
   }
+  if(said==='compact'){
+   const air=(facts)=>({jetbrains:{air:{version:1,contextCompaction:{version:1,...facts}}}});
+   text('Before.');
+   update({sessionUpdate:'compaction_update',compactionId:'c1',status:'in_progress',_meta:air({})});
+   update({sessionUpdate:'compaction_summary_chunk',compactionId:'c1',content:{type:'text',text:'Kept '}});
+   update({sessionUpdate:'compaction_summary_chunk',compactionId:'c1',content:{type:'text',text:'this.'}});
+   const end={sessionUpdate:'compaction_update',compactionId:'c1',status:'completed'};
+   update(end);update({...end,_meta:air({trigger:'automatic',preTokens:180000,postTokens:20000})});update(end);
+   update({sessionUpdate:'compaction_update',compactionId:'c2',status:'failed',error:'Too short'});
+   return done();
+  }
   if(said==='titles'){
    update({sessionUpdate:'session_info_update',_meta:{codex:{threadStatus:{type:'active'}}}});
    out({method:'session/update',params:{sessionId:'child',update:{sessionUpdate:'session_info_update',title:'A subagent'}}});
@@ -444,6 +455,26 @@ describe('a session', () => {
 			{ kind: 'message.received', id: 'second' },
 			{ kind: 'turn.started' },
 			{ kind: 'text', text: 'Heard: again' },
+			{ kind: 'turn.completed' }
+		]);
+	});
+
+	it('says when the agent compacts and how it ended, without its summary', async () => {
+		const { events, ended } = begin('compact');
+		await ended(1);
+		expect(events.slice(2)).toEqual([
+			{ kind: 'text', text: 'Before.' },
+			{ kind: 'compaction', id: 'c1', status: 'running' },
+			// Claude says the end, then again with the counts
+			{ kind: 'compaction', id: 'c1', status: 'completed' },
+			{
+				kind: 'compaction',
+				id: 'c1',
+				status: 'completed',
+				tokensBefore: 180000,
+				tokensAfter: 20000
+			},
+			{ kind: 'compaction', id: 'c2', status: 'failed' },
 			{ kind: 'turn.completed' }
 		]);
 	});
