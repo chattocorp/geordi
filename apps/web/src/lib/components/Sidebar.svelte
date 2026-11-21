@@ -349,8 +349,6 @@
 					{@const rows = unfolded(all, folded.current)}
 					{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
 					{@const focused = focus.current === repo.id}
-					{@const newHref = `${resolve('/')}?${repo.id === null ? 'project' : `repo=${repo.id}`}`}
-					{@const newLabel = repo.id === null ? 'New project' : `New workspace in ${repo.name}`}
 					<div class="pb-4" transition:slide={motion()}>
 						<!--
 				A label for what is under it: its picture, its name (quiet, by its colour: the
@@ -390,16 +388,20 @@
 									<span class="icon-[lucide--search] size-4"></span>
 								</button>
 							{/if}
-							<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
-							<a
-								href={newHref}
-								class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:visible"
-								title={newLabel}
-								aria-label={newLabel}
-							>
-								<span class="icon-[lucide--plus] size-4"></span>
-							</a>
-							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							<!-- no new projects (FDR-012): only repositories start something new -->
+							{#if repo.id !== null}
+								{@const newLabel = `New workspace in ${repo.name}`}
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
+								<a
+									href={`${resolve('/')}?repo=${repo.id}`}
+									class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:visible"
+									title={newLabel}
+									aria-label={newLabel}
+								>
+									<span class="icon-[lucide--plus] size-4"></span>
+								</a>
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							{/if}
 						</div>
 						{#if !isFolded}
 							<ul
