@@ -1318,7 +1318,9 @@ export function createWorkspaces(
 		lock(id: string, locked: boolean, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			// not while it is being archived: its worktree may be on its way out already
+			// an agent working alongside goes with the workspace it works in, which is what is locked
+			if (workspace.worktreeId !== id) error(409, 'Lock the workspace this agent works in');
+			// not while it is busy (being archived, say): its worktree may be on its way out already
 			refuseHeld(id);
 			if (workspace.locked === locked) return;
 			store.append(

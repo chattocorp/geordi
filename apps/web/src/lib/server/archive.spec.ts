@@ -121,6 +121,13 @@ describe('archiving', () => {
 		expect(() => workspaces.lock(child, true)).toThrow();
 	});
 
+	it('locks the workspace an agent works alongside in, not the agent itself', () => {
+		const { workspaces, lead, start } = setup();
+		const reviewer = start(lead, 'shared', 'Review');
+		expect(() => workspaces.lock(reviewer, true)).toThrow();
+		expect(workspaces.get(reviewer).locked).toBe(false);
+	});
+
 	it('cannot lock a workspace while it is being archived', async () => {
 		const { workspaces, lead } = setup();
 		const removing = Promise.withResolvers<void>();

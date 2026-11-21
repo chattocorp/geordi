@@ -131,6 +131,10 @@ describe('actionsFor', () => {
 		const merged = actionsFor({ changes: clean, upstream: upstream({ state: 'merged' }), locked });
 		// carrying on is then the next step, not one beside it
 		expect(merged).toMatchObject([{ id: 'continue', aside: false }]);
+		// its work landed without a pull request: it carries on instead of being archived
+		expect(ids({ changes: { ...clean, landed: true }, upstream: null, locked })).toEqual([
+			'continue'
+		]);
 		const incoming = { branch: 'refs/heads/main', commits: 2 };
 		expect(actionsFor({ changes: { ...clean, incoming }, upstream: null, locked })).toMatchObject([
 			{ id: 'merge-upstream', aside: false }
