@@ -3,7 +3,7 @@
 	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Page from '#lib/ui/Page.svelte';
-	import { contextMenu } from '#lib/ui/menu.svelte.ts';
+	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import WaitingForView from './WaitingForView.svelte';
 	import type { ArchiveEntry } from '#lib/server/views.ts';
@@ -11,10 +11,11 @@
 	type Props = {
 		entries?: ArchiveEntry[];
 		lost?: boolean;
+		onrestore?: (id: string) => Promise<void>;
 		/** Deletes these workspaces for good; says how many went and how many bytes smaller the log got. */
 		onpurge?: (ids: string[]) => Promise<{ purged: number; freed: number }>;
 	};
-	let { entries, lost = false, onpurge }: Props = $props();
+	let { entries, lost = false, onrestore, onpurge }: Props = $props();
 	let search = $state('');
 	const filtered = $derived(
 		entries?.filter(({ title, repository }) =>
@@ -28,6 +29,42 @@
 	let problem = $state<string | null>(null);
 	/** What the last deletion did. */
 	let outcome = $state<string | null>(null);
+
+	let restoring = $state<Record<string, boolean>>({});
+	let restoreProblems = $state<Record<string, string>>({});
+
+	async function restore(id: string) {
+		if (!onrestore || restoring[id]) return;
+		restoring[id] = true;
+		delete restoreProblems[id];
+		try {
+			await onrestore(id);
+		} catch (error) {
+			restoreProblems[id] = problemOf(error, 'Could not restore the workspace');
+		} finally {
+			delete restoring[id];
+		}
+	}
+
+	function menu(entry: ArchiveEntry): MenuItem[] {
+		const items: MenuItem[] = [];
+		if (onrestore)
+			items.push({
+				label: 'Restore workspace',
+				icon: 'icon-[lucide--archive-restore]',
+				disabled: restoring[entry.id],
+				onselect: () => restore(entry.id)
+			});
+		if (onpurge)
+			items.push({
+				label: 'Delete permanently…',
+				icon: 'icon-[lucide--trash-2]',
+				tone: 'danger',
+				disabled: restoring[entry.id],
+				onselect: () => ask([entry])
+			});
+		return items;
+	}
 
 	function ask(chosen: ArchiveEntry[]) {
 		problem = null;
@@ -90,18 +127,7 @@
 					<a
 						class="item justify-between gap-4 px-3 py-2"
 						href={resolve('/workspaces/[id]', { id: entry.id })}
-						{@attach contextMenu(() =>
-							onpurge
-								? [
-										{
-											label: 'Delete permanently…',
-											icon: 'icon-[lucide--trash-2]',
-											tone: 'danger',
-											onselect: () => ask([entry])
-										}
-									]
-								: []
-						)}
+						{@attach contextMenu(() => menu(entry))}
 					>
 						<span class="min-w-0"
 							><span class="block truncate font-medium text-ink">{entry.title}</span><span
@@ -109,9 +135,14 @@
 							></span
 						>
 						<time class="shrink-0 text-xs text-muted" datetime={entry.archivedAt}
-							>{new Date(entry.archivedAt).toLocaleDateString()}</time
+							>{restoring[entry.id]
+								? 'Restoring…'
+								: new Date(entry.archivedAt).toLocaleDateString()}</time
 						>
 					</a>
+					{#if restoreProblems[entry.id]}
+						<p class="px-3 text-sm text-danger" role="alert">{restoreProblems[entry.id]}</p>
+					{/if}
 				</li>
 			{:else}
 				<li class="empty">No matching workspaces.</li>

@@ -1,6 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+	import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
+	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import Archive from './Archive.svelte';
 	const { Story } = defineMeta({ title: 'Geordi/Archive', component: Archive });
 	const entries = [
@@ -81,3 +82,27 @@
 		);
 	}}
 />
+
+<Story
+	name="Restore from the row menu"
+	args={{
+		entries,
+		onrestore: fn(async () => {}),
+		onpurge: fn(async () => ({ purged: 1, freed: 0 }))
+	}}
+	play={async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.contextMenu(canvas.getByText('Publish the release guide'));
+		const [restore, remove] = await canvas.findAllByRole('menuitem');
+		await expect(restore).toHaveAccessibleName('Restore workspace');
+		await expect(remove).toHaveAccessibleName('Delete permanently…');
+		await userEvent.click(restore);
+		await expect(args.onrestore).toHaveBeenCalledWith('release');
+		await expect(args.onpurge).not.toHaveBeenCalled();
+	}}
+>
+	{#snippet template(args)}
+		<Archive {...args} />
+		<ContextMenu />
+	{/snippet}
+</Story>
