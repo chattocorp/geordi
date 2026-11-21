@@ -882,12 +882,19 @@
 	const working = $derived(running || workspace.aides.some((aide) => aide.status === 'running'));
 	/**
 	 * What is offered now: not publishing while an agent is at work (`PUBLISHING`). One that
-	 * was asked for already stays, to show that it is under way.
+	 * was asked for already stays, to show that it is under way. Continuing moves the files
+	 * under every agent in the worktree: it waits until none is at work.
 	 */
 	const offered = $derived(
-		actions.filter(
-			(action) => !working || !PUBLISHING.includes(action.id) || pending.includes(action.id)
-		)
+		actions
+			.filter(
+				(action) => !working || !PUBLISHING.includes(action.id) || pending.includes(action.id)
+			)
+			.map((action) =>
+				working && action.id === 'continue'
+					? { ...action, unavailable: 'Continue once the agent is done' }
+					: action
+			)
 	);
 
 	async function act(action: WorkspaceAction) {
@@ -959,7 +966,7 @@
 						.map(([tab, label, icon]) => ({ tab, label, icon })),
 			sideOpen: project || workspace.archivedAt ? null : frame.current.open,
 			changedFiles: git?.changes?.files.map((file) => file.path) ?? [],
-			actions: offered.filter((action) => !pending.includes(action.id)),
+			actions: offered.filter((action) => !pending.includes(action.id) && !action.unavailable),
 
 			show: (tab) => {
 				if (terminalOf(tab)) return showShell(tab);
