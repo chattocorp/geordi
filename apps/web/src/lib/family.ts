@@ -13,7 +13,7 @@ export type Listed<T> = {
 	depth: number;
 };
 
-type Activity = { updatedAt: string; deferred?: boolean };
+type Activity = { updatedAt: string; deferred: boolean };
 
 /** Compare calendar days in the viewer's time zone. */
 export function isActiveOnDay(workspace: Activity, day: string) {

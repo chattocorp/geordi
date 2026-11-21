@@ -345,7 +345,7 @@ export type Workspace = {
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	createdAt: string;
-	deferred?: boolean;
+	deferred: boolean;
 	updatedAt: string;
 	transcript: TranscriptItem[];
 };
@@ -384,6 +384,7 @@ function initialWorkspace(
 		briefing: null,
 		archivedAt: null,
 		createdAt: at,
+		deferred: false,
 		updatedAt: at,
 		transcript: []
 	};

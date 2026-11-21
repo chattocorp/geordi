@@ -62,6 +62,7 @@
 		standing: null,
 		actions: [],
 		branch: `geordi/${id}`,
+		deferred: false,
 		updatedAt: '2026-11-18T12:00:00.000Z',
 		...rest
 	});
