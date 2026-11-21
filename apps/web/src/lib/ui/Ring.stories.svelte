@@ -44,3 +44,17 @@
 		/>
 	</div>
 </Story>
+
+<Story name="With a core" asChild>
+	<div class="flex items-center gap-4">
+		<Ring
+			label="1 running, 2 passed · merges automatically"
+			parts={[
+				{ size: 2, tone: 'ok' },
+				{ size: 1, tone: 'accent' }
+			]}
+			core="ok"
+		/>
+		<Ring label="Running · merges automatically" parts={[{ size: 1, tone: 'accent' }]} core="ok" />
+	</div>
+</Story>

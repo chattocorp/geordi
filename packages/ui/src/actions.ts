@@ -293,6 +293,8 @@ export type WorkspaceStanding = {
 	icon: string;
 	/** While checks run: how many of them stand how, where the forge says. */
 	checks?: CheckCounts;
+	/** While checks run: the pull request merges by itself once they pass. */
+	autoMerge?: boolean;
 	/** The sidebar animation for this standing. */
 	activity?: 'auto-merge';
 	/** More on what it means, and where to read what to do about it. */
@@ -371,7 +373,8 @@ export function standingOf(state: State): WorkspaceStanding | null {
 			label: pull.checks.optionalChecksRunning ? 'Optional checks running' : 'Checks running',
 			tone: 'neutral',
 			icon: 'icon-[lucide--circle-dashed] motion-safe:animate-checks-spin',
-			checks: pull.checks.counts
+			checks: pull.checks.counts,
+			autoMerge: pull.autoMerge?.enabled
 		};
 	if (pull.autoMerge?.enabled)
 		return {

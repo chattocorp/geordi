@@ -156,7 +156,9 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		await expect(
-			within(canvasElement).getByRole('img', { name: 'Checks: 1 running, 2 passed' })
+			within(canvasElement).getByRole('img', {
+				name: 'Checks: 1 running, 2 passed · merges automatically'
+			})
 		).toBeVisible();
 	}}
 >

@@ -301,6 +301,10 @@ describe('standingOf', () => {
 			'Changes requested'
 		);
 		expect(label({ changes, upstream: upstream({ checks: pending }) })).toBe('Checks running');
+		const autoMerge = { enabled: true, canEnable: false, canDisable: true };
+		expect(
+			standingOf({ changes, upstream: upstream({ checks: pending, autoMerge }) })
+		).toMatchObject({ label: 'Checks running', autoMerge: true });
 		expect(standingOf({ changes, upstream: upstream({ draft: true }) })).toBeNull();
 	});
 

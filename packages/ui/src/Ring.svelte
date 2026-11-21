@@ -4,14 +4,16 @@
 	 * passed, failed, still run). Each part takes its share of the ring, in its colour; an
 	 * `empty` part takes its share and leaves it bare (what is left of something). An
 	 * `accent` part is something still running: a light goes round it (`ring-running`).
+	 * A `core` fills the middle with a dot in its tone: what follows once the ring is full.
 	 */
 	type Tone = 'ok' | 'danger' | 'accent' | 'neutral' | 'muted' | 'empty';
 	type Props = {
 		parts: { size: number; tone: Tone }[];
 		/** What it shows, in words. */
 		label: string;
+		core?: 'ok';
 	};
-	let { parts, label }: Props = $props();
+	let { parts, label, core }: Props = $props();
 
 	const R = 6;
 	const AROUND = 2 * Math.PI * R;
@@ -66,6 +68,9 @@
 				stroke-dashoffset={-arc.at}
 			/>
 		{/each}
+		{#if core === 'ok'}
+			<circle cx="8" cy="8" r="2" class="fill-ok" />
+		{/if}
 	</svg>
 	{#if running}
 		<!-- the light: an HTML layer, so that it turns on the GPU (`ring-running`) -->
