@@ -158,7 +158,7 @@
 			<WorkspaceActivity activity={visibleStanding.activity} />
 		{:else if visibleStanding}
 			<StandingIcon standing={visibleStanding} />
-		{:else if locked}
+		{:else if locked && !waiting}
 			<StatusIcon label="Locked: can't be archived">
 				<span class="icon-[heroicons--lock-closed-solid] size-4"></span>
 			</StatusIcon>

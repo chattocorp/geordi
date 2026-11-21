@@ -121,6 +121,23 @@ describe('archiving', () => {
 		expect(() => workspaces.lock(child, true)).toThrow();
 	});
 
+	it('cannot lock a workspace while it is being archived', async () => {
+		const { workspaces, lead } = setup();
+		const removing = Promise.withResolvers<void>();
+		const archive = createArchiver({
+			workspaces,
+			closeTerminals: () => {},
+			removeWorktree: () => removing.promise,
+			closeProject: async () => {}
+		});
+		const archiving = archive(lead, false);
+		expect(() => workspaces.lock(lead, true)).toThrow();
+		removing.resolve();
+		await archiving;
+		expect(workspaces.get(lead).archivedAt).not.toBeNull();
+		expect(workspaces.get(lead).locked).toBe(false);
+	});
+
 	it('keeps reviewers with their worktrees across an A → B → A delegation chain', async () => {
 		const { workspaces, repos, store, archive, lead, start, removed, closed } = setup();
 		const local = start(lead, 'own', 'Local work');

@@ -14,7 +14,8 @@ Some workspaces are meant to last: a release workspace, a scratchpad, one that c
 - Geordi doesn't offer to archive a locked workspace. Archive isn't in its context menu, its ribbon or its next steps. If something else would have been offered next to Archive (**Continue** after a merge, **Sync**), that becomes the next step.
 - Archiving takes along the agents a workspace started and those working in its worktree. If any of them is locked, nothing is archived, and Geordi names the locked workspace.
 - Agents can't archive a locked workspace either. The agent API refuses, and it has no way to lock or unlock.
-- A lock lasts until a person unlocks the workspace, across restarts. Archived workspaces can't be locked.
+- A lock lasts until a person unlocks the workspace, across restarts. Archived workspaces, and workspaces being archived, can't be locked.
+- An agent working alongside in another workspace's worktree (a conversation tab there) isn't locked on its own. Locking the workspace it works in keeps that workspace and its worktree; the agent's own conversation can still be closed.
 
 ## Design Decisions
 
