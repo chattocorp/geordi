@@ -67,7 +67,7 @@
 	{#if failed.includes(src)}
 		<p class="text-sm text-muted">This image could not be displayed.</p>
 	{:else if sound}
-		<div class="mx-auto max-w-prose card p-3"><SoundPlayer {src} label={path} /></div>
+		<div class="m-auto w-full max-w-prose card p-3"><SoundPlayer {src} label={path} /></div>
 	{:else}
 		<button
 			type="button"
@@ -114,22 +114,25 @@
 {/if}
 
 {#if versions && sounds}
-	<div class="scroller p-5">
-		<div class="mx-auto flex max-w-prose flex-col gap-2 card p-3">
+	<!-- each version a pill of its own, the two in the middle of the pane -->
+	<div class="scroller flex flex-col p-5">
+		<div class="m-auto flex w-full max-w-prose flex-col gap-3">
 			{#each versions as { label, preview }, index (label)}
-				{#if preview?.sound}
-					<SoundPlayer
-						src={preview.src}
-						label={`${path}, ${label.toLowerCase()}`}
-						caption={label}
-						bind:duration={durations[index]}
-						span={Math.max(...durations)}
-					/>
-				{:else}
-					<p class="flex h-9 items-center gap-3 text-sm text-muted">
-						<span class="w-12 label">{label}</span> No sound in this version.
-					</p>
-				{/if}
+				<div class="card p-3">
+					{#if preview?.sound}
+						<SoundPlayer
+							src={preview.src}
+							label={`${path}, ${label.toLowerCase()}`}
+							caption={label}
+							bind:duration={durations[index]}
+							span={Math.max(...durations)}
+						/>
+					{:else}
+						<p class="flex h-9 items-center gap-3 text-sm text-muted">
+							<span class="w-12 label">{label}</span> No sound in this version.
+						</p>
+					{/if}
+				</div>
 			{/each}
 		</div>
 	</div>
@@ -149,7 +152,7 @@
 		</div>
 	</div>
 {:else if rich && (mode === 'rendered' || typeof file !== 'string')}
-	<div class="scroller p-5">
+	<div class="scroller p-5" class:flex={shown?.sound}>
 		{#if shown}
 			{@render show(shown)}
 		{:else if typeof file === 'string'}
