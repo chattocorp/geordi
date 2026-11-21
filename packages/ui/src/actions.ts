@@ -159,7 +159,7 @@ function nextActions(state: State): WorkspaceAction[] {
 						id: 'commit',
 						label: 'Commit',
 						icon: 'icon-[lucide--git-commit-horizontal]',
-						prompt: 'Nice work. Commit the uncommitted changes, with clear commit messages.'
+						prompt: 'Commit the uncommitted changes, with clear commit messages.'
 					}
 				]
 			: [];
@@ -172,7 +172,7 @@ function nextActions(state: State): WorkspaceAction[] {
 						label: 'Create PR',
 						icon: 'icon-[lucide--git-pull-request-create]',
 						prompt:
-							'Thank you, you did well here. Commit any uncommitted changes with clear commit messages, push this branch, and open a pull request for it. Give it a title and a description that explain the change and why.'
+							'Commit any uncommitted changes with clear commit messages, push this branch, and open a pull request for it. Give it a title and a description that explain the change and why.'
 					}
 				]
 			: [];
@@ -204,21 +204,21 @@ function nextActions(state: State): WorkspaceAction[] {
 			id: 'fix-checks',
 			label: 'Fix errors',
 			icon: 'icon-[lucide--wrench]',
-			prompt: `Almost there: the checks on ${number} are failing. Find out which and why, fix the cause, then commit and push.`
+			prompt: `The checks on ${number} are failing. Find out which and why, fix the cause, then commit and push.`
 		});
 	if (pull.review === 'changes_requested')
 		actions.push({
 			id: 'address-review',
 			label: 'Address review',
 			icon: 'icon-[lucide--message-square-reply]',
-			prompt: `Thanks for the work so far. Changes were requested on ${number}. Read the review comments and address them, then commit and push. Reply to comments where that helps the reviewer.`
+			prompt: `Changes were requested on ${number}. Read the review comments and address them, then commit and push. Reply to comments where that helps the reviewer.`
 		});
 	if (local)
 		actions.push({
 			id: 'update-pull',
 			label: 'Update PR',
 			icon: 'icon-[lucide--git-pull-request-arrow]',
-			prompt: `Good progress, thank you. Commit any uncommitted changes with clear commit messages and push them to ${number}. Update its description if the change calls for it.`
+			prompt: `Commit any uncommitted changes with clear commit messages and push them to ${number}. Update its description if the change calls for it.`
 		});
 
 	if (pull.draft && upstream.forge === 'github')
