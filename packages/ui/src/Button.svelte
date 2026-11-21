@@ -58,16 +58,19 @@
 					? 'bg-ok text-on-ok'
 					: 'bg-accent text-on-accent'
 		],
-		secondary: 'rounded-full bg-sunken font-medium inset-ring-1 inset-ring-line hover:bg-hover',
+		secondary: 'rounded-full bg-sunken font-medium shadow-soft hover:bg-hover',
 		ghost: 'rounded-control font-medium text-muted hover:bg-hover hover:text-ink',
 		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20',
 		tool: 'rounded-control text-muted hover:text-ink aria-checked:bg-sunken aria-checked:text-ink aria-pressed:bg-sunken aria-pressed:text-ink'
 	});
-	const shapes = {
+	// A pill with a bare icon is a circle as tall as a pill with text, so that the two line
+	// up side by side; ghost and tool icons are smaller, to sit quietly in bars and rows.
+	const pill = $derived(variant !== 'ghost' && variant !== 'tool');
+	const shapes = $derived({
 		// with text, and as a bare icon
-		md: ['h-9 gap-2 text-sm', 'size-8'],
-		sm: ['h-7 gap-1.5 text-xs', 'size-6']
-	};
+		md: ['h-9 gap-2 text-sm', pill ? 'size-9' : 'size-8'],
+		sm: ['h-7 gap-1.5 text-xs', pill ? 'size-7' : 'size-6']
+	});
 </script>
 
 <button
