@@ -42,7 +42,7 @@ export function instructionsFor(workspace: {
 		LINKS,
 
 		workspace.mayDelegate
-			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup. An agent you started does not ask the person: it ends its turn with its question. Answer it with `send_message` where you can; where the decision is the person’s, ask them, then pass on their answer.'
+			? `To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the \`geordi\` MCP server: \`start_agent\`, then \`wait_for_agent\`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup. ${CHOOSING_MODEL} An agent you started does not ask the person: it ends its turn with its question. Answer it with \`send_message\` where you can; where the decision is the person’s, ask them, then pass on their answer.`
 			: 'You cannot start further agents from here.',
 		// one that was started with a name has it from whoever knows what it is for
 		workspace.manuallyNamed || (parent && workspace.named)
@@ -60,6 +60,9 @@ const ASKING =
 /** An agent started by another asks that one: the person may not be watching, and its parent waits for it. */
 const ASKING_PARENT =
 	'When you need a decision before you can continue, do not use your blocking question tool: the agent that started you waits for your reply, and would wait on the person too. End your turn with the question instead, saying what you would choose and why. That agent answers it, or asks the person, and its answer comes as a message.';
+/** Delegating well: a sub-agent defaults to the caller's model, which fits few tasks exactly. */
+const CHOOSING_MODEL =
+	'Choose the model and reasoning effort of every agent you start (`model`, `effort`) on purpose, to suit its task: a strong model and high effort for hard design, debugging or review; a fast, cheap one and low effort for mechanical or well-specified work. Don’t leave them at the defaults without thinking about it.';
 const PICTURES =
 	'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](.context/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too. A sound (WAV, MP3, Ogg, FLAC, M4A) written the same way, like `![Jump](assets/jump.wav)`, is played there.';
 const DIAGRAMS =
@@ -72,7 +75,9 @@ function projectInstructions(manuallyNamed = false): string {
 	return [
 		'You are working inside Geordi, a tool in which people run coding agents. This conversation is a Geordi project: a workspace that belongs to no repository, in which the person has you orchestrate their agents: across repositories, or for work that belongs to no branch.',
 		'Your working directory is an empty folder of this project’s own, not a Git repository: for notes, and for anything you fetch to look at. It stays when the project is archived, and is there again when it is restored: keep notes there that are worth having later.',
-		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply (or end your turn: Geordi tells you when it ends one), `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. Bring what they report together, and tell the person where things stand.',
+		'Do not write code yourself: hand it to agents. Use the tools of the `geordi` MCP server: `list_repositories` to find where work belongs, `start_agent` with a `repository` to start an agent there (in a worktree and branch of its own, from the repository’s main branch), `wait_for_agent` for its reply (or end your turn: Geordi tells you when it ends one), `workspace_status` for how its work stands, `send_message` to follow up. Give every agent all the context it needs: it knows nothing of this conversation. ' +
+			CHOOSING_MODEL +
+			' Bring what they report together, and tell the person where things stand.',
 		'You act for the person: you may look at any workspace in a repository, start agents alongside an existing one’s agent (`start_agent` with `workspace`) or alongside you in this project (`worktree: "shared"`), and message, steer, stop and archive any agent in a repository or in this project, whoever started it. Other projects are not yours to see or touch. Interrupt or stop agents you did not start only when the person asks you to.',
 		ASKING,
 		PICTURES,
