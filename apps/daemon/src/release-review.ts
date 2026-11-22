@@ -51,7 +51,9 @@ async function mergeTree(worktree: Worktree, base: string, target: Target) {
 		return (await gitIn(worktree, 'merge-tree', '--write-tree', base, target.head)).trim();
 	} catch (error) {
 		if (error instanceof Error && 'code' in error && error.code === 1)
-			throw new Error(`The pull request has merge conflicts with ${target.branch}`);
+			throw new Error(`The pull request has merge conflicts with ${target.branch}`, {
+				cause: error
+			});
 		throw error;
 	}
 }
