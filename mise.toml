@@ -1,5 +1,5 @@
 [tools]
-"github:chattocorp/sweet-release" = "latest"
+"github:chattocorp/sweet-release" = { version = "latest", version_prefix = "sweet@" }
 "github:hmans/means" = "latest"
 node = "lts"
 pnpm = "latest"
