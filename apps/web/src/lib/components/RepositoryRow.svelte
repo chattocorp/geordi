@@ -60,7 +60,7 @@
 			aria-hidden="true"
 			class="grid size-8 shrink-0 place-items-center rounded-control bg-sunken"
 		>
-			<RepoIcon id={repo.id} />
+			<RepoIcon id={repo.id} name={repo.name} />
 		</span>
 		<span class="min-w-0 flex-1">
 			<span class="block truncate text-sm font-medium">{repo.name}</span>

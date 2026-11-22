@@ -149,7 +149,7 @@
 										aria-hidden="true"
 									>
 										{#if entry.repoId !== null}
-											<RepoIcon id={entry.repoId} />
+											<RepoIcon id={entry.repoId} name={entry.repository} />
 										{:else}
 											<span class="icon-[lucide--folders] size-5"></span>
 										{/if}

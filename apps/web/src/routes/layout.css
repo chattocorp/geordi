@@ -76,6 +76,22 @@
 	--on-ok: #ffffff;
 	--claude: #8b5cf6;
 	--codex: #0ea5a4;
+	/*
+	 * Tints: what tells apart repositories that have no picture of their own (their monogram,
+	 * `RepoIcon`). A soft tile and a letter of the same hue; no gold, which is the accent's.
+	 */
+	--tint-0: #dde8fb;
+	--tint-0-ink: #24508f;
+	--tint-1: #d5efeb;
+	--tint-1-ink: #146257;
+	--tint-2: #e8e0fa;
+	--tint-2-ink: #5a3a9e;
+	--tint-3: #f9dfea;
+	--tint-3-ink: #923260;
+	--tint-4: #fbe4d6;
+	--tint-4-ink: #94461b;
+	--tint-5: #e3ecd6;
+	--tint-5-ink: #45612a;
 	--shadow: 0 1px 2px rgb(20 20 40 / 0.04), 0 4px 16px rgb(20 20 40 / 0.06);
 	--shadow-lg: 0 2px 6px rgb(20 20 40 / 0.05), 0 16px 40px rgb(20 20 40 / 0.1);
 	/* A picture raised like a card: shadows that follow its shape (`picture-raised`). */
@@ -110,6 +126,18 @@
 	--on-ok: #0c2a20;
 	--claude: #a78bfa;
 	--codex: #2dd4bf;
+	--tint-0: #283a57;
+	--tint-0-ink: #a9c6f5;
+	--tint-1: #1f4742;
+	--tint-1-ink: #8fdccf;
+	--tint-2: #3a2f5a;
+	--tint-2-ink: #c8b6f5;
+	--tint-3: #4f2a3d;
+	--tint-3-ink: #f2aecb;
+	--tint-4: #4f3324;
+	--tint-4-ink: #f3bd9a;
+	--tint-5: #344428;
+	--tint-5-ink: #bcd79c;
 	--shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 16px rgb(0 0 0 / 0.18);
 	--shadow-lg: 0 2px 6px rgb(0 0 0 / 0.2), 0 16px 40px rgb(0 0 0 / 0.3);
 	--picture-lift: drop-shadow(0 -0.5px 0 rgb(255 255 255 / 0.2))
