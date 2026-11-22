@@ -57,7 +57,7 @@
 	--ink: #1b1c24;
 	/* long text (agent replies, messages): a little softer than ink, kinder to read at length */
 	--prose: #33353f;
-	--inline-code: #982664;
+	--inline-code: #c0186a;
 	--muted: #585a69;
 	--line: #e2e2ea;
 	--accent: #f5b021;
@@ -93,7 +93,7 @@
 	--sunken: #262833;
 	--ink: #eceef4;
 	--prose: #d4d6de;
-	--inline-code: #f0bbd2;
+	--inline-code: #ff85c0;
 	--muted: #a0a3b4;
 	--line: #3a3d4b;
 	--accent: #f7b733;
