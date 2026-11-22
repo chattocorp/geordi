@@ -78,7 +78,7 @@
 						{#if row.open}
 							<button
 								type="button"
-								class="{rowClass} group rounded-control hover:bg-hover focus-visible:outline-offset-0"
+								class="item {rowClass} group focus-visible:outline-offset-0"
 								title={row.label}
 								onclick={row.open}
 							>

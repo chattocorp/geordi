@@ -140,7 +140,7 @@
 				<p class="font-medium text-ink">No changes yet</p>
 			</div>
 		{:else if view === 'tree'}
-			<ul>
+			<ul class="space-y-px px-2">
 				{#each rows.slice(0, drawn) as row (row.path)}
 					<li>
 						{#if row.kind === 'dir'}
@@ -150,8 +150,8 @@
 								aria-expanded={row.open}
 								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
 								title={row.path}
-								style:padding-left="{0.875 + row.depth * 1.25}rem"
-								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap text-muted hover:bg-hover"
+								style:padding-left="{0.375 + row.depth * 1.25}rem"
+								class="item w-full gap-1.5 overflow-hidden py-1 pr-1.5 text-left whitespace-nowrap"
 							>
 								<span
 									class={[
@@ -168,7 +168,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<ul>
+			<ul class="space-y-px px-2">
 				{#each files.slice(0, drawn) as entry (entry.path)}
 					<li>{@render file(entry)}</li>
 				{/each}
@@ -188,10 +188,11 @@
 		type="button"
 		onclick={() => onopen(entry.path)}
 		title="{means}: {entry.path}"
-		style:padding-left={depth === undefined ? undefined : `${0.875 + depth * 1.25}rem`}
+		style:padding-left={depth === undefined ? undefined : `${0.375 + depth * 1.25}rem`}
 		class={[
-			'flex w-full items-center overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap hover:bg-hover',
-			depth === undefined ? 'gap-2.5 pl-3.5' : 'gap-1.5'
+			// as in every list: the row's shape and wash are `item`'s; a file's name is ink
+			'item w-full overflow-hidden py-1 pr-1.5 text-left whitespace-nowrap text-ink',
+			depth === undefined ? 'gap-2.5 pl-1.5' : 'gap-1.5'
 		]}
 	>
 		<span

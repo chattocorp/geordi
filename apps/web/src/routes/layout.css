@@ -380,6 +380,11 @@
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
 }
+/* A row that stands out with others (what a pointed-at row belongs to, or needs). A list
+   whose rows can do so leaves a hair between them (`space-y-px`). */
+@utility item-highlighted {
+	@apply bg-surface/60 text-ink;
+}
 @utility tab-inactive {
 	color: color-mix(in srgb, var(--muted) 80%, var(--ink));
 }

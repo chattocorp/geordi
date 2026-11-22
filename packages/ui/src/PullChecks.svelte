@@ -135,7 +135,8 @@
 						rel={check.url ? 'noreferrer' : undefined}
 						class={[
 							'group/row flex items-center gap-2 rounded-control px-2 py-1.5',
-							check.url && 'hover:bg-hover'
+							// one that leads somewhere is a row like any other list's
+							check.url && 'item text-ink'
 						]}
 					>
 						<span aria-hidden="true" class={['size-4 shrink-0', states[check.state].icon]}></span>

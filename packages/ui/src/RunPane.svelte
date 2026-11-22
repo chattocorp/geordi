@@ -113,8 +113,8 @@
 		<div
 			{@attach pointing(task.name)}
 			class={[
-				'group/task flex h-8 items-center gap-1 rounded-control pr-1 pl-0.5 hover:bg-hover',
-				needed.includes(task.name) && 'bg-surface/60'
+				'group/task item h-8 gap-1 pr-1 pl-0.5',
+				needed.includes(task.name) && 'item-highlighted'
 			]}
 		>
 			<!-- the row runs the task (again, once it ended); a running one is reused -->
