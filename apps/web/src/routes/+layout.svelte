@@ -30,6 +30,7 @@
 	import { setTitleBarLead } from '@geordi/ui/TitleBar.svelte';
 	import { connect, connection, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
+	import { setWorkspaceLinks, workspaceLinks } from '#lib/workspace-links.ts';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -43,6 +44,21 @@
 
 	/** The workspace on screen, if any. */
 	const viewed = $derived(page.url.pathname.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
+
+	// Branches and pull requests named in agent output link to their workspaces. Rebuilt
+	// only when one of those changes: every conversation on screen is rendered anew then.
+	const linkable = $derived(
+		JSON.stringify(
+			(nav.current?.workspaces ?? []).map(({ id, repoId, branch, pull }) => ({
+				id,
+				repoId,
+				branch,
+				pull
+			}))
+		)
+	);
+	const links = $derived(workspaceLinks(JSON.parse(linkable), viewed));
+	setWorkspaceLinks(() => links);
 
 	// Tells of workspaces that need the person, out of their sight (FDR-008)…
 	$effect(() => {

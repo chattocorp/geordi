@@ -39,7 +39,7 @@ export function instructionsFor(workspace: {
 
 		DIAGRAMS,
 
-		'When you mention another Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.',
+		LINKS,
 
 		workspace.mayDelegate
 			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup.'
@@ -62,7 +62,7 @@ const PICTURES =
 const DIAGRAMS =
 	'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Keep the outer corners of generated SVGs square. Geordi rounds them in the UI. Diagrams cannot load images or follow links.';
 const LINKS =
-	'When you mention a Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi.';
+	'When you mention another Geordi workspace in a reply, link to it with Markdown: `[Workspace title](/workspaces/<id>)`. Use its title as the link text and replace `<id>` with the full workspace ID returned by Geordi. Write a branch as code (`geordi/fix-login-redirect`) and a pull request as its full URL: Geordi links those to the workspace they belong to.';
 
 /** What the agent of a project is told (FDR-012): it orchestrates Geordi for the person. */
 function projectInstructions(manuallyNamed = false): string {
