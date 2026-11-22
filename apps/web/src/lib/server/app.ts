@@ -270,6 +270,8 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		admit: daemonAdmission(store(), () => workspaces().hasRunningTurn()),
 		onHello: (_daemonId, running, runningTerminals, ended) => {
 			workspaces().reconcile(running);
+			for (const id of workspaces().unplaced())
+				prepareWorktree(id).catch((cause) => console.warn(`[worktree] ${cause?.message ?? cause}`));
 			terminals().reconcile(runningTerminals, ended);
 			watchers().resync();
 			// a daemon is there to ask: how the workspaces stand is wanted right away
