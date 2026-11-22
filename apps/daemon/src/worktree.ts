@@ -310,9 +310,12 @@ export const gitEnv = ({ path, adminDir, commonDir }: Worktree): NodeJS.ProcessE
  * index. `HEAD` therefore means the repository's HEAD here: use `headOf` for the worktree's.
  */
 export function gitIn(worktree: Worktree, ...args: string[]): Promise<string> {
+	const command = args[0] === '-c' ? args[2] : args[0];
 	return git(worktree.path, ['--literal-pathspecs', ...args], {
 		env: gitEnv(worktree),
-		timeout: ['merge-tree', 'read-tree'].includes(args[0]) ? CHECKOUT_TIMEOUT : undefined
+		timeout: ['checkout', 'merge-tree', 'read-tree'].includes(command)
+			? CHECKOUT_TIMEOUT
+			: undefined
 	});
 }
 
