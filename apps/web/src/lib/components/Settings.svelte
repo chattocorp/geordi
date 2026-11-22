@@ -62,6 +62,13 @@
 		void section;
 		problem = tested = undefined;
 	});
+
+	// the pane scrolls by itself: another section opens at its top
+	let pane = $state<HTMLElement>();
+	$effect(() => {
+		void section;
+		pane?.scrollTo({ top: 0 });
+	});
 </script>
 
 <!-- Geordi's settings (FDR-005): how it looks, what it tells of, the repositories it knows. -->
@@ -91,6 +98,7 @@
 		</nav>
 
 		<section
+			bind:this={pane}
 			aria-label={sections.find(({ id }) => id === section)?.label}
 			class="min-w-0 flex-1 sheet overflow-y-auto px-8 py-6"
 		>

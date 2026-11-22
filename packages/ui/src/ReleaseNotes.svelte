@@ -13,6 +13,7 @@
 {#snippet text(note: Note)}
 	{#each note as span, at (at)}
 		{#if span.code}<code class="code">{span.text}</code>
+		{:else if span.strong}<strong class="font-semibold">{span.text}</strong>
 		{:else if span.href}<a
 				href={span.href}
 				target="_blank"

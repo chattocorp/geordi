@@ -20,6 +20,7 @@ describe('parseChangelog', () => {
 				'### Fixes',
 				'',
 				'- A [relative link](docs/x.md) stays text.',
+				'- ⚠️ **BREAKING CHANGE:** **Rename workspace** is gone.',
 				'',
 				'## 1.0.0',
 				''
@@ -44,7 +45,16 @@ describe('parseChangelog', () => {
 					},
 					{
 						title: 'Fixes',
-						notes: [[{ text: 'A ' }, { text: 'relative link' }, { text: ' stays text.' }]]
+						notes: [
+							[{ text: 'A ' }, { text: 'relative link' }, { text: ' stays text.' }],
+							[
+								{ text: '⚠️ ' },
+								{ text: 'BREAKING CHANGE:', strong: true },
+								{ text: ' ' },
+								{ text: 'Rename workspace', strong: true },
+								{ text: ' is gone.' }
+							]
+						]
 					}
 				]
 			},
