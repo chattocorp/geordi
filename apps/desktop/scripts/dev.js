@@ -6,7 +6,11 @@ import { desktopRuntime } from '../src/runtime.js';
 
 export function devEnvironment(env, repo) {
 	// the task's own ports (`.geordi.yml`): the forge's pages, and its two WebSockets
-	const [web, daemon, live] = ['PORT_FORGE', 'PORT_DAEMON', 'PORT_LIVE'].map((name) => {
+	const [web, daemon, live] = [
+		'GEORDI_PORT_DESKTOP',
+		'GEORDI_PORT_DESKTOP_DAEMON',
+		'GEORDI_PORT_DESKTOP_LIVE'
+	].map((name) => {
 		const port = Number(env[name]);
 		if (!Number.isInteger(port) || port < 1024 || port > 65535)
 			throw new Error(`Start Electron dev app from Geordi's Tasks tab (${name} is missing).`);

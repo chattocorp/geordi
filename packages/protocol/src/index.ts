@@ -259,9 +259,6 @@ export const SPARE_PORTS = 10;
 /** One of a task's ports in a workspace: its name in the file, and its number. */
 export type TaskPort = { name: string; port: number };
 
-/** A place to look at what a task serves, with the workspace's ports filled in. Always on this machine. */
-export type TaskLink = { name: string; label?: string; href: string };
-
 /**
  * Something a repository can have run or opened for a workspace (FDR-006): a dev server, a
  * database, a desktop app, a game, a page to look at. One with a command runs in a terminal
@@ -277,12 +274,16 @@ export type Task = {
 	approved: boolean;
 	/**
 	 * Its ports in this workspace, in the order the file names them, for as long as the
-	 * workspace lives. The command gets each as `PORT_<NAME>`, the first also as `PORT`.
+	 * workspace lives. Everything in the workspace gets each as `GEORDI_PORT_<NAME>`; the
+	 * command also gets the first as `PORT`.
 	 * It counts as up once something listens on all of them (at once, without any).
 	 */
 	ports: TaskPort[];
-	/** Where to look at it; running the task opens the first. */
-	links: TaskLink[];
+	/**
+	 * Where to look at it, with the workspace's ports filled in; running the task opens it.
+	 * Always on this machine.
+	 */
+	href: string | null;
 	/** The tasks that have to be up before this one starts. Stopping one of them stops this one too. */
 	needs: string[];
 	/** Whether the Run shortcut runs it. */
@@ -336,9 +337,9 @@ export const portVariable = (...names: string[]) =>
  */
 export const CONFIG_SETTINGS = {
 	tasks: {
-		does: "Named things to run or open, in the order the Tasks panel shows them (names: lower case letters, digits and dashes). Each has a `command`, links, or both, and may have a `label` (a display name of 1–100 characters; the key still identifies it). `ports` names the ports the command listens on (`ports: [http, live]`): each is the task's own for as long as the workspace lives, and reaches the command as `$PORT_HTTP`, `$PORT_LIVE` (the first also as `$PORT`), and everything in the workspace as `GEORDI_PORT_<TASK>_<PORT>` (the first also as `GEORDI_PORT_<TASK>`; upper case, dashes as underscores). A task without `ports` gets none. It counts as up once something listens on all of its ports, or at once without any. `url` is one link, `urls` several, each under a name with a `url` and an optional `label`. In a URL, `{http}` is one of the task's own ports and `{web.http}` another task's, which then has to be up first too. Links only lead to this machine (`localhost`). `needs` lists the tasks that have to be up before this one starts; stopping one stops those that need it. Running a task starts what it needs, then its command, and opens its first link once that answers. A task with only links and no `needs` just opens them. `default: true` marks the tasks the Run shortcut runs. Commands run in the person's shell in the workspace's directory, and should keep running until stopped.",
+		does: "Named things to run or open, in the order the Tasks panel shows them (names: lower case letters, digits and dashes). Each has a `command`, a `url`, or both, and may have a `label` (a display name of 1–100 characters; the key still identifies it). `ports` names the ports the command listens on (`ports: [http, live]`). Port names are the workspace's, and each is one task's: two tasks can't list the same name. They are separate from task names; naming a server's main port after its task (`web` listening on `web`) is usual. Each is the workspace's for as long as it lives, and reaches everything in the workspace as `GEORDI_PORT_HTTP`, `GEORDI_PORT_LIVE` (upper case, dashes as underscores); the task's own command also gets its first as `$PORT`. A task without `ports` gets none. It counts as up once something listens on all of its ports, or at once without any. `url` is where to look at it; for more places to look, give each a task of its own with its `url`. In a URL, `{http}` is the port named `http`, and the task that lists it has to be up first too. URLs only lead to this machine (`localhost`). `needs` lists the tasks that have to be up before this one starts; stopping one stops those that need it. Running a task starts what it needs, then its command, and opens its `url` once that answers. A task with only a `url` that needs nothing just opens it. `default: true` marks the tasks the Run shortcut (⌥⌘R) runs or opens. Commands run in the person's shell in the workspace's directory, and should keep running until stopped.",
 		example:
-			'tasks:\n  db:\n    command: docker compose up db\n    ports: [postgres]\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT_HTTP\n    ports: [http, hmr]\n    needs: [db]\n    urls:\n      app: { label: App, url: "http://localhost:{http}/" }\n      admin: { label: Admin, url: "http://localhost:{http}/admin" }\n    default: true\n  docs:\n    url: http://localhost:8080/'
+			'tasks:\n  db:\n    command: docker compose up db\n    ports: [postgres]\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    ports: [http, hmr]\n    needs: [db]\n    url: http://localhost:{http}/\n    default: true\n  admin:\n    label: Admin area\n    url: http://localhost:{http}/admin\n  docs:\n    url: http://localhost:8080/'
 	},
 	setup: {
 		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
@@ -389,7 +390,7 @@ export const REMOVE_TIMEOUT_MS = TEARDOWN_TIMEOUT_MS + 30_000;
 
 /** A job's terminal is named after it, so that it can be told from a shell someone opened. */
 export const JOB_TERMINAL = 'run-';
-/** Names of tasks, ports and links: they end up in terminal names, and in the names of environment variables. */
+/** Names of tasks and ports: they end up in terminal names, and in the names of environment variables. */
 export const CONFIG_NAME = /^[a-z][a-z0-9-]{0,30}$/;
 
 /** A note on a change, as a release tool keeps them until the next release: what changed, and how much it matters. */

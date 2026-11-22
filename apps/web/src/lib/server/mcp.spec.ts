@@ -61,7 +61,7 @@ function setup() {
 					command: 'pnpm dev',
 					approved: true,
 					ports: [{ name: 'http', port: 20000 }],
-					links: [{ name: 'app', href: 'http://localhost:20000/' }],
+					href: 'http://localhost:20000/',
 					needs: [],
 					default: true
 				}
@@ -249,7 +249,7 @@ describe('configuring the repository', () => {
 					name: 'web',
 					command: 'pnpm dev',
 					ports: [{ name: 'http', port: 20000 }],
-					links: [{ name: 'app', href: 'http://localhost:20000/' }],
+					url: 'http://localhost:20000/',
 					needs: [],
 					default: true
 				}

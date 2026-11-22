@@ -312,12 +312,12 @@ const tools = {
 						: source === 'base'
 							? `the ${CONFIG_FILE} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
-				tasks: tasks.map(({ name, label, command, ports, links, needs, default: selected }) => ({
+				tasks: tasks.map(({ name, label, command, ports, href, needs, default: selected }) => ({
 					name,
 					label,
 					command,
 					ports,
-					links,
+					url: href,
 					needs,
 					default: selected
 				})),

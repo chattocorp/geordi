@@ -131,7 +131,7 @@ export const tasks: Task[] = [
 		command: 'docker compose up db',
 		approved: true,
 		ports: [{ name: 'postgres', port: 20101 }],
-		links: [],
+		href: null,
 		needs: [],
 		default: false
 	},
@@ -141,7 +141,7 @@ export const tasks: Task[] = [
 		command: 'pnpm dev --port $PORT',
 		approved: true,
 		ports: [{ name: 'http', port: 20102 }],
-		links: [{ name: 'app', label: 'App', href: 'http://localhost:20102/' }],
+		href: 'http://localhost:20102/',
 		needs: ['db'],
 		default: true
 	}

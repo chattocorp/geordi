@@ -4,16 +4,14 @@ data:
   status: in_progress
   type: feature
 id: dg09y
-title: 'Redesign Run tasks: named ports, several links, a calmer Tasks tab'
+title: 'Redesign Run tasks: named ports, one URL per task, a calmer Tasks tab'
 ---
-A process does not map to one port or one URL. Redesign `.geordi.yml` tasks (FDR-006):
+A process does not map to one port or one URL. Redesign `.geordi.yml` tasks (FDR-006).
 
-- `ports: [http, live]` per task: none unless named; `$PORT_<NAME>`, `GEORDI_PORT_<TASK>_<PORT>`.
-- `url` or `urls` (several, by name); `{http}` / `{web.http}` in URLs.
-- Up = all ports listening; none = up at once.
-- Ten spare ports per workspace (`GEORDI_PORT`, `GEORDI_PORTS`); `ports: N` goes.
-- Drop `run`, `jobs`, `urls`, `default`, `ports`, `.geordi.toml`.
-- Ports keyed `task.port`; a task's first port takes its old one.
-- Tasks tab: one row per task, links under it, passive status mark, stop / run again beside.
+## Outcome
 
-Acceptance: this repository's `.geordi.yml` uses it; checks, lint and tests pass; FDR-006 and docs updated.
+- Tasks have a `command`, a `url`, or both, plus `ports`, `needs`, `default`, `label`. `run`, `jobs`, `urls` (top level and in tasks), `default`, `ports` and `.geordi.toml` are no longer read; the Tasks tab says what to write instead.
+- `ports: [web, live]` names what a command listens on. Port names are the workspace's, each one task's (listed twice is refused). Everything gets `GEORDI_PORT_<NAME>`; the task's command its first as `$PORT`. Ten spare ports per workspace (`GEORDI_PORT`, `GEORDI_PORTS`). Stored per name; existing numbers carry over.
+- `{web}` in a URL is the port named `web`; the task listening there is needed. Up = all ports answer, or started when none.
+- Tasks tab: default tasks first; one row per task (mark, name, URL at the end); a row runs the task (again); terminal and stop on pointing or focus; middle click goes to (or starts and shows) its terminal; pointing highlights what a task needs; quiet dots when stopped, gold play when serving, gold turning arrows when working without ports.
+- The dev web task loads the forge itself, so that all its ports listen.

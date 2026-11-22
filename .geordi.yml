@@ -5,14 +5,14 @@ tasks:
     label: Web server
     command: node scripts/workspace-dev.mjs web
     # the forge's pages, its WebSocket for daemons, and the one for browsers
-    ports: [http, daemon, live]
+    ports: [web, daemon, live]
   daemon:
     label: Agent daemon
     command: node scripts/workspace-dev.mjs daemon
     needs: [web]
   app:
     label: Geordi
-    url: http://localhost:{web.http}/
+    url: http://localhost:{web}/
     needs: [daemon]
     default: true
   reset:
@@ -21,19 +21,19 @@ tasks:
   storybook:
     label: Storybook
     command: node scripts/workspace-dev.mjs storybook
-    ports: [http]
-    url: http://localhost:{http}/
+    ports: [storybook]
+    url: http://localhost:{storybook}/
 
   website:
     label: Website
     command: pnpm --filter @geordi/website dev --port $PORT
-    ports: [http]
-    url: http://localhost:{http}/
+    ports: [website]
+    url: http://localhost:{website}/
 
   desktop:
     label: Electron dev app
     command: pnpm desktop:dev
-    ports: [forge, daemon, live]
+    ports: [desktop, desktop-daemon, desktop-live]
 
   install:
     label: Install Geordi.app

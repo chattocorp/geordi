@@ -20,10 +20,10 @@ function port(name) {
 }
 
 // The web server's ports: its pages, its WebSocket for daemons, and the one for browsers.
-const web = port('GEORDI_PORT_WEB_HTTP');
-const daemon = port('GEORDI_PORT_WEB_DAEMON');
-const live = port('GEORDI_PORT_WEB_LIVE');
-const storybook = port('GEORDI_PORT_STORYBOOK_HTTP');
+const web = port('GEORDI_PORT_WEB');
+const daemon = port('GEORDI_PORT_DAEMON');
+const live = port('GEORDI_PORT_LIVE');
+const storybook = port('GEORDI_PORT_STORYBOOK');
 
 const data = join(root, '.data');
 const env = {

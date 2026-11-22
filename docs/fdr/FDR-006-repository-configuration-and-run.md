@@ -12,9 +12,9 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 ### The file
 
 - `.geordi.yml` is YAML. Settings Geordi doesn't know are ignored. The earlier settings (`run`, `jobs`, `urls`, a top-level `default` and `ports`) and a `.geordi.toml` are no longer read: a workspace that has them is told so, and what to say instead.
-- `tasks:` names what a workspace runs or opens, each under its name, in the order the Tasks tab shows them. A task has a `command`, links, or both, and may have a `label` (shown instead of its key; dependencies, ports, approvals and terminals keep the key), `needs` and `default: true`.
+- `tasks:` names what a workspace runs or opens, each under its name, in the order the Tasks tab shows them. A task has a `command`, a `url`, or both, and may have a `label` (shown instead of its key; dependencies, ports, approvals and terminals keep the key), `needs` and `default: true`.
 - `ports:` names the ports a task's command listens on: `ports: [http, live]`, as many as it needs. A task without `ports` gets none.
-- `url:` is one link; `urls:` several, each under a name with a `url` and an optional `label`. In a URL, `{http}` is one of the task's own ports and `{web.http}` one of the task `web`'s, which the task then needs. Links only lead to this machine (`localhost`).
+- `url:` is where to look at a task, on this machine (`localhost`). In a URL, `{http}` is the port named `http`, as in `GEORDI_PORT_HTTP`, and the task with the URL needs the one that lists it. More places to look are tasks of their own, each with its `url`.
 - `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No task can be called `setup` or `teardown`.
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). They are not merged. So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.
 - It is read afresh whenever the workspace's files or the repository's branches change: editing the file, or fetching a main branch that changed it, shows at once.
@@ -22,16 +22,16 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ### Ports
 
-- Every port a task names is that task's for as long as the workspace lives: across restarts of its tasks, of the daemon and of the machine. It is kept under `task.port`, and keeps its number when ports or tasks are added, removed or reordered. A task's first port takes the one the task had when each task had one port. Ports are given up when the workspace is archived.
+- Port names are the workspace's, and each belongs to one task: two processes can't listen on one port, so a name listed twice is refused. They are separate from task names; naming a server's main port after its task is usual, and nothing more than that. Each named port is the workspace's for as long as it lives: across restarts of its tasks, of the daemon and of the machine. It is kept under its name, and keeps its number when ports or tasks are added, removed or reordered; a port takes the number it had under its task (`task.port`, or the task's name when each task had one port). Ports are given up when the workspace is archived.
 - Every workspace also has ten spare ports, a run of their own, for anything an agent or a terminal starts.
 - The daemon picks ports that are free at that moment, on all of the machine's local addresses (`127.0.0.1`, `0.0.0.0`, `::1`, `::`): on macOS a port that can be had on one of them may be another program's on another. A workspace that needs more ports keeps what it has and gets more.
 - Ports come from 20000–29999, unless the daemon's environment names other ones (`GEORDI_PORT_RANGE=30000-39999`). Two daemons on one machine know nothing of each other's ports, so each needs a range of its own: Geordi run for development (`scripts/workspace-dev.mjs`) uses 30000–39999.
-- A task's command gets its ports as `PORT_<NAME>` (`PORT_HTTP`), the first also as `PORT`. Everything in the workspace (tasks, terminals, and the agent) gets every task's ports as `GEORDI_PORT_<TASK>_<PORT>`, each task's first also as `GEORDI_PORT_<TASK>`, and the spare ones as `GEORDI_PORT` (the first) and `GEORDI_PORTS` (how many). Two ports that would reach everyone by one name are refused. Agents are told to use these, never a default port.
+- A task's command gets its first port as `PORT`. Everything in the workspace (tasks, terminals, and the agent) gets every named port as `GEORDI_PORT_<NAME>`, and the spare ones as `GEORDI_PORT` (the first) and `GEORDI_PORTS` (how many). Agents are told to use these, never a default port.
 
 ### Running
 
-- The **Tasks** tab in the dock lists the tasks one row each: the default tasks first, then the rest, each in file order. A task's only link sits at the end of its row; several are listed under it, smaller. A row's mark says how its task is: a quiet dot while stopped (it turns into what the row does where one points at it), then starting, running (a gold play mark where it listens on ports and is ready to look at, the turning arrows of something under way, in gold, where it has none and simply works), ended (with its status), so that what runs stands out. Running a task starts what it needs, then its command, and opens its first link once that answers; a link of its own opens that one instead. A task with only links and no `needs` just opens. A link's icon is gold while what it needs runs: it opens at once.
-- Pointing at a task highlights the tasks it needs, and what those need in turn, as the sidebar does with a workspace's parent. Selecting a task's row runs it, also again once it ended (one that runs is reused). Once its command has a terminal, a terminal icon at the end of the row shows it, running or from the last run; a stop button beside it shows where one points at a task that runs. Its ports show when you point at the row.
+- The **Tasks** tab in the dock lists the tasks one row each: the default tasks first, then the rest, each in file order. The URL of a task that runs something sits at the end of its row. A row's mark says how its task is: a quiet dot while stopped (it turns into what the row does where one points at it), then starting, running (a gold play mark where it listens on ports and is ready to look at, the turning arrows of something under way, in gold, where it has none and simply works), ended (with its status), so that what runs stands out. Running a task starts what it needs, then its command, and opens its URL once that answers. A task with only a URL that needs nothing just opens it. A URL's icon is gold while what it needs runs: it opens at once.
+- Pointing at a task highlights the tasks it needs, and what those need in turn, as the sidebar does with a workspace's parent. Selecting a task's row runs it, also again once it ended (one that runs is reused). At rest a row is its mark, its name and its only link; pointing at it (or focusing it) adds its terminal, running or from the last run, and a stop button while it runs, taking no room until then. A middle click on a task goes to its terminal: one that has not run yet starts first. Its ports show when you point at the row.
 - The keyboard shortcut ⌥⌘R (Ctrl+Alt+R elsewhere) runs every `default` task together, and shows beside each. Shared dependencies start once; running commands are reused. With no default tasks, it shows the Tasks tab. Only the tasks run open browser tabs; a timeout says which port did not answer.
 - Each command runs in the user's shell in the workspace directory. Starting one leaves the current pane in place. Closing a task's terminal tab hides its output; the task keeps running, and its row shows the same terminal again.
 - If one of a task's ports is busy, a dialog names the task, port and identified listener. You can cancel or stop the displayed process and retry. Geordi checks the listener again before sending a termination request and waits for the port to become free. When it cannot identify the listener, you can free the port yourself and retry.
@@ -138,17 +138,23 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 ### 12. YAML, and tasks only
 
 **Decision:** The file is YAML (`.geordi.yml`), and says what to run under `tasks`. The earlier settings (`run`, `jobs`, `urls`, `default`, `ports`) and the TOML file are no longer read; a workspace that still has them is told so, with what to say instead.
-**Why:** One way to say a thing. Two ways meant two parsers, two layouts of the Tasks tab and two sets of rules for agents to learn; the old ones could say neither several ports for one command, nor several links for one, nor none.
+**Why:** One way to say a thing. Two ways meant two parsers, two layouts of the Tasks tab and two sets of rules for agents to learn; the old ones could say neither several ports for one command, nor none.
 **Tradeoff:** A repository with the old settings has nothing to run until its file is rewritten. Its ports carry over: a task's first port takes the one the task had.
 
 ### 13. A tab, not a button and a menu
 
-**Decision:** What a workspace runs is shown in a tab of its own in the dock, with every task and its links and how each is, instead of a Run button with a menu beside the dock's tabs.
+**Decision:** What a workspace runs is shown in a tab of its own in the dock, with every task and how each is, instead of a Run button with a menu beside the dock's tabs.
 **Why:** A menu shows how things are only while it is open, and a button says one thing at a time. What runs is ongoing state, worth seeing at a glance, next to the terminals it runs in; and the tab bar stays for tabs.
 **Tradeoff:** Running a task with the mouse takes two clicks when another tab is selected. The keyboard shortcut works from anywhere in the workspace.
 
-### 14. Ports belong to tasks, and a workspace has spare ones besides
+### 14. Ports are named, the workspace's, and a workspace has spare ones besides
 
-**Decision:** Each task names the ports its command listens on, none or several, and every workspace gets ten spare ports of its own on top. There is no count of ports to set.
-**Why:** A process does not have one port: a dev server has its pages and a WebSocket, a desktop app three, a script none. Naming them lets a link say which one it means, lets "up" mean all of them, and keeps the ports of a task apart from those an agent picks for something of its own. A fixed number of spare ones is one thing less to decide.
-**Tradeoff:** Ten ports a workspace that never uses them, and a task that listens on a port it doesn't name is not waited for.
+**Decision:** Each task names the ports its command listens on, none or several. The names are the workspace's, each one task's, and a URL says a port by its name (`{http}`). Every workspace gets ten spare ports of its own on top. There is no count of ports to set.
+**Why:** A process does not have one port: a dev server has its pages and a WebSocket, a desktop app three, a script none. Naming them lets a link say which one it means, lets "up" mean all of them, and keeps the ports of a task apart from those an agent picks for something of its own. A fixed number of spare ones is one thing less to decide. Names that are the workspace's keep a URL and the variables short (`{http}`, `GEORDI_PORT_HTTP`).
+**Tradeoff:** Ten ports a workspace that never uses them, and a task that listens on a port it doesn't name is not waited for. Every port needs a name of its own across the file.
+
+### 15. One URL per task
+
+**Decision:** A task has at most one `url`. Another place to look is a task of its own, whose URL uses the port of the task it looks at (and so needs it).
+**Why:** One way to write a link, and one kind of row in the Tasks tab. A link of its own gets a label, a `default` and a row like any task, with nothing new to learn.
+**Tradeoff:** The links of one server are rows of their own, not grouped under it.

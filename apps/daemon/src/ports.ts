@@ -20,16 +20,17 @@ export type Assigned = {
 	/** The workspace's ports, in the order they were given: one run at first, more if it outgrew that. */
 	blocks: Block[];
 	/**
-	 * Which of its ports (counting from 0 across the blocks) each task's port has, by
-	 * `task.port`. (A key without a dot is from when a task had one port, named after it.)
+	 * Which of its ports (counting from 0 across the blocks) each named port has, by `:name`.
+	 * (`task.port` keys are from when ports were each task's own; a plain `task` key from when
+	 * a task had one port, named after it.)
 	 */
 	jobs: Record<string, number>;
 	/** Where its `SPARE_PORTS` spare ones begin: a block of their own. */
 	spare?: number;
 };
 
-/** What a task's port is kept as. */
-export const portKey = (task: string, port: string) => `${task}.${port}`;
+/** What a workspace's port is kept as, by its name: `:http` (apart from the `task.port` keys of before). */
+export const portKey = (port: string) => `:${port}`;
 
 type Range = { from: number; to: number };
 
@@ -251,17 +252,19 @@ export function createPorts(
 		/**
 		 * The workspace's ports, with one for each of `wanted` (`portKey`s) and its spare
 		 * ones. What it has, it keeps; what is missing is added: a port for each key not seen
-		 * before (a task's first port takes the one the task had when it had only one,
-		 * `legacy`), from ports it has that nobody holds, or else a new run of free ones.
+		 * before (one that was kept under another key before takes that one: the first of
+		 * `legacy` it has), from ports it has that nobody holds, or else a new run of free ones.
 		 */
-		ensure: (workspaceId: string, wanted: { key: string; legacy?: string }[] = []) =>
+		ensure: (workspaceId: string, wanted: { key: string; legacy?: string[] }[] = []) =>
 			inTurn(async () => {
 				const assigned: Assigned = all[workspaceId] ?? { blocks: [], jobs: {} };
 				const before = JSON.stringify(assigned);
 
-				for (const { key, legacy } of wanted)
-					if (!(key in assigned.jobs) && legacy !== undefined && legacy in assigned.jobs)
-						assigned.jobs[key] = assigned.jobs[legacy];
+				for (const { key, legacy = [] } of wanted) {
+					const before = legacy.find((old) => old in assigned.jobs);
+					if (!(key in assigned.jobs) && before !== undefined)
+						assigned.jobs[key] = assigned.jobs[before];
+				}
 				const unseen = wanted.filter(({ key }) => !(key in assigned.jobs));
 				// a port is a task's for good: one that went away keeps its own, in case it comes back
 				const held = new Set(Object.values(assigned.jobs));
@@ -305,11 +308,11 @@ export const spareOf = (assigned: Assigned) =>
 		: { first: portAt(assigned, assigned.spare), count: SPARE_PORTS };
 
 /**
- * What a workspace's tasks, terminals and agents are told about its ports: each task's, and
- * the spare ones.
+ * What a workspace's tasks, terminals and agents are told about its ports: each named one,
+ * and the spare ones.
  */
 export function portEnv(
-	tasks: Pick<Task, 'name' | 'ports'>[],
+	tasks: Pick<Task, 'ports'>[],
 	spare: { first: number; count: number } | null
 ): Record<string, string> {
 	const env: Record<string, string> = {};
@@ -317,18 +320,12 @@ export function portEnv(
 		env.GEORDI_PORT = String(spare.first);
 		env.GEORDI_PORTS = String(spare.count);
 	}
-	for (const { name, ports } of tasks) {
-		if (ports[0]) env[portVariable(name)] = String(ports[0].port);
-		for (const port of ports) env[portVariable(name, port.name)] = String(port.port);
-	}
+	for (const { ports } of tasks)
+		for (const port of ports) env[portVariable(port.name)] = String(port.port);
 	return env;
 }
 
-/** What a task's command is told of its own ports, besides: `PORT`, `PORT_HTTP`. */
+/** What a task's command is told besides: its first port, as `PORT`. */
 export function ownPortEnv({ ports }: Pick<Task, 'ports'>): Record<string, string> {
-	const env: Record<string, string> = {};
-	if (ports[0]) env.PORT = String(ports[0].port);
-	for (const port of ports)
-		env[`PORT_${port.name.toUpperCase().replaceAll('-', '_')}`] = String(port.port);
-	return env;
+	return ports[0] ? { PORT: String(ports[0].port) } : {};
 }

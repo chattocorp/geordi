@@ -13,8 +13,8 @@ export type WorkspaceSource = {
 	shells: { tab: string; title: string }[] | null;
 	/** Whether the run shortcut does something. */
 	canRunDefault: boolean;
-	/** The repository's tasks: whether each is running, and its links where it has several. */
-	tasks: (Named & { live: boolean; links: Named[] })[];
+	/** The repository's tasks: whether each is running, and whether it only opens a URL. */
+	tasks: (Named & { live: boolean; opens: boolean })[];
 	/** Jobs whose output there is to read. */
 	outputs: Named[];
 	/** Its windows beside the conversation, those there are; none in a project. */
@@ -33,7 +33,7 @@ export type WorkspaceSource = {
 	terminal(): void;
 	newTerminal(): void;
 	runDefault(): void;
-	/** Runs a task, or opens one of its links (`task.link`). */
+	/** Runs a task, or opens it where it is only a URL. */
 	runTask(name: string): void;
 	stop(task: string): void;
 	showOutput(job: string): void;
@@ -104,7 +104,7 @@ export function workspaceCommands(at: WorkspaceSource): Command[] {
 		});
 	add(
 		'Tasks',
-		...at.tasks.flatMap(({ name, label, live, links }) => [
+		...at.tasks.map(({ name, label, live, opens }) =>
 			live
 				? {
 						id: `stop:${name}`,
@@ -114,17 +114,11 @@ export function workspaceCommands(at: WorkspaceSource): Command[] {
 					}
 				: {
 						id: `task:${name}`,
-						label: `Run ${label}`,
-						icon: 'icon-[lucide--play]',
+						label: `${opens ? 'Open' : 'Run'} ${label}`,
+						icon: opens ? 'icon-[lucide--external-link]' : 'icon-[lucide--play]',
 						run: () => at.runTask(name)
-					},
-			...links.map((link) => ({
-				id: `link:${name}.${link.name}`,
-				label: `Open ${link.label}`,
-				icon: 'icon-[lucide--external-link]',
-				run: () => at.runTask(`${name}.${link.name}`)
-			}))
-		])
+					}
+		)
 	);
 	add(
 		'Tasks',

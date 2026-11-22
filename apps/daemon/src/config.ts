@@ -1,14 +1,7 @@
 import { git } from './git.ts';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-	CONFIG_FILE,
-	CONFIG_NAME,
-	portVariable,
-	SCRIPTS,
-	type RepoConfig,
-	type Task
-} from '@geordi/protocol';
+import { CONFIG_FILE, CONFIG_NAME, SCRIPTS, type RepoConfig, type Task } from '@geordi/protocol';
 import { parse as parseYaml } from 'yaml';
 import { readText } from './changes.ts';
 import { portAt, portKey, spareOf, type Assigned } from './ports.ts';
@@ -17,7 +10,7 @@ import { startOf, type Worktree } from './worktree.ts';
 /** Commands are for a shell to run, not for storing things in. */
 const MAX_COMMAND = 2000;
 const MAX_URL = 500;
-/** Ports in a link: `{http}`, the task's own; `{web.http}`, another task's. */
+/** A port in a URL, by its name: `{http}`. */
 const PLACEHOLDER = /\{([^{}]*)\}/g;
 /** Links only ever lead to this machine: the file is not to be a way to send people anywhere. */
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
@@ -32,8 +25,8 @@ export type TaskSettings = {
 	label?: string;
 	command: string | null;
 	ports: string[];
-	/** With their ports as `{task.port}`. */
-	links: { name: string; label?: string; url: string }[];
+	/** With its ports as `{task.port}`. */
+	url: string | null;
 	needs: string[];
 	default: boolean;
 };
@@ -82,51 +75,23 @@ const command = (value: unknown, where: string) => {
 	return (value as string).trim();
 };
 
-/**
- * A task's links, from `url` (one) or `urls` (several, by name), with each port as
- * `{task.port}`; and the other tasks whose ports they use.
- */
-function linksOf(task: Record<string, unknown>, name: string) {
-	if (task.url !== undefined && task.urls !== undefined)
-		fail(`tasks.${name}: say url or urls, not both`);
-	const said: [string, unknown, string][] =
-		task.url !== undefined
-			? [[name, { url: task.url }, `tasks.${name}.url`]]
-			: Object.entries(
-					task.urls === undefined
-						? {}
-						: isTable(task.urls)
-							? task.urls
-							: fail(`tasks.${name}.urls must be links, each under its name`)
-				).map(([key, value]) => [key, value, `tasks.${name}.urls.${key}`]);
-	const uses = new Set<string>();
-	const links = said.map(([key, value, where]) => {
-		if (!CONFIG_NAME.test(key))
-			fail(`"${key}" is not a link name: lower case letters, digits and dashes`);
-		const link = isTable(value) ? value : { url: value };
-		const url = link.url;
-		if (typeof url !== 'string' || url.length > MAX_URL)
-			fail(`${where} must be an address, as a string`);
-		let address: URL | undefined;
-		try {
-			address = new URL((url as string).replace(PLACEHOLDER, '1'));
-		} catch {
-			// said below
-		}
-		if (!address || !/^https?:$/.test(address.protocol) || !LOCAL.test(address.hostname))
-			fail(`${where} must be an http address on this machine (localhost)`);
-		const resolved = (url as string).replace(PLACEHOLDER, (_, said: string) => {
-			const [owner, port] = said.includes('.') ? said.split('.', 2) : [name, said];
-			if (owner !== name) uses.add(owner);
-			return `{${owner}.${port}}`;
-		});
-		return {
-			name: key,
-			...displayLabel(link.label, where.replace(/\.url$/, '')),
-			url: resolved
-		};
-	});
-	return { links, uses: [...uses] };
+/** A task's `url`, if it has one. */
+function urlOf(task: Record<string, unknown>, name: string): string | null {
+	if (task.urls !== undefined)
+		fail(`tasks.${name}.urls is no longer read: give each URL a task of its own, with \`url\``);
+	const url = task.url;
+	if (url === undefined) return null;
+	if (typeof url !== 'string' || url.length > MAX_URL)
+		fail(`tasks.${name}.url must be an address, as a string`);
+	let address: URL | undefined;
+	try {
+		address = new URL((url as string).replace(PLACEHOLDER, '1'));
+	} catch {
+		// said below
+	}
+	if (!address || !/^https?:$/.test(address.protocol) || !LOCAL.test(address.hostname))
+		fail(`tasks.${name}.url must be an http address on this machine (localhost)`);
+	return url as string;
 }
 
 /** What a `.geordi.yml` says, as far as we understand it. Throws for what isn't one. */
@@ -155,13 +120,13 @@ export function parseConfig(text: string): Settings {
 		if ((SCRIPTS as readonly string[]).includes(name))
 			fail(`"${name}" is not a task name: say \`${name}: …\` for the ${name} script`);
 		const task = isTable(value) ? value : fail(`tasks.${name} must be settings`);
-		const { links, uses } = linksOf(task, name);
-		if (task.command === undefined && links.length === 0)
+		const url = urlOf(task, name);
+		if (task.command === undefined && url === null)
 			fail(`tasks.${name} needs a command, a url, or both`);
 		if (task.default !== undefined && typeof task.default !== 'boolean')
 			fail(`tasks.${name}.default must be true or false`);
 		const needs = nameList(task.needs, `tasks.${name}.needs`, 'task');
-		for (const needed of [...needs, ...uses])
+		for (const needed of needs)
 			if (!known.has(needed)) fail(`tasks.${name}: there is no task "${needed}"`);
 		const ports = nameList(task.ports, `tasks.${name}.ports`, 'port');
 		if (task.command === undefined && ports.length > 0)
@@ -171,39 +136,38 @@ export function parseConfig(text: string): Settings {
 			...displayLabel(task.label, `tasks.${name}`),
 			command: task.command === undefined ? null : command(task.command, `tasks.${name}.command`),
 			ports,
-			links,
-			// a port another task has is only there once that task is up
-			needs: [...new Set([...needs, ...uses])],
+			url,
+			needs,
 			default: task.default === true
 		};
 	});
 
-	const byName = new Map(tasks.map((task) => [task.name, task]));
+	// Ports are the workspace's, by name, and each is one task's: two can't listen on one.
+	const owners = new Map<string, TaskSettings>();
 	for (const task of tasks)
-		for (const link of task.links)
-			for (const [, port] of link.url.matchAll(PLACEHOLDER)) {
-				const [owner, name] = port.split('.');
-				if (!byName.get(owner)?.ports.includes(name))
-					fail(`tasks.${task.name}: ${owner} has no port "${name}" (list it under its ports)`);
-			}
+		for (const port of task.ports) {
+			const other = owners.get(port);
+			if (other)
+				fail(
+					`tasks.${task.name}.ports: "${port}" is ${other.name}'s already (give it another name)`
+				);
+			owners.set(port, task);
+		}
+	for (const task of tasks)
+		for (const [, port] of task.url?.matchAll(PLACEHOLDER) ?? []) {
+			const owner =
+				owners.get(port) ??
+				fail(`tasks.${task.name}.url: no task lists a port "${port}" (list it under its ports)`);
+			// a port is only there once the task that listens on it is up
+			if (owner !== task && !task.needs.includes(owner.name)) task.needs.push(owner.name);
+		}
+	const byName = new Map(tasks.map((task) => [task.name, task]));
 	// a task that needs itself, however indirectly, never gets its turn to start
 	const reach = (name: string, seen: string[]): boolean =>
 		seen.includes(name) ||
 		(byName.get(name)?.needs ?? []).some((needed) => reach(needed, [...seen, name]));
 	for (const task of tasks)
 		if (reach(task.name, [])) fail(`tasks.${task.name} needs itself, through other tasks`);
-	// two ports must not reach everyone by one name
-	const variables = new Map<string, string>();
-	for (const task of tasks)
-		for (const [index, port] of task.ports.entries())
-			for (const variable of [
-				portVariable(task.name, port),
-				...(index === 0 ? [portVariable(task.name)] : [])
-			]) {
-				const other = variables.get(variable);
-				if (other) fail(`tasks.${task.name}.ports: ${port} and ${other} would both be ${variable}`);
-				variables.set(variable, `${task.name}.${port}`);
-			}
 
 	const [setup, teardown] = SCRIPTS.map((script) =>
 		settings[script] === undefined ? null : command(settings[script], `\`${script}\``)
@@ -277,8 +241,9 @@ const script = (command: string | null | undefined, approved: (command: string) 
 export const wantedPorts = (settings: Settings | null) =>
 	(settings?.tasks ?? []).flatMap((task) =>
 		task.ports.map((port, index) => ({
-			key: portKey(task.name, port),
-			...(index === 0 && { legacy: task.name })
+			key: portKey(port),
+			// what it was kept as before: `task.port`, and before that the task's one port, by its name
+			legacy: [`${task.name}.${port}`, ...(index === 0 ? [task.name] : [])]
 		}))
 	);
 
@@ -294,14 +259,11 @@ export function resolve(
 ): RepoConfig {
 	const port = (key: string) => portAt(assigned, assigned.jobs[key]);
 	return {
-		tasks: (settings?.tasks ?? []).map((task): Task => ({
+		tasks: (settings?.tasks ?? []).map(({ url, ...task }): Task => ({
 			...task,
 			approved: task.command === null || approved(task.command),
-			ports: task.ports.map((name) => ({ name, port: port(portKey(task.name, name)) })),
-			links: task.links.map(({ url, ...link }) => ({
-				...link,
-				href: url.replace(PLACEHOLDER, (_, key: string) => String(port(key)))
-			}))
+			ports: task.ports.map((name) => ({ name, port: port(portKey(name)) })),
+			href: url?.replace(PLACEHOLDER, (_, name: string) => String(port(portKey(name)))) ?? null
 		})),
 		setup: script(settings?.setup, approved),
 		teardown: script(settings?.teardown, approved),

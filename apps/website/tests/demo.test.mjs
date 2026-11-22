@@ -66,8 +66,12 @@ test('stop and start a job in the Tasks tab', async (t) => {
 	const run = demo.getByRole('tabpanel', { name: 'Tasks' });
 	const mark = demo.getByRole('tab', { name: /Tasks/ }).getByRole('img', { name: 'Job running' });
 	await expect(mark).toBeVisible();
+	// stopping shows where one points at (or focuses) what runs
+	await run.getByRole('button', { name: 'Run Dev server' }).focus();
 	await run.getByRole('button', { name: 'Stop Dev server' }).click();
 	await expect(mark).toBeVisible();
+	// stopping shows where one points at (or focuses) what runs
+	await run.getByRole('button', { name: 'Run Database' }).focus();
 	await run.getByRole('button', { name: 'Stop Database' }).click();
 	await expect(mark).toHaveCount(0);
 	await run.getByRole('button', { name: 'Run Dev server' }).click();

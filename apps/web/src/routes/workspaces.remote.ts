@@ -261,13 +261,6 @@ export const updateWorkspace = command(
 /** A job's name, and each job's command as the person asking saw it (FDR-006). */
 const jobName = v.pipe(v.string(), v.regex(CONFIG_NAME));
 const seen = v.record(jobName, v.string());
-/** A task, or one of its links: `web`, `web.admin`. */
-const taskRef = v.pipe(
-	v.string(),
-	v.check(
-		(ref) => ref.split('.').length <= 2 && ref.split('.').every((name) => CONFIG_NAME.test(name))
-	)
-);
 
 /**
  * The person has seen these commands of the repository's jobs and agrees to run them
@@ -297,13 +290,13 @@ export const editReleaseNote = command(
 );
 
 /**
- * Runs tasks (FDR-006), and before each what it needs; answers, for each, where its link
- * leads once it answers (`task.link` for one other than its first), or what kept it.
+ * Runs tasks (FDR-006), and before each what it needs; answers, for each, where its URL
+ * leads once it answers, or what kept it.
  */
 export const runTasks = command(
 	v.object({
 		workspaceId: v.string(),
-		tasks: v.array(taskRef),
+		tasks: v.array(jobName),
 		seen,
 		confirmation: v.optional(v.string())
 	}),

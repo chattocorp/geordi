@@ -5,9 +5,9 @@ import { desktopRuntime } from '../src/runtime.js';
 
 const env = {
 	PORT: '24000',
-	PORT_FORGE: '24000',
-	PORT_DAEMON: '24002',
-	PORT_LIVE: '24003',
+	GEORDI_PORT_DESKTOP: '24000',
+	GEORDI_PORT_DESKTOP_DAEMON: '24002',
+	GEORDI_PORT_DESKTOP_LIVE: '24003',
 	GEORDI_PORT_WEB: '20000',
 	GEORDI_DATA_DIR: '/installed',
 	GEORDI_DAEMON_TOKEN: 'installed-secret',
@@ -30,9 +30,12 @@ test("uses the task's own ports", () => {
 
 test('missing or invalid ports fail before building', () => {
 	for (const port of [undefined, 'x', '1', '70000']) {
-		assert.throws(() => devEnvironment({ ...env, PORT_LIVE: port }, '/workspace'));
+		assert.throws(() => devEnvironment({ ...env, GEORDI_PORT_DESKTOP_LIVE: port }, '/workspace'));
 	}
-	assert.throws(() => devEnvironment({ ...env, PORT_LIVE: '24002' }, '/workspace'), /distinct/);
+	assert.throws(
+		() => devEnvironment({ ...env, GEORDI_PORT_DESKTOP_LIVE: '24002' }, '/workspace'),
+		/distinct/
+	);
 });
 
 test('installed desktop keeps its existing ports and profile behavior', () => {

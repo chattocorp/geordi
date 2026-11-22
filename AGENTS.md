@@ -163,13 +163,13 @@ it, perhaps you.
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that
   are files in the bundle and that the system plays (FDR-008).
-- **Repository configuration (FDR-006).** A repository's `.geordi.yml` names tasks, each with a command, links (`url` or `urls`), or both, the ports its command listens on (`ports: [http, live]`; none unless named), and its dependencies and defaults.
+- **Repository configuration (FDR-006).** A repository's `.geordi.yml` names tasks, each with a command, a `url`, or both, the ports its command listens on (`ports: [http, live]`; none unless named), and its dependencies and defaults.
   Nothing else is read (no `jobs`, `urls`, `run`, `ports`, nor `.geordi.toml`). Every workspace also has ten spare ports. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
   reports it with the worktree's state. Each task's command runs in a terminal named `JOB_TERMINAL` +
   its name, and is running only until its command ends (`terminal.ended`; the terminal
   stays, to be read); the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
-  once per `task.port` and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
+  once per port name (names are the workspace's, each one task's) and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
   run only as a person saw and agreed to them (`approvals.ts`). The daemon runs the `setup`
   script by itself when it makes a worktree (the first turn waits for it; `setUp` in
   `main.ts`) and `teardown` before it removes one, each in a job-like terminal it tells the

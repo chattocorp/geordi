@@ -68,22 +68,21 @@ export function createJobs(
 			throw new Error(`${task.label ?? task.name} ended before it was up: look at its terminal`);
 	}
 
-	/** Where a link leads, once something answers there. */
-	async function reach(link: Task['links'][number]): Promise<Outcome> {
-		const url = new URL(link.href);
+	/** Where a task's URL leads, once something answers there. */
+	async function reach(task: Task, href: string): Promise<Outcome> {
+		const url = new URL(href);
 		const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
 		const family = url.hostname === '127.0.0.1' ? 4 : url.hostname === '[::1]' ? 6 : undefined;
 		if (!(await answers(port, family)))
-			return { problem: `${link.label ?? link.name}: port ${port} did not become reachable` };
-		return { href: link.href };
+			return { problem: `${task.label ?? task.name}: port ${port} did not become reachable` };
+		return { href };
 	}
 
 	return {
 		/**
-		 * Runs `names` (a task, or `task.link` for one of its links) and what they need, each
-		 * once what it needs is up, sharing what they have in common; then opens each one's
-		 * link (the one named, else its first) once it answers. `seen` has each command as
-		 * the person asking saw it: the daemon runs no other.
+		 * Runs the tasks `names` and what they need, each once what it needs is up, sharing
+		 * what they have in common; then says where each one's URL leads once it answers.
+		 * `seen` has each command as the person asking saw it: the daemon runs no other.
 		 */
 		async run(
 			workspaceId: string,
@@ -127,15 +126,11 @@ export function createJobs(
 				return {};
 			}
 			return Promise.all(
-				[...new Set(names)].map(async (asked) => {
-					const [name, linkName] = asked.split('.');
+				[...new Set(names)].map(async (name) => {
 					const outcome = await launch(name);
-					const links = byName.get(name)?.links ?? [];
-					const link = linkName ? links.find((link) => link.name === linkName) : links[0];
-					if (linkName && !link)
-						return { name: asked, problem: `There is no link "${asked}" any more` };
-					if (outcome.problem || outcome.conflict || !link) return { name: asked, ...outcome };
-					return { name: asked, ...(await reach(link)) };
+					const task = byName.get(name);
+					if (outcome.problem || outcome.conflict || !task?.href) return { name, ...outcome };
+					return { name, ...(await reach(task, task.href)) };
 				})
 			);
 		},

@@ -327,13 +327,6 @@
 		return isUp(job) ? 'running' : 'stopped';
 	}
 	const labelOf = (task: string) => tasks.find((other) => other.name === task)?.label ?? task;
-	/** What a task or one of its links (`task.link`) is called. */
-	function refLabel(ref: string) {
-		const [name, linkName] = ref.split('.');
-		const task = tasks.find((task) => task.name === name);
-		const link = linkName ? task?.links.find((link) => link.name === linkName) : undefined;
-		return link?.label ?? link?.name ?? labelOf(name);
-	}
 
 	// The commands are in a file the agent can write, and run as the user, outside any
 	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
@@ -413,30 +406,44 @@
 	/** Links that were ready when no tab could be opened for them: offered in the Tasks tab. */
 	const readyLinks = new SvelteMap<string, string>();
 
+	/** Tasks whose terminal is to come to the front as soon as it is there. */
+	const showWhenThere = new SvelteSet<string>();
+	$effect(() => {
+		for (const name of showWhenThere)
+			if (workspace.terminals.includes(JOB_TERMINAL + name)) {
+				showWhenThere.delete(name);
+				show(name);
+			}
+	});
+
 	/**
-	 * Runs tasks (or opens one of a task's links, `task.link`) and what they need, once the
-	 * person has agreed to every command that would run; then opens each one's link.
+	 * Runs tasks and what they need, once the person has agreed to every command that would
+	 * run; then opens each one's URL. `showTerminal`: bring the terminal of the (first) task
+	 * to the front once it starts.
 	 */
-	function launchTasks(refs: string[], confirmation?: string) {
+	function launchTasks(names: string[], confirmation?: string, showTerminal = false) {
 		const workspaceId = id;
-		const names = refs.map((ref) => ref.split('.')[0]);
 		const commands = commandsFor(names);
 		const seen: Seen = Object.fromEntries(commands.map((job) => [job.name, job.command]));
 		agreedTo(commands, async () => {
+			if (showTerminal) showWhenThere.add(names[0]);
 			// a new tab has to be opened while the click still counts; where to comes later
 			// (`window` is the name of a snippet in here)
 			const tabs = new SvelteMap<string, Window | null>();
-			for (const [index, ref] of refs.entries()) {
-				readyLinks.delete(ref);
-				const leads = tasks.find((task) => task.name === names[index])?.links.length;
+			for (const name of names) {
+				readyLinks.delete(name);
+				const leads = tasks.find((task) => task.name === name)?.href;
 				if (leads && !('geordiDesktop' in globalThis))
-					tabs.set(ref, globalThis.open('about:blank', '_blank'));
+					tabs.set(name, globalThis.open('about:blank', '_blank'));
 			}
 			const booting = startOrder(tasks, names).filter((name) => !isUp(name));
 			for (const name of booting) launching.add(name);
 			mergeProblem = null;
 			try {
-				const results = await runTasks({ workspaceId, tasks: refs, seen, confirmation });
+				const results = await runTasks({ workspaceId, tasks: names, seen, confirmation });
+				// its terminal may be reported after this: it stays asked for, unless it did not start
+				if (results.some((result) => result.problem || result.conflict))
+					showWhenThere.delete(names[0]);
 				const problems = new SvelteSet<string>();
 				for (const { name, href, problem } of results) {
 					if (problem) problems.add(problem);
@@ -466,6 +473,7 @@
 					};
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not run that');
+				showWhenThere.delete(names[0]);
 			} finally {
 				for (const tab of tabs.values()) tab?.close();
 				for (const name of booting) launching.delete(name);
@@ -935,14 +943,11 @@
 			// nothing to run without a worktree to run it in
 			tasks: !terminalsOpen
 				? []
-				: tasks.map(({ name, label, command, links }) => ({
+				: tasks.map(({ name, label, command }) => ({
 						name,
 						label: label ?? name,
 						live: !!command && runLive(name),
-						links:
-							links.length > 1
-								? links.map((link) => ({ name: link.name, label: link.label ?? link.name }))
-								: []
+						opens: !command
 					})),
 			outputs: workspace.terminals
 				.filter(isRunTerminal)
@@ -1014,7 +1019,7 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
 	{:else if tab === RUN}
-		<RunTab jobs={tasks.filter((task) => task.command)} stateOf={jobState} />
+		<RunTab tasks={tasks.filter((task) => task.command)} stateOf={jobState} />
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -1123,13 +1128,13 @@
 			shortcut="runDefault"
 			stateOf={jobState}
 			hasTerminal={(name) => workspace.terminals.includes(JOB_TERMINAL + name)}
-			run={(ref) => launchTasks([ref])}
+			run={(name, showTerminal) => launchTasks([name], undefined, showTerminal)}
 			{stop}
 			{show}
 		>
-			{#each readyLinks as [ref, href] (ref)}
+			{#each readyLinks as [name, href] (name)}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
-				<a class="item" {href} target="_blank" rel="noopener">Open {refLabel(ref)} in browser</a>
+				<a class="item" {href} target="_blank" rel="noopener">Open {labelOf(name)} in browser</a>
 			{/each}
 			{#if config?.problem}
 				<Notice>The repository's configuration can't be read: {config.problem}</Notice>

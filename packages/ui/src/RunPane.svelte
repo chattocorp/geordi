@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { Task, TaskLink } from '@geordi/protocol';
+	import type { Task } from '@geordi/protocol';
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import Keys from './Keys.svelte';
@@ -9,8 +9,8 @@
 	/**
 	 * The repository's tasks (FDR-006), and how each is: what a workspace runs, in one place,
 	 * the default tasks first (what the shortcut runs), then the rest, each in the order the file
-	 * has them. A task is a row, with its links under it. The row runs the task (again);
-	 * a terminal icon beside it shows its output; a link runs its task and opens. What
+	 * has them. A task is a row: it runs the task (again) and opens its URL; pointing at it
+	 * offers its terminal and stopping it. What
 	 * comes before them (a problem with the configuration, say) is `children`.
 	 */
 	let {
@@ -28,8 +28,11 @@
 		shortcut?: ShortcutId;
 		stateOf: (task: string) => JobState;
 		hasTerminal: (task: string) => boolean;
-		/** Runs a task, or opens one of its links (`task.link`). */
-		run: (ref: string) => void;
+		/**
+		 * Runs a task and opens its URL; `showTerminal`: and brings its terminal to the front
+		 * once it starts.
+		 */
+		run: (task: string, showTerminal?: boolean) => void;
 		stop: (task: string) => void;
 		/** Brings a task's terminal to the front. */
 		show: (task: string) => void;
@@ -74,7 +77,7 @@
 		if (pointed) visit(pointed);
 		return found;
 	});
-	/** Whether a task is up, as far as its links go: running, or nothing to run. */
+	/** Whether a task is up, as far as its URL goes: running, or nothing to run. */
 	function ready(name: string): boolean {
 		const task = byName.get(name);
 		if (!task) return false;
@@ -88,9 +91,6 @@
 		return task.needs.some(waiting);
 	}
 	const where = (href: string) => href.replace(/^https?:\/\//, '').replace(/\/$/, '');
-	/** A link's name: its label, else where it leads (a task's only link is named after the task). */
-	const linkName = (task: Task, link: TaskLink) =>
-		link.label ?? (link.name === task.name ? where(link.href) : link.name);
 </script>
 
 {#snippet linkIcon(name: string)}
@@ -107,9 +107,8 @@
 	{@const label = task.label ?? task.name}
 	{@const state = stateOf(task.name)}
 	{@const terminal = !!task.command && hasTerminal(task.name)}
-	<!-- a task's only link sits at the end of its row; several are listed under it -->
-	{@const inline = task.command && task.links.length === 1 ? task.links[0] : null}
-	{@const links = !task.command ? task.links.slice(1) : inline ? [] : task.links}
+	<!-- the URL of a task that runs something sits at the end of its row -->
+	{@const inline = task.command ? task.href : null}
 	<li>
 		<div
 			{@attach pointing(task.name)}
@@ -122,8 +121,16 @@
 			<button
 				type="button"
 				aria-label="{task.command ? 'Run' : 'Open'} {label}"
-				title={task.command ?? `Open ${task.links[0]?.href}`}
+				title={task.command ?? `Open ${task.href}`}
 				onclick={() => run(task.name)}
+				onmousedown={(event) => event.button === 1 && task.command && event.preventDefault()}
+				onauxclick={(event) => {
+					// a middle click goes to its terminal: running, from the last run, or about to start
+					if (event.button !== 1 || !task.command) return;
+					event.preventDefault();
+					if (terminal) show(task.name);
+					else run(task.name, true);
+				}}
 				class="flex h-full min-w-0 flex-1 items-center gap-1 text-left text-sm"
 			>
 				<!-- what is not running is quiet until one points at it, when it says the row runs it -->
@@ -144,81 +151,52 @@
 					<span class="hidden group-hover/task:inline group-has-focus-visible/task:inline">
 						{#if task.command}
 							{task.ports.map(({ port }) => `:${port}`).join(' ')}
-						{:else if task.links[0]}
-							{where(task.links[0].href)}
+						{:else if task.href}
+							{where(task.href)}
 						{/if}
 					</span>
 				</span>
 				{#if task.default && shortcut}<span class="shrink-0"><Keys id={shortcut} /></span>{/if}
 			</button>
-			<!-- what sits at the end of the rows keeps its place in every row, so that it lines up -->
-			<span class="grid size-6 shrink-0 place-items-center">
-				{#if inline}
-					<button
-						type="button"
-						aria-label="Open {inline.label ?? label}"
-						title="Open {inline.href}"
-						onclick={() => run(`${task.name}.${inline.name}`)}
-						class="grid size-6 place-items-center rounded-control hover:bg-hover"
-					>
-						{@render linkIcon(task.name)}
-					</button>
-				{/if}
-			</span>
-			<!-- its output, running or from the last run -->
-			<span class="grid size-6 shrink-0 place-items-center">
-				{#if terminal}
-					<Button
-						variant="ghost"
-						size="sm"
-						icon="icon-[lucide--square-terminal]"
-						label="Show terminal of {label}"
-						onclick={() => show(task.name)}
-					/>
-				{/if}
-			</span>
-			<!-- stopping shows where one points at what runs: the mark says that it does -->
-			<span
-				class="grid size-6 shrink-0 place-items-center opacity-0 group-hover/task:opacity-100 group-has-focus-visible/task:opacity-100"
-			>
-				{#if task.command && live(state)}
-					<Button
-						variant="ghost"
-						size="sm"
-						icon="icon-[lucide--circle-stop]"
-						label="Stop {label}"
-						onclick={() => stop(task.name)}
-					/>
-				{/if}
-			</span>
+			<!-- what can be done with it shows where one points at it (its output, running or from
+				the last run; stopping it), taking no room at rest: the mark says how it is -->
+			{#if terminal || (task.command && live(state))}
+				<span
+					class="hidden shrink-0 items-center group-focus-within/task:flex group-hover/task:flex"
+				>
+					{#if terminal}
+						<Button
+							variant="ghost"
+							size="sm"
+							icon="icon-[lucide--square-terminal]"
+							label="Show terminal of {label}"
+							onclick={() => show(task.name)}
+						/>
+					{/if}
+					{#if task.command && live(state)}
+						<Button
+							variant="ghost"
+							size="sm"
+							icon="icon-[lucide--circle-stop]"
+							label="Stop {label}"
+							onclick={() => stop(task.name)}
+						/>
+					{/if}
+				</span>
+			{/if}
+			<!-- its URL stays, at the very end: the one thing at rest beside the name -->
+			{#if inline}
+				<button
+					type="button"
+					aria-label="Open {label}"
+					title="Open {inline}"
+					onclick={() => run(task.name)}
+					class="grid size-6 shrink-0 place-items-center rounded-control hover:bg-hover"
+				>
+					{@render linkIcon(task.name)}
+				</button>
+			{/if}
 		</div>
-		{#if links.length > 0}
-			<ul>
-				{#each links as link (link.name)}
-					<li>
-						<button
-							type="button"
-							aria-label="Open {linkName(task, link)}"
-							title="Open {link.href}"
-							onclick={() => run(`${task.name}.${link.name}`)}
-							class="group/link flex h-7 w-full items-center gap-1 rounded-control pr-2 pl-6 text-left text-xs text-muted hover:bg-hover hover:text-ink"
-						>
-							<span class="grid size-6 shrink-0 place-items-center">
-								{@render linkIcon(task.name)}
-							</span>
-							<span class="min-w-0 truncate">{linkName(task, link)}</span>
-							{#if link.label}
-								<span
-									class="hidden min-w-0 grow basis-0 truncate pl-1 text-right code-dense text-xs text-muted group-hover/link:inline group-focus-visible/link:inline"
-								>
-									{where(link.href)}
-								</span>
-							{/if}
-						</button>
-					</li>
-				{/each}
-			</ul>
-		{/if}
 	</li>
 {/snippet}
 

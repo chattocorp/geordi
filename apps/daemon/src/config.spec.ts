@@ -10,7 +10,7 @@ import { ensureWorktree } from './worktree.ts';
 const task = (fields: object) => ({
 	command: null,
 	ports: [],
-	links: [],
+	url: null,
 	needs: [],
 	default: false,
 	...fields
@@ -24,7 +24,7 @@ describe('parseConfig', () => {
 		expect(() => parseConfig('- a list')).toThrow(/settings/);
 	});
 
-	it('reads tasks with their ports, links and what they need', () => {
+	it('reads tasks with their ports, URLs and what they need', () => {
 		expect(
 			parseConfig(`
 tasks:
@@ -33,38 +33,33 @@ tasks:
     ports: [postgres]
   web:
     label: Development server
-    command: pnpm dev --port $PORT_HTTP
+    command: pnpm dev --port $PORT
     ports: [http, hmr]
     needs: [db]
-    urls:
-      app: { label: App, url: "http://localhost:{http}/" }
-      admin: http://localhost:{http}/admin
+    url: http://localhost:{http}/
     default: true
   reset:
     command: make reset
   docs:
-    url: http://docs.localhost:{web.http}/
+    url: http://docs.localhost:{hmr}/
 `).tasks
 		).toEqual([
 			task({ name: 'db', command: 'docker compose up db', ports: ['postgres'] }),
 			task({
 				name: 'web',
 				label: 'Development server',
-				command: 'pnpm dev --port $PORT_HTTP',
+				command: 'pnpm dev --port $PORT',
 				ports: ['http', 'hmr'],
-				links: [
-					{ name: 'app', label: 'App', url: 'http://localhost:{web.http}/' },
-					{ name: 'admin', url: 'http://localhost:{web.http}/admin' }
-				],
+				url: 'http://localhost:{http}/',
 				needs: ['db'],
 				default: true
 			}),
 			// a task without ports has none
 			task({ name: 'reset', command: 'make reset' }),
-			// a link to another task's port needs that task; a single url is named after its task
+			// a URL using a port only one other task lists needs that task
 			task({
 				name: 'docs',
-				links: [{ name: 'docs', url: 'http://docs.localhost:{web.http}/' }],
+				url: 'http://docs.localhost:{hmr}/',
 				needs: ['web']
 			})
 		]);
@@ -94,22 +89,22 @@ tasks:
 		['tasks:\n  web: { command: x, ports: [HTTP] }', /not a name/],
 		['tasks:\n  web: { url: "http://localhost/", ports: [http] }', /only a task with a command/],
 		['tasks:\n  web: { command: x, needs: [db] }', /there is no task "db"/],
-		['tasks:\n  web: { command: x, url: "http://localhost:{http}/" }', /web has no port "http"/],
-		['tasks:\n  web: { url: "http://localhost:{db.pg}/" }', /there is no task "db"/],
+		[
+			'tasks:\n  web: { command: x, url: "http://localhost:{http}/" }',
+			/no task lists a port "http"/
+		],
+		[
+			'tasks:\n  dev: { command: x, ports: [http] }\n  preview: { command: x, ports: [http] }',
+			/"http" is dev's already/
+		],
+		['tasks:\n  web: { url: "http://localhost:{web.http}/" }', /no task lists a port "web.http"/],
 		['tasks:\n  web: { url: "https://example.com/" }', /on this machine/],
-		['tasks:\n  web: { url: "http://localhost/", urls: {} }', /url or urls, not both/],
+		['tasks:\n  web: { urls: { App: "http://localhost/" } }', /give each URL a task of its own/],
+		['tasks:\n  web: { url: [http://localhost/] }', /must be an address/],
 		['tasks:\n  web: { url: "http://localhost/", default: yes }', /default must be true or false/],
 		[
 			'tasks:\n  a: { command: x, needs: [b] }\n  b: { command: x, needs: [a] }',
 			/needs itself, through other tasks/
-		],
-		[
-			'tasks:\n  web: { command: x, ports: [api-http] }\n  web-api: { command: x, ports: [http] }',
-			/would both be GEORDI_PORT_WEB_API_HTTP/
-		],
-		[
-			'tasks:\n  web: { command: x, ports: [api] }\n  web-api: { command: x, ports: [http] }',
-			/would both be GEORDI_PORT_WEB_API/
 		],
 		['tasks:\n  web: { command: x, label: "" }', /label must be a non-empty/]
 	])('refuses %j', (text, problem) => {
@@ -121,7 +116,14 @@ tasks:
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
 		expect(parseConfig(tasks.example).tasks).toMatchObject([
 			{ name: 'db', ports: ['postgres'] },
-			{ name: 'web', ports: ['http', 'hmr'], needs: ['db'], links: [{}, {}], default: true },
+			{
+				name: 'web',
+				ports: ['http', 'hmr'],
+				needs: ['db'],
+				url: 'http://localhost:{http}/',
+				default: true
+			},
+			{ name: 'admin', command: null, needs: ['web'] },
 			{ name: 'docs', command: null, needs: [] }
 		]);
 		expect(parseConfig([setup.example, teardown.example].join('\n'))).toMatchObject({
@@ -214,14 +216,14 @@ tasks:
   web:
     command: pnpm dev
     ports: [http, live]
-    urls:
-      app: http://localhost:{http}/
-      admin: { label: Admin, url: "http://localhost:{http}/admin" }
+    url: http://localhost:{http}/admin
   api:
     command: pnpm api
-    ports: [http]
+    ports: [api]
   docs:
-    url: http://localhost:{web.live}/docs
+    url: http://localhost:{live}/docs
+  site:
+    url: http://localhost:{http}/
 `);
 	const found = { settings, problem: null, source: 'workspace' as const, file: '.geordi.yml' };
 	const assigned = {
@@ -229,7 +231,7 @@ tasks:
 			{ first: 20000, count: 3 },
 			{ first: 24000, count: 10 }
 		],
-		jobs: { web: 0, 'web.http': 0, 'web.live': 2, 'api.http': 1 },
+		jobs: { ':http': 0, ':live': 2, ':api': 1 },
 		spare: 3
 	};
 
@@ -244,10 +246,7 @@ tasks:
 					{ name: 'http', port: 20000 },
 					{ name: 'live', port: 20002 }
 				],
-				links: [
-					{ name: 'app', href: 'http://localhost:20000/' },
-					{ name: 'admin', label: 'Admin', href: 'http://localhost:20000/admin' }
-				],
+				href: 'http://localhost:20000/admin',
 				needs: [],
 				default: false
 			},
@@ -255,17 +254,27 @@ tasks:
 				name: 'api',
 				command: 'pnpm api',
 				approved: false,
-				ports: [{ name: 'http', port: 20001 }],
-				links: [],
+				ports: [{ name: 'api', port: 20001 }],
+				href: null,
 				needs: [],
 				default: false
 			},
+
 			{
 				name: 'docs',
 				command: null,
 				approved: true,
 				ports: [],
-				links: [{ name: 'docs', href: 'http://localhost:20002/docs' }],
+				href: 'http://localhost:20002/docs',
+				needs: ['web'],
+				default: false
+			},
+			{
+				name: 'site',
+				command: null,
+				approved: true,
+				ports: [],
+				href: 'http://localhost:20000/',
 				needs: ['web'],
 				default: false
 			}
@@ -277,11 +286,11 @@ tasks:
 		});
 	});
 
-	it("asks for each task's ports, the first where the task's one port was", () => {
+	it('asks for each port by its name, once, where it was kept before', () => {
 		expect(wantedPorts(settings)).toEqual([
-			{ key: 'web.http', legacy: 'web' },
-			{ key: 'web.live' },
-			{ key: 'api.http', legacy: 'api' }
+			{ key: ':http', legacy: ['web.http', 'web'] },
+			{ key: ':live', legacy: ['web.live'] },
+			{ key: ':api', legacy: ['api.api', 'api'] }
 		]);
 		expect(wantedPorts(null)).toEqual([]);
 	});

@@ -38,17 +38,20 @@ const SAMPLES = {
   web:
     label: Static server
     command: node serve.js
-    ports: [http, status]
-    urls:
-      site: { label: Site, url: "http://localhost:{http}/" }
-      about: { label: About page, url: "http://localhost:{http}/about.html" }
-      status: { label: Status, url: "http://localhost:{status}/" }
+    ports: [site, status]
+    url: http://localhost:{site}/
     default: true
+  about:
+    label: About page
+    url: http://localhost:{site}/about.html
+  status:
+    label: Server status
+    url: http://localhost:{status}/
   preview:
     label: Preview server that takes a few seconds to come up
     command: SERVE_DELAY=5 node serve.js
-    ports: [http]
-    url: http://localhost:{http}/about.html
+    ports: [preview]
+    url: http://localhost:{preview}/about.html
   check:
     label: Check links
     command: node check.js
@@ -82,7 +85,7 @@ setTimeout(
 );
 
 // a second port, where the task names one: how the server is
-const status = Number(process.env.PORT_STATUS ?? 0);
+const status = Number(process.env.GEORDI_PORT_STATUS ?? 0);
 if (status)
 	createServer((request, response) => {
 		response.writeHead(200, { 'content-type': 'application/json' });

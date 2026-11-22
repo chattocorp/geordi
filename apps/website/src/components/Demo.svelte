@@ -573,7 +573,7 @@
 					>
 						{#snippet tab(id: string)}
 							{#if id === 'run'}
-								<RunTab jobs={tasks} stateOf={(name) => jobStates[name] ?? 'stopped'} />
+								<RunTab {tasks} stateOf={(name) => jobStates[name] ?? 'stopped'} />
 							{:else}
 								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 								<span>Terminal 1</span>

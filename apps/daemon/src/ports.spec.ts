@@ -54,27 +54,32 @@ describe('workspace ports', () => {
 		expect(later.spare).toBe(3);
 	});
 
-	it("gives a task's first port the one the task had when it had one", async () => {
+	it('gives a port the one it was kept as before, under the first of its old keys there is', async () => {
 		const at = file();
 		writeFileSync(
 			at,
-			JSON.stringify({ w: { blocks: [{ first: 20000, count: 4 }], jobs: { web: 1, reset: 2 } } })
+			JSON.stringify({
+				w: { blocks: [{ first: 20000, count: 4 }], jobs: { web: 1, reset: 2, 'api.http': 3 } }
+			})
 		);
 		const assigned = await createPorts(at, allFree).ensure('w', [
-			{ key: 'web.http', legacy: 'web' },
-			{ key: 'web.live' },
-			{ key: 'desktop.forge', legacy: 'desktop' }
+			{ key: ':http', legacy: ['web.http', 'web'] },
+			{ key: ':live', legacy: ['web.live'] },
+			{ key: ':api', legacy: ['api.api', 'api.http', 'api'] },
+			{ key: ':desktop', legacy: ['desktop.desktop', 'desktop'] }
 		]);
-		expect(portAt(assigned, assigned.jobs['web.http'])).toBe(20001);
+		expect(portAt(assigned, assigned.jobs[':http'])).toBe(20001);
+		expect(portAt(assigned, assigned.jobs[':api'])).toBe(20003);
 		// ports nobody holds go first, before new ones are claimed
-		expect(portAt(assigned, assigned.jobs['web.live'])).toBe(20000);
-		expect(portAt(assigned, assigned.jobs['desktop.forge'])).toBe(20003);
+		expect(portAt(assigned, assigned.jobs[':live'])).toBe(20000);
+		expect(portAt(assigned, assigned.jobs[':desktop'])).toBe(20004);
 		// the spare ones are a run of their own, once
 		expect(assigned.blocks).toEqual([
 			{ first: 20000, count: 4 },
+			{ first: 20004, count: 1 },
 			{ first: 20010, count: SPARE_PORTS }
 		]);
-		expect(assigned.spare).toBe(4);
+		expect(assigned.spare).toBe(5);
 	});
 
 	it('finds another run where a port is in use, or belongs to another workspace', async () => {
@@ -103,22 +108,18 @@ describe('workspace ports', () => {
 					{ name: 'live-reload', port: 20001 }
 				]
 			},
-			{ name: 'api-server', ports: [{ name: 'http', port: 20002 }] },
+			{ name: 'api', ports: [{ name: 'api-server', port: 20002 }] },
 			{ name: 'reset', ports: [] }
 		];
 		expect(portEnv(tasks, { first: 24000, count: 10 })).toEqual({
 			GEORDI_PORT: '24000',
 			GEORDI_PORTS: '10',
-			GEORDI_PORT_WEB: '20000',
-			GEORDI_PORT_WEB_HTTP: '20000',
-			GEORDI_PORT_WEB_LIVE_RELOAD: '20001',
-			GEORDI_PORT_API_SERVER: '20002',
-			GEORDI_PORT_API_SERVER_HTTP: '20002'
+			GEORDI_PORT_HTTP: '20000',
+			GEORDI_PORT_LIVE_RELOAD: '20001',
+			GEORDI_PORT_API_SERVER: '20002'
 		});
 		expect(ownPortEnv(tasks[0])).toEqual({
-			PORT: '20000',
-			PORT_HTTP: '20000',
-			PORT_LIVE_RELOAD: '20001'
+			PORT: '20000'
 		});
 		expect(ownPortEnv(tasks[2])).toEqual({});
 	});

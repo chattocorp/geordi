@@ -155,22 +155,15 @@ it('lists changed files by name, with their folder beside them', () => {
 	expect([file.label, file.detail, file.keywords]).toEqual(['a.ts', 'src/lib', 'src/lib/a.ts']);
 });
 
-it('runs a task or stops it, and opens each of several links by name', () => {
+it('runs a task or stops it, and opens one that is only a URL', () => {
 	const runTask = vi.fn();
 	const commands = workspaceCommands(
 		workspace({
 			runTask,
 			tasks: [
-				{ name: 'web', label: 'Web server', live: true, links: [] },
-				{
-					name: 'storybook',
-					label: 'Storybook',
-					live: false,
-					links: [
-						{ name: 'stories', label: 'Stories' },
-						{ name: 'docs', label: 'Docs' }
-					]
-				}
+				{ name: 'web', label: 'Web server', live: true, opens: false },
+				{ name: 'storybook', label: 'Storybook', live: false, opens: false },
+				{ name: 'docs', label: 'Docs', live: false, opens: true }
 			]
 		})
 	);
@@ -178,9 +171,8 @@ it('runs a task or stops it, and opens each of several links by name', () => {
 	expect(tasks.map(({ label }) => label)).toEqual([
 		'Stop Web server',
 		'Run Storybook',
-		'Open Stories',
 		'Open Docs'
 	]);
-	tasks[3].run();
-	expect(runTask).toHaveBeenCalledWith('storybook.docs');
+	tasks[2].run();
+	expect(runTask).toHaveBeenCalledWith('docs');
 });

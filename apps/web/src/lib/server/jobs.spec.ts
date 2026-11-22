@@ -8,7 +8,7 @@ const task = (name: string, fields: Partial<Task>): Task => ({
 	command: null,
 	approved: true,
 	ports: [],
-	links: [],
+	href: null,
 	needs: [],
 	default: false,
 	...fields
@@ -60,7 +60,7 @@ it('shares prerequisites, waits for all their ports, and opens the first link', 
 		}),
 		task('preview', {
 			needs: ['web'],
-			links: [{ name: 'preview', href: 'http://localhost:21102/preview' }]
+			href: 'http://localhost:21102/preview'
 		}),
 		task('worker', { command: 'worker', needs: ['web'] })
 	]);
@@ -82,26 +82,19 @@ it('shares prerequisites, waits for all their ports, and opens the first link', 
 	expect(started).toEqual(['web', 'worker']); // what runs is reused
 });
 
-it('opens one of several links by name, and one that needs nothing at once', async () => {
+it('opens the URL of a task that runs, and of one that needs nothing at once', async () => {
 	const { jobs, started } = setup([
 		task('storybook', {
 			command: 'storybook',
 			ports: [{ name: 'http', port: 21100 }],
-			links: [
-				{ name: 'stories', href: 'http://localhost:21100/' },
-				{ name: 'docs', href: 'http://localhost:21100/docs' }
-			]
+			href: 'http://localhost:21100/'
 		}),
-		task('handbook', { links: [{ name: 'handbook', href: 'http://localhost:21101/' }] })
+		task('storybook-docs', { href: 'http://localhost:21100/docs', needs: ['storybook'] }),
+		task('handbook', { href: 'http://localhost:21101/' })
 	]);
-	expect(
-		await jobs.run('w', ['storybook.docs', 'handbook', 'storybook.gone'], {
-			storybook: 'storybook'
-		})
-	).toEqual([
-		{ name: 'storybook.docs', href: 'http://localhost:21100/docs' },
-		{ name: 'handbook', href: 'http://localhost:21101/' },
-		{ name: 'storybook.gone', problem: expect.stringContaining('no link') }
+	expect(await jobs.run('w', ['storybook-docs', 'handbook'], { storybook: 'storybook' })).toEqual([
+		{ name: 'storybook-docs', href: 'http://localhost:21100/docs' },
+		{ name: 'handbook', href: 'http://localhost:21101/' }
 	]);
 	expect(started).toEqual(['storybook']);
 });
