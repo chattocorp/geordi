@@ -11,6 +11,7 @@ import {
 	readFileSync,
 	realpathSync,
 	renameSync,
+	writeFileSync,
 	writeSync
 } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -204,6 +205,7 @@ export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireB
 	}
 	const created = missing && !restored;
 	verifyLinks(worktree);
+	ensureContext(worktree.path);
 
 	// What a commit writes outside the worktree: objects, refs and reflogs in the shared
 	// .git, plus the worktree's own admin directory (HEAD, index and their lock files, which
@@ -214,6 +216,23 @@ export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireB
 
 	return { ...worktree, writableRoots, created, restored };
 }
+
+/** The agent's scratch folder in a worktree, for notes and temporary files. */
+export const CONTEXT_DIR = '.context';
+
+/**
+ * Makes the worktree's scratch folder, ignored by Git through a `.gitignore` of its own
+ * (`*` ignores the folder too), so that no shared ignore file needs touching. Left alone
+ * if it is there already, whatever it is: the agent may have made it, or removed the file.
+ */
+function ensureContext(path: string) {
+	const dir = join(path, CONTEXT_DIR);
+	if (lexists(dir)) return;
+	mkdirSync(dir);
+	writeFileSync(join(dir, '.gitignore'), '*\n', { flag: 'wx' });
+}
+
+const lexists = (path: string) => lstatSync(path, { throwIfNoEntry: false }) !== undefined;
 
 /**
  * Moves a worktree to a new branch off where work in the repository starts (`startOf`):
