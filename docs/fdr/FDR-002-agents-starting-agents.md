@@ -1,7 +1,7 @@
 # FDR-002: Agents starting and supervising agents
 
 **Status:** Active
-**Last reviewed:** 2026-11-20
+**Last reviewed:** 2026-11-22
 
 ## Overview
 
@@ -16,7 +16,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - A message to a child that is working waits for its turn to end; the parent can have it interrupt instead, which gives the child the message at once, in the middle of what it is doing (ADR-010). In the child's conversation, what an agent said is marked as that agent's, by its workspace's name.
 - When a child ends a turn (completed or failed), its parent is told in a message from the child with its reply: the last message of that turn, which is its answer (the last 4000 characters of it, since an answer ends with its conclusion; what it said on the way is in its transcript), unless the parent is waiting for it with `wait_for_agent` at that moment. A parent at work gets the message when its own turn ends; an idle one starts a turn. So a parent hands off work and ends its turn, without polling, and can't forget a child that finished.
 - The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.
-- Agents can find, read and wait on any workspace in the installation, in any repository, archived conversations included. A repository agent can message another agent in any repository it can access. The message starts a turn if the recipient is idle or waits for its current turn to finish. A repository agent can interrupt, stop and archive its own descendants.
+- Agents can find, read and wait on any workspace in the installation, in any repository, archived conversations included. A repository agent can message only its own descendants and the agent that started it, never another agent: work stays in the tree that was asked for it, and an agent can't set the person's other agents to work. The message starts a turn if the recipient is idle or waits for its current turn to finish. A repository agent can interrupt, stop and archive its own descendants.
 - People can give an MCP client outside Geordi a named token in Settings (FDR-005), for the repositories they choose; it sees nothing of the others, nor of repositories added later. Such a client can start agents in those repositories, each a workspace of its own, as a person would start it, and supervise them like a parent. It may also message any agent: the message waits for the agent's turn to end, as it interrupts only its own. Its messages are marked with its name.
 - Work from a child with its own worktree is merged in the repository where the child worked. Geordi does not merge on its own.
 - The sidebar groups current workspaces by repository. Archiving the last workspace in a repository removes its heading. A workspace started by an agent is marked as such, appears in its destination repository, and sits under its parent when both are in the same repository; pointing at it lights that one up.

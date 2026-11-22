@@ -242,7 +242,13 @@ const tools = {
 	send_message: {
 		description: (kind: CallerKind) =>
 			[
-				`Send a follow-up to ${kind === 'project' ? controlledTarget(kind) : 'another unarchived agent in a repository you can access'}. An idle agent starts a turn, processing any previously queued messages first. A running agent receives the message after its turn unless you set interrupt to steer the current turn.`,
+				`Send a follow-up to ${
+					kind === 'project'
+						? controlledTarget(kind)
+						: kind === 'external'
+							? 'another unarchived agent in a repository you can access'
+							: 'an unarchived agent you started (directly or through another agent), or to the agent that started you'
+				}. An idle agent starts a turn, processing any previously queued messages first. A running agent receives the message after its turn unless you set interrupt to steer the current turn.`,
 				kind !== 'project' ? 'You may steer only your own direct or indirect descendants.' : '',
 				'Returns the current agent report immediately. Use wait_for_agent for the reply.'
 			]

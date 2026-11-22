@@ -347,6 +347,7 @@ describe('the agent API as an MCP server', () => {
 		expect(clientTools.send_message.description).toContain(
 			'only your own direct or indirect descendants'
 		);
+		expect(repoTools.send_message.description).toContain('or to the agent that started you');
 		for (const name of ['send_message', 'stop_agent', 'archive_agent'])
 			expect(projectTools[name].description).toContain(
 				'any agent in a repository or in your project'
@@ -512,7 +513,7 @@ describe('workspace status', () => {
 });
 
 describe('installation-wide workspace access', () => {
-	it('lets agents read, wait on and message peers across repositories', async () => {
+	it('lets agents read and wait on peers across repositories, but not message them', async () => {
 		const { repos, workspaces, caller, call } = setup();
 		const repoId = repos.register(gitRepository()).id;
 		const peer = workspaces.create({ repoId, agent: 'codex', prompt: 'Review the change' });
@@ -527,28 +528,54 @@ describe('installation-wide workspace access', () => {
 		expect(await call('wait_for_agent', { workspace_id: peer })).toMatchObject({ status: 'idle' });
 
 		expect(
-			await call('send_message', { workspace_id: peer, message: 'Which version?' })
-		).toMatchObject({ status: 'running' });
-		expect(workspaces.get(peer).transcript.at(-1)).toMatchObject({
-			from: caller,
-			text: 'Which version?'
-		});
-		expect(
-			(await call('send_message', { workspace_id: peer, message: 'Answer now', interrupt: true }))
-				.error
-		).toMatch(/only interrupt/);
-		await call('send_message', { workspace_id: peer, message: 'Also check v2' });
-		expect(workspaces.get(peer).queue).toEqual(['Also check v2']);
-		workspaces.record(peer, { kind: 'turn.completed' });
-		expect(workspaces.get(peer).transcript.at(-1)).toMatchObject({
-			from: caller,
-			text: 'Also check v2'
-		});
+			(await call('send_message', { workspace_id: peer, message: 'Which version?' })).error
+		).toMatch(/only the agents you started/);
+		expect(workspaces.get(peer).status).toBe('idle');
+		expect((await call('send_message', { workspace_id: caller, message: 'Me' })).error).toMatch(
+			/only the agents you started/
+		);
 		expect((await call('start_agent', { workspace: peer, prompt: 'Review' })).error).toMatch(
 			/not started/
 		);
 		expect((await call('stop_agent', { workspace_id: peer })).error).toBeTruthy();
 		expect((await call('archive_agent', { workspace_id: peer })).error).toBeTruthy();
+	});
+
+	it('lets agents message along their own line: descendants down, their parent up', async () => {
+		const { workspaces, caller, call, callAs } = setup();
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = await call('start_agent', { prompt: 'Split the work', worktree: 'shared' });
+		const grandchild = await callAs(child.id)('start_agent', {
+			prompt: 'Do a part',
+			workspace: child.id
+		});
+		const sibling = await call('start_agent', { prompt: 'Other work', worktree: 'shared' });
+		for (const { id } of [child, grandchild, sibling])
+			workspaces.record(id, { kind: 'turn.completed' });
+
+		expect(
+			await call('send_message', { workspace_id: grandchild.id, message: 'Also the docs' })
+		).toMatchObject({ status: 'running' });
+		expect(workspaces.get(grandchild.id).transcript.at(-1)).toMatchObject({
+			from: caller,
+			text: 'Also the docs'
+		});
+
+		const fromChild = callAs(child.id);
+		expect(
+			(await fromChild('send_message', { workspace_id: sibling.id, message: 'Hi' })).error
+		).toMatch(/only the agents you started/);
+		expect(
+			(await fromChild('send_message', { workspace_id: caller, message: 'Now', interrupt: true }))
+				.error
+		).toMatch(/only interrupt/);
+		await fromChild('send_message', { workspace_id: caller, message: 'Which approach?' });
+		expect(workspaces.get(caller).queue.at(-1)).toBe('Which approach?');
+
+		const fromGrandchild = callAs(grandchild.id);
+		expect(
+			(await fromGrandchild('send_message', { workspace_id: caller, message: 'Hi' })).error
+		).toMatch(/only the agents you started/);
 	});
 
 	it('starts a child from the target repository base in its own worktree', async () => {
@@ -580,11 +607,8 @@ describe('installation-wide workspace access', () => {
 
 	it('reads archived pages without restarting the agent', async () => {
 		const { workspaces, caller, call } = setup();
-		const peer = workspaces.create({
-			repoId: workspaces.get(caller).repoId,
-			agent: 'claude',
-			prompt: 'First'
-		});
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const { id: peer } = await call('start_agent', { prompt: 'First', worktree: 'shared' });
 		workspaces.record(peer, { kind: 'turn.completed' });
 		for (let i = 0; i < 50; i++) {
 			workspaces.agents.send(caller, peer, `Again ${i}`, false);
