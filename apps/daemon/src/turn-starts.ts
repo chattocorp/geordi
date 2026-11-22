@@ -116,9 +116,12 @@ export function turnStarts({
 				}
 				checkStop();
 				const worktree = await ensureWorktree(worktreesDir, message);
-				if (worktree.created)
+				// Restored too: a first attempt that was cut short (the daemon stopped during the
+				// checkout, say) leaves the branch behind, so the worktree is new to the forge.
+				if (worktree.created || worktree.restored) {
 					emit({ kind: 'worktree', path: worktree.path, branch: worktree.branch });
-				if (worktree.created || worktree.restored) prepared(worktree, message);
+					prepared(worktree, message);
+				}
 
 				return worktree;
 			});

@@ -216,6 +216,10 @@ export function createWorkspaces(
 		if (cursor && workspace.outputCursor === cursor) return;
 		// what the agent calls its session may come at any time, even after its turn
 		if (event.kind === 'title') return titleFromAgent(workspace, event.title);
+		if (event.kind === 'worktree') {
+			const known = projection.get().get(workspace.worktreeId)?.worktree;
+			if (known?.path === event.path && known.branch === event.branch) return;
+		}
 		const running = workspace.status === 'running';
 		// how to resume it is news at any time, and so is where its worktree is
 		if (event.kind === 'resume') {
@@ -1405,6 +1409,25 @@ export function createWorkspaces(
 			);
 			images.release(copy);
 			return { purged: family.size, freed };
+		},
+
+		/**
+		 * Workspaces whose agent has worked in a worktree of their own that we never heard of
+		 * (a daemon did not say it made it): idle, so that no turn is making one right now.
+		 */
+		unplaced() {
+			return [...projection.get().values()]
+				.filter(
+					(workspace) =>
+						!workspace.archivedAt &&
+						workspace.repoId !== null &&
+						workspace.worktreeId === workspace.id &&
+						!workspace.worktree &&
+						workspace.resumeId !== null &&
+						workspace.status === 'idle' &&
+						!workspace.pendingMessages?.length
+				)
+				.map((workspace) => workspace.id);
 		},
 
 		/**

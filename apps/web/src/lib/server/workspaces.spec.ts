@@ -50,6 +50,24 @@ const refusal = (message: RegExp) =>
 	});
 
 describe('workspaces', () => {
+	it('finds idle workspaces whose worktree it never heard of, and records each once', () => {
+		const { workspaces, sent, create, store } = setup();
+		const id = create('Hello');
+		acknowledgePrompt(workspaces, sent.at(-1));
+		workspaces.record(id, { kind: 'turn.started' });
+		workspaces.record(id, { kind: 'resume', id: 'session' });
+		expect(workspaces.unplaced()).toEqual([]); // at work: its turn may be making it
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.unplaced()).toEqual([id]);
+
+		const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/x' } as const;
+		workspaces.record(id, worktree);
+		const recorded = store.readAll().length;
+		workspaces.record(id, worktree);
+		expect(store.readAll().length).toBe(recorded);
+		expect(workspaces.unplaced()).toEqual([]);
+	});
+
 	it('replays an older worktree without assigning it a new parent directory', () => {
 		const { repo, store, repos, dispatch } = setup();
 		store.append({
