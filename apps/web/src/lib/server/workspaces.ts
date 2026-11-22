@@ -861,21 +861,25 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Peer messages wait for the current turn. Only a supervisor may steer it.
+		 * A workspace's agent talks along its own line: to the agents it started (directly or
+		 * not), and to the one that started it, which hears it when its turn ends. An external
+		 * client, granted by the person, may message any agent it sees. Only a supervisor
+		 * may steer a turn.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
 			const workspace = findFor(callerId, id);
 			const project = isProject(callerId);
-			if (!project && (id === callerId || workspace.repoId === null))
-				error(400, 'Choose another agent in an accessible repository');
-			if (workspace.archivedAt) error(409, 'Workspace is archived');
-			refuseHeld(id);
+			const supervised = descendantsOf(callerId).some((other) => other.id === workspace.id);
 			if (
 				!project &&
-				interrupt &&
-				workspace.status === 'running' &&
-				!descendantsOf(callerId).some((other) => other.id === workspace.id)
+				!isExternal(callerId) &&
+				!supervised &&
+				find(callerId).parentId !== workspace.id
 			)
+				error(403, 'You can message only the agents you started and the agent that started you');
+			if (workspace.archivedAt) error(409, 'Workspace is archived');
+			refuseHeld(id);
+			if (!project && interrupt && workspace.status === 'running' && !supervised)
 				error(
 					403,
 					'You can only interrupt agents you started; without interrupt, it gets the message when its turn ends'
