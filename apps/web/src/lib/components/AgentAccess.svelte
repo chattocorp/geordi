@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EmptyState from '@geordi/ui/EmptyState.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import MessageCopy from '@geordi/ui/MessageCopy.svelte';
@@ -99,7 +100,9 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="empty">No repositories yet. Add one in Repositories.</p>
+			<EmptyState icon="icon-[lucide--folder-git-2]" title="No repositories yet">
+				Add one in Repositories.
+			</EmptyState>
 		{/if}
 	</div>
 	<Button type="submit" variant="primary" disabled={busy || !name.trim() || !repoIds.length}>

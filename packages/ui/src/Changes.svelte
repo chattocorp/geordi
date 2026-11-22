@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EmptyState from './EmptyState.svelte';
 	import Button from './Button.svelte';
 	import ProgressIcon from './ProgressIcon.svelte';
 	import DiffStat from './DiffStat.svelte';
@@ -134,11 +135,7 @@
 		{:else if git.unavailable}
 			<p class="px-3.5 py-2 text-muted">{git.unavailable}</p>
 		{:else if files.length === 0}
-			<!-- nothing to list: a quiet word in the middle of the pane, not a line in its corner -->
-			<div class="flex min-h-full flex-col items-center justify-center gap-3 px-6 text-center">
-				<span class="icon-[lucide--file-diff] size-6 text-muted opacity-60"></span>
-				<p class="font-medium text-ink">No changes yet</p>
-			</div>
+			<EmptyState icon="icon-[lucide--file-diff]" title="No changes yet" class="min-h-full" />
 		{:else if view === 'tree'}
 			<ul class="space-y-px px-2">
 				{#each rows.slice(0, drawn) as row (row.path)}
@@ -151,7 +148,7 @@
 								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
 								title={row.path}
 								style:padding-left="{0.375 + row.depth * 1.25}rem"
-								class="item w-full gap-1.5 overflow-hidden py-1 pr-1.5 text-left whitespace-nowrap"
+								class="row item w-full gap-1.5 overflow-hidden pr-1.5 text-left whitespace-nowrap"
 							>
 								<span
 									class={[
@@ -191,7 +188,7 @@
 		style:padding-left={depth === undefined ? undefined : `${0.375 + depth * 1.25}rem`}
 		class={[
 			// as in every list: the row's shape and wash are `item`'s; a file's name is ink
-			'item w-full overflow-hidden py-1 pr-1.5 text-left whitespace-nowrap text-ink',
+			'row item w-full overflow-hidden pr-1.5 text-left whitespace-nowrap text-ink',
 			depth === undefined ? 'gap-2.5 pl-1.5' : 'gap-1.5'
 		]}
 	>

@@ -7,6 +7,7 @@
 </script>
 
 <script lang="ts">
+	import EmptyState from '@geordi/ui/EmptyState.svelte';
 	import { submitOnEnter } from '@geordi/ui/keys';
 	import { draft } from '#lib/drafts.svelte.ts';
 	import { persisted } from '@geordi/ui/persisted';
@@ -103,10 +104,10 @@
 	<AddRepository bind:this={adding} onadded={added} />
 {/if}
 {#if !alongside && available.length === 0}
-	<div class="empty">
-		<p class="pb-4">Agents work in a repository. Add one first.</p>
+	<EmptyState icon="icon-[lucide--folder-git-2]" title="Agents work in a repository">
+		<p>Add one first.</p>
 		<Button variant="primary" onclick={() => adding?.start()}>Add repository…</Button>
-	</div>
+	</EmptyState>
 {:else}
 	<MessageComposer
 		files={searchFiles}
