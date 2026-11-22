@@ -134,7 +134,7 @@
 						target={check.url ? '_blank' : undefined}
 						rel={check.url ? 'noreferrer' : undefined}
 						class={[
-							'group/row flex items-center gap-2 rounded-control px-2 py-1.5',
+							'group/row row rounded-control',
 							// one that leads somewhere is a row like any other list's
 							check.url && 'item text-ink'
 						]}

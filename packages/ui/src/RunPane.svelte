@@ -113,7 +113,7 @@
 		<div
 			{@attach pointing(task.name)}
 			class={[
-				'group/task item h-8 gap-1 pr-1 pl-0.5',
+				'group/task row item gap-1 pr-1 pl-0.5',
 				needed.includes(task.name) && 'item-highlighted'
 			]}
 		>

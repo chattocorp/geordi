@@ -21,7 +21,7 @@
 		}
 	}
 	let open = $state(false);
-	const rowClass = 'flex min-h-7 min-w-0 flex-1 items-center gap-2 px-2 py-1 text-xs text-ink';
+	const rowClass = 'row min-w-0 flex-1 text-xs text-ink';
 </script>
 
 {#snippet contents(row: Row)}

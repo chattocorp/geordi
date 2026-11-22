@@ -231,9 +231,9 @@ it, perhaps you.
     it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
     `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
-    `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`,
+    `item-active`, `item-highlighted`, `row`, `tab-active`, `menu-item`, `menu-item-active`, `dot`, `dot-live`,
     `status-ok`/`-danger`/`-merged`.
-  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`, `Toolbar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `EmptyState`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`, `Toolbar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Segmented`, `Select`, `Split`): generic, no domain knowledge. Domain components live in
     `#lib/components/` or, when both apps use them, in `@geordi/ui`.
   - Use `StatusIcon` for passive status icons. Show the glyph directly on the surrounding surface. Passive icons have no click interaction or pointer cursor. Use `indicator-action` on a link or button for an available action. It has a filled circle and pointer cursor at rest and expands into a labelled pill on hover or keyboard focus.

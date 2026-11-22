@@ -54,7 +54,8 @@
 		"./persisted": "./src/persisted.svelte.ts",
 		"./paths": "./src/paths.ts",
 		"./tools": "./src/tools.ts",
-		"./tree": "./src/tree.ts"
+		"./tree": "./src/tree.ts",
+		"./EmptyState.svelte": "./src/EmptyState.svelte"
 	},
 	"dependencies": {
 		"@geordi/protocol": "workspace:*",

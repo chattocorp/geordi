@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EmptyState from '@geordi/ui/EmptyState.svelte';
 	import { resolve } from '$app/paths';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import Dialog from '#lib/ui/Dialog.svelte';
@@ -449,7 +450,7 @@
 					{/each}
 				</ul>
 				{#if todayOnly && rows.length === 0}
-					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+					<EmptyState icon="icon-[lucide--calendar]" title="No workspaces active today" />
 				{/if}
 			{:else if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
@@ -556,7 +557,7 @@
 					</div>
 				{/each}
 				{#if todayOnly && groups.length === 0}
-					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+					<EmptyState icon="icon-[lucide--calendar]" title="No workspaces active today" />
 				{/if}
 			{/if}
 			<div aria-hidden="true"></div>

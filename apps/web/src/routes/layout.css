@@ -47,6 +47,8 @@
  * easy on the eyes, with clearly lifted surfaces.
  */
 :root {
+	/* what an `item` shows under the pointer: see `item` */
+	--item-hover: color-mix(in oklab, var(--surface) 60%, transparent);
 	color-scheme: light;
 	--pane: var(--frame);
 	--frame: #e3e3eb;
@@ -220,6 +222,7 @@
 
 /* A surface that holds content. `card-float` lifts it (composers, anything primary). */
 @utility card {
+	--item-hover: var(--color-hover);
 	@apply rounded-card bg-surface shadow-soft ring-1 ring-line/60;
 }
 @utility card-float {
@@ -373,9 +376,17 @@
 	@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
 }
 
-/* A row you can pick: navigation links, tabs. Add `item-active` to the current one. */
+/*
+ * A row you can pick: in every list, navigation links, tabs. Add `item-active` to the current
+ * one. Its hover is a lighter tone where it sits on the frame's or a sheet's tones, and the
+ * `hover` wash on a card, where that tone would not show (`--item-hover`, set by `card`).
+ */
 @utility item {
-	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-surface/60 hover:text-ink;
+	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-(--item-hover) hover:text-ink;
+}
+/* The size of a one-line row in a list: what `item` looks like, this is how big it is. */
+@utility row {
+	@apply flex min-h-8 items-center gap-2 px-2 py-1;
 }
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
@@ -446,11 +457,6 @@
 }
 @utility menu-item-active {
 	@apply bg-sunken text-ink;
-}
-
-/* Where something will be once there is something. */
-@utility empty {
-	@apply rounded-card border border-dashed border-line px-4 py-10 text-center text-muted;
 }
 
 /* The same control is a circle at rest and a labelled pill on hover or keyboard focus. */

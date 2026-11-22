@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EmptyState from '@geordi/ui/EmptyState.svelte';
 	import type { ReleasePackage, ReleasePlan } from '@geordi/protocol';
 	import { problemOf } from '#lib/problem.ts';
 	import { addedNoteCount } from '#lib/release-notes.ts';
@@ -192,15 +193,9 @@
 				{plan.name} couldn't be asked: {plan.problem}.
 			</p>
 		{:else if empty}
-			<!-- nothing to list: a quiet word in the middle of the pane, like the changes beside it -->
-			<div
-				class="flex min-h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm"
-			>
-				<span class="icon-[lucide--package] size-6 text-muted opacity-60"></span>
-				<p class="font-medium text-ink">No changesets yet</p>
-			</div>
+			<EmptyState icon="icon-[lucide--package]" title="No changesets yet" class="min-h-full" />
 		{:else}
-			<ul class="divide-y divide-line/60">
+			<ul class="space-y-2">
 				{#each touched as pkg (pkg.path)}{@render release(pkg)}{/each}
 			</ul>
 			{#each troubled as pkg (pkg.path)}
