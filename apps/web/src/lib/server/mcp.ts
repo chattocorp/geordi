@@ -229,7 +229,7 @@ const tools = {
 	},
 	read_workspace: {
 		description:
-			'Read up to 50 messages in chronological order and all open questions in pendingQuestions. A user message with from identifies a workspace agent or named external client as its sender. Pass before to read the previous page. A null cursor marks the first page.',
+			'Read the conversation as turns, the latest page first (oldest turn first within a page), and all open questions in pendingQuestions. Each turn gives the message the agent was told (null where it began the turn itself; from names a workspace agent or named external client that sent it), its final reply, its error and the questions it asked. What it said on the way and its tool calls are left out. A page holds up to 50 turns and about 10k tokens; very long texts are cut. Pass the returned before to read the earlier page; it is null once the page reaches the start of the conversation.',
 		input: v.strictObject({
 			workspace_id: workspaceId,
 			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
