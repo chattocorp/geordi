@@ -29,10 +29,23 @@
 		model: 'sonnet',
 		usage: { used: 312_000, size: 1_000_000 },
 		limits: [
-			{ name: '5h', usedPercent: 11, resetsAt: Date.now() + 2 * 60 * 60_000, status: 'ok' },
-			{ name: 'Week', usedPercent: 77, resetsAt: Date.now() + 3 * 86_400_000, status: 'warning' },
+			{
+				name: '5h',
+				minutes: 300,
+				usedPercent: 11,
+				resetsAt: Date.now() + 2 * 60 * 60_000,
+				status: 'ok'
+			},
+			{
+				name: 'Week',
+				minutes: 10_080,
+				usedPercent: 77,
+				resetsAt: Date.now() + 3 * 86_400_000,
+				status: 'warning'
+			},
 			{
 				name: 'Week (Opus)',
+				minutes: 10_080,
 				usedPercent: 100,
 				resetsAt: Date.now() + 3 * 86_400_000,
 				status: 'limited'
@@ -40,9 +53,9 @@
 		]
 	}}
 	play={async ({ canvasElement }) => {
-		// another model's limit leaves this one's battery alone: the week's 23% is what is left
+		// Claude's battery is its five-hour window; the weeks are in the tooltip
 		await expect(within(canvasElement).getByRole('img', { name: /usage/ })).toHaveAccessibleName(
-			'Claude Code usage: 23% left'
+			'Claude Code usage: 89% left'
 		);
 		await expect(within(canvasElement).getByRole('tooltip', { hidden: true })).toHaveTextContent(
 			'Week (Opus)'
@@ -56,8 +69,8 @@
 		agent: 'claude',
 		usage: { used: 750_000, size: 1_000_000 },
 		limits: [
-			{ name: '5h', usedPercent: 40, status: 'ok' },
-			{ name: 'Week', usedPercent: 75, status: 'ok' }
+			{ name: '5h', minutes: 300, usedPercent: 40, status: 'ok' },
+			{ name: 'Week', minutes: 10_080, usedPercent: 75, status: 'ok' }
 		]
 	}}
 />
@@ -65,7 +78,10 @@
 <!-- before the agent says how full its context is, the limits it shares with others show -->
 <Story
 	name="Before the context is known"
-	args={{ agent: 'claude', limits: [{ name: 'Week', usedPercent: 92, status: 'warning' }] }}
+	args={{
+		agent: 'claude',
+		limits: [{ name: 'Week', minutes: 10_080, usedPercent: 92, status: 'warning' }]
+	}}
 />
 
 <!-- a full context keeps one bar, in red -->
@@ -78,7 +94,7 @@
 	args={{
 		agent: 'codex',
 		usage: { used: 240_000, size: 258_400 },
-		limits: [{ name: 'Week', usedPercent: 94, status: 'warning' }]
+		limits: [{ name: 'Week', minutes: 10_080, usedPercent: 94, status: 'warning' }]
 	}}
 />
 
@@ -106,7 +122,7 @@
 				<ContextMeter
 					agent="claude"
 					usage={{ used: 70_000, size: 1_000_000 }}
-					limits={[{ name: '5h', usedPercent: 35, status: 'ok' }]}
+					limits={[{ name: '5h', minutes: 300, usedPercent: 35, status: 'ok' }]}
 				/>
 			{/snippet}
 		</ReplyComposer>

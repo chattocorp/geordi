@@ -17,22 +17,24 @@ const number = (value: unknown) =>
 const statusOf = (percent: number | undefined, warning: boolean): UsageLimit['status'] =>
 	percent !== undefined && percent >= 100 ? 'limited' : warning ? 'warning' : 'ok';
 
+const WEEK = 7 * 24 * 60;
+
 /** A window's length, for people: `5h`, `Week`, `3d`. */
 function windowName(minutes: number | undefined): string {
 	if (minutes === undefined) return 'Limit';
-	if (minutes === 7 * 24 * 60) return 'Week';
+	if (minutes === WEEK) return 'Week';
 	if (minutes % (24 * 60) === 0) return `${minutes / (24 * 60)}d`;
 	if (minutes % 60 === 0) return `${minutes / 60}h`;
 	return `${minutes}m`;
 }
 
-const CLAUDE_WINDOWS: Record<string, string> = {
-	five_hour: '5h',
-	seven_day: 'Week',
-	seven_day_fable: 'Week (Fable)',
-	seven_day_opus: 'Week (Opus)',
-	seven_day_sonnet: 'Week (Sonnet)',
-	seven_day_haiku: 'Week (Haiku)'
+const CLAUDE_WINDOWS: Record<string, { name: string; minutes: number }> = {
+	five_hour: { name: '5h', minutes: 5 * 60 },
+	seven_day: { name: 'Week', minutes: WEEK },
+	seven_day_fable: { name: 'Week (Fable)', minutes: WEEK },
+	seven_day_opus: { name: 'Week (Opus)', minutes: WEEK },
+	seven_day_sonnet: { name: 'Week (Sonnet)', minutes: WEEK },
+	seven_day_haiku: { name: 'Week (Haiku)', minutes: WEEK }
 };
 
 /** Claude's `rate_limit_event` info (`SDKRateLimitInfo`), as limits: all of its windows. */
@@ -45,9 +47,11 @@ export function claudeLimits(info: unknown): UsageLimit[] {
 		const utilization = number(window.utilization);
 		const percent = utilization === undefined ? undefined : utilization * 100;
 		const resets = number(window.resetsAt);
+		const known = CLAUDE_WINDOWS[key];
 		return [
 			{
-				name: CLAUDE_WINDOWS[key] ?? key.replaceAll('_', ' '),
+				name: known?.name ?? key.replaceAll('_', ' '),
+				...(known && { minutes: known.minutes }),
 				...(percent !== undefined && { usedPercent: percent }),
 				...(resets !== undefined && { resetsAt: resets * 1000 }),
 				status:
@@ -73,9 +77,11 @@ export function codexLimits(snapshots: unknown): UsageLimit[] {
 			if (!window) return [];
 			const percent = number(window.usedPercent);
 			const resets = number(window.resetsAt);
+			const minutes = number(window.windowDurationMins);
 			return [
 				{
-					name: windowName(number(window.windowDurationMins)) + of,
+					name: windowName(minutes) + of,
+					...(minutes !== undefined && { minutes }),
 					...(percent !== undefined && { usedPercent: percent }),
 					...(resets !== undefined && { resetsAt: resets * 1000 }),
 					status: limited ? 'limited' : statusOf(percent, (percent ?? 0) >= WARNING_PERCENT)

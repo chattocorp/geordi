@@ -40,16 +40,26 @@ export function holdsFor({ name }: UsageLimit, model: string | undefined): boole
 }
 
 /**
+ * The limits a battery shows: of those that say how much is used, the shortest window's
+ * (the five hours, where known), so that it says what is left for now; the rest are for
+ * the tooltip. A limit of unknown length counts as the longest.
+ */
+function shown(limits: UsageLimit[]): UsageLimit[] {
+	const known = limits.filter((limit) => leftOf(limit) !== undefined);
+	const shortest = Math.min(...known.map((limit) => limit.minutes ?? Infinity));
+	return known.filter((limit) => (limit.minutes ?? Infinity) === shortest);
+}
+
+/**
  * What is left of an agent's usage with a model, 0 to 1, and how that stands: the least of
- * what its limits leave, or `undefined` where none of them says how much is used.
+ * what its shown limits leave, or `undefined` where none of them says how much is used.
  */
 export function charge(
 	limits: UsageLimit[],
 	model: string | undefined
 ): { left: number; tone: Tone } | undefined {
-	const holding = limits.filter((limit) => holdsFor(limit, model));
-	const left = holding.map(leftOf).filter((left) => left !== undefined);
-	if (!left.length) return undefined;
+	const holding = shown(limits.filter((limit) => holdsFor(limit, model)));
+	if (!holding.length) return undefined;
 	const tone = TONES[Math.max(...holding.map((limit) => TONES.indexOf(limitTone(limit))))];
-	return { left: Math.min(...left), tone };
+	return { left: Math.min(...holding.map((limit) => leftOf(limit) ?? 0)), tone };
 }

@@ -730,6 +730,8 @@ export type ContextUsage = {
 export type UsageLimit = {
 	/** Which window it is, for people: `5h`, `Week`, `Week (Opus)`. */
 	name: string;
+	/** How long the window is, in minutes, where the provider says. */
+	minutes?: number;
 	/** How much of it is used, 0 to 100, where the provider says. */
 	usedPercent?: number;
 	/** When it starts over (milliseconds since the epoch), where the provider says. */
