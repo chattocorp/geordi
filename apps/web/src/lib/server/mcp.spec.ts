@@ -512,9 +512,9 @@ describe('installation-wide workspace access', () => {
 		expect(await call('list_workspaces')).toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: peer, repoId })])
 		);
-		expect((await call('read_workspace', { workspace_id: peer })).messages.at(-1)).toMatchObject({
-			kind: 'user',
-			text: 'Review the change'
+		expect((await call('read_workspace', { workspace_id: peer })).turns.at(-1)).toMatchObject({
+			message: 'Review the change',
+			reply: ''
 		});
 		workspaces.record(peer, { kind: 'turn.completed' });
 		expect(await call('wait_for_agent', { workspace_id: peer })).toMatchObject({ status: 'idle' });
@@ -578,18 +578,24 @@ describe('installation-wide workspace access', () => {
 			agent: 'claude',
 			prompt: 'First'
 		});
-		for (let i = 0; i < 51; i++) workspaces.record(peer, { kind: 'text', text: String(i) });
 		workspaces.record(peer, { kind: 'turn.completed' });
+		for (let i = 0; i < 50; i++) {
+			workspaces.agents.send(caller, peer, `Again ${i}`, false);
+			workspaces.record(peer, { kind: 'text', text: 'Thinking' });
+			workspaces.record(peer, { kind: 'text', text: `Done ${i}` });
+			workspaces.record(peer, { kind: 'turn.completed' });
+		}
 		workspaces.archive(peer);
 		expect((await call('list_workspaces')).map((w: { id: string }) => w.id)).not.toContain(peer);
 		expect(await call('list_workspaces', { include_archived: true })).toContainEqual(
 			expect.objectContaining({ id: peer, archivedAt: expect.any(String) })
 		);
 		const latest = await call('read_workspace', { workspace_id: peer });
-		expect(latest.messages).toHaveLength(50);
+		expect(latest.turns).toHaveLength(50);
+		expect(latest.turns.at(-1)).toMatchObject({ message: 'Again 49', reply: 'Done 49' });
 		expect(
-			(await call('read_workspace', { workspace_id: peer, before: latest.before })).messages[0]
-		).toMatchObject({ kind: 'user', text: 'First' });
+			(await call('read_workspace', { workspace_id: peer, before: latest.before })).turns
+		).toMatchObject([{ message: 'First', reply: '' }]);
 	});
 
 	it('uses one external token across the repositories it was granted, retains it on replay, and honors revocation', async () => {

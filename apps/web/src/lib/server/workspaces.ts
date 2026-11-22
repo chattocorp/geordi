@@ -34,6 +34,7 @@ import {
 } from './workspace-projection.ts';
 import { instructionsFor } from './instructions.ts';
 import type { createRepos } from './repos.ts';
+import { pageOf, turnsOf } from './turns.ts';
 
 export type {
 	SubagentItem,
@@ -718,19 +719,9 @@ export function createWorkspaces(
 		readWorkspace(callerId: string, id: string, before?: number) {
 			const workspace = findFor(callerId, id);
 			const transcript = transcriptOf(workspace);
-			const messages = transcript.filter(
-				(item) =>
-					item.kind === 'user' ||
-					item.kind === 'text' ||
-					item.kind === 'question' ||
-					item.kind === 'error'
-			);
-			const end = Math.min(before ?? messages.length, messages.length);
-			const start = Math.max(0, end - 50);
 			return {
 				...entry(workspace),
-				messages: messages.slice(start, end),
-				before: start || null,
+				...pageOf(turnsOf(transcript), before),
 				pendingQuestions: transcript.filter((item) => item.kind === 'question' && item.open)
 			};
 		},
