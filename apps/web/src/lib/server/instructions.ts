@@ -33,7 +33,7 @@ export function instructionsFor(workspace: {
 			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
 			: 'The person you work for sees your replies, your changes as a diff against where the branch started, and the state of the branch’s pull request.',
 
-		ASKING,
+		parent ? ASKING_PARENT : ASKING,
 
 		PICTURES,
 
@@ -42,7 +42,7 @@ export function instructionsFor(workspace: {
 		LINKS,
 
 		workspace.mayDelegate
-			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup.'
+			? 'To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the `geordi` MCP server: `start_agent`, then `wait_for_agent`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup. An agent you started does not ask the person: it ends its turn with its question. Answer it with `send_message` where you can; where the decision is the person’s, ask them, then pass on their answer.'
 			: 'You cannot start further agents from here.',
 		// one that was started with a name has it from whoever knows what it is for
 		workspace.manuallyNamed || (parent && workspace.named)
@@ -57,6 +57,9 @@ export function instructionsFor(workspace: {
 
 const ASKING =
 	'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.';
+/** An agent started by another asks that one: the person may not be watching, and its parent waits for it. */
+const ASKING_PARENT =
+	'When you need a decision before you can continue, do not use your blocking question tool: the agent that started you waits for your reply, and would wait on the person too. End your turn with the question instead, saying what you would choose and why. That agent answers it, or asks the person, and its answer comes as a message.';
 const PICTURES =
 	'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](.context/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too. A sound (WAV, MP3, Ogg, FLAC, M4A) written the same way, like `![Jump](assets/jump.wav)`, is played there.';
 const DIAGRAMS =
