@@ -478,6 +478,23 @@ describe('workspaces', () => {
 		});
 	});
 
+	it('measures a child from its parent’s branch under the name it has now', () => {
+		const { workspaces, repo } = setup();
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Go' });
+		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = workspaces.agents.start(id, { worktree: 'own', prompt: 'Help' });
+		expect(workspaces.ref(child.id)).toMatchObject({
+			base: 'geordi/lead',
+			parents: [{ worktreeId: id, branch: 'geordi/lead' }]
+		});
+
+		workspaces.onBranch(id, 'perf/renamed');
+		expect(workspaces.ref(child.id)).toMatchObject({
+			base: 'perf/renamed',
+			parents: [{ worktreeId: id, branch: 'perf/renamed' }]
+		});
+	});
+
 	it('runs every turn with the model and effort chosen, and hands them on to agents it starts', () => {
 		const { workspaces, sent, repo } = setup();
 		const settings = { model: 'opus', effort: 'high', permissionMode: 'auto' } as const;
