@@ -1,4 +1,4 @@
-import type { PortConflict } from '@geordi/protocol';
+import { portVariable, SPARE_PORTS, type PortConflict, type Task } from '@geordi/protocol';
 import { createHmac, randomBytes } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -10,17 +10,26 @@ import { promisify } from 'node:util';
  * The ports of workspaces (FDR-006). A workspace gets a run of ports of its own when it
  * first needs one, and keeps exactly those for as long as it lives: across restarts of
  * its jobs, of the daemon and of the machine. That is the whole point, so the assignment
- * is written down, never worked out again, and never changed. Each of a workspace's jobs
- * gets one of them, by name, the first time the job is seen.
+ * is written down, never worked out again, and never changed. Each port a task names gets
+ * one of them, by `task.port`, the first time it is seen; and every workspace has a run of
+ * spare ones besides, for its agents and terminals.
  */
 
 type Block = { first: number; count: number };
 export type Assigned = {
 	/** The workspace's ports, in the order they were given: one run at first, more if it outgrew that. */
 	blocks: Block[];
-	/** Which of its ports (counting from 0 across the blocks) each job has. */
+	/**
+	 * Which of its ports (counting from 0 across the blocks) each task's port has, by
+	 * `task.port`. (A key without a dot is from when a task had one port, named after it.)
+	 */
 	jobs: Record<string, number>;
+	/** Where its `SPARE_PORTS` spare ones begin: a block of their own. */
+	spare?: number;
 };
+
+/** What a task's port is kept as. */
+export const portKey = (task: string, port: string) => `${task}.${port}`;
 
 type Range = { from: number; to: number };
 
@@ -105,6 +114,29 @@ export async function checkJobPort(
 	confirmation?: string
 ): Promise<PortConflict | null> {
 	if (await free(port)) return null;
+	return checkPort(worktreeId, job, port, confirmation);
+}
+
+/** The first of a task's ports that another program has, as `checkJobPort` says it. */
+export async function checkTaskPorts(
+	worktreeId: string,
+	task: string,
+	ports: number[],
+	confirmation?: string
+): Promise<PortConflict | null> {
+	for (const port of ports) {
+		const conflict = await checkJobPort(worktreeId, task, port, confirmation);
+		if (conflict) return conflict;
+	}
+	return null;
+}
+
+async function checkPort(
+	worktreeId: string,
+	job: string,
+	port: number,
+	confirmation?: string
+): Promise<PortConflict | null> {
 	const owner = await listener(port);
 	const conflict: PortConflict = { port, listener: owner };
 	if (!owner || owner.pid <= 1 || owner.pid === process.pid) return conflict;
@@ -190,9 +222,9 @@ export function createPorts(
 		renameSync(`${file}.tmp`, file);
 	}
 
-	/** A run of `count` ports that no workspace has and nothing listens on. */
-	async function claim(count: number): Promise<Block> {
-		const taken = Object.values(all).flatMap((assigned) => assigned.blocks);
+	/** A run of `count` ports that no workspace has (nor `mine`, not yet written down) and nothing listens on. */
+	async function claim(count: number, mine: Block[]): Promise<Block> {
+		const taken = [...Object.values(all).flatMap((assigned) => assigned.blocks), ...mine];
 		const clear = (first: number) =>
 			taken.every((block) => first + count <= block.first || block.first + block.count <= first);
 		for (let first = range.from; first + count - 1 <= range.to; first += count) {
@@ -217,22 +249,38 @@ export function createPorts(
 		of: (workspaceId: string): Assigned | undefined => all[workspaceId],
 
 		/**
-		 * The workspace's ports, with room for `count` of them and one for each of `jobs`.
-		 * What it has, it keeps; what is missing is added: a first run of ports that are free
-		 * right now, more of them if it has outgrown that, and a port for each job not seen
-		 * before.
+		 * The workspace's ports, with one for each of `wanted` (`portKey`s) and its spare
+		 * ones. What it has, it keeps; what is missing is added: a port for each key not seen
+		 * before (a task's first port takes the one the task had when it had only one,
+		 * `legacy`), from ports it has that nobody holds, or else a new run of free ones.
 		 */
-		ensure: (workspaceId: string, count: number, jobs: string[] = []) =>
+		ensure: (workspaceId: string, wanted: { key: string; legacy?: string }[] = []) =>
 			inTurn(async () => {
-				const assigned = all[workspaceId] ?? { blocks: [], jobs: {} };
+				const assigned: Assigned = all[workspaceId] ?? { blocks: [], jobs: {} };
 				const before = JSON.stringify(assigned);
 
-				const unseen = jobs.filter((job) => !(job in assigned.jobs));
-				const used = Object.keys(assigned.jobs).length + unseen.length;
-				const missing = Math.max(count, used) - total(assigned);
-				if (missing > 0) assigned.blocks.push(await claim(missing));
-				// a port is a job's for good: one that went away keeps its own, in case it comes back
-				for (const job of unseen) assigned.jobs[job] = Object.keys(assigned.jobs).length;
+				for (const { key, legacy } of wanted)
+					if (!(key in assigned.jobs) && legacy !== undefined && legacy in assigned.jobs)
+						assigned.jobs[key] = assigned.jobs[legacy];
+				const unseen = wanted.filter(({ key }) => !(key in assigned.jobs));
+				// a port is a task's for good: one that went away keeps its own, in case it comes back
+				const held = new Set(Object.values(assigned.jobs));
+				if (assigned.spare !== undefined)
+					for (let index = 0; index < SPARE_PORTS; index++) held.add(assigned.spare + index);
+				const loose = Array.from({ length: total(assigned) }, (_, index) => index).filter(
+					(index) => !held.has(index)
+				);
+				const missing = unseen.length - loose.length;
+				if (missing > 0) {
+					const at = total(assigned);
+					assigned.blocks.push(await claim(missing, assigned.blocks));
+					loose.push(...Array.from({ length: missing }, (_, index) => at + index));
+				}
+				for (const [index, { key }] of unseen.entries()) assigned.jobs[key] = loose[index];
+				if (assigned.spare === undefined) {
+					assigned.spare = total(assigned);
+					assigned.blocks.push(await claim(SPARE_PORTS, assigned.blocks));
+				}
 
 				if (JSON.stringify(assigned) !== before) {
 					all[workspaceId] = assigned;
@@ -250,16 +298,37 @@ export function createPorts(
 	};
 }
 
-/** What a workspace's jobs, terminals and agents are told about its ports. */
-export function portEnv(assigned: Assigned): Record<string, string> {
-	const env: Record<string, string> = {
-		GEORDI_PORT: String(portAt(assigned, 0)),
-		GEORDI_PORTS: String(total(assigned)),
-		GEORDI_ASSIGNED_PORTS: JSON.stringify(
-			Array.from({ length: total(assigned) }, (_, index) => portAt(assigned, index))
-		)
-	};
-	for (const [job, index] of Object.entries(assigned.jobs))
-		env[`GEORDI_PORT_${job.toUpperCase().replaceAll('-', '_')}`] = String(portAt(assigned, index));
+/** A workspace's spare ports: the first, and how many. */
+export const spareOf = (assigned: Assigned) =>
+	assigned.spare === undefined
+		? null
+		: { first: portAt(assigned, assigned.spare), count: SPARE_PORTS };
+
+/**
+ * What a workspace's tasks, terminals and agents are told about its ports: each task's, and
+ * the spare ones.
+ */
+export function portEnv(
+	tasks: Pick<Task, 'name' | 'ports'>[],
+	spare: { first: number; count: number } | null
+): Record<string, string> {
+	const env: Record<string, string> = {};
+	if (spare) {
+		env.GEORDI_PORT = String(spare.first);
+		env.GEORDI_PORTS = String(spare.count);
+	}
+	for (const { name, ports } of tasks) {
+		if (ports[0]) env[portVariable(name)] = String(ports[0].port);
+		for (const port of ports) env[portVariable(name, port.name)] = String(port.port);
+	}
+	return env;
+}
+
+/** What a task's command is told of its own ports, besides: `PORT`, `PORT_HTTP`. */
+export function ownPortEnv({ ports }: Pick<Task, 'ports'>): Record<string, string> {
+	const env: Record<string, string> = {};
+	if (ports[0]) env.PORT = String(ports[0].port);
+	for (const port of ports)
+		env[`PORT_${port.name.toUpperCase().replaceAll('-', '_')}`] = String(port.port);
 	return env;
 }

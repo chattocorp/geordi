@@ -1,7 +1,7 @@
 # FDR-006: Repository configuration: tasks, ports, setup and teardown
 
 **Status:** Active
-**Last reviewed:** 2026-11-20
+**Last reviewed:** 2026-11-22
 
 ## Overview
 
@@ -11,39 +11,33 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ### The file
 
-- `.geordi.yml` is YAML. Settings Geordi doesn't know are ignored. A `.geordi.toml` with the same settings in TOML (what the file was first) is still read where there is no `.geordi.yml`; where there is one of each, the YAML one counts.
-- A named task has a command, a local URL, or both. It may have a display label, dependencies and a default flag. A command task keeps its assigned port when its key stays the same.
-- Existing configurations can use jobs and URLs. `run: pnpm dev` names the one command that runs the project. It is short for a single job called `run`.
-- `jobs:` names several, each under its name: each has a `command`, and may list the jobs it `needs`.
-- `urls:` names places to open, each under its name: each has a `url`, in which `{job}` stands for that job's port. A link needs the jobs it mentions, and any it lists under `needs`. Links only lead to this machine (`localhost`).
-- Jobs and links may have an optional human-readable `label`, shown in Run/Open controls and command reviews. Without a label, the key is shown. Labels do not change dependencies, assigned ports, command approvals or terminal identities. This lets repositories use readable names without breaking references.
-- `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No job can be called `setup` or `teardown`.
-- A workspace gets one port per job. `ports: 20` asks for that many instead, for spare ones. (Where a repository names no jobs, a workspace gets ten.)
+- `.geordi.yml` is YAML. Settings Geordi doesn't know are ignored. The earlier settings (`run`, `jobs`, `urls`, a top-level `default` and `ports`) and a `.geordi.toml` are no longer read: a workspace that has them is told so, and what to say instead.
+- `tasks:` names what a workspace runs or opens, each under its name, in the order the Tasks tab shows them. A task has a `command`, links, or both, and may have a `label` (shown instead of its key; dependencies, ports, approvals and terminals keep the key), `needs` and `default: true`.
+- `ports:` names the ports a task's command listens on: `ports: [http, live]`, as many as it needs. A task without `ports` gets none.
+- `url:` is one link; `urls:` several, each under a name with a `url` and an optional `label`. In a URL, `{http}` is one of the task's own ports and `{web.http}` one of the task `web`'s, which the task then needs. Links only lead to this machine (`localhost`).
+- `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No task can be called `setup` or `teardown`.
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). They are not merged. So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.
 - It is read afresh whenever the workspace's files or the repository's branches change: editing the file, or fetching a main branch that changed it, shows at once.
-- A workspace's file that can't be made sense of shows a quiet warning with the reason, where the buttons would be. It does not fall back to the main branch's file.
+- A workspace's file that can't be made sense of shows a quiet warning with the reason, where the tasks would be. It does not fall back to the main branch's file.
 
 ### Ports
 
-- A workspace gets a run of ports of its own (one per job, unless the file asks for more) the first time it needs one. The daemon picks a run in which every port is free at that moment, and otherwise looks further. A port is free when nothing listens on it on any of the machine's local addresses (`127.0.0.1`, `0.0.0.0`, `::1`, `::`): on macOS a port that can be had on one of them may be another program's on another.
-- Those ports are the workspace's for as long as it lives: across restarts of its jobs, of the daemon and of the machine. They are given up when the workspace is archived.
+- Every port a task names is that task's for as long as the workspace lives: across restarts of its tasks, of the daemon and of the machine. It is kept under `task.port`, and keeps its number when ports or tasks are added, removed or reordered. A task's first port takes the one the task had when each task had one port. Ports are given up when the workspace is archived.
+- Every workspace also has ten spare ports, a run of their own, for anything an agent or a terminal starts.
+- The daemon picks ports that are free at that moment, on all of the machine's local addresses (`127.0.0.1`, `0.0.0.0`, `::1`, `::`): on macOS a port that can be had on one of them may be another program's on another. A workspace that needs more ports keeps what it has and gets more.
 - Ports come from 20000–29999, unless the daemon's environment names other ones (`GEORDI_PORT_RANGE=30000-39999`). Two daemons on one machine know nothing of each other's ports, so each needs a range of its own: Geordi run for development (`scripts/workspace-dev.mjs`) uses 30000–39999.
-- Every job has one of them as its own, from the first time the job is seen. It keeps it when jobs are added, removed or reordered.
-- Jobs and agents also receive `GEORDI_ASSIGNED_PORTS`, the full list of assigned ports as JSON. Spare ports must come from this list: a workspace that grows can have several separate blocks.
-- A workspace that outgrows its ports (more jobs, or a bigger `ports`) keeps what it has and gets more.
-- A job's command gets its port as `PORT`. Everything in the workspace (jobs, terminals, and the agent) gets every job's port as `GEORDI_PORT_<NAME>`, the first of the workspace's ports as `GEORDI_PORT`, and their number as `GEORDI_PORTS`. Agents are told to use these, never a default port.
+- A task's command gets its ports as `PORT_<NAME>` (`PORT_HTTP`), the first also as `PORT`. Everything in the workspace (tasks, terminals, and the agent) gets every task's ports as `GEORDI_PORT_<TASK>_<PORT>`, each task's first also as `GEORDI_PORT_<TASK>`, and the spare ones as `GEORDI_PORT` (the first) and `GEORDI_PORTS` (how many). Two ports that would reach everyone by one name are refused. Agents are told to use these, never a default port.
 
 ### Running
 
-- Tasks lists tasks in file order. Selecting a task starts its prerequisites and its command. Only selected tasks open browser tabs, once their URL ports accept connections. A timeout reports which port failed.
-- The Tasks panel shows the keyboard shortcut beside each default task. Pressing ⌥⌘R (Ctrl+Alt+R elsewhere) launches them together. Shared dependencies start once. Invoking the shortcut again reuses running commands. With no marked tasks, the shortcut shows Tasks.
-- In the earlier configuration format, a workspace whose file names jobs or links (or can't be read) has a **Tasks** tab in the dock. The first action in the pane opens the configured default link or starts or stops the default job. The same row shows the keyboard shortcut, ⌥⌘R (Ctrl+Alt+R elsewhere). Without an explicit default, the `run` job takes that place if present. The remaining links and jobs follow in configuration order within each group. A link opens when chosen. A job shows its port, and a mark for how it is (stopped, starting, running, ended, failed with its status), which turns into start or stop when you point at the mark or focus it with the keyboard. **Start all** and **Stop all** sit by the heading where there are several. A link's icon is gold while every job it needs runs: it opens at once. A problem with the file shows there too.
-- Each job runs in the user's shell in the workspace directory. Starting a job leaves the current pane in place. Once its terminal exists, the job row in Run shows a terminal icon. Choose it to open the terminal tab or focus it where you placed it. You can also open the output after the command ends.
-- If a job's assigned port is busy, a dialog names the job, port and identified listener. You can cancel or stop the displayed process and retry the original job or link. Geordi checks the listener again before sending a termination request and waits for the port to become free. When it cannot identify the listener, you can free the port yourself and retry.
-- Starting a job first starts the jobs it needs, each once the ones before it are up. A job is up when something listens on its port. One that never does (a desktop app, a game) is taken to be up after half a minute, if it still runs.
-- Closing a job’s terminal tab hides its output. The job keeps running, and you can reopen the same terminal from Run. Stopping a job also stops the jobs that need it.
-- Opening a link starts the jobs it needs, waits for them to be up, and opens it in the browser.
-- When a job's command ends by itself, its tab says with what status and stays until Enter is pressed, so that what it printed can be read.
+- The **Tasks** tab in the dock lists the tasks one row each: the default tasks first, then the rest, each in file order. A task's only link sits at the end of its row; several are listed under it, smaller. A row's mark says how its task is: a quiet dot while stopped (it turns into what the row does where one points at it), then starting, running (a gold play mark where it listens on ports and is ready to look at, the turning arrows of something under way, in gold, where it has none and simply works), ended (with its status), so that what runs stands out. Running a task starts what it needs, then its command, and opens its first link once that answers; a link of its own opens that one instead. A task with only links and no `needs` just opens. A link's icon is gold while what it needs runs: it opens at once.
+- Pointing at a task highlights the tasks it needs, and what those need in turn, as the sidebar does with a workspace's parent. Selecting a task's row runs it, also again once it ended (one that runs is reused). Once its command has a terminal, a terminal icon at the end of the row shows it, running or from the last run; a stop button beside it shows where one points at a task that runs. Its ports show when you point at the row.
+- The keyboard shortcut ⌥⌘R (Ctrl+Alt+R elsewhere) runs every `default` task together, and shows beside each. Shared dependencies start once; running commands are reused. With no default tasks, it shows the Tasks tab. Only the tasks run open browser tabs; a timeout says which port did not answer.
+- Each command runs in the user's shell in the workspace directory. Starting one leaves the current pane in place. Closing a task's terminal tab hides its output; the task keeps running, and its row shows the same terminal again.
+- If one of a task's ports is busy, a dialog names the task, port and identified listener. You can cancel or stop the displayed process and retry. Geordi checks the listener again before sending a termination request and waits for the port to become free. When it cannot identify the listener, you can free the port yourself and retry.
+- Running a task first runs the tasks it needs, each once the ones before it are up. A task is up when something listens on all of its ports, or as soon as it has started if it has none. One whose ports never answer (it listens elsewhere, or late) is taken to be up after half a minute, if it still runs.
+- Stopping a task also stops the tasks that need it.
+- When a command ends by itself, its tab says with what status and stays until Enter is pressed, so that what it printed can be read.
 
 ### Setting up and tearing down
 
@@ -51,14 +45,14 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - The setup tab closes automatically when the script succeeds, including after a manual retry. If setup fails, the tab stays open so the person can read its output.
 - The agent's first turn waits for it. Stopping the agent meanwhile ends that turn; the setup goes on, and the next turn waits for it in turn.
 - However the setup ends, the agent then starts. If it failed, the agent is told so with its first message, with the end of what the script printed; if it was stopped (its tab closed), or nobody has agreed to it yet, the agent is told that too. A failed setup is the agent's to fix, or the person's: it does not stop the work.
-- A setup nobody has agreed to does not run: its tab says so, and where to run it. Until it is agreed to, the workspace says so in a quiet line under its title, with **Review**, which shows the script and asks, and runs it once agreed; after that it runs by itself and nothing more is said. The Tasks tab excludes setup and teardown scripts. A setup that did not run can be run from its own terminal: a key press in a terminal that has ended starts it again.
+- A setup nobody has agreed to does not run: its tab says so, and where to run it. Until it is agreed to, the workspace says so in a quiet line under its title, with **Review**, which shows the script and asks, and runs it once agreed; after that it runs by itself and nothing more is said. The Tasks tab does not list the setup and teardown scripts. A setup that did not run can be run from its own terminal: a key press in a terminal that has ended starts it again.
 - The teardown script runs when a person archives a workspace (with it, the workspaces its agent started), once it is clear that its worktree goes (it has no uncommitted work, or the person agreed to lose it), and before the worktree is removed: in the workspace's directory, with its ports, in a terminal tab named `teardown`. It has two minutes. Then, however it ended, the worktree is removed. An agent archiving an agent it started removes the worktree without a teardown.
-- A teardown runs only if a person has agreed to it. It has no moment of its own to be asked at, so it is asked about together with the first command a person agrees to run in the workspace: a job, or the setup.
+- A teardown runs only if a person has agreed to it. It has no moment of its own to be asked at, so it is asked about together with the first command a person agrees to run in the workspace: a task's, or the setup.
 
 ### Agreeing to commands
 
-- Commands are shown in full and have to be agreed to before they first run: once per command and repository, all that an action would run in one question. The daemon remembers what was agreed to and runs no job's command without it. A changed command is a new one.
-- What runs is exactly the command the person saw. If the file says something else by then, nothing of it runs, and the terminal says to start the job again.
+- Commands are shown in full and have to be agreed to before they first run: once per command and repository, all that an action would run in one question. The daemon remembers what was agreed to and runs no task's command without it. A changed command is a new one.
+- What runs is exactly the command the person saw. If the file says something else by then, nothing of it runs, and the terminal says to start the task again.
 - The setup and teardown scripts run without anyone clicking at that moment, so they run only if the file says a command a person has agreed to for that repository, and run exactly that.
 
 ### Agents
@@ -76,37 +70,37 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 ### 2. The workspace's file wins, whole
 
 **Decision:** If the workspace has the file, only that file counts; the main branch's is used only where the workspace has none.
-**Why:** One file to look at to know what applies. Merging would make "remove this job" impossible to express in a workspace.
+**Why:** One file to look at to know what applies. Merging would make "remove this task" impossible to express in a workspace.
 **Tradeoff:** A workspace with an old copy of the file doesn't pick up what was added on the main branch since, until it is brought up to date.
 
 ### 3. Ports are written down, by the daemon
 
-**Decision:** The daemon assigns a workspace its ports and each job its own among them, writes that down (`~/.geordi/ports.json`), and never works it out again.
+**Decision:** The daemon assigns a workspace its ports and each task's port its own among them, writes that down (`~/.geordi/ports.json`), and never works it out again.
 **Why:** A port that changes breaks everything that remembered it: a bookmark, a callback address registered elsewhere, a tab left open, an agent's notes. Working ports out from something (a hash of the ID, a position in the file) changes them as soon as that something does. Ports belong to the machine, so the daemon keeps them, also once there are daemons on several machines.
-**Tradeoff:** A port that was free when the run was picked can be taken by something else later. The job then fails to start, and says so, rather than moving quietly: the daemon looks before it starts a job, since what answers on a taken port would otherwise be taken for the job being up.
+**Tradeoff:** A port that was free when the run was picked can be taken by something else later. The task then fails to start, and says so, rather than moving quietly: the daemon looks before it starts a task, since what answers on a taken port would otherwise be taken for the task being up.
 
-### 4. Up means listening
+### 4. Up means listening, on every port it names
 
-**Decision:** A job counts as up once something listens on its port; what needs it starts then. There is nothing to configure about that.
-**Why:** It is what "the server is up" means for nearly everything a project runs, and it needs no health check written per job.
-**Tradeoff:** A job that never listens holds up what needs it for half a minute; one that listens before it can serve is taken to be up a little early.
+**Decision:** A task counts as up once something listens on all of its ports, and at once if it names none; what needs it starts then. There is nothing to configure about that.
+**Why:** It is what "the server is up" means for nearly everything a project runs, and it needs no health check written per task. A task that names no ports (a script, a desktop app, a game) has nothing to wait for.
+**Tradeoff:** A task that doesn't listen on the ports it names holds up what needs it for half a minute; one that listens before it can serve is taken to be up a little early. A task without ports that something needs gives it no time at all.
 
 ### 5. Only a person's word makes a command fine to run
 
-**Decision:** A job's request carries its command as the person saw it, and the daemon runs it only if the file still says exactly that and a person has agreed to that command for that repository. What was agreed to is kept by the daemon, in a file of its own (`~/.geordi/run-approvals.json`).
+**Decision:** A task's request carries its command as the person saw it, and the daemon runs it only if the file still says exactly that and a person has agreed to that command for that repository. What was agreed to is kept by the daemon, in a file of its own (`~/.geordi/run-approvals.json`).
 **Why:** The file is the agent's to write, at any moment, and the command runs as the person, in their own shell. An agent in a sandbox must not get out of it through a button, nor swap the command between the look and the click. Nothing in the repository can vouch for a command either: its branches, too, are the agent's to move.
 **Tradeoff:** The first run in a repository, and the first after every change to a command, costs one more click. And it only holds against an agent that can't reach the forge: Geordi has no authentication yet, so an agent with network access can ask the forge for anything a person can (see the README).
 
 ### 6. The daemon reads the file; the forge says what to start when
 
-**Decision:** The daemon reads and parses the file, and sends what it says with the rest of what it knows of a worktree (ADR-003). The forge works out the order to start jobs in and waits for each to be up; the jobs themselves are terminals in the daemon.
-**Why:** The file is on the daemon's machine, and changes with the files the daemon already watches. Jobs as terminals print, take Ctrl+C, survive a restart of the forge, and needed nothing new to run in.
-**Tradeoff:** Like all terminals, jobs end when the daemon does. A forge that restarts while jobs are being started leaves the ones after the restart unstarted.
+**Decision:** The daemon reads and parses the file, and sends what it says with the rest of what it knows of a worktree (ADR-003). The forge works out the order to start tasks in and waits for each to be up; the commands themselves are terminals in the daemon.
+**Why:** The file is on the daemon's machine, and changes with the files the daemon already watches. Commands as terminals print, take Ctrl+C, survive a restart of the forge, and needed nothing new to run in.
+**Tradeoff:** Like all terminals, commands end when the daemon does. A forge that restarts while tasks are being started leaves the ones after the restart unstarted.
 
 ### 7. Setup and teardown are settings of their own, and run by themselves
 
-**Decision:** `setup` and `teardown` are top-level commands, like `run`, not jobs with a flag. The daemon runs the setup when it makes a worktree and the teardown when it removes one, without asking the forge; both in terminals like a job's.
-**Why:** They run at moments of a workspace's life rather than when someone asks, once, to the end, and need no port or `needs`: little of what a job is. Making the worktree and removing it are the daemon's, so it is the daemon that knows the moment, also while the forge is away (ADR-003): a forge restarting mid-setup finds the setup's terminal running and the turn waiting, as with any turn.
+**Decision:** `setup` and `teardown` are top-level commands, not tasks with a flag. The daemon runs the setup when it makes a worktree and the teardown when it removes one, without asking the forge; both in terminals like a task's.
+**Why:** They run at moments of a workspace's life rather than when someone asks, once, to the end, and need no port or `needs`: little of what a task is. Making the worktree and removing it are the daemon's, so it is the daemon that knows the moment, also while the forge is away (ADR-003): a forge restarting mid-setup finds the setup's terminal running and the turn waiting, as with any turn.
 **Tradeoff:** A daemon that restarts mid-setup ends it (terminals end with the daemon); the waiting turn is reported lost, and the setup is not run again by itself: **Set up** does that.
 
 ### 8. The first turn waits for setup, and goes ahead however it went
@@ -117,14 +111,14 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ### 9. The workspace's file, as for everything else, and only what was agreed to
 
-**Decision:** Setup and teardown come from the file that applies to the workspace (design decision 2), like jobs, and run only as commands a person agreed to for the repository.
-**Why:** One rule for which file applies. When a worktree is made, its file is the one on the branch it starts from anyway, unless an agent started it from a branch of its own; and what an agent can write to the file is held in check by approval, as for jobs (design decision 5), not by which file is read.
+**Decision:** Setup and teardown come from the file that applies to the workspace (design decision 2), like tasks, and run only as commands a person agreed to for the repository.
+**Why:** One rule for which file applies. When a worktree is made, its file is the one on the branch it starts from anyway, unless an agent started it from a branch of its own; and what an agent can write to the file is held in check by approval, as for tasks (design decision 5), not by which file is read.
 **Tradeoff:** An agent can change its workspace's teardown to a command nobody agreed to, and so keep it from running. It cannot make anything run that nobody agreed to.
 
 ### 10. Unasked, only on the person's work
 
 **Decision:** Setup runs by itself only in a directory made fresh from where work in the repository starts; teardown only when a person archives.
-**Why:** What a command runs is the directory's as much as the command's: `pnpm install` runs the package's scripts, `make clean` the Makefile. A job runs that too, but only when a person clicks. Setup and teardown run with nobody clicking, so where an agent wrote the directory (an agent's own branch, a worktree brought back from the workspace's branch) or asked for the archiving, they would run the agent's code outside its sandbox at the agent's word. There, installing is the agent's to do, in its sandbox.
+**Why:** What a command runs is the directory's as much as the command's: `pnpm install` runs the package's scripts, `make clean` the Makefile. A task runs that too, but only when a person clicks. Setup and teardown run with nobody clicking, so where an agent wrote the directory (an agent's own branch, a worktree brought back from the workspace's branch) or asked for the archiving, they would run the agent's code outside its sandbox at the agent's word. There, installing is the agent's to do, in its sandbox.
 **Tradeoff:** Agents that agents start set themselves up, more slowly, and the worktrees agents archive are not cleaned up after (stopped services, dropped databases). Approval is still of a command, whatever slot of the file it is in. And "fresh from the main line" is read from the repository's refs, which an agent that can write the repository's Git directory can move (where there is an upstream, a fetch puts its branches back first): like design decision 5, this holds against an agent's mistakes, not against one set on getting out.
 
 ### 11. Archiving does not wait for a teardown that fails
@@ -135,20 +129,26 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 ## Out of Scope
 
-- Starting jobs by themselves, or on the agent's behalf.
+- Starting tasks by themselves, or on the agent's behalf.
 - Asking the person about a setup when a workspace is made, or showing a teardown's outcome after archiving.
 - Health checks beyond "listens on its port".
 - Previews inside Geordi: links open in the browser.
 - Links to anywhere but this machine.
 
-### 12. YAML, with TOML still read
+### 12. YAML, and tasks only
 
-**Decision:** The file is YAML (`.geordi.yml`). A `.geordi.toml` is still read where there is no `.geordi.yml`; agents are told to write YAML, and that a TOML file wants moving.
-**Why:** YAML is what the projects Geordi is used on already configure things in, and what their people and agents write without looking anything up. Reading TOML on costs a few lines and breaks nobody's repository.
-**Tradeoff:** Two parsers, and a file that can be there twice: the YAML one counts, and the other is silently not looked at.
+**Decision:** The file is YAML (`.geordi.yml`), and says what to run under `tasks`. The earlier settings (`run`, `jobs`, `urls`, `default`, `ports`) and the TOML file are no longer read; a workspace that still has them is told so, with what to say instead.
+**Why:** One way to say a thing. Two ways meant two parsers, two layouts of the Tasks tab and two sets of rules for agents to learn; the old ones could say neither several ports for one command, nor several links for one, nor none.
+**Tradeoff:** A repository with the old settings has nothing to run until its file is rewritten. Its ports carry over: a task's first port takes the one the task had.
 
 ### 13. A tab, not a button and a menu
 
-**Decision:** What a workspace runs is shown in a tab of its own in the dock, with every link and job and how each is, instead of a Run button with a menu beside the dock's tabs.
+**Decision:** What a workspace runs is shown in a tab of its own in the dock, with every task and its links and how each is, instead of a Run button with a menu beside the dock's tabs.
 **Why:** A menu shows how things are only while it is open, and a button says one thing at a time. What runs is ongoing state, worth seeing at a glance, next to the terminals it runs in; and the tab bar stays for tabs.
-**Tradeoff:** Opening the default with the mouse takes two clicks when another tab is selected. Its keyboard shortcut works from anywhere in the workspace.
+**Tradeoff:** Running a task with the mouse takes two clicks when another tab is selected. The keyboard shortcut works from anywhere in the workspace.
+
+### 14. Ports belong to tasks, and a workspace has spare ones besides
+
+**Decision:** Each task names the ports its command listens on, none or several, and every workspace gets ten spare ports of its own on top. There is no count of ports to set.
+**Why:** A process does not have one port: a dev server has its pages and a WebSocket, a desktop app three, a script none. Naming them lets a link say which one it means, lets "up" mean all of them, and keeps the ports of a task apart from those an agent picks for something of its own. A fixed number of spare ones is one thing less to decide.
+**Tradeoff:** Ten ports a workspace that never uses them, and a task that listens on a port it doesn't name is not waited for.

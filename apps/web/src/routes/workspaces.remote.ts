@@ -261,6 +261,13 @@ export const updateWorkspace = command(
 /** A job's name, and each job's command as the person asking saw it (FDR-006). */
 const jobName = v.pipe(v.string(), v.regex(CONFIG_NAME));
 const seen = v.record(jobName, v.string());
+/** A task, or one of its links: `web`, `web.admin`. */
+const taskRef = v.pipe(
+	v.string(),
+	v.check(
+		(ref) => ref.split('.').length <= 2 && ref.split('.').every((name) => CONFIG_NAME.test(name))
+	)
+);
 
 /**
  * The person has seen these commands of the repository's jobs and agrees to run them
@@ -289,36 +296,18 @@ export const editReleaseNote = command(
 	}
 );
 
+/**
+ * Runs tasks (FDR-006), and before each what it needs; answers, for each, where its link
+ * leads once it answers (`task.link` for one other than its first), or what kept it.
+ */
 export const runTasks = command(
 	v.object({
 		workspaceId: v.string(),
-		tasks: v.array(jobName),
+		tasks: v.array(taskRef),
 		seen,
 		confirmation: v.optional(v.string())
 	}),
-	({ workspaceId, tasks, seen, confirmation }) =>
-		jobs().runTasks(workspaceId, tasks, seen, confirmation)
-);
-
-/** Starts jobs, and before each the jobs it needs. */
-export const startJobs = command(
-	v.object({
-		workspaceId: v.string(),
-		jobs: v.array(jobName),
-		seen,
-		confirmation: v.optional(v.string())
-	}),
-	({ workspaceId, jobs: names, seen, confirmation }) =>
-		jobs().start(workspaceId, names, seen, confirmation)
-);
-
-/**
- * Waits for jobs that were started to be up (something listens on their port), for what
- * shows them booting.
- */
-export const jobsReady = command(
-	v.object({ workspaceId: v.string(), jobs: v.array(jobName) }),
-	({ workspaceId, jobs: names }) => jobs().ready(workspaceId, names)
+	({ workspaceId, tasks, seen, confirmation }) => jobs().run(workspaceId, tasks, seen, confirmation)
 );
 
 /** Runs the repository's setup script in the workspace, as the person asking saw it. */
@@ -327,16 +316,10 @@ export const runSetup = command(
 	({ workspaceId, command }) => jobs().setUp(workspaceId, command)
 );
 
-/** Stops a job, and the jobs that need it. */
+/** Stops a task, and the tasks that need it. */
 export const stopJob = command(
 	v.object({ workspaceId: v.string(), job: jobName }),
 	({ workspaceId, job }) => jobs().stop(workspaceId, job)
-);
-
-/** Starts what a link needs, waits for it to be up, and returns where the link leads. */
-export const openLink = command(
-	v.object({ workspaceId: v.string(), link: jobName, seen, confirmation: v.optional(v.string()) }),
-	({ workspaceId, link, seen, confirmation }) => jobs().open(workspaceId, link, seen, confirmation)
 );
 
 /**

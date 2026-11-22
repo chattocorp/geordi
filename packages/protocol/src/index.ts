@@ -249,34 +249,44 @@ export const CI_REFRESH_MS = 10_000;
 
 /** A repository says how Geordi should treat it in this file, at its top level. */
 export const CONFIG_FILE = '.geordi.yml';
-/**
- * The names such a file may go by, the first that is there being the one that counts. YAML
- * is what we say and write; TOML is what it was first, and is still read.
- */
-export const CONFIG_FILES = [CONFIG_FILE, '.geordi.toml'] as const;
-
-/** How many ports a workspace gets where its repository names no jobs to count, nor a number. */
-export const DEFAULT_PORTS = 10;
 
 /**
- * Something a repository can have run for a workspace (FDR-006): a dev server, a database,
- * a desktop app, a game. Each runs in a terminal of its own.
+ * How many ports every workspace has to spare, beside its tasks' own: for agents and
+ * terminals to start things on (`GEORDI_PORT`, `GEORDI_PORTS`).
  */
-export type Job = {
+export const SPARE_PORTS = 10;
+
+/** One of a task's ports in a workspace: its name in the file, and its number. */
+export type TaskPort = { name: string; port: number };
+
+/** A place to look at what a task serves, with the workspace's ports filled in. Always on this machine. */
+export type TaskLink = { name: string; label?: string; href: string };
+
+/**
+ * Something a repository can have run or opened for a workspace (FDR-006): a dev server, a
+ * database, a desktop app, a game, a page to look at. One with a command runs in a terminal
+ * of its own.
+ */
+export type Task = {
 	name: string;
-	/** Optional display name; the key remains the job identity. */
+	/** Optional display name; the key remains the task's identity. */
 	label?: string;
-	command: string;
-	/** The jobs that have to be up before this one starts. Stopping one of them stops this one too. */
-	needs: string[];
-	/**
-	 * The port that is this job's in this workspace, for as long as the workspace lives. It
-	 * reaches the command as `PORT` (and everything else in the workspace as
-	 * `GEORDI_PORT_<NAME>`). A job that listens on it counts as up once it does.
-	 */
-	port: number;
-	/** Whether a person has agreed to run this command in this repository. */
+	/** What it runs; `null` for a task that only opens a link. */
+	command: string | null;
+	/** Whether a person has agreed to run the command in this repository (`true` without one). */
 	approved: boolean;
+	/**
+	 * Its ports in this workspace, in the order the file names them, for as long as the
+	 * workspace lives. The command gets each as `PORT_<NAME>`, the first also as `PORT`.
+	 * It counts as up once something listens on all of them (at once, without any).
+	 */
+	ports: TaskPort[];
+	/** Where to look at it; running the task opens the first. */
+	links: TaskLink[];
+	/** The tasks that have to be up before this one starts. Stopping one of them stops this one too. */
+	needs: string[];
+	/** Whether the Run shortcut runs it. */
+	default: boolean;
 };
 
 /**
@@ -290,45 +300,35 @@ export type Script = {
 };
 
 /**
- * The names of the setup and teardown scripts. No job can be called that: the setup runs in
- * a terminal named as a job's would be (`JOB_TERMINAL` + `setup`).
+ * The names of the setup and teardown scripts. No task can be called that: the setup runs in
+ * a terminal named as a task's would be (`JOB_TERMINAL` + `setup`).
  */
 export const SCRIPTS = ['setup', 'teardown'] as const;
-
-/** A place to look at what the jobs serve: a link, with the jobs that have to be up for it to lead anywhere. */
-export type Link = {
-	name: string;
-	/** Optional display name; the key remains the link identity. */
-	label?: string;
-	/** With the workspace's ports filled in. Always on this machine. */
-	href: string;
-	needs: string[];
-};
 
 /**
  * What a repository's `.geordi.yml` says, as it applies to one workspace: that of the
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
-	/** Unified task graph in configuration order, when the repository uses tasks. */
-	tasks?: { name: string; label?: string; needs: string[]; default: boolean }[];
-	/** The first action in the Run pane: `default`, else the `run` job. */
-	default?: `jobs.${string}` | `urls.${string}`;
-	jobs: Job[];
-	urls: Link[];
+	/** In the order the file has them. */
+	tasks: Task[];
 	/** Run once in a workspace's new worktree, before its agent starts. */
 	setup: Script | null;
 	/** Run when the workspace is archived, before its worktree is removed. */
 	teardown: Script | null;
-	/** The first of the workspace's ports, and how many it has. */
+	/** The workspace's spare ports: the first, and how many. */
 	ports: { first: number; count: number } | null;
 	/** What is wrong with the file, if it can't be made sense of. */
 	problem: string | null;
 	/** Which file this is from: the workspace's own, or the one on the branch work starts from. */
 	source: 'workspace' | 'base' | null;
-	/** What that file is called (see `CONFIG_FILES`); `null` if there is none. */
+	/** What that file is called; `null` if there is none. */
 	file: string | null;
 };
+
+/** The environment variable that holds a task's port: `GEORDI_PORT_WEB`, `GEORDI_PORT_WEB_LIVE`. */
+export const portVariable = (...names: string[]) =>
+	['GEORDI_PORT', ...names].join('_').toUpperCase().replaceAll('-', '_');
 
 /**
  * What a `.geordi.yml` can say, for agents to read (`configuration_reference`). The daemon's
@@ -336,26 +336,9 @@ export type RepoConfig = {
  */
 export const CONFIG_SETTINGS = {
 	tasks: {
-		does: "Named Run tasks. Give each a command, a local HTTP(S) url, or both. A command receives its assigned port as $PORT, and its URL can say $PORT too. Use {name} in a URL for another command task's port. List prerequisites under needs. Selecting a task starts its dependencies and opens only its own URL once reachable. Set default: true on each task the Run shortcut should launch. Without defaults the shortcut shows the Run panel. Use tasks in place of jobs, urls, run and the top-level default.",
+		does: "Named things to run or open, in the order the Tasks panel shows them (names: lower case letters, digits and dashes). Each has a `command`, links, or both, and may have a `label` (a display name of 1–100 characters; the key still identifies it). `ports` names the ports the command listens on (`ports: [http, live]`): each is the task's own for as long as the workspace lives, and reaches the command as `$PORT_HTTP`, `$PORT_LIVE` (the first also as `$PORT`), and everything in the workspace as `GEORDI_PORT_<TASK>_<PORT>` (the first also as `GEORDI_PORT_<TASK>`; upper case, dashes as underscores). A task without `ports` gets none. It counts as up once something listens on all of its ports, or at once without any. `url` is one link, `urls` several, each under a name with a `url` and an optional `label`. In a URL, `{http}` is one of the task's own ports and `{web.http}` another task's, which then has to be up first too. Links only lead to this machine (`localhost`). `needs` lists the tasks that have to be up before this one starts; stopping one stops those that need it. Running a task starts what it needs, then its command, and opens its first link once that answers. A task with only links and no `needs` just opens them. `default: true` marks the tasks the Run shortcut runs. Commands run in the person's shell in the workspace's directory, and should keep running until stopped.",
 		example:
-			'tasks:\n  web:\n    command: pnpm dev --port $PORT\n    url: http://localhost:$PORT/\n    default: true'
-	},
-	default: {
-		does: 'The first action in the Run pane. Use a job or URL key, such as `jobs.web` or `urls.app`. If omitted, Geordi uses the `run` job when present.',
-		example: 'default: urls.app'
-	},
-	run: {
-		does: 'The command that runs the project for someone to look at or use: its development server, a desktop app, a game. Short for a single job called `run`. Use this unless the project needs several things running.',
-		example: 'run: pnpm dev --port $PORT'
-	},
-	jobs: {
-		does: "Several things to run, each a `command` under a name (lower case letters, digits and dashes). `needs` lists the jobs that have to be up first: starting a job starts those, and stopping one stops the jobs that need it. An optional `label` supplies a human-readable display name (1–100 characters); the key still identifies dependencies and ports. Each job runs in a terminal of its own, in the workspace's directory, and should keep running until stopped.",
-		example:
-			'jobs:\n  db:\n    command: docker compose up db\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    needs: [db]'
-	},
-	urls: {
-		does: "Places to open in the browser, each a `url` under a name. `{job}` stands for that job's port. Opening one first starts the jobs it mentions (and any listed under `needs`) and waits for them. An optional `label` supplies a human-readable display name (1–100 characters); otherwise the key is shown. Only addresses on this machine (`localhost`).",
-		example: 'urls:\n  app:\n    label: Open app\n    url: http://localhost:{web}/'
+			'tasks:\n  db:\n    command: docker compose up db\n    ports: [postgres]\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT_HTTP\n    ports: [http, hmr]\n    needs: [db]\n    urls:\n      app: { label: App, url: "http://localhost:{http}/" }\n      admin: { label: Admin, url: "http://localhost:{http}/admin" }\n    default: true\n  docs:\n    url: http://localhost:8080/'
 	},
 	setup: {
 		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
@@ -364,10 +347,6 @@ export const CONFIG_SETTINGS = {
 	teardown: {
 		does: 'A command that cleans up after a workspace when a person archives it, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
 		example: 'teardown: docker compose down --volumes'
-	},
-	ports: {
-		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. \`GEORDI_ASSIGNED_PORTS\` is a JSON array of every assigned port, in allocation order; use it for spare ports because allocations need not be contiguous. Never hard-code a port: two workspaces would collide.`,
-		example: 'ports: 20'
 	}
 } as const;
 
@@ -375,7 +354,7 @@ export const CONFIG_SETTINGS = {
  * The jobs to start so that `names` are up, each after the ones it needs. Names that are
  * not jobs are left out: the file may have changed since they were asked for.
  */
-export function startOrder(jobs: Pick<Job, 'name' | 'needs'>[], names: string[]): string[] {
+export function startOrder(jobs: Pick<Task, 'name' | 'needs'>[], names: string[]): string[] {
 	const byName = new Map(jobs.map((job) => [job.name, job]));
 	const order: string[] = [];
 	const visit = (name: string, seen: string[]) => {
@@ -390,7 +369,7 @@ export function startOrder(jobs: Pick<Job, 'name' | 'needs'>[], names: string[])
 }
 
 /** The jobs that can't go on without `name`: those that need it, and those that need them. */
-export function dependentsOf(jobs: Pick<Job, 'name' | 'needs'>[], name: string): string[] {
+export function dependentsOf(jobs: Pick<Task, 'name' | 'needs'>[], name: string): string[] {
 	const found: string[] = [];
 	const visit = (needed: string) => {
 		for (const job of jobs)
@@ -410,7 +389,7 @@ export const REMOVE_TIMEOUT_MS = TEARDOWN_TIMEOUT_MS + 30_000;
 
 /** A job's terminal is named after it, so that it can be told from a shell someone opened. */
 export const JOB_TERMINAL = 'run-';
-/** Names of jobs and links: they end up in terminal names, and in the names of environment variables. */
+/** Names of tasks, ports and links: they end up in terminal names, and in the names of environment variables. */
 export const CONFIG_NAME = /^[a-z][a-z0-9-]{0,30}$/;
 
 /** A note on a change, as a release tool keeps them until the next release: what changed, and how much it matters. */

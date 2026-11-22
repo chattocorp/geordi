@@ -46,7 +46,7 @@ export function instructionsFor(workspace: {
 		workspace.manuallyNamed || (parent && workspace.named)
 			? ''
 			: 'Once you know what the work is about, give this workspace a short name with the `name_workspace` tool of the `geordi` MCP server (a few words): the person has many workspaces, and finds this one by its name. Do that early, alongside your first steps, and again only if the work turns out to be about something else.',
-		"This workspace has network ports of its own, which stay the same for as long as it lives: `$GEORDI_PORT` is the first of them, `$GEORDI_PORTS` says how many there are, and each of the repository's jobs has its own in `$GEORDI_PORT_<NAME>`. When you start anything that listens on a port (a dev server, a database), use one of these, never a default like 3000 or 5173: other workspaces run the same project next to you.",
+		"This workspace has network ports of its own, which stay the same for as long as it lives: each of the repository's tasks has its own in `$GEORDI_PORT_<TASK>_<PORT>`, and `$GEORDI_PORT` is the first of the spare ones, `$GEORDI_PORTS` says how many there are. When you start anything that listens on a port (a dev server, a database), use a spare one, never a default like 3000 or 5173: other workspaces run the same project next to you.",
 		`The repository can tell Geordi how it wants to be treated (how the project is run, for one) in a \`${CONFIG_FILE}\` at its top level. Before creating or changing that file, call the \`geordi\` MCP server's \`configuration_reference\` tool; afterwards, \`check_configuration\`.`
 	]
 		.filter(Boolean)

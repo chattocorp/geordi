@@ -13,10 +13,8 @@ export type WorkspaceSource = {
 	shells: { tab: string; title: string }[] | null;
 	/** Whether the run shortcut does something. */
 	canRunDefault: boolean;
-	/** The repository's tasks, where it has them; else its jobs and links. */
-	tasks: Named[] | null;
-	jobs: (Named & { live: boolean })[];
-	links: Named[];
+	/** The repository's tasks: whether each is running, and its links where it has several. */
+	tasks: (Named & { live: boolean; links: Named[] })[];
 	/** Jobs whose output there is to read. */
 	outputs: Named[];
 	/** Its windows beside the conversation, those there are; none in a project. */
@@ -35,10 +33,9 @@ export type WorkspaceSource = {
 	terminal(): void;
 	newTerminal(): void;
 	runDefault(): void;
+	/** Runs a task, or opens one of its links (`task.link`). */
 	runTask(name: string): void;
-	start(job: string): void;
-	stop(job: string): void;
-	visit(link: string): void;
+	stop(task: string): void;
 	showOutput(job: string): void;
 	toggleSide(): void;
 	openDiff(path: string): void;
@@ -105,41 +102,30 @@ export function workspaceCommands(at: WorkspaceSource): Command[] {
 			shortcut: 'runDefault',
 			run: at.runDefault
 		});
-	if (at.tasks)
-		add(
-			'Tasks',
-			...at.tasks.map(({ name, label }) => ({
-				id: `task:${name}`,
-				label: `Run ${label}`,
-				icon: 'icon-[lucide--play]',
-				run: () => at.runTask(name)
-			}))
-		);
-	else
-		add(
-			'Tasks',
-			...at.jobs.map(({ name, label, live }) =>
-				live
-					? {
-							id: `stop:${name}`,
-							label: `Stop ${label}`,
-							icon: 'icon-[lucide--square]',
-							run: () => at.stop(name)
-						}
-					: {
-							id: `start:${name}`,
-							label: `Start ${label}`,
-							icon: 'icon-[lucide--play]',
-							run: () => at.start(name)
-						}
-			),
-			...at.links.map(({ name, label }) => ({
-				id: `link:${name}`,
-				label: `Open ${label}`,
+	add(
+		'Tasks',
+		...at.tasks.flatMap(({ name, label, live, links }) => [
+			live
+				? {
+						id: `stop:${name}`,
+						label: `Stop ${label}`,
+						icon: 'icon-[lucide--square]',
+						run: () => at.stop(name)
+					}
+				: {
+						id: `task:${name}`,
+						label: `Run ${label}`,
+						icon: 'icon-[lucide--play]',
+						run: () => at.runTask(name)
+					},
+			...links.map((link) => ({
+				id: `link:${name}.${link.name}`,
+				label: `Open ${link.label}`,
 				icon: 'icon-[lucide--external-link]',
-				run: () => at.visit(name)
+				run: () => at.runTask(`${name}.${link.name}`)
 			}))
-		);
+		])
+	);
 	add(
 		'Tasks',
 		...at.outputs.map(({ name, label }) => ({

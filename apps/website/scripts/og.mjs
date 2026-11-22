@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 // The reset job has a reserved workspace port and never starts a listener.
 const server = await dev({
 	logLevel: 'warn',
-	server: { host: '127.0.0.1', port: Number(process.env.GEORDI_PORT_RESET ?? 0) }
+	server: { host: '127.0.0.1', port: Number(process.env.GEORDI_PORT ?? 0) }
 });
 const browser = await chromium.launch();
 try {

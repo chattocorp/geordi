@@ -1,6 +1,6 @@
 import type { ToolEntry } from '@geordi/ui/tools';
 import type { WorkspaceStanding } from '@geordi/ui/actions';
-import type { Changes, Job, Link } from '@geordi/protocol';
+import type { Changes, Task } from '@geordi/protocol';
 
 export const message =
 	'After signing in, people land on the home page instead of the page they came for. Send them back there.';
@@ -123,27 +123,28 @@ export const files = sampleFiles.map(({ step, path, status, lines }) => {
 	};
 });
 
-/** What the workspace's `.geordi.yml` says it runs, for the Run tab. */
-export const jobs: Job[] = [
+/** What the workspace's `.geordi.yml` says it runs, for the Tasks tab. */
+export const tasks: Task[] = [
 	{
 		name: 'db',
 		label: 'Database',
 		command: 'docker compose up db',
+		approved: true,
+		ports: [{ name: 'postgres', port: 20101 }],
+		links: [],
 		needs: [],
-		port: 20101,
-		approved: true
+		default: false
 	},
 	{
 		name: 'web',
 		label: 'Dev server',
 		command: 'pnpm dev --port $PORT',
+		approved: true,
+		ports: [{ name: 'http', port: 20102 }],
+		links: [{ name: 'app', label: 'App', href: 'http://localhost:20102/' }],
 		needs: ['db'],
-		port: 20102,
-		approved: true
+		default: true
 	}
-];
-export const links: Link[] = [
-	{ name: 'app', label: 'App', href: 'http://localhost:20102/', needs: ['web'] }
 ];
 
 export const hold = [400, 1000, 900, 1200, 1300, 1000, 1700, 3600, 3200, 3600, 9000];

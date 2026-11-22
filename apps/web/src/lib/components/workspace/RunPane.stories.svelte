@@ -1,7 +1,7 @@
 <script module lang="ts">
-	import { expect, userEvent, within } from 'storybook/test';
+	import { expect, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { Job, Link, RepoConfig } from '@geordi/protocol';
+	import type { Task } from '@geordi/protocol';
 	import type { JobState } from '@geordi/ui/JobMark.svelte';
 	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
@@ -9,64 +9,63 @@
 	import Notice from '#lib/ui/Notice.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Run', component: RunPane });
-	const job = (name: string, label: string, command: string, port: number): Job => ({
+	const task = (name: string, label: string, fields: Partial<Task>): Task => ({
 		name,
 		label,
-		command,
+		command: null,
+		approved: true,
+		ports: [],
+		links: [],
 		needs: [],
-		port,
-		approved: true
+		default: false,
+		...fields
 	});
-	const web = job('web', 'Static server', 'node serve.js', 20000);
-	const jobs = [
-		web,
-		job(
-			'preview',
-			'Preview server that takes a few seconds to come up',
-			'SERVE_DELAY=5 node serve.js',
-			20001
-		),
-		job('check', 'Check links', 'node check.js', 20002),
-		job('test', 'Tests', 'node --test', 20003),
-		job('docs', 'Documentation', 'pnpm docs --port $PORT', 20004)
-	];
-	const links: Link[] = [
-		{ name: 'site', label: 'Site', href: 'http://localhost:20000/', needs: ['web'] },
-		{
-			name: 'about',
-			label: 'About page',
-			href: 'http://localhost:20001/about.html',
-			needs: ['preview']
-		}
+	// the repository's own tasks (`.geordi.yml`)
+	const tasks: Task[] = [
+		task('web', 'Web server', {
+			command: 'node scripts/workspace-dev.mjs web',
+			ports: [
+				{ name: 'http', port: 20000 },
+				{ name: 'daemon', port: 20001 },
+				{ name: 'live', port: 20002 }
+			]
+		}),
+		task('daemon', 'Agent daemon', {
+			command: 'node scripts/workspace-dev.mjs daemon',
+			needs: ['web']
+		}),
+		task('app', 'Geordi', {
+			links: [{ name: 'app', href: 'http://localhost:20000/' }],
+			needs: ['daemon', 'web'],
+			default: true
+		}),
+		task('reset', 'Reset development data', { command: 'node scripts/workspace-dev.mjs reset' }),
+		task('storybook', 'Storybook', {
+			command: 'node scripts/workspace-dev.mjs storybook',
+			ports: [{ name: 'http', port: 20003 }],
+			links: [
+				{ name: 'stories', label: 'Stories', href: 'http://localhost:20003/' },
+				{ name: 'docs', label: 'Docs', href: 'http://localhost:20003/?path=/docs' }
+			]
+		}),
+		task('website', 'Website', {
+			command: 'pnpm --filter @geordi/website dev --port $PORT',
+			ports: [{ name: 'http', port: 20004 }],
+			links: [{ name: 'website', href: 'http://localhost:20004/' }]
+		}),
+		task('desktop', 'Electron dev app', {
+			command: 'pnpm desktop:dev',
+			ports: [
+				{ name: 'forge', port: 20005 },
+				{ name: 'daemon', port: 20006 },
+				{ name: 'live', port: 20007 }
+			]
+		}),
+		task('handbook', 'Handbook', {
+			links: [{ name: 'handbook', href: 'http://localhost:8080/' }]
+		})
 	];
 	const states: Record<string, JobState> = {
-		web: 'running',
-		preview: 'starting',
-		check: { ended: 1 },
-		test: { ended: 0 },
-		docs: 'stopped'
-	};
-	// the repository's own tasks (`.geordi.yml`)
-	const tasks: NonNullable<RepoConfig['tasks']> = [
-		{ name: 'web', label: 'Web server', needs: [], default: false },
-		{ name: 'daemon', label: 'Agent daemon', needs: ['web'], default: false },
-		{ name: 'app', label: 'Geordi', needs: ['daemon'], default: true },
-		{ name: 'reset', label: 'Reset development data', needs: [], default: false },
-		{ name: 'storybook', label: 'Storybook', needs: [], default: false },
-		{ name: 'desktop', label: 'Electron dev app', needs: [], default: false }
-	];
-	const taskJobs = [
-		job('web', 'Web server', 'node scripts/workspace-dev.mjs web', 20000),
-		job('daemon', 'Agent daemon', 'node scripts/workspace-dev.mjs daemon', 20001),
-		job('reset', 'Reset development data', 'node scripts/workspace-dev.mjs reset', 20002),
-		job('storybook', 'Storybook', 'node scripts/workspace-dev.mjs storybook', 20003),
-		job('desktop', 'Electron dev app', 'pnpm desktop:dev', 20004)
-	];
-	const taskLinks: Link[] = [
-		{ name: 'app', label: 'Geordi', href: 'http://localhost:20000/', needs: ['daemon'] },
-		{ name: 'storybook', label: 'Storybook', href: 'http://localhost:20003/', needs: [] }
-	];
-	const taskStates: Record<string, JobState> = {
 		web: 'running',
 		daemon: 'starting',
 		reset: { ended: 1 },
@@ -78,140 +77,12 @@
 	let last = $state('No action');
 </script>
 
-{#snippet pane(
-	jobs: Job[],
-	links: Link[],
-	stateOf: (name: string) => JobState,
-	problem: string | null = null,
-	defaultAction?: RepoConfig['default']
-)}
+{#snippet pane(stateOf: (name: string) => JobState, problem: string | null = null, opened = false)}
 	<div class="flex h-120 w-96 flex-col sheet-quiet">
-		{#if defaultAction}
-			<PaneTabs prefix="run-dock" tabs={['Terminal 1', 'Tasks']} current="Tasks">
-				{#snippet tab(id: string)}
-					{#if id === 'Tasks'}
-						<RunTab {jobs} {stateOf} />
-					{:else}
-						<span class="icon-[lucide--square-terminal] size-3.5"></span>
-						{id}
-					{/if}
-				{/snippet}
-			</PaneTabs>
-		{/if}
-		<RunPane
-			{defaultAction}
-			shortcut="runDefault"
-			{jobs}
-			{links}
-			{stateOf}
-			hasTerminal={(name) => stateOf(name) !== 'stopped' && name !== 'preview'}
-			start={(names) => (last = `Start: ${names.join(', ')}`)}
-			stop={(name) => (last = `Stop: ${name}`)}
-			show={(name) => (last = `Show: ${name}`)}
-			visit={(link) => (last = `Open: ${link.name}`)}
-		>
-			{#if problem}
-				<Notice>The repository's configuration can't be read: {problem}</Notice>
-			{/if}
-		</RunPane>
-	</div>
-	<p class="mt-2 text-sm text-muted">{last}</p>
-{/snippet}
-
-<Story
-	name="Every state"
-	asChild
-	play={async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText('localhost:20000')).not.toBeVisible();
-		await expect(canvas.getByText(':20000')).not.toBeVisible();
-		const startDocs = canvas.getByRole('button', { name: 'Start Documentation' });
-		await expect(startDocs.querySelector('[class~="icon-[lucide--play]"]')).toBeVisible();
-		await userEvent.tab();
-		await expect(canvas.getByText('localhost:20000')).toBeVisible();
-		const terminal = canvas.getByRole('button', { name: 'Open terminal for Static server' });
-		await userEvent.click(terminal.querySelector('[class~="icon-[lucide--square-terminal]"]')!);
-		await expect(canvas.getByText('Show: web')).toBeVisible();
-		const stopWeb = canvas.getByRole('button', { name: 'Stop Static server' });
-		await expect(stopWeb.querySelector('.text-danger')).not.toBeVisible();
-		await userEvent.tab({ shift: true });
-		await expect(stopWeb).toHaveFocus();
-		await expect(stopWeb.querySelector('.text-danger')).toBeVisible();
-		await userEvent.click(stopWeb);
-		await expect(canvas.getByText('Stop: web')).toBeVisible();
-		await userEvent.click(startDocs);
-		await expect(canvas.getByText('Start: docs')).toBeVisible();
-		// what is not running yet starts at once; what runs stops at once
-		await userEvent.click(canvas.getByRole('button', { name: 'Start all' }));
-		await expect(canvas.getByText('Start: check, test, docs')).toBeVisible();
-		await expect(canvas.getByTitle('Ended with status 1')).toBeVisible();
-		// a job that never ran has no output to show
-		await expect(
-			canvas.queryByRole('button', { name: 'Open terminal for Documentation' })
-		).toBeNull();
-		await expect(canvas.queryByRole('button', { name: /Open terminal for Preview/ })).toBeNull();
-		await userEvent.click(canvas.getByRole('button', { name: 'Open terminal for Check links' }));
-		await expect(canvas.getByText('Show: check')).toBeVisible();
-		await userEvent.click(canvas.getByTitle('Open http://localhost:20000/'));
-		await expect(canvas.getByText('Open: site')).toBeVisible();
-	}}
->
-	{@render pane(jobs, links, (name) => states[name] ?? 'stopped')}
-</Story>
-<Story name="Nothing running" asChild>{@render pane(jobs, links, () => 'stopped')}</Story>
-<Story name="Only links" asChild>{@render pane([], links, () => 'stopped')}</Story>
-<Story name="Unreadable configuration" asChild>
-	{@render pane([], [], () => 'stopped', 'jobs.web: command is missing')}
-</Story>
-
-<Story
-	name="Default link"
-	asChild
-	play={async ({ canvas, userEvent }) => {
-		await expect(
-			within(canvas.getByRole('tab', { name: /Tasks/ })).getByRole('img', { name: 'Job running' })
-		).toBeVisible();
-		const first = within(canvas.getByRole('region', { name: 'Default action' })).getByRole(
-			'button',
-			{ name: /Open About page/ }
-		);
-		await expect(canvas.getAllByRole('button')[0]).toBe(first);
-		await userEvent.click(first);
-		await expect(canvas.getByText('Open: about')).toBeVisible();
-		await expect(
-			within(canvas.getByRole('region', { name: 'Open' })).queryByText('About page')
-		).toBeNull();
-	}}
->
-	{@render pane(
-		[web, jobs[1], jobs[3]],
-		links,
-		(name) => (name === 'preview' ? 'running' : 'stopped'),
-		null,
-		'urls.about'
-	)}
-</Story>
-<Story
-	name="Default job"
-	asChild
-	play={async ({ canvas, userEvent }) => {
-		const first = canvas.getAllByRole('button')[0];
-		await expect(first).toHaveAccessibleName(/Stop Static server/);
-		await userEvent.click(first);
-		await expect(canvas.getByText('Stop: web')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Open terminal for Static server' }));
-		await expect(canvas.getByText('Show: web')).toBeVisible();
-	}}
->
-	{@render pane(jobs, links, (name) => states[name], null, 'jobs.web')}
-</Story>
-
-{#snippet unified(stateOf: (name: string) => JobState, opened = false)}
-	<div class="flex h-120 w-96 flex-col sheet-quiet">
-		<PaneTabs prefix="run-tasks" tabs={['Tasks']} current="Tasks">
+		<PaneTabs prefix="run-tasks" tabs={['Terminal 1', 'Tasks']} current="Tasks">
 			{#snippet tab(id: string)}
 				{#if id === 'Tasks'}
-					<RunTab jobs={taskJobs} {stateOf} />
+					<RunTab jobs={tasks.filter((task) => task.command)} {stateOf} />
 				{:else}
 					<span class="icon-[lucide--square-terminal] size-3.5"></span>
 					{id}
@@ -219,20 +90,19 @@
 			{/snippet}
 		</PaneTabs>
 		<RunPane
-			{tasks}
-			jobs={taskJobs}
-			links={taskLinks}
+			tasks={problem ? [] : tasks}
+			shortcut="runDefault"
 			{stateOf}
 			hasTerminal={(name) => stateOf(name) !== 'stopped'}
-			shortcut="runDefault"
-			launch={(names) => (last = `Run: ${names.join(', ')}`)}
-			start={() => {}}
+			run={(ref) => (last = `Run: ${ref}`)}
 			stop={(name) => (last = `Stop: ${name}`)}
 			show={(name) => (last = `Show: ${name}`)}
-			visit={() => {}}
 		>
 			{#if opened}
 				<a class="item" href="#app">Open Geordi in browser</a>
+			{/if}
+			{#if problem}
+				<Notice>The repository's configuration can't be read: {problem}</Notice>
 			{/if}
 		</RunPane>
 	</div>
@@ -247,54 +117,103 @@
 		await expect(
 			within(canvas.getByRole('tab', { name: /Tasks/ })).getByRole('img', { name: 'Job starting' })
 		).toBeVisible();
-		// one list in configuration order; the default carries the shortcut
-		const rows = canvas.getAllByRole('button', { name: /^(Open|Run|Open terminal for) / });
+		// one list in configuration order, the defaults first, each task's links under it;
+		// the row runs a task, the icon beside it shows its terminal once it has one
+		const rows = canvas.getAllByRole('button', { name: /^(Open|Run|Show terminal of) / });
 		await expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
-			'Open terminal for Web server',
-			'Open terminal for Agent daemon',
+			// the default first, what the shortcut runs
 			'Open Geordi',
+			'Run Web server',
+			'Show terminal of Web server',
+			'Run Agent daemon',
+			'Show terminal of Agent daemon',
 			'Run Reset development data',
-			'Open terminal for Reset development data',
-			'Open Storybook',
-			'Open terminal for Storybook',
-			'Run Electron dev app'
+			'Show terminal of Reset development data',
+			'Run Storybook',
+			'Show terminal of Storybook',
+			'Open Stories',
+			'Open Docs',
+			'Run Website',
+			'Open Website',
+			'Run Electron dev app',
+			'Open Handbook'
 		]);
+		// pointing at a task shows what it needs, and what that needs in turn
+		const row = (name: string) => canvas.getByRole('button', { name }).closest('div')!;
+		await userEvent.hover(row('Open Geordi'));
+		for (const name of ['Run Agent daemon', 'Run Web server'])
+			await expect(row(name)).toHaveClass('bg-surface/60');
+		await expect(row('Run Storybook')).not.toHaveClass('bg-surface/60');
+		await userEvent.unhover(row('Open Geordi'));
+		await expect(row('Run Web server')).not.toHaveClass('bg-surface/60');
+		// the default carries the shortcut
 		await expect(
 			canvas.getByRole('button', { name: 'Open Geordi' }).querySelector('kbd')
 		).toBeVisible();
-		await expect(
-			canvas.getAllByRole('button', { name: /^Open|^Run/ }).filter((b) => b.querySelector('kbd'))
-		).toHaveLength(1);
-		// a URL opens, starting what it needs
-		await userEvent.click(canvas.getByRole('button', { name: 'Open Storybook' }));
-		await expect(canvas.getByText('Run: storybook')).toBeVisible();
-		// a command that ran shows its output; one that never ran runs
-		await userEvent.click(canvas.getByRole('button', { name: 'Open terminal for Web server' }));
-		await expect(canvas.getByText('Show: web')).toBeVisible();
-		// a passive mark is part of its row: its glyph does what the label does
-		const desktop = canvas.getByRole('button', { name: 'Run Electron dev app' });
-		await userEvent.click(desktop.querySelector('[class~="icon-[lucide--play]"]')!);
-		await expect(canvas.getByText('Run: desktop')).toBeVisible();
-		await userEvent.click(canvas.getByText('Storybook'));
-		// (Geordi waits for the daemon, which is starting)
-		await userEvent.click(canvas.getByRole('button', { name: 'Open Geordi' }).firstElementChild!);
-		await expect(canvas.getByText('Run: app')).toBeVisible();
-		// one tab stop per action: an idle command is its row alone
-		canvas.getByRole('button', { name: 'Open terminal for Storybook' }).focus();
+		// all of a task's ports show where one points at it
+		await expect(canvas.getByText(':20005 :20006 :20007')).not.toBeVisible();
+		canvas.getByRole('button', { name: 'Show terminal of Storybook' }).focus();
+		await userEvent.tab(); // to Stop Storybook
+		await userEvent.tab(); // Stories
+		await userEvent.tab(); // Docs
+		await userEvent.tab(); // Website
+		await userEvent.tab(); // its only link, at the end of its row
 		await userEvent.tab();
-		await expect(canvas.getByRole('button', { name: 'Run Electron dev app' })).toHaveFocus();
-		// a command that ended can run again from its mark
+		const desktop = canvas.getByRole('button', { name: 'Run Electron dev app' });
+		await expect(desktop).toHaveFocus();
+		await expect(canvas.getByText(':20005 :20006 :20007')).toBeVisible();
+		// what is not running is quiet, and says the row runs it where one points at it
+		await expect(desktop.querySelector('[class~="icon-[lucide--play]"]')).toBeVisible();
+		await expect(within(desktop).getByTitle('Not running')).not.toBeVisible();
+		const website = canvas.getByRole('button', { name: 'Run Website' });
+		await expect(within(website).getByTitle('Not running')).toBeVisible();
+		await expect(website.querySelector('[class~="icon-[lucide--play]"]')).not.toBeVisible();
+		// a link opens, running its task; one of several by name
+		await userEvent.click(canvas.getByRole('button', { name: 'Open Docs' }));
+		await expect(canvas.getByText('Run: storybook.docs')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Open Website' }));
+		await expect(canvas.getByText('Run: website.website')).toBeVisible();
+		// the row runs, also one that ran before; the icon beside it shows its output
+		await userEvent.click(canvas.getByRole('button', { name: 'Run Web server' }));
+		await expect(canvas.getByText('Run: web')).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Show terminal of Web server' }));
+		await expect(canvas.getByText('Show: web')).toBeVisible();
+		await expect(canvas.getByTitle('Ended with status 1')).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Run Reset development data' }));
 		await expect(canvas.getByText('Run: reset')).toBeVisible();
-		// the mark of what runs stops it
+		// a task that never ran has no output to show
+		await expect(
+			canvas.queryByRole('button', { name: 'Show terminal of Electron dev app' })
+		).toBeNull();
+		// a link that needs nothing just opens
+		await userEvent.click(canvas.getByRole('button', { name: 'Open Handbook' }));
+		await expect(canvas.getByText('Run: handbook')).toBeVisible();
+		// what runs can be stopped; what is stopped has nothing to stop
 		await userEvent.click(canvas.getByRole('button', { name: 'Stop Agent daemon' }));
 		await expect(canvas.getByText('Stop: daemon')).toBeVisible();
-		await expect(canvas.getByTitle('Ended with status 1')).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: 'Stop Website' })).toBeNull();
 	}}
 >
-	{@render unified((name) => taskStates[name] ?? 'stopped')}
+	{@render pane((name) => states[name] ?? 'stopped')}
 </Story>
-<Story name="Tasks, nothing running" asChild>{@render unified(() => 'stopped')}</Story>
-<Story name="Tasks, link blocked" asChild>
-	{@render unified((name) => (name === 'storybook' ? 'stopped' : 'running'), true)}
+<Story name="Nothing running" asChild>{@render pane(() => 'stopped')}</Story>
+<Story
+	name="Everything running"
+	asChild
+	play={async ({ canvas }) => {
+		// what listens is ready to look at; what has no ports turns, at work
+		const web = canvas.getByRole('button', { name: 'Run Web server' });
+		await expect(web.querySelector('[class~="icon-[lucide--play]"]')).toBeVisible();
+		const daemon = canvas.getByRole('button', { name: 'Run Agent daemon' });
+		await expect(daemon.querySelector('[class~="icon-[lucide--refresh-cw]"]')).toBeVisible();
+		await expect(daemon.querySelector('[class~="icon-[lucide--play]"]')).toBeNull();
+	}}
+>
+	{@render pane(() => 'running', null, true)}
+</Story>
+<Story name="Unreadable configuration" asChild>
+	{@render pane(
+		() => 'stopped',
+		'`run`, `jobs` are no longer read: say what to run under `tasks`, each with the ports it listens on'
+	)}
 </Story>
