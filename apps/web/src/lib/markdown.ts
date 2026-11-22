@@ -1,6 +1,7 @@
 import { codeComment } from './agent-directives.ts';
-import MarkdownIt from 'markdown-it';
+import MarkdownIt, { type Token } from 'markdown-it';
 import { highlighter, themes } from './highlighter.ts';
+import type { WorkspaceLinks } from './workspace-links.ts';
 
 /**
  * Renders agent output. Raw HTML is disabled (escaped), and markdown-it rejects unsafe link
@@ -149,14 +150,22 @@ function documentLink(href: string, documentPath: string) {
 
 // Preserve the inline markup in link labels, including code that names a changed file.
 md.core.ruler.after('inline', 'workspace_links', (state) => {
-	const root = (state.env as Options).root;
+	const { root, workspaces } = state.env as Options;
 	for (const block of state.tokens) {
 		let inLink = false;
 		let tag: string | undefined;
+		const children: typeof state.tokens = [];
 		for (const token of block.children ?? []) {
+			children.push(token);
 			if (token.type === 'link_open') {
 				inLink = true;
 				const href = String(token.attrGet('href') ?? '');
+				// another workspace's pull request: to that workspace
+				const pulled = /^https?:/i.test(href) && workspaces?.pull(href);
+				if (pulled) {
+					token.attrSet('href', workspaceHref(pulled));
+					continue;
+				}
 				// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
 				const folder = href.endsWith('/') && !/[?#]/.test(href) && folderPath(decoded(href), root);
 				if (folder) {
@@ -182,9 +191,45 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 				tag = undefined;
 				inLink = false;
 			} else if (inLink && token.type === 'code_inline') token.meta = { inLink: true };
+			else if (!inLink && workspaces && token.type === 'text') {
+				children.pop();
+				children.push(...pullNumbers(token, workspaces, state.Token));
+			}
 		}
+		if (block.children) block.children = children;
 	}
 });
+
+const workspaceHref = (id: string) => `/workspaces/${encodeURIComponent(id)}`;
+
+/** A pull request named by its number (`#42`) in text, and where its workspace is. */
+const PULL_NUMBER = /(?<![\w&/#])#(\d+)\b/g;
+
+/** Text with `#42` in it, split so that each number of a workspace's pull request links there. */
+function pullNumbers(token: Token, workspaces: WorkspaceLinks, Make: typeof Token): Token[] {
+	const out: Token[] = [];
+	const text = (content: string) => {
+		if (!content) return;
+		const piece = new Make('text', '', 0);
+		piece.content = content;
+		out.push(piece);
+	};
+	let last = 0;
+	for (const match of token.content.matchAll(PULL_NUMBER)) {
+		const id = workspaces.number(match[1]);
+		if (!id) continue;
+		text(token.content.slice(last, match.index));
+		const open = new Make('link_open', 'a', 1);
+		open.attrs = [['href', workspaceHref(id)]];
+		out.push(open);
+		text(match[0]);
+		out.push(new Make('link_close', 'a', -1));
+		last = match.index + match[0].length;
+	}
+	if (!last) return [token];
+	text(token.content.slice(last));
+	return out;
+}
 
 const decoded = (href: string) => {
 	try {
@@ -230,6 +275,9 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 	if (tokens[index].meta?.inLink) return code;
 	const path = (env as Options | undefined)?.file?.(tokens[index].content);
 	if (!path) {
+		// another workspace's branch: to that workspace
+		const branch = (env as Options | undefined)?.workspaces?.branch(tokens[index].content.trim());
+		if (branch) return `<a href="${escapeHtml(workspaceHref(branch))}">${code}</a>`;
 		// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
 		const folder = folderPath(tokens[index].content, (env as Options | undefined)?.root);
 		return folder ? code.replace('<code', `<code data-folder="${escapeHtml(folder)}"`) : code;
@@ -250,6 +298,8 @@ type Options = {
 	pictures?: string;
 	/** The changed file that code in a sentence names, if it names one. */
 	file?: (code: string) => string | undefined;
+	/** The workspaces that a branch or pull request named here links to. */
+	workspaces?: WorkspaceLinks;
 };
 
 export const renderMarkdown = (text: string, options: Options = {}): string =>

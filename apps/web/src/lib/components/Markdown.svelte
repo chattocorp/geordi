@@ -5,6 +5,7 @@
 	import { changedFileIn, renderMarkdown } from '#lib/markdown.ts';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 	import SoundPlayer from '#lib/ui/SoundPlayer.svelte';
+	import { workspaceLinksContext } from '#lib/workspace-links.ts';
 	import { mount, unmount } from 'svelte';
 
 	/** `pictures` is where the pictures of the workspace this was written in are served. */
@@ -25,6 +26,7 @@
 	} = $props();
 
 	const files = changedFiles();
+	const workspaces = workspaceLinksContext();
 	let content = $state<HTMLElement>();
 	let viewing = $state<{ src: string; alt: string } | null>(null);
 	const html = $derived(
@@ -34,7 +36,8 @@
 			documentPath,
 			pictures,
 			root: files?.root,
-			file: files && ((code) => changedFileIn(code, files.paths, files.root))
+			file: files && ((code) => changedFileIn(code, files.paths, files.root)),
+			workspaces: workspaces?.()
 		})
 	);
 

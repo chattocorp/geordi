@@ -74,6 +74,10 @@ export const navigation = () =>
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
+					// so that agent output that names it can link to this workspace (`workspace-links.ts`)
+					pull: known.upstream?.pull
+						? { number: known.upstream.pull.number, url: known.upstream.pull.url }
+						: null,
 					// put out of today's list until a person prompts it again
 					...(workspace.setAside && { setAside: true }),
 					// kept from archiving until a person unlocks it (FDR-015)

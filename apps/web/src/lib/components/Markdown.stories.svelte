@@ -2,6 +2,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, waitFor } from 'storybook/test';
 	import Markdown from './Markdown.svelte';
+	import WorkspaceLinksExample from './WorkspaceLinksExample.svelte';
 	import { tone } from '#lib/ui/tone.ts';
 
 	const { Story } = defineMeta({ title: 'Geordi/Markdown', component: Markdown });
@@ -80,3 +81,21 @@
 		await expect(canvasElement.querySelector('[data-sound]')).toBeNull();
 	}}
 />
+
+<!-- branches and pull requests of other workspaces lead to them -->
+<Story
+	name="Workspace links"
+	asChild
+	play={async ({ canvasElement }) => {
+		const links = [...canvasElement.querySelectorAll('a[href="/workspaces/login"]')];
+		await expect(links.map((link) => link.textContent)).toEqual([
+			'geordi/fix-login-redirect',
+			'#451',
+			'https://github.com/hmans/geordi/pull/451'
+		]);
+	}}
+>
+	<WorkspaceLinksExample
+		text="The redirect fix is on `geordi/fix-login-redirect`, in #451 (https://github.com/hmans/geordi/pull/451). `main` and #12 stay as they are."
+	/>
+</Story>
