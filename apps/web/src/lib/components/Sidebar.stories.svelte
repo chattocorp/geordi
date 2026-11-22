@@ -5,6 +5,7 @@
 	import type { Navigation } from '#lib/server/views.ts';
 	import { activeOnDay } from '#lib/family.ts';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
+	import { unread } from '#lib/notifications.svelte.ts';
 	import Sidebar from './Sidebar.svelte';
 
 	const { Story } = defineMeta({
@@ -493,6 +494,22 @@
 	}}
 >
 	{@render frame(nav, '/workspaces/plain')}
+</Story>
+
+<Story
+	name="A folded repository with unread work"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const repo = canvas.getByRole('button', { name: 'Collapse sample-project' });
+		unread.add('long');
+		await fireEvent.click(repo);
+		await waitFor(() => expect(within(repo).getByText('2')).toHaveClass('text-ink'));
+		unread.delete('long');
+		await waitFor(() => expect(within(repo).getByText('2')).not.toHaveClass('text-ink'));
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
 </Story>
 
 <Story
