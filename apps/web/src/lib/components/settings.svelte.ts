@@ -11,6 +11,7 @@ export const sections = [
 	{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' },
 	{ id: 'providers', label: 'Providers', icon: 'icon-[lucide--cpu]' },
 	{ id: 'access', label: 'Agent access', icon: 'icon-[lucide--key-round]' },
+	{ id: 'releases', label: 'Release notes', icon: 'icon-[lucide--scroll-text]' },
 	{ id: 'about', label: 'About', icon: 'icon-[lucide--info]' }
 ] as const;
 

@@ -296,7 +296,14 @@ desktop and web apps' `package.json`.
 - Every user-facing change needs a release note, committed with the change:
   `printf 'Describe the change.\n' | sweet change . --type <type> --stdin`
 - Types are configured in `.sweet.config.yml`. Add `breaking: true` to a note's frontmatter
-  for breaking changes.
+  for breaking changes. The notes are shown in the app (Settings → Release notes) and on the
+  website (`/releases`), so the type says how much a change matters to the person:
+  - `feature`, `fix`, `performance`: the usual note for a change.
+  - `highlight`: in addition to that note, for the few changes of a release worth reading
+    about first. It bumps nothing; the change's other note does.
+  - `polish`: instead of `fix`, for small things people need not read about (spacing,
+    colours, wording). Shown folded away.
+  - `website`: changes to the website only. No note in the app.
 - Address the person who uses Geordi directly. Use “you” or “your” where natural.
   Describe what they can now do or what now works as expected for them.
 - Run `sweet doctor` before finishing; it must pass (CI checks it on every pull request).

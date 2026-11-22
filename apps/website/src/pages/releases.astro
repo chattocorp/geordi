@@ -1,0 +1,25 @@
+---
+import ReleaseNotes from '@geordi/ui/ReleaseNotes.svelte';
+import Base from '../layouts/Base.astro';
+import { site } from '../site.ts';
+// The release notes Sweet Release writes: the app shows the same in Settings.
+import changelog from '../../../../CHANGELOG.md?raw';
+---
+
+<Base title={`Release notes · ${site.title}`} description="What changed in each version of Geordi.">
+	<section class="sheet sheet-pad">
+		<div class="max-w-3xl">
+			<h1 class="text-headline font-semibold text-balance">Release notes</h1>
+			<p class="mt-4 text-pretty text-muted">
+				What changed in each version of Geordi. Downloads are on{' '}
+				<a class="text-link" href={`${site.repo}/releases`}>
+					GitHub
+				</a>
+				.
+			</p>
+			<div class="mt-10">
+				<ReleaseNotes {changelog} />
+			</div>
+		</div>
+	</section>
+</Base>

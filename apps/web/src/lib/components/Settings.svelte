@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { version } from '../../../package.json';
+	// what Sweet Release wrote at the last release, as this build has it
+	import changelog from '../../../../../CHANGELOG.md?raw';
 	import { onMount } from 'svelte';
 	import Providers from './Providers.svelte';
 	import AgentAccess from './AgentAccess.svelte';
@@ -10,6 +12,7 @@
 	import { hint, shortcutGroups } from '@geordi/ui/keys';
 	import { theme } from '#lib/theme.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
+	import ReleaseNotes from '@geordi/ui/ReleaseNotes.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Segmented from '#lib/ui/Segmented.svelte';
@@ -59,196 +62,214 @@
 		void section;
 		problem = tested = undefined;
 	});
+
+	// the pane scrolls by itself: another section opens at its top
+	let pane = $state<HTMLElement>();
+	$effect(() => {
+		void section;
+		pane?.scrollTo({ top: 0 });
+	});
 </script>
 
 <!-- Geordi's settings (FDR-005): how it looks, what it tells of, the repositories it knows. -->
 <svelte:head><title>Settings · Geordi</title></svelte:head>
 
-<TitleBar class="hidden md:flex"><h1 class="truncate heading">Settings</h1></TitleBar>
+<!-- as high as the window: the section on screen scrolls by itself, below its title bar -->
+<div class="flex h-below-bar min-w-0 flex-col md:h-dvh">
+	<TitleBar class="hidden md:flex"><h1 class="truncate heading">Settings</h1></TitleBar>
 
-<!-- two sheets, like the frame around them: the sections, quiet, beside the one on screen -->
-<div class="mx-2 mb-2 flex flex-1 gap-2">
-	<nav aria-label="Settings" class="w-14 shrink-0 space-y-0.5 sheet-quiet p-2 sm:w-52">
-		{#each sections as { id, label, icon } (id)}
-			<a
-				href={settingsPath(id)}
-				title={label}
-				aria-current={section === id ? 'page' : undefined}
-				class={['item px-2.5 py-1.5', section === id && 'item-active font-medium']}
-			>
-				<span class={[icon, 'size-4 shrink-0']}></span>
-				<span class="sr-only truncate sm:not-sr-only">{label}</span>
-			</a>
-		{/each}
-	</nav>
+	<!-- two sheets, like the frame around them: the sections, quiet, beside the one on screen -->
+	<div class="mx-2 mb-2 flex min-h-0 flex-1 gap-2">
+		<nav
+			aria-label="Settings"
+			class="w-14 shrink-0 space-y-0.5 sheet-quiet overflow-y-auto p-2 sm:w-52"
+		>
+			{#each sections as { id, label, icon } (id)}
+				<a
+					href={settingsPath(id)}
+					title={label}
+					aria-current={section === id ? 'page' : undefined}
+					class={['item px-2.5 py-1.5', section === id && 'item-active font-medium']}
+				>
+					<span class={[icon, 'size-4 shrink-0']}></span>
+					<span class="sr-only truncate sm:not-sr-only">{label}</span>
+				</a>
+			{/each}
+		</nav>
 
-	<section
-		aria-label={sections.find(({ id }) => id === section)?.label}
-		class="min-w-0 flex-1 sheet px-8 py-6"
-	>
-		<div class="max-w-2xl">
-			{#if section === 'general'}
-				<h2 class="pb-4 heading">General</h2>
-				<div class="flex items-center justify-between gap-4">
-					<div>
-						<p class="text-sm font-medium">Theme</p>
-						<p class="text-sm text-muted">How Geordi looks in this browser.</p>
+		<section
+			bind:this={pane}
+			aria-label={sections.find(({ id }) => id === section)?.label}
+			class="min-w-0 flex-1 sheet overflow-y-auto px-8 py-6"
+		>
+			<div class="max-w-2xl">
+				{#if section === 'general'}
+					<h2 class="pb-4 heading">General</h2>
+					<div class="flex items-center justify-between gap-4">
+						<div>
+							<p class="text-sm font-medium">Theme</p>
+							<p class="text-sm text-muted">How Geordi looks in this browser.</p>
+						</div>
+						<Segmented
+							label="Theme"
+							bind:value={theme.current}
+							options={[
+								{ value: 'system', label: 'System' },
+								{ value: 'light', label: 'Light' },
+								{ value: 'dark', label: 'Dark' }
+							]}
+						/>
 					</div>
-					<Segmented
-						label="Theme"
-						bind:value={theme.current}
-						options={[
-							{ value: 'system', label: 'System' },
-							{ value: 'light', label: 'Light' },
-							{ value: 'dark', label: 'Dark' }
-						]}
-					/>
-				</div>
-				<div class="flex flex-wrap items-center justify-between gap-4 pt-6">
-					<div>
-						<p class="text-sm font-medium">Action ribbon position</p>
-						<p class="text-sm text-muted">
-							Choose which right edge the workspace actions align with.
-						</p>
+					<div class="flex flex-wrap items-center justify-between gap-4 pt-6">
+						<div>
+							<p class="text-sm font-medium">Action ribbon position</p>
+							<p class="text-sm text-muted">
+								Choose which right edge the workspace actions align with.
+							</p>
+						</div>
+						<Segmented
+							label="Action ribbon position"
+							bind:value={ribbonPosition.current}
+							options={[
+								{ value: 'pane', label: 'Main pane' },
+								{ value: 'window', label: 'Window' }
+							]}
+						/>
 					</div>
-					<Segmented
-						label="Action ribbon position"
-						bind:value={ribbonPosition.current}
-						options={[
-							{ value: 'pane', label: 'Main pane' },
-							{ value: 'window', label: 'Window' }
-						]}
-					/>
-				</div>
-			{:else if section === 'notifications'}
-				<h2 class="heading">Notifications</h2>
-				<p class="pb-4 text-sm text-muted">
-					Geordi tells you when an agent is done, or ran into a problem, in a workspace you are not
-					looking at.
-				</p>
-				<div class="flex items-center justify-between gap-4">
-					<div>
-						<p class="text-sm font-medium">Notify me</p>
-						<p class="text-sm text-muted">A notification and a quiet sound.</p>
+				{:else if section === 'notifications'}
+					<h2 class="heading">Notifications</h2>
+					<p class="pb-4 text-sm text-muted">
+						Geordi tells you when an agent is done, or ran into a problem, in a workspace you are
+						not looking at.
+					</p>
+					<div class="flex items-center justify-between gap-4">
+						<div>
+							<p class="text-sm font-medium">Notify me</p>
+							<p class="text-sm text-muted">A notification and a quiet sound.</p>
+						</div>
+						<Segmented
+							label="Notifications"
+							bind:value={
+								() => (notifications.on ? 'on' : 'off'),
+								(value) => (notifications.on = value === 'on')
+							}
+							options={[
+								{ value: 'on', label: 'On' },
+								{ value: 'off', label: 'Off' }
+							]}
+						/>
 					</div>
-					<Segmented
-						label="Notifications"
-						bind:value={
-							() => (notifications.on ? 'on' : 'off'),
-							(value) => (notifications.on = value === 'on')
-						}
-						options={[
-							{ value: 'on', label: 'On' },
-							{ value: 'off', label: 'Off' }
-						]}
-					/>
-				</div>
-				<div class="flex items-center justify-between gap-4 pt-6">
-					<div>
-						<p class="text-sm font-medium">Try it</p>
-						<p class="text-sm text-muted">
-							{#if tested === 'sent'}
-								Sent. If nothing showed, your system is holding it back: look for Geordi in its
-								notification settings, and for a focus mode that is on.
-							{:else if tested === 'blocked' || notifications.permission === 'denied'}
-								Geordi may not show notifications here: only the sound plays. Allow them in your
-								system's notification settings.
-							{:else if tested === 'unsupported' || notifications.permission === 'unsupported'}
-								There are no notifications to be had here: only the sound plays.
-							{:else}
-								Shows a notification and plays the sound, as when an agent is done.
-							{/if}
-						</p>
+					<div class="flex items-center justify-between gap-4 pt-6">
+						<div>
+							<p class="text-sm font-medium">Try it</p>
+							<p class="text-sm text-muted">
+								{#if tested === 'sent'}
+									Sent. If nothing showed, your system is holding it back: look for Geordi in its
+									notification settings, and for a focus mode that is on.
+								{:else if tested === 'blocked' || notifications.permission === 'denied'}
+									Geordi may not show notifications here: only the sound plays. Allow them in your
+									system's notification settings.
+								{:else if tested === 'unsupported' || notifications.permission === 'unsupported'}
+									There are no notifications to be had here: only the sound plays.
+								{:else}
+									Shows a notification and plays the sound, as when an agent is done.
+								{/if}
+							</p>
+						</div>
+						<Button icon="icon-[lucide--bell-ring]" onclick={async () => (tested = await test())}>
+							Send a test
+						</Button>
 					</div>
-					<Button icon="icon-[lucide--bell-ring]" onclick={async () => (tested = await test())}>
-						Send a test
-					</Button>
-				</div>
-			{:else if section === 'keyboard'}
-				<h2 class="heading">Keyboard</h2>
-				<p class="pb-4 text-sm text-muted">The shortcuts Geordi knows.</p>
-				<div class="space-y-6">
-					{#each shortcutGroups() as [group, shortcuts] (group)}
-						<div class="space-y-2">
-							<h3 class="label">{group}</h3>
-							<ul class="divide-y divide-line/60 card">
-								{#each shortcuts as [id, shortcut] (id)}
-									<li class="flex items-center justify-between gap-4 px-3.5 py-2">
-										<span class="text-sm">{shortcut.label}</span>
-										<kbd class="font-sans text-sm text-muted">{hint(id)}</kbd>
+				{:else if section === 'keyboard'}
+					<h2 class="heading">Keyboard</h2>
+					<p class="pb-4 text-sm text-muted">The shortcuts Geordi knows.</p>
+					<div class="space-y-6">
+						{#each shortcutGroups() as [group, shortcuts] (group)}
+							<div class="space-y-2">
+								<h3 class="label">{group}</h3>
+								<ul class="divide-y divide-line/60 card">
+									{#each shortcuts as [id, shortcut] (id)}
+										<li class="flex items-center justify-between gap-4 px-3.5 py-2">
+											<span class="text-sm">{shortcut.label}</span>
+											<kbd class="font-sans text-sm text-muted">{hint(id)}</kbd>
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/each}
+					</div>
+				{:else if section === 'repositories'}
+					<h2 class="heading">Repositories</h2>
+					<p class="pb-4 text-sm text-muted">The Git repositories agents can work in.</p>
+
+					<div class="space-y-3">
+						{#if repos.length > 0}
+							<ul class="card p-2">
+								{#each repos as repo (repo.id)}
+									<li>
+										<RepositoryRow
+											{repo}
+											check={() => checkRepoForge(repo.id)}
+											onremove={() => attempt(() => removeRepo(repo.id), 'Could not remove it')}
+										/>
 									</li>
 								{/each}
 							</ul>
-						</div>
-					{/each}
-				</div>
-			{:else if section === 'repositories'}
-				<h2 class="heading">Repositories</h2>
-				<p class="pb-4 text-sm text-muted">The Git repositories agents can work in.</p>
+						{:else}
+							<p class="empty">No repositories yet. Add one below.</p>
+						{/if}
 
-				<div class="space-y-3">
-					{#if repos.length > 0}
-						<ul class="card p-2">
-							{#each repos as repo (repo.id)}
-								<li>
-									<RepositoryRow
-										{repo}
-										check={() => checkRepoForge(repo.id)}
-										onremove={() => attempt(() => removeRepo(repo.id), 'Could not remove it')}
-									/>
-								</li>
-							{/each}
-						</ul>
-					{:else}
-						<p class="empty">No repositories yet. Add one below.</p>
-					{/if}
-
-					<Button icon="icon-[lucide--plus]" onclick={() => adding?.start()}>
-						Add repository…
-					</Button>
-					<AddRepository
-						bind:this={adding}
-						onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
-					/>
-					{#if problem}<Notice>{problem}</Notice>{/if}
-					<p class="text-xs text-muted">
-						Removing a repository only makes Geordi forget it. Nothing on disk changes.
-					</p>
-				</div>
-			{:else if section === 'providers'}
-				<Providers
-					harnesses={nav.connected ? nav.current?.harnesses : undefined}
-					active={nav.current?.activeAgents ?? []}
-				/>
-			{:else if section === 'access'}
-				<AgentAccess
-					{repos}
-					grants={nav.current?.access ?? []}
-					issue={issueAccess}
-					revoke={revokeAccess}
-				/>
-			{:else}
-				<h2 class="heading">About</h2>
-				<div class="mt-6 space-y-2">
-					<div class="flex items-center gap-2.5">
-						<Logo />
-						<h3 class="title">Geordi</h3>
+						<Button icon="icon-[lucide--plus]" onclick={() => adding?.start()}>
+							Add repository…
+						</Button>
+						<AddRepository
+							bind:this={adding}
+							onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
+						/>
+						{#if problem}<Notice>{problem}</Notice>{/if}
+						<p class="text-xs text-muted">
+							Removing a repository only makes Geordi forget it. Nothing on disk changes.
+						</p>
 					</div>
-					<p class="text-sm text-muted">Version {version}</p>
-					<p>A self-hostable code forge and agent orchestrator.</p>
-					<p>
-						For support, come to the <a
-							href="https://chat.chatto.run/chat/-/RHrVQGGG3fvnU0w"
-							target="_blank"
-							rel="noreferrer"
-							class="file-link"
-						>
-							#geordi channel on Chatto HQ
-						</a>.
-					</p>
-				</div>
-				{#if updates && updateState}<DesktopUpdates state={updateState} controls={updates} />{/if}
-			{/if}
-		</div>
-	</section>
+				{:else if section === 'providers'}
+					<Providers
+						harnesses={nav.connected ? nav.current?.harnesses : undefined}
+						active={nav.current?.activeAgents ?? []}
+					/>
+				{:else if section === 'access'}
+					<AgentAccess
+						{repos}
+						grants={nav.current?.access ?? []}
+						issue={issueAccess}
+						revoke={revokeAccess}
+					/>
+				{:else if section === 'releases'}
+					<h2 class="heading">Release notes</h2>
+					<p class="pb-6 text-sm text-muted">What changed in each version of Geordi.</p>
+					<ReleaseNotes {changelog} />
+				{:else}
+					<h2 class="heading">About</h2>
+					<div class="mt-6 space-y-2">
+						<div class="flex items-center gap-2.5">
+							<Logo />
+							<h3 class="title">Geordi</h3>
+						</div>
+						<p class="text-sm text-muted">Version {version}</p>
+						<p>A self-hostable code forge and agent orchestrator.</p>
+						<p>
+							For support, come to the <a
+								href="https://chat.chatto.run/chat/-/RHrVQGGG3fvnU0w"
+								target="_blank"
+								rel="noreferrer"
+								class="file-link"
+							>
+								#geordi channel on Chatto HQ
+							</a>.
+						</p>
+					</div>
+					{#if updates && updateState}<DesktopUpdates state={updateState} controls={updates} />{/if}
+				{/if}
+			</div>
+		</section>
+	</div>
 </div>
