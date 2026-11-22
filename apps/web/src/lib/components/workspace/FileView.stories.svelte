@@ -129,3 +129,32 @@
 		);
 	}}
 />
+
+<Story
+	name="Wrapping long lines"
+	args={{
+		path: 'notes.txt',
+		current: `short line\n${'a long line that goes on and on '.repeat(20)}\nanother short line\n`,
+		wrap: true
+	}}
+	play={async ({ canvasElement }) => {
+		await expect(getComputedStyle(canvasElement.querySelector('pre')!).whiteSpace).toBe('pre-wrap');
+	}}
+/>
+
+<Story
+	name="Wrapping a diff"
+	args={{
+		path: 'src/app.ts',
+		old: `const a = 1;\nconst b = 2;\n`,
+		current: `const a = 1;\nconst b = ${'"a very long string that runs off the edge of the pane", '.repeat(8)};\n`,
+		wrap: true
+	}}
+	play={async ({ canvasElement }) => {
+		await waitFor(() =>
+			expect(
+				canvasElement.querySelector('diffs-container')?.shadowRoot?.querySelector('pre')
+			).toHaveAttribute('data-overflow', 'wrap')
+		);
+	}}
+/>

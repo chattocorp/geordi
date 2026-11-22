@@ -97,6 +97,7 @@
 	import { foreground } from '#lib/foreground.svelte.ts';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
+	import { initWrapLines } from './wrap.svelte.ts';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
@@ -196,6 +197,7 @@
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
 	const ribbonPosition = getRibbonPosition();
+	const wrapLines = initWrapLines();
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
 	const frame = persisted<{
@@ -1085,6 +1087,20 @@
 	{/if}
 {/snippet}
 
+<!-- what can be done with a window, beside its tabs -->
+{#snippet tools(tab: string)}
+	{#if tab === COMBINED || (tab === 'diff' && saved.diffPath) || sourceOf(tab)}
+		<Button
+			variant="tool"
+			size="sm"
+			icon="icon-[lucide--wrap-text]"
+			label="Wrap lines"
+			aria-pressed={wrapLines.current}
+			onclick={() => (wrapLines.current = !wrapLines.current)}
+		/>
+	{/if}
+{/snippet}
+
 {#snippet window(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : undefined}
@@ -1357,6 +1373,7 @@
 					onchange={(next) => arrange({ main: next })}
 					{tab}
 					{window}
+					{tools}
 					{closable}
 					accepts={movable}
 					onreceive={receive('main')}
@@ -1403,6 +1420,7 @@
 								onchange={(next) => arrange({ side: next })}
 								{tab}
 								{window}
+								{tools}
 								{closable}
 								accepts={movable}
 								onreceive={receive('side')}
@@ -1425,6 +1443,7 @@
 								onchange={(next) => arrange({ dock: next })}
 								{tab}
 								{window}
+								{tools}
 								{closable}
 								accepts={movable}
 								onreceive={receive('dock')}

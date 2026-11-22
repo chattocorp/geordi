@@ -6,20 +6,26 @@
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 	import SoundPlayer from '#lib/ui/SoundPlayer.svelte';
 	import SourceView from './SourceView.svelte';
+	import { getWrapLines } from './wrap.svelte.ts';
 
 	let {
 		path,
 		current,
 		old,
 		line,
-		pictures
+		pictures,
+		wrap: given
 	}: {
 		path: string;
 		current: FileContent | null;
 		old?: FileContent | null;
 		line?: number;
 		pictures?: string;
+		/** Whether long lines wrap: the workspace's preference, unless given. */
+		wrap?: boolean;
 	} = $props();
+	const lines = getWrapLines();
+	const wrap = $derived(given ?? lines.current);
 	const diff = $derived(old !== undefined);
 	/** A picture or sound whose bytes did not change (a file moved or copied as it is). */
 	const same = $derived(
@@ -181,7 +187,7 @@
 		{/if}
 	</div>
 {:else if !diff}
-	{#if typeof file === 'string'}<SourceView {path} text={file} {line} />{/if}
+	{#if typeof file === 'string'}<SourceView {path} text={file} {line} {wrap} />{/if}
 {:else if old === current}
 	<p class="p-5 text-sm text-muted">The file's content is unchanged.</p>
 {:else}
@@ -191,6 +197,7 @@
 			{path}
 			old={typeof old === 'string' ? old : null}
 			new={typeof current === 'string' ? current : null}
+			{wrap}
 			bind:ready
 		/>
 	</div>
