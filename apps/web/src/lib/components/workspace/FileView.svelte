@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { FileContent } from '@geordi/protocol';
+	import { untrack } from 'svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 	import Toolbar from '@geordi/ui/Toolbar.svelte';
 	import Markdown from '../Markdown.svelte';
@@ -14,7 +15,8 @@
 		old,
 		line,
 		pictures,
-		wrap: given
+		wrap: given,
+		onwrappable
 	}: {
 		path: string;
 		current: FileContent | null;
@@ -23,6 +25,8 @@
 		pictures?: string;
 		/** Whether long lines wrap: the workspace's preference, unless given. */
 		wrap?: boolean;
+		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
+		onwrappable?: () => () => void;
 	} = $props();
 	const lines = getWrapLines();
 	const wrap = $derived(given ?? lines.current);
@@ -86,6 +90,17 @@
 	let expanded = $state<string>();
 	let failed = $state<string[]>([]);
 	let ready = $state(false);
+
+	/** The file's text is on screen, as source or as a diff: wrapping its lines does something. */
+	const wrappable = $derived(
+		typeof file === 'string' &&
+			!binaryPair &&
+			(!rich || mode === 'text') &&
+			!(diff && old === current)
+	);
+	$effect(() => {
+		if (wrappable && onwrappable) return untrack(onwrappable);
+	});
 </script>
 
 <!-- `paired`: one of two versions, beside the other: no taller than leaves both in view. -->

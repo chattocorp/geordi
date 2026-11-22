@@ -198,6 +198,16 @@
 	// (`id` never changes: the page creates a new view per workspace.)
 	const ribbonPosition = getRibbonPosition();
 	const wrapLines = initWrapLines();
+	/** How many files in each window show text whose lines could wrap. */
+	const wrappable = new SvelteMap<string, number>();
+	const wrappableIn = (tab: string) => () => {
+		wrappable.set(tab, (wrappable.get(tab) ?? 0) + 1);
+		return () => {
+			const left = (wrappable.get(tab) ?? 1) - 1;
+			if (left) wrappable.set(tab, left);
+			else wrappable.delete(tab);
+		};
+	};
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
 	const frame = persisted<{
@@ -1089,7 +1099,7 @@
 
 <!-- what can be done with a window, beside its tabs -->
 {#snippet tools(tab: string)}
-	{#if tab === COMBINED || (tab === 'diff' && saved.diffPath) || sourceOf(tab)}
+	{#if wrappable.has(tab)}
 		<Button
 			variant="tool"
 			size="sm"
@@ -1115,7 +1125,12 @@
 			{:else}
 				{#each git.changes.files as file (file.path)}
 					<DiffSection path={file.path} added={file.added} removed={file.removed}>
-						<CombinedDiffFile workspaceId={id} path={file.path} version={git.version} />
+						<CombinedDiffFile
+							workspaceId={id}
+							path={file.path}
+							version={git.version}
+							onwrappable={wrappableIn(tab)}
+						/>
 					</DiffSection>
 				{:else}
 					<p class="text-sm text-muted">No changes yet</p>
@@ -1188,7 +1203,12 @@
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
 		{#key `${diffSelection}:${path}`}
-			<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+			<DiffWindow
+				workspaceId={id}
+				{path}
+				version={git?.version ?? 0}
+				onwrappable={wrappableIn(tab)}
+			/>
 		{/key}
 	{:else if source}
 		<SourceWindow
@@ -1196,6 +1216,7 @@
 			path={source}
 			citation={citations.get(source)}
 			version={git?.version ?? 0}
+			onwrappable={wrappableIn(tab)}
 		/>
 	{:else if terminal}
 		<Terminal

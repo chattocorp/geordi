@@ -6,9 +6,16 @@
 		workspaceId,
 		path,
 		citation,
-		version
-	}: { workspaceId: string; path: string; version: string | number; citation?: { line?: number } } =
-		$props();
+		version,
+		onwrappable
+	}: {
+		workspaceId: string;
+		path: string;
+		version: string | number;
+		citation?: { line?: number };
+		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
+		onwrappable?: () => () => void;
+	} = $props();
 	const file = $derived(getSource({ workspaceId, path }));
 	// The daemon reports when a worktree file may have changed, just as for a diff.
 	$effect(() => {
@@ -24,6 +31,7 @@
 			current={file.current.content}
 			pictures={`/workspaces/${workspaceId}/picture?file&v=${version}`}
 			line={citation?.line}
+			{onwrappable}
 		/>
 	{/key}
 {:else}

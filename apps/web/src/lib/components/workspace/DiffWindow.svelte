@@ -11,8 +11,10 @@
 		 * again.
 		 */
 		version: string | number;
+		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
+		onwrappable?: () => () => void;
 	};
-	let { workspaceId, path, version }: Props = $props();
+	let { workspaceId, path, version, onwrappable }: Props = $props();
 
 	const versions = $derived(getDiff({ workspaceId, path }));
 
@@ -39,6 +41,7 @@
 		{path}
 		old={versions.current.old}
 		current={versions.current.new}
+		{onwrappable}
 		pictures={`/workspaces/${workspaceId}/picture?file&v=${version}`}
 	/>
 {/if}

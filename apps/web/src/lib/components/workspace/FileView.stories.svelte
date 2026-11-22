@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, waitFor } from 'storybook/test';
+	import { expect, fn, waitFor } from 'storybook/test';
 	import FileView from './FileView.svelte';
 	import { tone } from '#lib/ui/tone.ts';
 	import logo from '#lib/assets/favicon.svg?raw';
@@ -156,5 +156,19 @@
 				canvasElement.querySelector('diffs-container')?.shadowRoot?.querySelector('pre')
 			).toHaveAttribute('data-overflow', 'wrap')
 		);
+	}}
+/>
+
+<!-- Wrapping does something only while text is shown: not for the preview of a Markdown file. -->
+<Story
+	name="Wrappable only as text"
+	args={{ path: 'README.md', current: '# Hello\n\nSome text.\n', onwrappable: fn(() => fn()) }}
+	play={async ({ args, canvas, userEvent }) => {
+		await expect(args.onwrappable).not.toHaveBeenCalled();
+		await userEvent.click(canvas.getByRole('button', { name: 'Source' }));
+		await waitFor(() => expect(args.onwrappable).toHaveBeenCalledOnce());
+		const undo = (args.onwrappable as ReturnType<typeof fn>).mock.results[0].value;
+		await userEvent.click(canvas.getByRole('button', { name: 'Preview' }));
+		await waitFor(() => expect(undo).toHaveBeenCalledOnce());
 	}}
 />
