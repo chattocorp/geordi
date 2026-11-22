@@ -13,10 +13,8 @@ export type WorkspaceSource = {
 	shells: { tab: string; title: string }[] | null;
 	/** Whether the run shortcut does something. */
 	canRunDefault: boolean;
-	/** The repository's tasks, where it has them; else its jobs and links. */
-	tasks: Named[] | null;
-	jobs: (Named & { live: boolean })[];
-	links: Named[];
+	/** The repository's tasks: whether each is running, and whether it only opens a URL. */
+	tasks: (Named & { live: boolean; opens: boolean })[];
 	/** Jobs whose output there is to read. */
 	outputs: Named[];
 	/** Its windows beside the conversation, those there are; none in a project. */
@@ -35,10 +33,9 @@ export type WorkspaceSource = {
 	terminal(): void;
 	newTerminal(): void;
 	runDefault(): void;
+	/** Runs a task, or opens it where it is only a URL. */
 	runTask(name: string): void;
-	start(job: string): void;
-	stop(job: string): void;
-	visit(link: string): void;
+	stop(task: string): void;
 	showOutput(job: string): void;
 	toggleSide(): void;
 	openDiff(path: string): void;
@@ -105,41 +102,24 @@ export function workspaceCommands(at: WorkspaceSource): Command[] {
 			shortcut: 'runDefault',
 			run: at.runDefault
 		});
-	if (at.tasks)
-		add(
-			'Tasks',
-			...at.tasks.map(({ name, label }) => ({
-				id: `task:${name}`,
-				label: `Run ${label}`,
-				icon: 'icon-[lucide--play]',
-				run: () => at.runTask(name)
-			}))
-		);
-	else
-		add(
-			'Tasks',
-			...at.jobs.map(({ name, label, live }) =>
-				live
-					? {
-							id: `stop:${name}`,
-							label: `Stop ${label}`,
-							icon: 'icon-[lucide--square]',
-							run: () => at.stop(name)
-						}
-					: {
-							id: `start:${name}`,
-							label: `Start ${label}`,
-							icon: 'icon-[lucide--play]',
-							run: () => at.start(name)
-						}
-			),
-			...at.links.map(({ name, label }) => ({
-				id: `link:${name}`,
-				label: `Open ${label}`,
-				icon: 'icon-[lucide--external-link]',
-				run: () => at.visit(name)
-			}))
-		);
+	add(
+		'Tasks',
+		...at.tasks.map(({ name, label, live, opens }) =>
+			live
+				? {
+						id: `stop:${name}`,
+						label: `Stop ${label}`,
+						icon: 'icon-[lucide--square]',
+						run: () => at.stop(name)
+					}
+				: {
+						id: `task:${name}`,
+						label: `${opens ? 'Open' : 'Run'} ${label}`,
+						icon: opens ? 'icon-[lucide--external-link]' : 'icon-[lucide--play]',
+						run: () => at.runTask(name)
+					}
+		)
+	);
 	add(
 		'Tasks',
 		...at.outputs.map(({ name, label }) => ({

@@ -55,8 +55,17 @@ function setup() {
 
 	const config: { current: RepoConfig } = {
 		current: {
-			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000, approved: true }],
-			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }],
+			tasks: [
+				{
+					name: 'web',
+					command: 'pnpm dev',
+					approved: true,
+					ports: [{ name: 'http', port: 20000 }],
+					href: 'http://localhost:20000/',
+					needs: [],
+					default: true
+				}
+			],
 			setup: { command: 'pnpm install', approved: true },
 			teardown: null,
 			ports: { first: 20000, count: 10 },
@@ -231,42 +240,40 @@ describe('configuring the repository', () => {
 
 	it('says which file applies, what it sets, and what is wrong with it', async () => {
 		const { call, config } = setup();
-		config.current.default = 'urls.app';
 		expect(await call('check_configuration')).toEqual({
-			default: 'urls.app',
 			applies: 'the .geordi.yml in your working directory',
 			problem: null,
-			ports: { first: 20000, count: 10 },
-			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000 }],
-			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }],
+			spare_ports: { first: 20000, count: 10 },
+			tasks: [
+				{
+					name: 'web',
+					command: 'pnpm dev',
+					ports: [{ name: 'http', port: 20000 }],
+					url: 'http://localhost:20000/',
+					needs: [],
+					default: true
+				}
+			],
 			setup: 'pnpm install',
 			teardown: null
 		});
 
 		// a command nobody has agreed to yet: the agent is told that it can't do that itself
-		config.current.jobs[0].approved = false;
+		config.current.tasks[0].approved = false;
 		expect((await call('check_configuration')).note).toMatch(/cannot agree/);
 
-		const none = {
-			jobs: [],
-			urls: [],
-			setup: null,
-			teardown: null,
-			ports: { first: 20000, count: 10 }
-		};
-		// one still written in TOML is read, and the agent told to move on
+		const none = { tasks: [], setup: null, teardown: null, ports: { first: 20000, count: 10 } };
+		// one by the old name says so
 		config.current = {
 			...none,
-			problem: '.geordi.toml: invalid value',
+			problem: '.geordi.toml is no longer read: write its settings as YAML in .geordi.yml',
 			source: 'workspace',
 			file: '.geordi.toml'
 		};
 		expect(await call('check_configuration')).toMatchObject({
-			applies: expect.stringMatching(
-				/^the \.geordi\.toml \(still read, but \.geordi\.yml is what to write/
-			),
-			problem: '.geordi.toml: invalid value',
-			jobs: []
+			applies: 'the .geordi.toml in your working directory',
+			problem: expect.stringMatching(/no longer read/),
+			tasks: []
 		});
 
 		config.current = { ...none, problem: null, source: null, file: null };

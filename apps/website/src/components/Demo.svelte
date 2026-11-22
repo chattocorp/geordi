@@ -26,7 +26,7 @@
 	import Spinner from '@geordi/ui/Spinner.svelte';
 	import { actionsFor, standingOf, type WorkspaceAction } from '@geordi/ui/actions';
 
-	import { files, hold, jobs, last, links, message, others, tools } from './demo.ts';
+	import { files, hold, last, message, others, tasks, tools } from './demo.ts';
 	let step = $state(last);
 	let draft = $state('');
 	let editing = false;
@@ -122,13 +122,14 @@
 	// The dock: a terminal, and the Run tab with what the project runs.
 	let dock = $state<'terminal' | 'run'>('run');
 	let jobStates = $state<Record<string, JobState>>({ db: 'running', web: 'running' });
-	function start(names: string[]) {
-		for (const name of names) {
-			jobStates[name] = 'starting';
-			setTimeout(() => {
-				if (jobStates[name] === 'starting') jobStates[name] = 'running';
-			}, 1200);
-		}
+	function run(ref: string) {
+		const task = tasks.find((task) => task.name === ref.split('.')[0]);
+		if (!task?.command || jobStates[task.name] === 'running') return;
+		for (const needed of task.needs) run(needed);
+		jobStates[task.name] = 'starting';
+		setTimeout(() => {
+			if (jobStates[task.name] === 'starting') jobStates[task.name] = 'running';
+		}, 1200);
 	}
 
 	const branch = 'geordi/return-after-sign-in';
@@ -572,7 +573,7 @@
 					>
 						{#snippet tab(id: string)}
 							{#if id === 'run'}
-								<RunTab {jobs} stateOf={(name) => jobStates[name] ?? 'stopped'} />
+								<RunTab {tasks} stateOf={(name) => jobStates[name] ?? 'stopped'} />
 							{:else}
 								<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 								<span>Terminal 1</span>
@@ -601,15 +602,12 @@
 						class="flex min-h-0 flex-1 flex-col"
 					>
 						<RunPane
-							defaultAction="urls.app"
-							{jobs}
-							{links}
+							{tasks}
 							stateOf={(name) => jobStates[name] ?? 'stopped'}
 							hasTerminal={() => false}
-							{start}
+							{run}
 							stop={(name) => (jobStates[name] = 'stopped')}
 							show={() => {}}
-							visit={() => {}}
 						/>
 					</div>
 				</section>

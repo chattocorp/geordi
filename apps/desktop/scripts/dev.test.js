@@ -4,17 +4,17 @@ import { devEnvironment } from './dev.js';
 import { desktopRuntime } from '../src/runtime.js';
 
 const env = {
-	GEORDI_ASSIGNED_PORTS: '[20000,20001,24000,24001,24002,24003]',
-	GEORDI_PORT_WEB: '20000',
+	PORT: '24000',
 	GEORDI_PORT_DESKTOP: '24000',
-	GEORDI_PORT_DESKTOP_INSTALL: '20001',
-	GEORDI_PORT_OLD_JOB: '24001',
+	GEORDI_PORT_DESKTOP_DAEMON: '24002',
+	GEORDI_PORT_DESKTOP_LIVE: '24003',
+	GEORDI_PORT_WEB: '20000',
 	GEORDI_DATA_DIR: '/installed',
 	GEORDI_DAEMON_TOKEN: 'installed-secret',
 	ELECTRON_RUN_AS_NODE: '1'
 };
 
-test('uses assigned spare ports across blocks, excluding retired job assignments', () => {
+test("uses the task's own ports", () => {
 	const result = devEnvironment(env, '/workspace');
 	assert.equal(result.PORT, '24000');
 	assert.equal(result.GEORDI_DAEMON_PORT, '24002');
@@ -28,10 +28,14 @@ test('uses assigned spare ports across blocks, excluding retired job assignments
 	}
 });
 
-test('missing, invalid or insufficient assigned ports fail before building', () => {
-	for (const ports of [undefined, '{}', '[20000,20000]', '[1]', '[20000,24000]']) {
-		assert.throws(() => devEnvironment({ ...env, GEORDI_ASSIGNED_PORTS: ports }, '/workspace'));
+test('missing or invalid ports fail before building', () => {
+	for (const port of [undefined, 'x', '1', '70000']) {
+		assert.throws(() => devEnvironment({ ...env, GEORDI_PORT_DESKTOP_LIVE: port }, '/workspace'));
 	}
+	assert.throws(
+		() => devEnvironment({ ...env, GEORDI_PORT_DESKTOP_LIVE: '24002' }, '/workspace'),
+		/distinct/
+	);
 });
 
 test('installed desktop keeps its existing ports and profile behavior', () => {

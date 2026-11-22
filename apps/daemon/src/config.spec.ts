@@ -4,200 +4,128 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CONFIG_SETTINGS } from '@geordi/protocol';
 import { describe, expect, it } from 'vitest';
-import { parseConfig, resolve, settingsOf } from './config.ts';
+import { parseConfig, resolve, settingsOf, wantedPorts } from './config.ts';
 import { ensureWorktree } from './worktree.ts';
 
-/** As a `.geordi.toml` says it: what the file was first, and is still read as. */
-const toml = (text: string) => parseConfig(text, '.geordi.toml');
+const task = (fields: object) => ({
+	command: null,
+	ports: [],
+	url: null,
+	needs: [],
+	default: false,
+	...fields
+});
 
-describe('parseConfig, of TOML', () => {
-	it('reads a single run command as a job of that name', () => {
-		expect(toml('run = "pnpm dev"')).toEqual({
-			default: 'jobs.run',
-			ports: 1, // one job, one port
-			jobs: [{ name: 'run', command: 'pnpm dev', needs: [] }],
-			urls: [],
-			setup: null,
-			teardown: null
-		});
-		expect(toml('')).toEqual({
-			ports: 10,
-			jobs: [],
-			urls: [],
-			setup: null,
-			teardown: null
-		});
-		expect(toml('something = "else"').jobs).toEqual([]);
+describe('parseConfig', () => {
+	it('takes a file that says nothing, and ignores what it does not know', () => {
+		const nothing = { tasks: [], setup: null, teardown: null };
+		expect(parseConfig('')).toEqual(nothing);
+		expect(parseConfig('something: else')).toEqual(nothing);
+		expect(() => parseConfig('- a list')).toThrow(/settings/);
 	});
 
-	it('reads jobs with what they need, links with the jobs they lead to, and the number of ports', () => {
-		const settings = toml(`
-			ports = 20
-			[jobs.db]
-			command = "docker compose up db"
-			[jobs.web]
-			command = "pnpm dev --port $PORT"
-			needs = ["db"]
-			[urls.app]
-			url = "http://localhost:{web}/admin"
-			[urls.docs]
-			url = "http://docs.localhost:{web}/"
-			needs = ["db"]
-		`);
-		expect(settings).toEqual({
-			ports: 20,
-			jobs: [
-				{ name: 'db', command: 'docker compose up db', needs: [] },
-				{ name: 'web', command: 'pnpm dev --port $PORT', needs: ['db'] }
-			],
-			urls: [
-				// a job a link mentions is a job it needs
-				{ name: 'app', url: 'http://localhost:{web}/admin', needs: ['web'] },
-				{ name: 'docs', url: 'http://docs.localhost:{web}/', needs: ['web', 'db'] }
-			],
-			setup: null,
-			teardown: null
-		});
+	it('reads tasks with their ports, URLs and what they need', () => {
+		expect(
+			parseConfig(`
+tasks:
+  db:
+    command: docker compose up db
+    ports: [postgres]
+  web:
+    label: Development server
+    command: pnpm dev --port $PORT
+    ports: [http, hmr]
+    needs: [db]
+    url: http://localhost:{http}/
+    default: true
+  reset:
+    command: make reset
+  docs:
+    url: http://docs.localhost:{hmr}/
+`).tasks
+		).toEqual([
+			task({ name: 'db', command: 'docker compose up db', ports: ['postgres'] }),
+			task({
+				name: 'web',
+				label: 'Development server',
+				command: 'pnpm dev --port $PORT',
+				ports: ['http', 'hmr'],
+				url: 'http://localhost:{http}/',
+				needs: ['db'],
+				default: true
+			}),
+			// a task without ports has none
+			task({ name: 'reset', command: 'make reset' }),
+			// a URL using a port only one other task lists needs that task
+			task({
+				name: 'docs',
+				url: 'http://docs.localhost:{hmr}/',
+				needs: ['web']
+			})
+		]);
 	});
 
 	it('reads the setup and teardown scripts', () => {
-		expect(toml('setup = " pnpm install "\nteardown = "docker compose down"')).toMatchObject({
+		expect(parseConfig('setup: pnpm install\nteardown: docker compose down')).toMatchObject({
 			setup: 'pnpm install',
-			teardown: 'docker compose down',
-			jobs: []
+			teardown: 'docker compose down'
 		});
+		expect(() => parseConfig('setup: ""')).toThrow(/`setup` must be a command/);
 	});
 
-	it('gives a workspace a port per job, unless more are asked for', () => {
-		const three = '[jobs.a]\ncommand = "a"\n[jobs.b]\ncommand = "b"\n[jobs.c]\ncommand = "c"';
-		expect(toml(three).ports).toBe(3);
-		expect(toml(`ports = 8\n${three}`).ports).toBe(8);
-		// never fewer than there are jobs, whatever was asked for
-		expect(toml(`ports = 2\n${three}`).ports).toBe(3);
-		// and with no jobs to count, what any workspace gets
-		expect(toml('').ports).toBe(10);
+	it('says how what it used to read is said now', () => {
+		for (const old of ['run: pnpm dev', 'jobs: {}', 'urls: {}', 'default: jobs.web', 'ports: 20'])
+			expect(() => parseConfig(old)).toThrow(/no longer read: say what to run under `tasks`/);
 	});
 
 	it.each([
-		['a run command that is not one', 'run = 5', /run/],
-		['what is not TOML', 'run = ', /./],
-		['a job without a command', '[jobs.web]\nneeds = []', /jobs\.web\.command/],
-		['a job under a name that is none', '[jobs.Web_1]\ncommand = "x"', /not a job name/],
-		['the same job twice', 'run = "a"\n[jobs.run]\ncommand = "b"', /same job/],
+		['tasks: [web]', /`tasks` must be tasks/],
+		['tasks:\n  Web: { command: x }', /not a task name/],
+		['tasks:\n  setup: { command: x }', /for the setup script/],
+		['tasks:\n  web: { label: x }', /needs a command, a url, or both/],
+		['tasks:\n  web: { command: "" }', /command must be a command/],
+		['tasks:\n  web: { command: x, ports: http }', /must be a list of port names/],
+		['tasks:\n  web: { command: x, ports: [http, http] }', /names one twice/],
+		['tasks:\n  web: { command: x, ports: [HTTP] }', /not a name/],
+		['tasks:\n  web: { url: "http://localhost/", ports: [http] }', /only a task with a command/],
+		['tasks:\n  web: { command: x, needs: [db] }', /there is no task "db"/],
 		[
-			'a job that needs one there is not',
-			'[jobs.web]\ncommand = "x"\nneeds = ["db"]',
-			/no job "db"/
+			'tasks:\n  web: { command: x, url: "http://localhost:{http}/" }',
+			/no task lists a port "http"/
 		],
 		[
-			'jobs that need each other',
-			'[jobs.a]\ncommand = "a"\nneeds = ["b"]\n[jobs.b]\ncommand = "b"\nneeds = ["a"]',
-			/needs itself/
+			'tasks:\n  dev: { command: x, ports: [http] }\n  preview: { command: x, ports: [http] }',
+			/"http" is dev's already/
 		],
-		['a link to a job there is not', '[urls.app]\nurl = "http://localhost:{web}/"', /no job "web"/],
-		['a link that leads elsewhere', '[urls.app]\nurl = "https://example.com/"', /on this machine/],
-		['a link that is no web address', '[urls.app]\nurl = "file:///etc/passwd"', /on this machine/],
-		['a number of ports that is none', 'ports = 0', /ports/],
-		['a setup script that is no command', 'setup = ""', /setup/],
-		['a teardown script that is no command', 'teardown = ["x"]', /teardown/],
-		['a job named like a script', '[jobs.setup]\ncommand = "x"', /setup script/]
-	])('refuses %s', (_, text, problem) => {
-		expect(() => toml(text)).toThrow(problem);
-	});
-});
-
-describe('parseConfig, of YAML', () => {
-	it('reads the same settings, said the other way', () => {
-		expect(parseConfig('run: pnpm dev')).toEqual(toml('run = "pnpm dev"'));
-		const yaml = parseConfig(`
-ports: 4
-setup: pnpm install
-jobs:
-  db:
-    command: docker compose up db
-  web:
-    command: pnpm dev --port $PORT
-    needs: [db]
-urls:
-  app:
-    url: http://localhost:{web}/
-    needs:
-      - db
-`);
-		expect(yaml).toEqual(
-			toml(`
-ports = 4
-setup = "pnpm install"
-[jobs.db]
-command = "docker compose up db"
-[jobs.web]
-command = "pnpm dev --port $PORT"
-needs = ["db"]
-[urls.app]
-url = "http://localhost:{web}/"
-needs = ["db"]
-`)
-		);
-		expect(yaml.jobs).toEqual([
-			{ name: 'db', command: 'docker compose up db', needs: [] },
-			{ name: 'web', command: 'pnpm dev --port $PORT', needs: ['db'] }
-		]);
-	});
-
-	it('takes a file that says nothing, and ignores what it does not know', () => {
-		for (const nothing of ['', '# nothing yet\n', '---\n'])
-			expect(parseConfig(nothing)).toMatchObject({ jobs: [], ports: 10 });
-		expect(parseConfig('something: else').jobs).toEqual([]);
-	});
-
-	it.each([
-		['what is not YAML', 'run: [oops', /./],
-		['what is not settings', '- run\n- jobs', /settings/],
-		['an unknown default', 'run: dev\ndefault: urls.run', /default/],
-		['a single word', 'pnpm dev', /settings/],
-		['a run command that is not one', 'run: 5', /run/],
-		['a number of ports that is a word', 'ports: "3"', /ports/],
-		['a job without a command', 'jobs:\n  web:\n    needs: []', /jobs\.web\.command/],
+		['tasks:\n  web: { url: "http://localhost:{web.http}/" }', /no task lists a port "web.http"/],
+		['tasks:\n  web: { url: "https://example.com/" }', /on this machine/],
+		['tasks:\n  web: { urls: { App: "http://localhost/" } }', /give each URL a task of its own/],
+		['tasks:\n  web: { url: [http://localhost/] }', /must be an address/],
+		['tasks:\n  web: { url: "http://localhost/", default: yes }', /default must be true or false/],
 		[
-			'a link that leads elsewhere',
-			'urls:\n  app:\n    url: https://example.com/',
-			/on this machine/
-		]
-	])('refuses %s', (_, text, problem) => {
+			'tasks:\n  a: { command: x, needs: [b] }\n  b: { command: x, needs: [a] }',
+			/needs itself, through other tasks/
+		],
+		['tasks:\n  web: { command: x, label: "" }', /label must be a non-empty/]
+	])('refuses %j', (text, problem) => {
 		expect(() => parseConfig(text)).toThrow(problem);
 	});
 
-	it('makes the run job the default, unless the file names another', () => {
-		expect(parseConfig('run: dev')).toMatchObject({ default: 'jobs.run' });
-		expect(parseConfig('jobs:\n  web:\n    command: dev')).not.toHaveProperty('default');
-	});
-
 	it('understands every setting agents are told about', () => {
-		const {
-			default: target,
-			run,
-			jobs,
-			urls,
-			tasks,
-			ports,
-			setup,
-			teardown,
-			...others
-		} = CONFIG_SETTINGS;
-		expect(parseConfig(tasks.example).tasks).toEqual([{ name: 'web', default: true, needs: [] }]);
+		const { tasks, setup, teardown, ...others } = CONFIG_SETTINGS;
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
-		expect(parseConfig(run.example).jobs).toEqual([
-			{ name: 'run', command: 'pnpm dev --port $PORT', needs: [] }
+		expect(parseConfig(tasks.example).tasks).toMatchObject([
+			{ name: 'db', ports: ['postgres'] },
+			{
+				name: 'web',
+				ports: ['http', 'hmr'],
+				needs: ['db'],
+				url: 'http://localhost:{http}/',
+				default: true
+			},
+			{ name: 'admin', command: null, needs: ['web'] },
+			{ name: 'docs', command: null, needs: [] }
 		]);
-		// the link's example leads to a job of the jobs' example
-		expect(
-			parseConfig([ports.example, jobs.example, urls.example, target.example].join('\n\n'))
-		).toMatchObject({
-			default: 'urls.app',
-			ports: 20,
-			jobs: [{ name: 'db' }, { name: 'web' }],
-			urls: [{ name: 'app', needs: ['web'] }]
-		});
 		expect(parseConfig([setup.example, teardown.example].join('\n'))).toMatchObject({
 			setup: 'pnpm install && cp ../.env .env',
 			teardown: 'docker compose down --volumes'
@@ -211,7 +139,7 @@ describe('which file applies', () => {
 		const git = (...args: string[]) =>
 			execFileSync('git', ['-C', repoPath, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
 		git('init', '-q');
-		if (config !== undefined) writeFileSync(join(repoPath, '.geordi.toml'), config);
+		if (config !== undefined) writeFileSync(join(repoPath, '.geordi.yml'), config);
 		git('add', '.');
 		git('commit', '-q', '--allow-empty', '-m', 'init');
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
@@ -221,17 +149,18 @@ describe('which file applies', () => {
 			worktree: await ensureWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' })
 		};
 	}
-	const run = (found: Awaited<ReturnType<typeof settingsOf>>) => found.settings?.jobs[0]?.command;
+	const says = (command: string) => `tasks:\n  run:\n    command: ${command}\n`;
+	const run = (found: Awaited<ReturnType<typeof settingsOf>>) => found.settings?.tasks[0]?.command;
 
 	it("the workspace's own", async () => {
-		const { repoPath, worktree } = await setup('run = "pnpm dev"');
+		const { repoPath, worktree } = await setup(says('pnpm dev'));
 		expect(await settingsOf(worktree, repoPath)).toMatchObject({
 			source: 'workspace',
 			problem: null,
-			file: '.geordi.toml'
+			file: '.geordi.yml'
 		});
 
-		writeFileSync(join(worktree.path, '.geordi.toml'), 'run = "pnpm dev --port 4000"');
+		writeFileSync(join(worktree.path, '.geordi.yml'), says('pnpm dev --port 4000'));
 		expect(run(await settingsOf(worktree, repoPath))).toBe('pnpm dev --port 4000');
 	});
 
@@ -245,7 +174,7 @@ describe('which file applies', () => {
 		});
 
 		// the file arrives on the main branch after the workspace branched off
-		writeFileSync(join(repoPath, '.geordi.toml'), 'run = "make serve"');
+		writeFileSync(join(repoPath, '.geordi.yml'), says('make serve'));
 		git('add', '.');
 		git('commit', '-qm', 'configure');
 		const found = await settingsOf(worktree, repoPath);
@@ -254,195 +183,130 @@ describe('which file applies', () => {
 	});
 
 	it("says what is wrong with the workspace's file rather than falling back", async () => {
-		const { repoPath, worktree } = await setup('run = "pnpm dev"');
-		writeFileSync(join(worktree.path, '.geordi.toml'), 'run = [oops');
+		const { repoPath, worktree } = await setup(says('pnpm dev'));
+		writeFileSync(join(worktree.path, '.geordi.yml'), 'tasks: [oops');
 		expect(await settingsOf(worktree, repoPath)).toEqual({
 			settings: null,
-			problem: expect.stringMatching(/^\.geordi\.toml: /),
+			problem: expect.stringMatching(/^\.geordi\.yml: /),
 			source: 'workspace',
-			file: '.geordi.toml'
+			file: '.geordi.yml'
 		});
 
-		rmSync(join(worktree.path, '.geordi.toml'));
+		rmSync(join(worktree.path, '.geordi.yml'));
 		expect(run(await settingsOf(worktree, repoPath))).toBe('pnpm dev');
 	});
 
-	it('the YAML one, where there is one of each', async () => {
-		const { repoPath, git, worktree } = await setup('run = "from toml"');
-		expect(run(await settingsOf(worktree, repoPath))).toBe('from toml');
-
-		writeFileSync(join(worktree.path, '.geordi.yml'), 'run: from yaml');
-		expect(await settingsOf(worktree, repoPath)).toMatchObject({
+	it('tells a workspace with a file by the old name to move it', async () => {
+		const { repoPath, worktree } = await setup();
+		writeFileSync(join(worktree.path, '.geordi.toml'), 'run = "pnpm dev"');
+		expect(await settingsOf(worktree, repoPath)).toEqual({
+			settings: null,
+			problem: '.geordi.toml is no longer read: write its settings as YAML in .geordi.yml',
 			source: 'workspace',
-			file: '.geordi.yml',
-			settings: { jobs: [{ command: 'from yaml' }] }
+			file: '.geordi.toml'
 		});
-
-		// a workspace's file of either name comes before the main branch's of either
-		rmSync(join(worktree.path, '.geordi.yml'));
-		rmSync(join(worktree.path, '.geordi.toml'));
-		writeFileSync(join(repoPath, '.geordi.yml'), 'run: main yaml');
-		git('add', '.');
-		git('commit', '-qm', 'configure in YAML');
-		expect(await settingsOf(worktree, repoPath)).toMatchObject({
-			source: 'base',
-			file: '.geordi.yml'
-		});
-		expect(run(await settingsOf(worktree, repoPath))).toBe('main yaml');
-
-		writeFileSync(join(worktree.path, '.geordi.yml'), 'run: [oops');
-		expect((await settingsOf(worktree, repoPath)).problem).toMatch(/^\.geordi\.yml: /);
 	});
 });
 
 describe('resolve', () => {
-	const settings = toml(`
-		setup = "install"
-		[jobs.db]
-		command = "db"
-		[jobs.web]
-		command = "web"
-		needs = ["db"]
-		[urls.app]
-		url = "http://localhost:{web}/x?db={db}"
-	`);
-	const assigned = { blocks: [{ first: 20000, count: 10 }], jobs: { db: 0, web: 1 } };
+	const settings = parseConfig(`
+setup: install
+teardown: clean
+tasks:
+  web:
+    command: pnpm dev
+    ports: [http, live]
+    url: http://localhost:{http}/admin
+  api:
+    command: pnpm api
+    ports: [api]
+  docs:
+    url: http://localhost:{live}/docs
+  site:
+    url: http://localhost:{http}/
+`);
+	const found = { settings, problem: null, source: 'workspace' as const, file: '.geordi.yml' };
+	const assigned = {
+		blocks: [
+			{ first: 20000, count: 3 },
+			{ first: 24000, count: 10 }
+		],
+		jobs: { ':http': 0, ':live': 2, ':api': 1 },
+		spare: 3
+	};
 
 	it("fills in the workspace's ports, and says which commands a person has agreed to", () => {
-		const config = resolve(
-			{ settings, problem: null, source: 'workspace', file: '.geordi.yml' },
-			assigned,
-			(command) => command === 'db'
-		);
-		expect(config).toEqual({
-			jobs: [
-				{ name: 'db', command: 'db', needs: [], port: 20000, approved: true },
-				{ name: 'web', command: 'web', needs: ['db'], port: 20001, approved: false }
-			],
-			urls: [{ name: 'app', href: 'http://localhost:20001/x?db=20000', needs: ['web', 'db'] }],
-			setup: { command: 'install', approved: false },
-			teardown: null,
-			ports: { first: 20000, count: 10 },
-			problem: null,
-			source: 'workspace',
-			file: '.geordi.yml'
+		const config = resolve(found, assigned, (command) => command !== 'pnpm api');
+		expect(config.tasks).toEqual([
+			{
+				name: 'web',
+				command: 'pnpm dev',
+				approved: true,
+				ports: [
+					{ name: 'http', port: 20000 },
+					{ name: 'live', port: 20002 }
+				],
+				href: 'http://localhost:20000/admin',
+				needs: [],
+				default: false
+			},
+			{
+				name: 'api',
+				command: 'pnpm api',
+				approved: false,
+				ports: [{ name: 'api', port: 20001 }],
+				href: null,
+				needs: [],
+				default: false
+			},
+
+			{
+				name: 'docs',
+				command: null,
+				approved: true,
+				ports: [],
+				href: 'http://localhost:20002/docs',
+				needs: ['web'],
+				default: false
+			},
+			{
+				name: 'site',
+				command: null,
+				approved: true,
+				ports: [],
+				href: 'http://localhost:20000/',
+				needs: ['web'],
+				default: false
+			}
+		]);
+		expect(config).toMatchObject({
+			setup: { command: 'install', approved: true },
+			teardown: { command: 'clean', approved: true },
+			ports: { first: 24000, count: 10 }
 		});
+	});
+
+	it('asks for each port by its name, once, where it was kept before', () => {
+		expect(wantedPorts(settings)).toEqual([
+			{ key: ':http', legacy: ['web.http', 'web'] },
+			{ key: ':live', legacy: ['web.live'] },
+			{ key: ':api', legacy: ['api.api', 'api'] }
+		]);
+		expect(wantedPorts(null)).toEqual([]);
 	});
 
 	it('has ports to tell of even where the file says nothing', () => {
-		const none = resolve(
-			{ settings: null, problem: null, source: null, file: null },
-			assigned,
-			() => false
-		);
-		expect(none).toMatchObject({
-			jobs: [],
-			urls: [],
+		const nothing = { settings: null, problem: null, source: null, file: null };
+		expect(
+			resolve(nothing, { blocks: [{ first: 20000, count: 10 }], jobs: {}, spare: 0 }, () => true)
+		).toEqual({
+			tasks: [],
 			setup: null,
-			ports: { first: 20000, count: 10 }
+			teardown: null,
+			ports: { first: 20000, count: 10 },
+			problem: null,
+			source: null,
+			file: null
 		});
-	});
-});
-
-describe('display labels', () => {
-	it.each([
-		[
-			'yaml',
-			'jobs:\n  web:\n    label: "  Web app  "\n    command: serve\nurls:\n  app:\n    label: "  Open app  "\n    url: http://localhost:{web}/',
-			'.geordi.yml'
-		],
-		[
-			'toml',
-			'[jobs.web]\nlabel = "  Web app  "\ncommand = "serve"\n[urls.app]\nlabel = "  Open app  "\nurl = "http://localhost:{web}/"',
-			'.geordi.toml'
-		]
-	])('preserves keys, ports and approvals with %s labels', (_, text, file) => {
-		const settings = parseConfig(text, file);
-		const config = resolve(
-			{ settings, problem: null, source: 'workspace', file },
-			{ blocks: [{ first: 20000, count: 1 }], jobs: { web: 0 } },
-			(command) => command === 'serve'
-		);
-		expect(config.jobs).toEqual([
-			{ name: 'web', label: 'Web app', command: 'serve', needs: [], port: 20000, approved: true }
-		]);
-		expect(config.urls).toEqual([
-			{ name: 'app', label: 'Open app', href: 'http://localhost:20000/', needs: ['web'] }
-		]);
-	});
-
-	it.each([null, 42, true, [], {}, '', '   ', 'a\nb', 'a\tb', 'x'.repeat(101)])(
-		'rejects invalid labels: %j',
-		(label) => {
-			for (const section of ['jobs', 'urls']) {
-				const entry =
-					section === 'jobs' ? { command: 'serve' } : { url: 'http://localhost:20000/' };
-				expect(() =>
-					parseConfig(JSON.stringify({ [section]: { app: { ...entry, label } } }))
-				).toThrow(`${section}.app.label`);
-			}
-		}
-	);
-
-	it('accepts labels at the length limit and lets different keys share a label', () => {
-		const config = parseConfig(
-			JSON.stringify({
-				jobs: {
-					web: { command: 'serve', label: 'x'.repeat(100) },
-					other: { command: 'other', label: 'x'.repeat(100), needs: ['web'] }
-				}
-			})
-		);
-		expect(config.jobs.map(({ name, needs }) => ({ name, needs }))).toEqual([
-			{ name: 'web', needs: [] },
-			{ name: 'other', needs: ['web'] }
-		]);
-	});
-});
-
-describe('unified tasks', () => {
-	it('resolves shared prerequisites, URL-only dependencies and multiple defaults', () => {
-		const config = parseConfig(
-			JSON.stringify({
-				tasks: {
-					web: { command: 'serve', url: 'http://localhost:{web}/', default: true },
-					page: { url: 'http://localhost:{web}/preview' },
-					worker: { command: 'work', needs: ['page'], default: true }
-				}
-			})
-		);
-		expect(config.tasks?.filter((task) => task.default).map((task) => task.name)).toEqual([
-			'web',
-			'worker'
-		]);
-		expect(config.jobs.map((job) => job.needs)).toEqual([[], ['web']]);
-		expect(config.urls.map((link) => link.needs)).toEqual([['web'], ['web']]);
-		expect(config.ports).toBe(2);
-		expect(parseConfig('tasks: {run: {command: dev}}').tasks?.[0].default).toBe(false);
-	});
-	it("reads $PORT in a task's URL as its own port", () => {
-		const config = parseConfig(
-			JSON.stringify({
-				tasks: {
-					web: { command: 'serve --port $PORT', url: 'http://localhost:$PORT/?ports=$PORTS' },
-					page: { url: 'http://localhost:{web}/' }
-				}
-			})
-		);
-		expect(config.urls).toMatchObject([
-			{ name: 'web', url: 'http://localhost:{web}/?ports=$PORTS', needs: ['web'] },
-			{ name: 'page', needs: ['web'] }
-		]);
-		expect(config.jobs[0].command).toBe('serve --port $PORT');
-	});
-	it.each([
-		{ a: {} },
-		{ a: { url: 'http://localhost:$PORT/' } },
-		{ a: { url: 'https://example.org' } },
-		{ a: { command: 'run', default: 'true' } },
-		{ a: { command: 'run', needs: ['b'] } },
-		{ a: { command: 'run', needs: ['b'] }, b: { url: 'http://localhost:{a}' } }
-	])('rejects invalid task definitions', (tasks) => {
-		expect(() => parseConfig(JSON.stringify({ tasks }))).toThrow();
 	});
 });

@@ -7,7 +7,7 @@ let browser;
 before(async () => {
 	// The reset job has a reserved workspace port and never starts a listener.
 	server = await preview({
-		server: { host: '127.0.0.1', port: Number(process.env.GEORDI_PORT_RESET ?? 0) },
+		server: { host: '127.0.0.1', port: Number(process.env.GEORDI_PORT ?? 0) },
 		vite: { preview: { strictPort: true } }
 	});
 	browser = await chromium.launch();
@@ -66,11 +66,15 @@ test('stop and start a job in the Tasks tab', async (t) => {
 	const run = demo.getByRole('tabpanel', { name: 'Tasks' });
 	const mark = demo.getByRole('tab', { name: /Tasks/ }).getByRole('img', { name: 'Job running' });
 	await expect(mark).toBeVisible();
+	// stopping shows where one points at (or focuses) what runs
+	await run.getByRole('button', { name: 'Run Dev server' }).focus();
 	await run.getByRole('button', { name: 'Stop Dev server' }).click();
 	await expect(mark).toBeVisible();
+	// stopping shows where one points at (or focuses) what runs
+	await run.getByRole('button', { name: 'Run Database' }).focus();
 	await run.getByRole('button', { name: 'Stop Database' }).click();
 	await expect(mark).toHaveCount(0);
-	await run.getByRole('button', { name: 'Start Dev server' }).click();
+	await run.getByRole('button', { name: 'Run Dev server' }).click();
 	await expect(run.getByRole('button', { name: 'Stop Dev server' })).toBeAttached();
 	await expect(mark).toBeVisible();
 });

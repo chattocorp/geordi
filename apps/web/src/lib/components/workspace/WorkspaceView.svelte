@@ -69,16 +69,13 @@
 		approveRun,
 		editReleaseNote,
 		findFolders,
-		jobsReady,
 		lockWorkspace,
 		openFolder,
-		openLink,
 		restoreWorktree,
 		restoreWorkspace,
 		runSetup,
 		runTasks,
 		say,
-		startJobs,
 		stopTask,
 		stopJob,
 		updateWorkspace
@@ -296,39 +293,32 @@
 	const areaOf = (tab: string) =>
 		(['main', 'side', 'dock'] as const).find((area) => tabsOf(layouts[area]).includes(tab));
 
-	// The repository's jobs (FDR-006): each runs in a terminal of its own, named after it.
-	// Starting a job is starting that terminal (after the jobs it needs); stopping it,
-	// closing it (and the jobs that need it).
+	// The repository's tasks (FDR-006): each command runs in a terminal of its own, named
+	// after its task. Running a task is starting that terminal (after the tasks it needs);
+	// stopping it, closing it (and those of the tasks that need it).
 	const config = $derived(workspace.archivedAt ? null : (workspace.git?.config ?? null));
-	const jobs = $derived(config?.jobs ?? []);
-	const links = $derived(config?.urls ?? []);
+	const tasks = $derived(config?.tasks ?? []);
 	/** Whether there is anything to run, or something to say about the file that says so. */
-	const runnable = $derived(jobs.length > 0 || links.length > 0 || !!config?.problem);
+	const runnable = $derived(tasks.length > 0 || !!config?.problem);
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
 	function isRunTerminal(terminal: string) {
 		const job = jobOf(terminal);
 		return !!job && !SCRIPTS.some((script) => script === job);
 	}
-	const runJob = $derived(jobs.find((job) => config?.default === `jobs.${job.name}`));
-	const runLink = $derived(links.find((link) => config?.default === `urls.${link.name}`));
-	function runLive(job: string) {
-		const state = jobState(job);
+	function runLive(task: string) {
+		const state = jobState(task);
 		return state === 'running' || state === 'starting';
 	}
 	function runDefault() {
-		if (config?.tasks) {
-			const selected = config.tasks.filter((task) => task.default).map((task) => task.name);
-			return selected.length ? launchTasks(selected) : showTab(RUN);
-		}
-		if (runJob) return runLive(runJob.name) ? stop(runJob.name) : start([runJob.name]);
-		if (runLink) visit(runLink);
+		const selected = tasks.filter((task) => task.default).map((task) => task.name);
+		return selected.length ? launchTasks(selected) : showTab(RUN);
 	}
 	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
-	/** A job runs while its terminal is there and its command has not ended in it. */
+	/** A task runs while its terminal is there and its command has not ended in it. */
 	const isUp = (job: string) =>
 		workspace.terminals.includes(JOB_TERMINAL + job) && !(JOB_TERMINAL + job in workspace.finished);
-	/** How a job is: up once it listens on its port; over, and how it went, once it ended. */
+	/** How a task is: up once it listens on its ports; over, and how it went, once it ended. */
 	function jobState(job: string): JobState {
 		const terminal = JOB_TERMINAL + job;
 		const ended = workspace.finished[terminal];
@@ -336,7 +326,7 @@
 		if (launching.has(job)) return 'starting';
 		return isUp(job) ? 'running' : 'stopped';
 	}
-	const labelOf = (job: string) => jobs.find((other) => other.name === job)?.label ?? job;
+	const labelOf = (task: string) => tasks.find((other) => other.name === task)?.label ?? task;
 
 	// The commands are in a file the agent can write, and run as the user, outside any
 	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
@@ -356,17 +346,14 @@
 		asking = { jobs: unseen, then };
 	}
 
-	/**
-	 * Does `then` once the person has agreed to every command that starting `names` would
-	 * run. `then` gets the commands as they stood when asked: what was seen is what runs.
-	 */
-	function agreed(names: string[], then: (seen: Seen) => void) {
-		const needed = startOrder(jobs, names).flatMap(
-			(name) => jobs.find((job) => job.name === name) ?? []
-		);
-		const seen = Object.fromEntries(needed.map((job) => [job.name, job.command]));
-		agreedTo(needed, () => then(seen));
-	}
+	/** The tasks with a command that running `names` starts, in the order they start. */
+	const commandsFor = (names: string[]) =>
+		startOrder(tasks, names).flatMap((name) => {
+			const task = tasks.find((task) => task.name === name);
+			return task?.command
+				? [{ name, label: task.label, command: task.command, approved: task.approved }]
+				: [];
+		});
 
 	/** Runs the setup script (again): it ran by itself when the worktree was made, if agreed to. */
 	function setUp() {
@@ -397,7 +384,7 @@
 		then();
 	}
 
-	/** The jobs that were asked for and are on their way up: until they listen on their port. */
+	/** The tasks that were asked for and are on their way up: until they listen on their ports. */
 	const launching = new SvelteSet<string>();
 
 	let blocked = $state<{
@@ -406,29 +393,7 @@
 		retry: () => void;
 	} | null>(null);
 
-	/** Starts jobs and their dependencies. */
-	function start(names: string[], confirmation?: string) {
-		const workspaceId = id;
-		agreed(names, async (seen) => {
-			const order = startOrder(jobs, names);
-			for (const name of order) launching.add(name);
-			mergeProblem = null;
-			try {
-				const conflict = await startJobs({ workspaceId, jobs: names, seen, confirmation });
-				if (conflict) {
-					blocked = { workspaceId, conflict, retry: () => start(names, conflict.confirmation) };
-					return;
-				}
-				await jobsReady({ workspaceId, jobs: order });
-			} catch (error) {
-				mergeProblem = problemOf(error, 'Could not start that');
-			} finally {
-				for (const name of order) launching.delete(name);
-			}
-		});
-	}
-
-	/** Brings a job's terminal to the front: in the dock, unless it was put elsewhere. */
+	/** Brings a task's terminal to the front: in the dock, unless it was put elsewhere. */
 	function show(job: string) {
 		const front = jobTab(job);
 		const at = areaOf(front) ?? 'dock';
@@ -438,32 +403,54 @@
 
 	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
 
+	/** Links that were ready when no tab could be opened for them: offered in the Tasks tab. */
 	const readyLinks = new SvelteMap<string, string>();
 
-	function launchTasks(names: string[], confirmation?: string) {
+	/** Tasks whose terminal is to come to the front as soon as it is there. */
+	const showWhenThere = new SvelteSet<string>();
+	$effect(() => {
+		for (const name of showWhenThere)
+			if (workspace.terminals.includes(JOB_TERMINAL + name)) {
+				showWhenThere.delete(name);
+				show(name);
+			}
+	});
+
+	/**
+	 * Runs tasks and what they need, once the person has agreed to every command that would
+	 * run; then opens each one's URL. `showTerminal`: bring the terminal of the (first) task
+	 * to the front once it starts.
+	 */
+	function launchTasks(names: string[], confirmation?: string, showTerminal = false) {
 		const workspaceId = id;
-		const commands = startOrder(config?.tasks ?? [], names).filter((name) =>
-			jobs.some((job) => job.name === name)
-		);
-		agreed(commands, async (seen) => {
+		const commands = commandsFor(names);
+		const seen: Seen = Object.fromEntries(commands.map((job) => [job.name, job.command]));
+		agreedTo(commands, async () => {
+			if (showTerminal) showWhenThere.add(names[0]);
+			// a new tab has to be opened while the click still counts; where to comes later
+			// (`window` is the name of a snippet in here)
 			const tabs = new SvelteMap<string, Window | null>();
 			for (const name of names) {
 				readyLinks.delete(name);
-				if (links.some((link) => link.name === name) && !('geordiDesktop' in globalThis))
+				const leads = tasks.find((task) => task.name === name)?.href;
+				if (leads && !('geordiDesktop' in globalThis))
 					tabs.set(name, globalThis.open('about:blank', '_blank'));
 			}
-			const booting = commands.filter((name) => !isUp(name));
+			const booting = startOrder(tasks, names).filter((name) => !isUp(name));
 			for (const name of booting) launching.add(name);
 			mergeProblem = null;
 			try {
 				const results = await runTasks({ workspaceId, tasks: names, seen, confirmation });
+				// its terminal may be reported after this: it stays asked for, unless it did not start
+				if (results.some((result) => result.problem || result.conflict))
+					showWhenThere.delete(names[0]);
 				const problems = new SvelteSet<string>();
 				for (const { name, href, problem } of results) {
 					if (problem) problems.add(problem);
 					if (!href) continue;
 					const tab = tabs.get(name);
 					if (tab && !tab.closed) {
-						tab.opener = null;
+						tab.opener = null; // what is served there has no business with this page
 						tab.location.href = href;
 						tabs.delete(name);
 					} else if ('geordiDesktop' in globalThis) globalThis.open(href, '_blank', 'noopener');
@@ -485,38 +472,10 @@
 							)
 					};
 			} catch (error) {
-				mergeProblem = problemOf(error, 'Could not run tasks');
+				mergeProblem = problemOf(error, 'Could not run that');
+				showWhenThere.delete(names[0]);
 			} finally {
 				for (const tab of tabs.values()) tab?.close();
-				for (const name of booting) launching.delete(name);
-			}
-		});
-	}
-
-	/** Opens a link in the browser, once the jobs it needs are up. */
-	function visit(link: (typeof links)[number], confirmation?: string) {
-		const workspaceId = id;
-		agreed(link.needs, async (seen) => {
-			// a new tab has to be opened while the click still counts; where to comes later
-			// (`window` is the name of a snippet in here)
-			const tab = globalThis.open('about:blank', '_blank');
-			const booting = startOrder(jobs, link.needs).filter((name) => !isUp(name));
-			for (const name of booting) launching.add(name);
-			mergeProblem = null;
-			try {
-				const href = await openLink({ workspaceId, link: link.name, seen, confirmation });
-				if (typeof href !== 'string') {
-					tab?.close();
-					blocked = { workspaceId, conflict: href, retry: () => visit(link, href.confirmation) };
-					return;
-				}
-				if (!tab) return void globalThis.open(href, '_blank', 'noopener');
-				tab.opener = null; // what is served there has no business with this page
-				tab.location.href = href;
-			} catch (error) {
-				tab?.close();
-				mergeProblem = problemOf(error, 'Could not open that');
-			} finally {
 				for (const name of booting) launching.delete(name);
 			}
 		});
@@ -980,15 +939,16 @@
 							title: terminalTitles.get(tab) || `Terminal ${index + 1}`
 						}))
 				: null,
-			canRunDefault: !!(runJob || runLink || (config?.tasks && runnable)) && !workspace.archivedAt,
+			canRunDefault: runnable && !workspace.archivedAt,
 			// nothing to run without a worktree to run it in
 			tasks: !terminalsOpen
 				? []
-				: (config?.tasks?.map(({ name, label }) => ({ name, label: label ?? name })) ?? null),
-			jobs: !terminalsOpen
-				? []
-				: jobs.map(({ name }) => ({ name, label: labelOf(name), live: runLive(name) })),
-			links: !terminalsOpen ? [] : links.map(({ name, label }) => ({ name, label: label ?? name })),
+				: tasks.map(({ name, label, command }) => ({
+						name,
+						label: label ?? name,
+						live: !!command && runLive(name),
+						opens: !command
+					})),
 			outputs: workspace.terminals
 				.filter(isRunTerminal)
 				.map((terminal) => jobOf(terminal)!)
@@ -1021,12 +981,7 @@
 			newTerminal: openNewTerminal,
 			runDefault,
 			runTask: (name) => launchTasks([name]),
-			start: (job) => start([job]),
 			stop,
-			visit: (name) => {
-				const link = links.find((link) => link.name === name);
-				if (link) visit(link);
-			},
 			showOutput: show,
 			toggleSide,
 			openDiff,
@@ -1064,7 +1019,7 @@
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
 	{:else if tab === RUN}
-		<RunTab {jobs} stateOf={jobState} />
+		<RunTab tasks={tasks.filter((task) => task.command)} stateOf={jobState} />
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -1094,7 +1049,10 @@
 		{@const job = jobOf(terminalOf(tab))}
 		{#if job}
 			<!-- running; or over, and how it went: its output is still there to be read -->
-			<JobMark state={jobState(job)} />
+			<JobMark
+				state={jobState(job)}
+				listens={(tasks.find((task) => task.name === job)?.ports.length ?? 1) > 0}
+			/>
 			<span class="truncate">{labelOf(job)}</span>
 		{:else}
 			{@const terminals = everywhere()
@@ -1166,24 +1124,17 @@
 		</div>
 	{:else if tab === RUN}
 		<RunPane
-			tasks={config?.tasks}
-			launch={launchTasks}
-			defaultAction={config?.default}
+			{tasks}
 			shortcut="runDefault"
-			{jobs}
-			{links}
 			stateOf={jobState}
 			hasTerminal={(name) => workspace.terminals.includes(JOB_TERMINAL + name)}
-			{start}
+			run={(name, showTerminal) => launchTasks([name], undefined, showTerminal)}
 			{stop}
 			{show}
-			{visit}
 		>
 			{#each readyLinks as [name, href] (name)}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
-				<a class="item" {href} target="_blank" rel="noopener">
-					Open {links.find((link) => link.name === name)?.label ?? name} in browser
-				</a>
+				<a class="item" {href} target="_blank" rel="noopener">Open {labelOf(name)} in browser</a>
 			{/each}
 			{#if config?.problem}
 				<Notice>The repository's configuration can't be read: {config.problem}</Notice>

@@ -3,6 +3,7 @@ import {
 	AGENTS,
 	CONFIG_FILE,
 	CONFIG_SETTINGS,
+	SPARE_PORTS,
 	MODEL_SETTING,
 	SETTING,
 	WORKTREE_MODES,
@@ -61,7 +62,8 @@ export const offersOf = (harnesses: Harness[] | null) =>
 export const configurationReference = () =>
 	[
 		`# ${CONFIG_FILE}`,
-		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is YAML. Settings Geordi doesn't know are ignored. (A \`.geordi.toml\` with the same settings in TOML is still read where there is no \`${CONFIG_FILE}\`; write YAML.)`,
+		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is YAML. Settings Geordi doesn't know are ignored. (\`run\`, \`jobs\`, \`urls\`, \`default\` and \`ports\`, and a \`.geordi.toml\`, are no longer read: move what they say into \`tasks\` in \`${CONFIG_FILE}\`.)`,
+		`Every workspace also has ${SPARE_PORTS} spare ports of its own, for anything an agent or a terminal starts: \`GEORDI_PORT\` is the first and \`GEORDI_PORTS\` says how many. Never hard-code a port: two workspaces would collide.`,
 		'## Settings',
 		...Object.entries(CONFIG_SETTINGS).map(
 			([key, { does, example }]) => `### \`${key}\`\n\n${does}\n\n\`\`\`yaml\n${example}\n\`\`\``
@@ -296,47 +298,31 @@ const tools = {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including task defaults in the Tasks panel), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
 		input: v.strictObject({}),
 		run: async (agents: Agents, caller: string) => {
-			const {
-				default: target,
-				tasks,
-				source,
-				file,
-				problem,
-				ports,
-				jobs,
-				urls,
-				setup,
-				teardown
-			} = await agents.configuration(caller);
-			// the file by the name it has; one in the old language is still read, and said to be
-			const name = `${file ?? CONFIG_FILE}${file && file !== CONFIG_FILE ? ` (still read, but ${CONFIG_FILE} is what to write: move its settings there)` : ''}`;
-			const commands = [...jobs, ...(setup ? [setup] : []), ...(teardown ? [teardown] : [])];
+			const { tasks, source, file, problem, ports, setup, teardown } =
+				await agents.configuration(caller);
+			const commands = [
+				...tasks.filter((task) => task.command !== null),
+				...(setup ? [setup] : []),
+				...(teardown ? [teardown] : [])
+			];
 			return {
 				applies:
 					source === 'workspace'
-						? `the ${name} in your working directory`
+						? `the ${file ?? CONFIG_FILE} in your working directory`
 						: source === 'base'
-							? `the ${name} on the branch work starts from (your working directory has none)`
+							? `the ${CONFIG_FILE} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
-				...(tasks
-					? {
-							tasks: tasks.map((task) => ({
-								...task,
-								command: jobs.find((job) => job.name === task.name)?.command,
-								url: urls.find((url) => url.name === task.name)?.href
-							}))
-						}
-					: { default: target ?? null }),
-				problem,
-				ports,
-				jobs: jobs.map(({ name, label, command, needs, port }) => ({
+				tasks: tasks.map(({ name, label, command, ports, href, needs, default: selected }) => ({
 					name,
 					label,
 					command,
+					ports,
+					url: href,
 					needs,
-					port
+					default: selected
 				})),
-				urls,
+				problem,
+				spare_ports: ports,
 				setup: setup?.command ?? null,
 				teardown: teardown?.command ?? null,
 				...(commands.some((command) => !command.approved) && {

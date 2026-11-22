@@ -15,7 +15,6 @@ import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
-	DEFAULT_PORTS,
 	NO_WORKTREE,
 	AGENTS,
 	JOB_TERMINAL,
@@ -39,11 +38,11 @@ import {
 	uncommittedFiles,
 	versions
 } from './changes.ts';
-import { resolve, settingsOf } from './config.ts';
+import { resolve, settingsOf, wantedPorts } from './config.ts';
 import {
-	checkJobPort,
+	checkTaskPorts,
 	createPorts,
-	portAt,
+	ownPortEnv,
 	portEnv,
 	portRange,
 	portTaken,
@@ -153,17 +152,13 @@ const ports = createPorts(
 
 /**
  * What the repository's configuration says for a workspace, with its ports. Asking is what
- * gives a workspace its ports, and a job its own among them, the first time around.
+ * gives a workspace its ports, and each task's port its own among them, the first time around.
  */
 async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeRef) {
 	const found = await settingsOf(worktree, repoPath);
-	const assigned = await ports.ensure(
-		worktreeId,
-		found.settings?.ports ?? DEFAULT_PORTS,
-		found.settings?.jobs.map((job) => job.name)
-	);
+	const assigned = await ports.ensure(worktreeId, wantedPorts(found.settings));
 	const config = resolve(found, assigned, (command) => approvals.has(repoPath, command));
-	return { config, env: portEnv(assigned) };
+	return { config, env: portEnv(config.tasks, config.ports) };
 }
 
 /** What a job's terminal runs when its command is not one that was seen and agreed to. */
@@ -587,13 +582,15 @@ async function readRequest(request: DaemonRequest) {
 			request.family === 4 ? '127.0.0.1' : request.family === 6 ? '::1' : 'localhost'
 		);
 	if (request.kind === 'jobPort') {
-		const assigned = ports.of(request.worktreeId);
-		const index = assigned?.jobs[request.job];
-		if (!assigned || typeof index !== 'number') throw new Error('The job has no assigned port');
-		return checkJobPort(
+		const worktree = await locateWorktree(worktreesDir, request);
+		const task = (await configFor(worktree, request)).config.tasks.find(
+			(task) => task.name === request.job
+		);
+		if (!task) throw new Error(`There is no task "${request.job}" any more`);
+		return checkTaskPorts(
 			request.worktreeId,
 			request.job,
-			portAt(assigned, index),
+			task.ports.map(({ port }) => port),
 			request.confirmation
 		);
 	}
@@ -746,20 +743,20 @@ async function handle(message: ForgeMessage) {
 					// the command and their asking for it. Otherwise the terminal says so, in words
 					// of ours, and nothing of the file's runs.
 					const asked = message.run;
-					// the setup script can be run again by hand: as a job without a port
+					// the setup script can be run again by hand: as a task without ports
 					const job =
 						asked?.job === 'setup'
-							? config.setup && { ...config.setup, port: null }
-							: config.jobs.find((job) => job.name === asked?.job);
-					const agreed = job && job.command === asked?.command && job.approved;
-					// A job's port stays its own (FDR-006): when another program has it, the job
+							? config.setup && { ...config.setup, ports: [] }
+							: config.tasks.find((task) => task.name === asked?.job);
+					const agreed = !!job?.command && job.command === asked?.command && job.approved;
+					// A task's ports stay its own (FDR-006): when another program has one, the task
 					// doesn't start (it would not be the one answering there), and says why.
-					const taken =
+					let taken: string | null = null;
+					if (
 						agreed &&
-						job.port !== null &&
 						(!runningTerminals().includes(terminalId) || terminalId in endedTerminals())
-							? await portTaken(job.port)
-							: null;
+					)
+						for (const { port } of job.ports) if ((taken = await portTaken(port))) break;
 					guard();
 					openTerminal(
 						terminalId,
@@ -767,11 +764,11 @@ async function handle(message: ForgeMessage) {
 						{
 							...message,
 							closeOnSuccess: asked?.job === 'setup',
-							command: asked && (taken ? PORT_TAKEN : agreed ? job.command : RUN_CHANGED),
-							// every terminal knows the workspace's ports; a job also which one is its own
+							command: asked && (taken ? PORT_TAKEN : agreed ? job!.command! : RUN_CHANGED),
+							// every terminal knows the workspace's ports; a task also which are its own
 							env: {
 								...env,
-								...(agreed && job.port !== null && { PORT: String(job.port) }),
+								...(agreed && ownPortEnv(job)),
 								...(taken && { GEORDI_PORT_TAKEN: taken })
 							},
 							// a job that has ended is no longer running, though its terminal is still there

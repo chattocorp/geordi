@@ -163,13 +163,13 @@ it, perhaps you.
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that
   are files in the bundle and that the system plays (FDR-008).
-- **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names tasks with a command, a local URL, or both, and their dependencies and defaults.
-  Existing jobs and URLs still work. The file also sets how many ports a workspace gets. The daemon reads
+- **Repository configuration (FDR-006).** A repository's `.geordi.yml` names tasks, each with a command, a `url`, or both, the ports its command listens on (`ports: [http, live]`; none unless named), and its dependencies and defaults.
+  Nothing else is read (no `jobs`, `urls`, `run`, `ports`, nor `.geordi.toml`). Every workspace also has ten spare ports. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
-  reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +
+  reports it with the worktree's state. Each task's command runs in a terminal named `JOB_TERMINAL` +
   its name, and is running only until its command ends (`terminal.ended`; the terminal
   stays, to be read); the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
-  once and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
+  once per port name (names are the workspace's, each one task's) and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
   run only as a person saw and agreed to them (`approvals.ts`). The daemon runs the `setup`
   script by itself when it makes a worktree (the first turn waits for it; `setUp` in
   `main.ts`) and `teardown` before it removes one, each in a job-like terminal it tells the
@@ -256,7 +256,7 @@ it, perhaps you.
   corner follows the sheet's. What paints its own background takes it from `--pane`.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
   the primary action and things that are live. The only ambient motion is for things at
-  work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` (and the light round a `Ring`) for checks still running, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
+  work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` (and the light round a `Ring`) for checks still running, gold turning arrows for a task at work that has no ports, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
   `icon-[lucide--name]`; Heroicons (`icon-[heroicons--name-solid]`) only where a filled icon is needed. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).

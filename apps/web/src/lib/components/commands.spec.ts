@@ -125,9 +125,7 @@ const workspace = (at: Partial<WorkspaceSource> = {}): WorkspaceSource =>
 			canBegin: true,
 			shells: [],
 			canRunDefault: false,
-			tasks: null,
-			jobs: [],
-			links: [],
+			tasks: [],
 			outputs: [],
 			windows: [],
 			sideOpen: true,
@@ -155,4 +153,26 @@ it('lists changed files by name, with their folder beside them', () => {
 		(command) => command.group === 'Changed files'
 	);
 	expect([file.label, file.detail, file.keywords]).toEqual(['a.ts', 'src/lib', 'src/lib/a.ts']);
+});
+
+it('runs a task or stops it, and opens one that is only a URL', () => {
+	const runTask = vi.fn();
+	const commands = workspaceCommands(
+		workspace({
+			runTask,
+			tasks: [
+				{ name: 'web', label: 'Web server', live: true, opens: false },
+				{ name: 'storybook', label: 'Storybook', live: false, opens: false },
+				{ name: 'docs', label: 'Docs', live: false, opens: true }
+			]
+		})
+	);
+	const tasks = commands.filter((command) => command.group === 'Tasks');
+	expect(tasks.map(({ label }) => label)).toEqual([
+		'Stop Web server',
+		'Run Storybook',
+		'Open Docs'
+	]);
+	tasks[2].run();
+	expect(runTask).toHaveBeenCalledWith('docs');
 });

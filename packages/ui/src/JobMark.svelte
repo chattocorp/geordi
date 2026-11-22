@@ -8,13 +8,22 @@
 	import ProgressIcon from './ProgressIcon.svelte';
 
 	/** How a job is, as a mark: the same wherever the job shows (its tab, the Tasks tab). */
-	let { state, class: size = 'size-3.5' }: { state: JobState; class?: string } = $props();
+	let {
+		state,
+		listens = true,
+		class: size = 'size-3.5'
+	}: {
+		state: JobState;
+		/** Whether it has ports to listen on: what runs without any looks like work going on. */
+		listens?: boolean;
+		class?: string;
+	} = $props();
 </script>
 
 {#if state === 'starting'}
 	<ProgressIcon label="Starting" class={size} />
 {:else if state === 'running'}
-	<RunningJob class={size} />
+	<RunningJob {listens} class={size} />
 {:else if state === 'stopped'}
 	<span class={['grid shrink-0 place-items-center', size]} title="Not running">
 		<span class="dot"></span>

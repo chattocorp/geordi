@@ -34,26 +34,27 @@ const SAMPLES = {
 			// failure: there is no contact page
 			message: 'Run it with Geordi',
 			files: {
-				'.geordi.yml': `default: urls.site
-
-jobs:
+				'.geordi.yml': `tasks:
   web:
     label: Static server
     command: node serve.js
+    ports: [site, status]
+    url: http://localhost:{site}/
+    default: true
+  about:
+    label: About page
+    url: http://localhost:{site}/about.html
+  status:
+    label: Server status
+    url: http://localhost:{status}/
   preview:
     label: Preview server that takes a few seconds to come up
     command: SERVE_DELAY=5 node serve.js
+    ports: [preview]
+    url: http://localhost:{preview}/about.html
   check:
     label: Check links
     command: node check.js
-
-urls:
-  site:
-    label: Site
-    url: http://localhost:{web}/
-  about:
-    label: About page (preview)
-    url: http://localhost:{preview}/about.html
 `,
 				'serve.js': `import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -82,6 +83,14 @@ setTimeout(
 	() => server.listen(port, () => console.log(\`Serving on http://localhost:\${port}/\`)),
 	delay * 1000
 );
+
+// a second port, where the task names one: how the server is
+const status = Number(process.env.GEORDI_PORT_STATUS ?? 0);
+if (status)
+	createServer((request, response) => {
+		response.writeHead(200, { 'content-type': 'application/json' });
+		response.end(JSON.stringify({ port, uptime: process.uptime() }));
+	}).listen(status, () => console.log(\`Status on http://localhost:\${status}/\`));
 `,
 				'check.js': `import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
@@ -132,7 +141,7 @@ process.exit(broken ? 1 : 0);
 			// a single job, which ends: Run runs it
 			message: 'Run the tests with Geordi',
 			files: {
-				'.geordi.yml': 'jobs:\n  test:\n    label: Tests\n    command: node --test\n'
+				'.geordi.yml': 'tasks:\n  test:\n    label: Tests\n    command: node --test\n'
 			}
 		}
 	]

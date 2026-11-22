@@ -5,35 +5,23 @@ import { pathToFileURL } from 'node:url';
 import { desktopRuntime } from '../src/runtime.js';
 
 export function devEnvironment(env, repo) {
-	let assigned;
-	try {
-		assigned = JSON.parse(env.GEORDI_ASSIGNED_PORTS);
-	} catch {
-		throw new Error(
-			'Start Electron dev app from Geordi with an updated daemon (GEORDI_ASSIGNED_PORTS is missing).'
-		);
-	}
-	if (
-		!Array.isArray(assigned) ||
-		!assigned.every((port) => Number.isInteger(port) && port >= 1024 && port <= 65535) ||
-		new Set(assigned).size !== assigned.length
-	)
-		throw new Error('Invalid GEORDI_ASSIGNED_PORTS');
-	const used = new Set(
-		Object.entries(env)
-			.filter(([key]) => key.startsWith('GEORDI_PORT_'))
-			.map(([, value]) => Number(value))
-	);
-	const spare = assigned.filter((port) => !used.has(port));
-	const web = Number(env.GEORDI_PORT_DESKTOP);
-	if (!assigned.includes(web) || spare.length < 2)
-		throw new Error('The desktop job needs its assigned port and two spare workspace ports.');
+	// the task's own ports (`.geordi.yml`): the forge's pages, and its two WebSockets
+	const [web, daemon, live] = [
+		'GEORDI_PORT_DESKTOP',
+		'GEORDI_PORT_DESKTOP_DAEMON',
+		'GEORDI_PORT_DESKTOP_LIVE'
+	].map((name) => {
+		const port = Number(env[name]);
+		if (!Number.isInteger(port) || port < 1024 || port > 65535)
+			throw new Error(`Start Electron dev app from Geordi's Tasks tab (${name} is missing).`);
+		return port;
+	});
 	const result = {
 		...env,
 		GEORDI_DESKTOP_DEV_DIR: join(repo, '.data/desktop'),
 		PORT: String(web),
-		GEORDI_DAEMON_PORT: String(spare[0]),
-		GEORDI_LIVE_PORT: String(spare[1])
+		GEORDI_DAEMON_PORT: String(daemon),
+		GEORDI_LIVE_PORT: String(live)
 	};
 	delete result.ELECTRON_RUN_AS_NODE;
 	desktopRuntime(result); // validate before building anything
