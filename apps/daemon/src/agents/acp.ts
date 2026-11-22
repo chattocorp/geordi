@@ -232,7 +232,7 @@ export function connectAgent(
 				emit({ kind: 'usage', usage: { used: u.used, size: u.size, ...(cost && { cost }) } });
 				// and, now and then, how much of the subscription's usage limits is used
 				const limits = limitsIn(u._meta);
-				if (limits) emit({ kind: 'limits', limits });
+				if (limits) emit({ kind: 'limits', limits, at: Date.now() });
 				break;
 			}
 			case SessionUpdate.isAvailableCommandsUpdate(u):

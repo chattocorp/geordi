@@ -58,6 +58,22 @@
 	<HarnessPicker {harnesses} {choice} onchange={(next) => (choice = next)} />
 </Story>
 
+<!-- each agent's models with what its usage limits leave (open the list to see them) -->
+<Story name="Picker with usage" asChild>
+	<HarnessPicker
+		{harnesses}
+		{choice}
+		limits={{
+			claude: [
+				{ name: '5h', minutes: 300, usedPercent: 35, status: 'ok' },
+				{ name: 'Week', minutes: 10080, usedPercent: 50, status: 'ok' }
+			],
+			codex: [{ name: '5h', minutes: 300, usedPercent: 82, status: 'warning' }]
+		}}
+		onchange={(next) => (choice = next)}
+	/>
+</Story>
+
 <Story name="Reported OpenCode defaults" asChild>
 	<HarnessPicker
 		{harnesses}

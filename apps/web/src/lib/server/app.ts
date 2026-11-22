@@ -277,7 +277,8 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		},
 		onUsage: (workspaceId, usage) => workspaces().measure(workspaceId, usage),
 		onSuggestion: (workspaceId, text) => workspaces().suggest(workspaceId, text),
-		onLimits: (workspaceId, known) => limits().note(workspaces().summary(workspaceId).agent, known),
+		onLimits: (workspaceId, known, at) =>
+			limits().note(workspaces().summary(workspaceId).agent, known, at),
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.cursor);

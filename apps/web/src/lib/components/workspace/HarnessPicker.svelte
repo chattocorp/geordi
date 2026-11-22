@@ -67,15 +67,20 @@
 	import { agentName } from '#lib/format.ts';
 	import { effortShortcut, modelShortcut } from '@geordi/ui/keys';
 	import Select, { type SelectOption } from '#lib/ui/Select.svelte';
+	import Battery from '#lib/components/Battery.svelte';
+	import { charge } from '#lib/limits.ts';
+	import type { Limits } from '#lib/server/limits.ts';
 
 	type Props = {
 		/** What each agent can be asked to run. */
 		harnesses: Harness[];
 		choice: HarnessChoice;
 		sessionModel?: SessionModel;
+		/** What each agent's usage limits leave, shown beside its models. */
+		limits?: Limits;
 		onchange(choice: HarnessChoice): void;
 	};
-	let { harnesses, choice, sessionModel, onchange }: Props = $props();
+	let { harnesses, choice, sessionModel, limits = {}, onchange }: Props = $props();
 
 	const { harness, model, reported, resolvedModel, efforts, effort, permissionMode } = $derived(
 		resolveChoice(harnesses, choice, sessionModel)
@@ -160,6 +165,16 @@
 	{/snippet}
 	{#snippet icon(option)}
 		<AgentAvatar agent={agentOf(option)} size="sm" />
+	{/snippet}
+	{#snippet aside(option)}
+		{@const agent = agentOf(option)}
+		<!-- by its label, for the limits that hold for one model alone (`Week (Opus)`) -->
+		{@const battery = charge(limits[agent] ?? [], option.label)}
+		{#if battery}<Battery
+				left={battery.left}
+				tone={battery.tone}
+				label="{agentName[agent]} usage: {Math.round(battery.left * 100)}% left"
+			/>{/if}
 	{/snippet}
 </Select>
 

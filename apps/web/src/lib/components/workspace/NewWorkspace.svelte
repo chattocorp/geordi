@@ -17,6 +17,7 @@
 	import RepoPicker from './RepoPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
+	import type { Limits } from '#lib/server/limits.ts';
 	import { createWorkspace, findFiles } from '../../../routes/workspaces.remote';
 	import HarnessPicker, { resolveChoice, type HarnessChoice } from './HarnessPicker.svelte';
 
@@ -76,6 +77,8 @@
 	// `undefined` until loaded, `null` while no daemon is connected: nothing to choose from
 	const offered = follow<Navigation>('navigation');
 	const harnesses = $derived(offered.current?.harnesses);
+	// what each agent's usage limits leave, beside its models
+	const limits = follow<Limits>('limits');
 	// The next workspace starts out the way the last one was set up.
 	const choice = persisted<HarnessChoice>('geordi:harness', { agent: 'claude', settings: {} });
 	const chosen = $derived(harnesses?.length ? resolveChoice(harnesses, choice.current) : null);
@@ -150,6 +153,7 @@
 					<HarnessPicker
 						{harnesses}
 						choice={choice.current}
+						limits={limits.current}
 						onchange={(next) => (choice.current = next)}
 					/>
 				{:else if harnesses === null}

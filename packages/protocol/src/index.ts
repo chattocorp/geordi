@@ -780,6 +780,11 @@ export type AgentLive = {
 	commands?: AgentCommand[];
 	/** The usage limits of the subscription it runs on, all of them, as it last said. */
 	limits?: UsageLimit[];
+	/**
+	 * When it said them (milliseconds since the epoch): they are the account's, so the
+	 * latest any session said stands, and an idle session's older ones must not replace it.
+	 */
+	limitsAt?: number;
 	/** What it suggests the person say next, now that its turn is over; `null` once withdrawn. */
 	suggestion?: string | null;
 };

@@ -22,7 +22,7 @@ export function liveOf(event: LiveEvent): AgentLive {
 		case 'commands':
 			return { commands: event.commands };
 		case 'limits':
-			return { limits: event.limits };
+			return { limits: event.limits, limitsAt: event.at };
 		case 'suggestion':
 			return { suggestion: event.text };
 	}
