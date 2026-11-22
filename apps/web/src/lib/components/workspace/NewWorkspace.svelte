@@ -83,9 +83,12 @@
 	const choice = persisted<HarnessChoice>('geordi:harness', { agent: 'claude', settings: {} });
 	const chosen = $derived(harnesses?.length ? resolveChoice(harnesses, choice.current) : null);
 
+	// Keyed on the ID alone: `repo` is a new object with every update of the live view, and a
+	// new search function would have the composer start its file search over.
+	const repoId = $derived(repo?.id);
 	const searchFiles = $derived.by(() => {
-		if (!repo) return undefined;
-		const scope = alongside ? { workspaceId: alongside } : { repoId: repo.id };
+		if (!repoId) return undefined;
+		const scope = alongside ? { workspaceId: alongside } : { repoId };
 		return (query: string) => findFiles({ ...scope, query });
 	});
 	let adding = $state<AddRepository>();
