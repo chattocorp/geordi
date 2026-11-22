@@ -97,6 +97,7 @@
 	import { foreground } from '#lib/foreground.svelte.ts';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
+	import { initWrapLines } from './wrap.svelte.ts';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
@@ -196,6 +197,17 @@
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
 	const ribbonPosition = getRibbonPosition();
+	const wrapLines = initWrapLines();
+	/** How many files in each window show text whose lines could wrap. */
+	const wrappable = new SvelteMap<string, number>();
+	const wrappableIn = (tab: string) => () => {
+		wrappable.set(tab, (wrappable.get(tab) ?? 0) + 1);
+		return () => {
+			const left = (wrappable.get(tab) ?? 1) - 1;
+			if (left) wrappable.set(tab, left);
+			else wrappable.delete(tab);
+		};
+	};
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
 	const frame = persisted<{
@@ -1085,6 +1097,20 @@
 	{/if}
 {/snippet}
 
+<!-- what can be done with a window, beside its tabs -->
+{#snippet tools(tab: string)}
+	{#if wrappable.has(tab)}
+		<Button
+			variant="tool"
+			size="sm"
+			icon="icon-[lucide--wrap-text]"
+			label="Wrap lines"
+			aria-pressed={wrapLines.current}
+			onclick={() => (wrapLines.current = !wrapLines.current)}
+		/>
+	{/if}
+{/snippet}
+
 {#snippet window(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : undefined}
@@ -1099,7 +1125,12 @@
 			{:else}
 				{#each git.changes.files as file (file.path)}
 					<DiffSection path={file.path} added={file.added} removed={file.removed}>
-						<CombinedDiffFile workspaceId={id} path={file.path} version={git.version} />
+						<CombinedDiffFile
+							workspaceId={id}
+							path={file.path}
+							version={git.version}
+							onwrappable={wrappableIn(tab)}
+						/>
 					</DiffSection>
 				{:else}
 					<p class="text-sm text-muted">No changes yet</p>
@@ -1172,7 +1203,12 @@
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
 		{#key `${diffSelection}:${path}`}
-			<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+			<DiffWindow
+				workspaceId={id}
+				{path}
+				version={git?.version ?? 0}
+				onwrappable={wrappableIn(tab)}
+			/>
 		{/key}
 	{:else if source}
 		<SourceWindow
@@ -1180,6 +1216,7 @@
 			path={source}
 			citation={citations.get(source)}
 			version={git?.version ?? 0}
+			onwrappable={wrappableIn(tab)}
 		/>
 	{:else if terminal}
 		<Terminal
@@ -1357,6 +1394,7 @@
 					onchange={(next) => arrange({ main: next })}
 					{tab}
 					{window}
+					{tools}
 					{closable}
 					accepts={movable}
 					onreceive={receive('main')}
@@ -1403,6 +1441,7 @@
 								onchange={(next) => arrange({ side: next })}
 								{tab}
 								{window}
+								{tools}
 								{closable}
 								accepts={movable}
 								onreceive={receive('side')}
@@ -1425,6 +1464,7 @@
 								onchange={(next) => arrange({ dock: next })}
 								{tab}
 								{window}
+								{tools}
 								{closable}
 								accepts={movable}
 								onreceive={receive('dock')}

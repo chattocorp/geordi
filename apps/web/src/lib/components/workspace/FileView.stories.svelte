@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, waitFor } from 'storybook/test';
+	import { expect, fn, waitFor } from 'storybook/test';
 	import FileView from './FileView.svelte';
 	import { tone } from '#lib/ui/tone.ts';
 	import logo from '#lib/assets/favicon.svg?raw';
@@ -127,5 +127,48 @@
 		await expect(canvasElement.querySelector('pre')?.textContent).toContain(
 			'export function greet(name: string)'
 		);
+	}}
+/>
+
+<Story
+	name="Wrapping long lines"
+	args={{
+		path: 'notes.txt',
+		current: `short line\n${'a long line that goes on and on '.repeat(20)}\nanother short line\n`,
+		wrap: true
+	}}
+	play={async ({ canvasElement }) => {
+		await expect(getComputedStyle(canvasElement.querySelector('pre')!).whiteSpace).toBe('pre-wrap');
+	}}
+/>
+
+<Story
+	name="Wrapping a diff"
+	args={{
+		path: 'src/app.ts',
+		old: `const a = 1;\nconst b = 2;\n`,
+		current: `const a = 1;\nconst b = ${'"a very long string that runs off the edge of the pane", '.repeat(8)};\n`,
+		wrap: true
+	}}
+	play={async ({ canvasElement }) => {
+		await waitFor(() =>
+			expect(
+				canvasElement.querySelector('diffs-container')?.shadowRoot?.querySelector('pre')
+			).toHaveAttribute('data-overflow', 'wrap')
+		);
+	}}
+/>
+
+<!-- Wrapping does something only while text is shown: not for the preview of a Markdown file. -->
+<Story
+	name="Wrappable only as text"
+	args={{ path: 'README.md', current: '# Hello\n\nSome text.\n', onwrappable: fn(() => fn()) }}
+	play={async ({ args, canvas, userEvent }) => {
+		await expect(args.onwrappable).not.toHaveBeenCalled();
+		await userEvent.click(canvas.getByRole('button', { name: 'Source' }));
+		await waitFor(() => expect(args.onwrappable).toHaveBeenCalledOnce());
+		const undo = (args.onwrappable as ReturnType<typeof fn>).mock.results[0].value;
+		await userEvent.click(canvas.getByRole('button', { name: 'Preview' }));
+		await waitFor(() => expect(undo).toHaveBeenCalledOnce());
 	}}
 />

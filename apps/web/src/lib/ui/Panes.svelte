@@ -49,6 +49,8 @@
 		actions?: Snippet;
 		/** What comes before the tabs of the first group's bar. */
 		lead?: Snippet;
+		/** What can be done with a window, in its group's bar while it is the one shown. */
+		tools?: Snippet<[string]>;
 	};
 	let {
 		layout,
@@ -65,7 +67,8 @@
 		newIcon = 'icon-[lucide--plus]',
 		empty,
 		actions,
-		lead
+		lead,
+		tools
 	}: Props = $props();
 
 	const uid = $props.id();
@@ -139,6 +142,7 @@
 	{:else}
 		<section class="flex min-h-0 min-w-0 flex-1 flex-col">
 			{#snippet barActions()}
+				{#if tools && n.active}{@render tools(n.active)}{/if}
 				{#if actions && groupsOf(layout)[0]?.id === n.id}{@render actions()}{/if}
 				{#if newTab}
 					<Button
@@ -156,7 +160,9 @@
 				current={n.active}
 				{tab}
 				lead={groupsOf(layout)[0]?.id === n.id ? lead : undefined}
-				actions={newTab || (actions && groupsOf(layout)[0]?.id === n.id) ? barActions : undefined}
+				actions={tools || newTab || (actions && groupsOf(layout)[0]?.id === n.id)
+					? barActions
+					: undefined}
 				{ondoubleclick}
 				onselect={(id) => onchange(open(layout, id))}
 				onclose={(id) => onchange(close(layout, id))}

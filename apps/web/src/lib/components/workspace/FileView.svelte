@@ -1,25 +1,35 @@
 <script lang="ts">
 	import type { FileContent } from '@geordi/protocol';
+	import { untrack } from 'svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 	import Toolbar from '@geordi/ui/Toolbar.svelte';
 	import Markdown from '../Markdown.svelte';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 	import SoundPlayer from '#lib/ui/SoundPlayer.svelte';
 	import SourceView from './SourceView.svelte';
+	import { getWrapLines } from './wrap.svelte.ts';
 
 	let {
 		path,
 		current,
 		old,
 		line,
-		pictures
+		pictures,
+		wrap: given,
+		onwrappable
 	}: {
 		path: string;
 		current: FileContent | null;
 		old?: FileContent | null;
 		line?: number;
 		pictures?: string;
+		/** Whether long lines wrap: the workspace's preference, unless given. */
+		wrap?: boolean;
+		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
+		onwrappable?: () => () => void;
 	} = $props();
+	const lines = getWrapLines();
+	const wrap = $derived(given ?? lines.current);
 	const diff = $derived(old !== undefined);
 	/** A picture or sound whose bytes did not change (a file moved or copied as it is). */
 	const same = $derived(
@@ -80,6 +90,17 @@
 	let expanded = $state<string>();
 	let failed = $state<string[]>([]);
 	let ready = $state(false);
+
+	/** The file's text is on screen, as source or as a diff: wrapping its lines does something. */
+	const wrappable = $derived(
+		typeof file === 'string' &&
+			!binaryPair &&
+			(!rich || mode === 'text') &&
+			!(diff && old === current)
+	);
+	$effect(() => {
+		if (wrappable && onwrappable) return untrack(onwrappable);
+	});
 </script>
 
 <!-- `paired`: one of two versions, beside the other: no taller than leaves both in view. -->
@@ -181,7 +202,7 @@
 		{/if}
 	</div>
 {:else if !diff}
-	{#if typeof file === 'string'}<SourceView {path} text={file} {line} />{/if}
+	{#if typeof file === 'string'}<SourceView {path} text={file} {line} {wrap} />{/if}
 {:else if old === current}
 	<p class="p-5 text-sm text-muted">The file's content is unchanged.</p>
 {:else}
@@ -191,6 +212,7 @@
 			{path}
 			old={typeof old === 'string' ? old : null}
 			new={typeof current === 'string' ? current : null}
+			{wrap}
 			bind:ready
 		/>
 	</div>

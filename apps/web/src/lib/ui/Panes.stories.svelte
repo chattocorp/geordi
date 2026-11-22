@@ -20,6 +20,8 @@
 	let nothing = $state.raw<Layout>(singleGroup([]));
 	let main = $state.raw<Layout>(singleGroup(['Conversation']));
 	let side = $state.raw<Layout>(singleGroup(['Changes', 'Files']));
+	let files = $state.raw<Layout>(singleGroup(['Changes', 'notes.md']));
+	let wrap = $state(false);
 	let count = 3;
 </script>
 
@@ -120,6 +122,35 @@
 		<Panes layout={side} onchange={(next) => (side = next)} {tab} {window} splits={false}>
 			{#snippet lead()}
 				<Button variant="ghost" size="sm" icon="icon-[lucide--chevron-down]" label="Fold" />
+			{/snippet}
+		</Panes>
+	</div>
+</Story>
+
+<!-- What can be done with the window shown: here, wrapping a file's long lines. -->
+<Story
+	name="With window tools"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await expect(canvas.queryByRole('button', { name: 'Wrap lines' })).toBeNull();
+		await userEvent.click(canvas.getByRole('tab', { name: 'notes.md' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Wrap lines', pressed: false }));
+		await expect(canvas.getByRole('button', { name: 'Wrap lines', pressed: true })).toBeVisible();
+	}}
+>
+	<div class="flex h-48 sheet-quiet overflow-hidden">
+		<Panes layout={files} onchange={(next) => (files = next)} {tab} {window} splits={false}>
+			{#snippet tools(id: string)}
+				{#if id.endsWith('.md')}
+					<Button
+						variant="tool"
+						size="sm"
+						icon="icon-[lucide--wrap-text]"
+						label="Wrap lines"
+						aria-pressed={wrap}
+						onclick={() => (wrap = !wrap)}
+					/>
+				{/if}
 			{/snippet}
 		</Panes>
 	</div>

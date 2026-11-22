@@ -1,13 +1,18 @@
 <script lang="ts">
 	import { highlightFile } from '#lib/highlightFile.ts';
 
-	let { path, text, line }: { path: string; text: string; line?: number } = $props();
+	let {
+		path,
+		text,
+		line,
+		wrap = false
+	}: { path: string; text: string; line?: number; wrap?: boolean } = $props();
 	const lines = $derived(text.replace(/\r?\n$/, '').split(/\r?\n/));
 	const selected = $derived(line !== undefined && line >= 1 && line <= lines.length);
 	const highlighted = $derived(highlightFile(path, text, selected ? line : undefined));
 </script>
 
-<div class="scroller p-4">
+<div class="scroller p-4" class:wrap>
 	{#if line !== undefined && !selected}
 		<p class="mb-2 text-sm text-muted">Line {line} is outside this file.</p>
 	{/if}
@@ -46,3 +51,11 @@
 		{@render plain()}
 	{/await}
 </div>
+
+<style>
+	/* Long lines wrap where they must, even inside a word, rather than scroll sideways. */
+	.wrap :global(pre) {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+</style>
