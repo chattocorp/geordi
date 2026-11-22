@@ -25,6 +25,14 @@ describe('instructionsFor', () => {
 		expect(named).not.toContain('`name_workspace`');
 	});
 
+	it('has an agent that an agent started ask that one, not the person', () => {
+		const child = instructionsFor({ ...own, parent: { title: 'x' } });
+		expect(child).toContain('do not use your blocking question tool');
+		expect(instructionsFor(own)).toContain('use your blocking question tool and wait');
+		// whoever starts agents learns to answer them
+		expect(instructionsFor(own)).toContain('ends its turn with its question');
+	});
+
 	it('says so when the directory is shared, and when there is no delegating', () => {
 		const text = instructionsFor({
 			parent: { title: 'x' },

@@ -43,7 +43,8 @@
 		dragging?: boolean;
 		highlighted?: boolean;
 		unread?: boolean;
-		asking?: boolean;
+		/** Whether an agent waits for the person's answer; a path where it isn't this row's own (one folded under it). */
+		asking?: boolean | string;
 		waiting?: boolean;
 		working?: boolean;
 		/** Whether a person locked it against archiving (FDR-015): shown in the status slot while it has no other status. */
@@ -131,8 +132,8 @@
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-		{#if asking && href}
-			<QuestionLink workspaceHref={href} />
+		{#if typeof asking === 'string' || (asking && href)}
+			<QuestionLink workspaceHref={typeof asking === 'string' ? asking : href!} />
 		{:else if asking}
 			<StatusIcon tone="accent" label="Waiting for your answer">
 				<span class="icon-[lucide--message-circle-question] size-4"></span>

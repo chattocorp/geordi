@@ -116,6 +116,17 @@
 		workspace.working ||
 		(workspace.repoId !== null &&
 			(nav?.workspaces ?? []).some((other) => other.parentId === workspace.id && working(other)));
+	/**
+	 * The workspace, of this one and what its agents started, whose agent waits for the
+	 * person's answer: a folded row stands for all of them, and must not hide a question.
+	 */
+	const asker = (workspace: Item): Item | undefined =>
+		workspace.outcome === 'asking'
+			? workspace
+			: (nav?.workspaces ?? [])
+					.filter((other) => other.parentId === workspace.id)
+					.map(asker)
+					.find((found) => found);
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
@@ -590,6 +601,7 @@
 	{@const isFolded = under > 0 && folded.current.includes(workspace.id)}
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
+	{@const asking = isFolded ? asker(workspace) : workspace.outcome === 'asking' && workspace}
 	{@const leaving = beingArchived.has(workspace.id)}
 	{#snippet repoIcon()}<RepoIcon
 			id={workspace.repoId!}
@@ -646,7 +658,7 @@
 			dragging={dragged?.id === workspace.id}
 			highlighted={pointedAt === workspace.id}
 			unread={unread.has(workspace.id)}
-			asking={workspace.outcome === 'asking'}
+			asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
 			waiting={workspace.waiting}
 			working={workspace.working || (isFolded && busy)}
 			locked={workspace.locked}
