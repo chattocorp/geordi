@@ -849,9 +849,10 @@
 		await userEvent.click(button);
 		const dialog = await canvas.findByRole('dialog', { name: 'Attached image 2' });
 		expect(dialog.querySelector('img')!.src).toBe(src);
-		// In CI the dialog has briefly reported `pointer-events: none` right after opening
-		await waitFor(() => expect(getComputedStyle(dialog).pointerEvents).not.toBe('none'));
-		await userEvent.click(dialog);
+		// Right after it opens, the dialog sometimes reports `pointer-events: none` for a moment
+		// (seen in CI, not in a browser), which user-event refuses to click through; and it can
+		// flip back between a check and the click. So the click itself is what is retried.
+		await waitFor(() => userEvent.click(dialog));
 		await waitFor(() => expect(canvas.queryByRole('dialog')).toBeNull());
 	}}
 >

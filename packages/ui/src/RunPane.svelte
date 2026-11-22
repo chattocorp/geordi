@@ -204,7 +204,8 @@
 	{@render children?.()}
 
 	{#if tasks.length > 0}
-		<ul aria-label="Tasks">
+		<!-- a hair between rows, as in the sidebar: rows that stand out together stay apart -->
+		<ul aria-label="Tasks" class="space-y-px">
 			{#each ordered as task (task.name)}
 				{@render taskRow(task)}
 			{/each}
