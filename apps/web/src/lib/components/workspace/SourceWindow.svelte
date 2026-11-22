@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { OnTools } from './window-tools.svelte.ts';
 	import { getSource } from '../../../routes/workspaces.remote';
 	import FileView from './FileView.svelte';
 
@@ -7,14 +8,14 @@
 		path,
 		citation,
 		version,
-		onwrappable
+		ontools
 	}: {
 		workspaceId: string;
 		path: string;
 		version: string | number;
 		citation?: { line?: number };
-		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
-		onwrappable?: () => () => void;
+		/** Called while the file is shown, with what can be done with it from the tab bar. */
+		ontools?: OnTools;
 	} = $props();
 	const file = $derived(getSource({ workspaceId, path }));
 	// The daemon reports when a worktree file may have changed, just as for a diff.
@@ -31,7 +32,7 @@
 			current={file.current.content}
 			pictures={`/workspaces/${workspaceId}/picture?file&v=${version}`}
 			line={citation?.line}
-			{onwrappable}
+			{ontools}
 		/>
 	{/key}
 {:else}

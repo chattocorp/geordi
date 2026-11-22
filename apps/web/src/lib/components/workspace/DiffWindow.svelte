@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { OnTools } from './window-tools.svelte.ts';
 	import FileView from './FileView.svelte';
 	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 	import { getDiff } from '../../../routes/workspaces.remote';
@@ -11,10 +12,10 @@
 		 * again.
 		 */
 		version: string | number;
-		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
-		onwrappable?: () => () => void;
+		/** Called while the file is shown, with what can be done with it from the tab bar. */
+		ontools?: OnTools;
 	};
-	let { workspaceId, path, version, onwrappable }: Props = $props();
+	let { workspaceId, path, version, ontools }: Props = $props();
 
 	const versions = $derived(getDiff({ workspaceId, path }));
 
@@ -41,7 +42,7 @@
 		{path}
 		old={versions.current.old}
 		current={versions.current.new}
-		{onwrappable}
+		{ontools}
 		pictures={`/workspaces/${workspaceId}/picture?file&v=${version}`}
 	/>
 {/if}

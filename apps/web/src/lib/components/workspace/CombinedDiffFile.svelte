@@ -1,17 +1,18 @@
 <script lang="ts">
+	import type { OnTools } from './window-tools.svelte.ts';
 	import DiffWindow from './DiffWindow.svelte';
 
 	let {
 		workspaceId,
 		path,
 		version,
-		onwrappable
+		ontools
 	}: {
 		workspaceId: string;
 		path: string;
 		version: number;
-		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
-		onwrappable?: () => () => void;
+		/** Called while the file is shown, with what can be done with it from the tab bar. */
+		ontools?: OnTools;
 	} = $props();
 
 	// Only request whole file versions when the reader reaches this part of the diff.
@@ -26,7 +27,7 @@
 </script>
 
 {#if reached}
-	<DiffWindow {workspaceId} {path} {version} {onwrappable} />
+	<DiffWindow {workspaceId} {path} {version} {ontools} />
 {:else}
 	<p class="p-5 text-sm text-muted" {@attach observe}>Loading the diff…</p>
 {/if}
