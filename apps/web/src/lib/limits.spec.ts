@@ -6,7 +6,12 @@ const limit = (
 	name: string,
 	usedPercent?: number,
 	status: UsageLimit['status'] = 'ok'
-): UsageLimit => ({ name, usedPercent, status });
+): UsageLimit => ({
+	name,
+	minutes: name.startsWith('5h') ? 300 : 10_080,
+	usedPercent,
+	status
+});
 
 describe('holdsFor', () => {
 	it('holds the account’s limits for every model', () => {
@@ -40,27 +45,39 @@ describe('toneOf', () => {
 });
 
 describe('charge', () => {
-	it('is the least that the limits leave', () => {
-		expect(charge([limit('5h', 11), limit('Week', 60)], undefined)).toEqual({
-			left: 0.4,
-			tone: 'normal'
+	it('is the shortest window that says how much is used', () => {
+		const limits = [limit('5h', 20), limit('Week', 90, 'warning')];
+		expect(charge(limits, undefined)).toEqual({ left: 0.8, tone: 'normal' });
+	});
+
+	it('is the weekly limits where the five-hour one says nothing', () => {
+		expect(charge([limit('Week', 60)], undefined)).toEqual({ left: 0.4, tone: 'normal' });
+		const limits = [limit('5h'), limit('Week', 60), limit('Week (Opus)', 70, 'warning')];
+		expect(charge(limits, 'claude-opus-5-5')).toEqual({
+			left: expect.closeTo(0.3),
+			tone: 'warning'
 		});
 	});
 
-	it('stands as the worst of its limits', () => {
-		const limits = [limit('5h', 10), limit('Week', 50, 'warning')];
-		expect(charge(limits, undefined)?.tone).toBe('warning');
-	});
-
 	it('leaves out other models’ limits', () => {
-		const limits = [limit('5h', 10), limit('Week (Opus)', 95)];
-		expect(charge(limits, 'claude-sonnet-5-5')).toEqual({ left: 0.9, tone: 'normal' });
-		expect(charge(limits, 'claude-opus-5-5')?.tone).toBe('danger');
+		const limits = [limit('5h (GPT-X)', 90), limit('Week', 50)];
+		expect(charge(limits, 'gpt-y')).toEqual({ left: 0.5, tone: 'normal' });
+		expect(charge(limits, 'gpt-x')?.tone).toBe('danger');
 	});
 
-	it('is empty once a limit is reached, said in a percentage or not', () => {
-		const limits = [limit('5h', 10), limit('Week', undefined, 'limited')];
-		expect(charge(limits, undefined)).toEqual({ left: 0, tone: 'danger' });
+	it('is the least of limits whose length is unknown', () => {
+		const limits = [
+			{ name: 'Limit', usedPercent: 11, status: 'ok' as const },
+			{ name: 'Other', usedPercent: 60, status: 'ok' as const }
+		];
+		expect(charge(limits, undefined)).toEqual({ left: 0.4, tone: 'normal' });
+	});
+
+	it('is empty once the shown limit is reached, said in a percentage or not', () => {
+		expect(charge([limit('5h', undefined, 'limited'), limit('Week', 10)], undefined)).toEqual({
+			left: 0,
+			tone: 'danger'
+		});
 	});
 
 	it('is unknown where no limit says how much is used', () => {
