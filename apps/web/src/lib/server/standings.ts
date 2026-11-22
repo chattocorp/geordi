@@ -142,6 +142,8 @@ export function createStandings(options: {
 	const announced = new Map<string, symbol>();
 	/** Worktrees nobody has open that a daemon says changed since they were last looked at. */
 	const dirty = new Set<string>();
+	/** Worktrees whose local Git a tick found due, waiting for a free look. */
+	const waiting = new Set<string>();
 	let watched = '';
 	const poll = readBudget(PULL_BATCH, now);
 
@@ -198,6 +200,7 @@ export function createStandings(options: {
 
 	function startLocal(worktreeId: string) {
 		dirty.delete(worktreeId);
+		waiting.delete(worktreeId);
 		const read: Promise<void> = options
 			.loadLocal(worktreeId)
 			.catch((error): Local => ({ changes: null, unavailable: reason(error), missing: false }))
@@ -205,6 +208,8 @@ export function createStandings(options: {
 				if (reading.get(worktreeId) !== read) return;
 				reading.delete(worktreeId);
 				tookLocal(worktreeId, answer);
+				// a look is free: the next one due need not wait for a tick
+				pump();
 			});
 		reading.set(worktreeId, read);
 		return read;
@@ -287,10 +292,16 @@ export function createStandings(options: {
 		return promise;
 	}
 
-	/** Looks at the worktrees nobody has open that changed: a few at a time, not those with an agent at work. */
-	function lookAtDirty() {
-		const due = [...dirty].filter((id) => !reading.has(id) && !busy(id));
-		for (const id of due.slice(0, Math.max(0, AT_ONCE - reading.size))) void startLocal(id);
+	/**
+	 * Looks at local Git that is due, a few at a time: what a tick found due, and what changed
+	 * where nobody has it open and no agent is at work. Open worktrees first, then the stalest.
+	 */
+	function pump() {
+		const at = (id: string) => locals.get(id)?.at ?? -Infinity;
+		const due = [...new Set([...waiting, ...[...dirty].filter((id) => !busy(id))])]
+			.filter((id) => !reading.has(id))
+			.sort((a, b) => Number(open(b)) - Number(open(a)) || at(a) - at(b) || 0);
+		return due.slice(0, Math.max(0, AT_ONCE - reading.size)).map(startLocal);
 	}
 
 	return {
@@ -353,11 +364,12 @@ export function createStandings(options: {
 			// someone is looking: at once, whoever is at work there
 			if (open(worktreeId)) return void lookLocal(worktreeId);
 			dirty.add(worktreeId);
-			lookAtDirty();
+			pump();
 		},
 
 		/**
-		 * Looks at what is due: worktrees nothing is known of first, then the stalest.
+		 * Looks at what is due: worktrees someone has open first, then those nothing is known
+		 * of, then the stalest.
 		 * `reconnected`: a daemon is there (again) to ask.
 		 */
 		async tick(reconnected = false) {
@@ -365,7 +377,8 @@ export function createStandings(options: {
 			const used = new Set(inUse);
 			for (const known of [locals, remotes, announced])
 				for (const id of known.keys()) if (!used.has(id)) known.delete(id);
-			for (const id of dirty) if (!used.has(id)) dirty.delete(id);
+			for (const pending of [dirty, waiting])
+				for (const id of pending) if (!used.has(id)) pending.delete(id);
 			const key = inUse.join(' ');
 			if (reconnected || key !== watched) {
 				watched = key;
@@ -373,28 +386,26 @@ export function createStandings(options: {
 			}
 			const time = now();
 
-			const localDue = inUse
-				.flatMap((id) => {
-					if (reading.has(id)) return [];
-					const local = locals.get(id);
-					if (!local) return [{ id, at: -Infinity }];
-					const atWork = busy(id) && !open(id);
-					const every =
-						!local.changes && !local.missing
-							? reconnected
-								? 0
-								: RETRY_MS
-							: atWork
-								? BUSY_LOCAL_MS
-								: LOCAL_FALLBACK_MS;
-					// what a daemon may have missed while it was away, where someone is looking
-					const due =
-						(dirty.has(id) && !atWork) || (reconnected && open(id)) || time - local.at >= every;
-					return due ? [{ id, at: local.at }] : [];
-				})
-				.sort((a, b) => a.at - b.at)
-				.slice(0, Math.max(0, AT_ONCE - reading.size))
-				.map(({ id }) => startLocal(id));
+			for (const id of inUse) {
+				if (reading.has(id)) continue;
+				const local = locals.get(id);
+				if (!local) {
+					waiting.add(id);
+					continue;
+				}
+				const atWork = busy(id) && !open(id);
+				const every =
+					!local.changes && !local.missing
+						? reconnected
+							? 0
+							: RETRY_MS
+						: atWork
+							? BUSY_LOCAL_MS
+							: LOCAL_FALLBACK_MS;
+				// what a daemon may have missed while it was away, where someone is looking
+				if ((reconnected && open(id)) || time - local.at >= every) waiting.add(id);
+			}
+			const localDue = pump();
 
 			const first: string[] = [];
 			const due: { id: string; due: number }[] = [];

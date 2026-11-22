@@ -75,10 +75,12 @@ function setup(ids: string[], { busy = [] as string[], open = [] as string[] } =
 
 describe('standings', () => {
 	it('looks at everything at first: local Git a few at a time, upstream all at once', async () => {
-		const { standings, state } = setup(['a', 'b', 'c', 'd']);
+		const { standings, state, release } = setup(['a', 'b', 'c', 'd']);
 		expect(standings.get('a')).toBeNull();
 
-		await standings.tick();
+		state.hold = true;
+		void standings.tick();
+		await settled();
 		expect(state.asked).toEqual([
 			'a',
 			'b',
@@ -88,8 +90,9 @@ describe('standings', () => {
 			'c upstream',
 			'd upstream'
 		]);
-		expect(standings.state('d')).toMatchObject({ changes: null, checking: true });
-		await standings.tick();
+		// a look done: the next one starts at once, not on the next tick
+		state.hold = false;
+		await release();
 		expect(state.asked.slice(7)).toEqual(['d']);
 		expect(standings.get('a')).toEqual({ changes: changes(), upstream: null });
 		expect(standings.state('d')).toMatchObject({ version: 1, checking: false });
@@ -261,7 +264,35 @@ describe('standings', () => {
 		// what a daemon missed shows a minute later
 		state.now = 60_000;
 		await standings.tick();
-		expect(local()).toEqual(['a', 'c', 'b', 'a', 'c', 'b']);
+		// the one someone has open first
+		expect(local()).toEqual(['a', 'c', 'b', 'c', 'a', 'b']);
+	});
+
+	it('looks first at a worktree someone has open when a daemon connects', async () => {
+		const ids = ['a', 'b', 'c', 'd', 'e'];
+		const { standings, state, release } = setup(ids, { open: ['e'] });
+		// no daemon yet: the open one was tried last
+		state.local = { changes: null, unavailable: 'No daemon connected', missing: false };
+		await standings.tick();
+		await standings.tick();
+		state.now = 1000;
+		await standings.look('e');
+		state.asked = [];
+
+		state.local = { changes: changes(), unavailable: null, missing: false };
+		state.hold = true;
+		void standings.tick(true);
+		await settled();
+		const local = () => state.asked.filter((asked) => !asked.includes('upstream'));
+		expect(local()).toEqual(['e', 'a', 'b']);
+		// one at a time as each finishes, never more than three
+		state.held.shift()?.();
+		await settled();
+		expect(local()).toEqual(['e', 'a', 'b', 'c']);
+		state.hold = false;
+		await release();
+		expect(local()).toEqual(['e', 'a', 'b', 'c', 'd']);
+		expect(ids.every((id) => standings.state(id)?.changes)).toBe(true);
 	});
 
 	it('follows a look in flight with another when the worktree changes meanwhile', async () => {
