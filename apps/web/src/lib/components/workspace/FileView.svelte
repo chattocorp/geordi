@@ -2,12 +2,11 @@
 	import type { FileContent } from '@geordi/protocol';
 	import { untrack } from 'svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
-	import Toolbar from '@geordi/ui/Toolbar.svelte';
 	import Markdown from '../Markdown.svelte';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 	import SoundPlayer from '#lib/ui/SoundPlayer.svelte';
 	import SourceView from './SourceView.svelte';
-	import { getWrapLines } from './wrap.svelte.ts';
+	import { getWrapLines, type FileTools, type OnTools } from './window-tools.svelte.ts';
 
 	let {
 		path,
@@ -16,7 +15,7 @@
 		line,
 		pictures,
 		wrap: given,
-		onwrappable
+		ontools
 	}: {
 		path: string;
 		current: FileContent | null;
@@ -25,8 +24,8 @@
 		pictures?: string;
 		/** Whether long lines wrap: the workspace's preference, unless given. */
 		wrap?: boolean;
-		/** Called while long lines could wrap here (text is shown); returns what undoes it. */
-		onwrappable?: () => () => void;
+		/** Called while the file is shown, with what can be done with it from the tab bar. */
+		ontools?: OnTools;
 	} = $props();
 	const lines = getWrapLines();
 	const wrap = $derived(given ?? lines.current);
@@ -91,15 +90,31 @@
 	let failed = $state<string[]>([]);
 	let ready = $state(false);
 
-	/** The file's text is on screen, as source or as a diff: wrapping its lines does something. */
-	const wrappable = $derived(
-		typeof file === 'string' &&
+	/** What can be done with the file, from the window's tab bar. */
+	const tools: FileTools = $derived({
+		modes:
+			rich && typeof file === 'string' && !binaryPair
+				? {
+						options: [
+							{ value: 'rendered', label: 'Preview', icon: 'icon-[lucide--eye]' },
+							diff
+								? { value: 'text', label: 'Diff', icon: 'icon-[lucide--file-diff]' }
+								: { value: 'text', label: 'Source', icon: 'icon-[lucide--code]' }
+						],
+						current: mode,
+						select: (value: string) => (mode = value)
+					}
+				: undefined,
+		// its text is on screen, as source or as a diff
+		wrappable:
+			typeof file === 'string' &&
 			!binaryPair &&
 			(!rich || mode === 'text') &&
 			!(diff && old === current)
-	);
+	});
 	$effect(() => {
-		if (wrappable && onwrappable) return untrack(onwrappable);
+		const current = tools;
+		if (ontools) return untrack(() => ontools(current));
 	});
 </script>
 
@@ -132,26 +147,7 @@
 	{/if}
 {/snippet}
 
-{#if rich && typeof file === 'string' && !binaryPair}
-	<Toolbar
-		label="File view"
-		{status}
-		items={[
-			{
-				label: 'Preview',
-				icon: 'icon-[lucide--eye]',
-				pressed: mode === 'rendered',
-				onclick: () => (mode = 'rendered')
-			},
-			{
-				label: diff ? 'Diff' : 'Source',
-				icon: diff ? 'icon-[lucide--file-diff]' : 'icon-[lucide--code]',
-				pressed: mode === 'text',
-				onclick: () => (mode = 'text')
-			}
-		]}
-	/>
-{:else if shown && status}
+{#if rich && status}
 	<p class="px-5 text-xs text-muted">{status}</p>
 {/if}
 

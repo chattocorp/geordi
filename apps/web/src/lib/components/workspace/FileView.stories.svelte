@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, fn, waitFor } from 'storybook/test';
+	import { expect, waitFor } from 'storybook/test';
 	import FileView from './FileView.svelte';
 	import { tone } from '#lib/ui/tone.ts';
 	import logo from '#lib/assets/favicon.svg?raw';
@@ -12,15 +12,39 @@
 	const { Story } = defineMeta({ title: 'Geordi/File preview', component: FileView });
 </script>
 
+<script lang="ts">
+	import type { ComponentProps } from 'svelte';
+	import WindowTools from './WindowTools.svelte';
+	import type { FileTools, OnTools } from './window-tools.svelte.ts';
+
+	// as in a workspace: the file's tools in the bar above it
+	let files = $state.raw<FileTools[]>([]);
+	const wrap = $state({ current: false });
+	const ontools: OnTools = (tools) => {
+		files = [...files, tools];
+		return () => (files = files.filter((other) => other !== tools));
+	};
+</script>
+
+{#snippet withTools(args: ComponentProps<typeof FileView>)}
+	<div class="flex h-96 flex-col">
+		<div class="flex justify-end p-2">
+			<WindowTools tools={files} {wrap} />
+		</div>
+		<FileView {...args} {ontools} wrap={wrap.current} />
+	</div>
+{/snippet}
+
 <Story
 	name="SVG"
 	args={{ path: 'logo.svg', current: logo }}
+	template={withTools}
 	play={async ({ canvas, canvasElement, userEvent }) => {
 		await expect(canvas.getByRole('img').getBoundingClientRect().width).toBeGreaterThan(0);
 		await userEvent.click(canvas.getByRole('button', { name: 'Enlarge image' }));
 		await expect(canvas.getByRole('dialog')).toBeVisible();
 		await userEvent.keyboard('{Escape}');
-		await userEvent.click(canvas.getByRole('button', { name: 'Source' }));
+		await userEvent.click(canvas.getByRole('radio', { name: 'Source' }));
 		await waitFor(() => expect(canvasElement.querySelector('pre')).toHaveTextContent(logo.trim()));
 	}}
 />
@@ -103,11 +127,14 @@
 <Story
 	name="Markdown change"
 	args={{ path: 'notes.md', old: null, current: '# Release notes\n\nImages in the workspace.' }}
+	template={withTools}
 	play={async ({ canvas, userEvent }) => {
-		await expect(canvas.getByRole('button', { name: 'Diff', pressed: true })).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Preview' }));
+		await expect(canvas.getByRole('radio', { name: 'Diff', checked: true })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'Wrap lines' })).toBeVisible();
+		await userEvent.click(canvas.getByRole('radio', { name: 'Preview' }));
 		await expect(canvas.getByRole('heading', { name: 'Release notes' })).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Diff' }));
+		await expect(canvas.queryByRole('button', { name: 'Wrap lines' })).toBeNull();
+		await userEvent.click(canvas.getByRole('radio', { name: 'Diff' }));
 		await expect(canvas.queryByRole('heading', { name: 'Release notes' })).toBeNull();
 	}}
 />
@@ -161,14 +188,17 @@
 
 <!-- Wrapping does something only while text is shown: not for the preview of a Markdown file. -->
 <Story
-	name="Wrappable only as text"
-	args={{ path: 'README.md', current: '# Hello\n\nSome text.\n', onwrappable: fn(() => fn()) }}
-	play={async ({ args, canvas, userEvent }) => {
-		await expect(args.onwrappable).not.toHaveBeenCalled();
-		await userEvent.click(canvas.getByRole('button', { name: 'Source' }));
-		await waitFor(() => expect(args.onwrappable).toHaveBeenCalledOnce());
-		const undo = (args.onwrappable as ReturnType<typeof fn>).mock.results[0].value;
-		await userEvent.click(canvas.getByRole('button', { name: 'Preview' }));
-		await waitFor(() => expect(undo).toHaveBeenCalledOnce());
+	name="Tools for a Markdown file"
+	args={{ path: 'README.md', current: `# Hello\n\n${'Some long text. '.repeat(30)}\n` }}
+	template={withTools}
+	play={async ({ canvas, canvasElement, userEvent }) => {
+		await expect(canvas.queryByRole('button', { name: 'Wrap lines' })).toBeNull();
+		await userEvent.click(canvas.getByRole('radio', { name: 'Source' }));
+		await userEvent.click(canvas.getByRole('button', { name: 'Wrap lines', pressed: false }));
+		await waitFor(() =>
+			expect(getComputedStyle(canvasElement.querySelector('pre')!).whiteSpace).toBe('pre-wrap')
+		);
+		await userEvent.click(canvas.getByRole('radio', { name: 'Preview' }));
+		await expect(canvas.queryByRole('button', { name: 'Wrap lines' })).toBeNull();
 	}}
 />
