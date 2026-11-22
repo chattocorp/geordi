@@ -93,8 +93,9 @@
 	const where = (href: string) => href.replace(/^https?:\/\//, '').replace(/\/$/, '');
 </script>
 
-{#snippet linkIcon(name: string)}
-	{#if waiting(name)}
+<!-- `marked`: the row's mark already says the task is starting, so the link need not -->
+{#snippet linkIcon(name: string, marked = false)}
+	{#if !marked && waiting(name)}
 		<JobMark state="starting" />
 	{:else}
 		<span
@@ -193,7 +194,7 @@
 					onclick={() => run(task.name)}
 					class="grid size-6 shrink-0 place-items-center rounded-control hover:bg-hover"
 				>
-					{@render linkIcon(task.name)}
+					{@render linkIcon(task.name, true)}
 				</button>
 			{/if}
 		</div>
