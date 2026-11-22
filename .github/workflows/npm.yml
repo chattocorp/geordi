@@ -25,5 +25,7 @@ jobs:
           ref: ${{ inputs.commit }}
       - uses: ./.github/actions/install
       - run: pnpm --filter @geordi/cli bundle
+        env:
+          GEORDI_RELEASE_BUILD: '1'
       - run: npm publish --access public
         working-directory: apps/cli/stage
