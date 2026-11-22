@@ -27,6 +27,8 @@ export function instructionsFor(workspace: {
 			? 'Your working directory is the Git worktree of another workspace, which you work alongside: its agent sees and changes the same files as you.'
 			: 'Your working directory is a Git worktree made for this workspace, on a branch of its own. Nothing you do here touches anyone else’s checkout. The branch starts with a name that says nothing (`geordi/` and an ID): once you know what the work is about, and before you push, rename it to something that says so, in the style the repository uses for its branches (`geordi/fix-login-redirect` where it has none), with `git branch -m`. Push it under its own name (`git push -u origin HEAD`).',
 
+		'For notes, plans, scratch files, downloads and anything else temporary, use the `.context` folder at the top of the worktree: Git ignores it, so nothing in it is committed, and it is gone when the workspace is archived. Don’t scatter such files elsewhere in the worktree or in `/tmp`.',
+
 		parent
 			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
 			: 'The person you work for sees your replies, your changes as a diff against where the branch started, and the state of the branch’s pull request.',
@@ -56,7 +58,7 @@ export function instructionsFor(workspace: {
 const ASKING =
 	'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.';
 const PICTURES =
-	'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](/tmp/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too. A sound (WAV, MP3, Ogg, FLAC, M4A) written the same way, like `![Jump](assets/jump.wav)`, is played there.';
+	'To show a picture (a screenshot you took, a chart you made), write it into your reply as a Markdown image with the path of its file, like `![The new sidebar](.context/sidebar.png)`: it is shown right there. PNG, JPEG, WebP, GIF and SVG files on this machine, up to 5 MB; pictures from the web are only linked. Give every new picture a file name of its own, never one you used before: a picture is shown from its file as it is now, so writing over one changes it in your earlier replies too. A sound (WAV, MP3, Ogg, FLAC, M4A) written the same way, like `![Jump](assets/jump.wav)`, is played there.';
 const DIAGRAMS =
 	'To explain with a diagram (a flow, a sequence, a structure), write it in a `mermaid` code block, or draw it in an `svg` one: it is drawn in its place. Keep the outer corners of generated SVGs square. Geordi rounds them in the UI. Diagrams cannot load images or follow links.';
 const LINKS =

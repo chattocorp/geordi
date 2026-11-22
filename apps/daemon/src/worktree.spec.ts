@@ -48,6 +48,18 @@ describe('ensureWorktree', () => {
 		expect(second).toMatchObject({ created: false, path: first.path });
 	});
 
+	it('gives the worktree a .context folder that Git ignores', async () => {
+		const repoPath = repo();
+		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const { path } = await ensureWorktree(base, { repoPath, worktreeId: '12345678-ctx' });
+		writeFileSync(join(path, '.context', 'notes.md'), 'a note');
+		await ensureWorktree(base, { repoPath, worktreeId: '12345678-ctx' });
+
+		const status = execFileSync('git', ['-C', path, 'status', '--porcelain'], { encoding: 'utf8' });
+		expect(status).toBe('');
+		expect(readFileSync(join(path, '.context', 'notes.md'), 'utf8')).toBe('a note');
+	});
+
 	it('separates same-named repositories and keeps older worktrees in place', async () => {
 		const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-trees-')));
 		const source = repo();
