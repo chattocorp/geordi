@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EmptyState from '@geordi/ui/EmptyState.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Page from '#lib/ui/Page.svelte';
@@ -112,7 +113,7 @@
 	{#if !entries}
 		<WaitingForView {lost} />
 	{:else if !entries.length}
-		<p class="empty">No archived workspaces.</p>
+		<EmptyState icon="icon-[lucide--archive]" title="No archived workspaces" />
 		{#if outcome}<p class="text-sm text-muted">{outcome}</p>{/if}
 	{:else}
 		<div class="flex items-center gap-2">
@@ -139,7 +140,7 @@
 							<li>
 								<button
 									type="button"
-									class="item w-full gap-3 px-3 py-2 text-left hover:bg-hover focus-visible:bg-hover"
+									class="item w-full gap-3 px-3 py-2 text-left focus-visible:bg-hover"
 									disabled={!onrestore}
 									onclick={() => askToRestore(entry)}
 									{@attach contextMenu(() => menu(entry))}
@@ -174,7 +175,7 @@
 					</ul>
 				</section>
 			{:else}
-				<p class="empty">No matching workspaces.</p>
+				<EmptyState icon="icon-[lucide--search]" title="No matching workspaces" />
 			{/each}
 		</div>
 	{/if}

@@ -75,7 +75,8 @@
 		{/if}
 	{/snippet}
 
-	<div class="mt-1.5 divide-y divide-line/70 overflow-hidden card">
+	<!-- the calls part by shape, as in every list: a hair between them, no lines -->
+	<div class="mt-1.5 space-y-px overflow-hidden card p-1">
 		{#each tools as tool (tool.id)}
 			<div
 				{@attach reveal?.id === tool.id

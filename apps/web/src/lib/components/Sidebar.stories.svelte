@@ -290,7 +290,7 @@
 		);
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
-		await expect(canvas.getByText('No workspaces active today.')).toBeVisible();
+		await expect(canvas.getByText('No workspaces active today')).toBeVisible();
 		await fireEvent.click(today);
 		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));

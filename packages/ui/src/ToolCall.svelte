@@ -49,7 +49,7 @@
 	}
 </script>
 
-<Disclosure bind:open summaryClass="px-3.5 py-2 text-sm hover:bg-hover">
+<Disclosure bind:open summaryClass="px-2.5 py-2 text-sm hover:bg-hover">
 	{#snippet heading()}
 		<span
 			class={[
@@ -68,7 +68,7 @@
 	{/snippet}
 
 	{#if files.length}
-		<p class="mx-3.5 mb-2 flex flex-wrap gap-x-3 code-dense">
+		<p class="mx-2.5 mb-2 flex flex-wrap gap-x-3 code-dense">
 			{#each files as { path, line } (path)}
 				<button type="button" class="file-link" onclick={() => show(path, line)}>
 					{path}{line && line > 1 ? `:${line}` : ''}
@@ -78,11 +78,11 @@
 	{/if}
 	{#if diff && PatchView}
 		<!-- drawn only once opened: the viewer is loaded on first use -->
-		<div class="mx-3.5 mb-3">
+		<div class="mx-2.5 mb-3">
 			{#if open}<PatchView {diff} {cwd} />{/if}
 		</div>
 	{:else}
-		<div class="mx-3.5 mb-3 overflow-hidden rounded-control bg-sunken code-dense">
+		<div class="mx-2.5 mb-3 overflow-hidden rounded-control bg-sunken code-dense">
 			{#if input}
 				<pre class="overflow-x-auto p-3 whitespace-pre-wrap">{input}</pre>
 			{/if}

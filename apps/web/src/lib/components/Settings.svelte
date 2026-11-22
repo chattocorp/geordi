@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EmptyState from '@geordi/ui/EmptyState.svelte';
 	import { version } from '../../../package.json';
 	import changelog from '../../../../../CHANGELOG.md?raw';
 	import { onMount } from 'svelte';
@@ -186,9 +187,9 @@
 						{#each shortcutGroups() as [group, shortcuts] (group)}
 							<div class="space-y-2">
 								<h3 class="label">{group}</h3>
-								<ul class="divide-y divide-line/60 card">
+								<ul class="space-y-px card p-2">
 									{#each shortcuts as [id, shortcut] (id)}
-										<li class="flex items-center justify-between gap-4 px-3.5 py-2">
+										<li class="row justify-between gap-4">
 											<span class="text-sm">{shortcut.label}</span>
 											<kbd class="font-sans text-sm text-muted">{hint(id)}</kbd>
 										</li>
@@ -215,7 +216,9 @@
 								{/each}
 							</ul>
 						{:else}
-							<p class="empty">No repositories yet. Add one below.</p>
+							<EmptyState icon="icon-[lucide--folder-git-2]" title="No repositories yet">
+								Add one below.
+							</EmptyState>
 						{/if}
 
 						<Button icon="icon-[lucide--plus]" onclick={() => adding?.start()}>

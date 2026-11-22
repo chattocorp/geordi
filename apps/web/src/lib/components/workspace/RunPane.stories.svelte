@@ -140,10 +140,10 @@
 		const row = (name: string) => canvas.getByRole('button', { name }).closest('div')!;
 		await userEvent.hover(row('Open Geordi'));
 		for (const name of ['Run Agent daemon', 'Run Web server'])
-			await expect(row(name)).toHaveClass('bg-surface/60');
-		await expect(row('Run Storybook')).not.toHaveClass('bg-surface/60');
+			await expect(row(name)).toHaveClass('item-highlighted');
+		await expect(row('Run Storybook')).not.toHaveClass('item-highlighted');
 		await userEvent.unhover(row('Open Geordi'));
-		await expect(row('Run Web server')).not.toHaveClass('bg-surface/60');
+		await expect(row('Run Web server')).not.toHaveClass('item-highlighted');
 		// the default carries the shortcut
 		await expect(
 			canvas.getByRole('button', { name: 'Open Geordi' }).querySelector('kbd')

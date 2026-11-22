@@ -98,7 +98,7 @@
 		current && 'item-active',
 		// it came to rest out of sight, and they haven't looked since
 		unread && 'font-semibold text-ink',
-		highlighted && 'bg-surface/60 text-ink'
+		highlighted && 'item-highlighted'
 	]}
 >
 	{#if parentHref}
