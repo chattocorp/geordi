@@ -77,6 +77,7 @@
 	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
+	const repoNames = $derived(new Map(nav?.repos.map((repo) => [repo.id, repo.name])));
 	/**
 	 * What the sidebar groups workspaces under: projects first (FDR-012: workspaces in no
 	 * repository, `id` `null`), where there are any, then the repositories that have some.
@@ -502,7 +503,7 @@
 								class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink"
 							>
 								{#snippet icon()}
-									{#if repo.id !== null}<RepoIcon id={repo.id} />{:else}<span
+									{#if repo.id !== null}<RepoIcon id={repo.id} name={repo.name} />{:else}<span
 											class="icon-[lucide--folders] size-5"
 										></span>{/if}
 								{/snippet}
@@ -590,7 +591,11 @@
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const leaving = beingArchived.has(workspace.id)}
-	{#snippet repoIcon()}<RepoIcon id={workspace.repoId!} small />{/snippet}
+	{#snippet repoIcon()}<RepoIcon
+			id={workspace.repoId!}
+			name={repoNames.get(workspace.repoId!) ?? ''}
+			small
+		/>{/snippet}
 	<!-- one started by an agent sits a little in from the one that started it -->
 	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
 	<li

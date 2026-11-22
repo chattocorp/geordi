@@ -71,6 +71,6 @@
 			></span>
 		</span>
 	{:else}
-		<RepoIcon {id} />
+		<RepoIcon {id} name={repos.find((repo) => repo.id === id)?.name ?? ''} />
 	{/if}
 {/snippet}
