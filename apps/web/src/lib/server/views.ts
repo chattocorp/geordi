@@ -270,7 +270,7 @@ const archive = () => ({
 });
 export type ArchiveEntry = ReturnType<ReturnType<typeof archive>['read']>[number];
 
-/** The usage limits of the agents' subscriptions, for the context meter's tip (`limits.ts`). */
+/** The usage limits of the agents' subscriptions, for the context meter and the model picker (`limits.ts`). */
 export const usageLimits = () =>
 	({
 		read: () => limits().read(),

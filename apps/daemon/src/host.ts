@@ -55,7 +55,7 @@ export type LiveEvent =
 	| { kind: 'background'; tasks: BackgroundTask[] }
 	| { kind: 'usage'; usage: ContextUsage }
 	| { kind: 'commands'; commands: AgentCommand[] }
-	| { kind: 'limits'; limits: UsageLimit[] }
+	| { kind: 'limits'; limits: UsageLimit[]; at: number }
 	| { kind: 'suggestion'; text: string | null };
 
 export type Meta = {

@@ -99,7 +99,7 @@
 
 	// The agent's own commands and skills, offered as one types `/`: once it has said which.
 	const commands = follow<AgentCommand[] | null>('commands', () => workspace.id);
-	// how much of the subscription's usage limits is used: told on hovering the context meter
+	// how much of each subscription's usage limits is used: in the context meter and the model list
 	const limits = follow<Limits>('limits');
 	const completions = $derived(
 		(commands.current ?? []).map(({ name, description, hint }) => ({
@@ -179,6 +179,7 @@
 										{harnesses}
 										{choice}
 										sessionModel={workspace.sessionModel}
+										limits={limits.current}
 										onchange={configure}
 									/>{/if}
 							{/snippet}

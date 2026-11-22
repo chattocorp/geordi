@@ -4,6 +4,7 @@
 	import { describeUsage, fullness } from '#lib/tokens.ts';
 	import { charge, leftOf, limitTone, toneOf, type Tone } from '#lib/limits.ts';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
+	import Battery from '#lib/components/Battery.svelte';
 
 	/**
 	 * How the agent stands, as a phone would say it: its reception fades as its context fills
@@ -58,11 +59,11 @@
 				{@render signal(context, contextTone, `Context: ${describeUsage(usage)}`)}
 			{/if}
 			{#if battery}
-				{@render cell(
-					battery.left,
-					battery.tone,
-					`${agentName[agent]} usage: ${percent(battery.left)}`
-				)}
+				<Battery
+					left={battery.left}
+					tone={battery.tone}
+					label="{agentName[agent]} usage: {percent(battery.left)}"
+				/>
 			{/if}
 		</span>
 		{#snippet tip()}
@@ -90,7 +91,7 @@
 							<tr>
 								<td class="pr-2">
 									<span class="flex w-8 justify-center">
-										{#if left !== undefined}{@render cell(left, tone)}{/if}
+										{#if left !== undefined}<Battery {left} {tone} />{/if}
 									</span>
 								</td>
 								<td class="pr-3">{limit.name}</td>
@@ -109,8 +110,8 @@
 	</Tooltip>{/if}
 
 <!--
-	Drawn like a phone's status bar: what is there in its tone; what is gone, and the battery's
-	casing, faint. Bars and battery share their top and bottom (y 2.5 to 17.5). Without a `label`,
+	Drawn like a phone's status bar, beside its `Battery`: what is there in its tone; what is
+	gone, faint. Bars and battery share their top and bottom (y 2.5 to 17.5). Without a `label`,
 	they only illustrate the words beside them.
 -->
 {#snippet signal(left: number, tone: Tone, label?: string)}
@@ -133,27 +134,5 @@
 				class={bar < bars ? fills[tone] : 'fill-muted/30'}
 			/>
 		{/each}
-	</svg>
-{/snippet}
-
-{#snippet cell(left: number, tone: Tone, label?: string)}
-	<svg
-		viewBox="0 0 32 20"
-		class="block h-5 w-8"
-		role={label ? 'img' : undefined}
-		aria-label={label}
-		aria-hidden={!label}
-	>
-		<rect
-			x="2"
-			y="3.5"
-			width="25"
-			height="13"
-			rx="4"
-			class="fill-none stroke-muted/30"
-			stroke-width="2"
-		/>
-		<rect x="29" y="7.5" width="2" height="5" rx="1" class="fill-muted/30" />
-		<rect x="4.5" y="6" width={20 * left} height="8" rx="1.5" class={fills[tone]} />
 	</svg>
 {/snippet}
