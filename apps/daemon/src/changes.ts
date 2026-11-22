@@ -1,4 +1,4 @@
-import { git } from './git.ts';
+import { git, quietGit } from './git.ts';
 import {
 	closeSync,
 	constants,
@@ -63,6 +63,9 @@ async function comparison(worktree: Worktree, origin: Origin) {
 		const stack = nearestPull < 0 ? parents : parents.slice(0, nearestPull + 1);
 		for (const parent of stack.toReversed()) {
 			const ref = branchRef(parent.branch);
+			// a parent's branch may be gone (merged and deleted): there is nothing to measure from
+			if ((await quietGit(origin.repoPath, 'rev-parse', '--verify', '--quiet', ref)) === null)
+				continue;
 			if ((await gitIn(worktree, 'rev-list', '--max-count=1', `${target}..${ref}`)).trim())
 				target = ref;
 		}

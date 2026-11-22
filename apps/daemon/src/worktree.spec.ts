@@ -533,6 +533,11 @@ describe('changes', () => {
 		expect(
 			await status(child, { ...origin, parents: [{ branch: parent.branch, pullBase: 'release' }] })
 		).toMatchObject({ comparisonTarget: 'release' });
+		// a parent's branch that is gone (renamed, or merged and deleted) is passed over
+		expect(await status(child, { ...origin, parents: [{ branch: 'geordi/gone' }] })).toMatchObject({
+			comparisonTarget: 'main',
+			files: [{ path: 'child.txt' }]
+		});
 	});
 
 	it("ignores config an agent plants in the worktree's admin directory", async () => {

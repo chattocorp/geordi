@@ -187,14 +187,17 @@ export function createWorkspaces(
 		let child = owner;
 		while (child.base && child.parentId) {
 			const parent = find(find(child.parentId).worktreeId);
-			parents.push({ worktreeId: parent.id, branch: child.base });
+			// the branch as it is called now: its agent may have renamed it since
+			parents.push({ worktreeId: parent.id, branch: parent.worktree?.branch ?? child.base });
 			child = parent;
 		}
+		// a workspace's own base is its parent's branch, under that branch's current name
+		const start = base && id === worktreeId ? (parents[0]?.branch ?? base) : base;
 		return {
 			worktreeId,
 			repoPath: repos.get(repoId).path,
 			...(owner.worktreeParent && { worktreeParent: owner.worktreeParent }),
-			...(base && { base }),
+			...(start && { base: start }),
 			...(parents.length && { parents }),
 			...(branch && { branch })
 		};
