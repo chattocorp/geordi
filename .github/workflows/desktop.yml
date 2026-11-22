@@ -51,6 +51,8 @@ jobs:
             (cd "$app" && npm pkg set version="${TAG#v}")
           done
       - uses: ./.github/actions/package-desktop
+        env:
+          GEORDI_RELEASE_BUILD: '1'
       - name: Sign, notarize, and verify the macOS ZIP and DMG
         if: runner.os == 'macOS'
         working-directory: apps/desktop

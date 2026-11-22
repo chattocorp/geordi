@@ -28,4 +28,7 @@
 
 <Story name="Highlights and smaller changes" args={{ changelog: sections }} />
 
-<Story name="Geordi's changelog" args={{ changelog }} />
+<Story
+	name="Geordi's changelog"
+	args={{ changelog: import.meta.env.GEORDI_UNRELEASED_NOTES + changelog }}
+/>

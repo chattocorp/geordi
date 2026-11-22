@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { version } from '../../../package.json';
-	// what Sweet Release wrote at the last release, as this build has it
 	import changelog from '../../../../../CHANGELOG.md?raw';
 	import { onMount } from 'svelte';
 	import Providers from './Providers.svelte';
@@ -246,7 +245,7 @@
 				{:else if section === 'releases'}
 					<h2 class="heading">Release notes</h2>
 					<p class="pb-6 text-sm text-muted">What changed in each version of Geordi.</p>
-					<ReleaseNotes {changelog} />
+					<ReleaseNotes changelog={import.meta.env.GEORDI_UNRELEASED_NOTES + changelog} />
 				{:else}
 					<h2 class="heading">About</h2>
 					<div class="mt-6 space-y-2">

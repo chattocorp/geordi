@@ -24,6 +24,9 @@ catalogs:
     vitest:
       specifier: ^4.1.12
       version: 4.1.12
+    yaml:
+      specifier: 2.9.1
+      version: 2.9.1
 
 patchedDependencies:
   '@agentclientprotocol/codex-acp@2.8.0': a33d74f2f71bcc250810a173c1fe1af470e08cc9430eca181a9973faf0debf0b
@@ -118,7 +121,7 @@ importers:
         specifier: 1.9.1
         version: 1.9.1
       yaml:
-        specifier: 2.9.1
+        specifier: 'catalog:'
         version: 2.9.1
     devDependencies:
       '@types/node':
@@ -280,6 +283,9 @@ importers:
       ws:
         specifier: ^8.23.0
         version: 8.23.0
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
 
   apps/website:
     devDependencies:

@@ -19,6 +19,7 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
 - **Providers** shows which agent programs the daemon found when it connected and how many turns each is running. When the daemon disconnects, availability is unknown. New workspaces can use any available provider.
 - **Agent access** issues and revokes named MCP tokens, each for the repositories chosen with checkboxes (All and None only change the choice; repositories added later are never included). Settings shows a new token once, with the URL to use in the client (FDR-002).
+- **Release notes** lists published versions, newest first. When you build Geordi from source, pending app notes appear above them under **Unreleased**.
 - **About** describes Geordi and shows the running release version.
 - The workspace picker and the first-run screen offer the same **Add repository…** action as Settings. Adding a checkout opens the workspace composer with that repository selected, including when Geordi already knows it. The composer keeps your draft and attachments.
 - Select a repository name or icon in the sidebar to fold or expand its workspaces. A folded group shows its workspace count. The browser remembers which groups are folded.
