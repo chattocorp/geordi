@@ -16,7 +16,8 @@
 		href?: string;
 		current?: boolean;
 		hint?: string;
-		fold?: { folded: boolean; count: number; toggle(): void };
+		/** `unread`: something folded away is unread, which the count then shows. */
+		fold?: { folded: boolean; count: number; unread?: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
 		class?: string;
 	} = $props();
@@ -43,7 +44,13 @@
 	{/if}
 	<span class="min-w-0 truncate">{title}</span>
 	{#if fold?.folded}
-		<span aria-hidden="true" class="shrink-0 font-normal text-muted/60 tabular-nums">
+		<span
+			aria-hidden="true"
+			class={[
+				'shrink-0 tabular-nums',
+				fold.unread ? 'font-semibold text-ink' : 'font-normal text-muted/60'
+			]}
+		>
 			{fold.count}
 		</span>
 	{/if}

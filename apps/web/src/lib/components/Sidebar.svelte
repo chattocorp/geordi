@@ -509,6 +509,7 @@
 								fold={{
 									folded: isFolded,
 									count: all.length,
+									unread: isFolded && all.some(({ workspace }) => unread.has(workspace.id)),
 									toggle: () => toggleFolded(repo.id ?? PROJECTS)
 								}}
 								class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink"
