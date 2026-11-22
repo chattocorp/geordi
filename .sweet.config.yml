@@ -1,15 +1,29 @@
 # Sweet repository configuration
+# The sections appear in this order. The release notes (`@geordi/ui/changelog`) show
+# Highlights first and fold Smaller changes away.
 types:
+  # What is worth knowing about a release, in a sentence or two. Written beside the
+  # feature or fix note of the same change, which decides the version.
+  highlight:
+    bump: none
+    section: Highlights
   feature:
     bump: minor
     section: Features
   fix:
     bump: patch
     section: Fixes
+  performance:
+    bump: patch
+    section: Performance
+  # Small things people may notice but need not read about: spacing, colours, wording.
+  polish:
+    bump: patch
+    section: Smaller changes
+  # Changes to the website only: no release note in the app.
+  website:
+    bump: none
   chore:
     bump: none
   refactor:
     bump: none
-  performance:
-    bump: patch
-    section: Performance
