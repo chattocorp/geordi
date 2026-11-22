@@ -176,6 +176,25 @@
 </Story>
 
 <Story
+	name="Question folded under a row"
+	asChild
+	play={async ({ canvasElement }) => {
+		const link = within(canvasElement).getByRole('link', { name: 'Open agent question' });
+		await expect(link).toHaveAttribute('href', '/workspaces/child?question');
+	}}
+>
+	<div class="w-64 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Plan the release"
+			href="/workspaces/parent"
+			working
+			asking="/workspaces/child"
+			fold={{ count: 2, folded: true, toggle: () => {} }}
+		/>
+	</div>
+</Story>
+
+<Story
 	name="Checks running with auto-merge enabled"
 	asChild
 	play={async ({ canvasElement }) => {
