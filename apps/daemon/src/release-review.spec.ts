@@ -128,3 +128,35 @@ it('skips a higher release level when the same next beta is already planned', ()
 	};
 	expect(releaseIncreases([pending], [{ ...pending, bump: 'minor' }])).toEqual([]);
 });
+
+it('says when the pull request has merge conflicts', async () => {
+	const path = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-release-test-')));
+	const git = (...args: string[]) =>
+		execFileSync(
+			'git',
+			['-C', path, '-c', 'user.name=test', '-c', 'user.email=test@example.org', ...args],
+			{ encoding: 'utf8' }
+		).trim();
+	const commit = (contents: string) => {
+		writeFileSync(join(path, 'README.md'), contents);
+		git('add', '.');
+		git('commit', '-qm', 'fixture');
+		return git('rev-parse', 'HEAD');
+	};
+	git('init', '-qb', 'main');
+	writeFileSync(join(path, '.sweet.yml'), 'name: api\nversion: 1.0.0\n');
+	commit('one\n');
+	git('switch', '-qc', 'feature');
+	const head = commit('two\n');
+	git('switch', '-q', 'main');
+	const base = commit('three\n');
+	const worktree = await ensureWorktree(mkdtempSync(join(tmpdir(), 'geordi-test-trees-')), {
+		repoPath: path,
+		worktreeId: 'release-conflict'
+	});
+	const target = { number: '7', head, base, branch: 'main' };
+	expect(await reviewRelease(worktree, target, () => true, false)).toMatchObject({
+		problem: 'The pull request has merge conflicts with main',
+		increases: []
+	});
+});

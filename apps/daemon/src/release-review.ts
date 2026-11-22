@@ -45,6 +45,17 @@ async function adapterAt(worktree: Worktree, revision: string) {
 type Target = { number: string; head: string; base?: string; branch: string };
 const oid = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
+/** The tree the merge would produce. Git says a merge has conflicts by exiting with 1. */
+async function mergeTree(worktree: Worktree, base: string, target: Target) {
+	try {
+		return (await gitIn(worktree, 'merge-tree', '--write-tree', base, target.head)).trim();
+	} catch (error) {
+		if (error instanceof Error && 'code' in error && error.code === 1)
+			throw new Error(`The pull request has merge conflicts with ${target.branch}`);
+		throw error;
+	}
+}
+
 /** Compare committed trees in a private checkout. Never switch, clean or install into the person's worktree. */
 export async function reviewRelease(
 	worktree: Worktree,
@@ -70,7 +81,7 @@ export async function reviewRelease(
 		}
 		const before = await adapterAt(worktree, base);
 		if (!before && !(await adapterAt(worktree, target.head))) return null;
-		const tree = (await gitIn(worktree, 'merge-tree', '--write-tree', base, target.head)).trim();
+		const tree = await mergeTree(worktree, base, target);
 		if (!oid.test(tree)) throw new Error('Could not prepare the proposed merge');
 		const after = await adapterAt(worktree, tree);
 		if (before && after !== before)
