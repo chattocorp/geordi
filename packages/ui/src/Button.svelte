@@ -1,17 +1,16 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { HTMLButtonAttributes } from 'svelte/elements';
+	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
 	import ProgressIcon from './ProgressIcon.svelte';
 
 	type Props = {
 		/**
 		 * `primary` for the one main action of a view (gold), `secondary` for other actions,
-		 * `ghost` for quiet ones that sit inside something else (toolbars, rows, tabs), `soft`
-		 * for other actions inside something coloured: it takes that colour, faintly. `tool` for
-		 * the icons in a bar above a list: ink on hover, a background while on (`aria-pressed`,
-		 * or `aria-checked` in a radio group).
+		 * `ghost` for quiet ones that sit inside something else (toolbars, rows, tabs), with
+		 * a background while on (`aria-pressed`), `soft` for other actions inside something
+		 * coloured: it takes that colour, faintly.
 		 */
-		variant?: 'primary' | 'secondary' | 'ghost' | 'soft' | 'tool';
+		variant?: 'primary' | 'secondary' | 'ghost' | 'soft';
 		/**
 		 * What a `primary` button is coloured in: the accent, as a rule. `merged` for the one
 		 * step left when work has landed, `ok` for the step that is clear to take, each in the
@@ -33,8 +32,11 @@
 		working?: boolean;
 		/** What the button does. Required when it has no text: it becomes the accessible name. */
 		label?: string;
+		/** Where it goes: it becomes a link that looks the same. */
+		href?: string;
 		children?: Snippet;
-	} & HTMLButtonAttributes;
+	} & HTMLButtonAttributes &
+		Pick<HTMLAnchorAttributes, 'target' | 'rel'>;
 
 	let {
 		variant = 'secondary',
@@ -44,11 +46,13 @@
 		busy = false,
 		working = false,
 		label,
+		href,
 		children,
 		class: extra,
 		...rest
 	}: Props = $props();
 
+	const toggle = $derived(rest['aria-pressed'] !== undefined);
 	const tones = $derived({
 		primary: [
 			'rounded-full font-semibold shadow-soft hover:brightness-105',
@@ -59,13 +63,17 @@
 					: 'bg-accent text-on-accent'
 		],
 		secondary: 'rounded-full bg-sunken font-medium shadow-soft hover:bg-hover',
-		ghost: 'rounded-control font-medium text-muted hover:bg-hover hover:text-ink',
-		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20',
-		tool: 'rounded-control text-muted hover:text-ink aria-checked:bg-sunken aria-checked:text-ink aria-pressed:bg-sunken aria-pressed:text-ink'
+		// A toggle shows that it is on by its background, so hovering it must not paint
+		// one too: in dark mode the two look alike.
+		ghost: [
+			'rounded-control font-medium text-muted hover:text-ink',
+			toggle ? 'aria-pressed:bg-surface aria-pressed:text-ink' : 'hover:bg-hover'
+		],
+		soft: 'rounded-full bg-current/12 font-medium hover:bg-current/20'
 	});
 	// A pill with a bare icon is a circle as tall as a pill with text, so that the two line
-	// up side by side; ghost and tool icons are smaller, to sit quietly in bars and rows.
-	const pill = $derived(variant !== 'ghost' && variant !== 'tool');
+	// up side by side; ghost icons are smaller, to sit quietly in bars and rows.
+	const pill = $derived(variant !== 'ghost');
 	const shapes = $derived({
 		// with text, and as a bare icon
 		md: ['h-9 gap-2 text-sm', pill ? 'size-9' : 'size-8'],
@@ -73,8 +81,10 @@
 	});
 </script>
 
-<button
-	type="button"
+<svelte:element
+	this={href ? 'a' : 'button'}
+	type={href ? undefined : 'button'}
+	{href}
 	aria-label={children ? undefined : label}
 	title={label}
 	class={[
@@ -85,7 +95,7 @@
 		extra
 	]}
 	{...rest}
-	disabled={busy || rest.disabled}
+	disabled={href ? undefined : busy || rest.disabled}
 	aria-busy={busy || undefined}
 >
 	{#if busy || working}
@@ -95,4 +105,4 @@
 		<span class={[icon, size === 'sm' ? 'size-3.5' : 'size-4']}></span>
 	{/if}
 	{@render children?.()}
-</button>
+</svelte:element>

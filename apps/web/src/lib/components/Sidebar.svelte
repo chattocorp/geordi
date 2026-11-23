@@ -420,7 +420,7 @@
 			/>
 			<div class="tools">
 				<Button
-					variant="tool"
+					variant="ghost"
 					icon="icon-[lucide--list]"
 					label="Show workspaces as one list"
 					title={`Show workspaces as one list (${hint('groupByRepo')})`}
@@ -428,7 +428,7 @@
 					onclick={() => (grouped.current = !grouped.current)}
 				/>
 				<Button
-					variant="tool"
+					variant="ghost"
 					icon="icon-[lucide--activity]"
 					label="Show only active workspaces"
 					title={`Show only active workspaces (${hint('activeOnly')})`}
@@ -519,35 +519,30 @@
 								{/snippet}
 							</SidebarRowLabel>
 							{#if repo.id !== null}
-								<button
-									type="button"
-									class={[
-										'invisible grid size-6 shrink-0 place-items-center rounded-control hover:bg-sunken hover:text-ink reveal:visible',
-										focused ? 'bg-sunken text-ink' : 'text-muted'
-									]}
+								<Button
+									variant="ghost"
+									size="sm"
+									icon="icon-[lucide--search]"
+									class="invisible reveal:visible"
+									label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
 									title={focused
 										? `Show all repositories (${focusHint})`
 										: `Show only ${repo.name} (${focusHint})`}
-									aria-label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
 									aria-pressed={focused}
 									onclick={() => (focus.current = focused ? null : repo.id)}
-								>
-									<span class="icon-[lucide--search] size-4"></span>
-								</button>
+								/>
 							{/if}
 							<!-- no new projects (FDR-012): only repositories start something new -->
 							{#if repo.id !== null}
 								{@const newLabel = `New workspace in ${repo.name}`}
-								<!-- eslint-disable svelte/no-navigation-without-resolve -- resolved, plus which repository -->
-								<a
+								<Button
+									variant="ghost"
+									size="sm"
 									href={`${resolve('/')}?repo=${repo.id}`}
-									class="invisible grid size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:visible"
-									title={newLabel}
-									aria-label={newLabel}
-								>
-									<span class="icon-[lucide--plus] size-4"></span>
-								</a>
-								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+									icon="icon-[lucide--plus]"
+									class="invisible reveal:visible"
+									label={newLabel}
+								/>
 							{/if}
 						</div>
 						{#if !isFolded}

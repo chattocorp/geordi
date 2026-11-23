@@ -44,11 +44,35 @@
 	</div>
 </Story>
 
-<Story name="Tools" asChild>
-	<div class="flex items-center">
-		<Button variant="tool" icon="icon-[lucide--files]" label="Open combined diff" />
-		<Button variant="tool" icon="icon-[lucide--list]" label="As a list" aria-pressed={true} />
-		<Button variant="tool" icon="icon-[lucide--list-tree]" label="As a tree" aria-pressed={false} />
+<Story name="Toggles" asChild>
+	<div class="tools">
+		<Button variant="ghost" icon="icon-[lucide--list]" label="One list" aria-pressed={true} />
+		<Button
+			variant="ghost"
+			icon="icon-[lucide--activity]"
+			label="Only active"
+			aria-pressed={false}
+		/>
+		<Button
+			variant="ghost"
+			size="sm"
+			icon="icon-[lucide--wrap-text]"
+			label="Wrap lines"
+			aria-pressed={true}
+		/>
+	</div>
+</Story>
+
+<Story name="Link" asChild>
+	<div class="flex flex-wrap items-center gap-3">
+		<Button href="#checks" icon="icon-[lucide--external-link]">Open on forge</Button>
+		<Button
+			variant="ghost"
+			size="sm"
+			href="#new"
+			icon="icon-[lucide--plus]"
+			label="New workspace"
+		/>
 	</div>
 </Story>
 
