@@ -14,3 +14,12 @@
 		</span>
 	</div>
 </Story>
+
+<Story name="Background tasks" asChild>
+	<div class="flex items-center gap-6 text-sm">
+		<Spinner still />
+		<span class="flex items-center gap-2 text-muted">
+			<Spinner still label="Background tasks running" /> Waiting on background tasks
+		</span>
+	</div>
+</Story>
