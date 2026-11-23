@@ -268,12 +268,24 @@ function open(page) {
 		openOutside(target);
 	});
 	webContents.on('context-menu', (_event, params) => contextMenu(window, params));
+	// Swiping between pages goes back and forward (macOS): mouse tools like Logi Options+
+	// send their back and forward buttons as that gesture.
+	window.on('swipe', (_event, direction) => {
+		const { navigationHistory } = webContents;
+		if (direction === 'left' && navigationHistory.canGoBack()) navigationHistory.goBack();
+		if (direction === 'right' && navigationHistory.canGoForward()) navigationHistory.goForward();
+	});
 	const shows = page ?? (first ? lastPage() : '/');
 	if (forgeAnswers) window.loadURL(url + shows);
 	else {
 		// the forge comes up after the window: say so, and show the page once it answers
 		window.loadFile(join(here, 'starting.html'));
-		forgeAnswering.then(() => window.isDestroyed() || window.loadURL(url + shows));
+		// …and forget the waiting page, so that going back never returns to it
+		forgeAnswering.then(async () => {
+			if (window.isDestroyed()) return;
+			await window.loadURL(url + shows).catch(() => {});
+			if (!window.isDestroyed()) webContents.navigationHistory.clear();
+		});
 	}
 }
 
