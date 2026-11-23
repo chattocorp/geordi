@@ -119,8 +119,9 @@ export type WorkspacesEvent =
 	  }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
-	/** A person put the workspace out of today's list, until they next say something to it. */
-	| { type: 'workspace.setAside'; stream: WorkspaceStream; data: { id: string } }
+	/** A person marked the workspace inactive (put it aside for later), or active again; saying something to it does that too. */
+	| { type: 'workspace.deactivated'; stream: WorkspaceStream; data: { id: string } }
+	| { type: 'workspace.activated'; stream: WorkspaceStream; data: { id: string } }
 	/** A person locked the workspace: it can't be archived until they unlock it (FDR-015). */
 	| { type: 'workspace.locked'; stream: WorkspaceStream; data: { id: string } }
 	| { type: 'workspace.unlocked'; stream: WorkspaceStream; data: { id: string } }
@@ -361,8 +362,8 @@ export type Workspace = {
 	sentBy: { queue: (string | null)[] };
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
-	/** Whether a person put it out of today's list ("Remove from Today"), and has not prompted it since. */
-	setAside: boolean;
+	/** Whether a person marked it inactive, and has not marked it active or prompted it since. */
+	inactive: boolean;
 	/** Whether a person locked it against archiving (FDR-015). */
 	locked: boolean;
 	createdAt: string;
@@ -413,7 +414,7 @@ function initialWorkspace(
 		sentBy: { queue: [] },
 		briefing: null,
 		archivedAt: null,
-		setAside: false,
+		inactive: false,
 		locked: false,
 		createdAt: at,
 		updatedAt: at,
@@ -496,9 +497,9 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			if (locking) locking.locked = event.type === 'workspace.locked';
 			return;
 		}
-		if (event.type === 'workspace.setAside') {
-			const aside = workspaces.get(event.data.id);
-			if (aside) aside.setAside = true;
+		if (event.type === 'workspace.deactivated' || event.type === 'workspace.activated') {
+			const marked = workspaces.get(event.data.id);
+			if (marked) marked.inactive = event.type === 'workspace.deactivated';
 			return;
 		}
 
@@ -515,10 +516,10 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		/** Whether `sender` is an agent (a workspace, or an external client) rather than a person. */
 		const byAgent = (sender: string | null): sender is string =>
 			!!sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq);
-		/** A person prompted it: back into today's list, with the workspace whose worktree it works in. */
+		/** A person prompted it: active again, with the workspace whose worktree it works in. */
 		const prompted = () => {
 			for (const each of [workspace, workspaces.get(workspace.worktreeId)])
-				if (each) each.setAside = false;
+				if (each) each.inactive = false;
 		};
 		const replace = (item: TranscriptItem, next: TranscriptItem) =>
 			edit(transcript.indexOf(item), 1, next);

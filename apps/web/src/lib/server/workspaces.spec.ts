@@ -591,21 +591,33 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).lastTurn).toBe('stopped');
 	});
 
-	it('keeps a workspace out of today until a person prompts it, also across a restart', () => {
+	it('keeps a workspace inactive until a person marks it active or prompts it, also across a restart', () => {
 		const { workspaces, store, repos, dispatch, create } = setup();
 		const id = create('One');
 		const other = create('Other');
 		workspaces.record(id, { kind: 'turn.completed' });
-		workspaces.setAside(id);
-		expect(workspaces.get(id).setAside).toBe(true);
-		// what an agent says or does leaves it aside
+		workspaces.setInactive(id, true);
+		expect(workspaces.get(id).inactive).toBe(true);
+		// what an agent says or does leaves it inactive
 		workspaces.send(id, 'From an agent', other);
 		workspaces.record(id, { kind: 'turn.completed' });
 		const restored = createWorkspaces(store, repos, dispatch);
-		expect(restored.get(id).setAside).toBe(true);
+		expect(restored.get(id).inactive).toBe(true);
 		restored.send(id, 'Two');
-		expect(restored.get(id).setAside).toBe(false);
-		expect(createWorkspaces(store, repos, dispatch).get(id).setAside).toBe(false);
+		expect(restored.get(id).inactive).toBe(false);
+		const again = createWorkspaces(store, repos, dispatch);
+		expect(again.get(id).inactive).toBe(false);
+		again.setInactive(id, true);
+		expect(again.get(id).inactive).toBe(true);
+		again.setInactive(id, false);
+		expect(createWorkspaces(store, repos, dispatch).get(id).inactive).toBe(false);
+	});
+
+	it('reads a workspace removed from Today, before inactive ones, as inactive', () => {
+		const { store, repos, dispatch, create } = setup();
+		const id = create('One');
+		store.append({ type: 'workspace.setAside', stream: `workspace:${id}`, data: { id } } as never);
+		expect(createWorkspaces(store, repos, dispatch).get(id).inactive).toBe(true);
 	});
 
 	it('keeps a workspace locked against archiving until a person unlocks it, across a restart', () => {

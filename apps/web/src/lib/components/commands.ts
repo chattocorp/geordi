@@ -15,7 +15,8 @@ export type Everywhere = {
 	/** Whether the window is wide enough to show the sidebar. */
 	wide: boolean;
 	grouped: boolean;
-	todayOnly: boolean;
+	/** Whether the sidebar shows only the active workspaces, leaving out the inactive ones. */
+	activeOnly: boolean;
 	/** The repository the sidebar shows alone, if any. */
 	focus: string | null;
 	theme: Theme;
@@ -30,7 +31,7 @@ export type Everywhere = {
 	toggleSidebar(): void;
 	filterRepositories(): void;
 	toggleGrouped(): void;
-	toggleToday(): void;
+	toggleActiveOnly(): void;
 	setFocus(repo: string | null): void;
 	setTheme(theme: Theme): void;
 };
@@ -144,12 +145,12 @@ export function globalCommands(at: Everywhere): Command[] {
 			run: at.toggleGrouped
 		},
 		{
-			id: 'today-only',
-			label: at.todayOnly ? 'Show all workspaces' : 'Show workspaces active today',
+			id: 'active-only',
+			label: at.activeOnly ? 'Show inactive workspaces too' : 'Show only active workspaces',
 			group: sidebar,
-			icon: 'icon-[lucide--calendar]',
-			shortcut: 'todayOnly',
-			run: at.toggleToday
+			icon: 'icon-[lucide--activity]',
+			shortcut: 'activeOnly',
+			run: at.toggleActiveOnly
 		}
 	);
 	// The focus shortcut shows only the repository of the workspace on screen, or, with that

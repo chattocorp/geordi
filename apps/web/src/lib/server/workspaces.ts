@@ -677,7 +677,7 @@ export function createWorkspaces(
 	}
 
 	function entry(workspace: Workspace) {
-		const { id, title, repoId, status, archivedAt, asking } = workspace;
+		const { id, title, repoId, status, archivedAt, asking, inactive } = workspace;
 		return {
 			id,
 			title,
@@ -685,6 +685,8 @@ export function createWorkspaces(
 			status,
 			archivedAt,
 			asking,
+			// a person put it aside for later
+			inactive,
 			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
 			url: `/workspaces/${id}`
 		};
@@ -1312,15 +1314,13 @@ export function createWorkspaces(
 			);
 		},
 
-		/** Puts the workspace out of today's list until a person next prompts it ("Remove from Today"). */
-		setAside(id: string, actor: string | null = null) {
+		/** Marks the workspace inactive (put aside for later), or active again. Prompting it makes it active too. */
+		setInactive(id: string, inactive: boolean, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (workspace.setAside) return;
-			store.append(
-				{ type: 'workspace.setAside', stream: `workspace:${id}`, data: { id } },
-				{ actor }
-			);
+			if (workspace.inactive === inactive) return;
+			const type = inactive ? 'workspace.deactivated' : 'workspace.activated';
+			store.append({ type, stream: `workspace:${id}`, data: { id } }, { actor });
 		},
 
 		/**
