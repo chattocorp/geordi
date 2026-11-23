@@ -109,6 +109,12 @@ export type WorkspacesEvent =
 	 */
 	| { type: 'workspace.switched'; stream: WorkspaceStream; data: { id: string; branch: string } }
 	/**
+	 * The worktree's work is to be measured against another branch from now on (FDR-001):
+	 * `base`, or where work in the repository starts where that is absent. Its branch stays
+	 * where it is. On the stream of the workspace whose worktree it is.
+	 */
+	| { type: 'workspace.based'; stream: WorkspaceStream; data: { id: string; base?: string } }
+	/**
 	 * A person moved the workspace in the sidebar: right above `before`, or to the end of
 	 * the list where that is `null`. Workspaces are otherwise listed newest first.
 	 */
@@ -553,6 +559,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			const owner = workspaces.get(workspace.worktreeId);
 			if (owner?.worktree) owner.worktree = { ...owner.worktree, branch };
 			append({ kind: 'note', text: `Continued on a new branch, ${branch}`, at });
+			return;
+		}
+		if (event.type === 'workspace.based') {
+			for (const other of workspaces.values())
+				if (other.worktreeId === workspace.worktreeId) other.base = event.data.base ?? null;
 			return;
 		}
 		if (event.type === 'workspace.switched') {

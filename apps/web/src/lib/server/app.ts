@@ -204,6 +204,32 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 }
 
 /**
+ * The branches a new worktree in a repository may start from, as a daemon finds them: the
+ * most recently committed to first, and the one work starts from unless another is named.
+ */
+export function branchesOf(repoPath: string) {
+	return hub()
+		.request({ kind: 'branches', repoPath })
+		.catch((cause) => error(502, cause instanceof Error ? cause.message : String(cause)));
+}
+
+/**
+ * Measures a workspace's work against another branch from now on (FDR-001), one there is:
+ * `base`, or where work in the repository starts where that is `null` (or names that one).
+ * The branch itself stays where it is. A pull request's target still comes first.
+ */
+export async function changeBase(id: string, base: string | null, actor: string | null = null) {
+	const ref = workspaces().ref(id);
+	if (base !== null) {
+		const { start, branches } = await branchesOf(ref.repoPath);
+		if (base === start) base = null;
+		else if (!branches.includes(base)) error(404, `There is no branch ${base}`);
+	}
+	workspaces().setBase(id, base, actor);
+	void standings().look(ref.worktreeId);
+}
+
+/**
  * Brings the latest of the branch a workspace's work is based on into it (FDR-003). Where
  * there is nothing to decide (no agent at work in it, local edits can be preserved, no conflicts),
  * the daemon does it with git, at once. Otherwise the agent is asked to, with `prompt`.

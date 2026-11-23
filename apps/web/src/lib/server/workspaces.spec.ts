@@ -496,6 +496,35 @@ describe('workspaces', () => {
 		expect(workspaces.ref(built.id)).toMatchObject({ base: 'geordi/lead' });
 	});
 
+	it('starts a workspace from a branch a person chose, and refuses what is no branch name', () => {
+		const { workspaces, repo } = setup();
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Go', base: 'dev' });
+		expect(workspaces.ref(id)).toMatchObject({ base: 'dev' });
+		expect(() =>
+			workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Go', base: '-x' })
+		).toThrow(refusal(/not a branch name/));
+	});
+
+	it('compares a worktree with another base from then on, for everyone working in it', () => {
+		const { workspaces, repo, store, repos, dispatch } = setup();
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Go', base: 'dev' });
+		const aide = workspaces.join(id);
+
+		// a reviewer working there moves it for the worktree's owner
+		workspaces.setBase(aide, 'release/2', 'person');
+		expect(workspaces.ref(id)).toMatchObject({ base: 'release/2' });
+		expect(workspaces.ref(aide)).toMatchObject({ base: 'release/2' });
+		const recorded = store.readAll().length;
+		workspaces.setBase(id, 'release/2');
+		expect(store.readAll().length).toBe(recorded);
+
+		// back to where work in the repository starts, as on a replay
+		workspaces.setBase(id, null);
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.ref(id)).not.toHaveProperty('base');
+		expect(replay.get(aide).base).toBeNull();
+	});
+
 	it('runs every turn with the model and effort chosen, and hands them on to agents it starts', () => {
 		const { workspaces, sent, repo } = setup();
 		const settings = { model: 'opus', effort: 'high', permissionMode: 'auto' } as const;

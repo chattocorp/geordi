@@ -19,6 +19,7 @@ import { changes, readText, status, uncommittedFiles, versions } from './changes
 import { startTurnDiff } from './turn-diff.ts';
 import { removeWorktree } from './remove.ts';
 import {
+	branchesOf,
 	branchOf,
 	branchOn,
 	branchRef,
@@ -545,7 +546,7 @@ describe('changes', () => {
 		});
 	});
 
-	it('starts from the newer of a base branch and its upstream', async () => {
+	it('starts from the upstream’s copy of a base branch, or a local one it doesn’t have', async () => {
 		const repoPath = repo();
 		const root = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
 		const git = (...args: string[]) =>
@@ -557,6 +558,15 @@ describe('changes', () => {
 		expect(await branchOn(repoPath, 'stale')).toBe('refs/remotes/origin/stale');
 		expect(await branchOn(repoPath, 'local-only')).toBe('refs/heads/local-only');
 		expect(await branchOn(repoPath, 'nowhere')).toBeNull();
+
+		// the upstream's main branch is the upstream's, even where a local one has moved on
+		const main = execFileSync('git', ['-C', repoPath, 'branch', '--show-current'], {
+			encoding: 'utf8'
+		}).trim();
+		git('update-ref', `refs/remotes/origin/${main}`, 'HEAD');
+		git('symbolic-ref', 'refs/remotes/origin/HEAD', `refs/remotes/origin/${main}`);
+		git('commit', '-q', '--allow-empty', '-m', 'local only');
+		expect(await branchOn(repoPath, main)).toBe(`refs/remotes/origin/${main}`);
 		await expect(
 			ensureWorktree(root, { repoPath, worktreeId: 'nowhere0-1', base: 'nowhere' })
 		).rejects.toThrow(/no branch nowhere/);
@@ -790,6 +800,40 @@ describe('status', () => {
 		await removeWorktree(base, { repoPath, worktreeId: 'abcdefgh-1' }, true);
 		expect(existsSync(worktree.path)).toBe(false);
 		expect(existsSync(marker)).toBe(false);
+	});
+});
+
+describe('branchesOf', () => {
+	it('lists only the upstream’s branches where there is one, the most recently committed to first', async () => {
+		const upstream = repo();
+		const git = (cwd: string, ...args: string[]) =>
+			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+				encoding: 'utf8',
+				// dated later, so that the order does not rest on the clock's resolution
+				env: { ...process.env, GIT_COMMITTER_DATE: '@4000000000 +0000' }
+			}).trim();
+		const main = git(upstream, 'branch', '--show-current');
+		git(upstream, 'branch', 'shared');
+		git(upstream, 'switch', '-q', '-c', 'recent');
+		git(upstream, 'commit', '-q', '--allow-empty', '-m', 'recent');
+		git(upstream, 'switch', '-q', main);
+		const repoPath = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-clone-')));
+		execFileSync('git', ['clone', '-q', upstream, repoPath]);
+		// a branch of this machine's only is not where work is meant to start
+		git(repoPath, 'branch', 'mine');
+
+		const { start, branches } = await branchesOf(repoPath);
+		expect(start).toBe(main);
+		expect(branches[0]).toBe('recent');
+		expect(branches.toSorted()).toEqual(['recent', 'shared', main].toSorted());
+	});
+
+	it('names the checked-out branch as where work starts without an upstream', async () => {
+		const repoPath = repo();
+		const current = execFileSync('git', ['-C', repoPath, 'branch', '--show-current'], {
+			encoding: 'utf8'
+		}).trim();
+		expect(await branchesOf(repoPath)).toEqual({ start: current, branches: [current] });
 	});
 });
 

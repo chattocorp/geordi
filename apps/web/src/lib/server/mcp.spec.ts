@@ -91,7 +91,9 @@ function setup() {
 			if (!standing) throw error(502, 'No daemon is connected');
 			return standing;
 		},
-		harnesses: () => offered.current
+		harnesses: () => offered.current,
+		// a daemon would say first whether there is such a branch
+		setBase: async (id: string, base: string | null) => workspaces.setBase(id, base, id)
 	};
 
 	let next = 0;
@@ -133,6 +135,29 @@ function setup() {
 		standings
 	};
 }
+
+describe('setting the base', () => {
+	it('lets an agent say which branch its work is compared with', async () => {
+		const { workspaces, store, caller, rpc } = setup();
+		const text = async (args: unknown) =>
+			(
+				(await rpc('tools/call', { name: 'set_base', arguments: args })).result as {
+					content: { text: string }[];
+				}
+			).content[0].text;
+
+		expect(await text({ branch: 'release/2' })).toMatch(/compared with release\/2/);
+		expect(workspaces.get(caller).base).toBe('release/2');
+		expect(store.readStream(`workspace:${caller}`).at(-1)).toMatchObject({
+			type: 'workspace.based',
+			actor: caller
+		});
+
+		expect(await text({})).toMatch(/main branch/);
+		expect(workspaces.get(caller).base).toBeNull();
+		expect(await text({ branch: '--force' })).toMatch(/not a branch name/);
+	});
+});
 
 describe('naming workspaces', () => {
 	it('lets an agent name its own workspace, a few times at most', async () => {
@@ -297,6 +322,7 @@ describe('the agent API as an MCP server', () => {
 		expect(tools.map((tool) => tool.name)).toEqual([
 			'start_agent',
 			'name_workspace',
+			'set_base',
 			'wait_for_agent',
 			'list_agents',
 			'list_repositories',

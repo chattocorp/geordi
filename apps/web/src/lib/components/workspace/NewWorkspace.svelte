@@ -15,6 +15,7 @@
 	import MessageComposer from '#lib/components/MessageComposer.svelte';
 	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 	import RepoPicker from './RepoPicker.svelte';
+	import BranchPicker from './BranchPicker.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import type { Limits } from '#lib/server/limits.ts';
@@ -86,6 +87,14 @@
 	// Keyed on the ID alone: `repo` is a new object with every update of the live view, and a
 	// new search function would have the composer start its file search over.
 	const repoId = $derived(repo?.id);
+	/**
+	 * The branch its worktree starts from: `''` for where work in the repository starts, as
+	 * it does again whenever another repository is picked.
+	 */
+	let base = $derived.by(() => {
+		void repoId;
+		return '';
+	});
 	const searchFiles = $derived.by(() => {
 		if (!repoId) return undefined;
 		const scope = alongside ? { workspaceId: alongside } : { repoId };
@@ -133,7 +142,8 @@
 	>
 		{#snippet header()}
 			<input {...fields.repoId.as('hidden', repo?.id ?? '')} />
-			{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />{/if}
+			{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />
+			{:else}<input {...fields.base.as('hidden', base)} />{/if}
 			{#if chosen}
 				<input {...fields.agent.as('hidden', chosen.harness.agent)} />
 				<input {...fields.model.as('hidden', chosen.model?.id ?? '')} />
@@ -151,6 +161,7 @@
 						bind:open={pickingRepo}
 						bind:value={() => repo.id, pick}
 					/>
+					<BranchPicker repoId={repo.id} bind:value={base} title="The branch to start from" />
 				{/if}
 				{#if harnesses?.length}
 					<HarnessPicker

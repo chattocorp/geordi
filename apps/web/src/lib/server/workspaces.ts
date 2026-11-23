@@ -6,6 +6,7 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { error } from '@sveltejs/kit';
 import {
 	AGENTS,
+	BRANCH_NAME,
 	MODEL_SETTING,
 	SETTING,
 	sameAgentSettings,
@@ -529,6 +530,7 @@ export function createWorkspaces(
 		actor: string | null = null
 	): string {
 		imageStore.resolve(images);
+		if (workspace.base !== undefined) refuseBranch(workspace.base);
 		// an agent must not start in a worktree on its way out, or on the move
 		if (workspace.worktreeId) refuseHeld(workspace.worktreeId);
 		const { repoId, ...rest } = workspace;
@@ -557,6 +559,10 @@ export function createWorkspaces(
 		if (!prompt && !images.length) return id;
 		say(find(id), prompt, actor, undefined, images);
 		return id;
+	}
+
+	function refuseBranch(name: string) {
+		if (!BRANCH_NAME.test(name)) error(400, `${name} is not a branch name`);
 	}
 
 	async function waitUntil(ready: () => boolean, timeoutMs: number) {
@@ -1076,8 +1082,12 @@ export function createWorkspaces(
 		ref,
 		locate,
 
-		/** Starts a workspace with a first message to its agent. Returns the workspace's ID. */
-		create: (workspace: NewWorkspace, actor: string | null = null) => create(workspace, actor),
+		/**
+		 * Starts a workspace with a first message to its agent, in a new worktree off `base`
+		 * (where work in the repository starts if absent). Returns the workspace's ID.
+		 */
+		create: (workspace: NewWorkspace & { base?: string }, actor: string | null = null) =>
+			create(workspace, actor),
 
 		/**
 		 * Says something to the workspace's agent: at once if it is idle (and nothing is
@@ -1245,6 +1255,28 @@ export function createWorkspaces(
 					type: 'workspace.continued',
 					stream: `workspace:${worktreeId}`,
 					data: { id: worktreeId, branch }
+				},
+				{ actor }
+			);
+		},
+
+		/**
+		 * Measures the work in a workspace's worktree against another branch from now on
+		 * (FDR-001): `base`, or where work in the repository starts where that is `null`. The
+		 * branch stays where it is: this only says where it was forked from.
+		 */
+		setBase(id: string, base: string | null, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.repoId === null) error(409, 'A project has no worktree');
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (base !== null) refuseBranch(base);
+			const owner = find(workspace.worktreeId);
+			if (owner.base === base) return;
+			store.append(
+				{
+					type: 'workspace.based',
+					stream: `workspace:${owner.id}`,
+					data: { id: owner.id, ...(base !== null && { base }) }
 				},
 				{ actor }
 			);
