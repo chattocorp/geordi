@@ -2,6 +2,7 @@
 	import type { OnTools } from './window-tools.svelte.ts';
 	import { getSource } from '../../../routes/workspaces.remote';
 	import FileView from './FileView.svelte';
+	import Loading from '@geordi/ui/Loading.svelte';
 
 	let {
 		workspaceId,
@@ -36,7 +37,9 @@
 		/>
 	{/key}
 {:else}
-	<p class="p-5 text-sm text-muted" role="status">
-		{file.current?.unavailable ?? 'Loading the file…'}
-	</p>
+	{#if file.current?.unavailable}
+		<p class="p-5 text-sm text-muted">{file.current.unavailable}</p>
+	{:else}
+		<Loading label="Loading the file…" />
+	{/if}
 {/if}

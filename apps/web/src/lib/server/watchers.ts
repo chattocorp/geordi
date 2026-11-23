@@ -10,6 +10,8 @@ export type WatchedState = WorktreeStanding & {
 	config: RepoConfig | null;
 	/** Keep a saved changeset tab in place until the first release lookup answers. */
 	releasePending: boolean;
+	/** Keep a saved Run tab in place, and say it is loading, until the first configuration lookup answers. */
+	configPending: boolean;
 };
 
 export type Details = { config: Promise<RepoConfig | null>; release: Promise<ReleasePlan | null> };
@@ -44,6 +46,7 @@ export function createWatchers(
 		config: RepoConfig | null;
 		release: ReleasePlan | null;
 		releasePending: boolean;
+		configPending: boolean;
 		/** The look at the worktree's files the details were last loaded for. */
 		version?: number;
 		loading: boolean;
@@ -82,7 +85,7 @@ export function createWatchers(
 		};
 		const { config, release } = loadDetails(worktreeId);
 		void Promise.all([
-			config.then((config) => publish({ config })),
+			config.then((config) => publish({ config, configPending: false })),
 			release.then((release) => publish({ release, releasePending: false }))
 		]).finally(() => {
 			entry.loading = false;
@@ -111,6 +114,7 @@ export function createWatchers(
 					config: null,
 					release: null,
 					releasePending: true,
+					configPending: true,
 					loading: false
 				};
 				watched.set(worktreeId, entry);
@@ -140,8 +144,14 @@ export function createWatchers(
 		state(worktreeId: string): WatchedState | null {
 			const entry = watched.get(worktreeId);
 			if (!entry) return null;
-			const { config, release, releasePending } = entry;
-			return { ...(standings.state(worktreeId) ?? unknown), config, release, releasePending };
+			const { config, release, releasePending, configPending } = entry;
+			return {
+				...(standings.state(worktreeId) ?? unknown),
+				config,
+				release,
+				releasePending,
+				configPending
+			};
 		},
 
 		/** A daemon (re)connected: it watches nothing until told. */
