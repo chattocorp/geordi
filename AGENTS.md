@@ -230,11 +230,11 @@ it, perhaps you.
     mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
     it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `render-near` (a long page's part painted only near the screen), `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
+    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `render-near` (a long page's part painted only near the screen), `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `quiet-action`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`,
     `status-ok`/`-danger`/`-merged`.
-  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
-    `Segmented`, `Select`, `Split`): generic, no domain knowledge. Domain components live in
+  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Segmented`, `Spinner`, `StatusIcon`, `TitleBar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+    `Select`, `Split`): generic, no domain knowledge. Domain components live in
     `#lib/components/` or, when both apps use them, in `@geordi/ui`.
   - Use `StatusIcon` for passive status icons. Show the glyph directly on the surrounding surface. Passive icons have no click interaction or pointer cursor. Use `indicator-action` on a link or button for an available action. It has a filled circle and pointer cursor at rest and expands into a labelled pill on hover or keyboard focus.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
