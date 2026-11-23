@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from './Button.svelte';
+	import Segmented from './Segmented.svelte';
 	import Loading from './Loading.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
@@ -121,24 +122,13 @@
 			<div class="tools">
 				{#if onopencombined}
 					<Button
-						variant="tool"
+						variant="ghost"
 						icon="icon-[lucide--files]"
 						label="Open combined diff"
 						onclick={onopencombined}
 					/>
 				{/if}
-				<div role="radiogroup" aria-label="Show the changes" class="tools">
-					{#each views as option (option.value)}
-						<Button
-							variant="tool"
-							role="radio"
-							aria-checked={view === option.value}
-							icon={option.icon}
-							label={option.label}
-							onclick={() => (view = option.value)}
-						/>
-					{/each}
-				</div>
+				<Segmented label="Show the changes" icons bind:value={view} options={views} />
 			</div>
 		</div>
 	{/if}

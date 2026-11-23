@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from '@geordi/ui/Button.svelte';
+	import Segmented from '@geordi/ui/Segmented.svelte';
 	import type { FileTools } from './window-tools.svelte.ts';
 
 	/** The tools of the files a window shows, and whether long lines wrap (in all of them). */
@@ -11,23 +12,17 @@
 </script>
 
 {#if modes}
-	<div role="radiogroup" aria-label="Show the file" class="tools">
-		{#each modes?.options ?? [] as option (option.value)}
-			<Button
-				variant="tool"
-				size="sm"
-				role="radio"
-				aria-checked={modes?.current === option.value}
-				icon={option.icon}
-				label={option.label}
-				onclick={() => modes?.select(option.value)}
-			/>
-		{/each}
-	</div>
+	<Segmented
+		label="Show the file"
+		icons
+		size="sm"
+		bind:value={() => modes?.current ?? '', (value) => modes?.select(value)}
+		options={modes.options}
+	/>
 {/if}
 {#if tools.some((file) => file.wrappable)}
 	<Button
-		variant="tool"
+		variant="ghost"
 		size="sm"
 		icon="icon-[lucide--wrap-text]"
 		label="Wrap lines"

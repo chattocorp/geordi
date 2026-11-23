@@ -17,7 +17,7 @@
 
 <script lang="ts">
 	import Button from '@geordi/ui/Button.svelte';
-	import Segmented from '#lib/ui/Segmented.svelte';
+	import Segmented from '@geordi/ui/Segmented.svelte';
 	let { state, controls }: { state: UpdateState; controls: UpdateControls } = $props();
 	const messages = {
 		idle: 'Geordi checks automatically every hour.',
