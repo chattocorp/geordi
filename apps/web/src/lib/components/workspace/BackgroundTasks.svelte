@@ -4,6 +4,7 @@
 	import Button from '@geordi/ui/Button.svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import Disclosure from '@geordi/ui/Disclosure.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 
 	type Row = { task: BackgroundTask; label: string; kind: string; open?: () => void };
 	let {
@@ -63,6 +64,7 @@
 		summaryClass="min-h-9 w-full px-2 text-sm focus-visible:outline-offset-0"
 	>
 		{#snippet heading()}
+			<span aria-hidden="true" class="inline-flex text-muted"><Spinner still /></span>
 			<span class="shrink-0 font-semibold">Background tasks</span>
 			<span class="rounded-control bg-sunken px-1.5 text-xs font-semibold text-muted tabular-nums">
 				{rows.length}
