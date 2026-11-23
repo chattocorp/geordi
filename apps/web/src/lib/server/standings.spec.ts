@@ -368,6 +368,36 @@ describe('standings', () => {
 		expect(standings.get('a')?.upstream?.pull?.number).toBe('7');
 	});
 
+	it('shows a merge at once, and drops a look that began before it', async () => {
+		const { standings, state, release } = setup(['a']);
+		const pull = {
+			number: '7',
+			title: 'Work',
+			url: null,
+			state: 'open' as const,
+			draft: false,
+			base: 'main',
+			checks: null,
+			review: null
+		};
+		state.upstream = upstream({ pull });
+		await standings.tick();
+		// a look already under way when the merge lands, with what was true before it
+		state.hold = true;
+		state.now = 200_000;
+		void standings.tick();
+		state.told = [];
+		standings.merged('a', '7');
+		expect(standings.get('a')?.upstream?.pull?.state).toBe('merged');
+		expect(state.told).toEqual(['a']);
+		await release();
+		expect(standings.get('a')?.upstream?.pull?.state).toBe('merged');
+		// another pull request than the one merged is left as it is
+		state.told = [];
+		standings.merged('a', '8');
+		expect(state.told).toEqual([]);
+	});
+
 	it('tells nobody of an answer that says nothing new', async () => {
 		const { standings, state } = setup(['a']);
 		state.upstream = upstream({ refreshAfterMs: 10_000 });

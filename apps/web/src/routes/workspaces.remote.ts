@@ -198,7 +198,10 @@ export const mergePull = command(
 			);
 			// A queue acknowledgment alone doesn't tell us the new standing.
 			if (status === 'queued') await upstreamMayHaveChanged(workspaceId);
-			else if (status === 'merged') void upstreamMayHaveChanged(workspaceId);
+			else if (status === 'merged') {
+				standings().merged(ref.worktreeId, pullNumber);
+				void upstreamMayHaveChanged(workspaceId);
+			}
 			return status;
 		} catch (cause) {
 			error(502, `Could not merge: ${cause instanceof Error ? cause.message : String(cause)}`);
