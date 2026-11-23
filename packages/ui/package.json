@@ -33,6 +33,7 @@
 		"./RunningJob.svelte": "./src/RunningJob.svelte",
 		"./RunTab.svelte": "./src/RunTab.svelte",
 		"./RunPane.svelte": "./src/RunPane.svelte",
+		"./RunTools.svelte": "./src/RunTools.svelte",
 		"./WorkspaceActivity.svelte": "./src/WorkspaceActivity.svelte",
 		"./SidebarRowLabel.svelte": "./src/SidebarRowLabel.svelte",
 		"./Spinner.svelte": "./src/Spinner.svelte",

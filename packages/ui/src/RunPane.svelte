@@ -3,15 +3,13 @@
 	import type { Task } from '@geordi/protocol';
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
-	import Keys from './Keys.svelte';
 	import Loading from './Loading.svelte';
-	import type { ShortcutId } from './keys.ts';
 	import { persisted } from './persisted.svelte.ts';
 
 	/**
 	 * The repository's tasks (FDR-006), and how each is: what a workspace runs, in one place,
-	 * the default tasks first, then the rest, each in the order the file has them. Above them,
-	 * running the default tasks (what the shortcut does) and stopping everything that runs. A
+	 * the default tasks first, then the rest, each in the order the file has them (running the
+	 * default tasks and stopping all is `RunTools`, in the tab). A
 	 * task is a row: it runs the task (again) and opens its URL; pointing at it offers its
 	 * terminal and stopping it, right after its name. Tasks whose labels begin alike
 	 * (`Sorties / Ring 1`) are a section of their own, which folds; it stands where its first
@@ -19,19 +17,15 @@
 	 */
 	let {
 		tasks,
-		shortcut,
 		stateOf,
 		hasTerminal,
 		run,
-		runDefault,
 		stop,
 		show,
 		loading = false,
 		children
 	}: {
 		tasks: Task[];
-		/** Shown on the button that runs the default tasks: what else does. */
-		shortcut?: ShortcutId;
 		stateOf: (task: string) => JobState;
 		hasTerminal: (task: string) => boolean;
 		/**
@@ -39,8 +33,6 @@
 		 * once it starts.
 		 */
 		run: (task: string, showTerminal?: boolean) => void;
-		/** Runs the default tasks, together. */
-		runDefault: () => void;
 		stop: (task: string) => void;
 		/** Brings a task's terminal to the front. */
 		show: (task: string) => void;
@@ -87,8 +79,6 @@
 		if (states.includes('starting')) return 'starting';
 		return states.includes('running') ? 'running' : 'stopped';
 	}
-	const defaults = $derived(tasks.filter((task) => task.default));
-	const running = $derived(tasks.filter((task) => task.command && live(stateOf(task.name))));
 	const byName = $derived(new Map(tasks.map((task) => [task.name, task])));
 	/** The task pointed at, whose row and everything it needs stand out (as a parent in the sidebar). */
 	let pointed = $state<string | null>(null);
@@ -253,36 +243,6 @@
 	{#if loading}
 		<Loading label="Loading the tasks…" />
 	{:else if tasks.length > 0}
-		<!-- what is done with all of them: the default tasks, and stopping what runs -->
-		{#if defaults.length || running.length}
-			<div class="flex items-center gap-2">
-				{#if defaults.length}
-					{@const name =
-						defaults.length === 1 ? (defaults[0].label ?? defaults[0].name) : 'Default tasks'}
-					<Button
-						variant="secondary"
-						size="sm"
-						icon="icon-[lucide--play]"
-						aria-label="Run {name}"
-						onclick={runDefault}
-					>
-						{name}
-						{#if shortcut}<Keys id={shortcut} />{/if}
-					</Button>
-				{/if}
-				{#if running.length}
-					<Button
-						variant="secondary"
-						size="sm"
-						icon="icon-[lucide--circle-stop]"
-						aria-label="Stop all"
-						onclick={() => running.forEach((task) => stop(task.name))}
-					>
-						Stop all
-					</Button>
-				{/if}
-			</div>
-		{/if}
 		<!-- a hair between rows, as in the sidebar: rows that stand out together stay apart -->
 		<ul aria-label="Tasks" class="space-y-px">
 			{#each entries as entry ('section' in entry ? `section:${entry.section}` : entry.task.name)}
