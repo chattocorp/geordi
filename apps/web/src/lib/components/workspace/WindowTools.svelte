@@ -11,7 +11,7 @@
 </script>
 
 {#if modes}
-	<div role="radiogroup" aria-label="Show the file" class="flex gap-1">
+	<div role="radiogroup" aria-label="Show the file" class="tools">
 		{#each modes?.options ?? [] as option (option.value)}
 			<Button
 				variant="tool"
