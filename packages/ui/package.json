@@ -28,6 +28,7 @@
 		"./PullRequestTab.svelte": "./src/PullRequestTab.svelte",
 		"./ReleaseNotes.svelte": "./src/ReleaseNotes.svelte",
 		"./ReplyComposer.svelte": "./src/ReplyComposer.svelte",
+		"./Segmented.svelte": "./src/Segmented.svelte",
 		"./Ring.svelte": "./src/Ring.svelte",
 		"./RunningJob.svelte": "./src/RunningJob.svelte",
 		"./RunTab.svelte": "./src/RunTab.svelte",

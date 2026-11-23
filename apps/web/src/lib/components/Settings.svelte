@@ -15,7 +15,7 @@
 	import ReleaseNotes from '@geordi/ui/ReleaseNotes.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
-	import Segmented from '#lib/ui/Segmented.svelte';
+	import Segmented from '@geordi/ui/Segmented.svelte';
 	import { follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 	import { goto } from '$app/navigation';

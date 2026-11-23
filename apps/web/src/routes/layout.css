@@ -388,6 +388,11 @@
 	@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
 }
 
+/* An aside you can act on, in running text: muted, ink on hover, no background. */
+@utility quiet-action {
+	@apply inline-flex items-center gap-1.5 rounded-control text-muted hover:text-ink;
+}
+
 /* A row you can pick: navigation links, tabs. Add `item-active` to the current one. */
 @utility item {
 	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-surface/60 hover:text-ink;

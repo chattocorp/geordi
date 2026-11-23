@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PullCheck, PullRequest } from '@geordi/protocol';
+	import Button from './Button.svelte';
 	import { persisted } from './persisted.svelte.ts';
 	import { duration } from './duration.ts';
 	import { describeChecks } from './checks.ts';
@@ -110,18 +111,15 @@
 			<div class="space-y-1 p-2">{@render checksSummary()}</div>
 		{/if}
 		{#if checks.url}
-			<!-- eslint-disable svelte/no-navigation-without-resolve -- upstream forge URL -->
-			<a
+			<Button
+				variant="ghost"
 				href={checks.url}
 				target="_blank"
 				rel="noreferrer"
-				aria-label="Open checks on forge"
-				title="Open checks on forge"
-				class="absolute top-2 right-2 flex rounded-control p-1.5 text-muted hover:bg-hover hover:text-ink"
-			>
-				<span class="icon-[lucide--external-link] size-4"></span>
-			</a>
-			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+				icon="icon-[lucide--external-link]"
+				label="Open checks on forge"
+				class="absolute top-1.5 right-1.5"
+			/>
 		{/if}
 	</div>
 	{#if expanded.current && sorted.length}

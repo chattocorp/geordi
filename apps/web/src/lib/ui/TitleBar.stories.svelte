@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { expect, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Segmented from './Segmented.svelte';
+	import Segmented from '@geordi/ui/Segmented.svelte';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';

@@ -143,7 +143,7 @@
 			{#snippet tools(id: string)}
 				{#if id.endsWith('.md')}
 					<Button
-						variant="tool"
+						variant="ghost"
 						size="sm"
 						icon="icon-[lucide--wrap-text]"
 						label="Wrap lines"

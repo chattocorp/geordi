@@ -456,7 +456,7 @@
 										{#if step >= 8}
 											<button
 												type="button"
-												class="flex items-center gap-2 text-sm text-muted hover:text-ink"
+												class="quiet-action text-sm"
 												onclick={() => show('pull')}
 											>
 												<span class="icon-[lucide--git-pull-request] size-3.5"></span>Opened pull
@@ -625,7 +625,7 @@
 	<button
 		type="button"
 		hidden={!playing}
-		class="inline-flex shrink-0 items-center gap-1.5 rounded-control whitespace-nowrap hover:text-ink"
+		class="quiet-action shrink-0 whitespace-nowrap"
 		onclick={() => go(0)}
 	>
 		<span class="icon-[lucide--rotate-ccw] size-3.5 shrink-0"></span>

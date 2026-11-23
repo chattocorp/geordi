@@ -356,7 +356,7 @@
 									type="button"
 									onclick={parentAgent.open}
 									title="Open parent conversation"
-									class="inline-flex items-center gap-1.5 rounded-control text-xs text-muted hover:text-ink hover:underline"
+									class="quiet-action text-xs"
 								>
 									<span class="icon-[lucide--git-branch] size-3.5"></span>
 									Assigned by {parentAgent.name}
