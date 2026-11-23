@@ -539,8 +539,8 @@ export type DaemonRequest =
 	| ({ kind: 'source'; path: string } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
-	/** Which of these worktree-relative paths are directories in the worktree. */
-	| ({ kind: 'folders'; paths: string[] } & WorktreeRef)
+	/** Which of these worktree-relative paths are files in the worktree, and which directories. */
+	| ({ kind: 'paths'; paths: string[] } & WorktreeRef)
 	/** Opens a directory in the worktree in the file manager of the daemon's machine (Finder). */
 	| ({ kind: 'openFolder'; path: string } & WorktreeRef)
 	/**
@@ -611,7 +611,7 @@ export type DaemonResults = {
 	branches: { start: string | null; branches: string[] };
 	diff: FileVersions;
 	source: FileContent | null;
-	folders: string[];
+	paths: { files: string[]; folders: string[] };
 	openFolder: null;
 	picture: Picture | Sound | null;
 	/** `null` if the repository has no remote on a forge we know. */

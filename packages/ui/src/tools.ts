@@ -188,8 +188,11 @@ export type ChangedFiles = {
 	readonly root?: string;
 	openSource: (path: string, line?: number) => void;
 	open: (path: string) => void;
-	/** Whether a worktree-relative path names a directory there, which `openFolder` opens. */
-	isFolder?: (path: string) => Promise<boolean>;
+	/**
+	 * What a worktree-relative path names there, if anything: a file (`openSource` opens it)
+	 * or a directory (`openFolder` opens it).
+	 */
+	kindOf?: (path: string) => Promise<'file' | 'folder' | null>;
 	/** Opens a directory in the worktree in the file manager (Finder). */
 	openFolder?: (path: string) => void;
 };

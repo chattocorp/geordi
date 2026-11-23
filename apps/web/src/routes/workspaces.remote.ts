@@ -449,11 +449,11 @@ export const getSource = query(
 	}
 );
 
-/** Which of these paths, named in a conversation, are directories in the workspace's worktree. */
-export const findFolders = command(
+/** Which of these paths, named in a conversation, are files in the workspace's worktree, and which directories. */
+export const findPaths = command(
 	v.object({ workspaceId: v.string(), paths: v.pipe(v.array(v.string()), v.maxLength(100)) }),
 	({ workspaceId, paths }) =>
-		hub().request({ kind: 'folders', paths, ...workspaces().ref(workspaceId) })
+		hub().request({ kind: 'paths', paths, ...workspaces().ref(workspaceId) })
 );
 
 /** Opens a directory in the workspace's worktree in the file manager (Finder). */

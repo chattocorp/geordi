@@ -69,21 +69,29 @@
 		return () => players.forEach((player) => void unmount(player));
 	});
 
-	// A path that may be a directory (`data-folder`) becomes a button that opens it once the
-	// daemon says it is one, so that what is not stays plain code
+	// A path that may be a file or directory (`data-path`) becomes a button once the daemon
+	// says it is one, so that what is neither stays plain code: a file opens in a tab of its
+	// own, a directory in the file manager
 	$effect(() => {
 		void html;
-		const isFolder = files?.isFolder;
-		if (!content || !isFolder) return;
-		for (const mark of content.querySelectorAll<HTMLElement>('[data-folder]:not(button)')) {
-			const path = mark.dataset.folder!;
-			void isFolder(path).then((found) => {
-				if (!found || !mark.isConnected) return;
+		const kindOf = files?.kindOf;
+		if (!content || !kindOf) return;
+		for (const mark of content.querySelectorAll<HTMLElement>('[data-path]')) {
+			const { path, line } = mark.dataset as { path: string; line?: string };
+			delete mark.dataset.path;
+			delete mark.dataset.line;
+			void kindOf(path).then((kind) => {
+				if (!kind || !mark.isConnected) return;
 				const button = document.createElement('button');
 				button.type = 'button';
-				button.dataset.folder = path;
-				button.title = 'Open this folder';
-				delete mark.dataset.folder;
+				if (kind === 'folder') {
+					button.dataset.folder = path;
+					button.title = 'Open this folder';
+				} else {
+					button.dataset.source = path;
+					if (line) button.dataset.line = line;
+					button.title = 'Open this file';
+				}
 				mark.replaceWith(button);
 				button.append(mark);
 			});
@@ -92,7 +100,7 @@
 
 	/**
 	 * Clicks on what `renderMarkdown` made a button: a code block's copy button, a changed
-	 * file's name, which opens its diff, a directory's, which opens it in the file manager, and a picture, which opens in the viewer (with a
+	 * file's name, which opens its diff, another file's, which opens it, a directory's, which opens it in the file manager, and a picture, which opens in the viewer (with a
 	 * modifier key, its link opens it on its own instead), as a drawn SVG does.
 	 */
 	const buttons: Attachment<HTMLElement> = (node) => {

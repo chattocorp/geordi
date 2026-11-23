@@ -167,10 +167,11 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 					continue;
 				}
 				// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
-				const folder = href.endsWith('/') && !/[?#]/.test(href) && folderPath(decoded(href), root);
+				const folder =
+					href.endsWith('/') && !/[?#]/.test(href) && worktreePath(decoded(href), root);
 				if (folder) {
 					tag = token.tag = 'span';
-					token.attrs = [['data-folder', folder]];
+					token.attrs = [['data-path', folder.path]];
 					continue;
 				}
 				const citation = sourceLink(href, root);
@@ -240,20 +241,27 @@ const decoded = (href: string) => {
 };
 
 /**
- * The worktree-relative path (`.` for the worktree itself) of what may be a directory
- * there: a path with a slash in it, relative to the worktree (`root`) or absolute within
- * it. Whether it is one only the daemon knows.
+ * The worktree-relative path (`.` for the worktree itself) of what may be a file or a
+ * directory there, and the line it may name (`:12`, perhaps with a column): a path relative
+ * to the worktree (`root`) or absolute within it, with a slash or an extension so that not
+ * every word in code is asked about. Whether it is either only the daemon knows.
  */
-export function folderPath(text: string, root?: string): string | undefined {
+export function worktreePath(
+	text: string,
+	root?: string
+): { path: string; line?: number } | undefined {
 	if (!root) return;
 	let path = text.trim();
-	if (path === root || path === `${root}/`) return '.';
+	const suffix = /:(\d+)(?::\d+)?$/.exec(path);
+	if (suffix) path = path.slice(0, suffix.index);
+	const line = suffix ? Number(suffix[1]) : undefined;
+	if (path === root || path === `${root}/`) return { path: '.' };
 	if (path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
-	else if (path.startsWith('/') || path.startsWith('~') || !path.includes('/')) return;
+	else if (path.startsWith('/') || path.startsWith('~') || !/\/|.\.\w+$/.test(path)) return;
 	path = path.replace(/^(\.\/)+/, '').replace(/\/+$/, '');
 	if (!path || !local(path) || /[\s\\\0]/.test(path)) return;
 	if (path.split('/').some((part) => part === '' || part === '.' || part === '..')) return;
-	return path;
+	return line ? { path, line } : { path };
 }
 
 /** Code blocks in these languages are drawn (`diagrams.ts`); until then, or if they cannot be, they stay code. */
@@ -278,9 +286,11 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 		// another workspace's branch: to that workspace
 		const branch = (env as Options | undefined)?.workspaces?.branch(tokens[index].content.trim());
 		if (branch) return `<a href="${escapeHtml(workspaceHref(branch))}">${code}</a>`;
-		// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
-		const folder = folderPath(tokens[index].content, (env as Options | undefined)?.root);
-		return folder ? code.replace('<code', `<code data-folder="${escapeHtml(folder)}"`) : code;
+		// a file or directory: `Markdown.svelte` makes it a button once the daemon says which
+		const found = worktreePath(tokens[index].content, (env as Options | undefined)?.root);
+		if (!found) return code;
+		const line = found.line ? ` data-line="${found.line}"` : '';
+		return code.replace('<code', `<code data-path="${escapeHtml(found.path)}"${line}`);
 	}
 	return `<button type="button" data-file="${escapeHtml(path)}" title="Show the changes to this file">${code}</button>`;
 };

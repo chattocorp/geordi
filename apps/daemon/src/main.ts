@@ -8,7 +8,7 @@ import { pruneFileCheckpoints } from './file-index-cache.ts';
 import { createFileSearch } from './file-search.ts';
 import { git } from './git.ts';
 import { repoIcon } from './icon.ts';
-import { folderIn, MAX_FOLDERS, openFolder } from './folders.ts';
+import { folderIn, openFolder, sortPaths } from './folders.ts';
 import { readPicture } from './picture.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
@@ -664,10 +664,8 @@ async function readRequest(request: DaemonRequest) {
 			return versions(worktree, comparisonOrigin(worktree, request), request.path);
 		case 'source':
 			return readSource(worktree, request.path);
-		case 'folders':
-			return request.paths
-				.slice(0, MAX_FOLDERS)
-				.filter((path) => folderIn(worktree, path) !== null);
+		case 'paths':
+			return sortPaths(worktree, request.paths);
 		case 'openFolder': {
 			const folder = folderIn(worktree, request.path);
 			if (!folder) throw new Error('There is no such folder in the worktree');
