@@ -10,6 +10,7 @@
 	import { problemOf } from '#lib/problem.ts';
 	import { hint, shortcutGroups } from '@geordi/ui/keys';
 	import { theme } from '#lib/theme.svelte.ts';
+	import { lba } from '#lib/lba.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
 	import ReleaseNotes from '@geordi/ui/ReleaseNotes.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
@@ -132,6 +133,20 @@
 							options={[
 								{ value: 'pane', label: 'Main pane' },
 								{ value: 'window', label: 'Window' }
+							]}
+						/>
+					</div>
+					<div class="flex items-center justify-between gap-4 pt-6">
+						<div>
+							<p class="text-sm font-medium">Low Battery Anxiety mode</p>
+							<p class="text-sm text-muted">Hides the usage-limit batteries.</p>
+						</div>
+						<Segmented
+							label="Low Battery Anxiety mode"
+							bind:value={() => (lba.on ? 'on' : 'off'), (value) => (lba.on = value === 'on')}
+							options={[
+								{ value: 'on', label: 'On' },
+								{ value: 'off', label: 'Off' }
 							]}
 						/>
 					</div>
