@@ -45,7 +45,7 @@ export const shortcuts = {
 		group: 'General'
 	},
 	activeOnly: {
-		code: 'KeyT',
+		code: 'KeyA',
 		shift: true,
 		label: 'Show only active workspaces, or inactive ones too',
 		group: 'General'
