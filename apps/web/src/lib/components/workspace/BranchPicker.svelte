@@ -16,7 +16,8 @@
 		title,
 		label = 'Branch',
 		icon = 'icon-[lucide--git-branch]',
-		without
+		without,
+		shortcut
 	}: {
 		repoId: string;
 		/** A branch's name, or `''` for the one work starts from. */
@@ -30,6 +31,8 @@
 		icon?: string;
 		/** A branch not to offer: a worktree's own, which it can't be compared with. */
 		without?: string;
+		/** A keyboard shortcut that opens and focuses it. */
+		shortcut?: (event: KeyboardEvent, button: HTMLElement) => boolean;
 	} = $props();
 
 	let found = $state<{ repoId: string; start: string | null; branches: string[] } | null>(null);
@@ -64,6 +67,7 @@
 	<Select
 		{label}
 		{title}
+		{shortcut}
 		{options}
 		bind:value
 		bind:open={

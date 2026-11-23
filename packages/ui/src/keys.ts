@@ -90,7 +90,13 @@ export const shortcuts = {
 	},
 	queue: { key: 'Enter', label: 'Queue a message for when the agent is done', group: 'Workspace' },
 	model: { code: 'KeyM', shift: true, label: 'Choose the model', group: 'Workspace' },
-	effort: { code: 'KeyE', shift: true, label: 'Choose the effort', group: 'Workspace' }
+	effort: { code: 'KeyE', shift: true, label: 'Choose the effort', group: 'Workspace' },
+	branch: {
+		code: 'KeyB',
+		shift: true,
+		label: 'Choose the branch a new workspace starts from',
+		group: 'Workspace'
+	}
 } satisfies Record<string, Shortcut>;
 
 export type ShortcutId = keyof typeof shortcuts;
@@ -149,11 +155,13 @@ export function submitOnEnter(event: KeyboardEvent & { currentTarget: HTMLTextAr
 	event.currentTarget.form?.requestSubmit();
 }
 
-/** The model and effort shortcuts, for the composer in use: with several on screen, the one typed in. */
+/** The model, effort and branch shortcuts, for the composer in use: with several on screen, the one typed in. */
 export const modelShortcut = (event: KeyboardEvent, at: Element) =>
 	pressed(event, 'model') && inSameForm(event, at);
 export const effortShortcut = (event: KeyboardEvent, at: Element) =>
 	pressed(event, 'effort') && inSameForm(event, at);
+export const branchShortcut = (event: KeyboardEvent, at: Element) =>
+	pressed(event, 'branch') && inSameForm(event, at);
 
 const inSameForm = (event: KeyboardEvent, at: Element) =>
 	!!at.closest('form')?.contains(event.target as Node | null);

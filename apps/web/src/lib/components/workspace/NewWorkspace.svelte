@@ -7,7 +7,7 @@
 </script>
 
 <script lang="ts">
-	import { submitOnEnter } from '@geordi/ui/keys';
+	import { branchShortcut, submitOnEnter } from '@geordi/ui/keys';
 	import { draft } from '#lib/drafts.svelte.ts';
 	import { persisted } from '@geordi/ui/persisted';
 	import AddRepository from '../AddRepository.svelte';
@@ -161,7 +161,12 @@
 						bind:open={pickingRepo}
 						bind:value={() => repo.id, pick}
 					/>
-					<BranchPicker repoId={repo.id} bind:value={base} title="The branch to start from" />
+					<BranchPicker
+						repoId={repo.id}
+						bind:value={base}
+						title="The branch to start from"
+						shortcut={branchShortcut}
+					/>
 				{/if}
 				{#if harnesses?.length}
 					<HarnessPicker
