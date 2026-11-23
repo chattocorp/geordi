@@ -13,29 +13,45 @@ export type Listed<T> = {
 	depth: number;
 };
 
+/** The workspace and those that started it, nearest first; stops at one gone, or at a loop. */
+export function lineOf<T extends { parentId: string | null }>(
+	byId: Map<string, T>,
+	id: string | null
+): T[] {
+	const line: T[] = [];
+	let w = id ? byId.get(id) : undefined;
+	while (w && !line.includes(w)) {
+		line.push(w);
+		w = w.parentId ? byId.get(w.parentId) : undefined;
+	}
+	return line;
+}
+
 /**
- * The active workspaces, where `hideInactive`; otherwise all of them. A workspace is put
- * aside with the one whose agent started it: what an inactive workspace started, at any
- * depth, is left out too, though it is not inactive itself. The workspace on screen
- * (`viewed`) stays, in its place: with the workspaces that started it.
+ * Whether a workspace is put aside: marked inactive itself, or started by one that is, at
+ * any depth. `inactive` on each is whether a person marked that one; an archived one is
+ * as good as gone.
+ */
+export function isInactive<
+	T extends { parentId: string | null; inactive?: boolean; archivedAt?: string | null }
+>(byId: Map<string, T>, id: string) {
+	for (const each of lineOf(byId, id)) {
+		if (each.archivedAt) return false;
+		if (each.inactive) return true;
+	}
+	return false;
+}
+
+/**
+ * The active workspaces, where `hideInactive`; otherwise all of them. The workspace on
+ * screen (`viewed`) stays, in its place: with the workspaces that started it.
  */
 export function withoutInactive<
 	T extends { id: string; parentId: string | null; inactive?: boolean }
 >(workspaces: T[], hideInactive: boolean, viewed: string | null = null) {
 	if (!hideInactive) return workspaces;
-	const byId = new Map(workspaces.map((w) => [w.id, w]));
-	/** The workspace and those that started it, nearest first; stops at one gone, or a loop. */
-	const lineOf = (id: string | null) => {
-		const line: T[] = [];
-		let w = id ? byId.get(id) : undefined;
-		while (w && !line.includes(w)) {
-			line.push(w);
-			w = w.parentId ? byId.get(w.parentId) : undefined;
-		}
-		return line;
-	};
-	const kept = new Set(lineOf(viewed));
-	return workspaces.filter((w) => kept.has(w) || !lineOf(w.id).some((each) => each.inactive));
+	const kept = new Set(lineOf(new Map(workspaces.map((w) => [w.id, w])), viewed));
+	return workspaces.filter((w) => kept.has(w) || !w.inactive);
 }
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */

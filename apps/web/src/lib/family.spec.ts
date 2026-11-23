@@ -8,6 +8,7 @@ import {
 	nextUnread,
 	stepThrough,
 	unfolded,
+	isInactive,
 	withoutInactive,
 	withAides
 } from './family.ts';
@@ -20,38 +21,58 @@ const workspace = (id: string, repoId: string | null, parentId: string | null = 
 const ids = (listed: { workspace: { id: string } }[] | undefined) =>
 	listed?.map(({ workspace }) => workspace.id);
 
+describe('isInactive', () => {
+	const byId = new Map(
+		[
+			{ id: 'inactive', parentId: null, inactive: true },
+			{ id: 'child', parentId: 'inactive' },
+			{ id: 'grandchild', parentId: 'child' },
+			{ id: 'archived', parentId: 'inactive', archivedAt: '2026-01-01' },
+			{ id: 'orphan', parentId: 'archived' },
+			{ id: 'active', parentId: null }
+		].map((w) => [w.id, w])
+	);
+
+	it('counts what an inactive workspace started, at any depth, as inactive too', () => {
+		expect(['inactive', 'child', 'grandchild'].map((id) => isInactive(byId, id))).toEqual([
+			true,
+			true,
+			true
+		]);
+		expect(isInactive(byId, 'active')).toBe(false);
+	});
+
+	it('stops at an archived workspace, as at one gone', () => {
+		expect(isInactive(byId, 'orphan')).toBe(false);
+	});
+});
+
 describe('withoutInactive', () => {
 	const all = [
 		{ id: 'active', parentId: null },
 		{ id: 'inactive', parentId: null, inactive: true },
-		{ id: 'child', parentId: 'inactive' },
-		{ id: 'grandchild', parentId: 'child' },
-		{ id: 'helper', parentId: 'active' },
-		{ id: 'orphan', parentId: 'archived' }
+		{ id: 'child', parentId: 'inactive', inactive: true },
+		{ id: 'grandchild', parentId: 'child', inactive: true },
+		{ id: 'helper', parentId: 'active' }
 	];
 
 	it('leaves out the inactive workspaces, where asked to', () => {
 		expect(withoutInactive(all, false)).toBe(all);
-	});
-
-	it('leaves out what an inactive workspace started, at any depth, but not what an active one did', () => {
-		expect(withoutInactive(all, true).map(({ id }) => id)).toEqual(['active', 'helper', 'orphan']);
+		expect(withoutInactive(all, true).map(({ id }) => id)).toEqual(['active', 'helper']);
 	});
 
 	it('keeps the workspace on screen, in its place with those that started it', () => {
 		expect(withoutInactive(all, true, 'inactive').map(({ id }) => id)).toEqual([
 			'active',
 			'inactive',
-			'helper',
-			'orphan'
+			'helper'
 		]);
 		expect(withoutInactive(all, true, 'grandchild').map(({ id }) => id)).toEqual([
 			'active',
 			'inactive',
 			'child',
 			'grandchild',
-			'helper',
-			'orphan'
+			'helper'
 		]);
 	});
 });
