@@ -106,7 +106,8 @@
 		inactive && !current && !unread && !highlighted && 'text-muted/60'
 	]}
 >
-	{#if parentHref}
+	<!-- one with its own folded under it shows the link as its icon, which turns into the fold on hover -->
+	{#if parentHref && !fold}
 		{@const label = parentTitle ? `Open parent workspace: ${parentTitle}` : 'Open parent workspace'}
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes a resolved URL -->
 		<a
@@ -179,12 +180,7 @@
 	{:else if icon}
 		<span class={[icon, 'size-4 text-muted/50']}></span>
 	{:else if parentHref && fold}
-		<span
-			class={[
-				fold.folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]',
-				'size-4'
-			]}
-		></span>
+		<span class="icon-[lucide--link] size-4 text-muted/50"></span>
 	{:else}
 		<span class="icon-[lucide--git-branch] size-4 text-muted/50"></span>
 	{/if}
