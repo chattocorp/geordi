@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { describe, expect, it } from 'vitest';
 import { status, versions } from './changes.ts';
-import { concerns, createWatches } from './watch.ts';
+import { concerns, createWatches, route, type Member } from './watch.ts';
 import { ensureWorktree, locateWorktree } from './worktree.ts';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -151,6 +152,30 @@ describe('watching workspaces', () => {
 		watches.stop();
 	});
 
+	it('opens and lets go of worktrees without holding up the main thread', async () => {
+		const { base, ref, watches } = setup();
+		const refs = Array.from({ length: 12 }, (_, index) => ({
+			...ref,
+			worktreeId: `stall${String(index).padStart(3, '0')}-1`
+		}));
+		for (const each of refs) await ensureWorktree(base, each);
+		watches.set(refs, 'background');
+		await wait(300);
+
+		const delay = monitorEventLoopDelay({ resolution: 10 });
+		delay.enable();
+		for (const each of refs) {
+			watches.set([each]); // what switching workspaces does
+			await wait(20);
+		}
+		watches.set([]);
+		await wait(100);
+		delay.disable();
+		// Node's own watchers on macOS held it up for a tenth of a second or more per change
+		expect(delay.max / 1e6).toBeLessThan(80);
+		watches.stop();
+	});
+
 	it('knows which refs are a worktree’s own', async () => {
 		const { base, ref } = setup();
 		const worktree = await ensureWorktree(base, ref);
@@ -160,5 +185,42 @@ describe('watching workspaces', () => {
 		expect(concerns(worktree, 'heads/main')).toBe(false);
 		expect(concerns(worktree, `remotes/origin/x/${branch}`)).toBe(false);
 		expect(concerns(worktree, `tags/${branch}`)).toBe(false);
+	});
+
+	it('routes what changes in a repository’s Git directory to the worktrees it concerns', async () => {
+		const { base, ref } = setup();
+		const mine = await ensureWorktree(base, ref);
+		const other = await ensureWorktree(base, { ...ref, worktreeId: 'otherxyz-1' });
+		const member = (worktree: typeof mine, files: boolean) => {
+			const told: string[] = [];
+			const entry: Member = {
+				worktree,
+				admin: `worktrees/${worktree.adminDir.split('/').pop()}`,
+				files,
+				report: (all = false) => told.push(all ? 'report:all' : 'report'),
+				names: (_path, staged = false) => told.push(staged ? 'names:staged' : 'names')
+			};
+			return { entry, told };
+		};
+		const open = member(mine, true);
+		const background = member(other, false);
+		const tell = (name: string) => {
+			open.told.length = background.told.length = 0;
+			route([open.entry, background.entry], name);
+			return [open.told, background.told];
+		};
+
+		expect(tell(`${background.entry.admin}/HEAD`)).toEqual([[], ['report']]);
+		expect(tell(`${open.entry.admin}/index`)).toEqual([['names:staged', 'report'], []]);
+		expect(tell(`${open.entry.admin}/index.lock`)).toEqual([[], []]);
+		expect(tell(open.entry.admin)).toEqual([['report:all'], []]);
+		// branches: its own for one in the background, all of them for one that is open
+		expect(tell(`refs/heads/${other.branch}`)).toEqual([['report'], ['report']]);
+		expect(tell(`refs/remotes/origin/${other.branch}`)).toEqual([['report'], ['report']]);
+		expect(tell('refs/heads/main')).toEqual([['report'], []]);
+		expect(tell('packed-refs')).toEqual([['report'], ['report']]);
+		expect(tell('config')).toEqual([['report:all'], []]);
+		expect(tell('FETCH_HEAD')).toEqual([['report'], []]);
+		expect(tell('info/exclude')).toEqual([['report:all'], []]);
 	});
 });

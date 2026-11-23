@@ -82,6 +82,7 @@ import {
 	upstream
 } from './upstream.ts';
 import { createWatches } from './watch.ts';
+import { reportStalls } from './stalls.ts';
 import {
 	startOf,
 	branchesOf,
@@ -296,6 +297,7 @@ const fileCache = join(sessionsDir, '.file-index-cache');
 await rm(join(fileCache, 'pending'), { recursive: true, force: true }).catch(() => {});
 await pruneFileCheckpoints(fileCache).catch(() => {});
 const fileSearch = createFileSearch(fileCache);
+reportStalls();
 /** File watchers for the workspaces in use; see the `watch` message. */
 const watches = createWatches(
 	(ref) => locateWorktree(worktreesDir, ref),
