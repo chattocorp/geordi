@@ -211,16 +211,34 @@ function open(page) {
 	// one Electron makes would lack); everything else belongs in the browser.
 	webContents.setWindowOpenHandler(({ url: target }) => {
 		if (target.startsWith(`${url}/`)) open(target.slice(url.length));
-		else if (/^https?:/.test(target)) shell.openExternal(target);
+		else openOutside(target);
 		return { action: 'deny' };
 	});
 	webContents.on('will-navigate', (event, target) => {
 		if (target === url || target.startsWith(`${url}/`)) return;
 		event.preventDefault();
-		if (/^https?:/.test(target)) shell.openExternal(target);
+		openOutside(target);
 	});
 	webContents.on('context-menu', (_event, params) => contextMenu(window, params));
 	window.loadURL(url + (page ?? (first ? lastPage() : '/')));
+}
+
+const REFUSED = new Set(
+	['file', 'javascript', 'vbscript', 'data', 'blob', 'about', 'smb', 'afp', 'nfs', 'cifs'].map(
+		(scheme) => `${scheme}:`
+	)
+);
+
+/**
+ * A link that leaves Geordi goes to the app the system has for its scheme: the browser for
+ * the web, and whatever registered `kmtrigger:`, `vscode:` and the like. Never one that
+ * runs or reads something here (`file:`, `javascript:`, `data:`…), nor one that mounts a
+ * network share (`smb:`, `afp:`, `nfs:`), which would hand a stranger's server your login.
+ */
+function openOutside(/** @type {string} */ target) {
+	const scheme = URL.parse(target)?.protocol;
+	if (!scheme || REFUSED.has(scheme)) return;
+	shell.openExternal(target).catch((error) => note(`could not open ${scheme} link: ${error}`));
 }
 
 /**
