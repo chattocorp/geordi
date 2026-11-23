@@ -132,7 +132,7 @@ A workspace takes the title its agent's session goes by (ACP `session_info_updat
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010, ADR-012
+- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010, ADR-012, ADR-013
 - **FDRs:** FDR-002, FDR-003, FDR-014
 
 ## Open Questions

@@ -14,3 +14,4 @@
 | [ADR-010](ADR-010-agent-sessions.md)                             | Agents run as sessions, talked to for as long as they run | 2026-11-17 |
 | [ADR-011](ADR-011-shared-workspace-ui.md)                        | Share workspace components with the website               | 2026-11-19 |
 | [ADR-012](ADR-012-purging-archived-workspaces.md)                | Purging archived workspaces from the event log            | 2026-11-20 |
+| [ADR-013](ADR-013-hosted-forge-with-runner-daemons.md)           | A hosted forge with runner daemons                        | 2026-11-23 |
