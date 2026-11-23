@@ -77,6 +77,7 @@ import {
 	checkForge,
 	markReady,
 	mergePull,
+	pullHistory,
 	setAutoMerge,
 	unknownForge,
 	upstream
@@ -630,6 +631,7 @@ async function readRequest(request: DaemonRequest) {
 		return { path: worktree.path, branch: branchOf(worktree) ?? worktree.branch };
 	}
 
+	if (request.kind === 'pullHistory') return pullHistory(request.repoPath, request.evidence);
 	const worktree = await locateWorktree(worktreesDir, request);
 	switch (request.kind) {
 		case 'changes': {

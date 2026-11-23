@@ -210,6 +210,8 @@ export const workspace = (id: string) => {
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
+				pullLinks:
+					workspace.repoId === null ? [] : workspaces().pullEvidence(workspace.worktreeId).linked,
 				// a project has no worktree to watch (FDR-012)
 				git: workspace.repoId === null ? null : watchers().state(workspace.worktreeId),
 				terminals: terminals().running(id),

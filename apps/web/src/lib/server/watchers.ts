@@ -1,9 +1,10 @@
-import type { ReleasePlan, RepoConfig, WorktreeRef } from '@geordi/protocol';
+import type { PullRequest, ReleasePlan, RepoConfig, WorktreeRef } from '@geordi/protocol';
 import type { Standings, WorktreeStanding } from './standings.ts';
 import type { Dispatch } from './workspaces.ts';
 
 /** What someone who has a worktree open is shown of it, as far as a daemon could tell. */
 export type WatchedState = WorktreeStanding & {
+	history?: PullRequest[];
 	/** What the worktree holds for the repository's next releases; `null` if it uses no release tool we know. */
 	release: ReleasePlan | null;
 	/** What the repository's `.geordi.yml` says for this worktree; `null` if the daemon couldn't say. */
@@ -13,6 +14,8 @@ export type WatchedState = WorktreeStanding & {
 };
 
 export type Details = { config: Promise<RepoConfig | null>; release: Promise<ReleasePlan | null> };
+
+const HISTORY_REFRESH_MS = 60_000;
 
 const unknown: WorktreeStanding = {
 	changes: null,
@@ -37,7 +40,11 @@ export function createWatchers(
 	ref: (worktreeId: string) => WorktreeRef,
 	standings: Pick<Standings, 'state' | 'look' | 'subscribe'>,
 	/** Asks a daemon for a worktree's configuration and release plan. Neither rejects. */
-	loadDetails: (worktreeId: string) => Details
+	loadDetails: (worktreeId: string) => Details,
+	historical?: (
+		id: string,
+		currentUrl?: string | null
+	) => { key: string; load: () => Promise<PullRequest[]> } | null
 ) {
 	type Watched = {
 		viewers: Set<() => void>;
@@ -47,6 +54,8 @@ export function createWatchers(
 		/** The look at the worktree's files the details were last loaded for. */
 		version?: number;
 		loading: boolean;
+		history?: PullRequest[];
+		historyRead?: { key: string; at: number };
 	};
 	const watched = new Map<string, Watched>();
 
@@ -63,6 +72,27 @@ export function createWatchers(
 			}
 		});
 		dispatch({ type: 'watch', worktrees });
+	}
+
+	function refreshHistory(id: string, entry: Watched) {
+		const request = historical?.(id, standings.state(id)?.upstream?.pull?.url);
+		if (!request) {
+			delete entry.historyRead;
+			delete entry.history;
+			return;
+		}
+		const previous = entry.historyRead;
+		if (previous?.key === request.key && Date.now() - previous.at < HISTORY_REFRESH_MS) return;
+		const read = { key: request.key, at: Date.now() };
+		entry.historyRead = read;
+		void request
+			.load()
+			.then((history) => {
+				if (watched.get(id) !== entry || entry.historyRead !== read) return;
+				entry.history = history;
+				for (const viewer of entry.viewers) viewer();
+			})
+			.catch(() => {});
 	}
 
 	/**
@@ -94,6 +124,7 @@ export function createWatchers(
 		const entry = watched.get(worktreeId);
 		if (!entry) return;
 		details(worktreeId, entry);
+		refreshHistory(worktreeId, entry);
 		for (const viewer of entry.viewers) viewer();
 	});
 
@@ -116,6 +147,7 @@ export function createWatchers(
 				watched.set(worktreeId, entry);
 				sync();
 				details(worktreeId, entry, 1);
+				refreshHistory(worktreeId, entry);
 				// What the sidebar knew shows at once. Its files are watched from now on, and an
 				// open pull request is shown with each of its checks: both are looked at again.
 				void standings.look(worktreeId);
@@ -140,11 +172,23 @@ export function createWatchers(
 		state(worktreeId: string): WatchedState | null {
 			const entry = watched.get(worktreeId);
 			if (!entry) return null;
-			const { config, release, releasePending } = entry;
-			return { ...(standings.state(worktreeId) ?? unknown), config, release, releasePending };
+			const { config, release, releasePending, history } = entry;
+			return {
+				...(standings.state(worktreeId) ?? unknown),
+				config,
+				release,
+				releasePending,
+				history
+			};
 		},
 
 		/** A daemon (re)connected: it watches nothing until told. */
-		resync: sync
+		resync() {
+			sync();
+			for (const [id, entry] of watched) {
+				delete entry.historyRead;
+				refreshHistory(id, entry);
+			}
+		}
 	};
 }

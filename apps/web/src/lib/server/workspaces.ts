@@ -958,6 +958,15 @@ export function createWorkspaces(
 	return {
 		access,
 		agents,
+		pullEvidence: (id: string) => structuredClone(projection.pulls(id)),
+		linkPull(id: string, url: string, number: string) {
+			if (!projection.get().has(id) || projection.pulls(id).linked.some((link) => link.url === url))
+				return;
+			store.append(
+				{ type: 'workspace.pullLinked', stream: `workspace:${id}`, data: { id, url, number } },
+				{ actor: 'daemon' }
+			);
+		},
 		followTranscript,
 		measure,
 		suggest,

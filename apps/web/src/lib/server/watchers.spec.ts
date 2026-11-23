@@ -37,7 +37,7 @@ const pulled: Upstream = {
 	}
 };
 
-function setup() {
+function setup(historical?: Parameters<typeof createWatchers>[4]) {
 	const sent: ForgeMessage[] = [];
 	/** What the daemon would say about each worktree, and what it was asked. */
 	const daemon = {
@@ -79,7 +79,8 @@ function setup() {
 					? new Promise((resolve) => daemon.held.push(() => resolve(release)))
 					: Promise.resolve(release)
 			};
-		}
+		},
+		historical
 	);
 	/** The worktrees the daemon was last told to watch. */
 	const watching = () => {
@@ -90,6 +91,20 @@ function setup() {
 }
 
 describe('watchers', () => {
+	it('keeps earlier PRs visible while standings refresh the current branch', async () => {
+		const history = [{ ...pulled.pull!, number: '2' }];
+		const currentUrl = 'https://example.com/a/b/pull/1';
+		const { watchers, standings, daemon } = setup((_id, url) =>
+			url === currentUrl ? { key: 'earlier', load: async () => history } : null
+		);
+		watchers.watch('a', () => {});
+		await settled();
+		daemon.upstream = { ...pulled, pull: { ...pulled.pull!, url: currentUrl } };
+		await standings.look('a');
+		await settled();
+		expect(watchers.state('a')).toMatchObject({ upstream: daemon.upstream, history });
+	});
+
 	it('has the daemon watch a worktree from its first viewer to its last', () => {
 		const { watchers, sent, watching } = setup();
 		const first = watchers.watch('a', () => {});

@@ -7,6 +7,7 @@ import {
 	type CheckCounts,
 	type ForgeDiagnostic,
 	type PullCheck,
+	type PullEvidence,
 	type PullRequest,
 	type Upstream
 } from '@geordi/protocol';
@@ -21,6 +22,7 @@ import {
 	type ForgeProvider,
 	type Forges,
 	type MergeMethod,
+	repoKey,
 	type Thread
 } from 'forges';
 import { providersFromEnv } from 'forges/env';
@@ -495,6 +497,45 @@ async function locate(worktree: Worktree, repoPath: string) {
 	// what the branch is called upstream, which is where its pull request is
 	const branch = await upstreamBranchOf(repoPath, head.slice('refs/heads/'.length));
 	return { remote, ...parsed, branch, head };
+}
+
+/** Read known PRs by identity, even after the worktree moves on. Historical
+ * command output is only a candidate until its head matches a recorded branch. */
+export async function pullHistory(
+	repoPath: string,
+	evidence: PullEvidence
+): Promise<PullRequest[]> {
+	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
+	const origin = remote && (await forges()).parseUrl(remote);
+	if (!origin || limits.paused(new URL(origin.provider.baseUrl).host)) return [];
+	const { provider, repo } = origin;
+	const linked = new Set(evidence.linked.map(({ url }) => url));
+	const urls = new Set([...linked, ...evidence.candidates]);
+	const results = await Promise.all(
+		[...urls].map(async (url) => {
+			const parsed = provider.parseUrl(url);
+			if (!parsed?.thread?.number || repoKey(parsed.repo) !== repoKey(repo)) return null;
+			try {
+				const thread = await readThread(provider, {
+					repo,
+					forge: repo.forge,
+					instance: repo.instance,
+					kind: 'pull_request',
+					number: parsed.thread.number
+				});
+				if (
+					!thread ||
+					(!linked.has(url) && !evidence.branches.some((branch) => isFor(thread, repo, branch)))
+				)
+					return null;
+				const checks = await checksFor(provider, repo, thread, true);
+				return summarise(thread, checks.counts, checks.items);
+			} catch {
+				return null;
+			}
+		})
+	);
+	return results.filter((result) => result !== null);
 }
 
 type Cached = {
