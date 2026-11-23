@@ -12,7 +12,7 @@
 <div
 	role="radiogroup"
 	aria-label={label}
-	class="inline-flex rounded-full bg-sunken p-0.5 ring-1 ring-line"
+	class="inline-flex shrink-0 rounded-full bg-sunken p-0.5 ring-1 ring-line"
 >
 	{#each options as option (option.value)}
 		<button
@@ -21,7 +21,7 @@
 			aria-checked={option.value === value}
 			onclick={() => (value = option.value)}
 			class={[
-				'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium',
+				'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium whitespace-nowrap',
 				option.value === value ? 'bg-surface text-ink shadow-soft' : 'text-muted hover:text-ink'
 			]}
 		>

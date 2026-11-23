@@ -5,6 +5,7 @@
 	import { charge, leftOf, limitTone, toneOf, type Tone } from '#lib/limits.ts';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 	import Battery from '#lib/components/Battery.svelte';
+	import { lba } from '#lib/lba.svelte.ts';
 
 	/**
 	 * How the agent stands, as a phone would say it: its reception fades as its context fills
@@ -28,7 +29,8 @@
 
 	const context = $derived(usage ? 1 - fullness(usage) : undefined);
 	const contextTone = $derived(toneOf(context));
-	const battery = $derived(charge(limits, model));
+	// none in low battery anxiety mode, so that a meter of nothing but a battery is not there
+	const battery = $derived(lba.on ? undefined : charge(limits, model));
 
 	const fills: Record<Tone, string> = {
 		normal: 'fill-muted',
