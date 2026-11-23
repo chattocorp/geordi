@@ -7,7 +7,11 @@
 			content="default-src 'none'; style-src 'unsafe-inline'"
 		/>
 		<title>Geordi</title>
-		<!-- What the window shows until the forge answers (main.js): the frame's colours, and a word. -->
+		<!--
+			What the window shows until the forge answers (main.js): Geordi's mark on the frame's
+			colour, its slats brightening one after the other while it starts. The colours are the
+			web app's tokens (layout.css), which this page cannot load.
+		-->
 		<style>
 			:root {
 				color-scheme: light dark;
@@ -29,17 +33,58 @@
 				display: grid;
 				place-items: center;
 				background: var(--frame);
-				color: var(--muted);
-				font:
-					16px ui-sans-serif,
-					system-ui,
-					sans-serif;
 				-webkit-app-region: drag;
 				user-select: none;
+			}
+			svg {
+				width: 112px;
+				height: 56px;
+				/* faint: halfway between the frame and muted text */
+				--mark: color-mix(in srgb, var(--muted), var(--frame) 50%);
+				color: var(--mark);
+				animation: appear 0.6s ease-out both;
+			}
+			.slat {
+				animation: brighten 1.8s ease-in-out infinite;
+			}
+			.slat:nth-child(2) {
+				animation-delay: 0.3s;
+			}
+			.slat:nth-child(3) {
+				animation-delay: 0.6s;
+			}
+			@keyframes appear {
+				from {
+					opacity: 0;
+				}
+			}
+			@keyframes brighten {
+				0%,
+				60%,
+				100% {
+					stroke: var(--mark);
+				}
+				30% {
+					stroke: var(--muted);
+				}
+			}
+			@media (prefers-reduced-motion: reduce) {
+				svg,
+				.slat {
+					animation: none;
+				}
 			}
 		</style>
 	</head>
 	<body>
-		<p>Starting Geordi…</p>
+		<!-- the mark as `Logo.svelte` draws it -->
+		<svg viewBox="0 0 28 14" fill="none" role="img" aria-label="Starting Geordi">
+			<rect x="1" y="1" width="26" height="12" rx="6" stroke="currentColor" stroke-width="1.75" />
+			<g stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+				<path class="slat" d="M8.5 5v4" />
+				<path class="slat" d="M14 5v4" />
+				<path class="slat" d="M19.5 5v4" />
+			</g>
+		</svg>
 	</body>
 </html>
