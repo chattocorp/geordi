@@ -1,5 +1,19 @@
 # Geordi Changelog
 
+## 0.8.1
+
+### Fixes
+
+- Sound players in agent replies play the sound again, instead of opening the file in a tab. ([#494](https://github.com/chattocorp/geordi/pull/494))
+- On Windows, OpenCode now starts: Geordi finds the program on your `PATH` whatever case Windows spells it in, and runs the `.cmd` shim npm installs. Its models are listed in Settings too. ([#491](https://github.com/chattocorp/geordi/pull/491))
+- The command palettes now open with Cmd/Ctrl+Shift+K (workspaces and commands) and, in a workspace, Cmd/Ctrl+K (its conversations, terminals, tasks and files). ([#500](https://github.com/chattocorp/geordi/pull/500))
+- A workspace you write to or mark as active shows up again among your active workspaces, even when the workspace that started it was inactive. Workspaces hidden along with an inactive one now look inactive too, and you can mark them as active. ([#499](https://github.com/chattocorp/geordi/pull/499))
+
+### Smaller changes
+
+- When you merge a pull request, the bar at the top of the workspace now says so as soon as the sidebar does. ([#496](https://github.com/chattocorp/geordi/pull/496))
+- Scroll bars are thin and take their colour from the light or dark theme, so they sit quietly on every surface. ([#498](https://github.com/chattocorp/geordi/pull/498))
+
 ## 0.8.0
 
 ### Highlights
