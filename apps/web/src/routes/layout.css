@@ -174,8 +174,8 @@
 	/*
 	 * Shape. Three radii: `rounded-card` for surfaces that hold content, `rounded-control`
 	 * for things inside them (buttons, inputs, tabs, code), `rounded-full` for pills and dots.
-	 * `rounded-card` is a utility of its own, below: a squircle where the browser can draw one.
 	 */
+	--radius-card: 1rem;
 	--radius-control: 0.5rem;
 
 	--color-bg: var(--bg);
@@ -217,18 +217,6 @@
  * Utilities: the recurring patterns of the UI, named for what they are. Use these (and the
  * components in `#lib/ui`) before reaching for raw Tailwind classes.
  */
-
-/*
- * The corners of surfaces that hold content. A squircle where the browser can draw one
- * (`corner-shape`), with twice the radius, which looks as round as the circular corner.
- */
-@utility rounded-card {
-	border-radius: 1rem;
-	@supports (corner-shape: squircle) {
-		border-radius: 2rem;
-		corner-shape: squircle;
-	}
-}
 
 /* A surface that holds content. `card-float` lifts it (composers, anything primary). */
 @utility card {
@@ -688,7 +676,6 @@
 		content: '';
 		@apply pointer-events-none absolute -inset-px opacity-0 motion-safe:transition-opacity;
 		border-radius: inherit;
-		corner-shape: inherit;
 		padding: 2px;
 		background: conic-gradient(
 			from var(--edge-turn),
