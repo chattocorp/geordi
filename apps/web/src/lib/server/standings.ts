@@ -359,6 +359,19 @@ export function createStandings(options: {
 			}
 		},
 
+		/**
+		 * The worktree's pull request was merged from here: shown at once, rather than once the
+		 * forge has been asked again (a look that started before the merge no longer counts).
+		 */
+		merged(worktreeId: string, number: string) {
+			looks.delete(worktreeId);
+			const remote = remotes.get(worktreeId);
+			const pull = remote?.upstream?.pull;
+			if (!remote?.upstream || pull?.number !== number || pull.state === 'merged') return;
+			remote.upstream = { ...remote.upstream, pull: { ...pull, state: 'merged' } };
+			tell(worktreeId);
+		},
+
 		/** A daemon says something changed in a worktree. */
 		changed(worktreeId: string) {
 			// someone is looking: at once, whoever is at work there
