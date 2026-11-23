@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll, pushState, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -593,8 +593,48 @@
 			if (tabsOf(layouts[folded]).every((tab) => tabs.has(tab)))
 				frame.current = { ...frame.current, fold: null };
 		}
+		remember(after, diffPath);
 		arrangement.current = { ...after, diffPath: remaining.includes('diff') ? diffPath : undefined };
 	}
+
+	// Showing another window is a step in the page's history, so that going back shows the
+	// windows that were shown before (shallow routing: the URL stays the same).
+	const shownIn = (layouts: Record<Area, Layout>) =>
+		Object.values(layouts)
+			.flatMap(groupsOf)
+			.flatMap((group) => (group.active ? [group.active] : []))
+			.sort();
+	const windowsOf = (layouts: Record<Area, Layout>, diffPath?: string) => {
+		const shown = shownIn(layouts);
+		return { shown, diffPath: shown.includes('diff') ? diffPath : undefined };
+	};
+	const sameShown = (a: App.PageState['windows'], b: App.PageState['windows']) =>
+		!!a && !!b && a.diffPath === b.diffPath && a.shown.join() === b.shown.join();
+	function remember(after: Record<Area, Layout>, diffPath?: string) {
+		// before the arrangement changes: `layouts` is still what was shown
+		const windows = windowsOf(after, diffPath);
+		const before = windowsOf(layouts, saved.diffPath);
+		if (sameShown(windows, before) || sameShown(windows, page.state.windows)) return;
+		if (!page.state.windows) replaceState('', { ...page.state, windows: before });
+		pushState('', { ...page.state, windows });
+	}
+	// Back or forward: show again what was shown there, where it still is.
+	$effect(() => {
+		const windows = page.state.windows;
+		if (!windows || page.params.id !== id) return;
+		untrack(() => {
+			if (sameShown(windows, windowsOf(layouts, saved.diffPath))) return;
+			const next = { ...layouts };
+			for (const tab of windows.shown) {
+				const area = areaOf(tab);
+				if (area) next[area] = open(next[area], tab);
+			}
+			arrangement.current = {
+				...next,
+				diffPath: windows.diffPath ?? saved.diffPath
+			};
+		});
+	});
 
 	/** Move a window between areas in one arrangement change. */
 	const receive =

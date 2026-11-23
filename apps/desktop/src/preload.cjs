@@ -3,6 +3,15 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- a sandboxed preload script can only be CommonJS
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
+// A mouse's back and forward buttons go back and forward, as in a browser: Electron leaves
+// that to the app.
+window.addEventListener('mouseup', (event) => {
+	if (event.button === 3) history.back();
+	else if (event.button === 4) history.forward();
+	else return;
+	event.preventDefault();
+});
+
 contextBridge.exposeInMainWorld('geordiDesktop', {
 	/** How many workspaces are unread: shown as a number on the app's icon. */
 	badge: (count) => ipcRenderer.send('geordi:badge', count),
