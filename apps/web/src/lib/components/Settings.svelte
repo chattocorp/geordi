@@ -119,7 +119,7 @@
 							]}
 						/>
 					</div>
-					<div class="flex flex-wrap items-center justify-between gap-4 pt-6">
+					<div class="flex items-center justify-between gap-4 pt-6">
 						<div>
 							<p class="text-sm font-medium">Action ribbon position</p>
 							<p class="text-sm text-muted">
