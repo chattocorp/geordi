@@ -144,6 +144,90 @@ process.exit(broken ? 1 : 0);
 				'.geordi.yml': 'tasks:\n  test:\n    label: Tests\n    command: node --test\n'
 			}
 		}
+	],
+	'sample-services': [
+		{
+			message: 'Start a pretend app of several services',
+			files: {
+				'README.md':
+					'# Sample services\n\nA pretend app of several services, each `node service.js`, for trying out tasks.\n',
+				'service.js': `import { createServer } from 'node:http';
+
+// A pretend service: says what it does now and then, listens where it has a port, or ends
+// after DURATION seconds, with FAIL set in failure.
+const name = process.env.NAME ?? 'service';
+const delay = Number(process.env.DELAY ?? 0);
+const duration = Number(process.env.DURATION ?? 0);
+const port = Number(process.env.PORT ?? 0);
+
+console.log(\`\${name}: starting\${delay ? \` in \${delay} seconds\` : ''}…\`);
+setTimeout(() => {
+	if (duration) {
+		setTimeout(() => {
+			if (process.env.FAIL) {
+				console.error(\`\${name}: 3 problems found\`);
+				process.exit(1);
+			}
+			console.log(\`\${name}: all good\`);
+		}, duration * 1000);
+		return;
+	}
+	if (port)
+		createServer((request, response) => {
+			console.log(\`\${name}: \${request.method} \${request.url}\`);
+			response.writeHead(200, { 'content-type': 'text/html' });
+			response.end(\`<h1>\${name}</h1><p>Up for \${Math.round(process.uptime())} seconds.</p>\`);
+		}).listen(port, () => console.log(\`\${name}: listening on http://localhost:\${port}/\`));
+	setInterval(() => console.log(\`\${name}: still at work\`), 5000);
+}, delay * 1000);
+`,
+				'.geordi.yml': `tasks:
+  db:
+    label: Services / Database
+    command: NAME=database DELAY=4 node service.js
+    ports: [db]
+  api:
+    label: Services / API
+    command: NAME=api node service.js
+    ports: [api]
+    url: http://localhost:{api}/
+    needs: [db]
+  worker:
+    label: Services / Worker
+    command: NAME=worker node service.js
+    needs: [db]
+  web:
+    label: Web app
+    command: NAME=web DELAY=2 node service.js
+    ports: [web]
+    url: http://localhost:{web}/
+    needs: [api, worker]
+    default: true
+  admin:
+    label: Admin
+    command: NAME=admin node service.js
+    ports: [admin]
+    url: http://localhost:{admin}/
+    default: true
+  docs:
+    label: Admin docs
+    url: http://localhost:{admin}/docs
+  lint:
+    label: Checks / Lint
+    command: NAME=lint DURATION=1 node service.js
+  test:
+    label: Checks / Tests
+    command: NAME=tests DURATION=6 node service.js
+  types:
+    label: Checks / Type check
+    command: NAME=types DURATION=3 FAIL=1 node service.js
+  seed:
+    label: Seed the database
+    command: NAME=seed DURATION=2 node service.js
+    needs: [db]
+`
+			}
+		}
 	]
 };
 
