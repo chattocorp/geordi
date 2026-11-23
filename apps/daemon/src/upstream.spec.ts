@@ -212,6 +212,8 @@ describe('upstream', () => {
 			const { operationName, variables } = JSON.parse(String(init.body));
 			if (operationName === 'ThreadsBatch')
 				return Response.json({ data: { t0: { issueOrPullRequest: node } } });
+			if (operationName === 'MergeTarget')
+				return Response.json({ data: { repository: { ...node.repository, pullRequest: node } } });
 			writes.push({ operationName, variables });
 			node.autoMergeRequest = operationName === 'EnableAutoMerge' ? { enabledAt: 'today' } : null;
 			return Response.json({ data: {} });
@@ -239,6 +241,65 @@ describe('upstream', () => {
 				},
 				{ operationName: 'DisableAutoMerge', variables: { id: 'PR_42' } }
 			]);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('merges with one small read, in the method the repository allows', async () => {
+		const { mergePull } = await configured();
+		const { worktree, ref } = await workspace('git@github.com:acme/widgets.git');
+		const sha = execFileSync('git', ['-C', ref.repoPath, 'rev-parse', 'HEAD'], {
+			encoding: 'utf8'
+		}).trim();
+		const pull = {
+			state: 'OPEN',
+			headRefName: 'geordi/abcdefgh',
+			headRefOid: sha,
+			baseRefName: 'main',
+			baseRefOid: sha,
+			headRepository: { name: 'widgets', owner: { login: 'acme' } }
+		};
+		const asked: string[] = [];
+		vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+			const url = String(input instanceof Request ? input.url : input);
+			const method = init?.method ?? 'GET';
+			if (url.endsWith('/graphql')) {
+				const { operationName, variables } = JSON.parse(String(init?.body));
+				asked.push(`${operationName} ${JSON.stringify(variables)}`);
+				const repository = {
+					squashMergeAllowed: false,
+					mergeCommitAllowed: true,
+					rebaseMergeAllowed: true,
+					pullRequest: pull
+				};
+				return Response.json({ data: { repository } });
+			}
+			asked.push(`${method} ${new URL(url).pathname} ${init?.body ?? ''}`);
+			return Response.json({ status: 'merged', details: { sha: 'merged-sha' } });
+		});
+		try {
+			const request = { ...ref, pullNumber: '42' };
+			expect(await mergePull(worktree, request, () => true)).toBe('merged');
+			expect(asked).toEqual([
+				'MergeTarget {"owner":"acme","name":"widgets","number":42}',
+				expect.stringMatching(/^PUT \/repos\/acme\/widgets\/pulls\/42\/merge-async /)
+			]);
+			expect(JSON.parse(asked[1].replace(/^\S+ \S+ /, ''))).toMatchObject({
+				merge_method: 'merge',
+				sha
+			});
+
+			asked.length = 0;
+			pull.headRepository = { name: 'widgets', owner: { login: 'someone-else' } };
+			await expect(mergePull(worktree, request, () => true)).rejects.toThrow(
+				'Pull request #42 is no longer open'
+			);
+			pull.headRepository = { name: 'widgets', owner: { login: 'acme' } };
+			pull.headRefOid = 'elsewhere';
+			await expect(mergePull(worktree, request, () => true)).rejects.toThrow('push first');
+			expect(asked.filter((line) => line.startsWith('PUT'))).toEqual([]);
 		} finally {
 			vi.unstubAllGlobals();
 			vi.unstubAllEnvs();

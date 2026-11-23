@@ -766,6 +766,82 @@ async function selectedPull(provider: ForgeProvider, repo: Repo, branch: string,
 	return pull;
 }
 
+/** What merging a pull request needs to know of it. `method`: how, where that is known. */
+type MergeTarget = {
+	head?: string;
+	base?: { ref: string; sha?: string };
+	method?: MergeMethod;
+};
+
+/**
+ * What merging the pull request needs to know, as of now: only that, because the merge
+ * waits for it. On GitHub one small GraphQL request, which also says how the repository
+ * may be merged (otherwise `forges` asks for that before merging); elsewhere the pull
+ * request in full.
+ */
+async function mergeTarget(
+	provider: ForgeProvider,
+	repo: Repo,
+	branch: string,
+	number: string
+): Promise<MergeTarget> {
+	const graphql = graphqlOf(provider);
+	if (!graphql) {
+		const { branches } = await selectedPull(provider, repo, branch, number);
+		return { head: branches?.head.sha, base: branches?.base };
+	}
+	type Data = {
+		repository:
+			| (NonNullable<GitHubPull['repository']> & {
+					pullRequest: {
+						state: 'OPEN' | 'CLOSED' | 'MERGED';
+						headRefName: string;
+						headRefOid: string;
+						baseRefName: string;
+						baseRefOid: string;
+						headRepository: { name: string; owner: { login: string } } | null;
+					} | null;
+			  })
+			| null;
+	};
+	const { repository } = await graphql<Data>(
+		`
+			query MergeTarget($owner: String!, $name: String!, $number: Int!) {
+				repository(owner: $owner, name: $name) {
+					squashMergeAllowed
+					mergeCommitAllowed
+					rebaseMergeAllowed
+					pullRequest(number: $number) {
+						state
+						headRefName
+						headRefOid
+						baseRefName
+						baseRefOid
+						headRepository {
+							name
+							owner {
+								login
+							}
+						}
+					}
+				}
+			}
+		`,
+		{ owner: repo.owner, name: repo.name, number: Number(number) }
+	);
+	const pull = repository?.pullRequest;
+	const fork =
+		pull?.headRepository &&
+		(pull.headRepository.owner.login !== repo.owner || pull.headRepository.name !== repo.name);
+	if (pull?.state !== 'OPEN' || pull.headRefName !== branch || fork)
+		throw new Error(`Pull request #${number} is no longer open for ${branch}`);
+	return {
+		head: pull.headRefOid,
+		base: { ref: pull.baseRefName, sha: pull.baseRefOid },
+		method: preferredMethod(repository ?? undefined)
+	};
+}
+
 /** Set GitHub's native auto-merge on the pull request selected in the workspace. */
 export async function setAutoMerge(
 	worktree: Worktree,
@@ -813,14 +889,7 @@ export async function setAutoMerge(
 				confirmation
 			);
 			if (review) return review;
-			const methods = raw.repository;
-			const method = methods?.squashMergeAllowed
-				? 'SQUASH'
-				: methods?.mergeCommitAllowed
-					? 'MERGE'
-					: methods?.rebaseMergeAllowed
-						? 'REBASE'
-						: null;
+			const method = preferredMethod(raw.repository)?.toUpperCase();
 			if (!method) throw new Error('The repository has no available merge method');
 			await graphql(
 				`
@@ -900,22 +969,35 @@ export async function markDraftReady(
 /** How Geordi merges where a repository allows several ways: one commit per piece of work. */
 const PREFERRED: MergeMethod[] = ['squash', 'merge', 'rebase'];
 
+/** The first of `PREFERRED` that a GitHub repository allows. */
+function preferredMethod(allowed: GitHubPull['repository']): MergeMethod | undefined {
+	if (!allowed) return undefined;
+	const allows: Partial<Record<MergeMethod, boolean>> = {
+		squash: allowed.squashMergeAllowed,
+		merge: allowed.mergeCommitAllowed,
+		rebase: allowed.rebaseMergeAllowed
+	};
+	return PREFERRED.find((method) => allows[method]);
+}
+
 /**
- * Merges a pull request, provided it is still at `sha`. Uses the repository's one way of
- * merging, or the first of `PREFERRED` that it allows.
+ * Merges a pull request, provided it is still at `sha`: with `method` where that is known,
+ * otherwise with the repository's one way of merging, or the first of `PREFERRED` that it
+ * allows.
  */
 export async function merge(
 	threads: Pick<ForgeProvider['threads'], 'merge'>,
 	ref: Thread['ref'],
-	sha: string
+	sha: string,
+	method?: MergeMethod
 ) {
 	try {
-		return await threads.merge(ref, { sha });
+		return await threads.merge(ref, { sha, method });
 	} catch (error) {
 		if (!(error instanceof MergeMethodRequiredError)) throw error;
-		const method = PREFERRED.find((m) => error.allowed.includes(m)) ?? error.allowed[0];
-		if (!method) throw error;
-		return threads.merge(ref, { sha, method });
+		const allowed = PREFERRED.find((m) => error.allowed.includes(m)) ?? error.allowed[0];
+		if (!allowed) throw error;
+		return threads.merge(ref, { sha, method: allowed });
 	}
 }
 
@@ -940,25 +1022,23 @@ export async function mergePull(
 	if (!provider.can('threads.merge'))
 		throw new Error(`Geordi cannot merge pull requests on ${provider.forge}`);
 
-	const pull = await selectedPull(provider, repo, branch, pullNumber);
-	const commit = (await gitIn(worktree, 'rev-parse', '--verify', head)).trim();
-	if (pull.branches?.head.sha !== commit)
+	const [target, commit] = await Promise.all([
+		mergeTarget(provider, repo, branch, pullNumber),
+		gitIn(worktree, 'rev-parse', '--verify', head).then((sha) => sha.trim())
+	]);
+	if (target.head !== commit || !target.base)
 		throw new Error('The pull request is not at the commit this workspace is at; push first');
 
 	const review = await reviewRelease(
 		worktree,
-		{
-			number: pull.ref.number,
-			head: commit,
-			branch: pull.branches.base.ref,
-			base: pull.branches.base.sha
-		},
+		{ number: pullNumber, head: commit, branch: target.base.ref, base: target.base.sha },
 		approved,
 		false,
 		confirmation
 	);
 	if (review) return review;
-	const { status } = await merge(provider.threads, pull.ref, commit);
+	const ref = pullRef(repo, pullNumber);
+	const { status } = await merge(provider.threads, ref, commit, target.method);
 	invalidate(worktreeId);
 	return status;
 }
