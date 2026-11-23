@@ -33,6 +33,8 @@ type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
 	standing(worktreeId: string): Promise<{ changes: Changes; upstream: Upstream | null }>;
 	/** The models and effort levels on offer, per agent; `null` while no daemon is connected. */
 	harnesses(): Harness[] | null;
+	/** Measures the caller's work against another branch (`null`: the repository's main one). */
+	setBase(caller: string, base: string | null): Promise<void>;
 };
 
 /** What `start_agent` can be asked to run, as the daemon offers it. */
@@ -191,6 +193,22 @@ const tools = {
 		input: v.strictObject({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
 		run: (agents: Agents, caller: string, input: { title: string }) =>
 			agents.name(caller, input.title)
+	},
+	set_base: {
+		description:
+			"Say which branch your work is compared with (what your workspace's changes are shown against). It is the branch your worktree started from. Call this after you move your branch onto another one (such as with git rebase --onto), and only then: it does not move your branch. Omit branch to compare with the repository's main branch. Once your branch has a pull request, its target branch is used instead.",
+		input: v.strictObject({
+			branch: v.pipe(
+				v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(255))),
+				v.description(
+					'A branch on your repository’s upstream (push yours first), or a local one where it has no upstream.'
+				)
+			)
+		}),
+		run: async (agents: Agents, caller: string, input: { branch?: string }) => {
+			await agents.setBase(caller, input.branch ?? null);
+			return `Your work is now compared with ${input.branch ?? "the repository's main branch"}, until it has a pull request.`;
+		}
 	},
 	wait_for_agent: {
 		description:
@@ -434,11 +452,12 @@ const content = (text: string, isError = false) => ({ content: [{ type: 'text', 
 /** What only an agent in a workspace can use: it is about that workspace. */
 const workspaceTools = new Set([
 	'name_workspace',
+	'set_base',
 	'configuration_reference',
 	'check_configuration'
 ]);
 /** What is about a workspace's repository, which a project has none of (FDR-012). */
-const repositoryTools = new Set(['configuration_reference', 'check_configuration']);
+const repositoryTools = new Set(['set_base', 'configuration_reference', 'check_configuration']);
 const available = (kind: CallerKind, name: string) =>
 	kind === 'external'
 		? !workspaceTools.has(name)

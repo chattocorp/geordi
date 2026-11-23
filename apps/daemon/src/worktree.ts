@@ -1,5 +1,5 @@
 import { CHECKOUT_TIMEOUT, git, quietGit } from './git.ts';
-import { NO_WORKTREE, type WorktreeRef } from '@geordi/protocol';
+import { BRANCH_NAME, NO_WORKTREE, type WorktreeRef } from '@geordi/protocol';
 import { randomUUID } from 'node:crypto';
 import {
 	closeSync,
@@ -85,17 +85,9 @@ export async function describe(baseDir: string, ref: WorktreeRef): Promise<Workt
 	};
 }
 
-/**
- * What git accepts as a branch name (`git check-ref-format`), which is a lot: `fix/issue#12`,
- * `release@2`, `grüße`. Not accepted is what could be read as an option or as a revision
- * expression.
- */
-const BRANCH =
-	/^(?![-./])(?!.*(?:\.\.|@\{|\/\/|\/\.|\.lock(?:\/|$)))[^\p{Cc} ~^:?*[\\]+(?<![./])$/u;
-
 /** A branch name as an unambiguous revision. Rejects anything git could read as an option. */
 export function branchRef(branch: string): string {
-	if (!BRANCH.test(branch)) throw new Error(`Not a branch name: ${branch}`);
+	if (!BRANCH_NAME.test(branch)) throw new Error(`Not a branch name: ${branch}`);
 	return `refs/heads/${branch}`;
 }
 
@@ -125,18 +117,48 @@ export async function startOf(repoPath: string): Promise<string> {
 }
 
 /**
- * A branch named as a base, as a full ref: the local branch, or the upstream's where that is
- * further along (a `main` checked out long ago) or there is no local one. `null` if neither exists.
+ * A branch named as a base, as a full ref: the upstream's (`origin/main`, never a local `main`
+ * that has moved on or fallen behind), as far as this machine knows it. Only a branch the
+ * upstream doesn't have is the local one: an agent's, not pushed yet, to build on. `null` if
+ * there is neither.
  */
 export async function branchOn(repoPath: string, branch: string): Promise<string | null> {
 	const exists = async (ref: string) =>
 		(await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', ref)) !== null;
 	const local = branchRef(branch);
 	const remote = local.replace('refs/heads/', 'refs/remotes/origin/');
-	if (!(await exists(remote))) return (await exists(local)) ? local : null;
-	if (!(await exists(local))) return remote;
-	const behind = await quietGit(repoPath, 'merge-base', '--is-ancestor', local, remote);
-	return behind === null ? local : remote;
+	if (await exists(remote)) return remote;
+	return (await exists(local)) ? local : null;
+}
+
+/**
+ * The branches work in a repository may start from, by name, the most recently committed to
+ * first: its upstream's, where it has one (work is meant to end up there), else its own.
+ * `start` is the one work starts from when none is named (see `startOf`), `null` in a
+ * repository on no branch at all.
+ */
+export async function branchesOf(
+	repoPath: string
+): Promise<{ start: string | null; branches: string[] }> {
+	const start = await startOf(repoPath);
+	const startName =
+		start === 'HEAD'
+			? ((await quietGit(repoPath, 'symbolic-ref', '--quiet', '--short', 'HEAD')) ?? null)
+			: start.replace(/^refs\/remotes\/origin\//, '');
+	const upstream = (await quietGit(repoPath, 'remote', 'get-url', 'origin')) !== null;
+	const refs = await git(repoPath, [
+		'for-each-ref',
+		'--sort=-committerdate',
+		'--format=%(refname)',
+		upstream ? 'refs/remotes/origin/' : 'refs/heads/'
+	]);
+	const names = new Set<string>();
+	for (const ref of refs.split('\n')) {
+		const name = /^refs\/(?:heads|remotes\/origin)\/(.+)$/.exec(ref.trim())?.[1];
+		if (name && name !== 'HEAD' && BRANCH_NAME.test(name)) names.add(name);
+	}
+	if (startName) names.add(startName);
+	return { start: startName, branches: [...names] };
 }
 
 /**
@@ -148,7 +170,7 @@ export async function branchOn(repoPath: string, branch: string): Promise<string
 export async function upstreamBranchOf(repoPath: string, branch: string): Promise<string> {
 	const config = (key: string) => quietGit(repoPath, 'config', '--get', `branch.${branch}.${key}`);
 	const name = /^refs\/heads\/(.+)$/.exec((await config('merge')) ?? '')?.[1];
-	if ((await config('remote')) !== 'origin' || !name || !BRANCH.test(name)) return branch;
+	if ((await config('remote')) !== 'origin' || !name || !BRANCH_NAME.test(name)) return branch;
 	// set to follow the main branch, it has not been pushed there: it has no place upstream yet
 	return `refs/remotes/origin/${name}` === (await startOf(repoPath)) ? branch : name;
 }
@@ -313,7 +335,7 @@ export async function continueOn(
 export function headOf({ path, adminDir }: Worktree): string {
 	const head = read(join(adminDir, 'HEAD'));
 	const branch = /^ref: refs\/heads\/(.+)$/.exec(head)?.[1];
-	if (branch && BRANCH.test(branch)) return `refs/heads/${branch}`;
+	if (branch && BRANCH_NAME.test(branch)) return `refs/heads/${branch}`;
 	const commit = /^([0-9a-f]{40,64})$/.exec(head)?.[1];
 	if (!commit) throw new Error(`Worktree ${path} has an unreadable HEAD`);
 	return commit;

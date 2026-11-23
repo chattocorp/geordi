@@ -31,7 +31,7 @@ export function instructionsFor(workspace: {
 
 		parent
 			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
-			: 'The person you work for sees your replies, your changes as a diff against where the branch started, and the state of the branch’s pull request.',
+			: 'The person you work for sees your replies, your changes as a diff against where the branch started (if you move it onto another branch, say so with `set_base`), and the state of the branch’s pull request.',
 
 		parent ? ASKING_PARENT : ASKING,
 

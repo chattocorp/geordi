@@ -85,6 +85,7 @@ import {
 import { createWatches } from './watch.ts';
 import {
 	startOf,
+	branchesOf,
 	branchOf,
 	continueOn,
 	ensureWorktree,
@@ -171,7 +172,7 @@ const PORT_TAKEN = `echo "$GEORDI_PORT_TAKEN"; exit 1`;
 /** What the terminal of a script that did not run says instead. Words of ours, never the file's. */
 const SETUP_NOT_RUN = {
 	unagreed: `echo 'The setup script in the repository'"'"'s Geordi configuration did not run: nobody has agreed to it yet. The workspace says so at its top: review it there to see it and agree to it.'; exit 1`,
-	agents: `echo 'The setup script in the repository'"'"'s Geordi configuration did not run by itself: this directory holds what an agent wrote (it starts from an agent'"'"'s branch, or was brought back from this workspace'"'"'s). To run it all the same: press Enter here, then any key.'; exit 1`
+	agents: `echo 'The setup script in the repository'"'"'s Geordi configuration did not run by itself: this directory may hold what an agent wrote (it starts from a branch other than the main one, or was brought back from this workspace'"'"'s). To run it all the same: press Enter here, then any key.'; exit 1`
 };
 
 /** What a terminal's output and its end are sent as. */
@@ -239,10 +240,10 @@ const setups = new Map<string, Promise<string | null>>();
  *
  * By itself, unseen, it runs only what is the person's: a command they agreed to, in a
  * directory fresh from where their work starts. What it runs is the directory's as much as
- * the command's (`pnpm install` runs the package's scripts), so in one that starts from an
- * agent's branch (`base`), or comes back from the workspace's own, it would run what an
- * agent wrote, outside its sandbox, with nobody asking for it. There it is the agent's to do,
- * in its sandbox, or the person's, once they have reviewed it.
+ * the command's (`pnpm install` runs the package's scripts), so in one that starts from
+ * another branch (`base`: as like as not an agent's), or comes back from the workspace's own,
+ * it would run what an agent wrote, outside its sandbox, with nobody asking for it. There it
+ * is the agent's to do, in its sandbox, or the person's, once they have reviewed it.
  */
 function setUp(worktree: Worktree & { created: boolean }, ref: WorktreeRef) {
 	const terminalId = `${ref.worktreeId}:${JOB_TERMINAL}setup`;
@@ -530,6 +531,7 @@ async function readRequest(request: DaemonRequest) {
 	}
 	if (request.kind === 'checkForge') return checkForge(request.repoPath);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
+	if (request.kind === 'branches') return branchesOf(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
 	if (request.kind === 'closeProject') {
@@ -616,9 +618,9 @@ async function readRequest(request: DaemonRequest) {
 		return { branch };
 	}
 	if (request.kind === 'prepareWorktree') {
-		const { repoPath, worktreeId, base } = request;
+		const { repoPath, worktreeId } = request;
 		// a new one starts from where its upstream stands now, as with a first turn
-		if (!request.requireBranch && !base && !hasWorktree(worktreesDir, request)) {
+		if (!request.requireBranch && !hasWorktree(worktreesDir, request)) {
 			const problem = await fetchUpstream(repoPath);
 			if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 		}
