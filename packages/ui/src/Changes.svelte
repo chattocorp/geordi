@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Button from './Button.svelte';
-	import ProgressIcon from './ProgressIcon.svelte';
+	import Loading from './Loading.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -153,9 +153,7 @@
 				</p>
 			</div>
 		{:else if !git || (!git.changes && !git.unavailable)}
-			<p class="flex items-center gap-2 px-3.5 py-2 text-muted">
-				<ProgressIcon label="Loading the changes" /> Loading…
-			</p>
+			<Loading label="Loading the changes…" />
 		{:else if git.unavailable}
 			<p class="px-3.5 py-2 text-muted">{git.unavailable}</p>
 		{:else if files.length === 0}

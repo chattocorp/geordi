@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { OnTools } from './window-tools.svelte.ts';
 	import FileView from './FileView.svelte';
-	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
+	import Loading from '@geordi/ui/Loading.svelte';
 	import { getDiff } from '../../../routes/workspaces.remote';
 
 	type Props = {
@@ -28,9 +28,7 @@
 </script>
 
 {#snippet loading()}
-	<p class="flex items-center gap-2 p-5 text-sm text-muted" role="status">
-		<ProgressIcon label="Loading the diff" /> Loading the diff…
-	</p>
+	<Loading label="Loading the diff…" />
 {/snippet}
 
 {#if !versions.current}

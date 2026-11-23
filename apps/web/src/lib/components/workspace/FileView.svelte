@@ -2,6 +2,7 @@
 	import type { FileContent } from '@geordi/protocol';
 	import { untrack } from 'svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
+	import Loading from '@geordi/ui/Loading.svelte';
 	import Markdown from '../Markdown.svelte';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
 	import SoundPlayer from '#lib/ui/SoundPlayer.svelte';
@@ -203,7 +204,7 @@
 	<p class="p-5 text-sm text-muted">The file's content is unchanged.</p>
 {:else}
 	<div class="scroller">
-		{#if !ready}<p class="p-5 text-sm text-muted" role="status">Loading the diff…</p>{/if}
+		{#if !ready}<Loading label="Loading the diff…" />{/if}
 		<DiffView
 			{path}
 			old={typeof old === 'string' ? old : null}

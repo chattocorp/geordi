@@ -111,7 +111,7 @@
 	name="Waiting for local Git"
 	args={{ git: pending, onopen: fn() }}
 	play={async ({ canvas }) => {
-		await expect(canvas.getByText('Loading…')).toBeVisible();
+		await expect(canvas.getByRole('status')).toBeVisible();
 	}}
 />
 
