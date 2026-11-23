@@ -14,4 +14,3 @@ The daemon decides what is available with `process.env`, which Windows answers t
 
 Verified on Windows with npm's OpenCode 2.3.2: it is found from a copy of the daemon's environment, starts in ACP mode through `cmd.exe`, answers `initialize`, and `opencode models` lists its models. `program.spec.ts` covers the resolution and the launch, and `session.spec.ts` a host whose environment says `Path`.
 
-Out of the same work: the desktop build's pnpm helper (`packages/launch/src/stage.js`) ran `npm_execpath`, a `.cjs` Windows cannot start (`EFTYPE`) — it now goes through `cmd.exe`, which finds whatever pnpm is installed. The `.npmrc` shell-emulator lets `pnpm dev`'s POSIX env-prefix scripts run on Windows, the daemon's dev script keeps worktrees in `.data`, and Prettier's `endOfLine: auto` lets `pnpm lint` pass on a Windows checkout.
