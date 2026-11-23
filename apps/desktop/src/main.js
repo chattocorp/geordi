@@ -1,7 +1,7 @@
 import { desktopUpdates } from './updates.js';
 import { desktopRuntime } from './runtime.js';
 import { forgeReady, services } from './services.js';
-import { execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -50,26 +50,62 @@ const note = (/** @type {string} */ text) => log.write(`[app] ${text}\n`);
 /**
  * The environment of a login shell. An app started from the Finder gets next to none of
  * it, and agents need all of it: `PATH` to find `claude`, `codex`, `git` and `gh`, and
- * whatever keys are set there.
+ * whatever keys are set there. Read before the services start, and again when the daemon
+ * is started by hand.
+ * @type {Record<string, string>}
+ */
+let loginEnv = {};
+
+/**
+ * The login shell's environment, in ten seconds at most: the window waits for it. A shell's
+ * startup files may hang (its process group goes, then), or leave something behind that
+ * holds its output open; either way, what it said by then counts.
+ * @returns {Promise<Record<string, string>>}
  */
 function shellEnv() {
 	const mark = '__GEORDI_ENV__';
-	try {
-		const out = execFileSync(
+	return new Promise((resolve) => {
+		const shell = spawn(
 			process.env.SHELL || '/bin/zsh',
 			['-ilc', `echo ${mark}; /usr/bin/env -0`],
-			{ encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }
+			{
+				stdio: ['ignore', 'pipe', 'ignore'],
+				detached: true
+			}
 		);
-		const pairs = out
-			.slice(out.indexOf(mark) + mark.length + 1)
-			.split('\0')
-			.filter((pair) => pair.includes('='))
-			.map((pair) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)]);
-		return Object.fromEntries(pairs);
-	} catch (error) {
-		note(`could not read the shell's environment: ${error}`);
-		return {};
-	}
+		let out = '';
+		shell.stdout.setEncoding('utf8').on('data', (data) => (out += data));
+		let finished = false;
+		const done = (/** @type {string | null} */ problem) => {
+			if (finished) return;
+			finished = true;
+			clearTimeout(timer);
+			if (problem) note(`could not read the shell's environment: ${problem}`);
+			shell.stdout.destroy();
+			const start = out.indexOf(mark);
+			if (start < 0) return resolve({});
+			const pairs = out
+				.slice(start + mark.length + 1)
+				.split('\0')
+				.filter((pair) => pair.includes('='))
+				.map((pair) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)]);
+			resolve(Object.fromEntries(pairs));
+		};
+		const timer = setTimeout(() => {
+			try {
+				process.kill(-shell.pid, 'SIGKILL');
+			} catch {
+				// gone already
+			}
+			done('it took longer than ten seconds');
+		}, 10_000);
+		shell.on('error', (error) => done(String(error)));
+		shell.on('close', (code) => done(code === 0 ? null : `the shell exited with code ${code}`));
+		// something it left behind may hold its output open: once the shell is gone, what it said is all
+		shell.on('exit', (code) =>
+			setTimeout(() => done(code === 0 ? null : `the shell exited with code ${code}`), 250)
+		);
+	});
 }
 
 /** Starts one of our two services as a process of its own, logging what it says. */
@@ -78,7 +114,7 @@ function start(/** @type {'forge' | 'daemon'} */ name) {
 	const child = utilityProcess.fork(join(here, entry), [], {
 		serviceName: `Geordi ${name}`,
 		stdio: 'pipe',
-		env: { ...process.env, ...shellEnv(), ...runtime.env, ...env }
+		env: { ...process.env, ...loginEnv, ...runtime.env, ...env }
 	});
 	for (const stream of [child.stdout, child.stderr])
 		stream?.on('data', (data) => log.write(`[${name}] ${data}`));
@@ -96,7 +132,7 @@ function startForge() {
 		if (quitting) return;
 		dialog.showErrorBox(
 			'Geordi stopped unexpectedly',
-			`The forge exited with code ${code}. Is another Geordi using port ${WEB_PORT}?\n\nSee ${logFile}`
+			`The forge exited with code ${code}. Is another program using port ${WEB_PORT}, ${DAEMON_PORT} or ${runtime.live}?\n\nSee ${logFile}`
 		);
 		app.quit();
 	});
@@ -121,6 +157,11 @@ function startDaemon() {
 		if (!quitting) setTimeout(startDaemon, 1000);
 	});
 	menu();
+}
+
+/** Reads the login shell's environment again, for a daemon started by hand. */
+async function freshEnv() {
+	loginEnv = await shellEnv();
 }
 
 /** Lets go of the daemon. With `agents`, they stop too; otherwise they work on (ADR-007). */
@@ -167,6 +208,12 @@ function lastPage() {
 	}
 }
 
+/** Whether the forge has answered yet; until then, a window says that Geordi is starting. */
+let forgeAnswers = false;
+/** @type {(value?: unknown) => void} */
+let forgeAnswered;
+const forgeAnswering = new Promise((resolve) => (forgeAnswered = resolve));
+
 /** Opens a window: on `page` (a path of the forge's) if given, else where the last one was. */
 function open(page) {
 	// the first window goes where it was and shows what it did; any further one starts afresh
@@ -199,7 +246,8 @@ function open(page) {
 			const place = {
 				...window.getNormalBounds(),
 				fullscreen: window.isFullScreen(),
-				page: shown?.origin === url ? shown.pathname + shown.search : '/'
+				// closed while starting, it showed none of the forge's: the last page still counts
+				page: shown?.origin === url ? shown.pathname + shown.search : lastPage()
 			};
 			writeFileSync(placeFile, JSON.stringify(place));
 		} catch (error) {
@@ -220,7 +268,13 @@ function open(page) {
 		openOutside(target);
 	});
 	webContents.on('context-menu', (_event, params) => contextMenu(window, params));
-	window.loadURL(url + (page ?? (first ? lastPage() : '/')));
+	const shows = page ?? (first ? lastPage() : '/');
+	if (forgeAnswers) window.loadURL(url + shows);
+	else {
+		// the forge comes up after the window: say so, and show the page once it answers
+		window.loadFile(join(here, 'starting.html'));
+		forgeAnswering.then(() => window.isDestroyed() || window.loadURL(url + shows));
+	}
 }
 
 const REFUSED = new Set(
@@ -305,11 +359,11 @@ function menu() {
 			{
 				label: 'Daemon',
 				submenu: [
-					{ label: 'Start Daemon', enabled: !daemon, click: startDaemon },
+					{ label: 'Start Daemon', enabled: !daemon, click: () => freshEnv().then(startDaemon) },
 					{
 						label: 'Restart Daemon',
 						enabled: !!daemon,
-						click: () => stopDaemon().then(startDaemon)
+						click: () => stopDaemon().then(freshEnv).then(startDaemon)
 					},
 					{
 						label: 'Stop Daemon and Its Agents',
@@ -425,10 +479,21 @@ else {
 
 	app.whenReady().then(async () => {
 		menu();
-		startForge();
-		await forgeReady(WEB_PORT);
-		startDaemon();
+		// a window at once, which says what is happening until the forge answers
 		open();
+		loginEnv = await shellEnv();
+		startForge();
+		try {
+			await forgeReady(WEB_PORT);
+		} catch (error) {
+			note(String(error));
+			quitting = true;
+			dialog.showErrorBox('Geordi could not start', `${error.message}\n\nSee ${logFile}`);
+			return app.quit();
+		}
+		forgeAnswers = true;
+		forgeAnswered();
+		startDaemon();
 		// Only the signed release workflow adds the update feed before signing.
 		if (
 			process.platform === 'darwin' &&

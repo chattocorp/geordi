@@ -83,8 +83,16 @@ function startDaemon() {
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'])
 	process.on(signal, () => stop(signal === 'SIGINT' ? 'SIGINT' : 'SIGTERM'));
 
-await forgeReady(settings.web);
-if (!stopping) {
+const answered = await forgeReady(settings.web).then(
+	() => true,
+	(error) => {
+		console.error(error.message);
+		process.exitCode = 1;
+		void stop('SIGTERM');
+		return false;
+	}
+);
+if (answered && !stopping) {
 	startDaemon();
 	console.log(`\nGeordi is running on ${settings.origin}\n`);
 }

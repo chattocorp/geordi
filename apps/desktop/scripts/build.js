@@ -64,6 +64,7 @@ if (process.platform === 'darwin') {
 cpSync(join(root, 'src/updates.js'), join(stage, 'updates.js'));
 cpSync(join(root, 'src/runtime.js'), join(stage, 'runtime.js'));
 cpSync(join(root, 'src/preload.cjs'), join(stage, 'preload.cjs'));
+cpSync(join(root, 'src/starting.html'), join(stage, 'starting.html'));
 
 // The sounds of its notifications: made by the web app's own code, as files for the system
 // to play (see main.js). Louder than in a browser, where they play over whatever else does.

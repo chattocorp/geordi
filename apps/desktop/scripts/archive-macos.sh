@@ -25,30 +25,44 @@ rm "$work/identity.p12"
 printf '%s' "$MACOS_NOTARY_API_KEY_BASE64" | base64 -D > "$work/notary.p8"
 unset password MACOS_SIGNING_CERTIFICATE_P12_BASE64 MACOS_SIGNING_CERTIFICATE_PASSWORD MACOS_NOTARY_API_KEY_BASE64
 
+notary_auth=(--key "$work/notary.p8" --key-id "$MACOS_NOTARY_API_KEY_ID" --issuer "$MACOS_NOTARY_API_ISSUER_ID")
+# Submits a file to Apple's notary service and waits until it is accepted.
+notarize() {
+  local submission
+  submission=$(xcrun notarytool submit "$1" "${notary_auth[@]}" --output-format json | jq -er '.id')
+  echo "Waiting for Apple notarization $submission of $1"
+  # A status request can time out after Apple has received the file.
+  xcrun notarytool wait "$submission" "${notary_auth[@]}" --output-format json > "$work/status.json" ||
+    xcrun notarytool wait "$submission" "${notary_auth[@]}" --output-format json > "$work/status.json"
+  cat "$work/status.json"
+  jq -e '.status == "Accepted"' "$work/status.json" > /dev/null
+}
+
 app=dist/Geordi-darwin-arm64/Geordi.app
 install -m 644 app-update.yml "$app/Contents/Resources/app-update.yml"
 node scripts/sign-macos.js "$app" "$keychain"
+
+# The app carries its own ticket into the DMG and the update archive: Gatekeeper then needs
+# no word from Apple to open it, which a Mac offline or behind a firewall may not get.
+ditto -c -k --keepParent "$app" "$work/notarize.zip"
+notarize "$work/notarize.zip"
+xcrun stapler staple "$app"
+xcrun stapler validate "$app"
 
 version=$(node -p "require('./package.json').version")
 bash scripts/dmg-macos.sh
 image="dist/Geordi-v${version}-macOS-arm64.dmg"
 codesign --sign 'Developer ID Application: ChattoCorp GmbH (59ZZ2V8BY7)' --keychain "$keychain" --timestamp "$image"
-notary_auth=(--key "$work/notary.p8" --key-id "$MACOS_NOTARY_API_KEY_ID" --issuer "$MACOS_NOTARY_API_ISSUER_ID")
-submission=$(xcrun notarytool submit "$image" "${notary_auth[@]}" --output-format json | jq -er '.id')
-echo "Waiting for Apple notarization $submission"
-# A status request can time out after Apple has received the image.
-wait_for_ticket() {
-  xcrun notarytool wait "$submission" "${notary_auth[@]}" --output-format json > "$work/status.json"
-}
-wait_for_ticket || wait_for_ticket
-cat "$work/status.json"
-jq -e '.status == "Accepted"' "$work/status.json" > /dev/null
+notarize "$image"
 xcrun stapler staple "$image"
 xcrun stapler validate "$image"
 spctl --assess --type open --context context:primary-signature --verbose=2 "$image"
+# the app as it is in the DMG, ticket and all
+mounted="$work/mounted"
+hdiutil attach -nobrowse -readonly -mountpoint "$mounted" "$image" > /dev/null
+xcrun stapler validate "$mounted/Geordi.app"
+hdiutil detach "$mounted" > /dev/null
 
-# The DMG submission also covers this signed app. Staple it before generating the updater files.
-xcrun stapler staple "$app"
 archive="dist/Geordi-v${version}-macOS-arm64.zip"
 node scripts/update-archive.js
 ditto -x -k "$archive" "$work/extracted"
