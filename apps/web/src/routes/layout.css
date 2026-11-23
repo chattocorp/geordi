@@ -299,6 +299,16 @@
 	@apply relative min-h-0 flex-1 overflow-auto;
 }
 
+/*
+ * A long page's part that the browser lays out and paints only once it is near the
+ * screen; until then it holds a guessed height, and afterwards the one it last had.
+ * Find in page still finds what is in it.
+ */
+@utility render-near {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 40rem;
+}
+
 /* Fade the list into its sheet where rows continue beyond the visible edge. */
 @utility scroll-fade {
 	--fade-top: 0px;

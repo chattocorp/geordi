@@ -40,7 +40,7 @@
 -->
 <div class="space-y-10">
 	{#each releases as release (release.version)}
-		<section aria-labelledby="release-{release.version}" class="space-y-4">
+		<section aria-labelledby="release-{release.version}" class="space-y-4 render-near">
 			<h2 id="release-{release.version}" class="heading">{release.version}</h2>
 			{#each release.sections as section (section.title)}
 				{#if section.title === HIGHLIGHTS}
