@@ -159,7 +159,9 @@ export const workspace = (id: string) => {
 			if (event.type === 'workspace.titled' && ancestors.has(source)) return true;
 			if (
 				source === owner &&
-				(event.type === 'workspace.continued' || event.type === 'workspace.switched')
+				(event.type === 'workspace.continued' ||
+					event.type === 'workspace.switched' ||
+					event.type === 'workspace.based')
 			)
 				return true;
 			return (

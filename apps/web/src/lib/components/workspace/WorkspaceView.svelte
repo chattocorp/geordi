@@ -76,6 +76,7 @@
 		runSetup,
 		runTasks,
 		say,
+		setBase,
 		stopTask,
 		stopJob,
 		updateWorkspace
@@ -100,6 +101,7 @@
 	import { initWrapLines, type FileTools } from './window-tools.svelte.ts';
 	import WindowTools from './WindowTools.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
+	import BranchPicker from './BranchPicker.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
 
@@ -1170,7 +1172,26 @@
 			onopen={openDiff}
 			onopencombined={() => showTab(COMBINED)}
 			bind:view={changesView.current}
+			target={!pull && workspace.repoId ? compareWith : undefined}
 		/>
+		<!-- a pull request's target is chosen where the pull request is: then it is just a name -->
+		{#snippet compareWith(name: string)}
+			<BranchPicker
+				repoId={workspace.repoId ?? ''}
+				main={workspace.base ? undefined : name}
+				label="Compared with"
+				icon="icon-[lucide--git-compare]"
+				without={workspace.worktree?.branch}
+				title="The branch the changes are compared with"
+				bind:value={
+					() => workspace.base ?? '',
+					(base) =>
+						void setBase({ workspaceId: id, base: base || null }).catch((error) =>
+							console.warn(`Could not compare with ${base}:`, error)
+						)
+				}
+			/>
+		{/snippet}
 	{:else if tab === PR && pull}
 		<PullRequestPane {pull}>
 			{#snippet description(text: string)}<Markdown {text} />{/snippet}

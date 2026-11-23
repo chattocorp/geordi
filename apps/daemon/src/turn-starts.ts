@@ -107,10 +107,10 @@ export function turnStarts({
 				if ('project' in message)
 					return { path: ensureProject(projectsDir, worktreeId), project: true as const };
 
-				// A workspace of its own starts from where its upstream stands now. (One started
-				// by an agent starts from that agent's branch, which is here already.)
-				const { repoPath, base } = message;
-				if (!base && !hasWorktree(worktreesDir, message)) {
+				// A workspace of its own starts from where its upstream stands now, whichever
+				// branch it starts from.
+				const { repoPath } = message;
+				if (!hasWorktree(worktreesDir, message)) {
 					const problem = await Promise.race([stopped.promise, fetchUpstream(repoPath)]);
 					if (problem) console.warn(`could not fetch ${repoPath}: ${problem}`);
 				}

@@ -5,8 +5,15 @@
 	import DiffView from '@geordi/ui/DiffView.svelte';
 	import { open, singleGroup, type Layout } from '#lib/layout.ts';
 	import Changes from '@geordi/ui/Changes.svelte';
+	import Select from '#lib/ui/Select.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Changes', component: Changes });
+	/** The branch chosen in the story, until then the one it is compared with. */
+	let base = $state<string>();
+	const branches = ['main', 'release/2', 'geordi/fix-login'].map((value) => ({
+		value,
+		label: value
+	}));
 	const versions: Record<string, [string, string]> = {
 		'src/index.ts': [
 			"export { format } from './format';\n",
@@ -160,6 +167,46 @@
 			}}
 			onopen={() => {}}
 		/>
+	</div>
+</Story>
+
+<Story
+	name="A base to choose"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.click(canvas.getByRole('button', { name: 'Compared with: main' }));
+		await userEvent.click(await canvas.findByRole('option', { name: 'release/2' }));
+		await expect(canvas.getByRole('button', { name: 'Compared with: release/2' })).toBeVisible();
+	}}
+>
+	<div class="flex h-96 w-80 flex-col">
+		<Changes
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: many.slice(0, 3)
+				}
+			}}
+			onopen={() => {}}
+		>
+			{#snippet target(name)}
+				<Select
+					label="Compared with"
+					options={branches}
+					bind:value={() => base ?? name, (next) => (base = next)}
+				>
+					{#snippet trigger()}
+						<span class="icon-[lucide--git-compare] size-3.5 shrink-0"></span>
+						<span class="truncate text-ink">{base ?? name}</span>
+					{/snippet}
+				</Select>
+			{/snippet}
+		</Changes>
 	</div>
 </Story>
 

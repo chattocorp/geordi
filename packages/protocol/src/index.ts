@@ -48,6 +48,14 @@ export type SessionModel = {
 	effort?: string;
 };
 
+/**
+ * What git accepts as a branch name (`git check-ref-format`), which is a lot: `fix/issue#12`,
+ * `release@2`, `grüße`. Not accepted is what could be read as an option or as a revision
+ * expression.
+ */
+export const BRANCH_NAME =
+	/^(?![-./])(?!.*(?:\.\.|@\{|\/\/|\/\.|\.lock(?:\/|$)))[^\p{Cc} ~^:?*[\\]+(?<![./])$/u;
+
 /** What model names and effort levels look like. They end up as CLI arguments. */
 export const SETTING = /^[A-Za-z0-9][\w.:[\]-]{0,79}$/;
 
@@ -340,7 +348,7 @@ export const CONFIG_SETTINGS = {
 			'tasks:\n  db:\n    command: docker compose up db\n    ports: [postgres]\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    ports: [http, hmr]\n    needs: [db]\n    url: http://localhost:{http}/\n    default: true\n  admin:\n    label: Admin area\n    url: http://localhost:{http}/admin\n  docs:\n    url: http://localhost:8080/'
 	},
 	setup: {
-		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from another branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
+		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one started from another branch, which an agent may have written: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
 		example: 'setup: pnpm install && cp ../.env .env'
 	},
 	teardown: {
@@ -573,6 +581,8 @@ export type DaemonRequest =
 	| { kind: 'checkForge'; repoPath: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
+	/** The branches a new worktree may start from, the most recently committed to first. */
+	| { kind: 'branches'; repoPath: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
@@ -597,6 +607,8 @@ export type DaemonResults = {
 	editReleaseNote: null;
 	checkForge: ForgeDiagnostic;
 	repoIcon: RepoIcon | null;
+	/** `start`: the branch work starts from unless another is named. */
+	branches: { start: string | null; branches: string[] };
 	diff: FileVersions;
 	source: FileContent | null;
 	folders: string[];

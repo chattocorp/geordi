@@ -5,6 +5,7 @@
 	import FittedPath from './FittedPath.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Attachment } from 'svelte/attachments';
+	import type { Snippet } from 'svelte';
 	import { fileTree, treeRows } from './tree.ts';
 	import type { Changes } from '@geordi/protocol';
 
@@ -22,8 +23,20 @@
 		onopencombined?: () => void;
 		/** The files as one list, in Git's order, or arranged in their directories. */
 		view?: View;
+		/**
+		 * The branch the changes are compared with, if it is to be more than its name: a choice,
+		 * looking like the name does (a button padded as a tool is, its sign first).
+		 */
+		target?: Snippet<[string]>;
 	};
-	let { git, gone = null, onopen, onopencombined, view = $bindable('list') }: Props = $props();
+	let {
+		git,
+		gone = null,
+		onopen,
+		onopencombined,
+		view = $bindable('list'),
+		target
+	}: Props = $props();
 
 	const files = $derived(git?.changes?.files ?? []);
 	/** Whether there are files to list, and so a choice of how to show them. */
@@ -87,12 +100,24 @@
 
 <section class="flex min-h-0 flex-1 flex-col text-sm" aria-label="Changes">
 	{#if listed}
-		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-3.5">
-			<p class="min-w-0 flex-1 truncate text-muted" title={git?.changes?.comparisonTarget}>
+		<!-- the branch's sign lines up with the files' letters below (the button pads it) -->
+		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-1.5">
+			<div class="flex min-w-0 flex-1">
 				{#if git?.changes?.comparisonTarget}
-					Compared with <span>{git.changes.comparisonTarget}</span>
+					{@const name = git.changes.comparisonTarget}
+					{#if target}
+						{@render target(name)}
+					{:else}
+						<span
+							class="inline-flex h-8 min-w-0 items-center gap-1.5 px-2 text-muted"
+							title="Compared with {name}"
+						>
+							<span class="icon-[lucide--git-compare] size-3.5 shrink-0"></span>
+							<span class="truncate text-ink">{name}</span>
+						</span>
+					{/if}
 				{/if}
-			</p>
+			</div>
 			<div class="tools">
 				{#if onopencombined}
 					<Button
@@ -190,14 +215,11 @@
 		title="{means}: {entry.path}"
 		style:padding-left={depth === undefined ? undefined : `${0.875 + depth * 1.25}rem`}
 		class={[
-			'flex w-full items-center overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap hover:bg-hover',
-			depth === undefined ? 'gap-2.5 pl-3.5' : 'gap-1.5'
+			'flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap hover:bg-hover',
+			depth === undefined && 'pl-3.5'
 		]}
 	>
-		<span
-			class={['shrink-0 text-center font-semibold', depth === undefined ? 'w-2' : 'w-3.5', tone]}
-			aria-label={means}
-		>
+		<span class={['w-3.5 shrink-0 text-center font-semibold', tone]} aria-label={means}>
 			{letter}
 		</span>
 		{#if depth === undefined}

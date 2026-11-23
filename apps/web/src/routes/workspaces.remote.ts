@@ -13,6 +13,8 @@ import {
 } from '@geordi/protocol';
 import {
 	archiveWorkspace as archive,
+	branchesOf,
+	changeBase,
 	concernsAboutArchiving,
 	continueWorkspace as carryOn,
 	hub,
@@ -70,13 +72,15 @@ export const createWorkspace = form(
 		...agentSettings,
 		/** May be empty: the workspace is then there to be told what to do, and has its worktree. */
 		prompt: v.optional(v.pipe(v.string(), v.trim()), ''),
+		/** The branch its worktree starts from; empty for where work in the repository starts. */
+		base: v.optional(v.pipe(v.string(), v.trim()), ''),
 		/**
 		 * A workspace to start this in instead, as another conversation in it, with an agent
 		 * working in its directory (FDR-002).
 		 */
 		alongside: v.optional(v.string())
 	}),
-	({ model, effort, permissionMode, alongside, repoId, ...data }) => {
+	({ model, effort, permissionMode, alongside, repoId, base, ...data }) => {
 		const offered = hub().harnesses();
 		if (offered && !offered.some((h) => h.agent === data.agent))
 			error(409, `Provider ${data.agent} is unavailable`);
@@ -87,7 +91,7 @@ export const createWorkspace = form(
 			const owner = workspaces().summary(id).worktreeId;
 			redirect(303, `/workspaces/${owner}?agent=${id}`);
 		}
-		const id = workspaces().create({ ...data, repoId, settings });
+		const id = workspaces().create({ ...data, repoId, settings, ...(base && { base }) });
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
 		if (!data.prompt && !data.images.length)
@@ -402,6 +406,18 @@ export const findFiles = command(
 			},
 			FILE_SEARCH_TIMEOUT_MS
 		)
+);
+
+/**
+ * The branches a new worktree in a repository may start from, the most recently committed to
+ * first, and the one it starts from unless another is chosen. Asked when someone looks.
+ */
+export const listBranches = command(v.string(), (repoId) => branchesOf(repos().get(repoId).path));
+
+/** Measures a workspace's work against another branch (`null`: the repository's main one). */
+export const setBase = command(
+	v.object({ workspaceId: v.string(), base: v.nullable(v.pipe(v.string(), v.minLength(1))) }),
+	({ workspaceId, base }) => changeBase(workspaceId, base)
 );
 
 /** Both versions of a changed file, for the diff viewer. */
