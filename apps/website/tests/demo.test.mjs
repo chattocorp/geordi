@@ -63,7 +63,7 @@ test('open changed files and the combined diff, and inspect pull request #412', 
 test('stop and start a job in the Tasks tab', async (t) => {
 	const demo = await openDemo(t, true);
 	await expect(demo.getByRole('textbox')).toBeEnabled();
-	const run = demo.getByRole('tabpanel', { name: 'Tasks' });
+	const run = demo.getByRole('tabpanel', { name: 'Tasks' }).getByRole('list', { name: 'Tasks' });
 	const mark = demo.getByRole('tab', { name: /Tasks/ }).getByRole('img', { name: 'Job running' });
 	await expect(mark).toBeVisible();
 	// stopping shows where one points at (or focuses) what runs
@@ -109,7 +109,7 @@ test('the conversation, changed files, and what runs are readable without JavaSc
 		demo.getByRole('region', { name: 'Changes' }).getByRole('button', { name: /auth\.ts/ })
 	).toBeVisible();
 	const run = demo.getByRole('tabpanel', { name: 'Tasks' });
-	await expect(run.getByText('Dev server')).toBeVisible();
+	await expect(run.getByRole('list', { name: 'Tasks' }).getByText('Dev server')).toBeVisible();
 });
 
 test('a link to the site is shown with a picture', async (t) => {

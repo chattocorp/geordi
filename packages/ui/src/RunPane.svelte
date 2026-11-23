@@ -9,10 +9,11 @@
 
 	/**
 	 * The repository's tasks (FDR-006), and how each is: what a workspace runs, in one place,
-	 * the default tasks first (what the shortcut runs), then the rest, each in the order the file
-	 * has them. A task is a row: it runs the task (again) and opens its URL; pointing at it
-	 * offers its terminal and stopping it. What
-	 * comes before them (a problem with the configuration, say) is `children`.
+	 * the default tasks first, then the rest, each in the order the file has them. Above them,
+	 * running the default tasks (what the shortcut does) and stopping everything that runs. A
+	 * task is a row: it runs the task (again) and opens its URL; pointing at it offers its
+	 * terminal and stopping it, right after its name. What comes before them (a problem with
+	 * the configuration, say) is `children`.
 	 */
 	let {
 		tasks,
@@ -20,13 +21,14 @@
 		stateOf,
 		hasTerminal,
 		run,
+		runDefault,
 		stop,
 		show,
 		loading = false,
 		children
 	}: {
 		tasks: Task[];
-		/** Shown on the default tasks: what runs them. */
+		/** Shown on the button that runs the default tasks: what else does. */
 		shortcut?: ShortcutId;
 		stateOf: (task: string) => JobState;
 		hasTerminal: (task: string) => boolean;
@@ -35,6 +37,8 @@
 		 * once it starts.
 		 */
 		run: (task: string, showTerminal?: boolean) => void;
+		/** Runs the default tasks, together. */
+		runDefault: () => void;
 		stop: (task: string) => void;
 		/** Brings a task's terminal to the front. */
 		show: (task: string) => void;
@@ -48,6 +52,8 @@
 		...tasks.filter((task) => task.default),
 		...tasks.filter((task) => !task.default)
 	]);
+	const defaults = $derived(tasks.filter((task) => task.default));
+	const running = $derived(tasks.filter((task) => task.command && live(stateOf(task.name))));
 	const byName = $derived(new Map(tasks.map((task) => [task.name, task])));
 	/** The task pointed at, whose row and everything it needs stand out (as a parent in the sidebar). */
 	let pointed = $state<string | null>(null);
@@ -114,15 +120,18 @@
 	{@const terminal = !!task.command && hasTerminal(task.name)}
 	<!-- the URL of a task that runs something sits at the end of its row -->
 	{@const inline = task.command ? task.href : null}
+	<!-- a task that runs, or ran, shows what can be done with it and where it listens -->
+	{@const active = terminal || (!!task.command && live(state))}
 	<li>
 		<div
 			{@attach pointing(task.name)}
 			class={[
-				'group/task flex h-8 items-center gap-1 rounded-control pr-1 pl-0.5 hover:bg-hover',
+				'group/task relative flex h-8 items-center gap-1 rounded-control pr-1 pl-0.5 text-sm hover:bg-hover',
 				needed.includes(task.name) && 'bg-surface/60'
 			]}
 		>
-			<!-- the row runs the task (again, once it ended); a running one is reused -->
+			<!-- the whole row runs the task (again, once it ended); a running one is reused. What
+				is in the row lies over it, and lets clicks through but for its own buttons. -->
 			<button
 				type="button"
 				aria-label="{task.command ? 'Run' : 'Open'} {label}"
@@ -136,39 +145,37 @@
 					if (terminal) show(task.name);
 					else run(task.name, true);
 				}}
-				class="flex h-full min-w-0 flex-1 items-center gap-1 text-left text-sm"
-			>
-				<!-- what is not running is quiet until one points at it, when it says the row runs it -->
-				<span class="grid size-6 shrink-0 place-items-center text-muted">
-					{#if !task.command}{@render linkIcon(task.name)}
-					{:else if !live(state)}
-						<span class="grid group-hover/task:hidden group-has-focus-visible/task:hidden">
-							<JobMark {state} />
-						</span>
-						<span
-							class="icon-[lucide--play] hidden size-3.5 group-hover/task:block group-has-focus-visible/task:block"
-						></span>
-					{:else}<JobMark {state} listens={task.ports.length > 0} />{/if}
-				</span>
-				<!-- the name comes first: what is shown on pointing gives way to it -->
-				<span class="min-w-0 truncate text-ink">{label}</span>
-				<span class="min-w-0 grow basis-0 truncate pl-1 text-right code-dense text-xs text-muted">
-					<span class="hidden group-hover/task:inline group-has-focus-visible/task:inline">
-						{#if task.command}
-							{task.ports.map(({ port }) => `:${port}`).join(' ')}
-						{:else if task.href}
-							{where(task.href)}
-						{/if}
+				class="absolute inset-0 rounded-control"
+			></button>
+			<!-- what is not running is quiet until one points at it, when it says the row runs it -->
+			<span class="pointer-events-none grid size-6 shrink-0 place-items-center text-muted">
+				{#if !task.command}{@render linkIcon(task.name)}
+				{:else if !live(state)}
+					<span class="grid group-hover/task:hidden group-has-focus-visible/task:hidden">
+						<JobMark {state} />
 					</span>
-				</span>
-				{#if task.default && shortcut}<span class="shrink-0"><Keys id={shortcut} /></span>{/if}
-			</button>
-			<!-- what can be done with it shows where one points at it (its output, running or from
-				the last run; stopping it), taking no room at rest: the mark says how it is -->
-			{#if terminal || (task.command && live(state))}
-				<span
-					class="hidden shrink-0 items-center group-focus-within/task:flex group-hover/task:flex"
+					<span
+						class="icon-[lucide--play] hidden size-3.5 group-hover/task:block group-has-focus-visible/task:block"
+					></span>
+				{:else}<JobMark {state} listens={task.ports.length > 0} />{/if}
+			</span>
+			<span class="pointer-events-none min-w-0 truncate pr-1 text-ink">{label}</span>
+			<!-- what follows the name: first its URL; then, for a task that runs or ran, what can be
+				done with it and its ports; for the rest, these show where one points at it -->
+			{#if inline}
+				<button
+					type="button"
+					aria-label="Open {label}"
+					title="Open {inline}"
+					onclick={() => run(task.name)}
+					class="relative grid size-6 shrink-0 place-items-center rounded-control hover:bg-hover"
 				>
+					{@render linkIcon(task.name, true)}
+				</button>
+			{/if}
+			<!-- what can be done with it (its output, running or from the last run; stopping it) -->
+			{#if active}
+				<span class="relative flex shrink-0 items-center">
 					{#if terminal}
 						<Button
 							variant="ghost"
@@ -189,18 +196,19 @@
 					{/if}
 				</span>
 			{/if}
-			<!-- its URL stays, at the very end: the one thing at rest beside the name -->
-			{#if inline}
-				<button
-					type="button"
-					aria-label="Open {label}"
-					title="Open {inline}"
-					onclick={() => run(task.name)}
-					class="grid size-6 shrink-0 place-items-center rounded-control hover:bg-hover"
-				>
-					{@render linkIcon(task.name, true)}
-				</button>
-			{/if}
+			<!-- where it is: the first to give way when there is no room -->
+			<span
+				class={[
+					'pointer-events-none min-w-0 shrink-1000 truncate pl-1 code-dense text-xs text-muted',
+					!active && 'hidden group-hover/task:inline group-has-focus-visible/task:inline'
+				]}
+			>
+				{#if task.command}
+					{task.ports.map(({ port }) => `:${port}`).join(' ')}
+				{:else if task.href}
+					{where(task.href)}
+				{/if}
+			</span>
 		</div>
 	</li>
 {/snippet}
@@ -211,6 +219,36 @@
 	{#if loading}
 		<Loading label="Loading the tasks…" />
 	{:else if tasks.length > 0}
+		<!-- what is done with all of them: the default tasks, and stopping what runs -->
+		{#if defaults.length || running.length}
+			<div class="flex items-center gap-2">
+				{#if defaults.length}
+					{@const name =
+						defaults.length === 1 ? (defaults[0].label ?? defaults[0].name) : 'Default tasks'}
+					<Button
+						variant="secondary"
+						size="sm"
+						icon="icon-[lucide--play]"
+						aria-label="Run {name}"
+						onclick={runDefault}
+					>
+						{name}
+						{#if shortcut}<Keys id={shortcut} />{/if}
+					</Button>
+				{/if}
+				{#if running.length}
+					<Button
+						variant="secondary"
+						size="sm"
+						icon="icon-[lucide--circle-stop]"
+						aria-label="Stop all"
+						onclick={() => running.forEach((task) => stop(task.name))}
+					>
+						Stop all
+					</Button>
+				{/if}
+			</div>
+		{/if}
 		<!-- a hair between rows, as in the sidebar: rows that stand out together stay apart -->
 		<ul aria-label="Tasks" class="space-y-px">
 			{#each ordered as task (task.name)}
