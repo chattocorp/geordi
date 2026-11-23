@@ -60,6 +60,8 @@ export async function stageServices(stage) {
 		outdir: join(stage, 'daemon'),
 		external: ['@lydell/node-pty', '@parcel/watcher']
 	});
+	// preloaded into the agents' wrappers, next to the host that starts them (`host.ts`)
+	cpSync(join(repo, 'apps/daemon/src/as-node.cjs'), join(stage, 'daemon', 'as-node.cjs'));
 	const resolve = createRequire(join(repo, 'apps/daemon/package.json')).resolve;
 	for (const wrapper of ['claude-agent-acp', 'codex-acp']) {
 		const wrapperDir = dirname(resolve(`@agentclientprotocol/${wrapper}/package.json`));

@@ -107,6 +107,10 @@ const entry = wrapperEntry();
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(signal, () => {});
 
 const env = { ...process.env, ...options.env };
+// Inside the app we run as Electron told to be Node (`session.ts`). The agent's CLI, and
+// everything it runs, must not be told so too: an Electron app started there would start
+// as Node instead.
+delete env.ELECTRON_RUN_AS_NODE;
 // The agent's own program is the one the person has installed: the wrappers would otherwise
 // look for a copy of their own, which Geordi leaves out (some 300 MB each).
 const program = agentProgram(agent, env);
@@ -141,12 +145,17 @@ if (agent === 'opencode' && options.instructions) {
 		instructions: [...(config.instructions ?? []), path]
 	});
 }
+// A wrapper we run with our own runtime. In the app that is Electron, which has to be told
+// to be Node to start, and forgets it again before the wrapper's code runs (`as-node.cjs`).
+const asNode = process.versions.electron
+	? ['--require', join(import.meta.dirname, 'as-node.cjs')]
+	: [];
 const starting: ReturnType<typeof programCommand> = entry
-	? { file: process.execPath, args: [entry], options: {} }
+	? { file: process.execPath, args: [...asNode, entry], options: {} }
 	: programCommand(program ?? cmd, ['acp']);
 const child = spawn(starting.file, starting.args, {
 	cwd: options.cwd,
-	env,
+	env: entry && process.versions.electron ? { ...env, ELECTRON_RUN_AS_NODE: '1' } : env,
 	stdio: ['pipe', 'pipe', err],
 	...starting.options
 });

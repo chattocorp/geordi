@@ -18,6 +18,7 @@ writeFileSync(
 	`
 const out = (msg) => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
 if (process.env.PID_FILE) require('node:fs').writeFileSync(process.env.PID_FILE, String(process.pid));
+if (process.env.ENV_FILE) require('node:fs').writeFileSync(process.env.ENV_FILE, process.env.ELECTRON_RUN_AS_NODE ?? 'unset');
 const id = 'cli-1';
 const update = (u) => out({method:'session/update',params:{sessionId:id,update:u}});
 const state = (state, extra) => update({sessionUpdate:'state_update',state,...extra});
@@ -950,6 +951,7 @@ describe('a launched daemon', { timeout: 60_000 }, () => {
 		const dir = join(sessions, 'w');
 		const scripts = mkdtempSync(join(tmpdir(), 'geordi-launch-'));
 		const wrapperPid = join(scripts, 'wrapper.pid');
+		const wrapperEnv = join(scripts, 'wrapper.env');
 		const daemon = join(scripts, 'daemon.mjs');
 		const launcher = join(scripts, 'launcher.cjs');
 		writeFileSync(
@@ -958,7 +960,7 @@ describe('a launched daemon', { timeout: 60_000 }, () => {
 const { readFileSync } = await import('node:fs');
 const { startSession } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'session.ts')).href)});
 // nobody to report to: what the host writes waits in its files for the next daemon
-startSession(${JSON.stringify(meta({ PID_FILE: wrapperPid }))}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
+startSession(${JSON.stringify(meta({ PID_FILE: wrapperPid, ENV_FILE: wrapperEnv }))}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
 const out = dir + '/out.jsonl';
 setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);
 setTimeout(() => { console.error(readFileSync(dir + '/host.log', 'utf8')); process.exit(1); }, 20000);`
@@ -1011,6 +1013,8 @@ if (process.versions.electron) {
 		});
 		expect((await exited)[0]).toBe(0);
 		await sleep(500); // for a job object to have ended its members
+		// what the wrapper starts (the agent's CLI, its shells) is never told to be Node
+		expect(readFileSync(wrapperEnv, 'utf8')).toBe('unset');
 
 		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
 		expect(alive(host)).toBe(true);
