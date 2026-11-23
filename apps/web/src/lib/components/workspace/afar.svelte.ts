@@ -5,7 +5,12 @@ import type { WorkspaceAction } from '@geordi/ui/actions';
 import { problemOf } from '#lib/problem.ts';
 import { archive, archiveProblems } from './archive.svelte.ts';
 import { reviewProblems, runPullAction } from './review.svelte.ts';
-import { continueWorkspace, say, updateWorkspace } from '../../../routes/workspaces.remote';
+import {
+	continueWorkspace,
+	say,
+	setWorkspaceInactive,
+	updateWorkspace
+} from '../../../routes/workspaces.remote';
 
 /**
  * Doing what a workspace's actions say from outside it: the sidebar. Where
@@ -32,6 +37,19 @@ export async function archiveAndNavigate(workspace: Target) {
 	// it didn't work (rather than: they said no): the workspace's page says why
 	else if (archiveProblems[workspace.id] && page.url.pathname === startedAt && startedAt !== href)
 		await goto(href);
+}
+
+/**
+ * Marks a workspace inactive or active. One marked inactive while it is on screen and only
+ * active workspaces are listed (`hiding`) is left at once, as an archived one is: for the
+ * one whose agent started it, or the start page.
+ */
+export async function setInactive(workspace: Target, inactive: boolean, hiding: boolean) {
+	if (inactive && hiding && page.url.pathname === resolve('/workspaces/[id]', { id: workspace.id }))
+		void goto(
+			workspace.parentId ? resolve('/workspaces/[id]', { id: workspace.parentId }) : resolve('/')
+		);
+	await setWorkspaceInactive({ workspaceId: workspace.id, inactive });
 }
 
 /** Has a workspace carry on with new work, on a new branch off the latest upstream. */
