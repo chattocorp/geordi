@@ -230,7 +230,7 @@ it, perhaps you.
     mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
     it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
+    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `render-near` (a long page's part painted only near the screen), `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`,
     `status-ok`/`-danger`/`-merged`.
   - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
