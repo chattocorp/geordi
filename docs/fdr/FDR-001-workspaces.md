@@ -69,9 +69,9 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 
 ### 4. Changes follow the merge target
 
-**Decision:** Use the pull request target when known. Otherwise, a child compares with its parent branch if the parent has commits outside its own target. If the parent has no such commits, the child inherits that target. A top-level workspace compares with the repository’s upstream default branch.
-**Why:** People want the workspace's total effect, regardless of whether an agent has committed yet.
-**Tradeoff:** The comparison uses locally available Git history. In a repository without an upstream, the main checkout supplies the default target.
+**Decision:** A worktree has one base: the branch it was forked from, chosen when it is made (the repository’s upstream default branch unless another is named). Its changes are compared with its pull request’s target when there is one, else with that base. Nothing else, such as the branches of the workspaces that started it, is consulted.
+**Why:** People want the workspace's total effect, regardless of whether an agent has committed yet, against one branch they can name. An earlier version walked up the chain of parent workspaces to pick a target; a child whose agent re-branched from `main` was then measured against its parent's unmerged prototype and showed thousands of lines it never wrote.
+**Tradeoff:** The comparison uses locally available Git history. If an agent moves its branch onto another base by hand, the diff is wrong until it opens a pull request. A base that is gone (merged and deleted) gives way to the repository’s default; in a repository without an upstream, the main checkout supplies it.
 
 ### 5. A fixed frame, with freedom only inside it
 
