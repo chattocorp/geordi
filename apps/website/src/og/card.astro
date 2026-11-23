@@ -7,6 +7,12 @@
 import '../styles/site.css';
 import Demo from '../components/Demo.svelte';
 import Visor from '../components/Visor.astro';
+
+const agents = [
+	{ name: 'Claude Code', icon: 'icon-[lucide--sparkles]', tone: 'text-claude' },
+	{ name: 'Codex', icon: 'icon-[lucide--code-xml]', tone: 'text-codex' },
+	{ name: 'OpenCode', icon: 'icon-[lucide--terminal]', tone: 'text-muted' }
+];
 ---
 
 <!doctype html>
@@ -17,18 +23,44 @@ import Visor from '../components/Visor.astro';
 		<title>Geordi's Open Graph image</title>
 	</head>
 	<body>
-		<main id="card" class="bg-frame">
-			<div class="copy">
-				<p class="flex items-center gap-4 text-2xl font-semibold">
-					<Visor class="h-6 w-12" />
-					Geordi
-				</p>
-				<h1 class="mt-auto font-semibold">A calmer way to run coding agents.</h1>
-				<p class="mt-auto text-2xl text-muted">Download at geordi.run</p>
-			</div>
+		<main id="card" class="bg-frame text-ink">
+			<div class="glow" aria-hidden="true"></div>
+
 			<div class="window">
 				<Demo client:load />
 			</div>
+
+			<div class="copy">
+				<p class="flex items-center gap-3 text-2xl font-semibold">
+					<span class="mark">
+						<Visor class="h-5 w-10" />
+					</span>
+					Geordi
+				</p>
+				<h1 class="font-semibold">
+					A calmer way to run <span class="text-accent">coding agents.</span>
+				</h1>
+				<ul class="flex flex-wrap gap-2">
+					{agents.map((agent) => (
+						<li class="flex h-9 items-center gap-2 rounded-full bg-sunken/80 px-3.5 text-sm font-medium ring-1 ring-line/60">
+							<span class:list={['size-4', agent.icon, agent.tone]} />
+							{agent.name}
+						</li>
+					))}
+				</ul>
+				<p class="mt-auto flex items-center gap-2 text-2xl font-medium text-muted">
+					<span class="icon-[lucide--arrow-down-to-line] size-6 text-accent"></span>
+					geordi.run
+				</p>
+			</div>
+
+			<p class="ribbon flex h-11 items-center gap-2 rounded-full bg-surface pr-1.5 pl-4 text-base font-medium text-ok shadow-float ring-1 ring-line/60">
+				<span class="icon-[lucide--circle-check] size-5 shrink-0"></span>
+				Ready to merge
+				<span class="ml-1 flex h-8 items-center rounded-full bg-ok px-3.5 text-sm text-on-ok">
+					Merge PR
+				</span>
+			</p>
 		</main>
 	</body>
 </html>
@@ -39,25 +71,66 @@ import Visor from '../components/Visor.astro';
 		position: relative;
 		width: 1200px;
 		height: 630px;
-		overflow: hidden;
+		/* clip, not hidden: the demo focuses its reply box, which would scroll the card */
+		overflow: clip;
+	}
+	/* The visor's light, falling on the frame from behind the window. */
+	.glow {
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(
+				560px 360px at 78% 18%,
+				color-mix(in srgb, var(--accent), transparent 82%),
+				transparent 70%
+			),
+			radial-gradient(
+				700px 420px at 10% 100%,
+				color-mix(in srgb, var(--claude), transparent 88%),
+				transparent 70%
+			);
 	}
 	.copy {
 		position: absolute;
-		inset: 64px auto 64px 64px;
-		width: 400px;
+		inset: 56px auto 56px 64px;
+		width: 470px;
 		display: flex;
 		flex-direction: column;
+		gap: 36px;
+	}
+	.mark {
+		display: grid;
+		place-items: center;
+		width: 52px;
+		height: 52px;
+		border-radius: var(--radius-card);
+		background: var(--accent);
+		color: var(--on-accent);
+		box-shadow: 0 8px 28px color-mix(in srgb, var(--accent), transparent 70%);
 	}
 	h1 {
-		font-size: 72px;
-		line-height: 0.96;
-		letter-spacing: -0.04em;
+		font-size: 76px;
+		line-height: 0.98;
+		letter-spacing: -0.045em;
+		text-wrap: balance;
 	}
-	/* The window runs off the picture's right edge. */
+	/* The app, shrunk a little, runs off the picture's right and bottom edges. */
 	.window {
 		position: absolute;
-		top: 64px;
-		left: 520px;
-		width: 1120px;
+		top: 92px;
+		left: 590px;
+		width: 1180px;
+		transform: scale(0.86);
+		transform-origin: top left;
+	}
+	/* The demo's caption is for the page, not the picture. */
+	.window :global([data-demo] ~ p) {
+		display: none;
+	}
+	/* How the work stands, laid over the window's corner. */
+	.ribbon {
+		position: absolute;
+		left: 536px;
+		bottom: 40px;
 	}
 </style>
