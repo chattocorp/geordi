@@ -6,14 +6,16 @@
 	import Keys from './Keys.svelte';
 	import Loading from './Loading.svelte';
 	import type { ShortcutId } from './keys.ts';
+	import { persisted } from './persisted.svelte.ts';
 
 	/**
 	 * The repository's tasks (FDR-006), and how each is: what a workspace runs, in one place,
 	 * the default tasks first, then the rest, each in the order the file has them. Above them,
 	 * running the default tasks (what the shortcut does) and stopping everything that runs. A
 	 * task is a row: it runs the task (again) and opens its URL; pointing at it offers its
-	 * terminal and stopping it, right after its name. What comes before them (a problem with
-	 * the configuration, say) is `children`.
+	 * terminal and stopping it, right after its name. Tasks whose labels begin alike
+	 * (`Sorties / Ring 1`) are a section of their own, which folds; it stands where its first
+	 * task would. What comes before them (a problem with the configuration, say) is `children`.
 	 */
 	let {
 		tasks,
@@ -48,10 +50,43 @@
 	} = $props();
 
 	const live = (state: JobState) => state === 'running' || state === 'starting';
-	const ordered = $derived([
-		...tasks.filter((task) => task.default),
-		...tasks.filter((task) => !task.default)
-	]);
+	/** A label's section and its name in it: `Sorties / Ring 1` is `Ring 1` in `Sorties`. */
+	function sectionOf(task: Task): { section: string | null; label: string } {
+		const label = task.label ?? task.name;
+		const [, section, rest] = label.match(/^(.+?) \/ (.+)$/) ?? [];
+		return section ? { section: section.trim(), label: rest.trim() } : { section: null, label };
+	}
+	type Entry =
+		{ task: Task; label: string } | { section: string; tasks: { task: Task; label: string }[] };
+	/** The default tasks first, by their full label; then the rest, a section where its first task is. */
+	const entries = $derived.by(() => {
+		const list: Entry[] = tasks
+			.filter((task) => task.default)
+			.map((task) => ({ task, label: task.label ?? task.name }));
+		for (const task of tasks.filter((task) => !task.default)) {
+			const { section, label } = sectionOf(task);
+			if (!section) {
+				list.push({ task, label });
+				continue;
+			}
+			const found = list.find((entry) => 'section' in entry && entry.section === section);
+			if (found && 'section' in found) found.tasks.push({ task, label });
+			else list.push({ section, tasks: [{ task, label }] });
+		}
+		return list;
+	});
+	/** Sections folded away, in this browser. */
+	const folded = persisted<string[]>('geordi:tasks-folded', []);
+	function fold(section: string, open: boolean) {
+		const others = folded.current.filter((name) => name !== section);
+		folded.current = open ? others : [...others, section];
+	}
+	/** How a folded section is, at a glance: starting if anything is, else running if anything is. */
+	function sectionState(names: string[]): JobState {
+		const states = names.map(stateOf);
+		if (states.includes('starting')) return 'starting';
+		return states.includes('running') ? 'running' : 'stopped';
+	}
 	const defaults = $derived(tasks.filter((task) => task.default));
 	const running = $derived(tasks.filter((task) => task.command && live(stateOf(task.name))));
 	const byName = $derived(new Map(tasks.map((task) => [task.name, task])));
@@ -114,8 +149,7 @@
 	{/if}
 {/snippet}
 
-{#snippet taskRow(task: Task)}
-	{@const label = task.label ?? task.name}
+{#snippet taskRow(task: Task, label: string)}
 	{@const state = stateOf(task.name)}
 	{@const terminal = !!task.command && hasTerminal(task.name)}
 	<!-- the URL of a task that runs something sits at the end of its row -->
@@ -251,8 +285,47 @@
 		{/if}
 		<!-- a hair between rows, as in the sidebar: rows that stand out together stay apart -->
 		<ul aria-label="Tasks" class="space-y-px">
-			{#each ordered as task (task.name)}
-				{@render taskRow(task)}
+			{#each entries as entry ('section' in entry ? `section:${entry.section}` : entry.task.name)}
+				{#if 'section' in entry}
+					{@const names = entry.tasks.map(({ task }) => task.name)}
+					{@const open = !folded.current.includes(entry.section)}
+					<li>
+						<details {open} ontoggle={(event) => fold(entry.section, event.currentTarget.open)}>
+							<summary
+								class={[
+									'group/section flex h-8 list-none items-center gap-1 rounded-control pr-1 pl-0.5 text-sm select-none hover:bg-hover',
+									names.some((name) => needed.includes(name)) && 'bg-surface/60'
+								]}
+							>
+								<span class="grid size-6 shrink-0 place-items-center text-muted">
+									<span
+										aria-hidden="true"
+										class={[
+											'icon-[lucide--chevron-right] size-4 transition-transform motion-reduce:transition-none',
+											open && 'rotate-90'
+										]}
+									></span>
+								</span>
+								<span class="min-w-0 truncate pr-1 font-medium text-muted">{entry.section}</span>
+								<!-- folded, it still says whether anything in it is at work -->
+								{#if !open && sectionState(names) !== 'stopped'}
+									<JobMark
+										state={sectionState(names)}
+										listens={entry.tasks.some(({ task }) => task.ports.length > 0)}
+									/>
+								{/if}
+							</summary>
+							<!-- its tasks, under the section's name -->
+							<ul aria-label={entry.section} class="mt-px space-y-px pl-4">
+								{#each entry.tasks as { task, label } (task.name)}
+									{@render taskRow(task, label)}
+								{/each}
+							</ul>
+						</details>
+					</li>
+				{:else}
+					{@render taskRow(entry.task, entry.label)}
+				{/if}
 			{/each}
 		</ul>
 	{/if}
