@@ -517,6 +517,13 @@ describe('workspaces', () => {
 		const recorded = store.readAll().length;
 		workspaces.setBase(id, 'release/2');
 		expect(store.readAll().length).toBe(recorded);
+		// said in the conversation: what the changes are shown against is never changed unseen
+		expect(workspaces.get(id).transcript.at(-1)).toMatchObject({
+			kind: 'note',
+			text: 'Now compared with release/2'
+		});
+		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/mine' });
+		expect(() => workspaces.setBase(id, 'geordi/mine')).toThrow(refusal(/its own branch/));
 
 		// back to where work in the repository starts, as on a replay
 		workspaces.setBase(id, null);

@@ -153,6 +153,11 @@ describe('setting the base', () => {
 			actor: caller
 		});
 
+		expect(workspaces.get(caller).transcript.at(-1)).toMatchObject({
+			kind: 'note',
+			text: 'Now compared with release/2, as Lead said'
+		});
+
 		expect(await text({})).toMatch(/main branch/);
 		expect(workspaces.get(caller).base).toBeNull();
 		expect(await text({ branch: '--force' })).toMatch(/not a branch name/);

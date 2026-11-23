@@ -1271,6 +1271,9 @@ export function createWorkspaces(
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (base !== null) refuseBranch(base);
 			const owner = find(workspace.worktreeId);
+			// compared with itself, its work would look like none
+			if (base !== null && base === owner.worktree?.branch)
+				error(400, 'Work can’t be compared with its own branch');
 			if (owner.base === base) return;
 			store.append(
 				{

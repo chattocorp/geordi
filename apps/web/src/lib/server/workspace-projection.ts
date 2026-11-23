@@ -564,6 +564,13 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		if (event.type === 'workspace.based') {
 			for (const other of workspaces.values())
 				if (other.worktreeId === workspace.worktreeId) other.base = event.data.base ?? null;
+			// what the changes are shown against is what is reviewed: nobody changes it unseen
+			const by = byAgent(actor) ? `, as ${workspaces.get(actor)?.title ?? 'an agent'} said` : '';
+			append({
+				kind: 'note',
+				text: `Now compared with ${event.data.base ?? 'the main branch'}${by}`,
+				at
+			});
 			return;
 		}
 		if (event.type === 'workspace.switched') {
