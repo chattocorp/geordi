@@ -215,7 +215,7 @@
 					<span
 						class={[
 							'min-h-0.5 flex-1 rounded-full transition-colors',
-							index / shown.length < progress ? 'bg-accent' : 'bg-muted/40'
+							index / shown.length < progress ? 'bg-accent' : 'bg-faint'
 						]}
 						style:height={`${Math.max(peak, 0.06) * 100}%`}
 					></span>

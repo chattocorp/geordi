@@ -19,7 +19,7 @@
 	{#snippet plain()}
 		{#if selected && line}
 			<pre class="code-dense">{line > 1 ? lines.slice(0, line - 1).join('\n') + '\n' : ''}<mark
-					class="bg-accent-soft text-accent-ink"
+					class="tone-accent"
 					aria-label={`Line ${line}`}
 					{@attach (node) => {
 						node.scrollIntoView({ block: 'center', inline: 'nearest' });

@@ -8,10 +8,10 @@
 	aria-label="Open agent question"
 	title="Open agent question"
 	class={[
-		'text-accent-ink hover:bg-hover',
+		'hover:bg-hover',
 		worded
-			? 'inline-flex items-center gap-2 rounded-full px-2 py-1'
-			: 'indicator-action bg-accent-soft'
+			? 'inline-flex items-center gap-2 rounded-full px-2 py-1 text-accent-ink'
+			: 'indicator-action tone-accent'
 	]}
 >
 	<span class="icon-[lucide--message-circle-question] size-4 shrink-0"></span>

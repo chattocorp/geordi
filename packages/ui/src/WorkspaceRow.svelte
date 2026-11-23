@@ -63,13 +63,12 @@
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
-	const danger = 'status-danger hover:bg-danger/20';
 	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
-		'merge-pull': 'status-ok hover:bg-ok/20',
-		'resolve-conflicts': danger,
-		'fix-checks': danger,
-		'address-review': danger,
-		archive: 'status-merged hover:bg-merged/25'
+		'merge-pull': 'tone-ok',
+		'resolve-conflicts': 'tone-danger',
+		'fix-checks': 'tone-danger',
+		'address-review': 'tone-danger',
+		archive: 'tone-merged'
 	};
 
 	const primary = $derived(actions.find((action) => !action.aside));
@@ -101,9 +100,9 @@
 		current && 'item-active',
 		// it came to rest out of sight, and they haven't looked since
 		unread && 'font-semibold text-ink',
-		highlighted && 'bg-surface/60 text-ink',
+		highlighted && 'bg-hover text-ink',
 		// put aside for later: quieter, until it is looked at
-		inactive && !current && !unread && !highlighted && 'text-muted/60'
+		inactive && !current && !unread && !highlighted && 'text-faint'
 	]}
 >
 	<!-- one with its own folded under it shows the link as its icon, which turns into the fold on hover -->
@@ -112,7 +111,7 @@
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes a resolved URL -->
 		<a
 			href={parentHref}
-			class="ml-1.5 grid size-5 shrink-0 place-items-center rounded-control text-muted/50 hover:text-ink focus-visible:text-ink"
+			class="ml-1.5 grid size-5 shrink-0 place-items-center rounded-control text-faint hover:text-ink focus-visible:text-ink"
 			aria-label={label}
 			title={label}
 			draggable="false"
@@ -153,7 +152,7 @@
 		{:else if primary && pillColor}
 			<button
 				type="button"
-				class={['indicator-action', pillColor]}
+				class={['indicator-action hover:bg-current/20', pillColor]}
 				aria-label="{primary.label} — {title}"
 				title={visibleStanding?.label ?? primary.label}
 				onclick={() => activate(primary)}
@@ -178,10 +177,10 @@
 	{:else if typeof icon === 'function'}
 		{@render icon()}
 	{:else if icon}
-		<span class={[icon, 'size-4 text-muted/50']}></span>
+		<span class={[icon, 'size-4 text-faint']}></span>
 	{:else if parentHref && fold}
-		<span class="icon-[lucide--link] size-4 text-muted/50"></span>
+		<span class="icon-[lucide--link] size-4 text-faint"></span>
 	{:else}
-		<span class="icon-[lucide--git-branch] size-4 text-muted/50"></span>
+		<span class="icon-[lucide--git-branch] size-4 text-faint"></span>
 	{/if}
 {/snippet}

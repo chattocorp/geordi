@@ -317,7 +317,7 @@
 			return shown.length && !loadingFiles ? `${listId}-${active}` : undefined;
 		},
 		class:
-			'col-start-1 row-start-1 block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-muted/60 focus-visible:outline-none disabled:cursor-not-allowed'
+			'col-start-1 row-start-1 block max-h-80 w-full resize-none field-sizing-content bg-transparent px-4 py-2 placeholder:text-faint focus-visible:outline-none disabled:cursor-not-allowed'
 	};
 </script>
 
@@ -333,7 +333,7 @@
 <form
 	{...form}
 	data-live={live || undefined}
-	class="group/composer @container edge-live relative flex min-h-0 flex-col card-float pt-2 focus-within:ring-muted/60 data-dropping:ring-accent/60 motion-safe:transition-shadow"
+	class="group/composer @container edge-live relative flex min-h-0 flex-col card-float pt-2 focus-within:ring-faint data-dropping:ring-accent/60 motion-safe:transition-shadow"
 >
 	{#if mention && !shown.length && ((loadingFiles && showFileProgress) || fileError)}
 		<div
@@ -368,7 +368,7 @@
 					aria-disabled={loadingFiles || undefined}
 					aria-label={mention ? completion.text : undefined}
 					title={mention ? completion.text : undefined}
-					class={['menu-item cursor-pointer', index === active && 'menu-item-active']}
+					class={['menu-item cursor-pointer', index === active && 'item-picked']}
 					onmousedown={() => !loadingFiles && complete(completion)}
 					onmousemove={() => !loadingFiles && (active = index)}
 				>

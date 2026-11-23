@@ -96,7 +96,7 @@
 				autocomplete="off"
 				spellcheck="false"
 				{placeholder}
-				class="w-full min-w-0 bg-transparent text-base text-ink placeholder:text-muted/70 focus-visible:outline-none"
+				class="w-full min-w-0 bg-transparent text-base text-ink placeholder:text-faint focus-visible:outline-none"
 			/>
 		</label>
 		<div id="{id}-list" role="listbox" aria-label={label} class="scroller max-h-96 min-h-0">
@@ -112,7 +112,7 @@
 					aria-selected={index === active}
 					onclick={() => choose(item)}
 					onpointermove={() => select(index)}
-					class={['menu-item', index === active && 'menu-item-active']}
+					class={['menu-item', index === active && 'item-picked']}
 				>
 					<span class={['size-4 shrink-0', item.icon ?? 'icon-[lucide--chevron-right]']}></span>
 					<span class="min-w-0 flex-1 truncate">

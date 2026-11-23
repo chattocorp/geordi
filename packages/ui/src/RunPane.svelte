@@ -150,8 +150,8 @@
 		<div
 			{@attach pointing(task.name)}
 			class={[
-				'group/task relative flex h-8 items-center gap-1 rounded-control pr-1 pl-0.5 text-sm hover:bg-hover',
-				needed.includes(task.name) && 'bg-surface/60'
+				'group/task relative item h-8 gap-1 pr-1 pl-0.5 text-ink',
+				needed.includes(task.name) && 'bg-hover'
 			]}
 		>
 			<!-- the whole row runs the task (again, once it ended); a running one is reused. What
@@ -253,8 +253,8 @@
 						<details {open} ontoggle={(event) => fold(entry.section, event.currentTarget.open)}>
 							<summary
 								class={[
-									'group/section flex h-8 list-none items-center gap-1 rounded-control pr-1 pl-0.5 text-sm select-none hover:bg-hover',
-									names.some((name) => needed.includes(name)) && 'bg-surface/60'
+									'group/section item h-8 list-none gap-1 pr-1 pl-0.5 text-ink select-none',
+									names.some((name) => needed.includes(name)) && 'bg-hover'
 								]}
 							>
 								<span class="grid size-6 shrink-0 place-items-center text-muted">

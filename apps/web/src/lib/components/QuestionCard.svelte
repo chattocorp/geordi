@@ -97,7 +97,7 @@
 									type="button"
 									class={[
 										'item w-full items-start gap-3 px-2 py-1.5 text-left',
-										picked && 'bg-sunken text-ink hover:bg-sunken'
+										picked && 'item-picked'
 									]}
 									aria-pressed={picked}
 									onclick={() => choose(i, option.label, question.multiSelect)}

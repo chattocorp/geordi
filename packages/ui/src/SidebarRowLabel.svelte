@@ -28,7 +28,7 @@
 
 {#snippet label()}
 	{#if icon}
-		<span class="grid size-5 shrink-0 place-items-center text-muted/80">
+		<span class="grid size-5 shrink-0 place-items-center text-muted">
 			<span class={['col-start-1 row-start-1 grid place-items-center', fold && 'reveal:opacity-0']}>
 				{@render icon()}
 			</span>
@@ -48,7 +48,7 @@
 			aria-hidden="true"
 			class={[
 				'shrink-0 tabular-nums',
-				fold.unread ? 'font-semibold text-ink' : 'font-normal text-muted/60'
+				fold.unread ? 'font-semibold text-ink' : 'font-normal text-faint'
 			]}
 		>
 			{fold.count}

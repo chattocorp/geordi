@@ -22,7 +22,7 @@ export async function highlightFile(path: string, text: string, line?: number) {
 				line(node, number) {
 					if (number !== line) return;
 					node.tagName = 'mark';
-					node.properties.class = 'bg-accent-soft text-accent-ink';
+					node.properties.class = 'tone-accent';
 					node.properties['aria-label'] = `Line ${line}`;
 					if (!node.children.length) node.children.push({ type: 'text', value: ' ' });
 				},

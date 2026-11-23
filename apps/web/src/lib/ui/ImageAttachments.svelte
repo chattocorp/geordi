@@ -34,7 +34,7 @@
 					aria-label={`Remove image ${index + 1}`}
 					title={`Remove image ${index + 1}`}
 					onclick={() => onremove(image.id)}
-					class="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-surface text-muted shadow-soft ring-1 ring-line hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 pointer-fine:opacity-0 pointer-fine:group-focus-within/attachment:opacity-100 pointer-fine:group-hover/attachment:opacity-100"
+					class="absolute top-1 right-1 grid size-5 place-items-center rounded-full raised text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 pointer-fine:opacity-0 pointer-fine:group-focus-within/attachment:opacity-100 pointer-fine:group-hover/attachment:opacity-100"
 				>
 					<span class="icon-[lucide--x] size-3"></span>
 				</button>

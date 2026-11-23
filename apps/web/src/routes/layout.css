@@ -62,11 +62,9 @@
 	--line: #e2e2ea;
 	--accent: #f5b021;
 	--accent-ink: #855600;
-	--accent-soft: #fdf1d6;
 	--bubble: #e7e7eb;
 	--on-accent: #2a1c00;
 	--danger: #b32a25;
-	--danger-soft: #fde7e5;
 	/* getting low: something that runs out (context, usage), before it is `danger` */
 	--warning: #9a6700;
 	--ok: #0f6b50;
@@ -114,11 +112,9 @@
 	--line: #3a3d4b;
 	--accent: #f7b733;
 	--accent-ink: #fac95f;
-	--accent-soft: #433822;
 	--bubble: #383c4b;
 	--on-accent: #2a1c00;
 	--danger: #ff7b72;
-	--danger-soft: #45292b;
 	--warning: #e3c35a;
 	--ok: #4fd1a5;
 	--merged: #a985f7;
@@ -190,11 +186,9 @@
 	--color-line: var(--line);
 	--color-accent: var(--accent);
 	--color-accent-ink: var(--accent-ink);
-	--color-accent-soft: var(--accent-soft);
 	--color-bubble: var(--bubble);
 	--color-on-accent: var(--on-accent);
 	--color-danger: var(--danger);
-	--color-danger-soft: var(--danger-soft);
 	--color-warning: var(--warning);
 	--color-ok: var(--ok);
 	--color-merged: var(--merged);
@@ -205,9 +199,11 @@
 	/*
 	 * Relative colours: tints of the ink, see-through, so that they show on whatever is
 	 * behind them (a sheet, a card, a row that is itself hovered) in both modes. `hover` is
-	 * the wash under something the pointer is on.
+	 * the wash under something the pointer is on. `faint` is `muted`, fainter still: for what
+	 * need not be read (a placeholder, a row put aside, an icon that only marks a kind).
 	 */
 	--color-hover: color-mix(in oklab, var(--ink) 9%, transparent);
+	--color-faint: color-mix(in oklab, var(--muted) 60%, transparent);
 
 	--shadow-soft: var(--shadow);
 	--shadow-float: var(--shadow-lg);
@@ -218,21 +214,25 @@
  * components in `#lib/ui`) before reaching for raw Tailwind classes.
  */
 
+/*
+ * What is lifted off the sheet it lies on: the lightest surface, a soft shadow and a faint
+ * ring. Cards, inputs and small floating controls are all this, in different shapes.
+ */
+@utility raised {
+	@apply bg-surface shadow-soft ring-1 ring-line/60;
+}
 /* A surface that holds content. `card-float` lifts it (composers, anything primary). */
 @utility card {
-	@apply rounded-card bg-surface shadow-soft ring-1 ring-line/60;
+	@apply rounded-card raised;
 }
 @utility card-float {
-	@apply rounded-card bg-surface shadow-float ring-1 ring-line/60;
-}
-/* A card that is a link or button. */
-@utility card-link {
-	@apply transition-shadow hover:shadow-float;
+	@apply rounded-card raised;
+	@apply shadow-float;
 }
 
 /* A text input. */
 @utility input {
-	@apply rounded-control bg-surface px-3 py-2 shadow-soft ring-1 ring-line/60 placeholder:text-muted/70;
+	@apply rounded-control raised px-3 py-2 placeholder:text-faint;
 }
 
 /* Where a dragged tab would land among the others: a line at that side of a tab. */
@@ -393,12 +393,20 @@
 	@apply inline-flex items-center gap-1.5 rounded-control text-muted hover:text-ink;
 }
 
-/* A row you can pick: navigation links, tabs. Add `item-active` to the current one. */
+/*
+ * A row you can pick: navigation links, tabs, options, rows of a list. Quiet until the
+ * pointer is on it. Add `item-active` to the one that is current (where one is: raised),
+ * or `item-picked` to one that is chosen or in hand (an option taken, a menu's row under
+ * the keyboard, a control whose popup is open: sunken).
+ */
 @utility item {
-	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-surface/60 hover:text-ink;
+	@apply flex items-center gap-2 rounded-control text-sm text-muted hover:bg-hover hover:text-ink;
 }
 @utility item-active {
 	@apply bg-surface text-ink shadow-soft hover:bg-surface;
+}
+@utility item-picked {
+	@apply bg-sunken text-ink hover:bg-sunken;
 }
 @utility tab-inactive {
 	color: color-mix(in srgb, var(--muted) 80%, var(--ink));
@@ -412,7 +420,6 @@
 	@apply w-fit max-w-5/6 rounded-card rounded-br-control px-4 py-2.5;
 }
 
-/* The full height of the window under the bar that narrow screens have at the top (`h-14`). */
 /*
  * What the desktop app's window is dragged by, in place of a title bar: the bars at the top
  * themselves. A draggable region takes the mouse for itself, so what can be used inside one
@@ -451,16 +458,14 @@
 	-webkit-app-region: no-drag;
 }
 
+/* The full height of the window under the bar that narrow screens have at the top (`h-14`). */
 @utility h-below-bar {
 	height: calc(100dvh - --spacing(14));
 }
 
-/* A row in a popup list: a menu's item, a select's option. `menu-item-active` for the one in hand. */
+/* An `item` in a popup list: a menu's item, a select's option. `item-picked` for the one in hand. */
 @utility menu-item {
-	@apply flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-left text-sm text-muted;
-}
-@utility menu-item-active {
-	@apply bg-sunken text-ink;
+	@apply item w-full px-2 py-1.5 text-left;
 }
 
 /* Where something will be once there is something. */
@@ -476,15 +481,23 @@
 	@apply hover:w-max hover:px-2 focus-visible:w-max focus-visible:px-2 reveal:w-max reveal:px-2;
 }
 
-/* Tints for workspace action controls and ribbons. */
-@utility status-ok {
+/*
+ * A colour that says something, as a soft tint with text in it: a badge, a notice, a
+ * ribbon, a marked line. See-through, so it sits on any surface. One that can be pressed
+ * adds `hover:bg-current/20`.
+ */
+@utility tone-ok {
 	@apply bg-ok/12 text-ok;
 }
-@utility status-danger {
-	@apply bg-danger-soft text-danger;
+@utility tone-danger {
+	@apply bg-danger/12 text-danger;
 }
-@utility status-merged {
-	@apply bg-merged/15 text-merged;
+@utility tone-merged {
+	@apply bg-merged/12 text-merged;
+}
+/* gold is too light to read as text: its tint takes more of it, and the text its ink */
+@utility tone-accent {
+	@apply bg-accent/20 text-accent-ink;
 }
 
 /*
@@ -507,12 +520,9 @@
 	}
 }
 
-/* A status dot. Add `dot-live` while the thing it stands for is working. */
+/* A status dot: add a colour (`bg-accent` while the thing it stands for is working). */
 @utility dot {
 	@apply size-1.5 shrink-0 rounded-full bg-line;
-}
-@utility dot-live {
-	@apply bg-accent;
 }
 
 @layer base {
@@ -673,7 +683,7 @@
 		@apply relative;
 	}
 	[data-copy] {
-		@apply absolute top-2 right-2 grid size-7 place-items-center rounded-control bg-surface text-muted opacity-0 shadow-soft ring-1 ring-line/60 hover:text-ink focus-visible:opacity-100;
+		@apply absolute top-2 right-2 grid size-7 place-items-center rounded-control raised text-muted opacity-0 hover:text-ink focus-visible:opacity-100;
 
 		&::before {
 			content: '';
