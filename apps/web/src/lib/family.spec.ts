@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	activeOnDay,
 	byRepository,
 	dropTarget,
 	inFocus,
@@ -9,6 +8,7 @@ import {
 	nextUnread,
 	stepThrough,
 	unfolded,
+	withoutInactive,
 	withAides
 } from './family.ts';
 
@@ -20,18 +20,39 @@ const workspace = (id: string, repoId: string | null, parentId: string | null = 
 const ids = (listed: { workspace: { id: string } }[] | undefined) =>
 	listed?.map(({ workspace }) => workspace.id);
 
-describe('activeOnDay', () => {
-	const now = new Date().toISOString();
-	const day = new Date(now).toDateString();
+describe('withoutInactive', () => {
 	const all = [
-		{ id: 'today', updatedAt: now },
-		{ id: 'aside', updatedAt: now, setAside: true },
-		{ id: 'before', updatedAt: '2001-01-01T12:00:00Z' }
+		{ id: 'active', parentId: null },
+		{ id: 'inactive', parentId: null, inactive: true },
+		{ id: 'child', parentId: 'inactive' },
+		{ id: 'grandchild', parentId: 'child' },
+		{ id: 'helper', parentId: 'active' },
+		{ id: 'orphan', parentId: 'archived' }
 	];
 
-	it("lists those active today, but for those set aside ('Remove from Today')", () => {
-		expect(activeOnDay(all, day).map(({ id }) => id)).toEqual(['today']);
-		expect(activeOnDay(all, null)).toBe(all);
+	it('leaves out the inactive workspaces, where asked to', () => {
+		expect(withoutInactive(all, false)).toBe(all);
+	});
+
+	it('leaves out what an inactive workspace started, at any depth, but not what an active one did', () => {
+		expect(withoutInactive(all, true).map(({ id }) => id)).toEqual(['active', 'helper', 'orphan']);
+	});
+
+	it('keeps the workspace on screen, in its place with those that started it', () => {
+		expect(withoutInactive(all, true, 'inactive').map(({ id }) => id)).toEqual([
+			'active',
+			'inactive',
+			'helper',
+			'orphan'
+		]);
+		expect(withoutInactive(all, true, 'grandchild').map(({ id }) => id)).toEqual([
+			'active',
+			'inactive',
+			'child',
+			'grandchild',
+			'helper',
+			'orphan'
+		]);
 	});
 });
 

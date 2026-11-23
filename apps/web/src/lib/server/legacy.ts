@@ -155,13 +155,18 @@ export function createUpcaster() {
 			case 'workspace.restored':
 			case 'workspace.archived':
 			case 'workspace.moved':
-			case 'workspace.setAside':
+			case 'workspace.deactivated':
+			case 'workspace.activated':
 			case 'workspace.locked':
 			case 'workspace.unlocked':
 			case 'workspace.usage':
 			case 'workspace.suggested':
 			case 'workspace.purged':
 				return [event as CurrentEvent];
+
+			// "Remove from Today", before the Today list became the inactive workspaces
+			case 'workspace.setAside':
+				return [{ type: 'workspace.deactivated', data: event.data as { id: string } }];
 
 			default:
 				if (!unknown.has(event.type)) {

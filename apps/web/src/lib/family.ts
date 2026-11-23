@@ -14,16 +14,28 @@ export type Listed<T> = {
 };
 
 /**
- * The workspaces active on `day` (a calendar day in the viewer's time zone), but for those
- * set aside ("Remove from Today"); all of them where `day` is `null`.
+ * The active workspaces, where `hideInactive`; otherwise all of them. A workspace is put
+ * aside with the one whose agent started it: what an inactive workspace started, at any
+ * depth, is left out too, though it is not inactive itself. The workspace on screen
+ * (`viewed`) stays, in its place: with the workspaces that started it.
  */
-export function activeOnDay<T extends { updatedAt: string; setAside?: boolean }>(
-	workspaces: T[],
-	day: string | null
-) {
-	return day === null
-		? workspaces
-		: workspaces.filter((w) => !w.setAside && new Date(w.updatedAt).toDateString() === day);
+export function withoutInactive<
+	T extends { id: string; parentId: string | null; inactive?: boolean }
+>(workspaces: T[], hideInactive: boolean, viewed: string | null = null) {
+	if (!hideInactive) return workspaces;
+	const byId = new Map(workspaces.map((w) => [w.id, w]));
+	/** The workspace and those that started it, nearest first; stops at one gone, or a loop. */
+	const lineOf = (id: string | null) => {
+		const line: T[] = [];
+		let w = id ? byId.get(id) : undefined;
+		while (w && !line.includes(w)) {
+			line.push(w);
+			w = w.parentId ? byId.get(w.parentId) : undefined;
+		}
+		return line;
+	};
+	const kept = new Set(lineOf(viewed));
+	return workspaces.filter((w) => kept.has(w) || !lineOf(w.id).some((each) => each.inactive));
 }
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */

@@ -233,7 +233,7 @@ const tools = {
 	},
 	list_workspaces: {
 		description:
-			'List visible workspaces with id, repoId, title, url, branch, status and asking. A null repoId identifies a project workspace. Set include_archived to include archived entries.',
+			'List visible workspaces with id, repoId, title, url, branch, status, asking and inactive. A null repoId identifies a project workspace. inactive means the person put the workspace aside for later; only the person changes it. Set include_archived to include archived entries.',
 		input: v.strictObject({ include_archived: v.optional(v.boolean(), false) }),
 		run: (agents: Agents, caller: string, input: { include_archived: boolean }) =>
 			agents.listWorkspaces(caller, input.include_archived)
@@ -348,7 +348,7 @@ const tools = {
 	},
 	workspace_status: {
 		description: (kind: CallerKind) =>
-			`Read Git changes, pull request, checks and suggested next steps for a visible repository worktree. ${kind === 'repository' ? 'Omit workspace_id for your own worktree.' : 'Supply the repository workspace ID as workspace_id.'} Projects have no Git standing. Upstream data can be absent or come from the last successful refresh, with no age bound. A step with a prompt can be sent to the workspace agent. Other steps are available to the person.`,
+			`Read Git changes, pull request, checks and suggested next steps for a visible repository worktree. ${kind === 'repository' ? 'Omit workspace_id for your own worktree.' : 'Supply the repository workspace ID as workspace_id.'} inactive says whether the person put the workspace aside for later. Projects have no Git standing. Upstream data can be absent or come from the last successful refresh, with no age bound. A step with a prompt can be sent to the workspace agent. Other steps are available to the person.`,
 		input: v.strictObject({
 			workspace_id: v.optional(workspaceId)
 		}),
@@ -371,6 +371,8 @@ const tools = {
 				id: workspace.id,
 				title: workspace.title,
 				status: workspace.status,
+				// a person put it aside for later; only they change that
+				inactive: workspace.inactive,
 				branch: changes.branch,
 				standing: standingOf(state)?.label ?? null,
 				changes: {

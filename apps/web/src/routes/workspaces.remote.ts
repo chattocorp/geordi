@@ -368,8 +368,9 @@ export const lockWorkspace = command(
 	({ workspaceId, locked }) => workspaces().lock(workspaceId, locked)
 );
 
-export const setWorkspaceAside = command(v.string(), (workspaceId) =>
-	workspaces().setAside(workspaceId)
+export const setWorkspaceInactive = command(
+	v.object({ workspaceId: v.string(), inactive: v.boolean() }),
+	({ workspaceId, inactive }) => workspaces().setInactive(workspaceId, inactive)
 );
 
 export const stopTask = command(

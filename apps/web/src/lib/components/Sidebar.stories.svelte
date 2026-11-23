@@ -3,7 +3,7 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { activeOnDay } from '#lib/family.ts';
+	import { withoutInactive } from '#lib/family.ts';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import Sidebar from './Sidebar.svelte';
@@ -12,7 +12,7 @@
 		title: 'Geordi/Sidebar',
 		component: Sidebar,
 		beforeEach() {
-			filters.todayOnly = false;
+			filters.activeOnly = true;
 			focus.current = null;
 			folded.current = [];
 			grouped.current = true;
@@ -30,7 +30,7 @@
 	/** Whether workspaces are grouped by repository: in the app, remembered in the browser too. */
 	const grouped = $state({ current: true });
 
-	const filters = $state({ todayOnly: false });
+	const filters = $state({ activeOnly: true });
 	/** Whether a workspace has come along since the story began. */
 	const arrived = $state({ current: false });
 	/** Whether navigation has arrived, in the story where it comes late. */
@@ -176,22 +176,21 @@
 	};
 </script>
 
-{#snippet frame(
-	nav: Navigation | undefined,
-	path: string,
-	lost = false,
-	day = new Date(2026, 10, 20).toDateString()
-)}
+{#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh max-h-full w-64 bg-frame p-2">
 		<Sidebar
-			visibleWorkspaces={activeOnDay(nav?.workspaces ?? [], filters.todayOnly ? day : null)}
+			visibleWorkspaces={withoutInactive(
+				nav?.workspaces ?? [],
+				filters.activeOnly,
+				path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null
+			)}
 			{nav}
 			{path}
 			{folded}
 			{focus}
 			{grouped}
-			bind:todayOnly={filters.todayOnly}
+			bind:activeOnly={filters.activeOnly}
 			{lost}
 		/>
 	</div>
@@ -278,38 +277,58 @@
 </Story>
 
 <Story
-	name="Active today"
+	name="Inactive"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const today = canvas.getByRole('button', { name: 'Show workspaces active today' });
-		await fireEvent.click(today);
-		await expect(today).toHaveAttribute('aria-pressed', 'true');
-		await waitFor(() => expect(canvas.getByText('Review the daemon')).toBeVisible());
+		const activeOnly = canvas.getByRole('button', { name: 'Show only active workspaces' });
+		await expect(activeOnly).toHaveAttribute('aria-pressed', 'true');
+		await waitFor(() => expect(canvas.getByText('Choose a storage engine')).toBeVisible());
 		await waitFor(() =>
 			expect(canvas.queryByText('Scale live views and the event log')).toBeNull()
 		);
+		// put aside with the workspace whose agent started it, though not inactive itself
+		await expect(canvas.queryByText('Review the daemon')).toBeNull();
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
-		await expect(canvas.getByText('No workspaces active today.')).toBeVisible();
-		await fireEvent.click(today);
+		await expect(canvas.getByText('All workspaces are inactive.')).toBeVisible();
+		await fireEvent.click(activeOnly);
+		await expect(activeOnly).toHaveAttribute('aria-pressed', 'false');
 		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'All repositories' }));
+		await waitFor(() => expect(canvas.getByText('Review the daemon')).toBeVisible());
 	}}
 >
 	{@render frame(
 		{
 			...nav,
 			workspaces: nav.workspaces.map((w) =>
-				w.id === 'aide'
-					? { ...w, updatedAt: new Date(2026, 10, 20).toISOString() }
-					: { ...w, updatedAt: new Date(2026, 10, 19, 23, 59).toISOString() }
+				w.id === 'working' || w.repoId === 'sample' ? { ...w, inactive: true } : w
 			)
 		},
-		'/',
-		false,
-		new Date(2026, 10, 20).toDateString()
+		'/'
+	)}
+</Story>
+
+<Story
+	name="Inactive, on screen"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// the workspace on screen stays in the list, though it is inactive; what it started does not
+		await waitFor(() =>
+			expect(canvas.getByText('Scale live views and the event log')).toBeVisible()
+		);
+		await expect(canvas.queryByText('Review the daemon')).toBeNull();
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: nav.workspaces.map((w) => (w.id === 'working' ? { ...w, inactive: true } : w))
+		},
+		'/workspaces/working'
 	)}
 </Story>
 

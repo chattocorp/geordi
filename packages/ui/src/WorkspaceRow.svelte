@@ -24,6 +24,7 @@
 		waiting = false,
 		working = false,
 		locked = false,
+		inactive = false,
 		background = 0,
 		progress,
 		standing = null,
@@ -49,6 +50,8 @@
 		working?: boolean;
 		/** Whether a person locked it against archiving (FDR-015): shown in the status slot while it has no other status. */
 		locked?: boolean;
+		/** Whether a person marked it inactive (put it aside for later): its title is quieter. */
+		inactive?: boolean;
 		/** How many tasks its agents left running in the background. */
 		background?: number;
 		progress?: ActivityId;
@@ -98,7 +101,9 @@
 		current && 'item-active',
 		// it came to rest out of sight, and they haven't looked since
 		unread && 'font-semibold text-ink',
-		highlighted && 'bg-surface/60 text-ink'
+		highlighted && 'bg-surface/60 text-ink',
+		// put aside for later: quieter, until it is looked at
+		inactive && !current && !unread && !highlighted && 'text-muted/60'
 	]}
 >
 	{#if parentHref}

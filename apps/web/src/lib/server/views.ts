@@ -78,8 +78,8 @@ export const navigation = () =>
 					pull: known.upstream?.pull
 						? { number: known.upstream.pull.number, url: known.upstream.pull.url }
 						: null,
-					// put out of today's list until a person prompts it again
-					...(workspace.setAside && { setAside: true }),
+					// put aside for later, until a person makes it active again or prompts it
+					...(workspace.inactive && { inactive: true }),
 					// kept from archiving until a person unlocks it (FDR-015)
 					...(workspace.locked && { locked: true }),
 					// when anything last happened in it, also in the agents working alongside
