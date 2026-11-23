@@ -86,12 +86,10 @@ export type WorktreeRef = {
 	/** Parent directory for this worktree. Older workspaces use the checkout's basename. */
 	worktreeParent?: string;
 	/**
-	 * The branch the worktree started from.
+	 * The branch the worktree started from, and is compared with until it has a pull request.
 	 * Absent for worktrees started from where work in the repository starts.
 	 */
 	base?: string;
-	/** Branches this workspace was built on, nearest parent first. */
-	parents?: { worktreeId: string; branch: string }[];
 	/**
 	 * The branch the worktree is on, as far as the forge knows. Only needed to bring back a
 	 * worktree that went missing: one that was continued is no longer on the branch its ID
@@ -342,7 +340,7 @@ export const CONFIG_SETTINGS = {
 			'tasks:\n  db:\n    command: docker compose up db\n    ports: [postgres]\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    ports: [http, hmr]\n    needs: [db]\n    url: http://localhost:{http}/\n    default: true\n  admin:\n    label: Admin area\n    url: http://localhost:{http}/admin\n  docs:\n    url: http://localhost:8080/'
 	},
 	setup: {
-		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
+		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from another branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
 		example: 'setup: pnpm install && cp ../.env .env'
 	},
 	teardown: {

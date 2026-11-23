@@ -478,21 +478,22 @@ describe('workspaces', () => {
 		});
 	});
 
-	it('measures a child from its parent’s branch under the name it has now', () => {
+	it('starts a child from the repository’s base, or from the branch it is given', () => {
 		const { workspaces, repo } = setup();
 		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Go' });
-		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
-		const child = workspaces.agents.start(id, { worktree: 'own', prompt: 'Help' });
-		expect(workspaces.ref(child.id)).toMatchObject({
-			base: 'geordi/lead',
-			parents: [{ worktreeId: id, branch: 'geordi/lead' }]
-		});
+		const fresh = workspaces.agents.start(id, { worktree: 'own', prompt: 'Help' });
+		expect(workspaces.ref(fresh.id)).not.toHaveProperty('base');
 
-		workspaces.onBranch(id, 'perf/renamed');
-		expect(workspaces.ref(child.id)).toMatchObject({
-			base: 'perf/renamed',
-			parents: [{ worktreeId: id, branch: 'perf/renamed' }]
+		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const built = workspaces.agents.start(id, {
+			worktree: 'own',
+			base: 'geordi/lead',
+			prompt: 'Build on it'
 		});
+		expect(workspaces.ref(built.id)).toMatchObject({ base: 'geordi/lead' });
+		// one base, as it was given: the comparison never moves to another branch
+		workspaces.onBranch(id, 'perf/renamed');
+		expect(workspaces.ref(built.id)).toMatchObject({ base: 'geordi/lead' });
 	});
 
 	it('runs every turn with the model and effort chosen, and hands them on to agents it starts', () => {
@@ -1447,9 +1448,14 @@ describe('agents starting agents', () => {
 		expect(stranger.agents.authenticate(tokenOf(sent.at(-1)))).toBeNull();
 	});
 
-	it('starts a child that works in its own worktree, branched from the parent', () => {
+	it('starts a child that works in its own worktree, branched from where it is told', () => {
 		const { workspaces, agents, sent, repo, lead: caller } = lead();
-		const child = agents.start(caller, { worktree: 'own', agent: 'codex', prompt: 'Build it' });
+		const child = agents.start(caller, {
+			worktree: 'own',
+			base: 'geordi/parent',
+			agent: 'codex',
+			prompt: 'Build it'
+		});
 
 		expect(child).toMatchObject({ parentId: caller, agent: 'codex', sharesWorktree: false });
 		expect(workspaces.get(child.id)).toMatchObject({

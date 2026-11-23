@@ -305,11 +305,7 @@ const watches = createWatches(
 function comparisonOrigin(worktree: Worktree, ref: WorktreeRef) {
 	return {
 		...ref,
-		pullBase: cachedPullBase(ref.worktreeId, branchOf(worktree)),
-		parents: ref.parents?.map(({ worktreeId, branch }) => ({
-			branch,
-			pullBase: cachedPullBase(worktreeId, branch)
-		}))
+		pullBase: cachedPullBase(ref.worktreeId, branchOf(worktree))
 	};
 }
 

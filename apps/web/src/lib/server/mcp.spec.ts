@@ -401,10 +401,10 @@ describe('the agent API as an MCP server', () => {
 
 	it('reports problems as tool errors the agent can read', async () => {
 		const { call } = setup();
-		// the default is a worktree of its own, which needs the caller's to exist
-		expect(await call('start_agent', { prompt: 'Build' })).toEqual({
-			error: 'Your workspace has no worktree yet'
-		});
+		// a shared worktree has its own base already
+		expect(
+			await call('start_agent', { prompt: 'Build', worktree: 'shared', base: 'main' })
+		).toEqual({ error: 'A base is for a new worktree; a shared one keeps its own' });
 		expect((await call('start_agent', {})).error).toBe('Invalid input: Missing parameter prompt');
 		expect((await call('read_workspace', { workspace_id: 7 })).error).toMatch(
 			/^Invalid input: workspace_id: Invalid type/

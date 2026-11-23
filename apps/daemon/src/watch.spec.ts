@@ -27,14 +27,11 @@ function setup() {
 }
 
 describe('watching workspaces', () => {
-	it('refreshes a watched child when its parent’s pull target changes', () => {
+	it('refreshes a watched worktree when its pull target changes', () => {
 		const { ref, watches, seen } = setup();
-		const parent = { worktreeId: 'parent00', branch: 'parent' };
-		watches.set([
-			{ ...ref, parents: [parent] },
-			{ ...ref, worktreeId: 'other' }
-		]);
-		watches.targetChanged(parent.worktreeId);
+		watches.set([ref, { ...ref, worktreeId: 'other' }]);
+		watches.targetChanged(ref.worktreeId);
+		watches.targetChanged('unwatched');
 		expect(seen).toEqual([ref.worktreeId]);
 		watches.stop();
 	});

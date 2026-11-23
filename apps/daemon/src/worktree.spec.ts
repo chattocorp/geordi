@@ -20,6 +20,7 @@ import { startTurnDiff } from './turn-diff.ts';
 import { removeWorktree } from './remove.ts';
 import {
 	branchOf,
+	branchOn,
 	branchRef,
 	continueOn,
 	ensureWorktree,
@@ -506,17 +507,12 @@ describe('changes', () => {
 		).rejects.toThrow(/branch name/);
 	});
 
-	it('inherits the target through clean parents and follows a retargeted pull request', async () => {
+	it('compares with the pull request target once there is one', async () => {
 		const repoPath = repo();
 		const root = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
 		const git = (cwd: string, ...args: string[]) =>
 			execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
-		const parent = await ensureWorktree(root, { repoPath, worktreeId: 'parent00-1' });
-		const child = await ensureWorktree(root, {
-			repoPath,
-			worktreeId: 'child000-1',
-			base: parent.branch
-		});
+		const child = await ensureWorktree(root, { repoPath, worktreeId: 'child000-1' });
 		git(repoPath, 'update-ref', 'refs/remotes/origin/release', 'HEAD');
 		writeFileSync(join(repoPath, 'from-main.txt'), 'upstream\n');
 		git(repoPath, 'add', '.');
@@ -526,7 +522,7 @@ describe('changes', () => {
 		git(child.path, 'merge', '--ff-only', 'origin/main');
 		writeFileSync(join(child.path, 'child.txt'), 'local\n');
 
-		const origin = { repoPath, base: parent.branch };
+		const origin = { repoPath };
 		expect(await status(child, origin)).toMatchObject({
 			comparisonTarget: 'main',
 			files: [{ path: 'child.txt' }],
@@ -542,12 +538,33 @@ describe('changes', () => {
 			new: 'upstream\n'
 		});
 		expect(await versions(child, origin, 'from-main.txt')).toHaveProperty('unavailable');
-		expect(
-			await status(child, { ...origin, parents: [{ branch: parent.branch, pullBase: 'release' }] })
-		).toMatchObject({ comparisonTarget: 'release' });
-		// a parent's branch that is gone (renamed, or merged and deleted) is passed over
-		expect(await status(child, { ...origin, parents: [{ branch: 'geordi/gone' }] })).toMatchObject({
+		// a base that is gone (renamed, or merged and deleted) leaves the repository's own
+		expect(await status(child, { repoPath, base: 'geordi/gone' })).toMatchObject({
 			comparisonTarget: 'main',
+			files: [{ path: 'child.txt' }]
+		});
+	});
+
+	it('starts from the newer of a base branch and its upstream', async () => {
+		const repoPath = repo();
+		const root = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
+		const git = (...args: string[]) =>
+			execFileSync('git', ['-C', repoPath, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
+		git('branch', '-q', 'stale');
+		git('commit', '-q', '--allow-empty', '-m', 'upstream');
+		git('update-ref', 'refs/remotes/origin/stale', 'HEAD');
+		git('branch', '-q', 'local-only');
+		expect(await branchOn(repoPath, 'stale')).toBe('refs/remotes/origin/stale');
+		expect(await branchOn(repoPath, 'local-only')).toBe('refs/heads/local-only');
+		expect(await branchOn(repoPath, 'nowhere')).toBeNull();
+		await expect(
+			ensureWorktree(root, { repoPath, worktreeId: 'nowhere0-1', base: 'nowhere' })
+		).rejects.toThrow(/no branch nowhere/);
+
+		const child = await ensureWorktree(root, { repoPath, worktreeId: 'child000-1', base: 'stale' });
+		writeFileSync(join(child.path, 'child.txt'), 'c\n');
+		expect(await status(child, { repoPath, base: 'stale' })).toMatchObject({
+			comparisonTarget: 'stale',
 			files: [{ path: 'child.txt' }]
 		});
 	});
