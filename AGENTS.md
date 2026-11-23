@@ -203,7 +203,7 @@ it, perhaps you.
 - **Live channels (ADR-003).** Data that is derived or ephemeral is not event-sourced: the
   forge asks the daemon for a workspace's changes and diffs (`hub().request(...)`), and
   learns when to ask again by push, never by polling: the daemon watches the worktrees
-  in use (`watch.ts`; their files too where someone has one open), the forge then loads
+  in use (`watch.ts`, in a thread of its own, once per repository: ADR-014; their files too where someone has one open), the forge then loads
   their state once for everyone (`standings.ts`; `watchers.ts` adds what only a viewer
   needs) and sends it with the workspace's view (`git`). Browsers don't query
   for it. Also,

@@ -54,7 +54,8 @@ export async function stageServices(stage) {
 		entryPoints: [
 			join(repo, 'apps/daemon/src/main.ts'),
 			join(repo, 'apps/daemon/src/host.ts'),
-			join(repo, 'apps/daemon/src/file-index-worker.ts')
+			join(repo, 'apps/daemon/src/file-index-worker.ts'),
+			join(repo, 'apps/daemon/src/watch-worker.ts')
 		],
 		outdir: join(stage, 'daemon'),
 		external: ['@lydell/node-pty', '@parcel/watcher']
