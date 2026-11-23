@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
+import { onListenError } from './listening.ts';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { View } from './views.ts';
 
@@ -103,7 +104,7 @@ export function createLive({ port, host, allowed, token, views, values, terminal
 		}
 	});
 	globals.__geordiLiveServer = server;
-	server.on('error', (error) => console.error('[live]', error.message));
+	server.on('error', onListenError('live', port, previous !== undefined));
 
 	server.on('connection', (socket: WebSocket) => {
 		/** How to stop each thing this window follows, by the number it gave it. */

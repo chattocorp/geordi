@@ -15,6 +15,7 @@ import {
 	type Harness
 } from '@geordi/protocol';
 import type { EventStore, GeordiEvent } from './events/index.ts';
+import { onListenError } from './listening.ts';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
 
@@ -104,7 +105,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		verifyClient: ({ req }: { req: IncomingMessage }) => req.headers.origin === undefined
 	});
 	globals.__geordiDaemonServer = server;
-	server.on('error', (error) => console.error('[daemons]', error.message));
+	server.on('error', onListenError('daemons', port, previous !== undefined));
 
 	let active: ActiveDaemon | null = null;
 	const background = new Map<string, BackgroundTask[]>();
