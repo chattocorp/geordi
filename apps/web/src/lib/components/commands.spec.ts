@@ -65,7 +65,7 @@ const everywhere = (at: Partial<Everywhere> = {}): Everywhere =>
 			sidebarOpen: true,
 			wide: true,
 			grouped: true,
-			todayOnly: false,
+			activeOnly: true,
 			focus: null,
 			theme: 'system',
 			sections: [],

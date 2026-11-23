@@ -118,7 +118,7 @@
 					{/if}
 				{/if}
 			</div>
-			<div class="flex shrink-0 items-center">
+			<div class="tools">
 				{#if onopencombined}
 					<Button
 						variant="tool"
@@ -127,7 +127,7 @@
 						onclick={onopencombined}
 					/>
 				{/if}
-				<div role="radiogroup" aria-label="Show the changes" class="flex">
+				<div role="radiogroup" aria-label="Show the changes" class="tools">
 					{#each views as option (option.value)}
 						<Button
 							variant="tool"

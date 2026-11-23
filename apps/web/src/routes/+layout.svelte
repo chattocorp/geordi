@@ -16,7 +16,13 @@
 	import AddRepository from '#lib/components/AddRepository.svelte';
 	import { theme } from '#lib/theme.svelte.ts';
 	import { daemon } from '#lib/daemon.svelte.ts';
-	import { activeOnDay, inFocus, inSidebarOrder, nextUnread, stepThrough } from '#lib/family.ts';
+	import {
+		inFocus,
+		inSidebarOrder,
+		nextUnread,
+		stepThrough,
+		withoutInactive
+	} from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '@geordi/ui/persisted';
@@ -97,24 +103,10 @@
 	/** Whether the sidebar groups workspaces by repository, or lists them as one. */
 	const grouped = persisted('geordi:grouped', true);
 
-	/** Whether the sidebar shows only the workspaces active today. */
-	const today = persisted('geordi:today-only', false);
-	const todayOnly = $derived(today.current);
-	let day = $state('');
-	$effect(() => {
-		if (!todayOnly) return;
-		let timer: ReturnType<typeof setTimeout>;
-		function refreshDay() {
-			const now = new Date();
-			day = now.toDateString();
-			const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-			timer = setTimeout(refreshDay, midnight.getTime() - now.getTime());
-		}
-		refreshDay();
-		return () => clearTimeout(timer);
-	});
+	/** Whether the sidebar shows only the active workspaces, leaving out the inactive ones. */
+	const activeOnly = persisted('geordi:active-only', true);
 	const visibleWorkspaces = $derived(
-		activeOnDay(nav.current?.workspaces ?? [], todayOnly ? day : null)
+		withoutInactive(nav.current?.workspaces ?? [], activeOnly.current, viewed)
 	);
 
 	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
@@ -166,7 +158,7 @@
 			sidebarOpen: sidebar.current.open,
 			wide: (innerWidth.current ?? 0) >= 768,
 			grouped: grouped.current,
-			todayOnly,
+			activeOnly: activeOnly.current,
 			focus: focus.current,
 			theme: theme.current,
 			sections,
@@ -182,7 +174,7 @@
 				repositoryPickerOpen = true;
 			},
 			toggleGrouped: () => (grouped.current = !grouped.current),
-			toggleToday: () => (today.current = !today.current),
+			toggleActiveOnly: () => (activeOnly.current = !activeOnly.current),
 			setFocus: (repo) => {
 				focus.current = repo;
 				// showing a repository alone is only seen in the sidebar
@@ -285,7 +277,7 @@
 					{folded}
 					{focus}
 					{grouped}
-					bind:todayOnly={() => today.current, (value) => (today.current = value)}
+					bind:activeOnly={() => activeOnly.current, (value) => (activeOnly.current = value)}
 					bind:repositoryPickerOpen
 				/>
 			</div>

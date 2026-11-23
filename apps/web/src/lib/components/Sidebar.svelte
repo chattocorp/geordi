@@ -35,8 +35,8 @@
 	import {
 		lockWorkspace,
 		moveWorkspace,
+		setWorkspaceInactive,
 		renameWorkspace,
-		setWorkspaceAside,
 		stopAgent
 	} from '../../routes/workspaces.remote';
 	import { moveRepo } from '../../routes/repos.remote';
@@ -46,8 +46,8 @@
 	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
 	 * repository under its name, and those its agents started under a workspace. `focus` is
 	 * the repository shown alone, if any; `grouped` whether workspaces are listed under their
-	 * repositories, or as one list, each with its repository's picture. `visibleWorkspaces` are those shown, `todayOnly` whether
-	 * they are only those active today.
+	 * repositories, or as one list, each with its repository's picture. `visibleWorkspaces` are those shown, `activeOnly` whether
+	 * they leave out the inactive ones.
 	 */
 	let {
 		nav,
@@ -56,7 +56,7 @@
 		folded,
 		focus,
 		grouped,
-		todayOnly = $bindable(false),
+		activeOnly = $bindable(true),
 		repositoryPickerOpen = $bindable(false),
 		lost = false
 	}: {
@@ -66,7 +66,7 @@
 		folded: { current: string[] };
 		focus: { current: string | null };
 		grouped: { current: boolean };
-		todayOnly?: boolean;
+		activeOnly?: boolean;
 		repositoryPickerOpen?: boolean;
 		lost?: boolean;
 	} = $props();
@@ -98,10 +98,12 @@
 	);
 	/** What stands for the projects among the folded: no repository has it as its ID. */
 	const PROJECTS = 'projects';
+	/** Whether anything is inactive: what an empty list, with inactive workspaces hidden, is down to. */
+	const anyInactive = $derived(nav?.workspaces.some((workspace) => workspace.inactive) ?? false);
 
 	/**
 	 * Repositories and workspaces slide in and out whenever they come or go: by a filter (the
-	 * focus, today only) or on their own. Not when the list first arrives: it is drawn in
+	 * focus, only the active ones) or on their own. Not when the list first arrives: it is drawn in
 	 * `{#if nav}`, and a transition is local, so it plays only when its own block changes.
 	 */
 	const motion = () => ({
@@ -217,16 +219,13 @@
 				disabled: !running,
 				onselect: () => stopAgent(workspace.id)
 			},
-			// out of today's list until the person next prompts it
-			...(todayOnly
-				? [
-						{
-							label: 'Remove from Today',
-							icon: 'icon-[lucide--calendar-x]',
-							onselect: () => setWorkspaceAside(workspace.id)
-						}
-					]
-				: []),
+			// put aside for later, until the person marks it active or next prompts it
+			{
+				label: workspace.inactive ? 'Mark as active' : 'Mark as inactive',
+				icon: workspace.inactive ? 'icon-[lucide--activity]' : 'icon-[lucide--moon]',
+				onselect: () =>
+					setWorkspaceInactive({ workspaceId: workspace.id, inactive: !workspace.inactive })
+			},
 			{
 				label: workspace.locked ? 'Unlock' : 'Lock',
 				icon: workspace.locked ? 'icon-[lucide--lock-open]' : 'icon-[lucide--lock]',
@@ -420,7 +419,7 @@
 				repos={withWorkspaces}
 				bind:value={() => focus.current ?? '', (value) => (focus.current = value || null)}
 			/>
-			<div class="flex shrink-0 items-center">
+			<div class="tools">
 				<Button
 					variant="tool"
 					icon="icon-[lucide--list]"
@@ -431,11 +430,11 @@
 				/>
 				<Button
 					variant="tool"
-					icon="icon-[lucide--calendar-days]"
-					label="Show workspaces active today"
-					title={`Show workspaces active today (${hint('todayOnly')})`}
-					aria-pressed={todayOnly}
-					onclick={() => (todayOnly = !todayOnly)}
+					icon="icon-[lucide--activity]"
+					label="Show only active workspaces"
+					title={`Show only active workspaces (${hint('activeOnly')})`}
+					aria-pressed={activeOnly}
+					onclick={() => (activeOnly = !activeOnly)}
 				/>
 			</div>
 		</div>
@@ -459,8 +458,8 @@
 						{@render row(workspace, parent, depth, under, rows, index)}
 					{/each}
 				</ul>
-				{#if todayOnly && rows.length === 0}
-					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{#if activeOnly && anyInactive && rows.length === 0}
+					<p class="px-2 py-1 text-sm text-muted">All workspaces are inactive.</p>
 				{/if}
 			{:else if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
@@ -567,8 +566,8 @@
 						{/if}
 					</div>
 				{/each}
-				{#if todayOnly && groups.length === 0}
-					<p class="px-2 py-1 text-sm text-muted">No workspaces active today.</p>
+				{#if activeOnly && anyInactive && groups.length === 0}
+					<p class="px-2 py-1 text-sm text-muted">All workspaces are inactive.</p>
 				{/if}
 			{/if}
 			<div aria-hidden="true"></div>
@@ -627,12 +626,12 @@
 		}}
 		ondragend={endDrag}
 		onclickcapture={(event) => {
-			// in today's list, shift-click is "Remove from Today": not on what the row has to click besides its link
-			if (!todayOnly || !event.shiftKey || leaving) return;
+			// with only active workspaces shown, shift-click marks one inactive: not on what the row has to click besides its link
+			if (!activeOnly || !event.shiftKey || leaving) return;
 			if (event.target instanceof Element && event.target.closest('button')) return;
 			event.preventDefault();
 			event.stopPropagation();
-			void setWorkspaceAside(workspace.id);
+			void setWorkspaceInactive({ workspaceId: workspace.id, inactive: true });
 		}}
 		ondblclick={(event) => {
 			// not on what the row has to click besides its link
@@ -663,6 +662,7 @@
 			waiting={workspace.waiting}
 			working={workspace.working || (isFolded && busy)}
 			locked={workspace.locked}
+			inactive={workspace.inactive}
 			background={workspace.background}
 			progress={pendingPullAction.get(workspace.id) ??
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))

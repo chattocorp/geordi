@@ -88,6 +88,15 @@
 	</div>
 </Story>
 
+<Story name="Inactive" asChild>
+	<div class="w-64 space-y-px sheet-quiet p-2">
+		<WorkspaceRow title="Active" href="#active" />
+		<WorkspaceRow title="Someday" href="#someday" inactive />
+		<WorkspaceRow title="Someday, unread" href="#unread" inactive unread />
+		<WorkspaceRow title="Someday, on screen" href="#current" inactive current />
+	</div>
+</Story>
+
 <Story name="A project" asChild>
 	<div class="w-64 space-y-px sheet-quiet p-2">
 		<WorkspaceRow title="Plan the 0.7 release" icon="icon-[lucide--folder-kanban]" />

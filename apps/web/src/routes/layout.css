@@ -278,6 +278,11 @@
 	}
 }
 
+/* Icon buttons side by side (a toolbar, a bar's actions): always a pixel apart, so that two pressed ones still read as two. */
+@utility tools {
+	@apply flex shrink-0 items-center gap-px;
+}
+
 /*
  * The bar at the top of a pane: tabs, or a title. As high as leaves its tabs as far from
  * the top of a sheet as from its side, so that their corners follow the sheet's.

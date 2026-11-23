@@ -512,6 +512,17 @@ describe('workspace status', () => {
 		expect((await call('workspace_status')).next[0]).not.toHaveProperty('prompt');
 	});
 
+	it('says whether the person put a workspace aside, there and in the list', async () => {
+		const { workspaces, caller, call, standings } = setup();
+		standings.set(caller, { changes: changes({}), upstream: null });
+		expect(await call('workspace_status')).toMatchObject({ inactive: false });
+		workspaces.setInactive(caller, true);
+		expect(await call('workspace_status')).toMatchObject({ inactive: true });
+		expect(await call('list_workspaces')).toContainEqual(
+			expect.objectContaining({ id: caller, inactive: true })
+		);
+	});
+
 	it('reports standings across the repository', async () => {
 		const { workspaces, caller, call, standings } = setup();
 		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });

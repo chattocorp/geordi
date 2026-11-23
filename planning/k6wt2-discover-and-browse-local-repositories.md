@@ -15,3 +15,7 @@ Discover Git repositories under a configured root directory and list them in the
 - Repo root is configurable
 - Repository list page
 - Repository detail page with file tree and recent commits
+
+## Note (ADR-013)
+
+Geordi is heading towards a hosted forge with runner daemons on several machines (ADR-013). Discovery is fine as a way to *add* repositories, but keep a repository's identity its ID, not its local path: don't make anything new depend on forge and daemon sharing a disk. Browsing files and commits should go through the daemon (`hub().request`), as everything that reads a worktree does now.
