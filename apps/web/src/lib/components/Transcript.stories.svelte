@@ -21,6 +21,7 @@
 	const openSource = fn();
 	const openFolder = fn();
 	const FOLDERS = new Set(['.', 'assets/audio']);
+	const FILES = new Set(['.context/buttons-dark.png', 'README.md']);
 	const reply = [
 		'## What I changed',
 		'',
@@ -213,7 +214,7 @@
 		paths: new Set(['src/git.ts']),
 		open: openDiff,
 		openSource,
-		isFolder: async (path) => FOLDERS.has(path),
+		kindOf: async (path) => (FOLDERS.has(path) ? 'folder' : FILES.has(path) ? 'file' : null),
 		openFolder
 	});
 </script>
@@ -249,6 +250,25 @@
 >
 	<Markdown
 		text="The new takes are under `assets/audio/`, in `mistake/` and `orders/`. Everything else is in [the worktree](/work/)."
+	/>
+</Story>
+
+<Story
+	name="File in the worktree"
+	asChild
+	play={async ({ canvas }) => {
+		openSource.mockClear();
+		const file = await canvas.findByRole('button', { name: '.context/buttons-dark.png' });
+		await expect(file).toHaveAttribute('title', 'Open this file');
+		await userEvent.click(file);
+		await expect(openSource).toHaveBeenCalledWith('.context/buttons-dark.png', undefined);
+		await userEvent.click(await canvas.findByRole('button', { name: 'README.md:12' }));
+		await expect(openSource).toHaveBeenCalledWith('README.md', 12);
+		await expect(canvas.queryByRole('button', { name: 'missing.ts' })).toBeNull();
+	}}
+>
+	<Markdown
+		text="The dark-mode version is at `.context/buttons-dark.png`. See `README.md:12`, not `missing.ts`."
 	/>
 </Story>
 

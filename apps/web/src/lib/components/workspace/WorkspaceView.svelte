@@ -68,7 +68,7 @@
 		continueWorkspace,
 		approveRun,
 		editReleaseNote,
-		findFolders,
+		findPaths,
 		lockWorkspace,
 		openFolder,
 		restoreWorktree,
@@ -666,33 +666,39 @@
 	const changedPaths = $derived(new Set(changedList.split('\n').filter(Boolean)));
 	const citations = new SvelteMap<string, { line?: number }>();
 
-	// Paths its conversations name that may be directories: asked of the daemon together,
-	// once each, since a reply names many and renders again with every word it gets.
+	// Paths its conversations name that may be files or directories: asked of the daemon
+	// together, once each, since a reply names many and renders again with every word it gets.
+	type Kind = 'file' | 'folder' | null;
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
-	const folders = new Map<string, Promise<boolean>>();
-	let folderBatch: Map<string, (found: boolean) => void> | undefined;
-	function isFolder(path: string) {
-		const known = folders.get(path);
+	const kinds = new Map<string, Promise<Kind>>();
+	let kindBatch: Map<string, (kind: Kind) => void> | undefined;
+	function kindOf(path: string) {
+		const known = kinds.get(path);
 		if (known) return known;
-		const answer = new Promise<boolean>((done) => {
-			if (!folderBatch) {
+		const answer = new Promise<Kind>((done) => {
+			if (!kindBatch) {
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
-				const batch = (folderBatch = new Map());
+				const batch = (kindBatch = new Map());
 				queueMicrotask(() => {
-					folderBatch = undefined;
+					kindBatch = undefined;
 					const paths = [...batch.keys()];
 					for (let i = 0; i < paths.length; i += 100) {
 						const some = paths.slice(i, i + 100);
-						findFolders({ workspaceId: id, paths: some }).then(
-							(found) => some.forEach((path) => batch.get(path)!(found.includes(path))),
-							() => some.forEach((path) => (folders.delete(path), batch.get(path)!(false)))
+						findPaths({ workspaceId: id, paths: some }).then(
+							({ files, folders }) =>
+								some.forEach((path) =>
+									batch.get(path)!(
+										files.includes(path) ? 'file' : folders.includes(path) ? 'folder' : null
+									)
+								),
+							() => some.forEach((path) => (kinds.delete(path), batch.get(path)!(null)))
 						);
 					}
 				});
 			}
-			folderBatch.set(path, done);
+			kindBatch.set(path, done);
 		});
-		folders.set(path, answer);
+		kinds.set(path, answer);
 		return answer;
 	}
 
@@ -708,7 +714,7 @@
 			showTab(`source:${path}`);
 		},
 		open: openDiff,
-		isFolder,
+		kindOf,
 		openFolder: (path) =>
 			void openFolder({ workspaceId: id, path }).catch((error) =>
 				console.warn(`Could not open ${path}:`, error)

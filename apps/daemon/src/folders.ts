@@ -3,25 +3,50 @@ import { realpathSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join } from 'node:path';
 import type { Worktree } from './worktree.ts';
 
-/** How many paths one `folders` request may ask about. */
-export const MAX_FOLDERS = 100;
+/** How many paths one `paths` request may ask about. */
+export const MAX_PATHS = 100;
 
 /**
- * The directory a worktree-relative path names (`.` for the worktree itself), or `null` if
- * it is not one, or not really inside the worktree: no `..`, no `.git`, no symlink.
+ * What a worktree-relative path names (`.` for the worktree itself): a file or a directory,
+ * with where it is, or `null` if neither, or not really inside the worktree: no `..`, no
+ * `.git`, no symlink.
  */
-export function folderIn(worktree: Worktree, path: string): string | null {
+export function entryIn(
+	worktree: Worktree,
+	path: string
+): { kind: 'file' | 'folder'; at: string } | null {
 	const parts = path.split('/');
 	if (isAbsolute(path) || parts.some((part) => part === '..' || part.toLowerCase() === '.git'))
 		return null;
 	try {
 		const root = realpathSync(worktree.path);
-		const folder = join(root, path);
-		if (realpathSync(folder) !== folder) return null;
-		return statSync(folder).isDirectory() ? folder : null;
+		const at = join(root, path);
+		if (realpathSync(at) !== at) return null;
+		const stats = statSync(at);
+		return stats.isDirectory()
+			? { kind: 'folder', at }
+			: stats.isFile()
+				? { kind: 'file', at }
+				: null;
 	} catch {
 		return null;
 	}
+}
+
+/** The directory a worktree-relative path names, as `entryIn` finds it, or `null`. */
+export function folderIn(worktree: Worktree, path: string): string | null {
+	const entry = entryIn(worktree, path);
+	return entry?.kind === 'folder' ? entry.at : null;
+}
+
+/** Which of these worktree-relative paths are files in the worktree, and which directories. */
+export function sortPaths(worktree: Worktree, paths: string[]) {
+	const found = { files: [] as string[], folders: [] as string[] };
+	for (const path of paths.slice(0, MAX_PATHS)) {
+		const kind = entryIn(worktree, path)?.kind;
+		if (kind) found[kind === 'file' ? 'files' : 'folders'].push(path);
+	}
+	return found;
 }
 
 /**

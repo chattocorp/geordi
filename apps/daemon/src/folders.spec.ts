@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { folderIn } from './folders.ts';
+import { folderIn, sortPaths } from './folders.ts';
 import type { Worktree } from './worktree.ts';
 
 describe('folderIn', () => {
@@ -26,5 +26,14 @@ describe('folderIn', () => {
 		expect(folderIn(worktree, 'assets/../..')).toBeNull();
 		expect(folderIn(worktree, outside)).toBeNull();
 		expect(folderIn(worktree, '.git')).toBeNull();
+	});
+
+	it('sorts paths into files and directories, leaving out the rest', () => {
+		expect(
+			sortPaths(worktree, ['assets/readme.md', 'assets/audio', 'assets/video', 'elsewhere'])
+		).toEqual({
+			files: ['assets/readme.md'],
+			folders: ['assets/audio']
+		});
 	});
 });
