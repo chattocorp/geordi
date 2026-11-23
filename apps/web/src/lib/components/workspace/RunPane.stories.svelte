@@ -67,6 +67,17 @@
 			href: 'http://localhost:8080/'
 		})
 	];
+	// tasks whose labels begin alike are a section of their own
+	const sectioned: Task[] = [
+		task('play', 'Play', { command: 'pnpm play', default: true }),
+		task('ring1', 'Sorties / Ring 1', { command: 'pnpm play --ring 1' }),
+		task('ring2', 'Sorties / Ring 2', { command: 'pnpm play --ring 2' }),
+		task('shipyard', 'Shipyard', { command: 'pnpm play --shipyard' }),
+		task('ring3', 'Sorties / Ring 3', { command: 'pnpm play --ring 3' }),
+		task('act1', 'Finales / Act 1: the camp', { command: 'pnpm play --act 1' }),
+		task('act2', 'Finales / Act 2: the duel', { command: 'pnpm play --act 2' })
+	];
+	const sectionStates: Record<string, JobState> = { act2: 'running' };
 	const states: Record<string, JobState> = {
 		web: 'running',
 		daemon: 'starting',
@@ -261,6 +272,47 @@
 	}}
 >
 	{@render pane(() => 'stopped', null, false, true)}
+</Story>
+<Story
+	name="Sections"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		localStorage.removeItem('geordi:tasks-folded');
+		// a section stands where its first task would, its tasks named without it
+		const sorties = canvas.getByRole('list', { name: 'Sorties' });
+		await expect(
+			within(sorties)
+				.getAllByRole('button', { name: /^Run / })
+				.map((row) => row.getAttribute('aria-label'))
+		).toEqual(['Run Ring 1', 'Run Ring 2', 'Run Ring 3']);
+		const rows = canvas
+			.getAllByRole('button', { name: /^Run / })
+			.map((row) => row.getAttribute('aria-label'));
+		await expect(rows.indexOf('Run Ring 1')).toBeLessThan(rows.indexOf('Run Shipyard'));
+		await expect(rows.indexOf('Run Ring 3')).toBeLessThan(rows.indexOf('Run Shipyard'));
+		// folded, a section hides its tasks, and still says that something in it runs
+		const finales = canvas.getByText('Finales');
+		const summary = within(finales.closest('summary')!);
+		await expect(summary.queryByRole('img', { name: 'Running' })).toBeNull();
+		await userEvent.click(finales);
+		await expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).not.toBeVisible();
+		await expect(summary.getByRole('img', { name: 'Running' })).toBeVisible();
+		await userEvent.click(finales);
+		await expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).toBeVisible();
+	}}
+>
+	<div class="flex h-120 w-96 flex-col sheet-quiet">
+		<RunPane
+			tasks={sectioned}
+			shortcut="runDefault"
+			stateOf={(name) => sectionStates[name] ?? 'stopped'}
+			hasTerminal={(name) => name in sectionStates}
+			run={(ref) => (last = `Run: ${ref}`)}
+			runDefault={() => (last = 'Run default')}
+			stop={(name) => (last = `Stop: ${name}`)}
+			show={(name) => (last = `Show: ${name}`)}
+		/>
+	</div>
 </Story>
 <Story name="Unreadable configuration" asChild>
 	{@render pane(

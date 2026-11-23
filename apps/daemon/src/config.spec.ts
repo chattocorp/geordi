@@ -124,6 +124,8 @@ tasks:
 				default: true
 			},
 			{ name: 'admin', command: null, needs: ['web'] },
+			{ name: 'seed', label: 'Data / Seed the database', command: 'pnpm db:seed' },
+			{ name: 'reset', label: 'Data / Reset the database', command: 'pnpm db:reset' },
 			{ name: 'docs', command: null, needs: [] }
 		]);
 		expect(parseConfig([setup.example, teardown.example].join('\n'))).toMatchObject({
