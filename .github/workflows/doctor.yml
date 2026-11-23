@@ -5,5 +5,7 @@ permissions:
   contents: read
 jobs:
   doctor:
-    # Unreleased Sweet Release commit (PRs #62, #63 and #64): move to the next release tag.
-    uses: chattocorp/sweet-release/.github/workflows/doctor.yml@7e618be0b38acb105fe128f030f2f9b71527a0f6
+    # Sweet Release 0.5.0, pinned by commit (see releases.yml).
+    uses: chattocorp/sweet-release/.github/workflows/doctor.yml@70a402d3552871474f3a0f152fb2795592ec714a # sweet@0.5.0
+    with:
+      sweet-version: sweet@0.5.0

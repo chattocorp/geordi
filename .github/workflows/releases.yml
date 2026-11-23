@@ -16,8 +16,10 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    # Unreleased Sweet Release commit (PRs #62, #63 and #64, `sweet github release`): move to the next release tag.
-    uses: chattocorp/sweet-release/.github/workflows/bump.yml@7e618be0b38acb105fe128f030f2f9b71527a0f6
+    # Sweet Release 0.5.0, pinned by commit. Keep every Sweet pin and `sweet-version` equal.
+    uses: chattocorp/sweet-release/.github/workflows/bump.yml@70a402d3552871474f3a0f152fb2795592ec714a # sweet@0.5.0
+    with:
+      sweet-version: sweet@0.5.0
     secrets:
       release-token: ${{ secrets.RELEASE_PR_TOKEN }}
 
@@ -25,10 +27,11 @@ jobs:
     if: github.event_name == 'push'
     permissions:
       contents: write
-    # Unreleased Sweet Release commit (PRs #62, #63 and #64, `sweet github release`): move to the next release tag.
-    # Tags are pushed with GITHUB_TOKEN, so they start no tag workflow (no second beta build):
-    # this run publishes them.
-    uses: chattocorp/sweet-release/.github/workflows/tag.yml@7e618be0b38acb105fe128f030f2f9b71527a0f6
+    # Sweet Release 0.5.0, pinned by commit. Tags are pushed with GITHUB_TOKEN, so they
+    # start no tag workflow (no second beta build): this run publishes them.
+    uses: chattocorp/sweet-release/.github/workflows/tag.yml@70a402d3552871474f3a0f152fb2795592ec714a # sweet@0.5.0
+    with:
+      sweet-version: sweet@0.5.0
 
   desktop:
     needs: tag
