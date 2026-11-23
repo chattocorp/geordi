@@ -1154,6 +1154,7 @@
 			stateOf={jobState}
 			hasTerminal={(name) => workspace.terminals.includes(JOB_TERMINAL + name)}
 			run={(name, showTerminal) => launchTasks([name], undefined, showTerminal)}
+			{runDefault}
 			{stop}
 			{show}
 		>

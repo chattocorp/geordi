@@ -97,6 +97,7 @@
 			{stateOf}
 			hasTerminal={(name) => stateOf(name) !== 'stopped'}
 			run={(ref, showTerminal) => (last = `${showTerminal ? 'Run and show' : 'Run'}: ${ref}`)}
+			runDefault={() => (last = 'Run default')}
 			stop={(name) => (last = `Stop: ${name}`)}
 			show={(name) => (last = `Show: ${name}`)}
 		>
@@ -119,17 +120,27 @@
 		await expect(
 			within(canvas.getByRole('tab', { name: /Tasks/ })).getByRole('img', { name: 'Job starting' })
 		).toBeVisible();
-		// one list in configuration order, the defaults first; at rest, a row is its mark, its
-		// name and its URL
+		// above the list, running the default tasks and stopping what runs; then one list in
+		// configuration order, the defaults first; at rest, a row is its mark, its name and its URL,
+		// and for what runs or ran, its terminal and stopping it
 		const rows = canvas.getAllByRole('button', { name: /^(Open|Run|Show terminal of|Stop) / });
 		await expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+			'Run Geordi',
+			'Stop all',
 			// the default first, what the shortcut runs
 			'Open Geordi',
 			'Run Web server',
+			'Show terminal of Web server',
+			'Stop Web server',
 			'Run Agent daemon',
+			'Show terminal of Agent daemon',
+			'Stop Agent daemon',
 			'Run Reset development data',
+			'Show terminal of Reset development data',
 			'Run Storybook',
 			'Open Storybook',
+			'Show terminal of Storybook',
+			'Stop Storybook',
 			'Open Storybook docs',
 			'Run Website',
 			'Open Website',
@@ -144,18 +155,24 @@
 		await expect(row('Run Storybook')).not.toHaveClass('bg-surface/60');
 		await userEvent.unhover(row('Open Geordi'));
 		await expect(row('Run Web server')).not.toHaveClass('bg-surface/60');
-		// the default carries the shortcut
-		await expect(
-			canvas.getByRole('button', { name: 'Open Geordi' }).querySelector('kbd')
-		).toBeVisible();
-		// all of a task's ports show where one points at it
+		// running the defaults carries the shortcut
+		const runDefault = canvas.getByRole('button', { name: 'Run Geordi' });
+		await expect(runDefault.querySelector('kbd')).toBeVisible();
+		await userEvent.click(runDefault);
+		await expect(canvas.getByText('Run default')).toBeVisible();
+		// stopping all stops each task that runs (or starts), the last one last
+		await userEvent.click(canvas.getByRole('button', { name: 'Stop all' }));
+		await expect(canvas.getByText('Stop: storybook')).toBeVisible();
+		// the ports of what runs show; those of the rest where one points at it
+		await expect(canvas.getByText(':20000 :20001 :20002')).toBeVisible();
 		await expect(canvas.getByText(':20005 :20006 :20007')).not.toBeVisible();
-		// what can be done with a task shows where one points at it, by pointer or keyboard
+		// a task that runs or ran shows what can be done with it, by pointer or keyboard too
+		// right after its name and its URL
 		canvas.getByRole('button', { name: 'Run Storybook' }).focus();
+		await userEvent.tab(); // its URL
 		await userEvent.tab(); // to its terminal
 		await expect(canvas.getByRole('button', { name: 'Show terminal of Storybook' })).toHaveFocus();
 		await userEvent.tab(); // to Stop Storybook
-		await userEvent.tab(); // its URL, at the end of its row
 		await userEvent.tab(); // Storybook docs
 		await userEvent.tab(); // Website
 		await userEvent.tab(); // its URL
@@ -164,9 +181,11 @@
 		await expect(desktop).toHaveFocus();
 		await expect(canvas.getByText(':20005 :20006 :20007')).toBeVisible();
 		// what is not running is quiet, and says the row runs it where one points at it
-		await expect(desktop.querySelector('[class~="icon-[lucide--play]"]')).toBeVisible();
-		await expect(within(desktop).getByTitle('Not running')).not.toBeVisible();
-		const website = canvas.getByRole('button', { name: 'Run Website' });
+		await expect(
+			row('Run Electron dev app').querySelector('[class~="icon-[lucide--play]"]')
+		).toBeVisible();
+		await expect(within(row('Run Electron dev app')).getByTitle('Not running')).not.toBeVisible();
+		const website = row('Run Website');
 		await expect(within(website).getByTitle('Not running')).toBeVisible();
 		await expect(website.querySelector('[class~="icon-[lucide--play]"]')).not.toBeVisible();
 		// a URL opens, running its task; one of a task's own, running what it needs
@@ -218,9 +237,10 @@
 	asChild
 	play={async ({ canvas }) => {
 		// what listens is ready to look at; what has no ports turns, at work
-		const web = canvas.getByRole('button', { name: 'Run Web server' });
+		const row = (name: string) => canvas.getByRole('button', { name }).closest('div')!;
+		const web = row('Run Web server');
 		await expect(web.querySelector('[class~="icon-[lucide--play]"]')).toBeVisible();
-		const daemon = canvas.getByRole('button', { name: 'Run Agent daemon' });
+		const daemon = row('Run Agent daemon');
 		await expect(daemon.querySelector('[class~="icon-[lucide--refresh-cw]"]')).toBeVisible();
 		await expect(daemon.querySelector('[class~="icon-[lucide--play]"]')).toBeNull();
 	}}

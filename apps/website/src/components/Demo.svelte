@@ -606,6 +606,8 @@
 							stateOf={(name) => jobStates[name] ?? 'stopped'}
 							hasTerminal={() => false}
 							{run}
+							runDefault={() =>
+								tasks.filter((task) => task.default).forEach((task) => run(task.name))}
 							stop={(name) => (jobStates[name] = 'stopped')}
 							show={() => {}}
 						/>
