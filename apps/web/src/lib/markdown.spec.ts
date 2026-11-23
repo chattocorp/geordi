@@ -75,7 +75,9 @@ describe('renderMarkdown', () => {
 		const html = renderMarkdown('![Jump](assets/jump.wav)', { pictures: '/workspaces/w1/picture' });
 		expect(html).toContain('data-sound="/workspaces/w1/picture?path=assets%2Fjump.wav"');
 		expect(html).toContain('data-label="Jump"');
-		expect(html).toContain('data-path="assets/jump.wav"');
+		expect(html).toContain('data-file="assets/jump.wav"');
+		// (not `data-path`: that makes it a button that opens the file)
+		expect(html).not.toContain('data-path');
 		expect(html).not.toContain('<img');
 		expect(renderMarkdown('![x](https://example.com/a.mp3)', { pictures: '/p' })).not.toContain(
 			'data-sound'
