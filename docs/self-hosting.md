@@ -35,6 +35,28 @@ through an SSH tunnel, for the web and the browsers' WebSocket:
 ssh -L 7717:localhost:7717 -L 7719:localhost:7719 your-server
 ```
 
+To run the code on `main` (or any branch) instead of the published package, build the
+`geordi` command from a checkout. It runs the same way as `npx geordi`, with the same
+ports, data and settings:
+
+```sh
+git clone https://github.com/chattocorp/geordi.git && cd geordi
+pnpm install
+pnpm cli
+```
+
+`pnpm cli` builds the package into `apps/cli/stage` and runs it. To update, `git pull`,
+`pnpm install` and `pnpm cli` again. To build somewhere else and only run it on the
+server, pack the package and install it there. npm installs its native dependencies
+for the server's platform:
+
+```sh
+pnpm --filter @geordi/cli bundle
+npm pack apps/cli/stage
+scp geordi-*.tgz your-server:
+ssh your-server 'npx ./geordi-*.tgz'
+```
+
 To run forge and daemon yourself, from a checkout (see [Contributing](../CONTRIBUTING.md)
 for the tools):
 
