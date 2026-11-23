@@ -32,14 +32,23 @@ export function services({ web, daemon, live, origin = `http://127.0.0.1:${web}`
 	};
 }
 
-/** Resolves once the forge on `web` answers, which is when the daemon may connect. */
-export async function forgeReady(web) {
-	for (;;) {
+/**
+ * Resolves once the forge on `web` answers, which is when the daemon may connect. Rejects
+ * when it has not within `timeout` milliseconds: something is wrong, and waiting on says nothing.
+ */
+export async function forgeReady(web, { timeout = 120_000 } = {}) {
+	const until = Date.now() + timeout;
+	while (Date.now() < until) {
 		try {
-			await fetch(`http://127.0.0.1:${web}`, { method: 'HEAD' });
+			// a port held by something that never answers must not stall this
+			await fetch(`http://127.0.0.1:${web}`, {
+				method: 'HEAD',
+				signal: AbortSignal.timeout(Math.min(2000, until - Date.now()))
+			});
 			return;
 		} catch {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 		}
 	}
+	throw new Error(`The forge did not answer on port ${web} within ${timeout / 1000} seconds.`);
 }

@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'none'; style-src 'unsafe-inline'"
+		/>
+		<title>Geordi</title>
+		<!-- What the window shows until the forge answers (main.js): the frame's colours, and a word. -->
+		<style>
+			:root {
+				color-scheme: light dark;
+				--frame: #e3e3eb;
+				--muted: #585a69;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--frame: #17191f;
+					--muted: #a0a3b4;
+				}
+			}
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+			}
+			body {
+				display: grid;
+				place-items: center;
+				background: var(--frame);
+				color: var(--muted);
+				font:
+					16px ui-sans-serif,
+					system-ui,
+					sans-serif;
+				-webkit-app-region: drag;
+				user-select: none;
+			}
+		</style>
+	</head>
+	<body>
+		<p>Starting Geordi…</p>
+	</body>
+</html>
