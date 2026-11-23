@@ -13,6 +13,7 @@
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import ChangesPane from '@geordi/ui/Changes.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
+	import RunTools from '@geordi/ui/RunTools.svelte';
 	import RunTab from '@geordi/ui/RunTab.svelte';
 	import type { JobState } from '@geordi/ui/JobMark.svelte';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
@@ -579,6 +580,17 @@
 								<span>Terminal 1</span>
 							{/if}
 						{/snippet}
+						{#snippet tabTools(id: string)}
+							{#if id === 'run'}
+								<RunTools
+									{tasks}
+									stateOf={(name) => jobStates[name] ?? 'stopped'}
+									runDefault={() =>
+										tasks.filter((task) => task.default).forEach((task) => run(task.name))}
+									stop={(name) => (jobStates[name] = 'stopped')}
+								/>
+							{/if}
+						{/snippet}
 					</PaneTabs>
 					<div
 						role="tabpanel"
@@ -606,8 +618,6 @@
 							stateOf={(name) => jobStates[name] ?? 'stopped'}
 							hasTerminal={() => false}
 							{run}
-							runDefault={() =>
-								tasks.filter((task) => task.default).forEach((task) => run(task.name))}
 							stop={(name) => (jobStates[name] = 'stopped')}
 							show={() => {}}
 						/>

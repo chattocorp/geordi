@@ -21,6 +21,8 @@
 		ondoubleclick?: (tab: string) => void;
 		/** A tab's label. */
 		tab: Snippet<[string]>;
+		/** Controls inside a tab, after its label. */
+		tabTools?: Snippet<[string]>;
 		/** A tab's content. */
 		window: Snippet<[string]>;
 		/** Names the tab the "+" button of a group opens. Without it, there is no such button. */
@@ -57,6 +59,7 @@
 		onchange,
 		ondoubleclick,
 		tab,
+		tabTools,
 		window,
 		newTab,
 		closable = () => true,
@@ -159,6 +162,7 @@
 				tabs={n.tabs}
 				current={n.active}
 				{tab}
+				{tabTools}
 				lead={groupsOf(layout)[0]?.id === n.id ? lead : undefined}
 				actions={tools || newTab || (actions && groupsOf(layout)[0]?.id === n.id)
 					? barActions

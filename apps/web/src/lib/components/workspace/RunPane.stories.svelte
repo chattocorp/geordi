@@ -5,6 +5,7 @@
 	import type { JobState } from '@geordi/ui/JobMark.svelte';
 	import PaneTabs from '@geordi/ui/PaneTabs.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
+	import RunTools from '@geordi/ui/RunTools.svelte';
 	import RunTab from '@geordi/ui/RunTab.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 
@@ -106,15 +107,24 @@
 					{id}
 				{/if}
 			{/snippet}
+			{#snippet tabTools(id: string)}
+				{#if id === 'Tasks'}
+					<RunTools
+						{tasks}
+						shortcut="runDefault"
+						{stateOf}
+						runDefault={() => (last = 'Run default')}
+						stop={(name) => (last = `Stop: ${name}`)}
+					/>
+				{/if}
+			{/snippet}
 		</PaneTabs>
 		<RunPane
 			tasks={problem || loading ? [] : tasks}
 			{loading}
-			shortcut="runDefault"
 			{stateOf}
 			hasTerminal={(name) => stateOf(name) !== 'stopped'}
 			run={(ref, showTerminal) => (last = `${showTerminal ? 'Run and show' : 'Run'}: ${ref}`)}
-			runDefault={() => (last = 'Run default')}
 			stop={(name) => (last = `Stop: ${name}`)}
 			show={(name) => (last = `Show: ${name}`)}
 		>
@@ -137,7 +147,7 @@
 		await expect(
 			within(canvas.getByRole('tab', { name: /Tasks/ })).getByRole('img', { name: 'Job starting' })
 		).toBeVisible();
-		// above the list, running the default tasks and stopping what runs; then one list in
+		// in the tab, running the default tasks and stopping what runs; then one list in
 		// configuration order, the defaults first; at rest, a row is its mark, its name and its URL,
 		// and for what runs or ran, its terminal and stopping it
 		const rows = canvas.getAllByRole('button', { name: /^(Open|Run|Show terminal of|Stop) / });
@@ -172,9 +182,9 @@
 		await expect(row('Run Storybook')).not.toHaveClass('bg-surface/60');
 		await userEvent.unhover(row('Open Geordi'));
 		await expect(row('Run Web server')).not.toHaveClass('bg-surface/60');
-		// running the defaults carries the shortcut
+		// running the defaults names the shortcut
 		const runDefault = canvas.getByRole('button', { name: 'Run Geordi' });
-		await expect(runDefault.querySelector('kbd')).toBeVisible();
+		await expect(runDefault.title).toMatch(/^Run Geordi \(.+R\)$/);
 		await userEvent.click(runDefault);
 		await expect(canvas.getByText('Run default')).toBeVisible();
 		// stopping all stops each task that runs (or starts), the last one last
@@ -304,11 +314,9 @@
 	<div class="flex h-120 w-96 flex-col sheet-quiet">
 		<RunPane
 			tasks={sectioned}
-			shortcut="runDefault"
 			stateOf={(name) => sectionStates[name] ?? 'stopped'}
 			hasTerminal={(name) => name in sectionStates}
 			run={(ref) => (last = `Run: ${ref}`)}
-			runDefault={() => (last = 'Run default')}
 			stop={(name) => (last = `Stop: ${name}`)}
 			show={(name) => (last = `Show: ${name}`)}
 		/>

@@ -9,6 +9,8 @@
 		tabs: string[];
 		current: string | null;
 		tab: Snippet<[string]>;
+		/** Controls inside a tab, after its label (a tab's button can't hold them). */
+		tabTools?: Snippet<[string]>;
 		actions?: Snippet;
 		/** What comes before the tabs, at the start of the bar. */
 		lead?: Snippet;
@@ -31,6 +33,7 @@
 		tabs,
 		current,
 		tab,
+		tabTools,
 		actions,
 		lead,
 		onselect,
@@ -111,8 +114,9 @@
 				class={[
 					// as much room before what it starts with as after what it ends with
 					'group/tab item h-7 max-w-56 min-w-0 shrink-0 pl-2 select-none',
-					// a button at the end sits as close to the edge as the tab's height leaves it
-					closable?.(id) ? 'pr-1' : 'pr-2',
+					// a button at the end (its tools, closing it) sits as close to the edge as the
+					// tab's height leaves it
+					'pr-0.5 has-[>[role=tab]:last-child]:pr-2',
 					active ? 'tab-active' : 'tab-inactive',
 					// where the dragged tab would go: a line before this one, or after the last
 					before === id && 'tab-drop-before',
@@ -131,6 +135,7 @@
 				>
 					{@render tab(id)}
 				</button>
+				{@render tabTools?.(id)}
 				{#if closable?.(id)}
 					<Button
 						variant="ghost"

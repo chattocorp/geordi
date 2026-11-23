@@ -44,6 +44,7 @@
 	} from '@geordi/protocol';
 	import JobMark, { type JobState } from '@geordi/ui/JobMark.svelte';
 	import RunPane from '@geordi/ui/RunPane.svelte';
+	import RunTools from '@geordi/ui/RunTools.svelte';
 	import RunTab from '@geordi/ui/RunTab.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
@@ -1112,6 +1113,13 @@
 	{/if}
 {/snippet}
 
+<!-- what is done with all the tasks, in the Tasks tab itself -->
+{#snippet tabTools(tab: string)}
+	{#if tab === RUN}
+		<RunTools {tasks} shortcut="runDefault" stateOf={jobState} {runDefault} {stop} />
+	{/if}
+{/snippet}
+
 <!-- what can be done with a window, beside its tabs -->
 {#snippet tools(tab: string)}
 	<WindowTools tools={windowTools.get(tab) ?? []} wrap={wrapLines} />
@@ -1162,11 +1170,9 @@
 	{:else if tab === RUN}
 		<RunPane
 			{tasks}
-			shortcut="runDefault"
 			stateOf={jobState}
 			hasTerminal={(name) => workspace.terminals.includes(JOB_TERMINAL + name)}
 			run={(name, showTerminal) => launchTasks([name], undefined, showTerminal)}
-			{runDefault}
 			{stop}
 			{show}
 			loading={configPending}
@@ -1413,6 +1419,7 @@
 					layout={main}
 					onchange={(next) => arrange({ main: next })}
 					{tab}
+					{tabTools}
 					{window}
 					{tools}
 					{closable}
@@ -1460,6 +1467,7 @@
 								layout={layouts.side}
 								onchange={(next) => arrange({ side: next })}
 								{tab}
+								{tabTools}
 								{window}
 								{tools}
 								{closable}
@@ -1483,6 +1491,7 @@
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
 								{tab}
+								{tabTools}
 								{window}
 								{tools}
 								{closable}
