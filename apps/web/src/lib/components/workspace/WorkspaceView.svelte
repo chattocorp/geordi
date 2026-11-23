@@ -821,7 +821,7 @@
 					? {
 							label: 'Checking…',
 							tone: 'neutral',
-							icon: 'icon-[lucide--circle-dashed] animate-checks-spin'
+							icon: 'icon-[lucide--circle-dashed] motion-safe:animate-checks-spin'
 						}
 					: null
 	);

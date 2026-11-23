@@ -160,10 +160,7 @@
 	aria-haspopup="listbox"
 	aria-expanded={open}
 	aria-label="{label}: {selected?.label}"
-	class={[
-		'inline-flex h-8 min-w-0 items-center gap-1.5 rounded-control px-2 text-sm hover:bg-hover hover:text-ink',
-		open ? 'bg-sunken text-ink' : 'text-muted'
-	]}
+	class={['item inline-flex h-8 min-w-0 gap-1.5 px-2', open && 'item-picked']}
 >
 	{#if trigger}
 		{@render trigger()}
@@ -199,7 +196,7 @@
 			autocomplete="off"
 			spellcheck="false"
 			placeholder="Search"
-			class="w-full min-w-0 bg-transparent text-sm text-ink placeholder:text-muted/70 focus-visible:outline-none"
+			class="w-full min-w-0 bg-transparent text-sm text-ink placeholder:text-faint focus-visible:outline-none"
 		/>
 	</label>
 	<div id="{id}-list" role="listbox" aria-label={label} class="scroller max-h-72 py-1">
@@ -212,7 +209,7 @@
 				aria-selected={item === selected}
 				onclick={() => choose(item)}
 				onpointermove={() => (active = index)}
-				class={['menu-item', index === active && 'menu-item-active']}
+				class={['menu-item', index === active && 'item-picked']}
 			>
 				{@render icon?.(item)}
 				<span class="min-w-0 flex-1 truncate">

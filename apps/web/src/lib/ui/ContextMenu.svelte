@@ -76,7 +76,7 @@
 				onclick={() => select(item)}
 				onpointermove={(event) => event.currentTarget.focus()}
 				class={[
-					'menu-item focus:menu-item-active focus:outline-none disabled:opacity-50',
+					'menu-item focus:item-picked focus:outline-none disabled:opacity-50',
 					item.tone && tones[item.tone]
 				]}
 			>

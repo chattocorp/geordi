@@ -14,9 +14,9 @@
 <span
 	class={[
 		'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium',
-		tone === 'accent' ? 'bg-accent-soft text-accent-ink' : 'bg-sunken text-muted'
+		tone === 'accent' ? 'tone-accent' : 'bg-sunken text-muted'
 	]}
 >
-	{#if dot}<span class={['dot', tone === 'accent' ? 'dot-live' : 'bg-muted/50']}></span>{/if}
+	{#if dot}<span class={['dot', tone === 'accent' ? 'bg-accent' : 'bg-faint']}></span>{/if}
 	{@render children()}
 </span>

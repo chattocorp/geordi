@@ -54,7 +54,7 @@
 		<span
 			class={[
 				'grid size-6 shrink-0 place-items-center rounded-control',
-				isError ? 'bg-danger-soft text-danger' : 'bg-sunken text-muted'
+				isError ? 'tone-danger' : 'bg-sunken text-muted'
 			]}
 		>
 			<span class={['size-3.5', iconOf(tool)]}></span>
@@ -89,7 +89,7 @@
 			{#if output}
 				<pre
 					class={[
-						'max-h-96 overflow-auto border-t border-line/70 p-3 whitespace-pre-wrap first:border-t-0',
+						'max-h-96 overflow-auto border-t border-line p-3 whitespace-pre-wrap first:border-t-0',
 						isError && 'text-danger'
 					]}>{output}</pre>
 			{:else if !pending}

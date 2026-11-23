@@ -30,7 +30,7 @@
 		>
 			{monogram(name)}
 		</span>{:else if !loaded}<span
-			class={['icon-[lucide--folder-git-2] text-muted/70', small ? 'size-4' : 'size-4.5']}
+			class={['icon-[lucide--folder-git-2] text-faint', small ? 'size-4' : 'size-4.5']}
 		></span>{/if}
 	<span class={['absolute inset-0 picture-raised', !loaded && 'invisible']}>
 		<img

@@ -139,7 +139,7 @@
 							<li>
 								<button
 									type="button"
-									class="item w-full gap-3 px-3 py-2 text-left hover:bg-hover focus-visible:bg-hover"
+									class="item w-full gap-3 px-3 py-2 text-left focus-visible:bg-hover"
 									disabled={!onrestore}
 									onclick={() => askToRestore(entry)}
 									{@attach contextMenu(() => menu(entry))}

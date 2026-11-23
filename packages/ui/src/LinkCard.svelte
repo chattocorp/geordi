@@ -17,7 +17,9 @@
 	} = $props();
 </script>
 
-<article class="relative flex h-full min-w-0 flex-col gap-3 card p-4 card-link">
+<article
+	class="relative flex h-full min-w-0 flex-col gap-3 card p-4 transition-shadow hover:shadow-float"
+>
 	{#if header}<div class="flex flex-wrap items-center gap-2 text-xs text-muted">
 			{@render header()}
 		</div>{/if}

@@ -225,16 +225,16 @@ it, perhaps you.
 - **Design system (ADR-005).** Three layers; use them in this order before writing raw
   Tailwind:
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `frame`, `sidebar`,
-    `surface`, `sunken`, `bubble`, `ink`, `prose` (long text), `muted`, `line`, `accent`, `accent-soft`,
-    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `warning`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
+    `surface`, `sunken`, `bubble`, `ink`, `prose` (long text), `muted`, `line`, `accent`,
+    `accent-ink`, `on-accent`, `danger`, `warning`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
-    it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
-  - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `render-near` (a long page's part painted only near the screen), `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `quiet-action`, `item`,
-    `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`,
-    `status-ok`/`-danger`/`-merged`.
-  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Segmented`, `Spinner`, `StatusIcon`, `TitleBar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
-    `Select`, `Split`): generic, no domain knowledge. Domain components live in
+    it shows on any background) and `faint` (`muted`, fainter still, for what need not be read: placeholders, rows put aside; never `text-muted/NN`), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
+  - **Utilities** (`@utility` in the same file): `raised` (the surface, shadow and ring that cards, inputs and small floating controls share), `card`, `card-float`, `input`,
+    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `render-near` (a long page's part painted only near the screen), `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `quiet-action`, `item` (every row you can pick; `item-active` for the current one, `item-picked` for one chosen or in hand),
+    `menu-item`, `tab-active`, `tab-inactive`, `tab-drop-before`/`-after`, `row-drop-before`/`-after`, `dialog-actions`, `scroll-fade`, `scroll-fade-x`, `empty`, `dot`, `indicator-action`, `picture-raised`/`-gloss`/`-plate`,
+    `tone-ok`/`-danger`/`-merged`/`-accent` (a colour that says something, as a soft see-through tint with text in it: never a hand-mixed `bg-…/NN text-…`; one that can be pressed adds `hover:bg-current/20`).
+  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `Keys`, `LinkCard`, `Loading`, `PaneTabs`, `Ring`, `Segmented`, `Spinner`, `StatusIcon`, `TitleBar`) and `#lib/ui/` (`CommandPalette`, `ContextMenu`, `Dialog`, `ImageAttachments`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+    `Select`, `SoundPlayer`, `Split`, `Tooltip`): generic, no domain knowledge. Domain components live in
     `#lib/components/` or, when both apps use them, in `@geordi/ui`.
   - Use `StatusIcon` for passive status icons. Show the glyph directly on the surrounding surface. Passive icons have no click interaction or pointer cursor. Use `indicator-action` on a link or button for an available action. It has a filled circle and pointer cursor at rest and expands into a labelled pill on hover or keyboard focus.
   - Raw Tailwind is for layout (flex, grid, spacing). A visual pattern used twice becomes a
@@ -244,7 +244,8 @@ it, perhaps you.
     element; the layout renders the one `ContextMenu` that shows them.
   - Every `lib/ui` component has a `*.stories.svelte` next to it (Svelte CSF; use
     `<Story name="…" asChild>` to render your own markup). `pnpm test` renders every story
-    in a browser. Add or update stories with every UI change.
+    in a browser. Add or update stories with every UI change. `Foundations/Screens` mocks whole screens
+    from the system's parts: look there (in both colour modes) after changing a token or utility.
   - For visual changes, include a screenshot of the affected UI in your final reply.
 - **Sheets, not lines.** Everything on screen is a rounded sheet laid into the frame
   (`bg-frame`: the window and its title bar), 8px from the window's edge and from the next
@@ -256,7 +257,7 @@ it, perhaps you.
   corner follows the sheet's. What paints its own background takes it from `--pane`.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
   the primary action and things that are live. The only ambient motion is for things at
-  work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` (and the light round a `Ring`) for checks still running, gold turning arrows for a task at work that has no ports, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
+  work: the Braille `Spinner` for agents, `bar-running` (and the light round a `Ring`) for checks still running, gold turning arrows for a task at work that has no ports, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
   `icon-[lucide--name]`; Heroicons (`icon-[heroicons--name-solid]`) only where a filled icon is needed. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).
