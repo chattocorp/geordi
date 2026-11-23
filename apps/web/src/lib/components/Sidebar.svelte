@@ -12,7 +12,8 @@
 	import {
 		actFromAfar,
 		archiveAndNavigate,
-		continueFromAfar
+		continueFromAfar,
+		setInactive
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
@@ -35,7 +36,6 @@
 	import {
 		lockWorkspace,
 		moveWorkspace,
-		setWorkspaceInactive,
 		renameWorkspace,
 		stopAgent
 	} from '../../routes/workspaces.remote';
@@ -223,8 +223,7 @@
 			{
 				label: workspace.inactive ? 'Mark as active' : 'Mark as inactive',
 				icon: workspace.inactive ? 'icon-[lucide--activity]' : 'icon-[lucide--moon]',
-				onselect: () =>
-					setWorkspaceInactive({ workspaceId: workspace.id, inactive: !workspace.inactive })
+				onselect: () => setInactive(workspace, !workspace.inactive, activeOnly)
 			},
 			{
 				label: workspace.locked ? 'Unlock' : 'Lock',
@@ -631,7 +630,7 @@
 			if (event.target instanceof Element && event.target.closest('button')) return;
 			event.preventDefault();
 			event.stopPropagation();
-			void setWorkspaceInactive({ workspaceId: workspace.id, inactive: true });
+			void setInactive(workspace, true, activeOnly);
 		}}
 		ondblclick={(event) => {
 			// not on what the row has to click besides its link
