@@ -4,16 +4,21 @@
 	import { drawDiagrams } from '#lib/diagrams.ts';
 	import { changedFileIn, renderMarkdown } from '#lib/markdown.ts';
 	import ImageViewer from '#lib/ui/ImageViewer.svelte';
+	import SoundPlayer from '#lib/ui/SoundPlayer.svelte';
+	import { workspaceLinksContext } from '#lib/workspace-links.ts';
+	import { mount, unmount } from 'svelte';
 
 	/** `pictures` is where the pictures of the workspace this was written in are served. */
 	let {
 		text,
+		agentDirectives = false,
 		dimmed = false,
 		preserveLineBreaks = false,
 		pictures,
 		documentPath
 	}: {
 		text: string;
+		agentDirectives?: boolean;
 		dimmed?: boolean;
 		preserveLineBreaks?: boolean;
 		pictures?: string;
@@ -21,15 +26,18 @@
 	} = $props();
 
 	const files = changedFiles();
+	const workspaces = workspaceLinksContext();
 	let content = $state<HTMLElement>();
 	let viewing = $state<{ src: string; alt: string } | null>(null);
 	const html = $derived(
 		renderMarkdown(text, {
+			agentDirectives,
 			preserveLineBreaks,
 			documentPath,
 			pictures,
 			root: files?.root,
-			file: files && ((code) => changedFileIn(code, files.paths, files.root))
+			file: files && ((code) => changedFileIn(code, files.paths, files.root)),
+			workspaces: workspaces?.()
 		})
 	);
 
@@ -39,9 +47,52 @@
 		if (content) return drawDiagrams(content);
 	});
 
+	// A sound the agent shows gets a player where it is named (see markdown.ts); one that
+	// cannot be had leaves its path, as a missing picture does
+	$effect(() => {
+		void html;
+		if (!content) return;
+		const players = [...content.querySelectorAll<HTMLElement>('[data-sound]')].map((place) =>
+			mount(SoundPlayer, {
+				target: place,
+				props: {
+					src: place.dataset.sound!,
+					label: place.dataset.label!,
+					onfail: () => {
+						const path = document.createElement('code');
+						path.textContent = place.dataset.path!;
+						place.replaceWith(path);
+					}
+				}
+			})
+		);
+		return () => players.forEach((player) => void unmount(player));
+	});
+
+	// A path that may be a directory (`data-folder`) becomes a button that opens it once the
+	// daemon says it is one, so that what is not stays plain code
+	$effect(() => {
+		void html;
+		const isFolder = files?.isFolder;
+		if (!content || !isFolder) return;
+		for (const mark of content.querySelectorAll<HTMLElement>('[data-folder]:not(button)')) {
+			const path = mark.dataset.folder!;
+			void isFolder(path).then((found) => {
+				if (!found || !mark.isConnected) return;
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.dataset.folder = path;
+				button.title = 'Open this folder';
+				delete mark.dataset.folder;
+				mark.replaceWith(button);
+				button.append(mark);
+			});
+		}
+	});
+
 	/**
 	 * Clicks on what `renderMarkdown` made a button: a code block's copy button, a changed
-	 * file's name, which opens its diff, and a picture, which opens in the viewer (with a
+	 * file's name, which opens its diff, a directory's, which opens it in the file manager, and a picture, which opens in the viewer (with a
 	 * modifier key, its link opens it on its own instead), as a drawn SVG does.
 	 */
 	const buttons: Attachment<HTMLElement> = (node) => {
@@ -60,6 +111,8 @@
 			const source = target.closest<HTMLElement>('[data-source]')?.dataset;
 			if (source?.source)
 				return files?.openSource(source.source, source.line ? Number(source.line) : undefined);
+			const folder = target.closest<HTMLElement>('button[data-folder]')?.dataset.folder;
+			if (folder) return files?.openFolder?.(folder);
 			const file = target.closest<HTMLElement>('[data-file]')?.dataset.file;
 			if (file) return files?.open(file);
 			const button = target.closest<HTMLElement>('[data-copy]');

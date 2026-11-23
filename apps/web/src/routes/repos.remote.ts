@@ -1,11 +1,11 @@
 import * as v from 'valibot';
 import { error } from '@sveltejs/kit';
-import { command, query } from '$app/server';
-import { problemOf } from '#lib/problem.ts';
+import { command } from '$app/server';
 import { hub, repos, workspaces } from '#lib/server/app.ts';
 
 export const registerRepo = command(v.pipe(v.string(), v.trim(), v.nonEmpty()), (path) => {
-	repos().register(path);
+	const { id, name } = repos().register(path);
+	return { id, name };
 });
 
 export const removeRepo = command(v.string(), (id) => {
@@ -14,18 +14,16 @@ export const removeRepo = command(v.string(), (id) => {
 	repos().remove(id);
 });
 
-export const getRepositoryThreads = query(
-	v.object({
-		id: v.string(),
-		category: v.picklist(['issue', 'pull_request']),
-		after: v.optional(v.string())
-	}),
-	async ({ id, category, after }) => {
-		const repoPath = repos().get(id).path;
-		try {
-			return await hub().request({ kind: 'repoThreads', repoPath, category, after }, 45_000);
-		} catch (cause) {
-			return { problem: problemOf(cause, 'Could not read this repository.') };
-		}
+export const checkRepoForge = command(v.string(), async (id) => {
+	const repoPath = repos().get(id).path;
+	try {
+		return await hub().request({ kind: 'checkForge', repoPath }, 30_000);
+	} catch {
+		error(503, 'Could not ask the daemon');
 	}
+});
+
+export const moveRepo = command(
+	v.object({ repoId: v.string(), before: v.nullable(v.string()) }),
+	({ repoId, before }) => repos().move(repoId, before, 'person')
 );

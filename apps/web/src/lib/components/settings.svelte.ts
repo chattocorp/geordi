@@ -1,3 +1,5 @@
+import { createContext } from 'svelte';
+import { persisted } from '@geordi/ui/persisted';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 
@@ -7,7 +9,9 @@ export const sections = [
 	{ id: 'notifications', label: 'Notifications', icon: 'icon-[lucide--bell]' },
 	{ id: 'keyboard', label: 'Keyboard', icon: 'icon-[lucide--keyboard]' },
 	{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' },
+	{ id: 'providers', label: 'Providers', icon: 'icon-[lucide--cpu]' },
 	{ id: 'access', label: 'Agent access', icon: 'icon-[lucide--key-round]' },
+	{ id: 'releases', label: 'Release notes', icon: 'icon-[lucide--scroll-text]' },
 	{ id: 'about', label: 'About', icon: 'icon-[lucide--info]' }
 ] as const;
 
@@ -26,3 +30,9 @@ export const settingsPath = (section: Section = settings.section) =>
 export function openSettings(section?: Section) {
 	void goto(settingsPath(section));
 }
+
+type RibbonPosition = 'window' | 'pane';
+const [getRibbonPosition, setRibbonPosition] = createContext<{ current: RibbonPosition }>();
+export { getRibbonPosition };
+export const initRibbonPosition = () =>
+	setRibbonPosition(persisted<RibbonPosition>('geordi:ribbon-position', 'pane'));

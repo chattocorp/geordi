@@ -13,8 +13,8 @@ vi.mock('./app.ts', () => ({
 	workspaces: vi.fn(),
 	hub: () => ({
 		background: () => [],
-		suggestion: () => null,
-		followBackground: () => () => {}
+		sessionModel: () => undefined,
+		followSession: () => () => {}
 	}),
 	watchers: () => ({ watch: () => () => {}, state: () => null }),
 	terminals: () => ({ subscribe: () => () => {}, running: () => [], finished: () => ({}) })

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PullCheck, PullRequest } from '@geordi/protocol';
+	import { persisted } from './persisted.svelte.ts';
 	import { duration } from './duration.ts';
 	import { describeChecks } from './checks.ts';
 
@@ -60,46 +61,25 @@
 			.map(([status, checks]) => `${checks!.length} ${status}`)
 			.join(', ');
 	});
-	const active = $derived(sorted.some((c) => c.state === 'failure' || c.state === 'pending'));
-	let expanded = $state<boolean>();
-	const show = $derived(expanded ?? active);
+	const expanded = persisted('geordi:checks-expanded', false);
 </script>
 
-<section aria-label="Checks" class="space-y-1 rounded-card bg-surface p-2">
-	<div class="flex items-center gap-1">
+{#snippet checksSummary()}
+	<span class={['flex items-center gap-2 px-2 py-1', checks.url && 'mr-8']}>
 		{#if sorted.length}
-			<button
-				type="button"
-				aria-expanded={show}
-				onclick={() => (expanded = !show)}
-				class="flex min-w-0 flex-1 items-center gap-2 rounded-control px-2 py-1 text-left hover:bg-hover"
-			>
-				<span
-					aria-hidden="true"
-					class={['icon-[lucide--chevron-right] size-4 shrink-0 text-muted', show && 'rotate-90']}
-				></span>
-				<span class="text-sm font-medium">Checks</span>
-				<span class="text-xs text-muted">{sorted.length}</span>
-			</button>
-		{:else}
-			<span class="flex-1 px-2 py-1 text-sm font-medium">Checks</span>
+			<span
+				aria-hidden="true"
+				class={[
+					'icon-[lucide--chevron-right] size-4 shrink-0 text-muted',
+					expanded.current && 'rotate-90'
+				]}
+			></span>
 		{/if}
-		{#if checks.url}
-			<!-- eslint-disable svelte/no-navigation-without-resolve -- upstream forge URL -->
-			<a
-				href={checks.url}
-				target="_blank"
-				rel="noreferrer"
-				aria-label="Open checks on forge"
-				title="Open checks on forge"
-				class="flex rounded-control p-1.5 text-muted hover:bg-hover hover:text-ink"
-				><span class="icon-[lucide--external-link] size-4"></span></a
-			>
-			<!-- eslint-enable svelte/no-navigation-without-resolve -->
-		{/if}
-	</div>
-	<div class="px-2 pb-1" title={statusText}>
-		<div
+		<span class="text-sm font-medium">Checks</span>
+		{#if sorted.length}<span class="text-xs text-muted">{sorted.length}</span>{/if}
+	</span>
+	<span class="block px-2 pb-1" title={statusText}>
+		<span
 			role="img"
 			aria-label={statusText || 'No checks'}
 			class="flex h-2 gap-0.5 overflow-hidden rounded-full"
@@ -111,10 +91,41 @@
 					]}
 					style:flex-grow={part.size}
 				></span>{/each}
-		</div>
+		</span>
+	</span>
+{/snippet}
+
+<section aria-label="Checks" class="rounded-card bg-surface">
+	<div class="relative">
+		{#if sorted.length}
+			<button
+				type="button"
+				aria-expanded={expanded.current}
+				onclick={() => (expanded.current = !expanded.current)}
+				class="block w-full space-y-1 rounded-card p-2 text-left hover:bg-hover"
+			>
+				{@render checksSummary()}
+			</button>
+		{:else}
+			<div class="space-y-1 p-2">{@render checksSummary()}</div>
+		{/if}
+		{#if checks.url}
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- upstream forge URL -->
+			<a
+				href={checks.url}
+				target="_blank"
+				rel="noreferrer"
+				aria-label="Open checks on forge"
+				title="Open checks on forge"
+				class="absolute top-2 right-2 flex rounded-control p-1.5 text-muted hover:bg-hover hover:text-ink"
+			>
+				<span class="icon-[lucide--external-link] size-4"></span>
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+		{/if}
 	</div>
-	{#if show && sorted.length}
-		<ul class="max-h-80 overflow-y-auto" {@attach ticking ? tick : undefined}>
+	{#if expanded.current && sorted.length}
+		<ul class="max-h-80 overflow-y-auto px-2 pb-2" {@attach ticking ? tick : undefined}>
 			{#each sorted as check (check.id)}
 				<li>
 					<svelte:element
@@ -132,8 +143,10 @@
 							class={[
 								'min-w-0 flex-1 text-sm wrap-anywhere',
 								check.url && 'group-hover/row:underline'
-							]}>{check.name}</span
+							]}
 						>
+							{check.name}
+						</span>
 						<span class="shrink-0 text-xs whitespace-nowrap text-muted tabular-nums">
 							<span class:sr-only={label(check) === 'Running'}>{label(check)}</span>
 							{#if timed(check)}{duration(now - check.startedAt)}{/if}

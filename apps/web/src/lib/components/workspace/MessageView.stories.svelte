@@ -104,15 +104,18 @@
 			<Button
 				onclick={() =>
 					(blocks = [...blocks, { kind: 'agent', parts: [{ kind: 'text', text: 'New reply' }] }])}
-				>Append reply</Button
 			>
+				Append reply
+			</Button>
 			<Button
 				onclick={() =>
 					(blocks = [
 						...blocks.slice(0, -1),
 						{ kind: 'agent', parts: [{ kind: 'text', text: 'Growing output.\n\n'.repeat(40) }] }
-					])}>Grow reply</Button
+					])}
 			>
+				Grow reply
+			</Button>
 			<Button onclick={() => view?.toLatest()}>Jump to latest</Button>
 			<Button onclick={() => conversation++}>Switch workspace</Button>
 			<span>{following ? 'Following' : 'Reading history'}</span>
@@ -405,6 +408,24 @@
 	</div>
 </Story>
 
+<Story name="Compacting" asChild>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="claude"
+			running
+			onremove={() => {}}
+			onanswer={() => {}}
+			blocks={[
+				{ kind: 'user', text: 'Keep going with the login fix.' },
+				{ kind: 'agent', parts: [{ kind: 'text', text: 'Running the tests once more.' }] },
+				{ kind: 'note', text: 'Compacted the conversation, 183k → 21k tokens' },
+				{ kind: 'agent', parts: [{ kind: 'text', text: 'All green. On to the redirect.' }] },
+				{ kind: 'note', text: 'Compacting the conversation', working: true }
+			]}
+		/>
+	</div>
+</Story>
+
 <Story name="Live plan" asChild>
 	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
@@ -492,12 +513,22 @@
 	asChild
 	play={async ({ canvas }) => {
 		openReviewer.mockClear();
-		await userEvent.click(await canvas.findByText('Review UI and design'));
+		const reviewer = await canvas.findByText('Review UI and design');
+		// The virtual list pauses pointer input while it scrolls, including after expansion.
+		await waitFor(() => userEvent.click(reviewer));
 		await expect(
 			await canvas.findByText('The focus indicator is visible on every tab.')
 		).toBeVisible();
-		await expect(canvas.getByText('Running')).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Open in tab' }));
+		const status = canvas.getByText('Running');
+		const dots = status.querySelector('[role="img"]')!.getBoundingClientRect();
+		const label = status.getBoundingClientRect();
+		await expect(
+			Math.abs(dots.top + dots.height / 2 - (label.top + label.height / 2))
+		).toBeLessThan(1);
+		const open = canvas.getByRole('button', { name: 'Open in tab' });
+		await expect(open).toHaveAttribute('title', 'Open in tab');
+		await expect(open).toHaveTextContent(/^$/);
+		await waitFor(() => userEvent.click(open));
 		await expect(openReviewer).toHaveBeenCalledWith('ui');
 	}}
 >
@@ -614,10 +645,31 @@
 	</div>
 </Story>
 
-<Story name="External agent follow-up" asChild>
+<Story
+	name="Agent follow-ups"
+	asChild
+	play={async ({ canvas }) => {
+		for (const [name, id] of [
+			['Simplify release CI', 'parent'],
+			['Review', 'peer']
+		]) {
+			await expect(await canvas.findByRole('link', { name })).toHaveAttribute(
+				'href',
+				`/workspaces/${id}?agent=${id}`
+			);
+		}
+		await expect(canvas.getByText('From Release assistant').closest('a')).toBeNull();
+	}}
+>
 	<div class="flex h-80 flex-col overflow-hidden card">
 		<MessageView
 			blocks={[
+				{
+					kind: 'user',
+					text: 'Please check the release.',
+					from: 'parent'
+				},
+				{ kind: 'user', text: 'The review is ready.', from: 'peer', senderName: 'Review' },
 				{
 					kind: 'user',
 					text: 'Please check the migration.',
@@ -625,6 +677,7 @@
 					senderName: 'Release assistant'
 				}
 			]}
+			senders={{ parent: 'Simplify release CI' }}
 			agent="codex"
 			onremove={() => {}}
 			onanswer={() => {}}
@@ -765,8 +818,9 @@
 	<button
 		type="button"
 		onclick={() => (questionTarget = { id: 'q1', done: () => (questionTarget = undefined) })}
-		>Open question</button
 	>
+		Open question
+	</button>
 	<div class="flex h-96 flex-col overflow-hidden card">
 		<MessageView
 			blocks={[
@@ -781,6 +835,38 @@
 			]}
 			agent="claude"
 			{questionTarget}
+			onanswer={() => {}}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Posted image attachments"
+	asChild
+	play={async ({ canvas }) => {
+		const button = await canvas.findByRole('button', { name: 'Open image 2' });
+		const src = button.querySelector('img')!.src;
+		await userEvent.click(button);
+		const dialog = await canvas.findByRole('dialog', { name: 'Attached image 2' });
+		expect(dialog.querySelector('img')!.src).toBe(src);
+		// Right after it opens, the dialog sometimes reports `pointer-events: none` for a moment
+		// (seen in CI, not in a browser), which user-event refuses to click through; and it can
+		// flip back between a check and the click. So the click itself is what is retried.
+		await waitFor(() => userEvent.click(dialog));
+		await waitFor(() => expect(canvas.queryByRole('dialog')).toBeNull());
+	}}
+>
+	<div class="flex h-80 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[
+				{
+					kind: 'user',
+					text: 'Here are the two icon variants.',
+					images: ['opencode-light.svg', 'opencode-dark.svg']
+				}
+			]}
+			agent="codex"
+			onremove={() => {}}
 			onanswer={() => {}}
 		/>
 	</div>

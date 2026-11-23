@@ -1,5 +1,4 @@
 <script lang="ts">
-	import RunningJob from '@geordi/ui/RunningJob.svelte';
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -38,19 +37,28 @@
 	import {
 		CONFIG_FILE,
 		JOB_TERMINAL,
+		SCRIPTS,
 		startOrder,
+		type PortConflict,
 		type PullRequest,
 		type Script
 	} from '@geordi/protocol';
-	import RunControls from './RunControls.svelte';
+	import JobMark, { type JobState } from '@geordi/ui/JobMark.svelte';
+	import RunPane from '@geordi/ui/RunPane.svelte';
+	import RunTab from '@geordi/ui/RunTab.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
-	import { persisted } from '#lib/persisted.svelte.ts';
+	import { getRibbonPosition } from '#lib/components/settings.svelte.ts';
+	import { persisted } from '@geordi/ui/persisted';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
+	import PortConflictDialog from './PortConflictDialog.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
+	import CommandPalette from '#lib/ui/CommandPalette.svelte';
+	import { runShortcut } from '#lib/commands.ts';
+	import { workspaceCommands } from './commands.ts';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
 	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
@@ -61,13 +69,14 @@
 		continueWorkspace,
 		approveRun,
 		editReleaseNote,
-		jobsReady,
-		openLink,
+		findFolders,
+		lockWorkspace,
+		openFolder,
 		restoreWorktree,
 		restoreWorkspace,
 		runSetup,
+		runTasks,
 		say,
-		startJobs,
 		stopTask,
 		stopJob,
 		updateWorkspace
@@ -78,13 +87,18 @@
 	import PullHistory from './PullHistory.svelte';
 	import PullHistoryTab from './PullHistoryTab.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
+	import CombinedDiffFile from './CombinedDiffFile.svelte';
+	import DiffSection from '@geordi/ui/DiffSection.svelte';
 	import PatchView from '../PatchView.svelte';
 
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import Changeset from './Changeset.svelte';
 	import Conversation from './Conversation.svelte';
+	import { foreground } from '#lib/foreground.svelte.ts';
 	import SourceWindow from './SourceWindow.svelte';
 	import DiffWindow from './DiffWindow.svelte';
+	import { initWrapLines, type FileTools } from './window-tools.svelte.ts';
+	import WindowTools from './WindowTools.svelte';
 	import NewWorkspace from './NewWorkspace.svelte';
 	import Terminal from './Terminal.svelte';
 	import WorkspaceActions from '@geordi/ui/WorkspaceActions.svelte';
@@ -151,9 +165,12 @@
 	// dragged from any area to any other.
 	const CHAT = 'chat';
 	const PR = 'pr';
+	const COMBINED = 'combined-diff';
 	const TURN = 'turn-changes';
 	let selectedTurn = $state.raw<TurnChanges>();
 	const CHANGES = 'changes';
+	/** The repository's links and jobs, and how they are: in the dock, where their output is. */
+	const RUN = 'run';
 	const CHANGESET = 'changeset';
 	/** A conversation that has not begun: there is one at most. */
 	const DRAFT = 'draft';
@@ -200,13 +217,35 @@
 
 	// How the windows are arranged, and the sizes of the frame, are remembered in this browser.
 	// (`id` never changes: the page creates a new view per workspace.)
+	const ribbonPosition = getRibbonPosition();
+	const wrapLines = initWrapLines();
+	/** The tools of the files each window shows, for its tab bar. */
+	const windowTools = new SvelteMap<string, FileTools[]>();
+	const toolsIn = (tab: string) => (tools: FileTools) => {
+		windowTools.set(tab, [...(windowTools.get(tab) ?? []), tools]);
+		return () => {
+			const left = (windowTools.get(tab) ?? []).filter((other) => other !== tools);
+			if (left.length) windowTools.set(tab, left);
+			else windowTools.delete(tab);
+		};
+	};
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
-	const frame = persisted('geordi:frame', { side: 0.28, changes: 0.45, open: true });
+	const frame = persisted<{
+		side: number;
+		changes: number;
+		open: boolean;
+		/** The sheet beside the conversation folded to its tab row, if one is. */
+		fold?: 'side' | 'dock' | null;
+	}>('geordi:frame', { side: 0.28, changes: 0.45, open: true, fold: null });
 	/** How the Changes tab shows its files: a preference of this browser, like the frame. */
 	const changesView = persisted<'list' | 'tree'>('geordi:changes-view', 'list');
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
+	/** Folds one of the two sheets beside the conversation, or unfolds it: never both at once. */
+	const toggleFold = (area: 'side' | 'dock') =>
+		(frame.current = { ...frame.current, fold: frame.current.fold === area ? null : area });
 
+	const terminalTitles = new SvelteMap<string, string>();
 	/** Terminals asked for just now, whose shells are still starting. */
 	const starting = new SvelteSet<string>();
 	$effect(() => {
@@ -219,9 +258,11 @@
 	const exists = (tab: string) => {
 		const terminal = terminalOf(tab);
 		if (terminal) return workspace.terminals.includes(terminal) || starting.has(terminal);
+		if (tab === COMBINED) return !project;
 		if (tab === TURN) return !!selectedTurn;
 		if (tab === PR) return pulls.length > 0;
 		if (tab === CHANGESET) return !!workspace.git?.release;
+		if (tab === RUN) return runnable;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('subagent:')) return reviewers.has(tab);
 		if (tab.startsWith('agent:')) return !!aideOf(tab);
@@ -259,9 +300,24 @@
 			if (!placed.includes(`agent:${aide.id}`)) main = add(main, `agent:${aide.id}`, beside);
 		for (const tab of [CHANGES, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
-		for (const name of workspace.terminals)
+		if (exists(RUN) && !placed.includes(RUN)) dock = add(dock, RUN);
+		for (const name of workspace.terminals) {
+			if (isRunTerminal(name)) continue;
 			if (!placed.includes(`terminal:${name}`)) dock = add(dock, `terminal:${name}`);
+		}
 		return { main, side, dock };
+	});
+	// Forget closed job terminals so a later run does not restore an old tab.
+	$effect(() => {
+		for (const area of ['main', 'side', 'dock'] as const) {
+			const layout = arrangement.current[area];
+			if (!layout) continue;
+			const next = prune(layout, (tab) => {
+				const terminal = terminalOf(tab);
+				return !terminal || !jobOf(terminal) || workspace.terminals.includes(terminal);
+			});
+			if (next !== layout) arrangement.current = { ...arrangement.current, [area]: next };
+		}
 	});
 	const main = $derived(layouts.main);
 	const dock = $derived(layouts.dock);
@@ -270,18 +326,40 @@
 	const areaOf = (tab: string) =>
 		(['main', 'side', 'dock'] as const).find((area) => tabsOf(layouts[area]).includes(tab));
 
-	// The repository's jobs (FDR-006): each runs in a terminal of its own, named after it.
-	// Starting a job is starting that terminal (after the jobs it needs); stopping it,
-	// closing it (and the jobs that need it).
+	// The repository's tasks (FDR-006): each command runs in a terminal of its own, named
+	// after its task. Running a task is starting that terminal (after the tasks it needs);
+	// stopping it, closing it (and those of the tasks that need it).
 	const config = $derived(workspace.archivedAt ? null : (workspace.git?.config ?? null));
-	const jobs = $derived(config?.jobs ?? []);
-	const links = $derived(config?.urls ?? []);
+	const tasks = $derived(config?.tasks ?? []);
+	/** Whether there is anything to run, or something to say about the file that says so. */
+	const runnable = $derived(tasks.length > 0 || !!config?.problem);
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
+	function isRunTerminal(terminal: string) {
+		const job = jobOf(terminal);
+		return !!job && !SCRIPTS.some((script) => script === job);
+	}
+	function runLive(task: string) {
+		const state = jobState(task);
+		return state === 'running' || state === 'starting';
+	}
+	function runDefault() {
+		const selected = tasks.filter((task) => task.default).map((task) => task.name);
+		return selected.length ? launchTasks(selected) : showTab(RUN);
+	}
 	const jobTab = (job: string) => `terminal:${JOB_TERMINAL}${job}`;
-	/** A job runs while its terminal is there and its command has not ended in it. */
+	/** A task runs while its terminal is there and its command has not ended in it. */
 	const isUp = (job: string) =>
 		workspace.terminals.includes(JOB_TERMINAL + job) && !(JOB_TERMINAL + job in workspace.finished);
+	/** How a task is: up once it listens on its ports; over, and how it went, once it ended. */
+	function jobState(job: string): JobState {
+		const terminal = JOB_TERMINAL + job;
+		const ended = workspace.finished[terminal];
+		if (workspace.terminals.includes(terminal) && ended !== undefined) return { ended };
+		if (launching.has(job)) return 'starting';
+		return isUp(job) ? 'running' : 'stopped';
+	}
+	const labelOf = (task: string) => tasks.find((other) => other.name === task)?.label ?? task;
 
 	// The commands are in a file the agent can write, and run as the user, outside any
 	// sandbox the agent is in. So they are shown, and agreed to, before they first run: once
@@ -301,17 +379,14 @@
 		asking = { jobs: unseen, then };
 	}
 
-	/**
-	 * Does `then` once the person has agreed to every command that starting `names` would
-	 * run. `then` gets the commands as they stood when asked: what was seen is what runs.
-	 */
-	function agreed(names: string[], then: (seen: Seen) => void) {
-		const seen = Object.fromEntries(jobs.map((job) => [job.name, job.command]));
-		const needed = startOrder(jobs, names).flatMap(
-			(name) => jobs.find((job) => job.name === name) ?? []
-		);
-		agreedTo(needed, () => then(seen));
-	}
+	/** The tasks with a command that running `names` starts, in the order they start. */
+	const commandsFor = (names: string[]) =>
+		startOrder(tasks, names).flatMap((name) => {
+			const task = tasks.find((task) => task.name === name);
+			return task?.command
+				? [{ name, label: task.label, command: task.command, approved: task.approved }]
+				: [];
+		});
 
 	/** Runs the setup script (again): it ran by itself when the worktree was made, if agreed to. */
 	function setUp() {
@@ -322,9 +397,7 @@
 			mergeProblem = null;
 			try {
 				await runSetup({ workspaceId: id, command: setup.command });
-				const front = jobTab('setup');
-				const at = areaOf(front) ?? 'dock';
-				arrange({ [at]: open(layouts[at], front) });
+				show('setup');
 			} catch (error) {
 				mergeProblem = problemOf(error, 'Could not set up');
 			}
@@ -344,51 +417,98 @@
 		then();
 	}
 
-	/** The jobs that were asked for and are on their way up: until they listen on their port. */
+	/** The tasks that were asked for and are on their way up: until they listen on their ports. */
 	const launching = new SvelteSet<string>();
 
-	/** Starts jobs (and what they need), and brings the last of them to the front of the dock. */
-	function start(names: string[]) {
-		agreed(names, async (seen) => {
-			const order = startOrder(jobs, names);
-			for (const name of order) launching.add(name);
-			if (!frame.current.open) toggleSide();
-			mergeProblem = null;
-			try {
-				await startJobs({ workspaceId: id, jobs: names, seen });
-				// its tab is there as soon as its terminal is: in front, unless it was put elsewhere
-				const front = jobTab(names.at(-1)!);
-				const at = areaOf(front) ?? 'dock';
-				arrange({ [at]: open(layouts[at], front) });
-				await jobsReady({ workspaceId: id, jobs: order });
-			} catch (error) {
-				mergeProblem = problemOf(error, 'Could not start that');
-			} finally {
-				for (const name of order) launching.delete(name);
-			}
-		});
+	let blocked = $state<{
+		workspaceId: string;
+		conflict: PortConflict & { job: string };
+		retry: () => void;
+	} | null>(null);
+
+	/** Brings a task's terminal to the front: in the dock, unless it was put elsewhere. */
+	function show(job: string) {
+		const front = jobTab(job);
+		const at = areaOf(front) ?? 'dock';
+		if (at !== 'main' && !frame.current.open) toggleSide();
+		arrange({ [at]: open(layouts[at], front) });
 	}
 
 	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
 
-	/** Opens a link in the browser, once the jobs it needs are up. */
-	function visit(link: (typeof links)[number]) {
-		agreed(link.needs, async (seen) => {
+	/** Links that were ready when no tab could be opened for them: offered in the Tasks tab. */
+	const readyLinks = new SvelteMap<string, string>();
+
+	/** Tasks whose terminal is to come to the front as soon as it is there. */
+	const showWhenThere = new SvelteSet<string>();
+	$effect(() => {
+		for (const name of showWhenThere)
+			if (workspace.terminals.includes(JOB_TERMINAL + name)) {
+				showWhenThere.delete(name);
+				show(name);
+			}
+	});
+
+	/**
+	 * Runs tasks and what they need, once the person has agreed to every command that would
+	 * run; then opens each one's URL. `showTerminal`: bring the terminal of the (first) task
+	 * to the front once it starts.
+	 */
+	function launchTasks(names: string[], confirmation?: string, showTerminal = false) {
+		const workspaceId = id;
+		const commands = commandsFor(names);
+		const seen: Seen = Object.fromEntries(commands.map((job) => [job.name, job.command]));
+		agreedTo(commands, async () => {
+			if (showTerminal) showWhenThere.add(names[0]);
 			// a new tab has to be opened while the click still counts; where to comes later
 			// (`window` is the name of a snippet in here)
-			const tab = globalThis.open('about:blank', '_blank');
-			const booting = startOrder(jobs, link.needs).filter((name) => !isUp(name));
+			const tabs = new SvelteMap<string, Window | null>();
+			for (const name of names) {
+				readyLinks.delete(name);
+				const leads = tasks.find((task) => task.name === name)?.href;
+				if (leads && !('geordiDesktop' in globalThis))
+					tabs.set(name, globalThis.open('about:blank', '_blank'));
+			}
+			const booting = startOrder(tasks, names).filter((name) => !isUp(name));
 			for (const name of booting) launching.add(name);
 			mergeProblem = null;
 			try {
-				const href = await openLink({ workspaceId: id, link: link.name, seen });
-				if (!tab) return void globalThis.open(href, '_blank', 'noopener');
-				tab.opener = null; // what is served there has no business with this page
-				tab.location.href = href;
+				const results = await runTasks({ workspaceId, tasks: names, seen, confirmation });
+				// its terminal may be reported after this: it stays asked for, unless it did not start
+				if (results.some((result) => result.problem || result.conflict))
+					showWhenThere.delete(names[0]);
+				const problems = new SvelteSet<string>();
+				for (const { name, href, problem } of results) {
+					if (problem) problems.add(problem);
+					if (!href) continue;
+					const tab = tabs.get(name);
+					if (tab && !tab.closed) {
+						tab.opener = null; // what is served there has no business with this page
+						tab.location.href = href;
+						tabs.delete(name);
+					} else if ('geordiDesktop' in globalThis) globalThis.open(href, '_blank', 'noopener');
+					else {
+						readyLinks.set(name, href);
+						showTab(RUN);
+					}
+				}
+				mergeProblem = [...problems].join(' · ') || null;
+				const conflict = results.find((result) => result.conflict)?.conflict;
+				if (conflict)
+					blocked = {
+						workspaceId,
+						conflict,
+						retry: () =>
+							launchTasks(
+								results.filter((result) => result.conflict).map((result) => result.name),
+								conflict.confirmation
+							)
+					};
 			} catch (error) {
-				tab?.close();
-				mergeProblem = problemOf(error, 'Could not open that');
+				mergeProblem = problemOf(error, 'Could not run that');
+				showWhenThere.delete(names[0]);
 			} finally {
+				for (const tab of tabs.values()) tab?.close();
 				for (const name of booting) launching.delete(name);
 			}
 		});
@@ -419,24 +539,43 @@
 		return `terminal:${name}`;
 	}
 
-	// A workspace has a terminal to begin with: opened when it is, if it has none, where
-	// there is a directory to open one in.
-	let begun = false;
-	$effect(() => {
-		if (begun || !git?.changes || workspace.archivedAt || !workspace.worktree || worktreeGone)
-			return;
-		begun = true;
-		untrack(() => {
-			if (workspace.terminals.length === 0 && starting.size === 0)
-				arrange({ dock: open(dock, newTerminal(false)) });
-		});
-	});
+	/** Focuses the terminal in view (or the first), or opens a new one when already in one. */
+	function goToTerminal() {
+		const shells = shellTabs();
+		const selected = Object.values(layouts)
+			.flatMap(groupsOf)
+			.find((group) => group.active && shells.includes(group.active));
+		const existing = selected?.active ?? shells[0];
+		if (existing && !document.activeElement?.closest('.xterm')) showShell(existing);
+		else openNewTerminal();
+	}
+	function showShell(tab: string) {
+		focusTerminal = terminalOf(tab);
+		showTab(tab);
+	}
+	/** Terminals without a job in them, in the order they were opened. */
+	const shellTabs = () => everywhere().filter((tab) => terminalOf(tab) && !jobOf(terminalOf(tab)));
+	function openNewTerminal() {
+		if (!frame.current.open) toggleSide();
+		arrange({ dock: open(dock, newTerminal()) });
+	}
 
-	/** Remembers a new arrangement. A terminal whose window is gone from it has its shell ended. */
+	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
 	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
 		if (!remaining.includes(DRAFT)) drafting = false;
+		// A closed terminal hands the keyboard to the terminal shown in its place.
+		const before = new Map(
+			Object.values(layouts)
+				.flatMap(groupsOf)
+				.map((g) => [g.id, g.active])
+		);
+		for (const group of Object.values(after).flatMap(groupsOf)) {
+			const was = before.get(group.id);
+			if (was && terminalOf(was) && !remaining.includes(was) && terminalOf(group.active ?? ''))
+				focusTerminal = terminalOf(group.active!);
+		}
 		for (const tab of everywhere()) {
 			const terminal = terminalOf(tab);
 			const source = sourceOf(tab);
@@ -450,18 +589,25 @@
 				});
 				return;
 			}
-			if (terminal && !remaining.includes(tab)) {
+			if (terminal && !remaining.includes(tab) && !isRunTerminal(terminal)) {
+				terminalTitles.delete(tab);
 				starting.delete(terminal);
 				const job = jobOf(terminal);
-				// a job takes the jobs that need it along
 				if (job) stop(job);
 				else closeTerminal({ workspaceId: id, terminal }).catch(() => {});
 			}
 		}
+		// Using a folded sheet's tabs, or opening a window in it, unfolds it; closing one doesn't.
+		const folded = frame.current.fold;
+		if (folded && next[folded]) {
+			const tabs = new Set(tabsOf(after[folded]));
+			if (tabsOf(layouts[folded]).every((tab) => tabs.has(tab)))
+				frame.current = { ...frame.current, fold: null };
+		}
 		arrangement.current = { ...after, diffPath: remaining.includes('diff') ? diffPath : undefined };
 	}
 
-	/** A window dragged from one area was dropped in another. */
+	/** Move a window between areas in one arrangement change. */
 	const receive =
 		(to: Area) => (tab: string, groupId: string, zone: Zone, before?: string | null) => {
 			const from = areaOf(tab);
@@ -471,6 +617,25 @@
 			if (placed === layouts[to]) return;
 			arrange({ [to]: placed, [from]: close(layouts[from], tab) });
 		};
+	function promote(tab: string) {
+		if (chatGroup) receive('main')(tab, chatGroup, 'center');
+	}
+	/** Where a window belongs beside the main area, if it does. */
+	const homeOf = (tab: string): Area | undefined =>
+		tab === CHANGES || tab === PR || tab === CHANGESET
+			? 'side'
+			: tab === RUN || terminalOf(tab)
+				? 'dock'
+				: undefined;
+	/** Send a window from the main area back to where it belongs. */
+	function demote(tab: string) {
+		const home = homeOf(tab);
+		const group = home && groupsOf(layouts[home])[0];
+		if (!home || !group || !workspace.worktree) return;
+		if (!frame.current.open) toggleSide();
+		receive(home)(tab, group.id, 'center');
+	}
+
 	/** The conversation stays where it is, and what a workspace always has can't be closed. */
 	const movable = (tab: string) => tab !== CHAT;
 	const closable = (tab: string) =>
@@ -478,6 +643,7 @@
 		tab !== CHANGES &&
 		tab !== PR &&
 		tab !== CHANGESET &&
+		tab !== RUN &&
 		// not from under an agent at work
 		aideOf(tab)?.status !== 'running';
 
@@ -487,6 +653,13 @@
 		if (area !== 'main' && !frame.current.open) toggleSide();
 		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath);
 	};
+	// Double-clicked in the sidebar: the conversation comes to the front, ready to write in.
+	let focusChat = $state(false);
+	$effect(() => {
+		if (!foreground.take(id)) return;
+		untrack(() => showTab(CHAT));
+		focusChat = true;
+	});
 	function openTurn(changes: TurnChanges) {
 		selectedTurn = changes;
 		showTab(TURN);
@@ -504,6 +677,37 @@
 	);
 	const changedPaths = $derived(new Set(changedList.split('\n').filter(Boolean)));
 	const citations = new SvelteMap<string, { line?: number }>();
+
+	// Paths its conversations name that may be directories: asked of the daemon together,
+	// once each, since a reply names many and renders again with every word it gets.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
+	const folders = new Map<string, Promise<boolean>>();
+	let folderBatch: Map<string, (found: boolean) => void> | undefined;
+	function isFolder(path: string) {
+		const known = folders.get(path);
+		if (known) return known;
+		const answer = new Promise<boolean>((done) => {
+			if (!folderBatch) {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, never shown
+				const batch = (folderBatch = new Map());
+				queueMicrotask(() => {
+					folderBatch = undefined;
+					const paths = [...batch.keys()];
+					for (let i = 0; i < paths.length; i += 100) {
+						const some = paths.slice(i, i + 100);
+						findFolders({ workspaceId: id, paths: some }).then(
+							(found) => some.forEach((path) => batch.get(path)!(found.includes(path))),
+							() => some.forEach((path) => (folders.delete(path), batch.get(path)!(false)))
+						);
+					}
+				});
+			}
+			folderBatch.set(path, done);
+		});
+		folders.set(path, answer);
+		return answer;
+	}
+
 	setChangedFiles({
 		get paths() {
 			return changedPaths;
@@ -515,7 +719,12 @@
 			citations.set(path, { line });
 			showTab(`source:${path}`);
 		},
-		open: openDiff
+		open: openDiff,
+		isFolder,
+		openFolder: (path) =>
+			void openFolder({ workspaceId: id, path }).catch((error) =>
+				console.warn(`Could not open ${path}:`, error)
+			)
 	});
 
 	const askingAgent = $derived([workspace, ...workspace.aides].find((agent) => agent.asking));
@@ -546,12 +755,19 @@
 	// A link to an agent working alongside leads here, to its conversation (`?agent=`). So
 	// does beginning one: it takes the place of the window it was begun in.
 	$effect(() => {
-		const tab = `agent:${page.url.searchParams.get('agent')}`;
+		const requested = page.url.searchParams.get('agent');
+		if (!requested || page.params.id !== id) return;
+		const tab = requested === id ? CHAT : `agent:${requested}`;
 		untrack(() => {
-			const at = aideOf(tab) && areaOf(tab);
+			const at = areaOf(tab);
 			if (!at) return;
-			const begun = areaOf(DRAFT);
-			if (!begun) return arrange({ [at]: open(layouts[at], tab) });
+			void goto(resolve('/workspaces/[id]', { id }), {
+				shallow: true,
+				replace: true,
+				state: page.state
+			});
+			const begun = tab !== CHAT && areaOf(DRAFT);
+			if (!begun) return showTab(tab);
 			const group = groupsOf(layouts[begun]).find((group) => group.tabs.includes(DRAFT))!.id;
 			arrange(
 				begun === at
@@ -575,15 +791,22 @@
 	const worktreeGone = $derived(
 		!!workspace.worktree && !!checked?.missing && !running && !workspace.archivedAt
 	);
+	/** Terminals are for a workspace with a worktree to work in. */
+	const terminalsOpen = $derived(
+		!project && !workspace.archivedAt && !!workspace.worktree && !worktreeGone
+	);
 	const standingState = $derived(
-		workspace.archivedAt || !checked?.changes
-			? null
-			: {
-					changes: checked.changes,
-					upstream: checked.upstream,
-					failed: workspace.lastTurn === 'failed',
-					child: !!workspace.parentId
-				}
+		workspace.archivedAt
+			? { archived: true, changes: null, upstream: null }
+			: !checked?.changes
+				? null
+				: {
+						changes: checked.changes,
+						upstream: checked.upstream,
+						failed: workspace.lastTurn === 'failed',
+						child: !!workspace.parentId,
+						locked: workspace.locked
+					}
 	);
 	// A worktree that is gone is where the workspace stands, and bringing it back the next step.
 	const actions = $derived<WorkspaceAction[]>(
@@ -617,6 +840,7 @@
 				action.prompt
 					? asked.includes(action.prompt) || (action.id === 'merge-upstream' && updating)
 					: pullActionPending(id, action) ||
+						(action.id === 'restore-workspace' && restoringWorkspace) ||
 						(action.id === 'archive' && leaving) ||
 						(action.id === 'continue' && continuing)
 			)
@@ -678,6 +902,9 @@
 		continuing = true;
 		try {
 			await continueWorkspace(id);
+			// on with the new work: the conversation, ready to write in
+			showTab(CHAT);
+			focusChat = true;
 		} catch (error) {
 			mergeProblem = problemOf(error, 'Could not continue the workspace');
 		} finally {
@@ -689,12 +916,19 @@
 	const working = $derived(running || workspace.aides.some((aide) => aide.status === 'running'));
 	/**
 	 * What is offered now: not publishing while an agent is at work (`PUBLISHING`). One that
-	 * was asked for already stays, to show that it is under way.
+	 * was asked for already stays, to show that it is under way. Continuing moves the files
+	 * under every agent in the worktree: it waits until none is at work.
 	 */
 	const offered = $derived(
-		actions.filter(
-			(action) => !working || !PUBLISHING.includes(action.id) || pending.includes(action.id)
-		)
+		actions
+			.filter(
+				(action) => !working || !PUBLISHING.includes(action.id) || pending.includes(action.id)
+			)
+			.map((action) =>
+				working && action.id === 'continue'
+					? { ...action, unavailable: 'Continue once the agent is done' }
+					: action
+			)
 	);
 
 	async function act(action: WorkspaceAction) {
@@ -705,35 +939,103 @@
 			mergeProblem = null;
 			await runPullAction(id, action);
 		} else if (action.id === 'restore-worktree') restore();
+		else if (action.id === 'restore-workspace') await reopen();
 		else if (action.id === 'continue') carryOn();
 		else if (action.id === 'archive') void archiveAndNavigate(workspace);
 	}
+
+	// Everything in the workspace to go to, or do, found by typing a few letters of it.
+	let palette = $state(false);
+	const commandList = $derived(
+		workspaceCommands({
+			conversations: [
+				{ tab: CHAT, label: agentName[workspace.agent], icon: 'icon-[lucide--message-square]' },
+				...workspace.aides.map((aide) => ({
+					tab: `agent:${aide.id}`,
+					label: aide.title,
+					icon: 'icon-[lucide--message-square]',
+					keywords: agentName[aide.agent]
+				})),
+				...[...reviewers].map(([tab, { child, parentName }]) => ({
+					tab,
+					label: child.title || 'Subagent',
+					icon: 'icon-[lucide--bot]',
+					keywords: parentName
+				}))
+			],
+			canBegin: !workspace.archivedAt,
+			shells: terminalsOpen
+				? shellTabs()
+						.sort()
+						.map((tab, index) => ({
+							tab,
+							title: terminalTitles.get(tab) || `Terminal ${index + 1}`
+						}))
+				: null,
+			canRunDefault: runnable && !workspace.archivedAt,
+			// nothing to run without a worktree to run it in
+			tasks: !terminalsOpen
+				? []
+				: tasks.map(({ name, label, command }) => ({
+						name,
+						label: label ?? name,
+						live: !!command && runLive(name),
+						opens: !command
+					})),
+			outputs: workspace.terminals
+				.filter(isRunTerminal)
+				.map((terminal) => jobOf(terminal)!)
+				.map((name) => ({ name, label: labelOf(name) })),
+			windows: project
+				? null
+				: (
+						[
+							[CHANGES, 'Changes', 'icon-[lucide--file-diff]'],
+							[COMBINED, 'Combined diff', 'icon-[lucide--files]'],
+							[PR, `Pull request #${pull?.number}`, 'icon-[lucide--git-pull-request]'],
+							[CHANGESET, 'Changeset', 'icon-[lucide--package]'],
+							[RUN, 'Run', 'icon-[lucide--play]']
+						] as const
+					)
+						.filter(([tab]) => exists(tab))
+						.map(([tab, label, icon]) => ({ tab, label, icon })),
+			sideOpen: project || workspace.archivedAt ? null : frame.current.open,
+			changedFiles: git?.changes?.files.map((file) => file.path) ?? [],
+			actions: offered.filter((action) => !pending.includes(action.id) && !action.unavailable),
+			locked: workspace.archivedAt ? null : workspace.locked,
+
+			show: (tab) => {
+				if (terminalOf(tab)) return showShell(tab);
+				showTab(tab);
+				if (tab === CHAT) focusChat = true;
+			},
+			newConversation: () => showTab(newConversation()),
+			terminal: goToTerminal,
+			newTerminal: openNewTerminal,
+			runDefault,
+			runTask: (name) => launchTasks([name]),
+			stop,
+			showOutput: show,
+			toggleSide,
+			openDiff,
+			act: (action) => void act(action),
+			lock: (locked) => void lockWorkspace({ workspaceId: workspace.id, locked })
+		})
+	);
 </script>
 
 <svelte:head><title>{workspace.title} · Geordi</title></svelte:head>
 
 <svelte:window
-	onkeydown={(event) => {
-		if (!pressed(event, 'toggleSide')) return;
-		event.preventDefault();
-		toggleSide();
+	onkeydowncapture={(event) => {
+		// before a terminal or the reply box can make them their own
+		if (pressed(event, 'palette')) {
+			event.preventDefault();
+			if (!event.repeat) palette = !palette;
+		} else if (!runShortcut(event, commandList)) return;
+		event.stopPropagation();
 	}}
 />
-
-<!-- The repository's jobs and links (FDR-006), where what they start shows up: the dock. -->
-{#snippet runActions()}
-	<RunControls
-		defaultTarget={config?.default}
-		{jobs}
-		{links}
-		{isUp}
-		{launching}
-		{start}
-		{stop}
-		{visit}
-		problem={config?.problem}
-	/>
-{/snippet}
 
 <!-- A count at the end of a tab: nearer the tab's edge than text would be, being a shape itself. -->
 {#snippet count(n: number)}
@@ -743,9 +1045,14 @@
 {#snippet tab(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : sourceOf(tab)}
-	{#if tab === TURN}
+	{#if tab === COMBINED}
+		<span class="icon-[lucide--files] size-3.5 shrink-0"></span>
+		<span>Combined diff</span>
+	{:else if tab === TURN}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span>Turn {selectedTurn?.number} changes</span>
+	{:else if tab === RUN}
+		<RunTab tasks={tasks.filter((task) => task.command)} stateOf={jobState} />
 	{:else if tab === CHANGES}
 		<span class="icon-[lucide--file-diff] size-3.5 shrink-0"></span>
 		<span class="truncate">Changes</span>
@@ -774,28 +1081,19 @@
 	{:else if terminalOf(tab)}
 		{@const job = jobOf(terminalOf(tab))}
 		{#if job}
-			{@const status = workspace.finished[terminalOf(tab) ?? '']}
 			<!-- running; or over, and how it went: its output is still there to be read -->
-			{#if status === undefined && launching.has(job)}
-				<!-- on its way up: until it listens on its port -->
-				<ProgressIcon label="Starting" />
-			{:else if status === undefined}
-				<RunningJob class="size-3.5" />
-			{:else if status === 0}
-				<span class="icon-[lucide--check] size-3.5 shrink-0 text-muted" title="Ended"></span>
-			{:else}
-				<span
-					class="icon-[lucide--x] size-3.5 shrink-0 text-danger"
-					title="Ended with status {status}"
-				></span>
-			{/if}
-			<span class="truncate">{job}</span>
+			<JobMark
+				state={jobState(job)}
+				listens={(tasks.find((task) => task.name === job)?.ports.length ?? 1) > 0}
+			/>
+			<span class="truncate">{labelOf(job)}</span>
 		{:else}
 			{@const terminals = everywhere()
 				.filter((other) => terminalOf(other) && !jobOf(terminalOf(other)))
 				.sort()}
+			{@const title = terminalTitles.get(tab) || `Terminal ${terminals.indexOf(tab) + 1}`}
 			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
-			<span class="truncate">Terminal {terminals.indexOf(tab) + 1}</span>
+			<span class="truncate" {title}>{title}</span>
 		{/if}
 	{:else if tab === DRAFT}
 		<span class="icon-[lucide--message-square-plus] size-3.5 shrink-0"></span>
@@ -820,12 +1118,38 @@
 	{/if}
 {/snippet}
 
+<!-- what can be done with a window, beside its tabs -->
+{#snippet tools(tab: string)}
+	<WindowTools tools={windowTools.get(tab) ?? []} wrap={wrapLines} />
+{/snippet}
+
 {#snippet window(tab: string)}
 	{@const reviewer = reviewers.get(tab)}
 	{@const path = tab === 'diff' ? saved.diffPath : undefined}
 	{@const terminal = terminalOf(tab)}
 	{@const source = sourceOf(tab)}
-	{#if tab === TURN && selectedTurn}
+	{#if tab === COMBINED}
+		<div class="scroller space-y-2 p-3">
+			{#if git?.unavailable}
+				<p class="text-sm text-muted">{git.unavailable}</p>
+			{:else if !git?.changes}
+				<p class="text-sm text-muted">Loading the changes…</p>
+			{:else}
+				{#each git.changes.files as file (file.path)}
+					<DiffSection path={file.path} added={file.added} removed={file.removed}>
+						<CombinedDiffFile
+							workspaceId={id}
+							path={file.path}
+							version={git.version}
+							ontools={toolsIn(tab)}
+						/>
+					</DiffSection>
+				{:else}
+					<p class="text-sm text-muted">No changes yet</p>
+				{/each}
+			{/if}
+		</div>
+	{:else if tab === TURN && selectedTurn}
 		<div class="scroller px-3 pb-4">
 			{#key selectedTurn}
 				<header
@@ -841,11 +1165,30 @@
 				<PatchView diff={selectedTurn.diff} collapsible />
 			{/key}
 		</div>
+	{:else if tab === RUN}
+		<RunPane
+			{tasks}
+			shortcut="runDefault"
+			stateOf={jobState}
+			hasTerminal={(name) => workspace.terminals.includes(JOB_TERMINAL + name)}
+			run={(name, showTerminal) => launchTasks([name], undefined, showTerminal)}
+			{stop}
+			{show}
+		>
+			{#each readyLinks as [name, href] (name)}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
+				<a class="item" {href} target="_blank" rel="noopener">Open {labelOf(name)} in browser</a>
+			{/each}
+			{#if config?.problem}
+				<Notice>The repository's configuration can't be read: {config.problem}</Notice>
+			{/if}
+		</RunPane>
 	{:else if tab === CHANGES}
 		<Changes
 			{git}
 			gone={worktreeGone ? (workspace.worktree?.branch ?? null) : null}
 			onopen={openDiff}
+			onopencombined={() => showTab(COMBINED)}
 			bind:view={changesView.current}
 		/>
 	{:else if tab === PR && pulls.length}
@@ -870,7 +1213,7 @@
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->
 		{#key `${diffSelection}:${path}`}
-			<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} />
+			<DiffWindow workspaceId={id} {path} version={git?.version ?? 0} ontools={toolsIn(tab)} />
 		{/key}
 	{:else if source}
 		<SourceWindow
@@ -878,11 +1221,13 @@
 			path={source}
 			citation={citations.get(source)}
 			version={git?.version ?? 0}
+			ontools={toolsIn(tab)}
 		/>
 	{:else if terminal}
 		<Terminal
 			workspaceId={id}
 			{terminal}
+			ontitle={jobOf(terminal) ? undefined : (title) => terminalTitles.set(tab, title)}
 			start={starting.has(terminal)}
 			autofocus={focusTerminal === terminal}
 			onautofocus={() => (focusTerminal = undefined)}
@@ -919,6 +1264,8 @@
 	{:else}
 		<Conversation
 			{workspace}
+			autofocus={focusChat}
+			onautofocus={() => (focusChat = false)}
 			questionTarget={questionTarget?.owner === id ? questionTarget : undefined}
 			onopenturn={openTurn}
 			waiting={waiting(workspace)}
@@ -929,7 +1276,11 @@
 {/snippet}
 
 <main class="flex h-below-bar min-w-0 flex-col overflow-hidden md:h-dvh">
-	<TitleBar>
+	<TitleBar
+		contentWidth={ribbonPosition.current === 'pane' && frame.current.open && !project
+			? columnWidth
+			: undefined}
+	>
 		<div class="min-w-0 flex-1">
 			<WorkspaceHeading
 				title={workspace.title}
@@ -937,19 +1288,24 @@
 				{columnWidth}
 			/>
 			<div class="flex items-center gap-3 overflow-hidden text-xs whitespace-nowrap text-muted">
-				<span class="flex shrink-0 items-center gap-1">
+				<span
+					class={['flex min-w-0 items-center gap-1', workspace.worktree && 'max-w-1/2']}
+					title={repo.name}
+				>
 					<span
 						class={[
 							project ? 'icon-[lucide--folder-kanban]' : 'icon-[lucide--folder-git-2]',
-							'size-3.5'
+							'size-3.5 shrink-0'
 						]}
 					></span>
-					{repo.name}
+					<span class="truncate">{repo.name}</span>
 				</span>
 				{#if workspace.worktree}
 					<span class="flex min-w-0 items-center gap-1" title={workspace.worktree.path}>
 						<span class="icon-[lucide--git-branch] size-3.5 shrink-0"></span>
-						<span class="truncate code-dense">{workspace.worktree.branch}</span>
+						<span class="truncate code-dense" title={workspace.worktree.branch}>
+							{workspace.worktree.branch}
+						</span>
 					</span>
 				{/if}
 			</div>
@@ -960,7 +1316,9 @@
 				pull={standingState?.upstream?.pull}
 				actions={offered}
 				unreachable={workspace.archivedAt ? null : checked?.upstreamProblem}
-				disabled={!!git?.checking && git.changes?.branch !== checked?.changes?.branch}
+				disabled={!workspace.archivedAt &&
+					!!git?.checking &&
+					git.changes?.branch !== checked?.changes?.branch}
 				{pending}
 				askingIn={askingAgent ? resolve('/workspaces/[id]', { id }) : undefined}
 				onopenpull={() => {
@@ -969,12 +1327,9 @@
 				}}
 				onaction={act}
 			/>
-			{#if workspace.archivedAt}
-				<Badge>Archived</Badge>
-				<Button onclick={reopen} disabled={restoringWorkspace}
-					>{restoringWorkspace ? 'Restoring…' : 'Restore workspace'}</Button
-				>
-			{:else if !project}
+		{/snippet}
+		{#snippet trailing()}
+			{#if !workspace.archivedAt && !project}
 				<Button
 					variant="ghost"
 					icon={frame.current.open
@@ -1013,8 +1368,10 @@
 				onclick={() => {
 					mergeProblem = null;
 					delete reviewProblems[id];
-				}}>Dismiss</Button
+				}}
 			>
+				Dismiss
+			</Button>
 		</div>
 	{/if}
 
@@ -1045,21 +1402,35 @@
 					onchange={(next) => arrange({ main: next })}
 					{tab}
 					{window}
+					{tools}
 					{closable}
 					accepts={movable}
 					onreceive={receive('main')}
+					ondoubleclick={demote}
 					newTab={workspace.archivedAt ? undefined : newConversation}
 					newLabel="New conversation"
+					newIcon="icon-[lucide--message-square-plus]"
 				/>
 			</div>
 		{/snippet}
 		{#snippet b()}
 			{#if workspace.worktree}
+				{#snippet foldButton(area: 'side' | 'dock')}
+					{@const folded = frame.current.fold === area}
+					<Button
+						variant="ghost"
+						size="sm"
+						icon={folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'}
+						label={folded ? 'Unfold' : 'Fold'}
+						onclick={() => toggleFold(area)}
+					/>
+				{/snippet}
 				<!-- each a sheet of its own, like the conversation: their shapes are what parts them -->
 				<Split
 					dir="column"
 					bare
 					min={[120, 120]}
+					fold={frame.current.fold === 'side' ? 'a' : frame.current.fold === 'dock' ? 'b' : null}
 					bind:ratio={
 						() => frame.current.changes,
 						(changes) => (frame.current = { ...frame.current, changes })
@@ -1067,34 +1438,52 @@
 				>
 					{#snippet a()}
 						<!-- what the workspace has done: its changes, and what they mean for the next releases -->
-						<div class="mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
+						<div
+							class={[
+								'mr-2 mb-1 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet',
+								frame.current.fold === 'side' && 'overflow-hidden'
+							]}
+						>
 							<Panes
 								layout={layouts.side}
 								onchange={(next) => arrange({ side: next })}
 								{tab}
 								{window}
+								{tools}
 								{closable}
 								accepts={movable}
 								onreceive={receive('side')}
+								ondoubleclick={promote}
 								splits={false}
-							/>
+							>
+								{#snippet lead()}{@render foldButton('side')}{/snippet}
+							</Panes>
 						</div>
 					{/snippet}
 					{#snippet b()}
-						<div class="mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet">
+						<div
+							class={[
+								'mt-1 mr-2 mb-2 ml-1 flex min-h-0 flex-1 flex-col sheet-quiet',
+								frame.current.fold === 'dock' && 'overflow-hidden'
+							]}
+						>
 							<Panes
 								layout={dock}
 								onchange={(next) => arrange({ dock: next })}
 								{tab}
 								{window}
+								{tools}
 								{closable}
 								accepts={movable}
 								onreceive={receive('dock')}
+								ondoubleclick={promote}
 								splits={false}
 								newTab={workspace.archivedAt ? undefined : newTerminal}
 								newLabel="New terminal"
-								actions={runActions}
-							/>
+								newIcon="icon-[lucide--square-terminal]"
+							>
+								{#snippet lead()}{@render foldButton('dock')}{/snippet}
+							</Panes>
 						</div>
 					{/snippet}
 				</Split>
@@ -1141,3 +1530,20 @@
 		</div>
 	</div>
 </Dialog>
+
+<CommandPalette
+	bind:open={palette}
+	label="Go to or do in this workspace"
+	placeholder="Conversations, terminals, tasks, files…"
+	items={commandList}
+/>
+
+<PortConflictDialog
+	conflict={blocked?.workspaceId === id ? blocked.conflict : null}
+	cancel={() => (blocked = null)}
+	retry={() => {
+		const request = blocked;
+		blocked = null;
+		if (request?.workspaceId === id) request.retry();
+	}}
+/>

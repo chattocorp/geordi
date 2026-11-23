@@ -10,6 +10,7 @@ describe('instructionsFor', () => {
 		expect(text).toContain('[Workspace title](/workspaces/<id>)');
 		expect(text).toContain('a branch of its own');
 		expect(text).toContain('`start_agent`');
+		expect(text).toContain('model and reasoning effort');
 		expect(text).toContain('`configuration_reference`');
 		expect(text).toContain('`$GEORDI_PORT`');
 		expect(text).toContain('`name_workspace`');
@@ -23,6 +24,14 @@ describe('instructionsFor', () => {
 		expect(text).toContain('`name_workspace`');
 		const named = instructionsFor({ ...own, parent: { title: 'x' }, named: true });
 		expect(named).not.toContain('`name_workspace`');
+	});
+
+	it('has an agent that an agent started ask that one, not the person', () => {
+		const child = instructionsFor({ ...own, parent: { title: 'x' } });
+		expect(child).toContain('do not use your blocking question tool');
+		expect(instructionsFor(own)).toContain('use your blocking question tool and wait');
+		// whoever starts agents learns to answer them
+		expect(instructionsFor(own)).toContain('ends its turn with its question');
 	});
 
 	it('says so when the directory is shared, and when there is no delegating', () => {

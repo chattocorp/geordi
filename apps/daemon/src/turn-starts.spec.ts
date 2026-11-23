@@ -151,3 +151,43 @@ it('starts a project in a folder of its own, without a worktree or its configura
 		[{ prompt: 'orchestrate', deliveryId: undefined }]
 	);
 });
+
+it('tells the forge of a worktree restored from a branch a cut-short attempt left behind', async () => {
+	const emit = vi.fn();
+	const prepared = vi.fn();
+	const { startMessage } = turnStarts({
+		worktreesDir: '/trees',
+		projectsDir: '/projects',
+		sessions: new Map(),
+		setups: new Map(),
+		apiUrl: '',
+		prepared,
+		emitFor: () => emit,
+		begin: vi.fn(),
+		configFor: async () => ({ env: {} })
+	});
+	vi.mocked(hasWorktree).mockReturnValue(false);
+	vi.mocked(ensureWorktree).mockResolvedValueOnce({
+		path: '/worktree',
+		adminDir: '',
+		commonDir: '',
+		writableRoots: [],
+		branch: 'geordi/w',
+		created: false,
+		restored: true
+	} as Awaited<ReturnType<typeof ensureWorktree>>);
+	await startMessage({
+		type: 'agent.message',
+		agent: 'claude',
+		settings: {},
+		repoPath: '/repo',
+		base: 'geordi/parent',
+		worktreeId: 'w',
+		workspaceId: 'w',
+		apiToken: '',
+		resumeId: null,
+		prompt: 'first'
+	});
+	expect(emit).toHaveBeenCalledWith({ kind: 'worktree', path: '/worktree', branch: 'geordi/w' });
+	expect(prepared).toHaveBeenCalledOnce();
+});

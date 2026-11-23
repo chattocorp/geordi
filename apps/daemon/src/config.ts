@@ -1,35 +1,39 @@
 import { git } from './git.ts';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-	CONFIG_FILES,
-	CONFIG_NAME,
-	DEFAULT_PORTS,
-	SCRIPTS,
-	startOrder,
-	type RepoConfig
-} from '@geordi/protocol';
-import { parse as parseToml } from 'smol-toml';
+import { CONFIG_FILE, CONFIG_NAME, SCRIPTS, type RepoConfig, type Task } from '@geordi/protocol';
 import { parse as parseYaml } from 'yaml';
 import { readText } from './changes.ts';
-import { portAt, type Assigned } from './ports.ts';
+import { portAt, portKey, spareOf, type Assigned } from './ports.ts';
 import { startOf, type Worktree } from './worktree.ts';
 
 /** Commands are for a shell to run, not for storing things in. */
 const MAX_COMMAND = 2000;
 const MAX_URL = 500;
-const MAX_PORTS = 100;
-/** A job's port in a link: `{web}`. */
+/** A port in a URL, by its name: `{http}`. */
 const PLACEHOLDER = /\{([^{}]*)\}/g;
 /** Links only ever lead to this machine: the file is not to be a way to send people anywhere. */
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
+/** What the file was called, and in what it was written, before (FDR-006). */
+const OLD_FILE = '.geordi.toml';
+/** What it said before it said `tasks`. */
+const OLD_SETTINGS = ['run', 'jobs', 'urls', 'default', 'ports'];
+
+/** A task as the file says it, before a workspace's ports are filled in. */
+export type TaskSettings = {
+	name: string;
+	label?: string;
+	command: string | null;
+	ports: string[];
+	/** With its ports as `{task.port}`. */
+	url: string | null;
+	needs: string[];
+	default: boolean;
+};
 
 /** What a `.geordi.yml` says, before a workspace's ports are filled in. */
 export type Settings = {
-	default?: RepoConfig['default'];
-	ports: number;
-	jobs: { label?: string; name: string; command: string; needs: string[] }[];
-	urls: { label?: string; name: string; url: string; needs: string[] }[];
+	tasks: TaskSettings[];
 	/** The commands run when a worktree is made, and before it is removed. */
 	setup: string | null;
 	teardown: string | null;
@@ -54,133 +58,121 @@ function displayLabel(value: unknown, where: string): { label?: string } {
 	return { label: (value as string).trim() };
 }
 
-function names(value: unknown, what: string, known: Set<string>): string[] {
+function nameList(value: unknown, where: string, what: string): string[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value) || !value.every((name) => typeof name === 'string'))
-		fail(`${what} must be a list of job names`);
-	for (const name of value as string[])
-		if (!known.has(name)) fail(`${what}: there is no job "${name}"`);
-	return [...new Set(value as string[])];
+		return fail(`${where} must be a list of ${what} names`);
+	for (const name of value)
+		if (!CONFIG_NAME.test(name))
+			fail(`${where}: "${name}" is not a name: lower case letters, digits and dashes`);
+	if (new Set(value).size !== value.length) fail(`${where} names one twice`);
+	return value;
 }
 
-/** What the file says, in whichever of the two languages its name says it is written in. */
-function read(text: string, file: string): Record<string, unknown> {
-	if (file.endsWith('.toml')) return parseToml(text);
+const command = (value: unknown, where: string) => {
+	if (typeof value !== 'string' || !value.trim() || value.length > MAX_COMMAND)
+		fail(`${where} must be a command, as a string`);
+	return (value as string).trim();
+};
+
+/** A task's `url`, if it has one. */
+function urlOf(task: Record<string, unknown>, name: string): string | null {
+	if (task.urls !== undefined)
+		fail(`tasks.${name}.urls is no longer read: give each URL a task of its own, with \`url\``);
+	const url = task.url;
+	if (url === undefined) return null;
+	if (typeof url !== 'string' || url.length > MAX_URL)
+		fail(`tasks.${name}.url must be an address, as a string`);
+	let address: URL | undefined;
+	try {
+		address = new URL((url as string).replace(PLACEHOLDER, '1'));
+	} catch {
+		// said below
+	}
+	if (!address || !/^https?:$/.test(address.protocol) || !LOCAL.test(address.hostname))
+		fail(`tasks.${name}.url must be an http address on this machine (localhost)`);
+	return url as string;
+}
+
+/** What a `.geordi.yml` says, as far as we understand it. Throws for what isn't one. */
+export function parseConfig(text: string): Settings {
 	// (an empty file says nothing, which is fine)
 	const said: unknown = parseYaml(text) ?? {};
-	return isTable(said) ? said : fail('it must be settings, each under its name');
-}
+	if (!isTable(said)) fail('it must be settings, each under its name');
+	const settings = said as Record<string, unknown>;
+	const old = OLD_SETTINGS.filter((key) => key in settings);
+	if (old.length > 0)
+		fail(
+			`${old.map((key) => `\`${key}\``).join(', ')} ${old.length === 1 ? 'is' : 'are'} no longer read: say what to run under \`tasks\`, each with the ports it listens on`
+		);
 
-/**
- * What a `.geordi.yml` says, as far as we understand it (or a `.geordi.toml`, going by
- * `file`'s name). Throws for what isn't one.
- */
-export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Settings {
-	const said = read(text, file);
-
-	const commands = new Map<string, { command: unknown; needs: unknown; label?: unknown }>();
-	if (said.jobs !== undefined) {
-		if (!isTable(said.jobs)) fail('`jobs` must be a table of jobs');
-		for (const [name, job] of Object.entries(said.jobs as Record<string, unknown>)) {
-			if (!isTable(job)) fail(`jobs.${name} must be a table with a command`);
-			commands.set(name, job as { command: unknown; needs: unknown; label?: unknown });
-		}
-	}
-	// `run = "…"` is short for a single job of that name
-	if (said.run !== undefined) {
-		if (commands.has('run')) fail('`run` and `jobs.run` are the same job: name it once');
-		commands.set('run', { command: said.run, needs: undefined });
-	}
-
-	const known = new Set(commands.keys());
-	const jobs = [...commands].map(([name, { command, needs, label }]) => {
+	const entries = Object.entries(
+		settings.tasks === undefined
+			? {}
+			: isTable(settings.tasks)
+				? settings.tasks
+				: fail('`tasks` must be tasks, each under its name')
+	);
+	const known = new Set(entries.map(([name]) => name));
+	const tasks = entries.map(([name, value]): TaskSettings => {
 		if (!CONFIG_NAME.test(name))
-			fail(`"${name}" is not a job name: lower case letters, digits and dashes`);
+			fail(`"${name}" is not a task name: lower case letters, digits and dashes`);
 		if ((SCRIPTS as readonly string[]).includes(name))
-			fail(`"${name}" is not a job name: say \`${name}: …\` for the ${name} script`);
-		if (typeof command !== 'string' || !command.trim() || command.length > MAX_COMMAND)
-			fail(
-				`${name === 'run' && !isTable(said.jobs) ? '`run`' : `jobs.${name}.command`} must be a command, as a string`
-			);
+			fail(`"${name}" is not a task name: say \`${name}: …\` for the ${name} script`);
+		const task = isTable(value) ? value : fail(`tasks.${name} must be settings`);
+		const url = urlOf(task, name);
+		if (task.command === undefined && url === null)
+			fail(`tasks.${name} needs a command, a url, or both`);
+		if (task.default !== undefined && typeof task.default !== 'boolean')
+			fail(`tasks.${name}.default must be true or false`);
+		const needs = nameList(task.needs, `tasks.${name}.needs`, 'task');
+		for (const needed of needs)
+			if (!known.has(needed)) fail(`tasks.${name}: there is no task "${needed}"`);
+		const ports = nameList(task.ports, `tasks.${name}.ports`, 'port');
+		if (task.command === undefined && ports.length > 0)
+			fail(`tasks.${name}.ports: only a task with a command listens on ports`);
 		return {
 			name,
-			...displayLabel(label, `jobs.${name}`),
-			command: (command as string).trim(),
-			needs: names(needs, `jobs.${name}.needs`, known)
+			...displayLabel(task.label, `tasks.${name}`),
+			command: task.command === undefined ? null : command(task.command, `tasks.${name}.command`),
+			ports,
+			url,
+			needs,
+			default: task.default === true
 		};
 	});
-	for (const job of jobs)
-		if (!startOrder(jobs, [job.name]).includes(job.name) || job.needs.includes(job.name))
-			fail(`jobs.${job.name} needs itself`);
-	// a job that needs itself through others never gets its turn to start
-	for (const job of jobs) {
-		const reach = (name: string, seen: string[]): boolean =>
-			seen.includes(name) ||
-			(jobs.find((other) => other.name === name)?.needs ?? []).some((needed) =>
-				reach(needed, [...seen, name])
-			);
-		if (reach(job.name, [])) fail(`jobs.${job.name} needs itself, through other jobs`);
-	}
 
-	const urls: Settings['urls'] = [];
-	if (said.urls !== undefined) {
-		if (!isTable(said.urls)) fail('`urls` must be a table of links');
-		for (const [name, link] of Object.entries(said.urls as Record<string, unknown>)) {
-			if (!CONFIG_NAME.test(name))
-				fail(`"${name}" is not a name: lower case letters, digits and dashes`);
-			const url = isTable(link) ? link.url : undefined;
-			if (typeof url !== 'string' || url.length > MAX_URL)
-				fail(`urls.${name}.url must be an address, as a string`);
-			const mentioned = [...(url as string).matchAll(PLACEHOLDER)].map((match) => match[1]);
-			for (const job of mentioned)
-				if (!known.has(job)) fail(`urls.${name}: there is no job "${job}"`);
-			let address: URL | undefined;
-			try {
-				address = new URL((url as string).replace(PLACEHOLDER, '1'));
-			} catch {
-				// said below
-			}
-			if (!address || !/^https?:$/.test(address.protocol) || !LOCAL.test(address.hostname))
-				fail(`urls.${name}.url must be an http address on this machine (localhost)`);
-			const needs = names((link as Record<string, unknown>).needs, `urls.${name}.needs`, known);
-			urls.push({
-				name,
-				...displayLabel((link as Record<string, unknown>).label, `urls.${name}`),
-				url: url as string,
-				needs: [...new Set([...mentioned, ...needs])]
-			});
+	// Ports are the workspace's, by name, and each is one task's: two can't listen on one.
+	const owners = new Map<string, TaskSettings>();
+	for (const task of tasks)
+		for (const port of task.ports) {
+			const other = owners.get(port);
+			if (other)
+				fail(
+					`tasks.${task.name}.ports: "${port}" is ${other.name}'s already (give it another name)`
+				);
+			owners.set(port, task);
 		}
-	}
+	for (const task of tasks)
+		for (const [, port] of task.url?.matchAll(PLACEHOLDER) ?? []) {
+			const owner =
+				owners.get(port) ??
+				fail(`tasks.${task.name}.url: no task lists a port "${port}" (list it under its ports)`);
+			// a port is only there once the task that listens on it is up
+			if (owner !== task && !task.needs.includes(owner.name)) task.needs.push(owner.name);
+		}
+	const byName = new Map(tasks.map((task) => [task.name, task]));
+	// a task that needs itself, however indirectly, never gets its turn to start
+	const reach = (name: string, seen: string[]): boolean =>
+		seen.includes(name) ||
+		(byName.get(name)?.needs ?? []).some((needed) => reach(needed, [...seen, name]));
+	for (const task of tasks)
+		if (reach(task.name, [])) fail(`tasks.${task.name} needs itself, through other tasks`);
 
-	// One port per job is what a repository needs unless it says it wants spare ones. With
-	// no jobs there is nothing to count: then it is the number any workspace gets.
-	const ports = said.ports ?? (jobs.length || DEFAULT_PORTS);
-	if (typeof ports !== 'number' || !Number.isInteger(ports) || ports < 1 || ports > MAX_PORTS)
-		fail(`\`ports\` must be a number from 1 to ${MAX_PORTS}`);
-	const [setup, teardown] = SCRIPTS.map((script) => {
-		const command = said[script];
-		if (command === undefined) return null;
-		if (typeof command !== 'string' || !command.trim() || command.length > MAX_COMMAND)
-			fail(`\`${script}\` must be a command, as a string`);
-		return (command as string).trim();
-	});
-	const settings: Settings = {
-		ports: Math.max(ports as number, jobs.length),
-		jobs,
-		urls,
-		setup,
-		teardown
-	};
-	if (said.default !== undefined) {
-		const targets = [
-			...jobs.map(({ name }) => `jobs.${name}` as const),
-			...urls.map(({ name }) => `urls.${name}` as const)
-		];
-		settings.default =
-			targets.find((target) => target === said.default) ??
-			fail('`default` must name a configured job or URL, such as jobs.web or urls.app');
-	}
-	return settings;
+	const [setup, teardown] = SCRIPTS.map((script) =>
+		settings[script] === undefined ? null : command(settings[script], `\`${script}\``)
+	);
+	return { tasks, setup, teardown };
 }
 
 /**
@@ -188,21 +180,24 @@ export function parseConfig(text: string, file: string = CONFIG_FILES[0]): Setti
  * workspace's own if it has one (so that a change to it can be tried out there), and
  * otherwise the one on the branch work starts from (the upstream's main branch; see
  * `startOf`), so that a workspace that branched off before the file existed gets it too.
- * Where there is one of each name, the first of `CONFIG_FILES` is the one.
+ * A workspace with a file by the old name only is told to move it.
  */
 async function fileFor(worktree: Worktree, repoPath: string) {
-	for (const file of CONFIG_FILES)
-		if (lstatSync(join(worktree.path, file), { throwIfNoEntry: false }))
-			return { source: 'workspace' as const, file, text: readText(worktree, file) };
+	const there = (file: string) => !!lstatSync(join(worktree.path, file), { throwIfNoEntry: false });
+	if (there(CONFIG_FILE))
+		return {
+			source: 'workspace' as const,
+			file: CONFIG_FILE,
+			text: readText(worktree, CONFIG_FILE)
+		};
+	if (there(OLD_FILE)) return { source: 'workspace' as const, file: OLD_FILE, text: null };
 	const start = await startOf(repoPath);
-	for (const file of CONFIG_FILES)
-		try {
-			const text = await git(repoPath, ['cat-file', 'blob', `${start}:${file}`]);
-			return { source: 'base' as const, file, text };
-		} catch {
-			// not there by this name
-		}
-	return null; // not there either: the repository has nothing to say
+	try {
+		const text = await git(repoPath, ['cat-file', 'blob', `${start}:${CONFIG_FILE}`]);
+		return { source: 'base' as const, file: CONFIG_FILE, text };
+	} catch {
+		return null; // not there either: the repository has nothing to say
+	}
 }
 
 type Found = {
@@ -221,9 +216,16 @@ export async function settingsOf(worktree: Worktree, repoPath: string): Promise<
 	const found = await fileFor(worktree, repoPath);
 	if (!found) return { settings: null, problem: null, source: null, file: null };
 	const { source, file, text } = found;
+	if (file === OLD_FILE)
+		return {
+			settings: null,
+			source,
+			file,
+			problem: `${OLD_FILE} is no longer read: write its settings as YAML in ${CONFIG_FILE}`
+		};
 	if (text === null) return { settings: null, source, file, problem: `${file} can't be read` };
 	try {
-		return { settings: parseConfig(text, file), problem: null, source, file };
+		return { settings: parseConfig(text), problem: null, source, file };
 	} catch (error) {
 		// the main branch's file is not this workspace's to fix: it simply has nothing to say
 		if (source === 'base') return { settings: null, problem: null, source: null, file: null };
@@ -235,9 +237,19 @@ export async function settingsOf(worktree: Worktree, repoPath: string): Promise<
 const script = (command: string | null | undefined, approved: (command: string) => boolean) =>
 	command ? { command, approved: approved(command) } : null;
 
+/** The ports a workspace's tasks want, as `ports.ensure` is asked for them. */
+export const wantedPorts = (settings: Settings | null) =>
+	(settings?.tasks ?? []).flatMap((task) =>
+		task.ports.map((port, index) => ({
+			key: portKey(port),
+			// what it was kept as before: `task.port`, and before that the task's one port, by its name
+			legacy: [`${task.name}.${port}`, ...(index === 0 ? [task.name] : [])]
+		}))
+	);
+
 /**
- * The configuration as the workspace gets it: every job with its port and whether a person
- * has agreed to run it, every link with the ports filled in.
+ * The configuration as the workspace gets it: every task with its ports and whether a
+ * person has agreed to run its command, every link with the ports filled in.
  */
 export function resolve(
 	{ settings, problem, source, file }: Found,
@@ -245,22 +257,17 @@ export function resolve(
 	/** Whether a person has agreed to run this command in this repository. */
 	approved: (command: string) => boolean
 ): RepoConfig {
-	const port = (job: string) => portAt(assigned, assigned.jobs[job]);
-	const count = assigned.blocks.reduce((sum, block) => sum + block.count, 0);
+	const port = (key: string) => portAt(assigned, assigned.jobs[key]);
 	return {
-		default: settings?.default,
-		jobs: (settings?.jobs ?? []).map((job) => ({
-			...job,
-			port: port(job.name),
-			approved: approved(job.command)
-		})),
-		urls: (settings?.urls ?? []).map(({ url, ...link }) => ({
-			...link,
-			href: url.replace(PLACEHOLDER, (_, job: string) => String(port(job)))
+		tasks: (settings?.tasks ?? []).map(({ url, ...task }): Task => ({
+			...task,
+			approved: task.command === null || approved(task.command),
+			ports: task.ports.map((name) => ({ name, port: port(portKey(name)) })),
+			href: url?.replace(PLACEHOLDER, (_, name: string) => String(port(portKey(name)))) ?? null
 		})),
 		setup: script(settings?.setup, approved),
 		teardown: script(settings?.teardown, approved),
-		ports: { first: portAt(assigned, 0), count },
+		ports: spareOf(assigned),
 		problem,
 		source,
 		file

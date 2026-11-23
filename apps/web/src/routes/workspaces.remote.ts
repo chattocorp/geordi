@@ -63,8 +63,8 @@ export const configureWorkspace = command(
 
 export const createWorkspace = form(
 	v.object({
-		/** Empty for a project, which belongs to no repository (FDR-012). */
-		repoId: v.string(),
+		/** New projects (FDR-012) can no longer be started: every workspace is in a repository. */
+		repoId: v.pipe(v.string(), v.minLength(1, 'Pick a repository to work in')),
 		images: imageIds,
 		agent: v.picklist(AGENTS),
 		...agentSettings,
@@ -77,6 +77,9 @@ export const createWorkspace = form(
 		alongside: v.optional(v.string())
 	}),
 	({ model, effort, permissionMode, alongside, repoId, ...data }) => {
+		const offered = hub().harnesses();
+		if (offered && !offered.some((h) => h.agent === data.agent))
+			error(409, `Provider ${data.agent} is unavailable`);
 		const settings = { model, effort, permissionMode };
 		if (alongside) {
 			const id = workspaces().join(alongside, { ...data, settings });
@@ -84,9 +87,7 @@ export const createWorkspace = form(
 			const owner = workspaces().summary(id).worktreeId;
 			redirect(303, `/workspaces/${owner}?agent=${id}`);
 		}
-		const id = workspaces().create({ ...data, repoId: repoId || null, settings });
-		// a project has no worktree to make
-		if (!repoId) redirect(303, `/workspaces/${id}`);
+		const id = workspaces().create({ ...data, repoId, settings });
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
 		if (!data.prompt && !data.images.length)
@@ -154,13 +155,23 @@ export const restoreWorkspace = command(v.string(), async (id) => {
 	}
 });
 
+/**
+ * Deletes archived workspaces for good, with the agents they started (ADR-012, FDR-014).
+ * Says how many went, and how many bytes the event log got smaller by.
+ */
+export const purgeWorkspaces = command(v.array(v.string()), (ids) => workspaces().purge(ids));
+
 /** Check for unfinished work without changing the workspace. */
 export const previewArchive = command(v.string(), concernsAboutArchiving);
 
 export const archiveWorkspace = command(
-	v.object({ workspaceId: v.string(), discard: v.boolean() }),
-	async ({ workspaceId, discard }) => {
-		await archive(workspaceId, discard);
+	v.object({
+		workspaceId: v.string(),
+		discard: v.boolean(),
+		stopAgents: v.optional(v.boolean(), false)
+	}),
+	async ({ workspaceId, discard, stopAgents }) => {
+		await archive(workspaceId, discard, null, stopAgents);
 	}
 );
 
@@ -278,19 +289,18 @@ export const editReleaseNote = command(
 	}
 );
 
-/** Starts jobs, and before each the jobs it needs. */
-export const startJobs = command(
-	v.object({ workspaceId: v.string(), jobs: v.array(jobName), seen }),
-	({ workspaceId, jobs: names, seen }) => jobs().start(workspaceId, names, seen)
-);
-
 /**
- * Waits for jobs that were started to be up (something listens on their port), for what
- * shows them booting.
+ * Runs tasks (FDR-006), and before each what it needs; answers, for each, where its URL
+ * leads once it answers, or what kept it.
  */
-export const jobsReady = command(
-	v.object({ workspaceId: v.string(), jobs: v.array(jobName) }),
-	({ workspaceId, jobs: names }) => jobs().ready(workspaceId, names)
+export const runTasks = command(
+	v.object({
+		workspaceId: v.string(),
+		tasks: v.array(jobName),
+		seen,
+		confirmation: v.optional(v.string())
+	}),
+	({ workspaceId, tasks, seen, confirmation }) => jobs().run(workspaceId, tasks, seen, confirmation)
 );
 
 /** Runs the repository's setup script in the workspace, as the person asking saw it. */
@@ -299,16 +309,10 @@ export const runSetup = command(
 	({ workspaceId, command }) => jobs().setUp(workspaceId, command)
 );
 
-/** Stops a job, and the jobs that need it. */
+/** Stops a task, and the tasks that need it. */
 export const stopJob = command(
 	v.object({ workspaceId: v.string(), job: jobName }),
 	({ workspaceId, job }) => jobs().stop(workspaceId, job)
-);
-
-/** Starts what a link needs, waits for it to be up, and returns where the link leads. */
-export const openLink = command(
-	v.object({ workspaceId: v.string(), link: jobName, seen }),
-	({ workspaceId, link, seen }) => jobs().open(workspaceId, link, seen)
 );
 
 /**
@@ -357,6 +361,16 @@ export const answerQuestion = command(
 export const moveWorkspace = command(
 	v.object({ workspaceId: v.string(), before: v.nullable(v.string()) }),
 	({ workspaceId, before }) => workspaces().move(workspaceId, before)
+);
+
+export const lockWorkspace = command(
+	v.object({ workspaceId: v.string(), locked: v.boolean() }),
+	({ workspaceId, locked }) => workspaces().lock(workspaceId, locked)
+);
+
+export const setWorkspaceInactive = command(
+	v.object({ workspaceId: v.string(), inactive: v.boolean() }),
+	({ workspaceId, inactive }) => workspaces().setInactive(workspaceId, inactive)
 );
 
 export const stopTask = command(
@@ -417,6 +431,20 @@ export const getSource = query(
 			return { unavailable: `Could not load the file: ${message(error)}` };
 		}
 	}
+);
+
+/** Which of these paths, named in a conversation, are directories in the workspace's worktree. */
+export const findFolders = command(
+	v.object({ workspaceId: v.string(), paths: v.pipe(v.array(v.string()), v.maxLength(100)) }),
+	({ workspaceId, paths }) =>
+		hub().request({ kind: 'folders', paths, ...workspaces().ref(workspaceId) })
+);
+
+/** Opens a directory in the workspace's worktree in the file manager (Finder). */
+export const openFolder = command(
+	v.object({ workspaceId: v.string(), path: v.string() }),
+	({ workspaceId, path }) =>
+		hub().request({ kind: 'openFolder', path, ...workspaces().ref(workspaceId) })
 );
 
 const dimension = v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(500));

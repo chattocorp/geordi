@@ -39,6 +39,11 @@ export type ReleaseAdapter = {
 	 * runs as it; it reads the worktree through Git either way.
 	 */
 	read(worktree: Worktree, toolsAt?: string): Promise<Read>;
+	/**
+	 * The same, as committed in `rev` (a commit or tree), read from the repository's objects:
+	 * no checkout needed. Tools that can only read files on disk leave it out.
+	 */
+	readAt?(worktree: Worktree, rev: string, toolsAt?: string): Promise<Read>;
 };
 /** What a tool knows: everything about a package but which of its notes a workspace adds. */
 type Read = (Omit<ReleasePackage, 'notes'> & {
@@ -150,6 +155,11 @@ const sweet: ReleaseAdapter = {
 	read: async (worktree, toolsAt) => {
 		const [command, ...args] = sweet.command.split(' ');
 		return fromSweet(await run(worktree, command, args, toolsAt));
+	},
+	// Since Sweet Release 0.5.0
+	readAt: async (worktree, rev, toolsAt) => {
+		const [command, ...args] = sweet.command.split(' ');
+		return fromSweet(await run(worktree, command, [...args, '--rev', rev], toolsAt));
 	}
 };
 

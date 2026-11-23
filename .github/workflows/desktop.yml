@@ -51,6 +51,8 @@ jobs:
             (cd "$app" && npm pkg set version="${TAG#v}")
           done
       - uses: ./.github/actions/package-desktop
+        env:
+          GEORDI_RELEASE_BUILD: '1'
       - name: Sign, notarize, and verify the macOS ZIP and DMG
         if: runner.os == 'macOS'
         working-directory: apps/desktop
@@ -102,13 +104,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # `sweet github release` creates a draft when there is none: one run per tag at a time.
+    concurrency:
+      group: desktop-release-${{ inputs.tag }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.commit }}
-      - uses: chattocorp/sweet-release/.github/actions/bootstrap@11dc11d022585610ad9d751c3f0262f6ef754179
-        with:
-          sweet-version: sweet@0.4.0
+      # Unreleased Sweet Release commit (PRs #62, #63 and #64, `sweet github release`): move to the next
+      # release tag. The CLI is built from this revision (`sweet-version: source`).
+      - uses: chattocorp/sweet-release/.github/actions/bootstrap@7e618be0b38acb105fe128f030f2f9b71527a0f6
       - uses: actions/download-artifact@v8
         with:
           pattern: desktop-${{ inputs.tag }}-*
@@ -122,26 +128,19 @@ jobs:
           tag=$RELEASE_TAG
           version=$(node -p "require('./apps/desktop/package.json').version")
           channel=latest
-          prerelease=false
           if [[ "$tag" == *-beta.* ]]; then
             channel=beta
-            prerelease=true
           else
             test "$tag" = "v$version"
           fi
-          notes="$RUNNER_TEMP/notes.md"
-          if [[ "$prerelease" == true ]]; then
-            printf 'Beta release %s.\n' "$tag" > "$notes"
-          else
-            sweet changelog --version "${tag#v}" -- . > "$notes"
+          notes=()
+          # A beta tag pushed by hand has no changelog section; it gets a placeholder.
+          if ! sweet changelog --version "${tag#v}" -- . > /dev/null; then
+            test "$channel" = beta
+            printf 'Beta release %s.\n' "$tag" > "$RUNNER_TEMP/notes.md"
+            notes=(--notes-file "$RUNNER_TEMP/notes.md")
           fi
-          test -s "$notes"
-          if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --verify-tag --notes-file "$notes" --draft
-          fi
-          test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
-          gh release upload "$tag" --clobber \
+          sweet github release "$tag" --title "$tag" "${notes[@]}" \
             "Geordi-${tag}-macOS-arm64.dmg" "Geordi-${tag}-macOS-arm64.zip" "Geordi-${tag}-Windows-x64.zip" \
             "Geordi-${tag}-Linux-x64.AppImage" "Geordi-${tag}-Linux-x64.deb" "Geordi-${tag}-Linux-x64.tar.gz" \
             "Geordi-${tag}-macOS-arm64.zip.blockmap" "${channel}-mac.yml"
-          gh release edit "$tag" --notes-file "$notes" --prerelease="$prerelease" --draft=false

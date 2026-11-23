@@ -1,9 +1,7 @@
 <script lang="ts">
 	import type { ToolDiff } from '@geordi/protocol';
 	import { describeChange, patchFiles, type PatchFile } from '#lib/patch.ts';
-	import Disclosure from '@geordi/ui/Disclosure.svelte';
-	import FittedPath from '@geordi/ui/FittedPath.svelte';
-	import DiffStat from '@geordi/ui/DiffStat.svelte';
+	import DiffSection from '@geordi/ui/DiffSection.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 
 	type Props = {
@@ -42,23 +40,13 @@
 	{#each files ?? [] as file, i (i)}
 		{#if file.diff && collapsible}
 			{@const patch = file.diff}
-			<Disclosure
-				open={true}
-				class="rounded-card bg-surface p-1"
-				summaryClass="px-2 py-1.5 hover:bg-hover"
+			<DiffSection
+				path={file.path}
+				added={patch.hunks.reduce((n, h) => n + h.additionLines, 0)}
+				removed={patch.hunks.reduce((n, h) => n + h.deletionLines, 0)}
 			>
-				{#snippet heading()}
-					<span class="icon-[lucide--file-code] size-3.5 shrink-0 text-muted"></span>
-					<span class="flex min-w-0 flex-1 code-dense" title={file.path}
-						><FittedPath path={file.path} /></span
-					>
-					<DiffStat
-						added={patch.hunks.reduce((n, h) => n + h.additionLines, 0)}
-						removed={patch.hunks.reduce((n, h) => n + h.deletionLines, 0)}
-					/>
-				{/snippet}
-				<div class="overflow-hidden rounded-control"><DiffView path={file.path} {patch} /></div>
-			</Disclosure>
+				<DiffView path={file.path} {patch} />
+			</DiffSection>
 		{:else if file.diff}
 			<div>
 				{#if (files?.length ?? 0) > 1}

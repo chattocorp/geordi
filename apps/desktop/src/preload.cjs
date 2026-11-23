@@ -1,7 +1,7 @@
 // What the web app can ask of the app around it, and nothing more: it runs in the page's
 // world, sandboxed, and passes on plain values.
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- a sandboxed preload script can only be CommonJS
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('geordiDesktop', {
 	/** How many workspaces are unread: shown as a number on the app's icon. */
@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('geordiDesktop', {
 	onOpen: (opened) => ipcRenderer.on('geordi:open', (_event, id) => opened(id)),
 	/** The colours of the window's own buttons, where they are drawn over the page. */
 	titleBar: (colours) => ipcRenderer.send('geordi:title-bar', colours),
+	chooseRepository: () => ipcRenderer.invoke('geordi:choose-repository'),
+	/** Where a file dropped on the page is on disk: a page alone is never told. */
+	pathOf: (file) => webUtils.getPathForFile(file) || null,
 	updates: {
 		subscribe(callback) {
 			const receive = (_event, state) => callback(state);

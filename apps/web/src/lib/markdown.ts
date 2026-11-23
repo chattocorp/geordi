@@ -1,28 +1,7 @@
-import MarkdownIt from 'markdown-it';
-import { createHighlighterCore } from 'shiki/core';
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
-
-/** Code is coloured by both themes at once; `layout.css` picks the one for the current mode. */
-const highlighter = await createHighlighterCore({
-	engine: createJavaScriptRegexEngine(),
-	themes: [import('shiki/themes/github-light.mjs'), import('shiki/themes/github-dark-dimmed.mjs')],
-	langs: [
-		import('shiki/langs/bash.mjs'),
-		import('shiki/langs/css.mjs'),
-		import('shiki/langs/diff.mjs'),
-		import('shiki/langs/go.mjs'),
-		import('shiki/langs/html.mjs'),
-		import('shiki/langs/json.mjs'),
-		import('shiki/langs/markdown.mjs'),
-		import('shiki/langs/python.mjs'),
-		import('shiki/langs/rust.mjs'),
-		import('shiki/langs/sql.mjs'),
-		import('shiki/langs/svelte.mjs'),
-		import('shiki/langs/tsx.mjs'),
-		import('shiki/langs/typescript.mjs'),
-		import('shiki/langs/yaml.mjs')
-	]
-});
+import { codeComment } from './agent-directives.ts';
+import MarkdownIt, { type Token } from 'markdown-it';
+import { highlighter, themes } from './highlighter.ts';
+import type { WorkspaceLinks } from './workspace-links.ts';
 
 /**
  * Renders agent output. Raw HTML is disabled (escaped), and markdown-it rejects unsafe link
@@ -35,7 +14,7 @@ const md = new MarkdownIt({
 		const known = highlighter.getLoadedLanguages().includes(lang);
 		return highlighter.codeToHtml(code, {
 			lang: known ? lang : 'text',
-			themes: { light: 'github-light', dark: 'github-dark-dimmed' },
+			themes,
 			defaultColor: false
 		});
 	}
@@ -45,6 +24,53 @@ md.renderer.rules.softbreak = (_tokens, _index, _options, env) =>
 	(env as Options).preserveLineBreaks ? '<br>\n' : '\n';
 
 const { escapeHtml } = md.utils;
+
+// A block rule leaves fenced and inline code examples to Markdown.
+md.block.ruler.before(
+	'paragraph',
+	'code_comment',
+	(state, line, _end, silent) => {
+		if (
+			!(state.env as Options).agentDirectives ||
+			state.parentType === 'blockquote' ||
+			state.sCount[line] - state.blkIndent >= 4
+		)
+			return false;
+		const source = state.src.slice(state.bMarks[line] + state.tShift[line], state.eMarks[line]);
+		const finding = codeComment(source);
+		if (!finding) return false;
+		if (!silent) {
+			const token = state.push('code_comment', '', 0);
+			token.meta = finding;
+			state.line = line + 1;
+		}
+		return true;
+	},
+	{ alt: ['paragraph'] }
+);
+
+md.renderer.rules.code_comment = (tokens, index, _options, env) => {
+	const { title, body, file, start, end } = tokens[index].meta as NonNullable<
+		ReturnType<typeof codeComment>
+	>;
+	const root = (env as Options).root;
+	const path =
+		root && file.startsWith(root + '/') ? file.slice(root.length + 1) : file.replace(/^\.\//, '');
+	const location = `<code>${escapeHtml(path)}:${start}${end > start ? '–' + end : ''}</code>`;
+	const inWorkspace =
+		root &&
+		local(path) &&
+		!path.startsWith('/') &&
+		!/[\\\0]/.test(path) &&
+		!path.split('/').includes('..');
+	const link = inWorkspace
+		? `<button type="button" data-source="${escapeHtml(path)}" data-line="${start}">${location}</button>`
+		: location;
+	return `<p><strong>${escapeHtml(title)}</strong> · ${link}<br>${escapeHtml(body)}</p>\n`;
+};
+
+/** Names of sound files, which a Markdown image of them plays. */
+const SOUND = /\.(wav|mp3|ogg|oga|opus|flac|m4a)$/i;
 
 /** Whether a link leads to a file where the agent works, rather than somewhere on the net. */
 const local = (src: string) => src !== '' && !/^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src);
@@ -73,6 +99,10 @@ md.renderer.rules.image = (tokens, index, _options, env) => {
 	const url = escapeHtml(
 		`${pictures}${pictures.includes('?') ? '&' : '?'}path=${encodeURIComponent(path)}`
 	);
+	// A sound gets a player (`Markdown.svelte` puts it here). Its name only says so: the forge
+	// serves what the bytes are.
+	if (SOUND.test(path))
+		return `<span class="not-prose my-3 block max-w-md card px-3 py-2" data-sound="${url}" data-label="${alt || escapeHtml(path)}" data-path="${escapeHtml(path)}"></span>`;
 	return `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${alt}" data-picture="${escapeHtml(path)}" loading="lazy"></a>`;
 };
 
@@ -120,19 +150,34 @@ function documentLink(href: string, documentPath: string) {
 
 // Preserve the inline markup in link labels, including code that names a changed file.
 md.core.ruler.after('inline', 'workspace_links', (state) => {
-	const root = (state.env as Options).root;
+	const { root, workspaces } = state.env as Options;
 	for (const block of state.tokens) {
 		let inLink = false;
-		let button = false;
+		let tag: string | undefined;
+		const children: typeof state.tokens = [];
 		for (const token of block.children ?? []) {
+			children.push(token);
 			if (token.type === 'link_open') {
 				inLink = true;
 				const href = String(token.attrGet('href') ?? '');
+				// another workspace's pull request: to that workspace
+				const pulled = /^https?:/i.test(href) && workspaces?.pull(href);
+				if (pulled) {
+					token.attrSet('href', workspaceHref(pulled));
+					continue;
+				}
+				// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
+				const folder = href.endsWith('/') && !/[?#]/.test(href) && folderPath(decoded(href), root);
+				if (folder) {
+					tag = token.tag = 'span';
+					token.attrs = [['data-folder', folder]];
+					continue;
+				}
 				const citation = sourceLink(href, root);
 				const doc = (state.env as Options).documentPath;
 				const path = citation?.file ?? (doc ? documentLink(href, doc) : root && diffLink(href));
 				if (!path) continue;
-				button = true;
+				tag = 'button';
 				const title = token.attrGet('title');
 				token.tag = 'button';
 				token.attrs = [
@@ -142,12 +187,74 @@ md.core.ruler.after('inline', 'workspace_links', (state) => {
 				if (title !== null) token.attrSet('title', title);
 				if (citation?.line) token.attrSet('data-line', citation.line);
 			} else if (token.type === 'link_close') {
-				if (button) token.tag = 'button';
-				button = inLink = false;
+				if (tag) token.tag = tag;
+				tag = undefined;
+				inLink = false;
 			} else if (inLink && token.type === 'code_inline') token.meta = { inLink: true };
+			else if (!inLink && workspaces && token.type === 'text') {
+				children.pop();
+				children.push(...pullNumbers(token, workspaces, state.Token));
+			}
 		}
+		if (block.children) block.children = children;
 	}
 });
+
+const workspaceHref = (id: string) => `/workspaces/${encodeURIComponent(id)}`;
+
+/** A pull request named by its number (`#42`) in text, and where its workspace is. */
+const PULL_NUMBER = /(?<![\w&/#])#(\d+)\b/g;
+
+/** Text with `#42` in it, split so that each number of a workspace's pull request links there. */
+function pullNumbers(token: Token, workspaces: WorkspaceLinks, Make: typeof Token): Token[] {
+	const out: Token[] = [];
+	const text = (content: string) => {
+		if (!content) return;
+		const piece = new Make('text', '', 0);
+		piece.content = content;
+		out.push(piece);
+	};
+	let last = 0;
+	for (const match of token.content.matchAll(PULL_NUMBER)) {
+		const id = workspaces.number(match[1]);
+		if (!id) continue;
+		text(token.content.slice(last, match.index));
+		const open = new Make('link_open', 'a', 1);
+		open.attrs = [['href', workspaceHref(id)]];
+		out.push(open);
+		text(match[0]);
+		out.push(new Make('link_close', 'a', -1));
+		last = match.index + match[0].length;
+	}
+	if (!last) return [token];
+	text(token.content.slice(last));
+	return out;
+}
+
+const decoded = (href: string) => {
+	try {
+		return decodeURIComponent(href);
+	} catch {
+		return href;
+	}
+};
+
+/**
+ * The worktree-relative path (`.` for the worktree itself) of what may be a directory
+ * there: a path with a slash in it, relative to the worktree (`root`) or absolute within
+ * it. Whether it is one only the daemon knows.
+ */
+export function folderPath(text: string, root?: string): string | undefined {
+	if (!root) return;
+	let path = text.trim();
+	if (path === root || path === `${root}/`) return '.';
+	if (path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
+	else if (path.startsWith('/') || path.startsWith('~') || !path.includes('/')) return;
+	path = path.replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+	if (!path || !local(path) || /[\s\\\0]/.test(path)) return;
+	if (path.split('/').some((part) => part === '' || part === '.' || part === '..')) return;
+	return path;
+}
 
 /** Code blocks in these languages are drawn (`diagrams.ts`); until then, or if they cannot be, they stay code. */
 const DIAGRAMS = ['mermaid', 'svg'];
@@ -167,11 +274,19 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 	const code = codeInline(tokens, index, options, env, self);
 	if (tokens[index].meta?.inLink) return code;
 	const path = (env as Options | undefined)?.file?.(tokens[index].content);
-	if (!path) return code;
+	if (!path) {
+		// another workspace's branch: to that workspace
+		const branch = (env as Options | undefined)?.workspaces?.branch(tokens[index].content.trim());
+		if (branch) return `<a href="${escapeHtml(workspaceHref(branch))}">${code}</a>`;
+		// a directory: `Markdown.svelte` makes it a button once the daemon confirms it is one
+		const folder = folderPath(tokens[index].content, (env as Options | undefined)?.root);
+		return folder ? code.replace('<code', `<code data-folder="${escapeHtml(folder)}"`) : code;
+	}
 	return `<button type="button" data-file="${escapeHtml(path)}" title="Show the changes to this file">${code}</button>`;
 };
 
 type Options = {
+	agentDirectives?: boolean;
 	documentPath?: string;
 	preserveLineBreaks?: boolean;
 	root?: string;
@@ -183,6 +298,8 @@ type Options = {
 	pictures?: string;
 	/** The changed file that code in a sentence names, if it names one. */
 	file?: (code: string) => string | undefined;
+	/** The workspaces that a branch or pull request named here links to. */
+	workspaces?: WorkspaceLinks;
 };
 
 export const renderMarkdown = (text: string, options: Options = {}): string =>

@@ -1,4 +1,3 @@
-import type { WorkspaceAction } from '@geordi/ui/actions';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
@@ -7,380 +6,45 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { error } from '@sveltejs/kit';
 import {
 	AGENTS,
+	MODEL_SETTING,
 	SETTING,
 	sameAgentSettings,
 	type Agent,
 	type AgentEvent,
-	type AgentPlan,
 	type AgentSettings,
 	type ContextUsage,
-	type SubagentState,
-	type SubagentUpdate,
 	type ForgeMessage,
 	type Harness,
-	type Question,
-	type PullEvidence,
-	type ToolDiff,
-	type ToolInfo,
-	type TurnUsage,
-	type TurnDiff,
 	type WorktreeMode,
 	type WorktreeRef,
 	type ProjectRef
 } from '@geordi/protocol';
-import type { TurnEnd } from '../attention.ts';
 import type { EventStore, GeordiEvent } from './events/index.ts';
-import { createUpcaster, type CurrentEvent } from './legacy.ts';
+import {
+	createWorkspaceProjection,
+	questionById,
+	toolById,
+	type ActionId,
+	type PendingMessage,
+	type Status,
+	type TranscriptEdit,
+	type TranscriptFollower,
+	type TranscriptUpdate,
+	type Workspace
+} from './workspace-projection.ts';
 import { instructionsFor } from './instructions.ts';
 import type { createRepos } from './repos.ts';
+import { pageOf, turnsOf } from './turns.ts';
 
-type ActionId = WorkspaceAction['id'];
-type WorkspaceStream = `workspace:${string}`;
-
-export type WorkspacesEvent =
-	| {
-			type: 'workspace.pullLinked';
-			stream: WorkspaceStream;
-			data: { id: string; url: string; number: string };
-	  }
-	| {
-			type: 'workspace.created';
-			stream: WorkspaceStream;
-			data: {
-				id: string;
-				/** Absent for a project, which belongs to no repository (FDR-012). */
-				repoId?: string;
-				title: string;
-				agent: Agent;
-				/** The agent settings chosen when the workspace was created. */
-				settings?: AgentSettings;
-				/** The workspace whose agent started this one (FDR-002). */
-				parentId?: string;
-				/** The workspace whose worktree this one works in, if not its own. */
-				worktreeId?: string;
-				/** The branch its worktree starts from, if not the repository's checked-out one. */
-				base?: string;
-			};
-	  }
-	/**
-	 * Something the user (or another agent) said to the workspace's agent: it starts a turn,
-	 * or steers the one under way (ADR-010).
-	 * `queued` marks a message that had been waiting: it is the first one in the queue.
-	 * `steered` (from before ADR-010) marks one that had interrupted the agent.
-	 */
-	| {
-			type: 'workspace.message';
-			stream: WorkspaceStream;
-			data: {
-				action?: ActionId;
-				id: string;
-				text: string;
-				images?: string[];
-				senderName?: string;
-				queued?: boolean;
-				deliveryId?: string;
-				steered?: boolean;
-			};
-	  }
-	/**
-	 * From before ADR-010, when steering meant stopping the agent's turn: a message that was
-	 * to go out as soon as it had. No longer written; one that steers is a `workspace.message`.
-	 */
-	| {
-			type: 'workspace.steered';
-			stream: WorkspaceStream;
-			data: { id: string; text: string; images?: string[] };
-	  }
-	| {
-			type: 'workspace.undeliverable';
-			stream: WorkspaceStream;
-			data: { id: string; deliveryId: string; reason: string };
-	  }
-	/** A message to send once the agent has finished what it is doing. */
-	| {
-			type: 'workspace.queued';
-			stream: WorkspaceStream;
-			data: { id: string; text: string; action?: ActionId; images?: string[] };
-	  }
-	/** The workspace got a better name than the first line of its first message. */
-	| { type: 'workspace.titled'; stream: WorkspaceStream; data: { id: string; title: string } }
-	/** The complete agent settings for subsequent turns. */
-	| {
-			type: 'workspace.configured';
-			stream: WorkspaceStream;
-			data: { id: string; settings: AgentSettings };
-	  }
-	/**
-	 * The workspace carries on with new work: its worktree moved to a new branch, off where
-	 * work in the repository starts. Its conversation goes on.
-	 */
-	| { type: 'workspace.continued'; stream: WorkspaceStream; data: { id: string; branch: string } }
-	/**
-	 * The workspace's worktree turned out to be on another branch than was known: its agent
-	 * renamed it, or switched to another. It is what the worktree comes back from.
-	 */
-	| { type: 'workspace.switched'; stream: WorkspaceStream; data: { id: string; branch: string } }
-	/**
-	 * A person moved the workspace in the sidebar: right above `before`, or to the end of
-	 * the list where that is `null`. Workspaces are otherwise listed newest first.
-	 */
-	| {
-			type: 'workspace.moved';
-			stream: WorkspaceStream;
-			data: { id: string; before: string | null };
-	  }
-	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
-	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
-	| { type: 'workspace.restored'; stream: WorkspaceStream; data: { id: string } }
-	/** What a person answered to a question the agent asked: one answer per question, in their order. */
-	| {
-			type: 'workspace.answered';
-			stream: WorkspaceStream;
-			/** Historical answers have no pending flag and were final when recorded. */
-			data: { id: string; question: string; answers: string[]; pending?: true };
-	  }
-	/**
-	 * How full the agent's context was at the end of a turn (or when it said so between
-	 * turns). What it says during a turn is only kept in memory: it says it after every step.
-	 */
-	| { type: 'workspace.usage'; stream: WorkspaceStream; data: { id: string; usage: ContextUsage } }
-	/** A waiting message was taken back; `index` is its place in the queue at the time. */
-	| { type: 'workspace.dequeued'; stream: WorkspaceStream; data: { id: string; index: number } }
-	/** Whatever the daemon reports, stored verbatim. */
-	| {
-			type: 'workspace.output';
-			stream: WorkspaceStream;
-			data: { id: string; event: AgentEvent; cursor?: string };
-	  };
-
-export type SubagentItem = {
-	kind: 'subagent';
-	id: string;
-	at: string;
-	title?: string | null;
-	description?: string | null;
-	state: SubagentState;
-	items: (
-		| SubagentItem
-		| Extract<SubagentUpdate, { kind: 'message' }>
-		| Extract<TranscriptItem, { kind: 'tool' }>
-	)[];
-};
-
-/** Replace only the path to the changed reviewer. Prior edits may still be
- * waiting for delivery to a follower and must keep their original values. */
-function subagentEdit(
-	items: readonly (TranscriptItem | SubagentItem['items'][number])[],
-	[id, ...nested]: string[],
-	update: SubagentUpdate,
-	at: string
-): [number, number, SubagentItem] {
-	const index = items.findIndex((item) => item.kind === 'subagent' && item.id === id);
-	const previous = items[index];
-	const child: SubagentItem =
-		previous?.kind === 'subagent'
-			? { ...previous }
-			: { kind: 'subagent', id, at, state: 'unknown', items: [] };
-	if (nested.length) {
-		child.items = child.items.toSpliced(...subagentEdit(child.items, nested, update, at));
-	} else if (update.kind === 'info') {
-		if (update.title !== undefined) child.title = update.title;
-		if (update.description !== undefined) child.description = update.description;
-		if (update.state !== undefined) child.state = update.state;
-	} else {
-		const entryIndex = child.items.findIndex(
-			(item) => item.kind === update.kind && item.id === update.id
-		);
-		const previousEntry = child.items[entryIndex];
-		const entry =
-			update.kind === 'message'
-				? update
-				: {
-						name: 'Tool',
-						input: '',
-						output: null,
-						isError: false,
-						at,
-						...(previousEntry?.kind === 'tool' && previousEntry),
-						...update
-					};
-		child.items = entryIndex < 0 ? [...child.items, entry] : child.items.with(entryIndex, entry);
-	}
-	return index < 0 ? [items.length, 0, child] : [index, 1, child];
-}
-
-export type TranscriptItem =
-	| SubagentItem
-	/** `from`: the workspace whose agent said it, where it was not a person. */
-	| {
-			kind: 'user';
-			text: string;
-			images?: string[];
-			at: string;
-			from?: string;
-			senderName?: string;
-	  }
-	| { kind: 'text'; text: string; at: string }
-	| { kind: 'plan'; id: string; plan: AgentPlan; at: string }
-	| ({
-			kind: 'tool';
-			id: string;
-			name: string;
-			input: string;
-			output: string | null;
-			isError: boolean;
-			/** What it changed in files, once it succeeded; absent in events from before diffs were kept. */
-			diff?: ToolDiff;
-			at: string;
-	  } & ToolInfo)
-	| { kind: 'error'; error: string; at: string }
-	/**
-	 * A turn ends here (`at`): when it began, where that is known, and what it used, where
-	 * its agent said.
-	 */
-	| { kind: 'turn'; diff?: TurnDiff; startedAt?: string; usage?: TurnUsage; at: string }
-	/**
-	 * Something the agent asked the person, which it waits to hear about. `answers` once it
-	 * was answered; no longer `open` once it was, or the turn ended without.
-	 */
-	| {
-			kind: 'question';
-			id: string;
-			questions: Question[];
-			blocking?: boolean;
-			delivery?: 'pending' | 'unconfirmed';
-			answers: string[] | null;
-			open: boolean;
-			at: string;
-	  }
-	/** Something that happened to the workspace, said in passing: neither side's words. */
-	| { kind: 'note'; text: string; at: string };
-
-export type TranscriptEdit = [index: number, remove: number, ...items: TranscriptItem[]];
-export type TranscriptUpdate = TranscriptItem[] | { edits: TranscriptEdit[] };
-
-export type TranscriptFollower = { read(): TranscriptUpdate; close(): void };
-
-type Asked = Extract<TranscriptItem, { kind: 'question' }>;
-
-function toolById(workspace: Workspace, id: string) {
-	return workspace.transcript.findLast(
-		(item): item is Extract<TranscriptItem, { kind: 'tool' }> =>
-			item.kind === 'tool' && item.id === id
-	);
-}
-
-function questionById(workspace: Workspace, id: string) {
-	return workspace.transcript.findLast(
-		(item): item is Asked => item.kind === 'question' && item.id === id
-	);
-}
-
-function updateAsking(workspace: Workspace) {
-	workspace.asking = workspace.transcript.some(
-		(item) => item.kind === 'question' && item.open && item.blocking !== false
-	);
-}
-
-type PendingMessage = { deliveryId: string; text: string; images: string[] };
-
-type Status = 'running' | 'idle';
-
-/**
- * A piece of work: one conversation with one agent, in a worktree on its own branch
- * (FDR-001). A workspace started by another workspace's agent may work in that one's
- * worktree instead of its own.
- */
-export type Workspace = {
-	activeAction?: ActionId;
-	queuedActions?: (ActionId | null)[];
-	outputCursor?: string;
-	pendingMessages?: PendingMessage[];
-	/** When the turn that is running began, for the `turn` item that ends it. */
-	turnStartedAt?: string;
-	id: string;
-	/** `null` for a project: a workspace that belongs to no repository, for orchestrating (FDR-012). */
-	repoId: string | null;
-	title: string;
-	/** Whether someone gave it its title on purpose (its agent, or the agent that started it). */
-	named: boolean;
-	manuallyNamed?: boolean;
-	agent: Agent;
-	/** The agent settings for its next turn. */
-	settings: AgentSettings;
-	status: Status;
-	/** Whether its agent has asked the person something, and waits for the answer. */
-	asking: boolean;
-	/** How its latest turn ended; `null` while one is running, and before the first. */
-	lastTurn: TurnEnd | null;
-	/** How full its agent's context is, as it last said; `null` before it has. */
-	usage: ContextUsage | null;
-	/** The workspace whose agent started this one; `null` if a person did. */
-	parentId: string | null;
-	/** The external client (its grant) that started it, if one did: it may supervise it. */
-	startedBy: string | null;
-	/** The workspace whose worktree this one works in: its own ID, unless it shares another's. */
-	worktreeId: string;
-	/** The branch the worktree started from, if not the repository's checked-out one. */
-	base: string | null;
-	worktree: { path: string; branch: string } | null;
-	/** The agent CLI's session ID, for resuming the conversation. */
-	resumeId: string | null;
-	/** Messages waiting for the agent to finish its turn, in the order they will be sent. */
-	queue: string[];
-	attachments: { queue: string[][] };
-	/**
-	 * Something the agent has to be told before anything else, with its next message: what
-	 * happened to its workspace since it last looked.
-	 */
-	briefing: string | null;
-	/** Who sent the messages that wait, in step with `queue`: workspace IDs, `null` for people. */
-	sentBy: { queue: (string | null)[] };
-	/** When the workspace was archived; `null` while it is in use. */
-	archivedAt: string | null;
-	createdAt: string;
-	updatedAt: string;
-	transcript: TranscriptItem[];
-};
-
-function initialWorkspace(
-	created: Extract<CurrentEvent, { type: 'workspace.created' }>['data'],
-	at: string,
-	actor: string | null = null
-): Workspace {
-	const {
-		repoId = null,
-		parentId = null,
-		worktreeId = created.id,
-		base = null,
-		settings = {},
-		...data
-	} = created;
-	return {
-		...data,
-		repoId,
-		named: false,
-		settings,
-		status: 'idle',
-		asking: false,
-		lastTurn: null,
-		usage: null,
-		parentId,
-		startedBy: actor && isExternal(actor) ? actor : null,
-		worktreeId,
-		base,
-		worktree: null,
-		resumeId: null,
-		queue: [],
-		attachments: { queue: [] },
-		sentBy: { queue: [] },
-		briefing: null,
-		archivedAt: null,
-		createdAt: at,
-		updatedAt: at,
-		transcript: []
-	};
-}
+export type {
+	SubagentItem,
+	TranscriptEdit,
+	TranscriptFollower,
+	TranscriptItem,
+	TranscriptUpdate,
+	Workspace,
+	WorkspacesEvent
+} from './workspace-projection.ts';
 
 export type WorkspaceSummary = Omit<Workspace, 'transcript' | 'pendingMessages'> & {
 	pendingDelivery?: boolean;
@@ -397,7 +61,7 @@ export type AgentReport = {
 	branch: string | null;
 	/** Whether it works in the same directory as the agent that started it. */
 	sharesWorktree: boolean;
-	/** What the agent said in its latest turn; `error` if that turn failed. */
+	/** The agent's latest message in its latest turn: its answer, once the turn is over. */
 	reply: string;
 	error: string | null;
 };
@@ -413,15 +77,13 @@ export type Limits = {
 /** Sends a message to a daemon; returns false if none is connected. */
 export type Dispatch = (message: ForgeMessage) => boolean;
 
-/** What an agent is told, with its next message, after its workspace was continued. */
-const continuedBriefing = (branch: string) =>
-	`(A note from Geordi, not from the person: since your last turn, this workspace was continued. Its working directory is now on a new branch, \`${branch}\`, which starts from the latest state of the repository's main branch. What you did before is not on it unless it was merged; your earlier branch still exists. Look at the files as they are now before you rely on what you remember of them.)`;
-
 /** What a workspace is called until it is told what to do, or named. */
 export const UNTITLED = 'New workspace';
 
 /** How often an agent may name its own workspace. */
-const MAX_NAMES = 3;
+export const MAX_NAMES = 3;
+/** How much of an agent's reply its parent is told when its turn ends; the rest is read. */
+const MAX_NOTICE = 4000;
 
 type NewWorkspace = {
 	/** `null` for a project (FDR-012). */
@@ -447,401 +109,13 @@ export function createWorkspaces(
 ) {
 	const access = createAgentAccess(store, repos.get);
 	const imageStore = createImages(store);
-	/**
-	 * Who steered a workspace's agent in the way of before ADR-010 (`workspace.steered`), until
-	 * the message that came of it: only ever set while old events are replayed.
-	 */
-	const steerers = new Map<string, string | null>();
-	const listeners = new Map<string, Set<(edit: TranscriptEdit) => void>>();
-	// The first session of an old workspace could have a different ID.
-	const sessionStreams = new Map<string, string>();
-	const evidence = new Map<string, PullEvidence>();
-	function pulls(id: string): PullEvidence {
-		let found = evidence.get(id);
-		if (!found) evidence.set(id, (found = { linked: [], candidates: [], branches: [] }));
-		return found;
-	}
-	// Sender attribution on a later replay must reflect who existed at the time.
-	const born = new Map<string, number>();
-
-	function apply(
-		workspaces: Map<string, Workspace>,
-		event: CurrentEvent,
-		at: string,
-		actor: string | null,
-		seq: number,
-		steering = steerers,
-		restoring = false
-	) {
-		if (event.type === 'workspace.created') {
-			workspaces.set(
-				event.data.id,
-				initialWorkspace({ ...event.data, title: promptTitle(event.data.title) }, at, actor)
-			);
-			return;
-		}
-
-		if (event.type === 'workspace.moved') {
-			move(workspaces, event.data.id, event.data.before);
-			return;
-		}
-		// not something that happened in it: it leaves its place in the lists alone
-		if (event.type === 'workspace.usage') {
-			const measured = workspaces.get(event.data.id);
-			if (measured) measured.usage = event.data.usage;
-			return;
-		}
-
-		const workspace = workspaces.get(event.data.id);
-		if (!workspace) return;
-		if (event.type === 'workspace.pullLinked') {
-			if (!restoring)
-				pulls(workspace.worktreeId).linked.push({ url: event.data.url, number: event.data.number });
-			return;
-		}
-		if (!restoring) {
-			const branch =
-				event.type === 'workspace.continued' || event.type === 'workspace.switched'
-					? event.data.branch
-					: event.type === 'workspace.output' && event.data.event.kind === 'worktree'
-						? event.data.event.branch
-						: null;
-			if (branch) {
-				const { branches } = pulls(workspace.worktreeId);
-				if (!branches.includes(branch)) branches.push(branch);
-			}
-		}
-		workspace.updatedAt = at;
-		const { id, transcript } = workspace;
-		function edit(index: number, remove: number, ...items: TranscriptItem[]) {
-			transcript.splice(index, remove, ...items);
-			if (!restoring)
-				for (const listener of listeners.get(id) ?? []) listener([index, remove, ...items]);
-		}
-		const append = (item: TranscriptItem) => edit(transcript.length, 0, item);
-		const replace = (item: TranscriptItem, next: TranscriptItem) =>
-			edit(transcript.indexOf(item), 1, next);
-		function closeQuestion(question: Asked) {
-			if (question.open || question.delivery === 'pending')
-				replace(question, {
-					...question,
-					open: false,
-					...(question.delivery === 'pending' && { delivery: 'unconfirmed' })
-				});
-		}
-
-		if (event.type === 'workspace.titled') {
-			workspace.title = event.data.title;
-			// a title someone chose, as opposed to one its agent's session goes by
-			if (actor) workspace.named = true;
-			if (actor === 'person') workspace.manuallyNamed = true;
-			return;
-		}
-		if (event.type === 'workspace.configured') {
-			workspace.settings = event.data.settings;
-			return;
-		}
-		if (event.type === 'workspace.continued') {
-			const { branch } = event.data;
-			// everyone who works in that worktree is on the new branch, measured against where it starts
-			for (const other of workspaces.values()) {
-				if (other.worktreeId !== workspace.worktreeId) continue;
-				other.base = null;
-				other.briefing = continuedBriefing(branch);
-			}
-			const owner = workspaces.get(workspace.worktreeId);
-			if (owner?.worktree) owner.worktree = { ...owner.worktree, branch };
-			append({ kind: 'note', text: `Continued on a new branch, ${branch}`, at });
-			return;
-		}
-		if (event.type === 'workspace.switched') {
-			if (workspace.worktree)
-				workspace.worktree = { ...workspace.worktree, branch: event.data.branch };
-			return;
-		}
-		if (event.type === 'workspace.restored') {
-			if (!restoring) workspace.transcript = transcriptOf(workspace, seq);
-			workspace.archivedAt = null;
-			return;
-		}
-		if (event.type === 'workspace.archived') {
-			workspace.archivedAt = at;
-			if (!restoring) workspace.transcript = [];
-			workspace.queue = [];
-			delete workspace.queuedActions;
-			workspace.attachments.queue = [];
-			workspace.sentBy.queue = [];
-			return;
-		}
-		if (event.type === 'workspace.queued') {
-			if (event.data.action || workspace.queuedActions) {
-				(workspace.queuedActions ??= Array(workspace.queue.length).fill(null)).push(
-					event.data.action ?? null
-				);
-			}
-			workspace.queue.push(event.data.text);
-			workspace.attachments.queue.push(event.data.images ?? []);
-			workspace.sentBy.queue.push(actor);
-			return;
-		}
-		if (event.type === 'workspace.dequeued') {
-			workspace.queuedActions?.splice(event.data.index, 1);
-			workspace.queue.splice(event.data.index, 1);
-			workspace.attachments.queue.splice(event.data.index, 1);
-			workspace.sentBy.queue.splice(event.data.index, 1);
-			return;
-		}
-		if (event.type === 'workspace.steered') {
-			steering.set(workspace.id, actor);
-			return;
-		}
-		if (event.type === 'workspace.answered') {
-			const question = questionById(workspace, event.data.question);
-			if (question && (question.open || !event.data.pending)) {
-				replace(question, {
-					...question,
-					answers: event.data.answers,
-					open: false,
-					...(event.data.pending && { delivery: 'pending' })
-				});
-				updateAsking(workspace);
-			}
-			return;
-		}
-		if (event.type === 'workspace.undeliverable') {
-			workspace.pendingMessages = workspace.pendingMessages?.filter(
-				(m) => m.deliveryId !== event.data.deliveryId
-			);
-			append({ kind: 'error', error: event.data.reason, at });
-			return;
-		}
-		if (event.type === 'workspace.message') {
-			if (event.data.deliveryId)
-				(workspace.pendingMessages ??= []).push({
-					deliveryId: event.data.deliveryId,
-					text: workspace.briefing
-						? workspace.briefing + '\n\n' + event.data.text
-						: event.data.text,
-					images: event.data.images ?? []
-				});
-			// said by whoever queued it, or steered with it, or says it now
-			let sender = actor;
-			workspace.activeAction = event.data.action;
-			if (event.data.queued) {
-				workspace.activeAction = workspace.queuedActions?.shift() ?? undefined;
-				workspace.queue.shift();
-				workspace.attachments.queue.shift();
-				sender = workspace.sentBy.queue.shift() ?? null;
-			}
-			if (event.data.steered) {
-				sender = steering.get(workspace.id) ?? null;
-				steering.delete(workspace.id);
-			}
-			if (workspace.status !== 'running') workspace.turnStartedAt = at;
-			workspace.status = 'running';
-			workspace.lastTurn = null;
-			workspace.briefing = null; // it went out with this message
-			// an agent's word is marked as such; a person's is the rule
-			const from =
-				sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq)
-					? sender
-					: undefined;
-			append({
-				kind: 'user',
-				text: event.data.text,
-				...(event.data.images?.length && { images: event.data.images }),
-				at,
-				...(from && { from }),
-				...(event.data.senderName && { senderName: event.data.senderName })
-			});
-			return;
-		}
-
-		if (event.data.cursor) workspace.outputCursor = event.data.cursor;
-		const output = event.data.event;
-		switch (output.kind) {
-			case 'subagent':
-				if (output.path.length) edit(...subagentEdit(transcript, output.path, output.update, at));
-				break;
-			case 'message.received':
-				workspace.pendingMessages = workspace.pendingMessages?.filter(
-					(s) => s.deliveryId !== output.id
-				);
-				break;
-			case 'worktree': {
-				// the worktree belongs to whoever owns it, which may be another workspace
-				const owner = workspaces.get(workspace.worktreeId);
-				if (owner) owner.worktree = { path: output.path, branch: output.branch };
-				break;
-			}
-			case 'resume':
-				workspace.resumeId = output.id;
-				break;
-			case 'text':
-				append({ kind: 'text', text: output.text, at });
-				break;
-			case 'plan': {
-				const index = transcript.findIndex((item) => item.kind === 'plan' && item.id === output.id);
-				// Wrappers can reuse a session-wide checklist in the next exchange.
-				// Bring it into that reply so live updates stay visible.
-				const previous = transcript[index];
-				const exchange = transcript.findLastIndex(
-					(item) => item.kind === 'user' || item.kind === 'note'
-				);
-				if (output.plan && previous?.kind === 'plan' && index > exchange) {
-					edit(index, 1, { ...previous, plan: output.plan });
-				} else {
-					if (index >= 0) edit(index, 1);
-					if (output.plan) append({ ...output, plan: output.plan, at });
-				}
-				break;
-			}
-			case 'tool':
-				append({ ...output, output: null, isError: false, at });
-				break;
-			case 'tool.update': {
-				const tool = toolById(workspace, output.id);
-				if (tool) replace(tool, { ...tool, ...output, kind: 'tool' });
-				break;
-			}
-			case 'tool.result': {
-				if (!restoring && !output.isError) {
-					// Creation CLIs print the new URL on the final line. Verify the repository
-					// and head branch upstream before accepting this as a workspace link.
-					const result = output.output.trimEnd();
-					const url = result.slice(result.lastIndexOf('\n') + 1).trim();
-					if (/^https?:\/\/[^\s]+\/(?:pull|pulls|merge_requests)\/\d+$/.test(url)) {
-						const { candidates } = pulls(workspace.worktreeId);
-						if (!candidates.includes(url)) candidates.push(url);
-					}
-				}
-				const tool = toolById(workspace, output.id);
-				if (tool)
-					replace(tool, {
-						...tool,
-						output: output.output,
-						isError: output.isError,
-						...(output.diff && { diff: output.diff })
-					});
-				break;
-			}
-			case 'answer.received': {
-				const question = questionById(workspace, output.id);
-				if (question?.answers && question.delivery) {
-					const next = { ...question };
-					delete next.delivery;
-					replace(question, next);
-				}
-				break;
-			}
-			case 'question.closed': {
-				const question = questionById(workspace, output.id);
-				if (question) closeQuestion(question);
-				updateAsking(workspace);
-				break;
-			}
-			case 'question':
-				if (questionById(workspace, output.id)) break;
-				append({ ...output, answers: null, open: true, at });
-				if (output.blocking !== false) workspace.asking = true;
-				break;
-			case 'turn.started':
-				if (workspace.status !== 'running') workspace.turnStartedAt = at;
-				workspace.status = 'running';
-				workspace.lastTurn = null;
-				break;
-			case 'turn.completed':
-			case 'turn.failed':
-				delete workspace.activeAction;
-				workspace.status = 'idle';
-				// a turn that is over waits for no answer
-				workspace.asking = false;
-				for (const item of transcript) if (item.kind === 'question') closeQuestion(item);
-				if (output.kind === 'turn.failed') {
-					workspace.pendingMessages = [];
-					workspace.lastTurn = output.error === 'Stopped' ? 'stopped' : 'failed';
-					// (before ADR-010) stopped to make way for a steering message: not a failure worth showing
-					if (!(output.error === 'Stopped' && steering.has(workspace.id)))
-						append({ kind: 'error', error: output.error, at });
-				} else workspace.lastTurn = 'completed';
-				append({
-					kind: 'turn',
-					...(workspace.turnStartedAt && { startedAt: workspace.turnStartedAt }),
-					...(output.usage && { usage: output.usage }),
-					...(output.diff && { diff: output.diff }),
-					at
-				});
-				delete workspace.turnStartedAt;
-				break;
-		}
-	}
-
-	/**
-	 * Puts a workspace right above another in the list, or last. The map is in the order
-	 * lists show reversed (oldest first), so above means after.
-	 */
-	function move(workspaces: Map<string, Workspace>, id: string, before: string | null) {
-		const moving = workspaces.get(id);
-		if (!moving || id === before) return;
-		const entries = [...workspaces].filter(([other]) => other !== id);
-		const at = before === null ? 0 : entries.findIndex(([other]) => other === before) + 1;
-		if (at === 0 && before !== null) return; // gone: it stays where it is
-		entries.splice(at, 0, [id, moving]);
-		workspaces.clear();
-		for (const [other, workspace] of entries) workspaces.set(other, workspace);
-	}
-
-	// Mutates in place (O(1) per event during replay); readers get copies. Events from
-	// before a workspace had exactly one conversation are translated first (see legacy.ts).
-	const upcast = createUpcaster();
-	const projection = store.project(
-		'workspaces',
-		() => new Map<string, Workspace>(),
-		(workspaces, event) => {
-			for (const current of upcast(event)) {
-				if (current.type === 'workspace.created') {
-					born.set(current.data.id, event.seq);
-					if (event.type === 'session.created') sessionStreams.set(current.data.id, event.stream);
-				}
-				apply(workspaces, current, event.at, event.actor, event.seq);
-			}
-			return workspaces;
-		},
-		['workspace', 'session']
-	);
+	const projection = createWorkspaceProjection(store);
+	const { transcriptOf } = projection;
 
 	function find(id: string): Workspace {
 		const workspace = projection.get().get(id);
 		if (!workspace) error(404, `Workspace ${id} not found`);
 		return workspace;
-	}
-
-	// Reuse the normal reducer for a private reconstruction. Session mappings were learned
-	// during replay. Never feed creation events back into that stateful upcaster.
-	function transcriptOf(workspace: Workspace, before = Infinity): TranscriptItem[] {
-		if (!workspace.archivedAt) return workspace.transcript;
-		const { id, repoId, agent, title } = workspace;
-		const restored = initialWorkspace(
-			{ id, ...(repoId && { repoId }), agent, title },
-			workspace.createdAt
-		);
-		const copy = new Map([[id, restored]]);
-		const steering = new Map<string, string | null>();
-		const createdAtSeq = born.get(id)!;
-		const events = store.readStream(`workspace:${id}`);
-		const session = sessionStreams.get(id);
-		if (session) {
-			for (const event of store.readStream(session)) events.push(event);
-			events.sort((a, b) => a.seq - b.seq);
-		}
-		for (const event of events) {
-			if (event.seq >= before) break;
-			if (event.seq <= createdAtSeq) continue;
-			if (event.type === 'workspace.created' || event.type === 'session.created') continue;
-			for (const current of upcast(event))
-				apply(copy, current, event.at, event.actor, event.seq, steering, true);
-		}
-		return restored.transcript;
 	}
 
 	/**
@@ -886,19 +160,14 @@ export function createWorkspaces(
 	function followTranscript(id: string): TranscriptFollower {
 		let edits: TranscriptEdit[] | undefined;
 		const receive = (edit: TranscriptEdit) => edits?.push(edit);
-		const followers = listeners.get(id) ?? new Set<(edit: TranscriptEdit) => void>();
-		listeners.set(id, followers);
-		followers.add(receive);
+		const stop = projection.followEdits(id, receive);
 		return {
 			read(): TranscriptUpdate {
 				const previous = edits;
 				edits = [];
 				return previous ? { edits: previous } : transcriptOf(find(id)).slice();
 			},
-			close() {
-				followers.delete(receive);
-				if (!followers.size) listeners.delete(id);
-			}
+			close: stop
 		};
 	}
 
@@ -910,22 +179,16 @@ export function createWorkspaces(
 
 	/** What a daemon needs to find the worktree a workspace works in. A project has none. */
 	function ref(id: string): WorktreeRef {
-		const { repoId, worktreeId, base } = find(id);
+		const { repoId, worktreeId } = find(id);
 		if (repoId === null) error(409, 'A project has no worktree');
+		// the worktree's base is its owner's: a workspace may work in another's worktree
 		const owner = find(worktreeId);
 		const branch = owner.worktree?.branch;
-		const parents: NonNullable<WorktreeRef['parents']> = [];
-		let child = owner;
-		while (child.base && child.parentId) {
-			const parent = find(find(child.parentId).worktreeId);
-			parents.push({ worktreeId: parent.id, branch: child.base });
-			child = parent;
-		}
 		return {
 			worktreeId,
 			repoPath: repos.get(repoId).path,
-			...(base && { base }),
-			...(parents.length && { parents }),
+			...(owner.worktreeParent && { worktreeParent: owner.worktreeParent }),
+			...(owner.base && { base: owner.base }),
 			...(branch && { branch })
 		};
 	}
@@ -946,6 +209,10 @@ export function createWorkspaces(
 		if (cursor && workspace.outputCursor === cursor) return;
 		// what the agent calls its session may come at any time, even after its turn
 		if (event.kind === 'title') return titleFromAgent(workspace, event.title);
+		if (event.kind === 'worktree') {
+			const known = projection.get().get(workspace.worktreeId)?.worktree;
+			if (known?.path === event.path && known.branch === event.branch) return;
+		}
 		const running = workspace.status === 'running';
 		// how to resume it is news at any time, and so is where its worktree is
 		if (event.kind === 'resume') {
@@ -971,7 +238,54 @@ export function createWorkspaces(
 		});
 		const measured = usages.get(id);
 		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
-		if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
+		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
+			// Capture the result while the completed turn is still the latest one.
+			const waits = waiting.get(id);
+			const parentWaiting =
+				waits && [...waits].some((wait) => wait.callerId === workspace.parentId);
+			if (waits) {
+				const result = report(workspace);
+				for (const wait of waits) wait.finish(result);
+			}
+			if (!parentWaiting) tellParent(workspace);
+			if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
+		}
+	}
+
+	type Wait = { callerId: string; finish(result: AgentReport): void };
+	const waiting = new Map<string, Set<Wait>>();
+
+	/**
+	 * Tells an agent's parent that it has finished a turn, with what it said (FDR-002), unless
+	 * the parent is waiting for it already. A parent at work hears it when its own turn ends.
+	 * Only of turns on the parent's behalf: begun by the parent, or by what one of the agent's
+	 * own agents reported, so that news goes up a chain. A person's talk with it is theirs.
+	 */
+	function tellParent(child: Workspace) {
+		if (child.status !== 'idle' || !child.parentId) return;
+		if (stoppingForArchive.has(child.id)) return;
+		const parent = projection.get().get(child.parentId);
+		if (!parent || parent.archivedAt || held.has(parent.id)) return;
+		const from = transcriptOf(child).findLast((item) => item.kind === 'user')?.from;
+		if (!from || (from !== parent.id && projection.get().get(from)?.parentId !== child.id)) return;
+		const { reply, error } = report(child);
+		const text = [
+			error
+				? `Your agent “${child.title}” (${child.id}) stopped: ${error}`
+				: `Your agent “${child.title}” (${child.id}) finished its turn.`,
+			// an answer ends with its conclusion, so a long one loses its start
+			reply.length > MAX_NOTICE
+				? `(Its reply begins earlier; see read_workspace.)\n\n…${reply.slice(-MAX_NOTICE)}`
+				: reply
+		]
+			.filter(Boolean)
+			.join('\n\n');
+		// after a failed turn, a parent's waiting messages stay put (see `record`), and so does this
+		if (parent.status === 'idle' && parent.queue.length === 0) return say(parent, text, child.id);
+		store.append(
+			{ type: 'workspace.queued', stream: `workspace:${parent.id}`, data: { id: parent.id, text } },
+			{ actor: child.id }
+		);
 	}
 
 	/**
@@ -998,6 +312,7 @@ export function createWorkspaces(
 
 	/** Workspaces that must not start a turn right now, and what is being done to them; see `hold`. */
 	const held = new Map<string, string>();
+	const stoppingForArchive = new Set<string>();
 	function refuseHeld(id: string) {
 		const doing = held.get(id);
 		if (doing) error(409, `This workspace is ${doing}`);
@@ -1057,6 +372,17 @@ export function createWorkspaces(
 		action?: ActionId
 	) {
 		const { id } = workspace;
+		if (workspace.agent === 'opencode' && workspace.status !== 'idle' && !from) {
+			store.append(
+				{
+					type: 'workspace.queued',
+					stream: `workspace:${id}`,
+					data: { id, text, ...(images.length && { images }), ...(action && { action }) }
+				},
+				{ actor }
+			);
+			return;
+		}
 		const sender = from === 'queued' ? workspace.sentBy.queue[0] : actor;
 		const senderName = sender
 			? (access.name(sender) ?? projection.get().get(sender)?.title)
@@ -1086,7 +412,11 @@ export function createWorkspaces(
 	}
 
 	function promoteCompletedQueue(workspace: Workspace) {
-		if (workspace.lastTurn === 'completed' && workspace.queue.length)
+		if (
+			workspace.lastTurn === 'completed' &&
+			workspace.queue.length &&
+			!stoppingForArchive.has(workspace.id)
+		)
 			say(workspace, workspace.queue[0], null, 'queued');
 	}
 
@@ -1126,7 +456,8 @@ export function createWorkspaces(
 		for (const key of ['model', 'effort'] as const) {
 			const value = settings[key];
 			if (!value) continue;
-			if (!SETTING.test(value)) error(400, `That is not a ${key}: ${value}`);
+			if (!(key === 'model' ? MODEL_SETTING : SETTING).test(value))
+				error(400, `That is not a ${key}: ${value}`);
 			chosen[key] = value;
 		}
 		if (settings.permissionMode) chosen.permissionMode = settings.permissionMode;
@@ -1213,6 +544,7 @@ export function createWorkspaces(
 					id,
 					title,
 					...(repoId !== null && { repoId }),
+					...(repoId !== null && !rest.worktreeId && { worktreeParent: repoId }),
 					...rest,
 					...(Object.keys(chosen).length > 0 && { settings: chosen })
 				}
@@ -1225,6 +557,19 @@ export function createWorkspaces(
 		if (!prompt && !images.length) return id;
 		say(find(id), prompt, actor, undefined, images);
 		return id;
+	}
+
+	async function waitUntil(ready: () => boolean, timeoutMs: number) {
+		if (!ready())
+			await new Promise<void>((resolve) => {
+				const done = () => {
+					clearTimeout(timeout);
+					unsubscribe();
+					resolve();
+				};
+				const timeout = setTimeout(done, timeoutMs);
+				const unsubscribe = store.subscribe(() => ready() && done());
+			});
 	}
 
 	function stop(id: string) {
@@ -1317,7 +662,6 @@ export function createWorkspaces(
 	function report(workspace: Workspace): AgentReport {
 		const transcript = transcriptOf(workspace);
 		const turn = transcript.slice(transcript.findLastIndex((item) => item.kind === 'user') + 1);
-		const texts = turn.flatMap((item) => (item.kind === 'text' ? [item.text] : []));
 		return {
 			id: workspace.id,
 			parentId: workspace.parentId,
@@ -1326,13 +670,14 @@ export function createWorkspaces(
 			status: workspace.status,
 			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
 			sharesWorktree: workspace.worktreeId !== workspace.id,
-			reply: texts.join('\n\n'),
+			// what it said on the way there is in the transcript, for read_workspace
+			reply: turn.findLast((item) => item.kind === 'text')?.text ?? '',
 			error: turn.findLast((item) => item.kind === 'error')?.error ?? null
 		};
 	}
 
 	function entry(workspace: Workspace) {
-		const { id, title, repoId, status, archivedAt, asking } = workspace;
+		const { id, title, repoId, status, archivedAt, asking, inactive } = workspace;
 		return {
 			id,
 			title,
@@ -1340,6 +685,8 @@ export function createWorkspaces(
 			status,
 			archivedAt,
 			asking,
+			// a person put it aside for later
+			inactive,
 			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
 			url: `/workspaces/${id}`
 		};
@@ -1349,10 +696,11 @@ export function createWorkspaces(
 	 * What agents can do through the agent API (ADR-004, FDR-002). Every function takes the
 	 * caller: a workspace, or an external client's grant. It is recorded as the actor of what
 	 * it causes. A workspace's agent can read any workspace, an external client those in the
-	 * repositories it was granted; supervising (messaging, interrupting, stopping, archiving)
+	 * repositories it was granted; supervising (interrupting, stopping, archiving)
 	 * is for whoever started it, directly or not.
 	 */
 	const agents = {
+		limits,
 		authenticate,
 		isProject,
 		reportWorkspace: (callerId: string, id: string) => report(findFor(callerId, id)),
@@ -1370,19 +718,9 @@ export function createWorkspaces(
 		readWorkspace(callerId: string, id: string, before?: number) {
 			const workspace = findFor(callerId, id);
 			const transcript = transcriptOf(workspace);
-			const messages = transcript.filter(
-				(item) =>
-					item.kind === 'user' ||
-					item.kind === 'text' ||
-					item.kind === 'question' ||
-					item.kind === 'error'
-			);
-			const end = Math.min(before ?? messages.length, messages.length);
-			const start = Math.max(0, end - 50);
 			return {
 				...entry(workspace),
-				messages: messages.slice(start, end),
-				before: start || null,
+				...pageOf(turnsOf(transcript), before),
 				pendingQuestions: transcript.filter((item) => item.kind === 'question' && item.open)
 			};
 		},
@@ -1403,9 +741,9 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Starts an agent on the caller's behalf, as a workspace of its own. A workspace's agent
-		 * starts it in a new worktree branched from its own (`own`), or in its own worktree
-		 * (`shared`); an external client starts it in a `repository`, as a person would. An
+		 * Starts an agent on the caller's behalf, as a workspace of its own: in a new worktree
+		 * (`own`), branched from `base` or else from the repository's base, or in the caller's
+		 * worktree (`shared`). An
 		 * agent of the caller's kind runs as the caller does, but for the `model` and `effort`
 		 * asked for. An effort is checked against what is `offered`, when that is known.
 		 */
@@ -1414,6 +752,7 @@ export function createWorkspaces(
 			{
 				repository,
 				worktree,
+				base,
 				workspace: alongside,
 				agent,
 				model,
@@ -1423,7 +762,9 @@ export function createWorkspaces(
 			}: {
 				repository?: string;
 				worktree: WorktreeMode;
-				/** A project's: an existing workspace to start the agent in, alongside its own. */
+				/** The branch a new worktree starts from, and is compared with; the repository's base if absent. */
+				base?: string;
+				/** An existing workspace where the caller may start an agent alongside its agent. */
 				workspace?: string;
 				agent?: Agent;
 				model?: string;
@@ -1435,6 +776,7 @@ export function createWorkspaces(
 		): AgentReport {
 			const external = isExternal(callerId);
 			const caller = external ? null : find(callerId);
+			if (caller) refuseHeld(caller.id);
 			if (caller && depthOf(caller) + 1 > limits.depth)
 				error(403, `Agents can only be nested ${limits.depth} deep`);
 			ensureCapacity(callerId);
@@ -1445,41 +787,56 @@ export function createWorkspaces(
 				base?: string;
 			};
 			const project = caller?.repoId === null;
-			if (alongside !== undefined && !project)
-				error(400, 'Only a project starts agents in other workspaces');
-			if (caller && project && (alongside !== undefined || worktree === 'shared')) {
-				// a project starts agents alongside the agent of a workspace it sees, its own included
-				const owner = find(findControlled(callerId, alongside ?? callerId).worktreeId);
-				if (owner.archivedAt) error(409, 'That workspace is archived');
+			if (alongside !== undefined && external)
+				error(400, 'Only workspace agents can start a reviewer in a workspace');
+			if (base !== undefined && (alongside !== undefined || worktree === 'shared'))
+				error(400, 'A base is for a new worktree; a shared one keeps its own');
+			if (caller && (alongside !== undefined || (project && worktree === 'shared'))) {
+				// the caller's own workspace is where a reviewer may join it too, as with `shared`
+				const target =
+					alongside === undefined || alongside === callerId
+						? caller
+						: findControlled(callerId, alongside);
+				const owner = findFor(callerId, target.worktreeId);
+				if (target.archivedAt || owner.archivedAt) error(409, 'That workspace is archived');
 				where = {
 					repoId: owner.repoId,
 					parentId: callerId,
 					worktreeId: owner.id,
 					...(owner.base && { base: owner.base })
 				};
-			} else if (!caller || project) {
-				// a project, like a client outside Geordi, starts agents in whichever repository it names
+			} else if (!caller || project || (repository !== undefined && repository !== caller.repoId)) {
 				if (!repository) error(400, 'Say which repository to start in (see list_repositories)');
 				if (worktree === 'shared')
-					error(400, 'Only an agent in a workspace can share its worktree');
+					error(400, 'A shared worktree must be in the calling workspace’s repository');
 				if (!reaches(callerId, repository))
 					error(404, `There is no repository ${repository} you have access to`);
-				where = { repoId: repos.get(repository).id, ...(project && { parentId: callerId }) };
+				where = {
+					repoId: repos.get(repository).id,
+					...(caller && { parentId: callerId }),
+					...(base && { base })
+				};
 			} else {
-				if (repository && repository !== caller.repoId)
-					error(403, 'Agents start agents in their own repository');
-				const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
-				if (!branch) error(409, 'Your workspace has no worktree yet');
 				where = {
 					repoId: caller.repoId,
 					parentId: callerId,
 					...(worktree === 'shared'
 						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
-						: { base: branch })
+						: base && { base })
 				};
 			}
 
-			const kind = agent ?? caller?.agent ?? AGENTS[0];
+			const preferred = caller?.agent ?? AGENTS[0];
+			const kind =
+				agent ??
+				offered?.find((h) => h.agent === preferred)?.agent ??
+				offered?.[0]?.agent ??
+				preferred;
+			if (offered && !offered.some((h) => h.agent === kind))
+				error(
+					409,
+					offered.length ? `Provider ${kind} is unavailable` : 'No providers are available'
+				);
 			const settings = settingsFor(
 				kind,
 				caller,
@@ -1496,27 +853,32 @@ export function createWorkspaces(
 
 		/** Any workspace (`id`), or the caller's own. */
 		workspace(callerId: string, id?: string): Workspace {
-			if (id === undefined && isExternal(callerId)) error(400, 'Say which workspace (agent_id)');
+			if (id === undefined && isExternal(callerId))
+				error(400, 'Say which workspace (workspace_id)');
 			const workspace = findFor(callerId, id ?? callerId);
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
 		/**
-		 * Says something to an agent: at once if it is idle; otherwise once it has finished what
-		 * it is doing, or (`interrupt`) now, steering what it is doing. A workspace's agent
-		 * messages the agents it started; an external client, any agent, but it interrupts only
-		 * those it started: a person's agent is not turned around in the middle of its work.
+		 * A workspace's agent talks along its own line: to the agents it started (directly or
+		 * not), and to the one that started it, which hears it when its turn ends. An external
+		 * client, granted by the person, may message any agent it sees. Only a supervisor
+		 * may steer a turn.
 		 */
 		send(callerId: string, id: string, text: string, interrupt = false) {
-			const external = isExternal(callerId);
-			const workspace = external ? findFor(callerId, id) : findControlled(callerId, id);
-			if (workspace.archivedAt) error(409, 'Workspace is archived');
+			const workspace = findFor(callerId, id);
+			const project = isProject(callerId);
+			const supervised = descendantsOf(callerId).some((other) => other.id === workspace.id);
 			if (
-				external &&
-				interrupt &&
-				workspace.status === 'running' &&
-				!descendantsOf(callerId).some((other) => other.id === workspace.id)
+				!project &&
+				!isExternal(callerId) &&
+				!supervised &&
+				find(callerId).parentId !== workspace.id
 			)
+				error(403, 'You can message only the agents you started and the agent that started you');
+			if (workspace.archivedAt) error(409, 'Workspace is archived');
+			refuseHeld(id);
+			if (!project && interrupt && workspace.status === 'running' && !supervised)
 				error(
 					403,
 					'You can only interrupt agents you started; without interrupt, it gets the message when its turn ends'
@@ -1543,17 +905,22 @@ export function createWorkspaces(
 		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
 		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
 			const workspace = findFor(callerId, id);
-			if (workspace.status === 'running')
-				await new Promise<void>((resolve) => {
-					const done = () => {
-						clearTimeout(timeout);
-						unsubscribe();
-						resolve();
-					};
-					const timeout = setTimeout(done, timeoutMs);
-					const unsubscribe = store.subscribe(() => workspace.status === 'idle' && done());
-				});
-			return report(workspace);
+			if (workspace.status === 'idle') return report(workspace);
+			return new Promise<AgentReport>((resolve) => {
+				const waits = waiting.get(id) ?? new Set<Wait>();
+				const wait: Wait = {
+					callerId,
+					finish(result) {
+						clearTimeout(timer);
+						waits.delete(wait);
+						if (!waits.size) waiting.delete(id);
+						resolve(result);
+					}
+				};
+				const timer = setTimeout(() => wait.finish(report(workspace)), timeoutMs);
+				waits.add(wait);
+				waiting.set(id, waits);
+			});
 		}
 	};
 
@@ -1570,12 +937,25 @@ export function createWorkspaces(
 		for (const listener of usageListeners) listener(id);
 	}
 
+	/**
+	 * What a workspace's agent suggests saying next, as its daemon says. Recorded, so that it
+	 * is still there after a restart; a reconnecting daemon says it again, which changes nothing.
+	 * One said while the agent works was meant for a turn that is over.
+	 */
+	function suggest(id: string, text: string | null) {
+		const workspace = projection.get().get(id);
+		if (!workspace || workspace.archivedAt || workspace.suggestion === text) return;
+		if (text && workspace.status === 'running') return;
+		store.append({ type: 'workspace.suggested', stream: `workspace:${id}`, data: { id, text } });
+	}
+
 	return {
 		access,
 		agents,
-		pullEvidence: (id: string) => structuredClone(pulls(id)),
+		pullEvidence: (id: string) => structuredClone(projection.pulls(id)),
 		linkPull(id: string, url: string, number: string) {
-			if (pulls(id).linked.some((link) => link.url === url)) return;
+			if (!projection.get().has(id) || projection.pulls(id).linked.some((link) => link.url === url))
+				return;
 			store.append(
 				{ type: 'workspace.pullLinked', stream: `workspace:${id}`, data: { id, url, number } },
 				{ actor: 'daemon' }
@@ -1583,6 +963,7 @@ export function createWorkspaces(
 		},
 		followTranscript,
 		measure,
+		suggest,
 		/** Told which workspace's usage changed between events. */
 		followUsage(listener: (id: string) => void) {
 			usageListeners.add(listener);
@@ -1635,22 +1016,38 @@ export function createWorkspaces(
 		/** The workspaces in use that this one's agent started itself, oldest first. */
 		children: (id: string): WorkspaceSummary[] => childrenOf(id).map(summarise),
 
-		/**
-		 * The IDs of the workspaces in use that belong to this one, and go when it goes: those
-		 * its agent started, the agents working in its worktree (whoever started them), and
-		 * theirs. Parents first. For a project, only the agents working in its folder: what it
-		 * started in a repository is work there, which carries on without it (FDR-012).
-		 */
+		/** Workspaces to archive with this one, with each owner before its dependents. */
 		descendants(id: string): string[] {
-			const alongside = [...projection.get().values()].filter(
-				(other) => other.id !== id && other.worktreeId === id && !other.archivedAt
-			);
-			if (find(id).repoId === null) return alongside.map((workspace) => workspace.id);
-			const all = [
-				...descendantsOf(id),
-				...alongside.flatMap((workspace) => [workspace, ...descendantsOf(workspace.id)])
-			];
-			return [...new Set(all.map((workspace) => workspace.id))];
+			const { repoId } = find(id);
+			const dependents = new Map<string, string[]>();
+			for (const workspace of projection.get().values()) {
+				if (workspace.archivedAt || workspace.repoId !== repoId) continue;
+				// A reviewer sent to a different worktree stays with that worktree's owner.
+				const owners = [workspace.worktreeId];
+				if (repoId !== null && workspace.parentId) {
+					const parent = projection.get().get(workspace.parentId);
+					if (workspace.worktreeId === workspace.id || workspace.worktreeId === parent?.worktreeId)
+						owners.push(workspace.parentId);
+				}
+				for (const owner of owners) {
+					if (owner === workspace.id) continue;
+					const group = dependents.get(owner);
+					if (group) group.push(workspace.id);
+					else dependents.set(owner, [workspace.id]);
+				}
+			}
+
+			// Nested agents in one worktree can depend on both their parent and its owner.
+			const visited = new Set<string>();
+			const ordered: string[] = [];
+			function visit(owner: string) {
+				if (visited.has(owner)) return;
+				visited.add(owner);
+				for (const child of dependents.get(owner) ?? []) visit(child);
+				if (owner !== id) ordered.push(owner);
+			}
+			visit(id);
+			return ordered.reverse();
 		},
 
 		/**
@@ -1803,6 +1200,27 @@ export function createWorkspaces(
 			return () => ids.forEach((id) => held.delete(id));
 		},
 
+		async stopForArchive(ids: string[]) {
+			const family = ids.map(find);
+			const busy = () => family.find((workspace) => workspace.status === 'running');
+			try {
+				for (const workspace of family) {
+					stoppingForArchive.add(workspace.id);
+					if (
+						workspace.status === 'running' &&
+						!dispatch({ type: 'agent.stop', workspaceId: workspace.id })
+					)
+						error(503, 'Connect the daemon to stop busy agents.');
+				}
+				await waitUntil(() => !busy(), 30_000);
+				const stillRunning = busy();
+				if (stillRunning)
+					error(409, `“${stillRunning.title}” is still running. Try archiving again.`);
+			} finally {
+				for (const workspace of family) stoppingForArchive.delete(workspace.id);
+			}
+		},
+
 		stop,
 		record,
 
@@ -1888,16 +1306,15 @@ export function createWorkspaces(
 		retitle,
 
 		/**
-		 * Moves a workspace in the list: right above `before`, another of its repository's,
-		 * or to the end where that is `null`.
+		 * Moves a workspace in the list: right above `before`, or to the end where that is
+		 * `null`. There is one list: listed by repository, each keeps its order there.
 		 */
 		move(id: string, before: string | null, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (before !== null) {
 				const other = find(before);
-				if (other.archivedAt || other.repoId !== workspace.repoId)
-					error(400, 'Workspaces move among their repository’s');
+				if (other.archivedAt) error(400, 'That workspace is archived');
 			}
 			if (before === id) return;
 			store.append(
@@ -1906,15 +1323,124 @@ export function createWorkspaces(
 			);
 		},
 
+		/** Marks the workspace inactive (put aside for later), or active again. Prompting it makes it active too. */
+		setInactive(id: string, inactive: boolean, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			if (workspace.inactive === inactive) return;
+			const type = inactive ? 'workspace.deactivated' : 'workspace.activated';
+			store.append({ type, stream: `workspace:${id}`, data: { id } }, { actor });
+		},
+
+		/**
+		 * Locks the workspace against archiving, or unlocks it (FDR-015). For people only: the
+		 * agent API has no way to do it, so no agent can unlock what it then archives.
+		 */
+		lock(id: string, locked: boolean, actor: string | null = null) {
+			const workspace = find(id);
+			if (workspace.archivedAt) error(409, 'This workspace is archived');
+			// an agent working alongside goes with the workspace it works in, which is what is locked
+			if (workspace.worktreeId !== id) error(409, 'Lock the workspace this agent works in');
+			// not while it is busy (being archived, say): its worktree may be on its way out already
+			refuseHeld(id);
+			if (workspace.locked === locked) return;
+			store.append(
+				locked
+					? { type: 'workspace.locked', stream: `workspace:${id}`, data: { id } }
+					: { type: 'workspace.unlocked', stream: `workspace:${id}`, data: { id } },
+				{ actor }
+			);
+		},
+
+		/** Refuses (409) if any of these workspaces is locked against archiving (FDR-015). */
+		refuseLocked(ids: string[]) {
+			const locked = ids.map(find).find((workspace) => workspace.locked && !workspace.archivedAt);
+			if (locked) error(409, `“${locked.title}” is locked. Unlock it to archive it.`);
+		},
+
 		/** Marks the workspace as done with. Its conversation stays readable. */
 		archive(id: string, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) return;
+			if (workspace.locked) error(409, `“${workspace.title}” is locked. Unlock it to archive it.`);
 			if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
 			store.append(
 				{ type: 'workspace.archived', stream: `workspace:${id}`, data: { id } },
 				{ actor }
 			);
+		},
+
+		/**
+		 * Deletes archived workspaces from the log for good (ADR-012, FDR-014), with everyone
+		 * who worked in their worktrees and every agent they started, who must be archived too;
+		 * and the images sent to them. Their branches and project folders stay. Returns how many
+		 * workspaces went, and how many bytes smaller the log got.
+		 */
+		purge(ids: string[], actor: string | null = null): { purged: number; freed: number } {
+			const all = [...projection.get().values()];
+			const family = new Map<string, Workspace>();
+			const add = (workspace: Workspace) => {
+				if (family.has(workspace.id)) return;
+				family.set(workspace.id, workspace);
+				for (const other of all)
+					if (
+						(other.worktreeId === workspace.id || starterOf(other) === workspace.id) &&
+						other.id !== workspace.id
+					)
+						add(other);
+			};
+			ids.forEach((id) => add(find(id)));
+			if (!family.size) return { purged: 0, freed: 0 };
+
+			for (const workspace of family.values()) {
+				if (!workspace.archivedAt) error(409, `“${workspace.title}” is not archived`);
+				refuseHeld(workspace.id);
+			}
+			// where one of them worked alongside a workspace that stays, it said where that one's worktree is
+			const worktrees = [
+				...new Set([...family.values()].map((workspace) => workspace.worktreeId))
+			].flatMap((id) => {
+				const owner = family.has(id) ? undefined : projection.get().get(id);
+				return owner?.worktree ? [{ id, ...owner.worktree }] : [];
+			});
+			const images = imageStore.forget(projection.imagesOnlyIn(new Set(family.keys())));
+			const { freed, copy } = store.purge(
+				[...[...family.keys()].flatMap((id) => projection.streamsOf(id)), ...images.streams],
+				{
+					type: 'workspace.purged',
+					stream: 'purges',
+					data: {
+						workspaces: [...family.values()].map(({ id, title }) => ({
+							id,
+							title,
+							born: projection.bornAt(id) ?? 0
+						})),
+						worktrees
+					}
+				},
+				{ actor }
+			);
+			images.release(copy);
+			return { purged: family.size, freed };
+		},
+
+		/**
+		 * Workspaces whose agent has worked in a worktree of their own that we never heard of
+		 * (a daemon did not say it made it): idle, so that no turn is making one right now.
+		 */
+		unplaced() {
+			return [...projection.get().values()]
+				.filter(
+					(workspace) =>
+						!workspace.archivedAt &&
+						workspace.repoId !== null &&
+						workspace.worktreeId === workspace.id &&
+						!workspace.worktree &&
+						workspace.resumeId !== null &&
+						workspace.status === 'idle' &&
+						!workspace.pendingMessages?.length
+				)
+				.map((workspace) => workspace.id);
 		},
 
 		/**

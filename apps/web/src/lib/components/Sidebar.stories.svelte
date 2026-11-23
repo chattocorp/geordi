@@ -3,11 +3,23 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { activeOnDay } from '#lib/family.ts';
+	import { withoutInactive } from '#lib/family.ts';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
+	import { unread } from '#lib/notifications.svelte.ts';
 	import Sidebar from './Sidebar.svelte';
 
-	const { Story } = defineMeta({ title: 'Geordi/Sidebar', component: Sidebar });
+	const { Story } = defineMeta({
+		title: 'Geordi/Sidebar',
+		component: Sidebar,
+		beforeEach() {
+			filters.activeOnly = true;
+			focus.current = null;
+			folded.current = [];
+			grouped.current = true;
+			arrived.current = false;
+			loaded.current = false;
+		}
+	});
 
 	type Item = Navigation['workspaces'][number];
 
@@ -15,6 +27,14 @@
 	const folded = $state({ current: [] as string[] });
 	/** The repository shown alone: in the app, remembered in the browser too. */
 	const focus = $state({ current: null as string | null });
+	/** Whether workspaces are grouped by repository: in the app, remembered in the browser too. */
+	const grouped = $state({ current: true });
+
+	const filters = $state({ activeOnly: true });
+	/** Whether a workspace has come along since the story began. */
+	const arrived = $state({ current: false });
+	/** Whether navigation has arrived, in the story where it comes late. */
+	const loaded = $state({ current: false });
 
 	const ready: WorkspaceStanding = {
 		label: 'Ready to merge',
@@ -40,6 +60,7 @@
 		status: 'idle',
 		working: false,
 		outcome: 'completed',
+		background: 0,
 		standing: null,
 		actions: [],
 		branch: `geordi/${id}`,
@@ -81,7 +102,10 @@
 				standing: ready,
 				actions: [{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]
 			}),
-			workspace('tokens', 'Check every token in dark mode', { parentId: 'ready' }),
+			workspace('tokens', 'Check every token in dark mode', {
+				parentId: 'ready',
+				actions: [{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }]
+			}),
 			workspace('failing', 'Guard shared worktrees from update and continue', {
 				standing: failing,
 				actions: [{ id: 'fix-checks', label: 'Fix errors', icon: 'icon-[lucide--wrench]' }]
@@ -125,6 +149,7 @@
 			)
 		],
 		access: [],
+		activeAgents: [],
 		harnesses: null
 	};
 
@@ -151,16 +176,21 @@
 	};
 </script>
 
-{#snippet frame(nav: Navigation | undefined, path: string, lost = false, day: string | null = null)}
+{#snippet frame(nav: Navigation | undefined, path: string, lost = false)}
 	<!-- as the layout holds it: in the frame, as tall as the window -->
-	<div class="flex h-dvh w-64 bg-frame p-2">
+	<div class="flex h-dvh max-h-full w-64 bg-frame p-2">
 		<Sidebar
-			visibleWorkspaces={activeOnDay(nav?.workspaces ?? [], day)}
+			visibleWorkspaces={withoutInactive(
+				nav?.workspaces ?? [],
+				filters.activeOnly,
+				path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null
+			)}
 			{nav}
 			{path}
 			{folded}
 			{focus}
-			todayOnly={day !== null}
+			{grouped}
+			bind:activeOnly={filters.activeOnly}
 			{lost}
 		/>
 	</div>
@@ -171,7 +201,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('link', { name: /Raise light mode/ })).toHaveAttribute(
+		await expect(canvas.getByRole('link', { name: /^Raise light mode/ })).toHaveAttribute(
 			'aria-current',
 			'page'
 		);
@@ -184,13 +214,46 @@
 </Story>
 
 <Story
+	name="A workspace comes and goes"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sliding = (element: Element) => expect(element.getAnimations().length).toBeGreaterThan(0);
+		// what is there when navigation arrives does not slide in
+		loaded.current = true;
+		const group = (await canvas.findByText('Try out the new parser')).closest('ul')!.parentElement!;
+		await expect(group.getAnimations()).toHaveLength(0);
+		arrived.current = true;
+		const row = (await canvas.findByText('Just started')).closest('li')!;
+		await sliding(row);
+		arrived.current = false;
+		await sliding(row);
+		await waitFor(() => expect(canvas.queryByText('Just started')).toBeNull());
+	}}
+>
+	{@render frame(
+		loaded.current
+			? {
+					...nav,
+					workspaces: arrived.current
+						? [workspace('new', 'Just started', { repoId: 'sample' }), ...nav.workspaces]
+						: nav.workspaces
+				}
+			: undefined,
+		'/workspaces/ready'
+	)}
+</Story>
+
+<Story
 	name="Workspace action pills"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const idle = canvas.getByRole('link', { name: /Check every token/ });
 		idle.focus();
-		await expect(within(idle.closest('li')!).queryByRole('button')).toBeNull();
+		const cleanRow = within(idle.closest('li')!);
+		await expect(cleanRow.queryByRole('button')).toBeNull();
+		await expect(cleanRow.queryByRole('img')).toBeNull();
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
 			const pill = canvas.getByText(label, { selector: 'button' });
 			const row = within(pill.closest('li')!);
@@ -214,39 +277,119 @@
 </Story>
 
 <Story
-	name="Active today"
+	name="Inactive"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText('Review the daemon')).toBeVisible();
-		await expect(canvas.queryByText('Scale live views and the event log')).toBeNull();
-		await expect(canvas.queryByText('sample-project')).toBeNull();
+		const activeOnly = canvas.getByRole('button', { name: 'Show only active workspaces' });
+		await expect(activeOnly).toHaveAttribute('aria-pressed', 'true');
+		await waitFor(() => expect(canvas.getByText('Choose a storage engine')).toBeVisible());
+		await waitFor(() =>
+			expect(canvas.queryByText('Scale live views and the event log')).toBeNull()
+		);
+		// put aside with the workspace whose agent started it, though not inactive itself
+		await expect(canvas.queryByText('Review the daemon')).toBeNull();
+		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
+		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
+		await expect(canvas.getByText('All workspaces are inactive.')).toBeVisible();
+		await fireEvent.click(activeOnly);
+		await expect(activeOnly).toHaveAttribute('aria-pressed', 'false');
+		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
+		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));
+		await fireEvent.click(await canvas.findByRole('option', { name: 'All repositories' }));
+		await waitFor(() => expect(canvas.getByText('Review the daemon')).toBeVisible());
 	}}
 >
 	{@render frame(
 		{
 			...nav,
 			workspaces: nav.workspaces.map((w) =>
-				w.id === 'aide'
-					? { ...w, updatedAt: new Date(2026, 10, 20).toISOString() }
-					: { ...w, updatedAt: new Date(2026, 10, 19, 23, 59).toISOString() }
+				w.id === 'working' || w.repoId === 'sample' ? { ...w, inactive: true } : w
 			)
 		},
-		'/',
-		false,
-		new Date(2026, 10, 20).toDateString()
+		'/'
 	)}
 </Story>
 
-<Story name="On the overview" asChild>
-	{@render frame(nav, '/overview')}
+<Story
+	name="Inactive, on screen"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// the workspace on screen stays in the list, though it is inactive; what it started does not
+		await waitFor(() =>
+			expect(canvas.getByText('Scale live views and the event log')).toBeVisible()
+		);
+		await expect(canvas.queryByText('Review the daemon')).toBeNull();
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: nav.workspaces.map((w) => (w.id === 'working' ? { ...w, inactive: true } : w))
+		},
+		'/workspaces/working'
+	)}
+</Story>
+
+<Story
+	name="Scrollable workspace list"
+	asChild
+	play={async ({ canvasElement }) => {
+		const list = canvasElement.querySelector<HTMLElement>('.scroll-fade')!;
+		await waitFor(() => expect(list).toHaveClass('more-below'));
+		await expect(list).not.toHaveClass('more-above');
+		list.scrollTop = (list.scrollHeight - list.clientHeight) / 2;
+		await waitFor(() => expect(list).toHaveClass('more-above', 'more-below'));
+		list.scrollTop = list.scrollHeight;
+		await waitFor(() => expect(list).not.toHaveClass('more-below'));
+		await expect(list).toHaveClass('more-above');
+		list.scrollTop = 0;
+	}}
+>
+	<div class="h-96">
+		{@render frame(withProjects, '/workspaces/ready')}
+	</div>
+</Story>
+
+<Story
+	name="As one list"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces as one list' }));
+		await expect(grouped.current).toBe(false);
+		// no repository names above them: each has its repository's picture instead
+		await waitFor(() => expect(canvas.queryByText('Projects')).toBeNull());
+		const main = within(canvas.getByRole('navigation', { name: 'Main' }));
+		// the titles, without the links to parents beside them
+		const titles = main
+			.getAllByRole('link')
+			.map((link) => link.textContent?.trim())
+			.filter(Boolean);
+		// what a project's agent started stays under it, though it is in a repository
+		await expect(titles.indexOf('Bump the protocol in the daemon')).toBe(
+			titles.indexOf('Ship the protocol bump everywhere') + 1
+		);
+	}}
+>
+	{@render frame(withProjects, '/workspaces/ready')}
+</Story>
+
+<Story name="On the archive" asChild>
+	{@render frame(nav, '/archive')}
 </Story>
 
 <Story
 	name="Nothing yet"
 	asChild
 	play={async ({ canvasElement }) => {
-		await expect(within(canvasElement).getByRole('link', { name: 'New workspace' })).toBeVisible();
+		const menu = within(canvasElement).getByRole('navigation', { name: 'Workspace navigation' });
+		const [create, archive, settings] = within(menu).getAllByRole('link');
+		await expect(create).toHaveAccessibleName('New workspace');
+		await expect(create).toHaveAttribute('aria-current', 'page');
+		await expect(archive).toHaveAccessibleName('Archive');
+		await expect(settings).toHaveAccessibleName(/Settings/);
 	}}
 >
 	{@render frame(undefined, '/')}
@@ -292,6 +435,28 @@
 </Story>
 
 <Story
+	name="Reorder in one list"
+	asChild
+	play={async ({ canvasElement }) => {
+		grouped.current = false;
+		const canvas = within(canvasElement);
+		// the groups slide away
+		await waitFor(() => expect(canvas.getAllByText('Choose a storage engine')).toHaveLength(1));
+		const row = (title: string) => canvas.getByText(title).closest('li')!;
+		const first = row('Choose a storage engine');
+		// a workspace of another repository
+		const target = row('Try out the new parser');
+		await fireEvent.dragStart(first);
+		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
+		await expect(target).toHaveClass('row-drop-before');
+		await fireEvent.dragEnd(first);
+		await expect(canvasElement.querySelectorAll('.row-drop-before')).toHaveLength(0);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
 	name="Focus a repository"
 	asChild
 	play={async ({ canvasElement }) => {
@@ -301,8 +466,9 @@
 		await fireEvent.click(only!);
 		// the others slide away
 		await waitFor(() => expect(canvas.queryByText('Raise light mode text contrast')).toBeNull());
-		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
-		await fireEvent.click(canvas.getByRole('button', { name: 'Show 1 other repository' }));
+		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
+		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: sample-project' }));
+		await fireEvent.click(await canvas.findByRole('option', { name: 'All repositories' }));
 		await waitFor(() => expect(canvas.getByText('Raise light mode text contrast')).toBeVisible());
 	}}
 >
@@ -315,6 +481,9 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Projects')).toBeVisible();
+		await expect(
+			canvas.getByRole('link', { name: 'Open parent workspace: Ship the protocol bump everywhere' })
+		).toHaveAttribute('href', '/workspaces/project');
 		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',
@@ -326,13 +495,12 @@
 </Story>
 
 <Story
-	name="Open or fold a repository"
+	name="Fold a repository from its name"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const repo = canvas.getByRole('link', { name: 'sample-project' });
-		await expect(repo).toHaveAttribute('href', '/repos/sample');
-		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse sample-project' }));
+		const repo = canvas.getByRole('button', { name: 'Collapse sample-project' });
+		await fireEvent.click(within(repo).getByText('sample-project'));
 		await expect(repo).toBeVisible();
 		await expect(within(repo).getByText('2')).toBeVisible();
 		await expect(canvas.queryByText('Try out the new parser')).toBeNull();
@@ -341,10 +509,26 @@
 			'false'
 		);
 		await fireEvent.click(canvas.getByRole('button', { name: 'Expand sample-project' }));
-		await expect(canvas.getByText('Try out the new parser')).toBeVisible();
+		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
 	}}
 >
-	{@render frame(nav, '/repos/sample')}
+	{@render frame(nav, '/workspaces/plain')}
+</Story>
+
+<Story
+	name="A folded repository with unread work"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const repo = canvas.getByRole('button', { name: 'Collapse sample-project' });
+		unread.add('long');
+		await fireEvent.click(repo);
+		await waitFor(() => expect(within(repo).getByText('2')).toHaveClass('text-ink'));
+		unread.delete('long');
+		await waitFor(() => expect(within(repo).getByText('2')).not.toHaveClass('text-ink'));
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
 </Story>
 
 <Story

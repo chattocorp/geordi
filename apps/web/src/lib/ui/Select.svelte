@@ -16,6 +16,7 @@
 	type Props = {
 		/** What is being chosen; read out, not shown. */
 		label: string;
+		title?: string;
 		/** A keyboard shortcut that opens and focuses this picker, given its button. */
 		shortcut?: (event: KeyboardEvent, button: HTMLElement) => boolean;
 		value?: T;
@@ -24,6 +25,8 @@
 		trigger?: Snippet;
 		/** Something before an option's label: an icon, an avatar. */
 		icon?: Snippet<[Option]>;
+		/** Something after an option's label, in the list: how it stands. */
+		aside?: Snippet<[Option]>;
 		/**
 		 * Options for something typed that matches nothing in the list, if that may be chosen
 		 * too. Once chosen, one has to be among `options`.
@@ -34,10 +37,12 @@
 	};
 	let {
 		label,
+		title,
 		value = $bindable(),
 		options,
 		trigger,
 		icon,
+		aside,
 		create,
 		shortcut,
 		open = $bindable(false)
@@ -149,6 +154,7 @@
 -->
 <button
 	bind:this={button}
+	{title}
 	type="button"
 	popovertarget="{id}-popup"
 	aria-haspopup="listbox"
@@ -211,12 +217,14 @@
 				{@render icon?.(item)}
 				<span class="min-w-0 flex-1 truncate">
 					{#each fuzzySegments(item.label, indices) as segment, at (at)}
-						{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink"
-								>{segment.text}</mark
-							>{:else}{segment.text}{/if}
+						{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink">
+								{segment.text}
+							</mark>{:else}{segment.text}{/if}
 					{/each}
 				</span>
 				{#if item === selected}<span class="icon-[lucide--check] size-3.5 shrink-0"></span>{/if}
+				<!-- last, so that what is aside lines up, whichever is chosen -->
+				{@render aside?.(item)}
 			</button>
 		{:else}
 			<p class="px-2 py-1.5 text-sm text-muted">Nothing like that</p>

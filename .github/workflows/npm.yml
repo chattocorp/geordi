@@ -13,12 +13,11 @@ permissions: {}
 
 jobs:
   publish:
-    if: "!contains(inputs.tag, '-')"
     runs-on: ubuntu-latest
     permissions:
       contents: read
       # npm's trusted publishing, configured for `geordi` on npmjs.com. npm trusts the
-      # calling workflow (`releases.yml`), and only one: betas are not published to npm.
+      # calling workflow (`releases.yml`), and only one. It calls this for stable releases only.
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -26,5 +25,7 @@ jobs:
           ref: ${{ inputs.commit }}
       - uses: ./.github/actions/install
       - run: pnpm --filter @geordi/cli bundle
+        env:
+          GEORDI_RELEASE_BUILD: '1'
       - run: npm publish --access public
         working-directory: apps/cli/stage

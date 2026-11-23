@@ -50,6 +50,8 @@
 	);
 	const added = $derived(addedNoteCount(touched));
 	const troubled = $derived(plan.packages.filter((pkg) => pkg.problems.length > 0));
+	// nothing to show but what will be: said once, in the middle of the pane
+	const empty = $derived(!plan.ask && !plan.problem && added === 0 && troubled.length === 0);
 </script>
 
 {#snippet release(pkg: ReleasePackage)}
@@ -129,16 +131,18 @@
 							}}></textarea>
 						{#if problem}<p role="alert" class="text-xs text-danger">{problem}</p>{/if}
 						<div class="mt-2 flex justify-end gap-2">
-							<Button size="sm" variant="ghost" disabled={saving} onclick={() => (editing = null)}
-								>Cancel</Button
-							>
+							<Button size="sm" variant="ghost" disabled={saving} onclick={() => (editing = null)}>
+								Cancel
+							</Button>
 							<Button
 								size="sm"
 								variant="primary"
 								busy={saving}
 								disabled={!draft.trim() || draft === original}
-								onclick={() => save(note.path)}>Save</Button
+								onclick={() => save(note.path)}
 							>
+								Save
+							</Button>
 						</div>
 					{:else}
 						<Markdown text={note.body} />
@@ -155,23 +159,23 @@
 -->
 <!-- set like the changes beside it: a line that says how things stand, then what there is -->
 <section class="flex min-h-0 flex-1 flex-col" aria-label="Changeset">
-	<header class="flex items-center gap-2 px-3.5 py-2.5 text-sm text-muted">
-		<span class="icon-[lucide--package] size-4 shrink-0"></span>
-		<span class="min-w-0 flex-1 truncate">
-			{#if plan.ask}
-				{plan.name} hasn't been asked yet
-			{:else if plan.problem}
-				{plan.name} couldn't be asked
-			{:else if added === 0}
-				No change notes for {plan.name} yet
-			{:else}
-				{added}
-				{added === 1 ? 'change note' : 'change notes'} for {plan.name}, in
-				{touched.length}
-				{touched.length === 1 ? 'package' : 'packages'}
-			{/if}
-		</span>
-	</header>
+	{#if !empty}
+		<header class="flex items-center gap-2 px-3.5 py-2.5 text-sm text-muted">
+			<span class="icon-[lucide--package] size-4 shrink-0"></span>
+			<span class="min-w-0 flex-1 truncate">
+				{#if plan.ask}
+					{plan.name} hasn't been asked yet
+				{:else if plan.problem}
+					{plan.name} couldn't be asked
+				{:else}
+					{added}
+					{added === 1 ? 'changeset' : 'changesets'} for {plan.name}, in
+					{touched.length}
+					{touched.length === 1 ? 'package' : 'packages'}
+				{/if}
+			</span>
+		</header>
+	{/if}
 	<div class="scroller py-1.5">
 		{#if plan.ask}
 			{@const ask = plan.ask}
@@ -187,12 +191,15 @@
 			<p class="px-3.5 py-2 text-sm text-muted">
 				{plan.name} couldn't be asked: {plan.problem}.
 			</p>
+		{:else if empty}
+			<!-- nothing to list: a quiet word in the middle of the pane, like the changes beside it -->
+			<div
+				class="flex min-h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm"
+			>
+				<span class="icon-[lucide--package] size-6 text-muted opacity-60"></span>
+				<p class="font-medium text-ink">No changesets yet</p>
+			</div>
 		{:else}
-			{#if added === 0}
-				<p class="px-3.5 py-2 text-sm text-muted">
-					Notes this workspace adds will show here, with the versions they lead to.
-				</p>
-			{/if}
 			<ul class="divide-y divide-line/60">
 				{#each touched as pkg (pkg.path)}{@render release(pkg)}{/each}
 			</ul>

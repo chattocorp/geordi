@@ -19,6 +19,8 @@
 
 	const openDiff = fn();
 	const openSource = fn();
+	const openFolder = fn();
+	const FOLDERS = new Set(['.', 'assets/audio']);
 	const reply = [
 		'## What I changed',
 		'',
@@ -210,7 +212,9 @@
 		root: '/work',
 		paths: new Set(['src/git.ts']),
 		open: openDiff,
-		openSource
+		openSource,
+		isFolder: async (path) => FOLDERS.has(path),
+		openFolder
 	});
 </script>
 
@@ -228,6 +232,30 @@
 	<Markdown
 		text="Review the changes in [`changes.ts`](./src/changes.ts &quot;View the diff&quot;)."
 	/>
+</Story>
+
+<Story
+	name="Folder link"
+	asChild
+	play={async ({ canvas }) => {
+		openFolder.mockClear();
+		const folder = await canvas.findByRole('button', { name: 'assets/audio/' });
+		await expect(folder).toHaveAttribute('title', 'Open this folder');
+		await userEvent.click(folder);
+		await expect(openFolder).toHaveBeenCalledWith('assets/audio');
+		await expect(canvas.getByRole('button', { name: 'the worktree' })).toBeInTheDocument();
+		await expect(canvas.queryByRole('button', { name: 'mistake/' })).toBeNull();
+	}}
+>
+	<Markdown
+		text="The new takes are under `assets/audio/`, in `mistake/` and `orders/`. Everything else is in [the worktree](/work/)."
+	/>
+</Story>
+
+<Story name="User message" asChild>
+	<div class="max-w-2xl sheet p-4">
+		<UserMessage text="BTW why would we do the third one after the release?" />
+	</div>
 </Story>
 
 <Story name="Agent reply" asChild>
@@ -263,6 +291,8 @@
 		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" />
 		<!-- under way: the tool that is running -->
 		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" live />
+		<!-- over, but a tool still runs in the background -->
+		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" backgroundIds={[tools[0].id]} />
 	</div>
 </Story>
 
@@ -337,4 +367,21 @@
 			patch: edits[0].diff.patch! + edits[1].diff.patch!
 		}}
 	/>
+</Story>
+
+<Story
+	name="Review finding"
+	asChild
+	play={async ({ canvas }) => {
+		openSource.mockClear();
+		await userEvent.click(canvas.getByRole('button', { name: 'src/changes.ts:40–42' }));
+		await expect(openSource).toHaveBeenCalledWith('src/changes.ts', 40);
+	}}
+>
+	<div class="max-w-2xl sheet p-4">
+		<Markdown
+			agentDirectives
+			text={'I found one issue in the changes pane.\n\n::code-comment{title="Refresh the diff after a rename" body="The selection still points to the old path, so the diff stays empty until you select the file again." file="/work/src/changes.ts" start=40 end=42 priority=2}'}
+		/>
+	</div>
 </Story>

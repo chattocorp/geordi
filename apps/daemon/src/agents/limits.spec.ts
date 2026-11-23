@@ -17,9 +17,9 @@ it("reads Claude's windows from its rate limit event", () => {
 			}
 		})
 	).toEqual([
-		{ name: '5h', usedPercent: 15, resetsAt: 1795106400000, status: 'ok' },
-		{ name: 'Week', usedPercent: 77, resetsAt: 1795363200000, status: 'warning' },
-		{ name: 'Week (Opus)', usedPercent: 100, status: 'limited' }
+		{ name: '5h', minutes: 300, usedPercent: 15, resetsAt: 1795106400000, status: 'ok' },
+		{ name: 'Week', minutes: 10080, usedPercent: 77, resetsAt: 1795363200000, status: 'warning' },
+		{ name: 'Week (Opus)', minutes: 10080, usedPercent: 100, status: 'limited' }
 	]);
 });
 
@@ -32,8 +32,8 @@ it("reads Codex's snapshots, windows by their length", () => {
 		rateLimitReachedType: null
 	};
 	expect(limitsIn({ 'codex/rateLimits': [snapshot] })).toEqual([
-		{ name: '5h', usedPercent: 45, resetsAt: 1795506444000, status: 'ok' },
-		{ name: 'Week', usedPercent: 90, resetsAt: 1795506444000, status: 'warning' }
+		{ name: '5h', minutes: 300, usedPercent: 45, resetsAt: 1795506444000, status: 'ok' },
+		{ name: 'Week', minutes: 10080, usedPercent: 90, resetsAt: 1795506444000, status: 'warning' }
 	]);
 	expect(
 		limitsIn({
@@ -41,7 +41,15 @@ it("reads Codex's snapshots, windows by their length", () => {
 				{ ...snapshot, limitName: 'GPT-X', secondary: null, rateLimitReachedType: 'primary' }
 			]
 		})
-	).toEqual([{ name: '5h (GPT-X)', usedPercent: 45, resetsAt: 1795506444000, status: 'limited' }]);
+	).toEqual([
+		{
+			name: '5h (GPT-X)',
+			minutes: 300,
+			usedPercent: 45,
+			resetsAt: 1795506444000,
+			status: 'limited'
+		}
+	]);
 });
 
 it('finds nothing where there is nothing it knows', () => {

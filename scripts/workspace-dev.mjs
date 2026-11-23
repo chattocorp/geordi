@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join, resolve } from 'node:path';
@@ -13,19 +14,16 @@ if (!['web', 'daemon', 'storybook', 'reset'].includes(job)) {
 function port(name) {
 	const value = Number(process.env[name]);
 	if (!Number.isInteger(value) || value < 1024 || value > 65535) {
-		throw new Error(`Missing or invalid ${name}. Start this job from Geordi's Run menu.`);
+		throw new Error(`Missing or invalid ${name}. Start this task from Geordi's Tasks tab.`);
 	}
 	return value;
 }
 
+// The web server's ports: its pages, its WebSocket for daemons, and the one for browsers.
 const web = port('GEORDI_PORT_WEB');
 const daemon = port('GEORDI_PORT_DAEMON');
+const live = port('GEORDI_PORT_LIVE');
 const storybook = port('GEORDI_PORT_STORYBOOK');
-// Reset runs with the web server stopped, so its port can serve browser updates.
-const live = port('GEORDI_PORT_RESET');
-if (new Set([web, daemon, storybook, live]).size !== 4) {
-	throw new Error('The workspace jobs must have distinct assigned ports.');
-}
 
 const data = join(root, '.data');
 const env = {
@@ -37,6 +35,8 @@ const env = {
 	GEORDI_DAEMON_TOKEN_FILE: join(data, 'daemon-token'),
 	GEORDI_RUN_APPROVALS_FILE: join(data, 'run-approvals.json'),
 	GEORDI_PORTS_FILE: join(data, 'ports.json'),
+	// The installed app gives out 20000–29999: a range of its own keeps the two apart.
+	GEORDI_PORT_RANGE: '30000-39999',
 	GEORDI_DAEMON_PORT: String(daemon),
 	GEORDI_LIVE_PORT: String(live),
 	GEORDI_FORGE_URL: `ws://127.0.0.1:${daemon}`,
@@ -57,23 +57,18 @@ if (job === 'reset') {
 }
 if (job === 'web') seed(data);
 
-if (job === 'daemon') {
-	// Vite loads the forge on its first HTTP request. Initialise its token and
-	// WebSocket listeners before Geordi waits for the daemon job's port.
-	const deadline = Date.now() + 30_000;
-	for (;;) {
-		try {
-			const response = await fetch(env.GEORDI_FORGE_HTTP_URL, {
-				signal: AbortSignal.timeout(5000)
-			});
-			await response.body?.cancel();
-			if (!response.ok) throw new Error(`The test forge returned HTTP ${response.status}`);
-			break;
-		} catch (cause) {
-			if (Date.now() >= deadline) throw new Error('The test forge did not start.', { cause });
-			await new Promise((resolve) => setTimeout(resolve, 250));
-		}
-	}
+if (job === 'web') {
+	// Vite loads the forge on its first page request, and only then does the forge listen
+	// for daemons and browsers: the web task's other two ports. Ask for a page as soon as Vite
+	// answers, from a helper that outlives this process becoming Vite, so that the task is up
+	// (all its ports listen) without anyone opening it first.
+	const warm = `for (const until = Date.now() + 60_000; Date.now() < until; ) {
+		try { await (await fetch(process.argv[1])).body?.cancel(); break; }
+		catch { await new Promise((resolve) => setTimeout(resolve, 250)); }
+	}`;
+	spawn(process.execPath, ['--input-type=module', '-e', warm, env.GEORDI_FORGE_HTTP_URL], {
+		stdio: 'ignore'
+	}).unref();
 }
 
 const app = job === 'daemon' ? 'daemon' : 'web';

@@ -13,7 +13,8 @@ it('only reconciles the first authenticated daemon until it disconnects', async 
 		onHello,
 		onMessage: vi.fn(),
 		onUsage: vi.fn(),
-		onLimits: vi.fn()
+		onLimits: vi.fn(),
+		onSuggestion: vi.fn()
 	});
 	async function connect(id: string, autoPong = true) {
 		const socket = new WebSocket(`ws://127.0.0.1:${hub.port()}`, { autoPong });
@@ -67,6 +68,9 @@ it('remembers which daemon can recover unfinished turns across forge restart', (
 	expect(restarted('owner')).toBe(true);
 	running = false;
 	expect(restarted('other')).toBe(true);
-	expect(store.readAll().map((event) => event.data.id)).toEqual(['owner', 'other']);
+	expect(store.readAll().map((event) => (event.data as { id: string }).id)).toEqual([
+		'owner',
+		'other'
+	]);
 	store.close();
 });

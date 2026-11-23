@@ -13,6 +13,7 @@ export const ACTION_IDS = [
 	'ready-for-review',
 	'merge-pull',
 	'restore-worktree',
+	'restore-workspace',
 	'retry',
 	'continue',
 	'archive'
@@ -38,6 +39,8 @@ export type WorkspaceAction = {
 	pullNumber?: string;
 	/** An alternative to the next step rather than the next step itself: offered beside it, quietly. */
 	aside?: boolean;
+	/** Why it can't be taken right now, if it can't: it is shown, but can't be pressed. */
+	unavailable?: string;
 };
 
 /**
@@ -47,6 +50,7 @@ export type WorkspaceAction = {
 export type ActivityId = WorkspaceAction['id'] | 'working' | 'auto-merge';
 
 type State = {
+	archived?: boolean;
 	/** `null` while unknown (no daemon, or not asked yet). */
 	changes:
 		| (Pick<Changes, 'files' | 'uncommitted' | 'unpushed' | 'unknownForge'> & {
@@ -60,6 +64,8 @@ type State = {
 	failed?: boolean;
 	/** Whether an agent started the workspace: its work goes back to that one. */
 	child?: boolean;
+	/** Whether a person locked it against archiving (FDR-015): archiving is not offered. */
+	locked?: boolean;
 };
 
 /** Whether everything the workspace did is in the branch it started from, with no pull request to say so. */
@@ -84,7 +90,9 @@ const mergeFrom = (branch: string | null) =>
  * presents as *the* next step.
  */
 export function actionsFor(state: State): WorkspaceAction[] {
-	const actions = nextActions(state);
+	if (state.archived)
+		return [{ id: 'restore-workspace', label: 'Restore', icon: 'icon-[lucide--archive-restore]' }];
+	const actions = state.locked ? lockedActions(state) : nextActions(state);
 	const incoming = state.changes?.incoming;
 	const pull = state.upstream?.pull;
 	if (
@@ -107,11 +115,35 @@ export function actionsFor(state: State): WorkspaceAction[] {
 		label: 'Sync',
 		incomingCommits: incoming.commits,
 		icon: 'icon-[lucide--git-merge]',
-		aside: actions.length > 0,
+		aside: actions.some((action) => action.id !== 'archive'),
 		prompt: mergeFrom(incoming.branch)
 	};
 	return at < 0 ? [...actions, sync] : actions.toSpliced(at, 0, sync);
 }
+
+/**
+ * A locked workspace's actions (FDR-015): never archiving. Where archiving was all there was
+ * (its work landed), it carries on instead.
+ */
+function lockedActions(state: State): WorkspaceAction[] {
+	if (landedLocally(state)) return [CARRY_ON];
+	return withoutArchive(nextActions(state));
+}
+
+/** The actions but archiving; what was offered beside it becomes the next step, if nothing else is. */
+function withoutArchive(actions: WorkspaceAction[]): WorkspaceAction[] {
+	const rest = actions.filter((action) => action.id !== 'archive');
+	return rest.length < actions.length && rest.every((action) => action.aside)
+		? rest.map((action) => ({ ...action, aside: false }))
+		: rest;
+}
+
+/** Carrying on in the workspace, on a fresh branch. */
+const CARRY_ON: WorkspaceAction = {
+	id: 'continue',
+	label: 'Continue',
+	icon: 'icon-[lucide--git-branch-plus]'
+};
 
 function nextActions(state: State): WorkspaceAction[] {
 	const { changes, upstream } = state;
@@ -127,14 +159,21 @@ function nextActions(state: State): WorkspaceAction[] {
 					'Your last turn ended with an error before you were done. Carry on where you left off.'
 			}
 		];
+	const archive: WorkspaceAction = {
+		id: 'archive',
+		label: 'Archive',
+		icon: 'icon-[lucide--archive]'
+	};
 	// Its work is where it was headed, without a pull request: done with.
-	if (landedLocally(state))
-		return [{ id: 'archive', label: 'Archive', icon: 'icon-[lucide--archive]' }];
+	if (landedLocally(state)) return [archive];
 	const uncommitted = changes.uncommitted > 0;
 	// committed work that the remote doesn't have: commits ahead of it, or a branch not there at all
 	const unpushed = changes.unpushed === null ? changes.files.length > 0 : changes.unpushed > 0;
 	const local = uncommitted || unpushed;
 	const pull = upstream?.pull;
+
+	if (!pull && !local && !changes.files.length)
+		return [{ ...archive, aside: (changes.incoming?.commits ?? 0) > 0 }];
 
 	// Without a forge to send work to, committing is as far as it goes.
 	if (!upstream)
@@ -162,21 +201,11 @@ function nextActions(state: State): WorkspaceAction[] {
 				]
 			: [];
 
-	const archive: WorkspaceAction = {
-		id: 'archive',
-		label: 'Archive',
-		icon: 'icon-[lucide--archive]'
-	};
 	// Its work has landed (or was given up): the workspace is done with, unless there is
 	// more to do in it. Then it carries on, on a fresh branch. Work begun since (an agent
 	// may start a turn unasked) has only that way to go: it comes along.
 	if (pull.state === 'merged' || pull.state === 'closed') {
-		const carryOn: WorkspaceAction = {
-			id: 'continue',
-			label: 'Continue',
-			icon: 'icon-[lucide--git-branch-plus]'
-		};
-		return uncommitted ? [carryOn] : [{ ...carryOn, aside: true }, archive];
+		return uncommitted ? [CARRY_ON] : [{ ...CARRY_ON, aside: true }, archive];
 	}
 
 	const number = `pull request #${pull.number}`;
@@ -232,10 +261,14 @@ function nextActions(state: State): WorkspaceAction[] {
 	}
 
 	// Merging is the next step once nothing stands in its way.
-	const checksPass = !pull.checks || pull.checks.state === 'success';
+	const checksAllowMerge =
+		!pull.checks || pull.checks.state === 'success' || pull.checks.optionalChecksRunning;
 	// Auto-merge is for what can't be merged yet: checks still running, a review to wait for,
 	// or anything else the base branch's rules still want.
-	const waiting = !checksPass || pull.review === 'pending' || !!pull.blocked;
+	const waiting =
+		!checksAllowMerge ||
+		(pull.review === 'pending' && !pull.checks?.optionalChecksRunning) ||
+		!!pull.blocked;
 	if (pull.autoMerge?.enabled) {
 		if (pull.autoMerge.canDisable)
 			actions.push({
@@ -252,7 +285,7 @@ function nextActions(state: State): WorkspaceAction[] {
 			icon: 'icon-[lucide--git-merge]',
 			pullNumber: pull.number
 		});
-	} else if (!pull.draft && actions.length === 0 && checksPass && !pull.blocked)
+	} else if (!pull.draft && actions.length === 0 && checksAllowMerge && !pull.blocked)
 		actions.push({
 			id: 'merge-pull',
 			pullNumber: pull.number,
@@ -281,6 +314,10 @@ export type WorkspaceStanding = {
 	icon: string;
 	/** While checks run: how many of them stand how, where the forge says. */
 	checks?: CheckCounts;
+	/** While checks run: the pull request merges by itself once they pass. */
+	autoMerge?: boolean;
+	/** The sidebar animation for this standing. */
+	activity?: 'auto-merge';
 	/** More on what it means, and where to read what to do about it. */
 	hint?: { text: string; href: string };
 };
@@ -294,6 +331,7 @@ export const FORGE_SETUP_URL =
  * next to the actions. `null` when there is nothing worth saying.
  */
 export function standingOf(state: State): WorkspaceStanding | null {
+	if (state.archived) return { label: 'Archived', tone: 'neutral', icon: 'icon-[lucide--archive]' };
 	const { changes, upstream } = state;
 	if (!changes) return null;
 	if (state.failed)
@@ -353,14 +391,16 @@ export function standingOf(state: State): WorkspaceStanding | null {
 	if (unpushed) return todo('Unpublished changes');
 	if (pull.checks?.state === 'pending')
 		return {
-			label: 'Checks running',
+			label: pull.checks.optionalChecksRunning ? 'Optional checks running' : 'Checks running',
 			tone: 'neutral',
-			icon: 'icon-[lucide--circle-dashed] animate-checks-spin',
-			checks: pull.checks.counts
+			icon: 'icon-[lucide--circle-dashed] motion-safe:animate-checks-spin',
+			checks: pull.checks.counts,
+			autoMerge: pull.autoMerge?.enabled
 		};
 	if (pull.autoMerge?.enabled)
 		return {
 			label: 'Auto-merge enabled',
+			activity: 'auto-merge',
 			tone: 'neutral',
 			icon: 'icon-[lucide--git-merge]',
 			checks: pull.checks?.counts

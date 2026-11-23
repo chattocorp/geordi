@@ -3,6 +3,8 @@ import {
 	AGENTS,
 	CONFIG_FILE,
 	CONFIG_SETTINGS,
+	SPARE_PORTS,
+	MODEL_SETTING,
 	SETTING,
 	WORKTREE_MODES,
 	type Changes,
@@ -14,7 +16,7 @@ import { toJsonSchema } from '@valibot/to-json-schema';
 import * as v from 'valibot';
 import { actionsFor, standingOf } from '@geordi/ui/actions';
 import { isExternal } from './agent-access.ts';
-import type { createWorkspaces } from './workspaces.ts';
+import { MAX_NAMES, type createWorkspaces } from './workspaces.ts';
 
 /**
  * Geordi's agent API (ADR-004, FDR-002) as a Model Context Protocol server: the tools that
@@ -60,82 +62,114 @@ export const offersOf = (harnesses: Harness[] | null) =>
 export const configurationReference = () =>
 	[
 		`# ${CONFIG_FILE}`,
-		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is YAML. Settings Geordi doesn't know are ignored. (A \`.geordi.toml\` with the same settings in TOML is still read where there is no \`${CONFIG_FILE}\`; write YAML.)`,
+		`A repository tells Geordi how it wants to be treated in a file called \`${CONFIG_FILE}\`, at its top level. It is YAML. Settings Geordi doesn't know are ignored. (\`run\`, \`jobs\`, \`urls\`, \`default\` and \`ports\`, and a \`.geordi.toml\`, are no longer read: move what they say into \`tasks\` in \`${CONFIG_FILE}\`.)`,
+		`Every workspace also has ${SPARE_PORTS} spare ports of its own, for anything an agent or a terminal starts: \`GEORDI_PORT\` is the first and \`GEORDI_PORTS\` says how many. Never hard-code a port: two workspaces would collide.`,
 		'## Settings',
 		...Object.entries(CONFIG_SETTINGS).map(
 			([key, { does, example }]) => `### \`${key}\`\n\n${does}\n\n\`\`\`yaml\n${example}\n\`\`\``
 		),
 		'## Which file applies',
-		`The \`${CONFIG_FILE}\` in a workspace's own directory, if it has one; otherwise the one on the branch work starts from (the upstream's main branch). The two are not merged. So you can try a change out in your workspace right away, and it applies to everyone once it is merged. The file is read again whenever it changes: nothing needs restarting.`,
+		`The \`${CONFIG_FILE}\` in a workspace's own directory, if it has one; otherwise the one on the branch work starts from (the upstream default branch, or the repository HEAD if there is no usable upstream default). The two are not merged. So you can try a change out in your workspace right away, and it applies to everyone once it is merged. The file is read again whenever it changes: nothing needs restarting.`,
 		'## Checking',
-		`After changing the file, call \`check_configuration\`: it reads the file the way Geordi does, and says what it found or what is wrong with it.`
+		`After changing the file, call \`check_configuration\`: it reads the file the way Geordi does, and reports the effective settings. A parse error in the fallback file is treated as no applicable file.`
 	].join('\n\n');
 
-const INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator. These tools let you delegate work to other coding agents and supervise them. Start an agent with start_agent (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. An agent with its own worktree works on its own branch, branched from yours: it only sees what you have committed, and you get its work by merging its branch. An agent sharing your worktree sees and edits the same files as you. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them. You can also look at any workspace in this Geordi installation, in any repository, with list_workspaces, read_workspace and workspace_status.`;
+type CallerKind = 'repository' | 'project' | 'external';
 
-/** The longest one `wait_for_agent` call waits: safely under what agent CLIs allow a tool call. */
+const introduction = {
+	repository:
+		'You are running in a Geordi repository workspace. Use list_workspaces to discover workspaces you can read. If an external client started you or an ancestor, you inherit its repository access.',
+	project:
+		'You are running in a Geordi project. You can supervise agents in every repository and in your own project. Use list_workspaces to find them.',
+	external:
+		'You are connected to Geordi with a grant for selected repositories. Use list_repositories to find them. Agents you start inherit this access.'
+};
+
+const reportGuide =
+	'An agent report gives the workspace id, parentId, agent kind, title, branch and sharesWorktree flag. Read status (running or idle), reply (its latest message in the current or last turn: its answer once the turn is over), and error (the latest reported error, or null). For its pull request and checks, call workspace_status.';
+
+const controlledTarget = (kind: CallerKind) =>
+	kind === 'project'
+		? 'any agent in a repository or in your project'
+		: 'an agent you started directly or through another agent';
+
 const MAX_WAIT_SECONDS = 45;
 
-const agentId = v.pipe(v.string(), v.description('The id of an agent you started'));
+const repositoryId = v.pipe(v.string(), v.description('Repository ID from list_repositories.'));
+const workspaceId = v.pipe(v.string(), v.description('Workspace ID from list_workspaces.'));
+const startFields = {
+	prompt: v.pipe(
+		v.string(),
+		v.minLength(1),
+		v.description(
+			'The task and all the context the new agent needs. It starts a separate conversation.'
+		)
+	),
+	agent: v.pipe(v.optional(v.picklist(AGENTS)), v.description('Which coding agent to run.')),
+	model: v.pipe(
+		v.optional(v.pipe(v.string(), v.regex(MODEL_SETTING, 'That is not a model'))),
+		v.description('A model ID offered for the selected agent.')
+	),
+	effort: v.pipe(
+		v.optional(v.pipe(v.string(), v.regex(SETTING, 'That is not an effort level'))),
+		v.description('An effort level offered for the selected model.')
+	),
+	title: v.pipe(
+		v.optional(v.pipe(v.string(), v.maxLength(80))),
+		v.description('A short name for the task, shown in the workspace list.')
+	)
+};
+const worktreeMode = v.optional(v.picklist(WORKTREE_MODES), 'own');
+const base = v.pipe(
+	v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(255))),
+	v.description(
+		"A branch for the new worktree to start from, such as your own to build on your committed work. Its changes are shown against this branch until it has a pull request. Omit it to start from the repository's base."
+	)
+);
+const startInput = v.strictObject({
+	...startFields,
+	repository: v.optional(repositoryId),
+	worktree: worktreeMode,
+	base,
+	workspace: v.optional(workspaceId)
+});
+
+// Advertise the useful inputs for this caller. Keep parsing older calls with the full
+// schema so the domain can still explain an invalid target or combination.
+function startCatalogInput(kind: CallerKind) {
+	if (kind === 'external')
+		return v.strictObject({
+			...startFields,
+			repository: repositoryId,
+			worktree: v.optional(v.literal('own'), 'own'),
+			base
+		});
+	return startInput;
+}
+
+const startLocation = {
+	repository:
+		'The default, worktree "own", creates a new branch from the repository’s base, or from base if you pass one (your own branch, to build on what you committed; then merge its branch to bring the work back). Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". Pass workspace instead to start a reviewer in your own worktree or in that of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode.',
+	project:
+		'Pass repository to start on a new branch from the repository base, or from base if you pass one. Pass workspace to share that workspace’s directory and branch, regardless of worktree mode. With worktree "shared" and no workspace, the agent joins your project folder. The shared forms ignore repository.',
+	external:
+		'Supply repository from list_repositories. The agent gets a new worktree and branch from the repository base, or from base if you pass one.'
+};
 
 /** Each tool: what agents are told about it, its input, and what it does for a caller. */
 const tools = {
 	start_agent: {
-		description: (harnesses: Harness[] | null) =>
+		description: (kind: CallerKind, agents: Agents) =>
 			[
-				'Start another coding agent and give it a task. Returns immediately; use wait_for_agent to get its reply.',
-				'An agent of your kind runs with your model and effort unless you ask for others; another kind runs with its defaults.',
-				offersOf(harnesses)
+				'Start a coding agent and return its agent report immediately. Use wait_for_agent for the result.',
+				startLocation[kind],
+				kind === 'external'
+					? `The agent defaults to ${agents.harnesses()?.[0]?.agent ?? AGENTS[0]} and its provider settings. You may have up to ${agents.limits.children} direct children running at once.`
+					: `The agent defaults to your kind when available and inherits your model and compatible effort. A different kind uses its provider defaults. The maximum nesting depth is ${agents.limits.depth}. You may have up to ${agents.limits.children} direct children running at once.`,
+				offersOf(agents.harnesses())
 			].join('\n\n'),
-		input: v.object({
-			prompt: v.pipe(
-				v.string(),
-				v.minLength(1),
-				v.description(
-					'The task, with all the context the agent needs. It knows nothing about your conversation.'
-				)
-			),
-			repository: v.pipe(
-				v.optional(v.string()),
-				v.description(
-					'Projects and clients outside Geordi only: the ID of the repository to start in (see list_repositories). An agent in a repository workspace starts agents in its own.'
-				)
-			),
-			worktree: v.pipe(
-				v.optional(v.picklist(WORKTREE_MODES), 'own'),
-				v.description(
-					'"own" (default): a new worktree and branch, branched from your branch, for work that should not interfere with yours. "shared": your worktree, for work that needs to see your uncommitted files, such as a review. In a project: "shared" starts the agent in the project itself, working in its folder alongside you.'
-				)
-			),
-			workspace: v.pipe(
-				v.optional(v.string()),
-				v.description(
-					'Projects only: the ID of an existing workspace in a repository to start the agent in, alongside its agent, in its worktree and on its branch.'
-				)
-			),
-			agent: v.pipe(
-				v.optional(v.picklist(AGENTS)),
-				v.description('Which agent to start. Defaults to the same kind as you.')
-			),
-			model: v.pipe(
-				v.optional(v.pipe(v.string(), v.regex(SETTING, 'That is not a model'))),
-				v.description(
-					'The model it runs, by its id (see what is on offer). Defaults to yours, for an agent of your kind.'
-				)
-			),
-			effort: v.pipe(
-				v.optional(v.pipe(v.string(), v.regex(SETTING, 'That is not an effort level'))),
-				v.description(
-					"How hard it thinks: one of its model's effort levels. Defaults to yours, for an agent of your kind."
-				)
-			),
-			title: v.pipe(
-				v.optional(v.pipe(v.string(), v.maxLength(80))),
-				v.description(
-					"A short name for the agent's work (a few words), by which the person finds it in their list. Give one: you know what you are handing over."
-				)
-			)
-		}),
+		input: startInput,
+		catalogInput: startCatalogInput,
 		run: (
 			agents: Agents,
 			caller: string,
@@ -143,6 +177,7 @@ const tools = {
 				prompt: string;
 				repository?: string;
 				worktree: 'own' | 'shared';
+				base?: string;
 				workspace?: string;
 				agent?: (typeof AGENTS)[number];
 				model?: string;
@@ -152,60 +187,84 @@ const tools = {
 		) => agents.start(caller, input, agents.harnesses())
 	},
 	name_workspace: {
-		description:
-			'Give your own workspace a short name that says what the work is about (a few words, no quotes, no full stop), by which the person finds it among their others. Call this once you know what the work is. Call it again only if the work turns out to be about something else.',
-		input: v.object({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
+		description: `Give your workspace a short name (a few words, no quotes or full stop) when you know what the work is. Rename it only if the task changes. You may name it up to ${MAX_NAMES} times. A name chosen by the person takes precedence. Returns the saved title.`,
+		input: v.strictObject({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
 		run: (agents: Agents, caller: string, input: { title: string }) =>
 			agents.name(caller, input.title)
 	},
 	wait_for_agent: {
 		description:
-			'Wait for an agent (any workspace in this Geordi installation) to finish its current turn, and return its status and reply. One call waits 45 seconds at most: if the agent is still "running" then, call this again, for as long as it takes.',
-		input: v.object({
-			agent_id: v.pipe(v.string(), v.description('A workspace ID')),
+			'Wait for a visible workspace to finish its current turn and return its agent report. For its pull request and checks, call workspace_status. If it is still running at timeout, check read_workspace.pendingQuestions for a blocking question that needs the person, then wait again as needed. An idle report can include an error.',
+		input: v.strictObject({
+			workspace_id: workspaceId,
 			timeout_seconds: v.pipe(
-				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), 45),
-				v.description('How long to wait at most. Defaults to 45, which is also the most.')
+				v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(600)), MAX_WAIT_SECONDS),
+				v.description(
+					'Seconds to wait. Zero returns immediately. The default and effective maximum are 45 seconds. Values through 600 are accepted and capped at 45.'
+				)
 			)
 		}),
-		run: (agents: Agents, caller: string, input: { agent_id: string; timeout_seconds: number }) =>
+		run: (
+			agents: Agents,
+			caller: string,
+			input: { workspace_id: string; timeout_seconds: number }
+		) =>
 			// Never longer than agent CLIs give a tool call (a minute): a wait that outlasts that
 			// comes back as a failure, and tells the caller nothing.
-			agents.wait(caller, input.agent_id, Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000)
+			agents.wait(
+				caller,
+				input.workspace_id,
+				Math.min(input.timeout_seconds, MAX_WAIT_SECONDS) * 1000
+			)
 	},
 	list_agents: {
 		description:
-			'List every agent you started (and the agents they started), with status and latest reply.',
-		input: v.object({}),
+			'List agent reports for your unarchived descendants, including agents started by your agents. Use list_workspaces with include_archived for archived workspaces.',
+		input: v.strictObject({}),
 		run: (agents: Agents, caller: string) => agents.list(caller)
 	},
 	list_repositories: {
-		description: 'List the repositories in this Geordi installation, with their IDs.',
-		input: v.object({}),
+		description: (kind: CallerKind) =>
+			kind === 'external'
+				? 'List the repositories granted to your token, with id, name and local path.'
+				: 'List the repositories you can access, with id, name and local path.',
+		input: v.strictObject({}),
 		run: (agents: Agents, caller: string) => agents.listRepositories(caller)
 	},
 	list_workspaces: {
 		description:
-			'List workspaces in this Geordi installation with their IDs, links, branches and status. Set include_archived to include history.',
-		input: v.object({ include_archived: v.optional(v.boolean(), false) }),
+			'List visible workspaces with id, repoId, title, url, branch, status, asking and inactive. A null repoId identifies a project workspace. inactive means the person put the workspace aside for later; only the person changes it. Set include_archived to include archived entries.',
+		input: v.strictObject({ include_archived: v.optional(v.boolean(), false) }),
 		run: (agents: Agents, caller: string, input: { include_archived: boolean }) =>
 			agents.listWorkspaces(caller, input.include_archived)
 	},
 	read_workspace: {
 		description:
-			'Read the latest 50 conversation messages and pending questions. A user message with from came from that agent. Pass the returned before cursor to read earlier messages.',
-		input: v.object({
-			workspace_id: v.string(),
+			'Read the conversation as turns, the latest page first (oldest turn first within a page), and all open questions in pendingQuestions. Each turn gives the message the agent was told (null where it began the turn itself; from names a workspace agent or named external client that sent it), its final reply, its error and the questions it asked. What it said on the way and its tool calls are left out. A page holds up to 50 turns and about 10k tokens; very long texts are cut. Pass the returned before to read the earlier page; it is null once the page reaches the start of the conversation.',
+		input: v.strictObject({
+			workspace_id: workspaceId,
 			before: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)))
 		}),
 		run: (agents: Agents, caller: string, input: { workspace_id: string; before?: number }) =>
 			agents.readWorkspace(caller, input.workspace_id, input.before)
 	},
 	send_message: {
-		description:
-			'Send a message to an agent you started (a project or a client outside Geordi: to any workspace). It keeps its conversation so far. An idle agent starts on it at once. An agent that is working gets it when its current turn ends, unless you set `interrupt` (only for agents you started). Returns immediately; use wait_for_agent to get its reply.',
-		input: v.object({
-			agent_id: v.pipe(
+		description: (kind: CallerKind) =>
+			[
+				`Send a follow-up to ${
+					kind === 'project'
+						? controlledTarget(kind)
+						: kind === 'external'
+							? 'another unarchived agent in a repository you can access'
+							: 'an unarchived agent you started (directly or through another agent), or to the agent that started you'
+				}. An idle agent starts a turn, processing any previously queued messages first. A running agent receives the message after its turn unless you set interrupt to steer the current turn.`,
+				kind !== 'project' ? 'You may steer only your own direct or indirect descendants.' : '',
+				'Returns the current agent report immediately. Use wait_for_agent for the reply.'
+			]
+				.filter(Boolean)
+				.join(' '),
+		input: v.strictObject({
+			workspace_id: v.pipe(
 				v.string(),
 				v.description('A workspace ID, from start_agent or list_workspaces')
 			),
@@ -220,71 +279,65 @@ const tools = {
 		run: (
 			agents: Agents,
 			caller: string,
-			input: { agent_id: string; message: string; interrupt: boolean }
+			input: { workspace_id: string; message: string; interrupt: boolean }
 		) => {
-			agents.send(caller, input.agent_id, input.message, input.interrupt);
-			return agents.reportWorkspace(caller, input.agent_id);
+			agents.send(caller, input.workspace_id, input.message, input.interrupt);
+			return agents.reportWorkspace(caller, input.workspace_id);
 		}
 	},
 	archive_agent: {
-		description:
-			'Archive an agent you started once you are done with it, e.g. after merging its branch. This removes its worktree (unless it shares yours) and takes it off the list; its branch and conversation are kept. Fails if the agent is still working, or if its worktree has uncommitted or untracked files.',
-		input: v.object({ agent_id: agentId }),
-		run: async (agents: Agents, caller: string, input: { agent_id: string }) => {
-			const agent = agents.get(caller, input.agent_id); // only agents the caller started
+		description: (kind: CallerKind) =>
+			[
+				`Archive ${controlledTarget(kind)}. Geordi also archives agents working in its directory and follows child workspaces within the same repository. Children in other repositories keep working.`,
+				kind === 'project'
+					? 'Archiving a project closes the agents in its folder and preserves the folder. Agents it started in repositories continue working.'
+					: '',
+				'If any affected workspace is locked or its agent is running, the whole request fails before archiving starts. Only the person can lock or unlock a workspace. Geordi processes children first, closes the terminals of each archived workspace, and removes it from the active list. When removing a worktree, Geordi ends agent sessions there and releases its ports. A worktree still in use stays in place. Branches and conversations are kept. MCP archiving skips the repository teardown script.',
+				'Staged changes, unstaged changes and non-ignored untracked files block removal. Git-ignored untracked files go with the directory. If removal fails partway, earlier workspaces stay archived. Resolve the problem and retry the target. On success, archived contains the target ID.'
+			]
+				.filter(Boolean)
+				.join(' '),
+		input: v.strictObject({ workspace_id: workspaceId }),
+		run: async (agents: Agents, caller: string, input: { workspace_id: string }) => {
+			const agent = agents.get(caller, input.workspace_id);
 			await agents.archive(caller, agent.id);
 			return { archived: agent.id };
 		}
 	},
 	configuration_reference: {
 		description: `How to configure this repository for Geordi, in its ${CONFIG_FILE}: the settings there are and what they do. Read this before creating or changing that file.`,
-		input: v.object({}),
+		input: v.strictObject({}),
 		run: () => configurationReference()
 	},
 	check_configuration: {
-		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what Run will select and why, and any configuration problem. Call this after changing the file.`,
-		input: v.object({}),
+		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including task defaults in the Tasks panel), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
+		input: v.strictObject({}),
 		run: async (agents: Agents, caller: string) => {
-			const {
-				default: target,
-				source,
-				file,
-				problem,
-				ports,
-				jobs,
-				urls,
-				setup,
-				teardown
-			} = await agents.configuration(caller);
-			// the file by the name it has; one in the old language is still read, and said to be
-			const name = `${file ?? CONFIG_FILE}${file && file !== CONFIG_FILE ? ` (still read, but ${CONFIG_FILE} is what to write: move its settings there)` : ''}`;
-			const commands = [...jobs, ...(setup ? [setup] : []), ...(teardown ? [teardown] : [])];
-			let runDefault: { default: string; defaultSource: string } | undefined;
-			if (target) {
-				runDefault = { default: target, defaultSource: 'configured' };
-			} else if (urls.length) {
-				runDefault = { default: `urls.${urls[0].name}`, defaultSource: 'first URL' };
-			} else if (jobs.length) {
-				runDefault = { default: `jobs.${jobs[0].name}`, defaultSource: 'first job' };
-			}
+			const { tasks, source, file, problem, ports, setup, teardown } =
+				await agents.configuration(caller);
+			const commands = [
+				...tasks.filter((task) => task.command !== null),
+				...(setup ? [setup] : []),
+				...(teardown ? [teardown] : [])
+			];
 			return {
 				applies:
 					source === 'workspace'
-						? `the ${name} in your working directory`
+						? `the ${file ?? CONFIG_FILE} in your working directory`
 						: source === 'base'
-							? `the ${name} on the branch work starts from (your working directory has none)`
+							? `the ${CONFIG_FILE} on the branch work starts from (your working directory has none)`
 							: `none: there is no ${CONFIG_FILE}`,
-				...runDefault,
-				problem,
-				ports,
-				jobs: jobs.map(({ name, label, command, needs, port }) => ({
+				tasks: tasks.map(({ name, label, command, ports, href, needs, default: selected }) => ({
 					name,
 					label,
 					command,
+					ports,
+					url: href,
 					needs,
-					port
+					default: selected
 				})),
-				urls,
+				problem,
+				spare_ports: ports,
 				setup: setup?.command ?? null,
 				teardown: teardown?.command ?? null,
 				...(commands.some((command) => !command.approved) && {
@@ -294,30 +347,32 @@ const tools = {
 		}
 	},
 	workspace_status: {
-		description:
-			"How a workspace's work stands, as the person sees it: its changes, its pull request and checks, and the next steps Geordi offers them. Any workspace in this Geordi installation (`agent_id`). A step with a `prompt` is what Geordi would tell the workspace's agent to do; one without is something the person does (merging, archiving). What the forge says may be up to a minute old.",
-		input: v.object({
-			agent_id: v.pipe(
-				v.optional(v.string()),
-				v.description(
-					'A workspace ID. Workspace agents default to their own ID. External callers must supply one.'
-				)
-			)
+		description: (kind: CallerKind) =>
+			`Read Git changes, pull request, checks and suggested next steps for a visible repository worktree. ${kind === 'repository' ? 'Omit workspace_id for your own worktree.' : 'Supply the repository workspace ID as workspace_id.'} inactive says whether the person put the workspace aside for later. Projects have no Git standing. Upstream data can be absent or come from the last successful refresh, with no age bound. A step with a prompt can be sent to the workspace agent. Other steps are available to the person.`,
+		input: v.strictObject({
+			workspace_id: v.optional(workspaceId)
 		}),
-		run: async (agents: Agents, caller: string, input: { agent_id?: string }) => {
-			const workspace = agents.workspace(caller, input.agent_id);
+		catalogInput: (kind: CallerKind) =>
+			v.strictObject({
+				workspace_id: kind === 'repository' ? v.optional(workspaceId) : workspaceId
+			}),
+		run: async (agents: Agents, caller: string, input: { workspace_id?: string }) => {
+			const workspace = agents.workspace(caller, input.workspace_id);
 			const { changes, upstream } = await agents.standing(workspace.worktreeId);
 			const state = {
 				changes,
 				upstream,
 				failed: workspace.lastTurn === 'failed',
-				child: !!workspace.parentId
+				child: !!workspace.parentId,
+				locked: workspace.locked
 			};
 			const pull = upstream?.pull;
 			return {
 				id: workspace.id,
 				title: workspace.title,
 				status: workspace.status,
+				// a person put it aside for later; only they change that
+				inactive: workspace.inactive,
 				branch: changes.branch,
 				standing: standingOf(state)?.label ?? null,
 				changes: {
@@ -354,11 +409,12 @@ const tools = {
 		}
 	},
 	stop_agent: {
-		description: 'Stop an agent you started, if it is running.',
-		input: v.object({ agent_id: agentId }),
-		run: (agents: Agents, caller: string, input: { agent_id: string }) => {
-			agents.stop(caller, input.agent_id);
-			return agents.get(caller, input.agent_id);
+		description: (kind: CallerKind) =>
+			`Request a stop of the current turn of ${controlledTarget(kind)}. An idle agent stays idle. Returns its agent report immediately, which can still say running. Use wait_for_agent to confirm the turn ended.`,
+		input: v.strictObject({ workspace_id: workspaceId }),
+		run: (agents: Agents, caller: string, input: { workspace_id: string }) => {
+			agents.stop(caller, input.workspace_id);
+			return agents.get(caller, input.workspace_id);
 		}
 	}
 };
@@ -383,24 +439,30 @@ const workspaceTools = new Set([
 ]);
 /** What is about a workspace's repository, which a project has none of (FDR-012). */
 const repositoryTools = new Set(['configuration_reference', 'check_configuration']);
-const available = (agents: Agents, caller: string, name: string) =>
-	isExternal(caller)
+const available = (kind: CallerKind, name: string) =>
+	kind === 'external'
 		? !workspaceTools.has(name)
-		: !agents.isProject(caller) || !repositoryTools.has(name);
+		: kind !== 'project' || !repositoryTools.has(name);
 
-const EXTERNAL_INSTRUCTIONS = `You are connected to Geordi, an agent orchestrator: each workspace is one conversation with a coding agent, in a worktree on its own branch. list_workspaces and read_workspace show you any of them in the repositories you were given access to; send_message follows up with an agent, and wait_for_agent waits for its reply. To start work, find a repository with list_repositories and give start_agent a task in it: you may then supervise that agent (interrupt, stop, archive), as you may not others. Questions an agent asks are for the person to answer.`;
+/**
+ * What is wrong with a tool call, by parameter name. An unknown parameter is a mistake (a
+ * misspelt `agent`, say), never something to ignore.
+ */
+function describeIssue(issue: v.BaseIssue<unknown>) {
+	const name = issue.path?.map((item) => item.key).join('.');
+	if (issue.type === 'strict_object')
+		return issue.expected === 'never' ? `Unknown parameter ${name}` : `Missing parameter ${name}`;
+	return name ? `${name}: ${issue.message}` : issue.message;
+}
 
-const PROJECT_INSTRUCTIONS = `You are running inside Geordi, an agent orchestrator, in a project: a workspace that belongs to no repository, from which you orchestrate coding agents for the person. Find a repository with list_repositories and give start_agent a task in it (it returns the agent's id), then call wait_for_agent until its status is "idle" and read its reply. Each agent you start works in a worktree and branch of its own, from the repository's main branch. You act for the person: list_workspaces, read_workspace and workspace_status show you any workspace, and you may message, interrupt, stop and archive any agent in a repository, whoever started it, and the agents in your own project. Start an agent alongside an existing workspace's agent with start_agent's workspace parameter, or alongside you with worktree "shared". Other projects are not yours to see or touch. If one of these tools cannot reach Geordi (a connection error), Geordi is restarting, which takes seconds: the agents you started keep working. Wait a little and call again; do not give up on them.`;
-
-async function callTool(agents: Agents, caller: string, params: unknown) {
+async function callTool(agents: Agents, caller: string, kind: CallerKind, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };
 	const tool = name && Object.hasOwn(tools, name) ? tools[name as keyof typeof tools] : null;
-	if (!name || !tool || !available(agents, caller, name))
-		return content(`Unknown tool: ${name}`, true);
+	if (!name || !tool || !available(kind, name)) return content(`Unknown tool: ${name}`, true);
 
 	const input = v.safeParse(tool.input, args);
 	if (!input.success)
-		return content(`Invalid input: ${input.issues.map((issue) => issue.message).join('; ')}`, true);
+		return content(`Invalid input: ${input.issues.map(describeIssue).join('; ')}`, true);
 
 	try {
 		const run = tool.run as (agents: Agents, caller: string, input: unknown) => unknown;
@@ -425,6 +487,11 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 	const { id, method, params } = message;
 	if (id === undefined) return null;
 
+	const kind: CallerKind = isExternal(caller)
+		? 'external'
+		: agents.isProject(caller)
+			? 'project'
+			: 'repository';
 	switch (method) {
 		case 'initialize': {
 			const requested = (params as { protocolVersion?: string } | undefined)?.protocolVersion;
@@ -432,11 +499,11 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				protocolVersion: requested ?? '2025-06-18',
 				capabilities: { tools: {} },
 				serverInfo: { name: 'geordi', version: '1' },
-				instructions: isExternal(caller)
-					? EXTERNAL_INSTRUCTIONS
-					: agents.isProject(caller)
-						? PROJECT_INSTRUCTIONS
-						: INSTRUCTIONS
+				instructions: [
+					introduction[kind],
+					reportGuide,
+					'Call start_agent to delegate work and wait_for_agent with the returned id to follow its turn. When an agent you started ends a turn you are not waiting for, you get a message with its reply; a long task needs no repeated waits. Questions are for the person to answer. If the forge restarts, reconnect and continue waiting. Agents keep running.'
+				].join(' ')
 			});
 		}
 		case 'ping':
@@ -444,18 +511,18 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 		case 'tools/list':
 			return result(id, {
 				tools: Object.entries(tools)
-					.filter(([name]) => available(agents, caller, name))
+					.filter(([name]) => available(kind, name))
 					.map(([name, tool]) => ({
 						name,
 						description:
 							typeof tool.description === 'function'
-								? tool.description(agents.harnesses())
+								? tool.description(kind, agents)
 								: tool.description,
-						inputSchema: toJsonSchema(tool.input)
+						inputSchema: toJsonSchema('catalogInput' in tool ? tool.catalogInput(kind) : tool.input)
 					}))
 			});
 		case 'tools/call':
-			return result(id, await callTool(agents, caller, params));
+			return result(id, await callTool(agents, caller, kind, params));
 		default:
 			return failure(id, -32601, `Method not found: ${method}`);
 	}

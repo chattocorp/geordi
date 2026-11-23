@@ -1,4 +1,4 @@
-import { actionsFor, PUBLISHING, standingOf, type ActivityId } from '@geordi/ui/actions';
+import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { withAides } from '#lib/family.ts';
 import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
@@ -40,19 +40,17 @@ export const navigation = () =>
 				const waiting = working && !harnesses && busy.every((w) => w.pendingDelivery);
 				// how its work stands, as far as is known: asked about in the background
 				const known = standings().get(workspace.worktreeId) ?? { changes: null, upstream: null };
-				const pull = known.upstream?.pull;
-				const activeAction: ActivityId | undefined =
+				const activeAction =
 					operations.get(workspace.worktreeId) ??
 					busy.find(
 						(member) =>
 							!member.asking && !(member.pendingDelivery && !harnesses) && member.activeAction
-					)?.activeAction ??
-					// the forge merges it by itself once nothing stands in its way: it is being merged
-					(pull?.state === 'open' && pull.autoMerge?.enabled ? 'auto-merge' : undefined);
+					)?.activeAction;
 				const state = {
 					...known,
 					failed: workspace.lastTurn === 'failed',
-					child: !!parentId
+					child: !!parentId,
+					locked: workspace.locked
 				};
 				return {
 					id,
@@ -65,13 +63,25 @@ export const navigation = () =>
 					...(activeAction && { activeAction }),
 					...(waiting && { waiting: true }),
 					outcome: outcome([workspace, ...aides]),
+					// what its agents left running in the background (ADR-003: live, never stored)
+					background: [workspace, ...aides].reduce(
+						(count, member) => count + hub().background(member.id).length,
+						0
+					),
 					standing: standingOf(state),
 					// what could happen next (FDR-003): offered in its context menu
 					actions: actionsFor(state).filter(
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
-					pull: pull && pull.state !== 'unknown' ? { number: pull.number, url: pull.url } : null,
+					// so that agent output that names it can link to this workspace (`workspace-links.ts`)
+					pull: known.upstream?.pull
+						? { number: known.upstream.pull.number, url: known.upstream.pull.url }
+						: null,
+					// put aside for later, until a person makes it active again or prompts it
+					...(workspace.inactive && { inactive: true }),
+					// kept from archiving until a person unlocks it (FDR-015)
+					...(workspace.locked && { locked: true }),
 					// when anything last happened in it, also in the agents working alongside
 					updatedAt: [workspace, ...aides]
 						.map((member) => member.updatedAt)
@@ -95,6 +105,7 @@ export const navigation = () =>
 				 * What each agent can be asked to run: its models and their effort levels, as the
 				 * connected daemon reports them. `null` while no daemon is connected.
 				 */
+				activeAgents: all.filter((w) => w.status === 'running').map((w) => w.agent),
 				harnesses
 			};
 		},
@@ -102,6 +113,7 @@ export const navigation = () =>
 			const stops = [
 				standings().subscribe(changed),
 				hub().subscribe(changed),
+				hub().followSession(changed),
 				hub().followOperations(changed)
 			];
 			return () => stops.forEach((stop) => stop());
@@ -136,6 +148,11 @@ export const workspace = (id: string) => {
 			if (event.type === 'workspace.restored' && workspaces().worktreeOf(event.data.id) === id)
 				return true;
 			if (event.type === 'workspace.created' && event.data.worktreeId === id) return true;
+			if (event.type === 'workspace.purged')
+				return (
+					event.data.workspaces.some((gone) => gone.id === id || transcripts.has(gone.id)) ||
+					event.data.worktrees.some((worktree) => worktree.id === owner)
+				);
 			if (!event.stream.startsWith('workspace:')) return false;
 			const source = event.data.id;
 			if (source === id || transcripts.has(source)) return true;
@@ -179,7 +196,7 @@ export const workspace = (id: string) => {
 			return {
 				...workspace,
 				background: hub().background(id),
-				suggestion: hub().suggestion(id),
+				sessionModel: hub().sessionModel(id),
 				transcript: readTranscript(id),
 				// who but the person may have written in its conversation: the agents above it
 				senders: Object.fromEntries(parents.map(({ id, title }) => [id, title])),
@@ -187,7 +204,7 @@ export const workspace = (id: string) => {
 				aides: aides.map((aide) => ({
 					...aide,
 					background: hub().background(aide.id),
-					suggestion: hub().suggestion(aide.id),
+					sessionModel: hub().sessionModel(aide.id),
 					transcript: readTranscript(aide.id),
 					title: aide.title === UNTITLED ? 'New conversation' : aide.title
 				})),
@@ -204,14 +221,14 @@ export const workspace = (id: string) => {
 			const relevant = (source: string) => {
 				if (source === id || transcripts.has(source)) changed();
 			};
-			const stopTasks = hub().followBackground(relevant);
+			const stopSession = hub().followSession(relevant);
 			const stopUsage = workspaces().followUsage(relevant);
 			notify = changed;
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();
 				transcripts.clear();
-				stopTasks();
+				stopSession();
 				stopUsage();
 				notify = undefined;
 				unwatch?.();
@@ -251,6 +268,7 @@ const archive = () => ({
 		[
 			'workspace.archived',
 			'workspace.restored',
+			'workspace.purged',
 			'workspace.titled',
 			'repo.registered',
 			'repo.removed'
@@ -258,7 +276,7 @@ const archive = () => ({
 });
 export type ArchiveEntry = ReturnType<ReturnType<typeof archive>['read']>[number];
 
-/** The usage limits of the agents' subscriptions, for the context meter's tip (`limits.ts`). */
+/** The usage limits of the agents' subscriptions, for the context meter and the model picker (`limits.ts`). */
 export const usageLimits = () =>
 	({
 		read: () => limits().read(),
@@ -272,5 +290,6 @@ export type Navigation = ReturnType<ReturnType<typeof navigation>['read']>;
 export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
 export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
 	Workspace & {
-		aides: (Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'pendingDelivery'>)[];
+		aides: (Workspace &
+			Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel' | 'pendingDelivery'>)[];
 	};

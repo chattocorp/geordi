@@ -16,7 +16,7 @@
 		asking: {
 			title: 'Review login changes',
 			concerns: ['Uncommitted changes will be discarded.', 'Running processes will be stopped.'],
-			blocked: false,
+			stopAgents: false,
 			busy: false,
 			answer
 		}
@@ -43,6 +43,23 @@
 		await userEvent.click(cancel);
 		await expect(answer).toHaveBeenCalledWith(false);
 		await userEvent.click(archive);
+		await expect(answer).toHaveBeenCalledWith(true);
+	}}
+/>
+
+<Story
+	name="Busy agents"
+	args={{
+		asking: {
+			title: 'Repository home workspaces',
+			concerns: ['Busy agents will be stopped.'],
+			stopAgents: true,
+			busy: false,
+			answer
+		}
+	}}
+	play={async ({ canvas }) => {
+		await userEvent.click(await canvas.findByRole('button', { name: 'Stop and archive' }));
 		await expect(answer).toHaveBeenCalledWith(true);
 	}}
 />

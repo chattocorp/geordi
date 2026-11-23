@@ -15,8 +15,26 @@
 		patch?: FileDiffMetadata;
 		/** Whether the diff is on screen yet: the viewer is loaded on first use, which takes a moment. */
 		ready?: boolean;
+		/** Whether long lines wrap, rather than scroll sideways. */
+		wrap?: boolean;
 	};
-	let { path, old = null, new: current = null, patch, ready = $bindable(false) }: Props = $props();
+	let {
+		path,
+		old = null,
+		new: current = null,
+		patch,
+		ready = $bindable(false),
+		wrap = false
+	}: Props = $props();
+
+	/** The viewer on screen, so that wrapping can change without rendering the diff afresh. */
+	let view = $state.raw<import('@pierre/diffs').FileDiff>();
+	$effect(() => {
+		const overflow = wrap ? 'wrap' : 'scroll';
+		if (!view || view.options.overflow === overflow) return;
+		view.setOptions({ ...view.options, overflow });
+		view.rerender();
+	});
 
 	// The diff is rendered afresh (losing any expanded context) when these change, so they
 	// must only change when the text really does, not whenever the data is fetched again.
@@ -44,11 +62,12 @@
 		import('@pierre/diffs').then(({ FileDiff, parseDiffFromFile }) => {
 			if (disposed) return;
 
-			const view = new FileDiff({
+			const viewer = new FileDiff({
 				// the same themes as code in agent output (see markdown.ts)
 				theme: { light: 'github-light', dark: 'github-dark-dimmed' },
 				themeType: isDark() ? 'dark' : 'light',
 				diffStyle: 'unified',
+				overflow: wrap ? 'wrap' : 'scroll',
 				// the window's tab already names the file
 				disableFileHeader: true,
 				expansionLineCount: 20,
@@ -61,15 +80,17 @@
 					was === null ? null : { name, contents: was },
 					is === null ? null : { name, contents: is }
 				);
-			view.render({ fileDiff, containerWrapper: node });
+			viewer.render({ fileDiff, containerWrapper: node });
+			view = viewer;
 			ready = true;
 
-			const themed = new MutationObserver(() => view.setThemeType(isDark() ? 'dark' : 'light'));
+			const themed = new MutationObserver(() => viewer.setThemeType(isDark() ? 'dark' : 'light'));
 			themed.observe(document.documentElement, { attributeFilter: ['class'] });
 
 			dispose = () => {
 				themed.disconnect();
-				view.cleanUp();
+				if (view === viewer) view = undefined;
+				viewer.cleanUp();
 			};
 		});
 

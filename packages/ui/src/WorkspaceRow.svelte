@@ -1,17 +1,19 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import WorkspaceActivity from './WorkspaceActivity.svelte';
 	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
 	import SidebarRowLabel from './SidebarRowLabel.svelte';
 
 	import QuestionLink from './QuestionLink.svelte';
 	import StandingIcon from './StandingIcon.svelte';
+	import Spinner from './Spinner.svelte';
 	import StatusIcon from './StatusIcon.svelte';
 
 	let {
 		title,
 		href,
 		parentTitle,
-		child = false,
+		parentHref,
 		icon,
 		current = false,
 		leaving = false,
@@ -21,6 +23,9 @@
 		asking = false,
 		waiting = false,
 		working = false,
+		locked = false,
+		inactive = false,
+		background = 0,
 		progress,
 		standing = null,
 		actions = [],
@@ -31,17 +36,24 @@
 		title: string;
 		href?: string;
 		parentTitle?: string;
-		child?: boolean;
-		/** What it is, where it is not a branch: an Iconify class (a project's, say). */
-		icon?: string;
+		parentHref?: string;
+		/** What it is, where it is not a branch: an Iconify class (a project's, say), or a picture (its repository's). */
+		icon?: string | Snippet;
 		current?: boolean;
 		leaving?: boolean;
 		dragging?: boolean;
 		highlighted?: boolean;
 		unread?: boolean;
-		asking?: boolean;
+		/** Whether an agent waits for the person's answer; a path where it isn't this row's own (one folded under it). */
+		asking?: boolean | string;
 		waiting?: boolean;
 		working?: boolean;
+		/** Whether a person locked it against archiving (FDR-015): shown in the status slot while it has no other status. */
+		locked?: boolean;
+		/** Whether a person marked it inactive (put it aside for later): its title is quieter. */
+		inactive?: boolean;
+		/** How many tasks its agents left running in the background. */
+		background?: number;
 		progress?: ActivityId;
 		standing?: WorkspaceStanding | null;
 		actions?: WorkspaceAction[];
@@ -61,14 +73,12 @@
 	};
 
 	const primary = $derived(actions.find((action) => !action.aside));
-	const pillColor = $derived(primary && onaction && pillColors[primary.id]);
+	const pillColor = $derived(standing && primary && onaction && pillColors[primary.id]);
 	const visibleStanding = $derived(standing?.tone === 'accent' ? null : standing);
 
 	let submitting = $state<WorkspaceAction['id']>();
 	const activity = $derived(
-		leaving
-			? 'archive'
-			: (progress ?? submitting ?? (working && !asking && !waiting ? 'working' : undefined))
+		working && !asking && !waiting ? 'working' : leaving ? 'archive' : (progress ?? submitting)
 	);
 
 	async function activate(action: WorkspaceAction) {
@@ -91,29 +101,54 @@
 		current && 'item-active',
 		// it came to rest out of sight, and they haven't looked since
 		unread && 'font-semibold text-ink',
-		highlighted && 'bg-surface/60 text-ink'
+		highlighted && 'bg-surface/60 text-ink',
+		// put aside for later: quieter, until it is looked at
+		inactive && !current && !unread && !highlighted && 'text-muted/60'
 	]}
 >
-	<SidebarRowLabel
-		{title}
-		{href}
-		{current}
-		{onpoint}
-		icon={statusIcon}
-		hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
-		fold={leaving ? undefined : fold}
-		class="py-1"
-	/>
+	{#if parentHref}
+		{@const label = parentTitle ? `Open parent workspace: ${parentTitle}` : 'Open parent workspace'}
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes a resolved URL -->
+		<a
+			href={parentHref}
+			class="ml-1.5 grid size-5 shrink-0 place-items-center rounded-control text-muted/50 hover:text-ink focus-visible:text-ink"
+			aria-label={label}
+			title={label}
+			draggable="false"
+			onpointerenter={() => onpoint?.(true)}
+			onpointerleave={() => onpoint?.(false)}
+			onfocus={() => onpoint?.(true)}
+			onblur={() => onpoint?.(false)}
+		>
+			<span class="icon-[lucide--link] size-4"></span>
+		</a>
+	{/if}
+	<div class="relative flex min-w-0 flex-1">
+		<SidebarRowLabel
+			{title}
+			{href}
+			{current}
+			{onpoint}
+			icon={parentHref && !fold && !waiting ? undefined : statusIcon}
+			hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
+			fold={leaving ? undefined : fold}
+			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
+		/>
+	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
-		{#if asking && href}
-			<QuestionLink workspaceHref={href} />
+		{#if typeof asking === 'string' || (asking && href)}
+			<QuestionLink workspaceHref={typeof asking === 'string' ? asking : href!} />
 		{:else if asking}
 			<StatusIcon tone="accent" label="Waiting for your answer">
 				<span class="icon-[lucide--message-circle-question] size-4"></span>
 			</StatusIcon>
 		{:else if activity}
 			<WorkspaceActivity {activity} />
+		{:else if background}
+			<StatusIcon label="{background} running in the background">
+				<span aria-hidden="true" class="inline-flex"><Spinner still /></span>
+			</StatusIcon>
 		{:else if primary && pillColor}
 			<button
 				type="button"
@@ -125,20 +160,32 @@
 				<span class={[primary.icon, 'size-4 shrink-0']}></span>
 				{primary.label}
 			</button>
+		{:else if visibleStanding?.activity}
+			<WorkspaceActivity activity={visibleStanding.activity} />
 		{:else if visibleStanding}
 			<StandingIcon standing={visibleStanding} />
+		{:else if locked && !waiting}
+			<StatusIcon label="Locked: can't be archived">
+				<span class="icon-[heroicons--lock-closed-solid] size-4"></span>
+			</StatusIcon>
 		{/if}
 	</span>
 </div>
 {#snippet statusIcon()}
 	{#if waiting}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
+	{:else if typeof icon === 'function'}
+		{@render icon()}
 	{:else if icon}
-		<span class={[icon, 'size-4']}></span>
-	{:else if child}
-		<!-- started by an agent: the one above it, where that is still around -->
-		<span class="icon-[lucide--corner-down-right] size-4"></span>
+		<span class={[icon, 'size-4 text-muted/50']}></span>
+	{:else if parentHref && fold}
+		<span
+			class={[
+				fold.folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]',
+				'size-4'
+			]}
+		></span>
 	{:else}
-		<span class="icon-[lucide--git-branch] size-4"></span>
+		<span class="icon-[lucide--git-branch] size-4 text-muted/50"></span>
 	{/if}
 {/snippet}

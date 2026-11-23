@@ -1,5 +1,5 @@
 import { CHECKOUT_TIMEOUT, git, quietGit } from './git.ts';
-import { NO_WORKTREE } from '@geordi/protocol';
+import { NO_WORKTREE, type WorktreeRef } from '@geordi/protocol';
 import { randomUUID } from 'node:crypto';
 import {
 	closeSync,
@@ -11,9 +11,10 @@ import {
 	readFileSync,
 	realpathSync,
 	renameSync,
+	writeFileSync,
 	writeSync
 } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 const read = (file: string) => readFileSync(file, 'utf8').trim();
 const same = (a: string, b: string) => realpathSync(a) === realpathSync(b);
@@ -46,8 +47,10 @@ export function verifyLinks({ path, adminDir, commonDir }: Worktree) {
 	throw new Error(`The Git metadata of worktree ${path} was modified; refusing to use it`);
 }
 
-export const worktreePath = (baseDir: string, repoPath: string, worktreeId: string) =>
-	join(baseDir, basename(repoPath), worktreeId.slice(0, 8));
+export const worktreePath = (
+	baseDir: string,
+	{ repoPath, worktreeId, worktreeParent }: WorktreeRef
+) => join(baseDir, worktreeParent ?? basename(repoPath), worktreeId.slice(0, 8));
 
 // Cache the usual checkout only. A linked checkout has a .git file that can be repointed.
 const ordinaryRepos = new Set<string>();
@@ -70,15 +73,11 @@ async function commonDirOf(repoPath: string) {
  * Where a workspace's worktree lives. Everything is derived from the repository and the
  * workspace ID, never by asking git inside the worktree (its metadata is agent-writable).
  */
-export async function describe(
-	baseDir: string,
-	repoPath: string,
-	workspaceId: string
-): Promise<Worktree> {
-	const short = workspaceId.slice(0, 8);
-	const commonDir = await commonDirOf(repoPath);
+export async function describe(baseDir: string, ref: WorktreeRef): Promise<Worktree> {
+	const short = ref.worktreeId.slice(0, 8);
+	const commonDir = await commonDirOf(ref.repoPath);
 	return {
-		path: worktreePath(baseDir, repoPath, workspaceId),
+		path: worktreePath(baseDir, ref),
 		branch: `geordi/${short}`,
 		// git names the admin directory after the worktree's directory
 		adminDir: join(commonDir, 'worktrees', short),
@@ -102,15 +101,11 @@ export function branchRef(branch: string): string {
 
 /** The workspace's existing worktree. Throws if there is none yet, or it was tampered with. */
 /** Whether the workspace's worktree is there already. */
-export const hasWorktree = (baseDir: string, repoPath: string, workspaceId: string) =>
-	existsSync(worktreePath(baseDir, repoPath, workspaceId));
+export const hasWorktree = (baseDir: string, ref: WorktreeRef) =>
+	existsSync(worktreePath(baseDir, ref));
 
-export async function locateWorktree(
-	baseDir: string,
-	repoPath: string,
-	workspaceId: string
-): Promise<Worktree> {
-	const worktree = await describe(baseDir, repoPath, workspaceId);
+export async function locateWorktree(baseDir: string, ref: WorktreeRef): Promise<Worktree> {
+	const worktree = await describe(baseDir, ref);
 	if (!existsSync(worktree.path)) throw new Error(NO_WORKTREE);
 	verifyLinks(worktree);
 	return worktree;
@@ -127,6 +122,21 @@ export async function startOf(repoPath: string): Promise<string> {
 	return upstream && (await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', upstream))
 		? upstream
 		: 'HEAD';
+}
+
+/**
+ * A branch named as a base, as a full ref: the local branch, or the upstream's where that is
+ * further along (a `main` checked out long ago) or there is no local one. `null` if neither exists.
+ */
+export async function branchOn(repoPath: string, branch: string): Promise<string | null> {
+	const exists = async (ref: string) =>
+		(await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', ref)) !== null;
+	const local = branchRef(branch);
+	const remote = local.replace('refs/heads/', 'refs/remotes/origin/');
+	if (!(await exists(remote))) return (await exists(local)) ? local : null;
+	if (!(await exists(local))) return remote;
+	const behind = await quietGit(repoPath, 'merge-base', '--is-ancestor', local, remote);
+	return behind === null ? local : remote;
 }
 
 /**
@@ -174,16 +184,9 @@ export async function fetchUpstream(repoPath: string): Promise<string | null> {
  * derived from the workspace ID, so this is idempotent. A worktree that went missing is
  * brought back from its branch (`restored`).
  */
-export async function ensureWorktree(
-	baseDir: string,
-	repoPath: string,
-	workspaceId: string,
-	base?: string,
-	/** The branch it was last known to be on, if not the one named after it (see `continueOn`). */
-	branch?: string,
-	requireBranch = false
-) {
-	const described = await describe(baseDir, repoPath, workspaceId);
+export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireBranch = false) {
+	const { repoPath, base, branch } = ref;
+	const described = await describe(baseDir, ref);
 	const worktree = branch && branchRef(branch) ? { ...described, branch } : described;
 
 	const missing = !existsSync(worktree.path);
@@ -197,7 +200,7 @@ export async function ensureWorktree(
 	if (missing && requireBranch && !restored)
 		throw new Error(`The local branch ${worktree.branch} is missing.`);
 	if (missing) {
-		mkdirSync(join(baseDir, basename(repoPath)), { recursive: true });
+		mkdirSync(dirname(worktree.path), { recursive: true });
 		// git still lists a worktree whose directory is gone, and won't add it again until told
 		await git(repoPath, ['worktree', 'prune']);
 		if (restored)
@@ -205,7 +208,8 @@ export async function ensureWorktree(
 				timeout: CHECKOUT_TIMEOUT
 			});
 		else {
-			const start = base ? branchRef(base) : await startOf(repoPath);
+			const start = base ? await branchOn(repoPath, base) : await startOf(repoPath);
+			if (!start) throw new Error(`There is no branch ${base} to start from.`);
 			// `--no-track`: the new branch is its own, not a local name for the upstream's main
 			// one (which is where a plain `git push` would otherwise try to send it)
 			await git(
@@ -217,6 +221,7 @@ export async function ensureWorktree(
 	}
 	const created = missing && !restored;
 	verifyLinks(worktree);
+	ensureContext(worktree.path);
 
 	// What a commit writes outside the worktree: objects, refs and reflogs in the shared
 	// .git, plus the worktree's own admin directory (HEAD, index and their lock files, which
@@ -227,6 +232,23 @@ export async function ensureWorktree(
 
 	return { ...worktree, writableRoots, created, restored };
 }
+
+/** The agent's scratch folder in a worktree, for notes and temporary files. */
+export const CONTEXT_DIR = '.context';
+
+/**
+ * Makes the worktree's scratch folder, ignored by Git through a `.gitignore` of its own
+ * (`*` ignores the folder too), so that no shared ignore file needs touching. Left alone
+ * if it is there already, whatever it is: the agent may have made it, or removed the file.
+ */
+function ensureContext(path: string) {
+	const dir = join(path, CONTEXT_DIR);
+	if (lexists(dir)) return;
+	mkdirSync(dir);
+	writeFileSync(join(dir, '.gitignore'), '*\n', { flag: 'wx' });
+}
+
+const lexists = (path: string) => lstatSync(path, { throwIfNoEntry: false }) !== undefined;
 
 /**
  * Moves a worktree to a new branch off where work in the repository starts (`startOf`):
@@ -323,9 +345,12 @@ export const gitEnv = ({ path, adminDir, commonDir }: Worktree): NodeJS.ProcessE
  * index. `HEAD` therefore means the repository's HEAD here: use `headOf` for the worktree's.
  */
 export function gitIn(worktree: Worktree, ...args: string[]): Promise<string> {
+	const command = args[0] === '-c' ? args[2] : args[0];
 	return git(worktree.path, ['--literal-pathspecs', ...args], {
 		env: gitEnv(worktree),
-		timeout: ['merge-tree', 'read-tree'].includes(args[0]) ? CHECKOUT_TIMEOUT : undefined
+		timeout: ['checkout', 'merge-tree', 'read-tree'].includes(command)
+			? CHECKOUT_TIMEOUT
+			: undefined
 	});
 }
 

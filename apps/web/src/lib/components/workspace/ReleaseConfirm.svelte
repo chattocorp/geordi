@@ -42,14 +42,14 @@
 			<div class="flex flex-wrap justify-end gap-2">
 				<Button variant="soft" onclick={() => asking?.answer('cancel')}>Cancel</Button>
 				{#if asking.problem}
-					{#if !asking.auto}<Button onclick={() => asking?.answer('confirm')}
-							>Merge without release check</Button
-						>{/if}
+					{#if !asking.auto}<Button onclick={() => asking?.answer('confirm')}>
+							Merge without release check
+						</Button>{/if}
 					<Button variant="primary" onclick={() => asking?.answer('retry')}>Retry</Button>
 				{:else}
-					<Button variant="primary" onclick={() => asking?.answer('confirm')}
-						>{asking.auto ? 'Enable auto-merge' : 'Merge PR'}</Button
-					>
+					<Button variant="primary" onclick={() => asking?.answer('confirm')}>
+						{asking.auto ? 'Enable auto-merge' : 'Merge PR'}
+					</Button>
 				{/if}
 			</div>
 		</div>

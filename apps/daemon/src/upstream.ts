@@ -5,6 +5,7 @@ import { quietGit } from './git.ts';
 import {
 	CI_REFRESH_MS,
 	type CheckCounts,
+	type ForgeDiagnostic,
 	type PullCheck,
 	type PullEvidence,
 	type PullRequest,
@@ -12,10 +13,11 @@ import {
 } from '@geordi/protocol';
 import {
 	createForges,
+	ForgeApiError,
+	RateLimitedError,
 	github,
 	MergeMethodRequiredError,
 	type Check,
-	type Cursor,
 	type ResolvedThreadRef,
 	type ForgeProvider,
 	type Forges,
@@ -87,7 +89,7 @@ const CREDENTIALS_MS = 10 * 60_000;
 
 /**
  * The forges we can talk to: every one configured through `FORGES_*` environment variables
- * (see https://forges.link/guides/environment-variables), plus github.com, signed in as
+ * (see https://forges.link/reference/environment-variables), plus github.com, signed in as
  * the GitHub CLI is, or anonymously (public repositories only).
  */
 function forges() {
@@ -189,18 +191,16 @@ export function conflictsOf(thread: Thread): boolean | undefined {
  * What else keeps an open pull request from being merged, as GitHub says: its GraphQL
  * `mergeStateStatus`, or the REST API's `mergeable_state`. Other forges don't say.
  */
-export function blockedOf(thread: Thread): PullRequest['blocked'] {
+function mergeStateOf(thread: Thread): string | undefined {
 	if (thread.state !== 'open' || !thread.raw || typeof thread.raw !== 'object') return;
 	const raw = thread.raw as { mergeStateStatus?: unknown; mergeable_state?: unknown };
-	const state = String(raw.mergeStateStatus ?? raw.mergeable_state ?? '').toLowerCase();
-	if (state === 'behind') return 'behind';
-	if (state === 'blocked') return 'rules';
+	return String(raw.mergeStateStatus ?? raw.mergeable_state ?? '').toLowerCase();
 }
 
 /**
  * Whether the forge is still working out if an open pull request can be merged: GitHub's
  * `mergeable` (GraphQL) or `mergeable_state` (REST) is `unknown`, and so is the
- * `mergeStateStatus` that `blockedOf` reads. It says on a later ask.
+ * `mergeStateStatus` that `mergeStateOf` reads. It says on a later ask.
  */
 export function mergeUnknown(thread: Thread): boolean {
 	if (thread.state !== 'open' || !thread.raw || typeof thread.raw !== 'object') return false;
@@ -241,7 +241,12 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 	if (decision === 'REVIEW_REQUIRED') reviews.push('pending');
 	const { checks } = thread;
 	const conflicts = conflictsOf(thread);
-	const blocked = blockedOf(thread);
+	const mergeState = mergeStateOf(thread);
+	const blocked =
+		mergeState === 'blocked' ? 'rules' : mergeState === 'behind' ? 'behind' : undefined;
+	const optionalChecksRunning =
+		checks?.state === 'pending' &&
+		(mergeState === 'clean' || mergeState === 'unstable' || mergeState === 'has_hooks');
 	const raw = thread.raw as GitHubPull | null;
 	return {
 		number: thread.ref.number,
@@ -263,6 +268,7 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 			checks && (checks.total !== 0 || checks.state !== 'unknown')
 				? {
 						state: checks.state,
+						...(optionalChecksRunning && { optionalChecksRunning }),
 						total: checks.total ?? null,
 						failed: checks.failed ?? null,
 						...(counts && { counts }),
@@ -404,97 +410,73 @@ export async function unknownForge(repoPath: string): Promise<string | null> {
 	return (await forges()).parseUrl(remote) ? null : host;
 }
 
-// Provider cursors can contain request URLs. Only pass back a cursor this daemon issued.
-const threadListings = new Map<
-	string,
-	{ at: number; read: ReturnType<typeof readRepositoryThreads> }
->();
-const threadPages = new Map<string, { key: string; cursor: Cursor }>();
+/**
+ * Whether the daemon can read a repository on its upstream forge, through the same registry
+ * workspaces use. Says only what it found: never credentials, nor the forge's error text.
+ */
+export async function checkForge(repoPath: string): Promise<ForgeDiagnostic> {
+	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin').catch(() => null);
+	if (!remote) {
+		const remotes = await quietGit(repoPath, 'remote').catch(() => null);
+		return remotes !== null && !remotes.split('\n').includes('origin')
+			? { status: 'none', summary: 'No origin remote' }
+			: { status: 'problem', summary: 'Could not read the origin remote' };
+	}
+	const origin = withoutCredentials(remote);
+	const host = hostOf(remote);
+	if (!host) return { status: 'none', summary: 'Origin is not on a forge', origin };
 
-export async function repositoryThreads(
-	repoPath: string,
-	category: 'issue' | 'pull_request',
-	after?: string
-) {
-	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
-	const found = remote && (await forges()).parseUrl(remote);
-	if (!found) throw new Error('This repository needs an origin on a supported forge.');
-	const { provider, repo } = found;
-	if (!provider.can('threads.list'))
-		throw new Error('This forge cannot list issues and pull requests.');
-	const key = JSON.stringify([repoPath, remote, category]);
-	const saved = after ? threadPages.get(after) : undefined;
-	if (after && saved?.key !== key)
-		throw new Error('This page has expired. Open the first page again.');
-	const pageKey = JSON.stringify([key, after]);
-	const cached = threadListings.get(pageKey);
-	if (cached && Date.now() - cached.at < 30_000) return cached.read;
-	const read = readRepositoryThreads(provider, repo, category, key, saved?.cursor);
-	threadListings.set(pageKey, { at: Date.now(), read });
-	if (threadListings.size > 128) threadListings.delete(threadListings.keys().next().value!);
+	let found;
 	try {
-		return await read;
+		found = (await forges()).parseUrl(remote);
+	} catch {
+		return {
+			status: 'problem',
+			summary: 'Could not load the forge configuration',
+			setup: true,
+			origin
+		};
+	}
+	if (!found)
+		return { status: 'problem', summary: `No forge set up for ${host}`, setup: true, origin };
+
+	const { provider, repo } = found;
+	const known = {
+		origin,
+		forge: provider.forge,
+		access: provider.authKind === 'anonymous' ? 'anonymous' : 'credentials'
+	} as const;
+	try {
+		await provider.repos.get(repo, { signal: AbortSignal.timeout(8000) });
+		const access = known.access === 'anonymous' ? 'anonymous' : 'signed in';
+		return { status: 'ok', summary: `${host} · ${access}`, ...known };
 	} catch (error) {
-		if (threadListings.get(pageKey)?.read === read) threadListings.delete(pageKey);
-		throw error;
+		const problem = (summary: string, setup = true): ForgeDiagnostic => ({
+			status: 'problem',
+			summary,
+			setup,
+			...known
+		});
+		if (error instanceof RateLimitedError)
+			return problem(`${host} is rate limiting; try again later`, false);
+		if (!(error instanceof ForgeApiError)) return problem(`Could not reach ${host}`);
+		if (error.status === 401 || error.status === 403) return problem(`${host} denied access`);
+		if (error.status === 404) return problem(`${host} does not show this repository to the daemon`);
+		return problem(`${host} answered HTTP ${error.status}`, false);
 	}
 }
 
-async function readRepositoryThreads(
-	provider: ForgeProvider,
-	repo: Repo,
-	category: 'issue' | 'pull_request',
-	key: string,
-	cursor?: Cursor
-) {
-	const page = await provider.threads
-		.list(repo, {
-			kind: category,
-			state: 'open',
-			sort: 'updated',
-			direction: 'desc',
-			// A single batch can fill in the review decisions for ten pull requests.
-			perPage: category === 'pull_request' ? 10 : 30,
-			cursor
-		})
-		.page();
-	const threads = page.items.filter((t) => t.ref.kind === category && t.state === 'open');
-	const details =
-		category === 'pull_request' &&
-		threads.length &&
-		provider.authKind !== 'anonymous' &&
-		provider.can('threads.getMany')
-			? await provider.threads
-					.getMany(
-						threads.map((t) => t.ref),
-						{ signal: AbortSignal.timeout(3500) }
-					)
-					.catch(() => [])
-			: [];
-	const items = threads.map((listed, index) => {
-		const result = details[index];
-		const thread = result?.ok ? result.thread : listed;
-		const { number, title, draft, review } = summarise(thread);
-		const url = thread.url || provider.urlFor({ thread: thread.ref });
-		if (!url || !/^https?:\/\//i.test(url))
-			throw new Error('The forge returned an invalid thread URL.');
-		return {
-			number,
-			title,
-			draft,
-			review,
-			url,
-			author: thread.author?.login,
-			updatedAt: listed.updatedAt?.toISOString()
-		};
-	});
-	let next: string | undefined;
-	if (page.cursor) {
-		next = crypto.randomUUID();
-		threadPages.set(next, { key, cursor: page.cursor });
-		if (threadPages.size > 512) threadPages.delete(threadPages.keys().next().value!);
+/** A remote URL fit to show: without the user name and password a URL may carry. */
+export function withoutCredentials(remote: string): string {
+	if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(remote)) return remote;
+	try {
+		const url = new URL(remote);
+		url.username = '';
+		url.password = '';
+		return url.toString();
+	} catch {
+		return remote.replace(/\/\/[^/@]*@/, '//');
 	}
-	return { items, next };
 }
 
 /**

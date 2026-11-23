@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource-variable/ibm-plex-sans/wght-italic.css';
 @import '@fontsource-variable/jetbrains-mono';
 
 /*
@@ -56,16 +57,18 @@
 	--ink: #1b1c24;
 	/* long text (agent replies, messages): a little softer than ink, kinder to read at length */
 	--prose: #33353f;
-	--inline-code: #982664;
+	--inline-code: #c0186a;
 	--muted: #585a69;
 	--line: #e2e2ea;
 	--accent: #f5b021;
 	--accent-ink: #855600;
 	--accent-soft: #fdf1d6;
-	--bubble: #fcefd2;
+	--bubble: #e7e7eb;
 	--on-accent: #2a1c00;
 	--danger: #b32a25;
 	--danger-soft: #fde7e5;
+	/* getting low: something that runs out (context, usage), before it is `danger` */
+	--warning: #9a6700;
 	--ok: #0f6b50;
 	/* done and landed: a merged pull request, as forges show it */
 	--merged: #8250df;
@@ -73,8 +76,28 @@
 	--on-ok: #ffffff;
 	--claude: #8b5cf6;
 	--codex: #0ea5a4;
+	/*
+	 * Tints: what tells apart repositories that have no picture of their own (their monogram,
+	 * `RepoIcon`). A soft tile and a letter of the same hue; no gold, which is the accent's.
+	 */
+	--tint-0: #dde8fb;
+	--tint-0-ink: #24508f;
+	--tint-1: #d5efeb;
+	--tint-1-ink: #146257;
+	--tint-2: #e8e0fa;
+	--tint-2-ink: #5a3a9e;
+	--tint-3: #f9dfea;
+	--tint-3-ink: #923260;
+	--tint-4: #fbe4d6;
+	--tint-4-ink: #94461b;
+	--tint-5: #e3ecd6;
+	--tint-5-ink: #45612a;
 	--shadow: 0 1px 2px rgb(20 20 40 / 0.04), 0 4px 16px rgb(20 20 40 / 0.06);
 	--shadow-lg: 0 2px 6px rgb(20 20 40 / 0.05), 0 16px 40px rgb(20 20 40 / 0.1);
+	/* A picture raised like a card: shadows that follow its shape (`picture-raised`). */
+	--picture-lift: drop-shadow(0 0 0.5px rgb(20 20 40 / 0.25))
+		drop-shadow(0 1px 1.5px rgb(20 20 40 / 0.15));
+	--picture-gloss: linear-gradient(to bottom, rgb(255 255 255 / 0.3), transparent 60%);
 }
 
 .dark {
@@ -86,7 +109,7 @@
 	--sunken: #262833;
 	--ink: #eceef4;
 	--prose: #d4d6de;
-	--inline-code: #f0bbd2;
+	--inline-code: #ff85c0;
 	--muted: #a0a3b4;
 	--line: #3a3d4b;
 	--accent: #f7b733;
@@ -96,14 +119,30 @@
 	--on-accent: #2a1c00;
 	--danger: #ff7b72;
 	--danger-soft: #45292b;
+	--warning: #e3c35a;
 	--ok: #4fd1a5;
 	--merged: #a985f7;
 	--on-merged: #1c1330;
 	--on-ok: #0c2a20;
 	--claude: #a78bfa;
 	--codex: #2dd4bf;
+	--tint-0: #283a57;
+	--tint-0-ink: #a9c6f5;
+	--tint-1: #1f4742;
+	--tint-1-ink: #8fdccf;
+	--tint-2: #3a2f5a;
+	--tint-2-ink: #c8b6f5;
+	--tint-3: #4f2a3d;
+	--tint-3-ink: #f2aecb;
+	--tint-4: #4f3324;
+	--tint-4-ink: #f3bd9a;
+	--tint-5: #344428;
+	--tint-5-ink: #bcd79c;
 	--shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 16px rgb(0 0 0 / 0.18);
 	--shadow-lg: 0 2px 6px rgb(0 0 0 / 0.2), 0 16px 40px rgb(0 0 0 / 0.3);
+	--picture-lift: drop-shadow(0 -0.5px 0 rgb(255 255 255 / 0.2))
+		drop-shadow(0 0 0.5px rgb(255 255 255 / 0.12)) drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.6));
+	--picture-gloss: linear-gradient(to bottom, rgb(255 255 255 / 0.16), transparent 55%);
 }
 
 @theme inline {
@@ -156,6 +195,7 @@
 	--color-on-accent: var(--on-accent);
 	--color-danger: var(--danger);
 	--color-danger-soft: var(--danger-soft);
+	--color-warning: var(--warning);
 	--color-ok: var(--ok);
 	--color-merged: var(--merged);
 	--color-on-merged: var(--on-merged);
@@ -238,6 +278,11 @@
 	}
 }
 
+/* Icon buttons side by side (a toolbar, a bar's actions): always a pixel apart, so that two pressed ones still read as two. */
+@utility tools {
+	@apply flex shrink-0 items-center gap-px;
+}
+
 /*
  * The bar at the top of a pane: tabs, or a title. As high as leaves its tabs as far from
  * the top of a sheet as from its side, so that their corners follow the sheet's.
@@ -252,6 +297,56 @@
  */
 @utility scroller {
 	@apply relative min-h-0 flex-1 overflow-auto;
+}
+
+/* Fade the list into its sheet where rows continue beyond the visible edge. */
+@utility scroll-fade {
+	--fade-top: 0px;
+	--fade-bottom: 0px;
+	mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black var(--fade-top),
+		black calc(100% - var(--fade-bottom)),
+		transparent
+	);
+
+	&.more-above {
+		--fade-top: calc(var(--spacing) * 6);
+	}
+	&.more-below {
+		--fade-bottom: calc(var(--spacing) * 6);
+	}
+}
+
+/* A row that scrolls without showing a scroll bar, not even while it scrolls. */
+@utility scrollbar-none {
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+/* The same across: a row of tabs that continues beyond its left or right edge. */
+@utility scroll-fade-x {
+	@apply scrollbar-none;
+	--fade-left: 0px;
+	--fade-right: 0px;
+	mask-image: linear-gradient(
+		to right,
+		transparent,
+		black var(--fade-left),
+		black calc(100% - var(--fade-right)),
+		transparent
+	);
+
+	&.more-left {
+		--fade-left: calc(var(--spacing) * 6);
+	}
+	&.more-right {
+		--fade-right: calc(var(--spacing) * 6);
+	}
 }
 
 /* A page's column of content, and its title. */
@@ -377,6 +472,26 @@
 	@apply bg-merged/15 text-merged;
 }
 
+/*
+ * A picture someone else drew (a repository's icon), raised like a card: a light top edge
+ * and a shadow beneath that follow its own shape, and `picture-gloss` over it (masked to that
+ * shape, given as `--picture`) for a glassy sheen. `picture-plate` puts a mostly dark mark with no background of
+ * its own on a pale one in dark mode, where it can be seen.
+ */
+@utility picture-raised {
+	filter: var(--picture-lift);
+}
+@utility picture-gloss {
+	background: var(--picture-gloss);
+	/* `--picture`: the picture's `url()` */
+	mask: var(--picture) center / contain no-repeat;
+}
+@utility picture-plate {
+	@variant dark {
+		@apply bg-muted p-px;
+	}
+}
+
 /* A status dot. Add `dot-live` while the thing it stands for is working. */
 @utility dot {
 	@apply size-1.5 shrink-0 rounded-full bg-line;
@@ -487,14 +602,15 @@
 		@apply decoration-accent underline-offset-2;
 	}
 
-	/* A file the workspace has changed, named in code (see markdown.ts): opens its diff. */
+	/* A file named in code (see markdown.ts): opens its diff or source; a directory opens in the file manager. */
 	[data-file],
-	[data-source] {
+	[data-source],
+	button[data-folder] {
 		@apply file-link;
 	}
 
 	/* A picture the agent shows (see markdown.ts): no taller than leaves the words around it in view. */
-	[data-picture],
+	img[data-picture],
 	[data-svg] {
 		@apply max-h-96 rounded-control ring-1 ring-line/60;
 	}
@@ -616,6 +732,30 @@
 		@media (prefers-reduced-motion: reduce) {
 			display: none;
 		}
+	}
+}
+
+/*
+ * The same light for something still running as part of a ring (`Ring`): it goes round,
+ * clockwise. A transform on an HTML layer, so that the GPU turns it and nothing is
+ * painted again; whoever uses it masks it to the part that runs.
+ */
+@utility ring-running {
+	@apply absolute inset-0 rounded-full;
+	background: conic-gradient(
+		transparent 0 60%,
+		/* the accent, lit, as bar-running has it */ color-mix(in srgb, var(--accent), white 60%) 85%,
+		transparent
+	);
+	animation: ring-turn 1.6s linear infinite;
+
+	@media (prefers-reduced-motion: reduce) {
+		display: none;
+	}
+}
+@keyframes ring-turn {
+	to {
+		transform: rotate(360deg);
 	}
 }
 

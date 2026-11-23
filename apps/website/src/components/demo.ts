@@ -1,6 +1,6 @@
 import type { ToolEntry } from '@geordi/ui/tools';
 import type { WorkspaceStanding } from '@geordi/ui/actions';
-import type { Changes } from '@geordi/protocol';
+import type { Changes, Task } from '@geordi/protocol';
 
 export const message =
 	'After signing in, people land on the home page instead of the page they came for. Send them back there.';
@@ -122,6 +122,30 @@ export const files = sampleFiles.map(({ step, path, status, lines }) => {
 		removed: lines.filter(([sign]) => sign === '-').length
 	};
 });
+
+/** What the workspace's `.geordi.yml` says it runs, for the Tasks tab. */
+export const tasks: Task[] = [
+	{
+		name: 'db',
+		label: 'Database',
+		command: 'docker compose up db',
+		approved: true,
+		ports: [{ name: 'postgres', port: 20101 }],
+		href: null,
+		needs: [],
+		default: false
+	},
+	{
+		name: 'web',
+		label: 'Dev server',
+		command: 'pnpm dev --port $PORT',
+		approved: true,
+		ports: [{ name: 'http', port: 20102 }],
+		href: 'http://localhost:20102/',
+		needs: ['db'],
+		default: true
+	}
+];
 
 export const hold = [400, 1000, 900, 1200, 1300, 1000, 1700, 3600, 3200, 3600, 9000];
 export const last = hold.length - 1;

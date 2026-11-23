@@ -55,8 +55,17 @@ function setup() {
 
 	const config: { current: RepoConfig } = {
 		current: {
-			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000, approved: true }],
-			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }],
+			tasks: [
+				{
+					name: 'web',
+					command: 'pnpm dev',
+					approved: true,
+					ports: [{ name: 'http', port: 20000 }],
+					href: 'http://localhost:20000/',
+					needs: [],
+					default: true
+				}
+			],
 			setup: { command: 'pnpm install', approved: true },
 			teardown: null,
 			ports: { first: 20000, count: 10 },
@@ -178,6 +187,15 @@ describe('choosing what an agent runs', () => {
 		expect(await describe()).toMatch(/no daemon is connected/);
 	});
 
+	it('can start with only Codex installed and reports a missing provider before starting', async () => {
+		const { settingsOf, offered } = begun();
+		offered.current = offered.current!.filter((offer) => offer.agent === 'codex');
+		expect(await settingsOf({})).toEqual({});
+		expect(await settingsOf({ agent: 'claude' })).toBe('Provider claude is unavailable');
+		offered.current = [];
+		expect(await settingsOf({})).toBe('No providers are available');
+	});
+
 	it('runs an agent of the same kind as its parent, but for what was asked', async () => {
 		const { settingsOf } = begun();
 		expect(await settingsOf({})).toEqual({ model: 'opus', effort: 'high' });
@@ -220,60 +238,42 @@ describe('configuring the repository', () => {
 		expect(reference).toContain('check_configuration');
 	});
 
-	it('reports the first URL, then the first job, when Run has no configured default', async () => {
-		const { call, config } = setup();
-		expect(await call('check_configuration')).toMatchObject({
-			default: 'urls.app',
-			defaultSource: 'first URL'
-		});
-		config.current.urls = [];
-		expect(await call('check_configuration')).toMatchObject({
-			default: 'jobs.run',
-			defaultSource: 'first job'
-		});
-		config.current.jobs = [];
-		expect(await call('check_configuration')).not.toHaveProperty('default');
-	});
-
 	it('says which file applies, what it sets, and what is wrong with it', async () => {
 		const { call, config } = setup();
-		config.current.default = 'urls.app';
 		expect(await call('check_configuration')).toEqual({
-			default: 'urls.app',
-			defaultSource: 'configured',
 			applies: 'the .geordi.yml in your working directory',
 			problem: null,
-			ports: { first: 20000, count: 10 },
-			jobs: [{ name: 'run', command: 'pnpm dev', needs: [], port: 20000 }],
-			urls: [{ name: 'app', href: 'http://localhost:20000/', needs: ['run'] }],
+			spare_ports: { first: 20000, count: 10 },
+			tasks: [
+				{
+					name: 'web',
+					command: 'pnpm dev',
+					ports: [{ name: 'http', port: 20000 }],
+					url: 'http://localhost:20000/',
+					needs: [],
+					default: true
+				}
+			],
 			setup: 'pnpm install',
 			teardown: null
 		});
 
 		// a command nobody has agreed to yet: the agent is told that it can't do that itself
-		config.current.jobs[0].approved = false;
+		config.current.tasks[0].approved = false;
 		expect((await call('check_configuration')).note).toMatch(/cannot agree/);
 
-		const none = {
-			jobs: [],
-			urls: [],
-			setup: null,
-			teardown: null,
-			ports: { first: 20000, count: 10 }
-		};
-		// one still written in TOML is read, and the agent told to move on
+		const none = { tasks: [], setup: null, teardown: null, ports: { first: 20000, count: 10 } };
+		// one by the old name says so
 		config.current = {
 			...none,
-			problem: '.geordi.toml: invalid value',
+			problem: '.geordi.toml is no longer read: write its settings as YAML in .geordi.yml',
 			source: 'workspace',
 			file: '.geordi.toml'
 		};
 		expect(await call('check_configuration')).toMatchObject({
-			applies: expect.stringMatching(
-				/^the \.geordi\.toml \(still read, but \.geordi\.yml is what to write/
-			),
-			problem: '.geordi.toml: invalid value',
-			jobs: []
+			applies: 'the .geordi.toml in your working directory',
+			problem: expect.stringMatching(/no longer read/),
+			tasks: []
 		});
 
 		config.current = { ...none, problem: null, source: null, file: null };
@@ -312,8 +312,51 @@ describe('the agent API as an MCP server', () => {
 		expect(tools[0].inputSchema).toMatchObject({
 			type: 'object',
 			required: ['prompt'],
-			properties: { worktree: { enum: ['own', 'shared'] }, agent: { enum: ['claude', 'codex'] } }
+			properties: {
+				worktree: { enum: ['own', 'shared'] },
+				agent: { enum: ['claude', 'codex', 'opencode'] }
+			}
 		});
+	});
+
+	it('advertises the start locations and supervision scope available to each caller', async () => {
+		const { caller, rpcAs, workspaces } = setup();
+		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Coordinate' });
+		const token = workspaces.access.issue('Client', [workspaces.get(caller).repoId!]);
+		const external = workspaces.agents.authenticate(token)!;
+		const catalog = async (actor: string) => {
+			const { tools } = (await rpcAs(actor)('tools/list')).result as {
+				tools: {
+					name: string;
+					description: string;
+					inputSchema: { required?: string[]; properties: Record<string, unknown> };
+				}[];
+			};
+			return Object.fromEntries(tools.map((tool) => [tool.name, tool]));
+		};
+		const repoTools = await catalog(caller);
+		const projectTools = await catalog(project);
+		const clientTools = await catalog(external);
+		expect(repoTools.start_agent.inputSchema.properties).toHaveProperty('repository');
+		expect(repoTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
+		expect(projectTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
+		expect(projectTools.start_agent.description).toContain('regardless of worktree mode');
+		expect(clientTools.start_agent.inputSchema.required).toContain('repository');
+		expect(clientTools.start_agent.inputSchema.properties.worktree).toMatchObject({ const: 'own' });
+		expect(clientTools.start_agent.inputSchema.properties).not.toHaveProperty('workspace');
+		expect(clientTools.send_message.description).toContain(
+			'only your own direct or indirect descendants'
+		);
+		expect(repoTools.send_message.description).toContain('or to the agent that started you');
+		for (const name of ['send_message', 'stop_agent', 'archive_agent'])
+			expect(projectTools[name].description).toContain(
+				'any agent in a repository or in your project'
+			);
+		expect(repoTools.archive_agent.description).toContain('earlier workspaces stay archived');
+		expect(projectTools.archive_agent.description).toContain('preserves the folder');
+		expect(clientTools.workspace_status.inputSchema.required).toContain('workspace_id');
+		expect(projectTools.workspace_status.inputSchema.required).toContain('workspace_id');
+		expect(repoTools.workspace_status.inputSchema.required ?? []).not.toContain('workspace_id');
 	});
 
 	it('ignores notifications and rejects unknown methods', async () => {
@@ -331,7 +374,7 @@ describe('the agent API as an MCP server', () => {
 
 		workspaces.record(child.id, { kind: 'text', text: 'LGTM' });
 		workspaces.record(child.id, { kind: 'turn.completed' });
-		expect(await call('wait_for_agent', { agent_id: child.id })).toMatchObject({
+		expect(await call('wait_for_agent', { workspace_id: child.id })).toMatchObject({
 			status: 'idle',
 			reply: 'LGTM'
 		});
@@ -344,26 +387,35 @@ describe('the agent API as an MCP server', () => {
 		const child = await call('start_agent', { prompt: 'Build', worktree: 'own' });
 
 		// still working
-		expect((await call('archive_agent', { agent_id: child.id })).error).toMatch(/Stop the agent/);
+		expect((await call('archive_agent', { workspace_id: child.id })).error).toMatch(
+			/Stop the agent/
+		);
 		workspaces.record(child.id, { kind: 'turn.completed' });
-		expect(await call('archive_agent', { agent_id: child.id })).toEqual({ archived: child.id });
+		expect(await call('archive_agent', { workspace_id: child.id })).toEqual({ archived: child.id });
 		expect(archived).toEqual([child.id]);
 		expect(await call('list_agents')).toEqual([]);
 
 		// not its own, and not itself
-		expect((await call('archive_agent', { agent_id: caller })).error).toMatch(/not started/);
+		expect((await call('archive_agent', { workspace_id: caller })).error).toMatch(/not started/);
 	});
 
 	it('reports problems as tool errors the agent can read', async () => {
 		const { call } = setup();
-		// the default is a worktree of its own, which needs the caller's to exist
-		expect(await call('start_agent', { prompt: 'Build' })).toEqual({
-			error: 'Your workspace has no worktree yet'
+		// a shared worktree has its own base already
+		expect(
+			await call('start_agent', { prompt: 'Build', worktree: 'shared', base: 'main' })
+		).toEqual({ error: 'A base is for a new worktree; a shared one keeps its own' });
+		expect((await call('start_agent', {})).error).toBe('Invalid input: Missing parameter prompt');
+		expect((await call('read_workspace', { workspace_id: 7 })).error).toMatch(
+			/^Invalid input: workspace_id: Invalid type/
+		);
+		// a misspelt parameter is refused, not quietly dropped
+		expect(await call('start_agent', { prompt: 'Build', kind: 'codex' })).toEqual({
+			error: 'Invalid input: Unknown parameter kind'
 		});
-		expect((await call('start_agent', {})).error).toMatch(/Invalid input/);
-		expect((await call('wait_for_agent', { agent_id: 'nope' })).error).toMatch(/not found/);
-		expect((await call('send_message', { agent_id: 'nope', message: 'Hi' })).error).toMatch(
-			/not started/
+		expect((await call('wait_for_agent', { workspace_id: 'nope' })).error).toMatch(/not found/);
+		expect((await call('send_message', { workspace_id: 'nope', message: 'Hi' })).error).toMatch(
+			/not found/
 		);
 		expect((await call('launch_missiles')).error).toMatch(/Unknown tool/);
 	});
@@ -429,13 +481,24 @@ describe('workspace status', () => {
 		expect((await call('workspace_status')).next[0]).not.toHaveProperty('prompt');
 	});
 
+	it('says whether the person put a workspace aside, there and in the list', async () => {
+		const { workspaces, caller, call, standings } = setup();
+		standings.set(caller, { changes: changes({}), upstream: null });
+		expect(await call('workspace_status')).toMatchObject({ inactive: false });
+		workspaces.setInactive(caller, true);
+		expect(await call('workspace_status')).toMatchObject({ inactive: true });
+		expect(await call('list_workspaces')).toContainEqual(
+			expect.objectContaining({ id: caller, inactive: true })
+		);
+	});
+
 	it('reports standings across the repository', async () => {
 		const { workspaces, caller, call, standings } = setup();
 		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
 		const child = await call('start_agent', { prompt: 'Review', worktree: 'shared' });
 		// it works in the caller's worktree: how that stands is how it stands
 		standings.set(caller, { changes: changes({ uncommitted: 2 }), upstream: null });
-		expect(await call('workspace_status', { agent_id: child.id })).toMatchObject({
+		expect(await call('workspace_status', { workspace_id: child.id })).toMatchObject({
 			id: child.id,
 			standing: 'Uncommitted changes',
 			upstream: null,
@@ -449,7 +512,9 @@ describe('workspace status', () => {
 			prompt: 'Unrelated'
 		});
 		standings.set(stranger, { changes: changes({ uncommitted: 1 }), upstream: null });
-		expect(await call('workspace_status', { agent_id: stranger })).toMatchObject({ id: stranger });
+		expect(await call('workspace_status', { workspace_id: stranger })).toMatchObject({
+			id: stranger
+		});
 	});
 
 	it('says so when no daemon can tell', async () => {
@@ -459,50 +524,120 @@ describe('workspace status', () => {
 });
 
 describe('installation-wide workspace access', () => {
-	it('lets workspace agents read and wait on any workspace, but message only their own', async () => {
+	it('lets agents read and wait on peers across repositories, but not message them', async () => {
 		const { repos, workspaces, caller, call } = setup();
 		const repoId = repos.register(gitRepository()).id;
 		const peer = workspaces.create({ repoId, agent: 'codex', prompt: 'Review the change' });
 		expect(await call('list_workspaces')).toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: peer, repoId })])
 		);
-		expect((await call('read_workspace', { workspace_id: peer })).messages.at(-1)).toMatchObject({
-			kind: 'user',
-			text: 'Review the change'
+		expect((await call('read_workspace', { workspace_id: peer })).turns.at(-1)).toMatchObject({
+			message: 'Review the change',
+			reply: ''
 		});
 		workspaces.record(peer, { kind: 'turn.completed' });
-		expect(await call('wait_for_agent', { agent_id: peer })).toMatchObject({ status: 'idle' });
+		expect(await call('wait_for_agent', { workspace_id: peer })).toMatchObject({ status: 'idle' });
 
-		for (const id of [peer, caller])
-			expect((await call('send_message', { agent_id: id, message: 'Hi' })).error).toMatch(
-				/not started/
-			);
-		expect((await call('stop_agent', { agent_id: peer })).error).toBeTruthy();
-		expect((await call('archive_agent', { agent_id: peer })).error).toBeTruthy();
-		expect((await call('start_agent', { prompt: 'Elsewhere', repository: repoId })).error).toMatch(
-			/own repository/
+		expect(
+			(await call('send_message', { workspace_id: peer, message: 'Which version?' })).error
+		).toMatch(/only the agents you started/);
+		expect(workspaces.get(peer).status).toBe('idle');
+		expect((await call('send_message', { workspace_id: caller, message: 'Me' })).error).toMatch(
+			/only the agents you started/
 		);
+		expect((await call('start_agent', { workspace: peer, prompt: 'Review' })).error).toMatch(
+			/not started/
+		);
+		expect((await call('stop_agent', { workspace_id: peer })).error).toBeTruthy();
+		expect((await call('archive_agent', { workspace_id: peer })).error).toBeTruthy();
+	});
+
+	it('lets agents message along their own line: descendants down, their parent up', async () => {
+		const { workspaces, caller, call, callAs } = setup();
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const child = await call('start_agent', { prompt: 'Split the work', worktree: 'shared' });
+		const grandchild = await callAs(child.id)('start_agent', {
+			prompt: 'Do a part',
+			workspace: child.id
+		});
+		const sibling = await call('start_agent', { prompt: 'Other work', worktree: 'shared' });
+		for (const { id } of [child, grandchild, sibling])
+			workspaces.record(id, { kind: 'turn.completed' });
+
+		expect(
+			await call('send_message', { workspace_id: grandchild.id, message: 'Also the docs' })
+		).toMatchObject({ status: 'running' });
+		expect(workspaces.get(grandchild.id).transcript.at(-1)).toMatchObject({
+			from: caller,
+			text: 'Also the docs'
+		});
+
+		const fromChild = callAs(child.id);
+		expect(
+			(await fromChild('send_message', { workspace_id: sibling.id, message: 'Hi' })).error
+		).toMatch(/only the agents you started/);
+		expect(
+			(await fromChild('send_message', { workspace_id: caller, message: 'Now', interrupt: true }))
+				.error
+		).toMatch(/only interrupt/);
+		await fromChild('send_message', { workspace_id: caller, message: 'Which approach?' });
+		expect(workspaces.get(caller).queue.at(-1)).toBe('Which approach?');
+
+		const fromGrandchild = callAs(grandchild.id);
+		expect(
+			(await fromGrandchild('send_message', { workspace_id: caller, message: 'Hi' })).error
+		).toMatch(/only the agents you started/);
+	});
+
+	it('starts a child from the target repository base in its own worktree', async () => {
+		const { store, repos, workspaces, caller, call } = setup();
+		const repo = repos.register(gitRepository());
+		const task = { prompt: 'Update the client', repository: repo.id };
+		expect((await call('start_agent', { ...task, worktree: 'shared' })).error).toMatch(/shared/);
+		const child = await call('start_agent', task);
+		expect(workspaces.get(child.id)).toMatchObject({
+			parentId: caller,
+			repoId: repo.id,
+			worktreeId: child.id,
+			base: null
+		});
+		const reviewer = await call('start_agent', {
+			workspace: child.id,
+			prompt: 'Review the client changes'
+		});
+		expect(reviewer).toMatchObject({ parentId: caller, sharesWorktree: true });
+		const replay = createWorkspaces(store, repos, () => true);
+		expect(replay.ref(reviewer.id)).toEqual(replay.ref(child.id));
+		expect(replay.ref(child.id)).toEqual({
+			repoPath: repo.path,
+			worktreeParent: repo.id,
+			worktreeId: child.id
+		});
+		expect(replay.agents.get(caller, child.id)).toMatchObject({ parentId: caller });
 	});
 
 	it('reads archived pages without restarting the agent', async () => {
 		const { workspaces, caller, call } = setup();
-		const peer = workspaces.create({
-			repoId: workspaces.get(caller).repoId,
-			agent: 'claude',
-			prompt: 'First'
-		});
-		for (let i = 0; i < 51; i++) workspaces.record(peer, { kind: 'text', text: String(i) });
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const { id: peer } = await call('start_agent', { prompt: 'First', worktree: 'shared' });
 		workspaces.record(peer, { kind: 'turn.completed' });
+		for (let i = 0; i < 50; i++) {
+			workspaces.agents.send(caller, peer, `Again ${i}`, false);
+			workspaces.record(peer, { kind: 'text', text: 'Thinking' });
+			workspaces.record(peer, { kind: 'text', text: `Done ${i}` });
+			workspaces.record(peer, { kind: 'turn.completed' });
+		}
 		workspaces.archive(peer);
 		expect((await call('list_workspaces')).map((w: { id: string }) => w.id)).not.toContain(peer);
 		expect(await call('list_workspaces', { include_archived: true })).toContainEqual(
 			expect.objectContaining({ id: peer, archivedAt: expect.any(String) })
 		);
 		const latest = await call('read_workspace', { workspace_id: peer });
-		expect(latest.messages).toHaveLength(50);
+		expect(latest.turns).toHaveLength(50);
+		expect(latest.turns.at(-1)).toMatchObject({ message: 'Again 49', reply: 'Done 49' });
 		expect(
-			(await call('read_workspace', { workspace_id: peer, before: latest.before })).messages[0]
-		).toMatchObject({ kind: 'user', text: 'First' });
+			(await call('read_workspace', { workspace_id: peer, before: latest.before })).turns
+		).toMatchObject([{ message: 'First', reply: '' }]);
 	});
 
 	it('uses one external token across the repositories it was granted, retains it on replay, and honors revocation', async () => {
@@ -539,22 +674,22 @@ describe('installation-wide workspace access', () => {
 		expect(repoIds).not.toEqual(expect.arrayContaining([later]));
 		for (const [tool, input] of [
 			['read_workspace', { workspace_id: hidden }],
-			['workspace_status', { agent_id: hidden }],
-			['wait_for_agent', { agent_id: hidden, timeout_seconds: 0 }],
-			['send_message', { agent_id: hidden, message: 'Hi' }],
+			['workspace_status', { workspace_id: hidden }],
+			['wait_for_agent', { workspace_id: hidden, timeout_seconds: 0 }],
+			['send_message', { workspace_id: hidden, message: 'Hi' }],
 			['start_agent', { prompt: 'Fix it', repository: later }]
 		] as const)
 			expect((await call(tool, input)).error).toMatch(/not found|access to/);
 		expect(workspaces.get(hidden).queue).toEqual([]);
 
 		expect((await call('workspace_status')).error).toMatch(/Say which workspace/);
-		expect((await call('stop_agent', { agent_id: other })).error).toBeTruthy();
+		expect((await call('stop_agent', { workspace_id: other })).error).toBeTruthy();
 
 		// a person's agent at work is not turned around; the message waits for its turn to end
 		expect(
-			(await call('send_message', { agent_id: other, message: 'Now', interrupt: true })).error
+			(await call('send_message', { workspace_id: other, message: 'Now', interrupt: true })).error
 		).toMatch(/only interrupt agents you started/);
-		await call('send_message', { agent_id: other, message: 'Check the build' });
+		await call('send_message', { workspace_id: other, message: 'Check the build' });
 		expect(workspaces.get(other).queue).toEqual(['Check the build']);
 		workspaces.record(other, { kind: 'turn.completed' });
 
@@ -601,11 +736,17 @@ describe('installation-wide workspace access', () => {
 			started.id
 		]);
 
-		await call('send_message', { agent_id: started.id, message: 'Also the docs', interrupt: true });
+		await call('send_message', {
+			workspace_id: started.id,
+			message: 'Also the docs',
+			interrupt: true
+		});
 		expect(workspaces.get(started.id).transcript.at(-1)).toMatchObject({ text: 'Also the docs' });
-		await call('stop_agent', { agent_id: started.id });
+		await call('stop_agent', { workspace_id: started.id });
 		workspaces.record(started.id, { kind: 'turn.failed', error: 'Stopped' });
-		expect(await call('archive_agent', { agent_id: started.id })).toEqual({ archived: started.id });
+		expect(await call('archive_agent', { workspace_id: started.id })).toEqual({
+			archived: started.id
+		});
 		expect(archived).toEqual([started.id]);
 	});
 });
@@ -649,6 +790,13 @@ it('keeps the agents an external client started to its repositories', async () =
 	const actor = agents.authenticate(workspaces.access.issue('Desktop', [repoId]))!;
 	const started = await callAs(actor)('start_agent', { prompt: 'Look around', repository: repoId });
 	const child = callAs(started.id);
+	expect(
+		(await child('start_agent', { prompt: 'Build', repository: workspaces.get(caller).repoId }))
+			.error
+	).toMatch(/access to/);
+	expect((await child('send_message', { workspace_id: caller, message: 'Hi' })).error).toMatch(
+		/not found/
+	);
 	expect(JSON.stringify(await child('list_workspaces'))).not.toContain(caller);
 	expect((await child('read_workspace', { workspace_id: caller })).error).toMatch(/not found/);
 	expect(await child('read_workspace', { workspace_id: started.id })).not.toHaveProperty('error');

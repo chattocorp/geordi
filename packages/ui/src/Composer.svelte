@@ -87,6 +87,8 @@
 	let typed = $state('');
 	let caret = $state(-1);
 	let writing = $state(false);
+	// A remote form can reattach its text field while the submission is pending.
+	let submitted = $state(false);
 	const focus: Attachment<HTMLTextAreaElement> = (node) => {
 		text = node;
 		if (focused) node.focus();
@@ -97,7 +99,6 @@
 			writing = document.activeElement === node;
 		};
 		const away = () => (writing = false);
-		let submitted = $state(false);
 		const clearTyped = () => (typed = '');
 		const sent = () => {
 			clearTyped();
@@ -322,8 +323,9 @@
 
 {#snippet highlighted(parts: NonNullable<Completion['file']>['name'])}
 	{#each parts as part, index (index)}
-		{#if part.hit}<mark class="bg-transparent font-semibold text-accent-ink">{part.text}</mark
-			>{:else}{part.text}{/if}
+		{#if part.hit}<mark class="bg-transparent font-semibold text-accent-ink">
+				{part.text}
+			</mark>{:else}{part.text}{/if}
 	{/each}
 {/snippet}
 
@@ -379,13 +381,13 @@
 							]}
 						></span>
 						<span class="flex min-w-0 flex-1 items-baseline gap-2">
-							<span class="max-w-full shrink-0 truncate code font-medium text-ink"
-								>{@render highlighted(completion.file.name)}</span
-							>
+							<span class="max-w-full shrink-0 truncate code font-medium text-ink">
+								{@render highlighted(completion.file.name)}
+							</span>
 							{#if completion.file.directory.length}
-								<span class="min-w-0 truncate text-left code-dense text-muted" dir="rtl"
-									><bdi>{@render highlighted(completion.file.directory)}</bdi></span
-								>
+								<span class="min-w-0 truncate text-left code-dense text-muted" dir="rtl">
+									<bdi>{@render highlighted(completion.file.directory)}</bdi>
+								</span>
 							{/if}
 						</span>
 						{#if index === active}
@@ -395,13 +397,13 @@
 							></span>
 						{/if}
 					{:else}
-						<span title={completion.text} class="min-w-0 truncate code text-ink"
-							>{completion.text}</span
-						>
+						<span title={completion.text} class="min-w-0 truncate code text-ink">
+							{completion.text}
+						</span>
 						{#if completion.hint}
-							<span class="max-w-1/3 shrink-0 truncate code-dense text-muted"
-								>{completion.hint}</span
-							>
+							<span class="max-w-1/3 shrink-0 truncate code-dense text-muted">
+								{completion.hint}
+							</span>
 						{/if}
 						{#if completion.description}
 							<span class="min-w-0 truncate">{completion.description}</span>
@@ -433,19 +435,21 @@
 								event.preventDefault();
 								takeSuggestion(offered, true);
 							}
-						}}>{offered}</span
-					><span class="whitespace-nowrap"
-						>&NoBreak;<span class="relative inline-block w-6 align-baseline" style="height: 1cap"
-							><Button
+						}}
+					>
+						{offered}
+					</span><span class="whitespace-nowrap">
+						&NoBreak;<span class="relative inline-block w-6 align-baseline" style="height: 1cap">
+							<Button
 								variant="ghost"
-								icon="icon-[lucide--pencil] -translate-y-0.75"
+								icon="icon-[lucide--pencil]"
 								label="Edit suggested reply"
 								size="sm"
-								class="pointer-events-auto absolute top-1/2 left-0 -translate-y-1/2"
+								class="pointer-events-auto absolute top-1/2 left-0 -translate-y-1/2 hover:bg-transparent!"
 								onclick={() => takeSuggestion(offered, false)}
-							/></span
-						></span
-					>
+							/>
+						</span>
+					</span>
 				</div>
 			{/if}
 			{#if field}

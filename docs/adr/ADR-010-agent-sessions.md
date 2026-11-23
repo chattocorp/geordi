@@ -8,7 +8,9 @@ Starting a CLI for each turn made steering interrupt the running process. A back
 
 ## Decision
 
-Each active workspace has a detached host that owns the pipes of its ACP wrapper. The desktop ships the same wrapper versions as the development daemon. The wrappers run the `claude` and `codex` the person has installed: Geordi ships neither (some 300 MB each). The host uses the pinned TypeScript SDK and ACP v2. Its state updates distinguish message acceptance, foreground completion, and background activity.
+Each active workspace has a detached host that owns the pipes of its ACP wrapper. The desktop ships the same wrapper versions as the development daemon. The wrappers run the `claude` and `codex` the person has installed: Geordi ships neither (some 300 MB each). The host uses the pinned TypeScript SDK and ACP v2. For OpenCode the host starts the installed CLI directly with `opencode acp`. It uses the SDK’s v1 client and ends each turn when the prompt returns. The forge queues messages sent to a busy OpenCode workspace.
+
+For the v2 wrappers, state updates distinguish message acceptance, foreground completion, and background activity.
 
 The daemon writes commands to a private session directory. The host writes normalized events there. Each output record has a cursor scoped to the host instance. The forge records the cursor with the event and acknowledges it. The daemon advances its offset after the acknowledgment. After a reconnect the forge also knows which daemon owns each idle session.
 

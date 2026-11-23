@@ -5,6 +5,7 @@ import {
 	PROTOCOL_VERSION,
 	type DaemonMessage,
 	type AgentCommand,
+	type SessionModel,
 	type BackgroundTask,
 	type ContextUsage,
 	type UsageLimit,
@@ -69,8 +70,10 @@ type Handlers = {
 	onMessage(message: DaemonMessage): void;
 	/** How full a workspace's agent's context is, as it just said. */
 	onUsage(workspaceId: string, usage: ContextUsage): void;
-	/** The usage limits of a workspace's agent's subscription, as it just said. */
-	onLimits(workspaceId: string, limits: UsageLimit[]): void;
+	/** The usage limits of a workspace's agent's subscription, and when it said them. */
+	onLimits(workspaceId: string, limits: UsageLimit[], at?: number): void;
+	/** What the workspace's agent suggests saying next; `null` once withdrawn. */
+	onSuggestion(workspaceId: string, text: string | null): void;
 };
 
 const globals = globalThis as { __geordiDaemonServer?: WebSocketServer };
@@ -105,11 +108,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 
 	let active: ActiveDaemon | null = null;
 	const background = new Map<string, BackgroundTask[]>();
-	const taskListeners = new Set<(workspaceId: string) => void>();
+	const sessionListeners = new Set<(workspaceId: string) => void>();
 	function setTasks(id: string, tasks: BackgroundTask[]) {
 		if (tasks.length) background.set(id, tasks);
 		else background.delete(id);
-		for (const listener of taskListeners) listener(id);
+		for (const listener of sessionListeners) listener(id);
 	}
 	/**
 	 * Each workspace's agent's commands, as its daemon last said (ADR-003: live data, never
@@ -118,17 +121,7 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 	 */
 	const commands = new Map<string, AgentCommand[]>();
 	const commandListeners = new Set<(workspaceId: string) => void>();
-	/**
-	 * What each workspace's agent suggests saying next. It outlives its daemon's connection
-	 * (the agent said it, whoever relays it); a reconnecting daemon says it again anyway.
-	 */
-	const suggestions = new Map<string, string>();
-	function setSuggestion(id: string, text: string | null) {
-		if ((suggestions.get(id) ?? null) === text) return;
-		if (text) suggestions.set(id, text);
-		else suggestions.delete(id);
-		for (const listener of taskListeners) listener(id);
-	}
+	const sessionModels = new Map<string, SessionModel>();
 	/** Told when a daemon connects or goes away. */
 	const watching = new Set<() => void>();
 	const changed = () => watching.forEach((tell) => tell());
@@ -219,20 +212,21 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 				const { workspaceId: id, live } = message;
 				if (!active.assigned.has(id)) return;
 				if (live.background) setTasks(id, live.background);
-				if (live.suggestion !== undefined) setSuggestion(id, live.suggestion);
+				if (live.suggestion !== undefined) handlers.onSuggestion(id, live.suggestion);
+				if (live.sessionModel) {
+					sessionModels.set(id, live.sessionModel);
+					for (const listener of sessionListeners) listener(id);
+				}
 				if (live.commands) {
 					commands.set(id, live.commands);
 					for (const listener of commandListeners) listener(id);
 				}
 				if (live.usage) handlers.onUsage(id, live.usage);
-				if (live.limits) handlers.onLimits(id, live.limits);
+				if (live.limits) handlers.onLimits(id, live.limits, live.limitsAt);
 				return;
 			}
 			if (message.type === 'response') pending.get(message.id)?.(message);
 			else if (message.type !== 'workspace.event' || active.assigned.has(message.workspaceId)) {
-				// what was suggested was for the turn that ended, not for the next
-				if (message.type === 'workspace.event' && message.event.kind === 'turn.started')
-					setSuggestion(message.workspaceId, null);
 				handlers.onMessage(message);
 				if (message.type === 'workspace.event' && message.cursor) {
 					const ack: ForgeMessage = {
@@ -273,11 +267,11 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 			return send({ type: 'agent.stopTask', workspaceId, stopId });
 		},
 		background: (id: string) => background.get(id) ?? [],
-		suggestion: (id: string) => suggestions.get(id) ?? null,
-		/** Calls `listener` when a workspace's background tasks or suggestion change. */
-		followBackground(listener: (workspaceId: string) => void) {
-			taskListeners.add(listener);
-			return () => taskListeners.delete(listener);
+		sessionModel: (id: string) => sessionModels.get(id),
+		/** Calls `listener` when session data in the workspace view changes. */
+		followSession(listener: (workspaceId: string) => void) {
+			sessionListeners.add(listener);
+			return () => sessionListeners.delete(listener);
 		},
 
 		/** The commands the workspace's agent offers; `null` until it has said. */

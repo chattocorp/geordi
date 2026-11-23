@@ -56,4 +56,20 @@ describe('repositories', () => {
 		repos.remove('means-2');
 		expect(createRepos(store).register(gitRepo('means')).id).toBe('means-3');
 	});
+
+	it('keeps the order people move repositories into, also after a restart', () => {
+		const store = new EventStore<GeordiEvent>(':memory:');
+		const repos = createRepos(store);
+		for (const name of ['a', 'b', 'c']) repos.register(gitRepo(name));
+		const ids = (list = repos.list()) => list.map((repo) => repo.id);
+
+		repos.move('c', 'a');
+		expect(ids()).toEqual(['c', 'a', 'b']);
+		repos.move('c', null);
+		expect(ids()).toEqual(['a', 'b', 'c']);
+		repos.move('a', 'c');
+		expect(ids()).toEqual(['b', 'a', 'c']);
+		expect(ids(createRepos(store).list())).toEqual(['b', 'a', 'c']);
+		expect(() => repos.move('a', 'nowhere')).toThrow();
+	});
 });

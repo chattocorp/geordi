@@ -39,9 +39,9 @@
 				{pull.draft && pull.state === 'open' ? 'Draft' : states[pull.state]}
 			</Badge>
 			{#if review}
-				<span class="flex items-center gap-1.5"
-					><span class={['size-3.5', review.icon]}></span>{review.text}</span
-				>
+				<span class="flex items-center gap-1.5">
+					<span class={['size-3.5', review.icon]}></span>{review.text}
+				</span>
 			{/if}
 			{#if pull.base}
 				<span class="flex min-w-0 items-center gap-1.5">

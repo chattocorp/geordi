@@ -18,6 +18,7 @@
 	type Props = {
 		layout: Layout;
 		onchange(layout: Layout): void;
+		ondoubleclick?: (tab: string) => void;
 		/** A tab's label. */
 		tab: Snippet<[string]>;
 		/** A tab's content. */
@@ -35,8 +36,10 @@
 		onreceive?: (tab: string, groupId: string, zone: Zone, before?: string | null) => void;
 		/** Whether a tab dropped at the side of a group opens a new group there. It does, by default. */
 		splits?: boolean;
-		/** Label of the "+" button. */
+		/** Label of the button that opens a new window. */
 		newLabel?: string;
+		/** Icon of that button (an Iconify class). */
+		newIcon?: string;
 		/** Shown in a group without tabs. Without it, such a group is simply empty. */
 		empty?: Snippet;
 		/**
@@ -44,10 +47,15 @@
 		 * panes are split, the first group's bar has it.
 		 */
 		actions?: Snippet;
+		/** What comes before the tabs of the first group's bar. */
+		lead?: Snippet;
+		/** What can be done with a window, in its group's bar while it is the one shown. */
+		tools?: Snippet<[string]>;
 	};
 	let {
 		layout,
 		onchange,
+		ondoubleclick,
 		tab,
 		window,
 		newTab,
@@ -56,8 +64,11 @@
 		onreceive,
 		splits = true,
 		newLabel = 'New window',
+		newIcon = 'icon-[lucide--plus]',
 		empty,
-		actions
+		actions,
+		lead,
+		tools
 	}: Props = $props();
 
 	const uid = $props.id();
@@ -131,12 +142,13 @@
 	{:else}
 		<section class="flex min-h-0 min-w-0 flex-1 flex-col">
 			{#snippet barActions()}
+				{#if tools && n.active}{@render tools(n.active)}{/if}
 				{#if actions && groupsOf(layout)[0]?.id === n.id}{@render actions()}{/if}
 				{#if newTab}
 					<Button
 						variant="ghost"
 						size="sm"
-						icon="icon-[lucide--plus]"
+						icon={newIcon}
 						label={newLabel}
 						onclick={() => onchange(open(layout, newTab(), n.id))}
 					/>
@@ -147,7 +159,11 @@
 				tabs={n.tabs}
 				current={n.active}
 				{tab}
-				actions={newTab || (actions && groupsOf(layout)[0]?.id === n.id) ? barActions : undefined}
+				lead={groupsOf(layout)[0]?.id === n.id ? lead : undefined}
+				actions={tools || newTab || (actions && groupsOf(layout)[0]?.id === n.id)
+					? barActions
+					: undefined}
+				{ondoubleclick}
 				onselect={(id) => onchange(open(layout, id))}
 				onclose={(id) => onchange(close(layout, id))}
 				{closable}

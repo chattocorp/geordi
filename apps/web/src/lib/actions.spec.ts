@@ -100,7 +100,7 @@ describe('actionsFor', () => {
 	it('offers known base commits beside the next step, with an agent prompt', () => {
 		const incoming = { branch: 'refs/remotes/origin/main', commits: 2 };
 		const changes = { ...clean, incoming };
-		expect(ids({ changes, upstream: null })).toEqual(['merge-upstream']);
+		expect(ids({ changes, upstream: null })).toEqual(['merge-upstream', 'archive']);
 		expect(standingOf({ changes, upstream: null })?.label).toBe('Behind base branch');
 		const actions = actionsFor({ changes, upstream: upstream({}) });
 		expect(actions.map((action) => action.id)).toEqual(['merge-pull', 'merge-upstream']);
@@ -121,8 +121,24 @@ describe('actionsFor', () => {
 		for (const commits of [0, -1])
 			expect(
 				ids({ changes: { ...clean, incoming: { ...incoming, commits } }, upstream: null })
-			).toEqual([]);
-		expect(ids({ changes: { ...clean, incoming: null }, upstream: null })).toEqual([]);
+			).toEqual(['archive']);
+		expect(ids({ changes: { ...clean, incoming: null }, upstream: null })).toEqual(['archive']);
+	});
+
+	it('never offers archiving a locked workspace (FDR-015)', () => {
+		const locked = true;
+		expect(ids({ changes: clean, upstream: null, locked })).toEqual([]);
+		const merged = actionsFor({ changes: clean, upstream: upstream({ state: 'merged' }), locked });
+		// carrying on is then the next step, not one beside it
+		expect(merged).toMatchObject([{ id: 'continue', aside: false }]);
+		// its work landed without a pull request: it carries on instead of being archived
+		expect(ids({ changes: { ...clean, landed: true }, upstream: null, locked })).toEqual([
+			'continue'
+		]);
+		const incoming = { branch: 'refs/heads/main', commits: 2 };
+		expect(actionsFor({ changes: { ...clean, incoming }, upstream: null, locked })).toMatchObject([
+			{ id: 'merge-upstream', aside: false }
+		]);
 	});
 
 	it('does not offer upstream merges for completed work or a failed turn', () => {
@@ -133,10 +149,10 @@ describe('actionsFor', () => {
 		expect(ids({ changes, upstream: null, failed: true })).toEqual(['retry']);
 	});
 
-	it('offers nothing while it knows nothing, or when there is nothing to do', () => {
+	it('offers Archive once the workspace is known to be clean', () => {
 		expect(ids({ changes: null, upstream: upstream() })).toEqual([]);
-		expect(ids({ changes: clean, upstream: upstream() })).toEqual([]);
-		expect(ids({ changes: clean, upstream: null })).toEqual([]);
+		expect(ids({ changes: clean, upstream: upstream() })).toEqual(['archive']);
+		expect(ids({ changes: clean, upstream: null })).toEqual(['archive']);
 	});
 
 	it('offers to commit when there is nowhere to push to', () => {
@@ -158,8 +174,8 @@ describe('actionsFor', () => {
 		const pushed = { changes: { ...clean, files: [file] }, upstream: upstream() };
 		expect(ids(pushed)).toEqual(['create-pull']);
 		expect(standingOf(pushed)?.label).toBe('Branch pushed');
-		// pushed with nothing on it: nothing to ask for
-		expect(ids({ changes: clean, upstream: upstream() })).toEqual([]);
+		// A pushed branch with no work left can be archived.
+		expect(ids({ changes: clean, upstream: upstream() })).toEqual(['archive']);
 	});
 
 	it('says when the work is where it was headed without a pull request, and offers to archive', () => {
@@ -301,6 +317,10 @@ describe('standingOf', () => {
 			'Changes requested'
 		);
 		expect(label({ changes, upstream: upstream({ checks: pending }) })).toBe('Checks running');
+		const autoMerge = { enabled: true, canEnable: false, canDisable: true };
+		expect(
+			standingOf({ changes, upstream: upstream({ checks: pending, autoMerge }) })
+		).toMatchObject({ label: 'Checks running', autoMerge: true });
 		expect(standingOf({ changes, upstream: upstream({ draft: true }) })).toBeNull();
 	});
 

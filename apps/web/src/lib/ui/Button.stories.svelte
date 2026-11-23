@@ -12,9 +12,9 @@
 		<Button icon="icon-[lucide--square]">Stop</Button>
 		<Button>Secondary</Button>
 		<Button variant="ghost">Ghost</Button>
-		<span class="rounded-full bg-merged/15 p-1 text-merged"
-			><Button variant="soft">Soft</Button></span
-		>
+		<span class="rounded-full bg-merged/15 p-1 text-merged">
+			<Button variant="soft">Soft</Button>
+		</span>
 		<Button variant="primary" disabled>Disabled</Button>
 	</div>
 </Story>
@@ -41,6 +41,14 @@
 		<Button variant="ghost" icon="icon-[lucide--moon]" label="Switch to dark mode" />
 		<Button variant="ghost" size="sm" icon="icon-[lucide--plus]" label="New window" />
 		<Button variant="ghost" size="sm" icon="icon-[lucide--x]" label="Close" />
+	</div>
+</Story>
+
+<Story name="Tools" asChild>
+	<div class="flex items-center">
+		<Button variant="tool" icon="icon-[lucide--files]" label="Open combined diff" />
+		<Button variant="tool" icon="icon-[lucide--list]" label="As a list" aria-pressed={true} />
+		<Button variant="tool" icon="icon-[lucide--list-tree]" label="As a tree" aria-pressed={false} />
 	</div>
 </Story>
 

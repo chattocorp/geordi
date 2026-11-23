@@ -1,11 +1,20 @@
+import { resolve } from 'node:path';
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { unreleased } from './unreleased.ts';
 
 export default defineConfig({
+	define: {
+		'import.meta.env.GEORDI_UNRELEASED_NOTES': JSON.stringify(
+			process.env.GEORDI_RELEASE_BUILD === '1'
+				? ''
+				: unreleased(resolve(import.meta.dirname, '../..'))
+		)
+	},
 	plugins: [
 		tailwindcss(),
 		sveltekit({

@@ -25,7 +25,7 @@
 		pending?: WorkspaceAction['id'][];
 		/** The workspace with a question waiting for an answer. */
 		askingIn?: string;
-		/** Small, with only the next step: for showing many at once (the overview). */
+		/** Small, with only the next step: for showing many at once. */
 		compact?: boolean;
 		onopenpull(): void;
 		onaction(action: WorkspaceAction): void;
@@ -44,11 +44,16 @@
 	}: Props = $props();
 
 	const primary = $derived(actions.find((action) => !action.aside));
-	// Keep priority in the action rules; put the main action at the right edge of the ribbon.
-	const ordered = $derived([
-		...(compact ? [] : actions.filter((action) => action !== primary)),
-		...(primary ? [primary] : [])
-	]);
+	// Compact ribbons show the next step. Full ribbons lead with Sync whenever it is available.
+	const ordered = $derived.by(() => {
+		if (compact) return primary ? [primary] : [];
+		const sync = actions.find((action) => action.id === 'merge-upstream');
+		return [
+			...(sync ? [sync] : []),
+			...actions.filter((action) => action !== sync && action !== primary),
+			...(primary && primary !== sync ? [primary] : [])
+		];
+	});
 	const text = $derived(compact ? 'text-xs' : 'text-sm');
 	const icon = $derived(compact ? 'size-3.5' : 'size-4');
 	// small, beside a next step or a question, the colour and icon of how it stands say enough
@@ -108,7 +113,7 @@
 				onclick={onopenpull}
 			>
 				<span class={['icon-[lucide--git-pull-request]', icon]}></span>
-				<span>#{pull.number}</span>
+				<span class="@max-md/titlebar:sr-only">#{pull.number}</span>
 			</button>
 			{#if linked && pull.url}
 				<a
@@ -139,7 +144,7 @@
 					'inline-flex min-h-9 max-w-full flex-wrap items-center gap-1 rounded-full py-1',
 					'shrink-0',
 					text,
-					compact ? 'pl-2.5' : 'pl-3',
+					standing || askingIn ? (compact ? 'pl-2.5' : 'pl-3') : 'pl-1',
 					// buttons reach the end of the pill; text keeps its distance
 					ordered.length > 0 ? 'pr-1' : compact ? 'pr-2.5' : 'pr-3',
 					tones[standing?.tone ?? 'neutral']
@@ -153,27 +158,31 @@
 					{/if}
 				{/if}
 				{#if standing}
-					<span
-						class={['shrink-0', icon, standing.icon, !worded && 'mr-1.5']}
-						title={worded ? undefined : standing.label}
-						role={worded ? undefined : 'img'}
-						aria-label={worded ? undefined : standing.label}
-					></span>
-					{#if worded && standing.hint && !compact}
-						<!-- what it means, and what to do about it, a click away -->
+					{#snippet status()}
+						<span class={['shrink-0', icon, standing.icon]}></span>
+						{#if worded}
+							<span class="@max-2xl/titlebar:sr-only">{standing.label}</span>
+						{/if}
+					{/snippet}
+					{#if standing.hint && !compact}
 						<a
 							href={standing.hint.href}
 							target="_blank"
 							rel="external noreferrer"
 							title={standing.hint.text}
-							class={[
-								'pr-1.5 pl-1 font-medium whitespace-nowrap underline decoration-current/40 decoration-dotted underline-offset-4 hover:text-ink',
-								text
-							]}>{standing.label}</a
+							class="inline-flex items-center gap-2 pr-1.5 font-medium whitespace-nowrap underline decoration-current/40 decoration-dotted underline-offset-4 hover:text-ink"
 						>
-					{:else if worded}
-						<span class={['pr-1.5 pl-1 font-medium whitespace-nowrap', text]}>{standing.label}</span
+							{@render status()}
+						</a>
+					{:else}
+						<span
+							class="inline-flex items-center gap-2 pr-1.5 font-medium whitespace-nowrap"
+							title={standing.label}
+							role={worded ? undefined : 'img'}
+							aria-label={worded ? undefined : standing.label}
 						>
+							{@render status()}
+						</span>
 					{/if}
 				{/if}
 				{#if ordered.length > 0}
@@ -194,18 +203,22 @@
 								size="sm"
 								variant={next && filled ? 'primary' : 'soft'}
 								tone={standing?.tone === 'merged' ? 'merged' : 'ok'}
-								class={quiet ? 'text-ink' : undefined}
+								class={['@max-md/titlebar:size-7 @max-md/titlebar:p-0', quiet && 'text-ink']}
+								label={action.label}
+								title={action.unavailable ?? action.label}
 								icon={action.icon}
-								{disabled}
+								disabled={disabled || !!action.unavailable}
 								{busy}
 								onclick={() => onaction(action)}
 							>
-								{action.label}
+								<span class="@max-md/titlebar:sr-only">{action.label}</span>
 								{#if action.incomingCommits !== undefined}
-									<span class="font-normal tabular-nums opacity-60">{action.incomingCommits}</span>
-									<span class="sr-only"
-										>incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}</span
-									>
+									<span class="font-normal tabular-nums opacity-60 @max-md/titlebar:sr-only">
+										{action.incomingCommits}
+									</span>
+									<span class="sr-only">
+										incoming {action.incomingCommits === 1 ? 'commit' : 'commits'}
+									</span>
 								{/if}
 							</Button>
 						{/each}

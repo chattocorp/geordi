@@ -21,10 +21,7 @@
 		{@render heading()}
 		<span
 			aria-hidden="true"
-			class={[
-				'ml-auto icon-[lucide--chevron-right] size-4 shrink-0 text-muted transition-transform motion-reduce:transition-none',
-				open && 'rotate-90'
-			]}
+			class="ml-auto icon-[lucide--chevron-right] size-4 shrink-0 text-muted transition-transform motion-reduce:transition-none [details[open]>summary>&]:rotate-90"
 		></span>
 	</summary>
 	{@render children()}

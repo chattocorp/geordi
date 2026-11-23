@@ -1,7 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { changedFileIn, renderMarkdown } from './markdown.ts';
+import { changedFileIn, folderPath, renderMarkdown } from './markdown.ts';
+
+describe('folderPath', () => {
+	const root = '/work/tree';
+
+	it('takes paths relative to the worktree, or absolute within it', () => {
+		expect(folderPath('assets/audio/', root)).toBe('assets/audio');
+		expect(folderPath('./assets/audio', root)).toBe('assets/audio');
+		expect(folderPath('/work/tree/assets/', root)).toBe('assets');
+		expect(folderPath('/work/tree', root)).toBe('.');
+	});
+
+	it('leaves alone what cannot be a directory in the worktree', () => {
+		expect(folderPath('assets', root)).toBeUndefined();
+		expect(folderPath('/tmp/shots/', root)).toBeUndefined();
+		expect(folderPath('~/src/', root)).toBeUndefined();
+		expect(folderPath('../other/', root)).toBeUndefined();
+		expect(folderPath('https://example.com/a/', root)).toBeUndefined();
+		expect(folderPath('pnpm --filter web/', root)).toBeUndefined();
+		expect(folderPath('assets/', undefined)).toBeUndefined();
+	});
+});
 
 describe('renderMarkdown', () => {
+	it('marks code and links that may name a directory in the worktree', () => {
+		const root = '/work/tree';
+		expect(renderMarkdown('Under `assets/audio/`.', { root })).toContain(
+			'<code data-folder="assets/audio">assets/audio/</code>'
+		);
+		expect(renderMarkdown('[the takes](assets/audio/)', { root })).toContain(
+			'<span data-folder="assets/audio">the takes</span>'
+		);
+		expect(renderMarkdown('`assets/audio/`')).not.toContain('data-folder');
+	});
+
 	it('escapes raw HTML', () => {
 		expect(renderMarkdown('<img src=x onerror=alert(1)>')).not.toContain('<img');
 	});
@@ -26,6 +58,17 @@ describe('renderMarkdown', () => {
 		);
 		expect(renderMarkdown('![x](a.png)', { pictures: '/p?at=3.1' })).toContain(
 			'src="/p?at=3.1&amp;path=a.png"'
+		);
+	});
+
+	it('plays sounds the agent has where it works', () => {
+		const html = renderMarkdown('![Jump](assets/jump.wav)', { pictures: '/workspaces/w1/picture' });
+		expect(html).toContain('data-sound="/workspaces/w1/picture?path=assets%2Fjump.wav"');
+		expect(html).toContain('data-label="Jump"');
+		expect(html).toContain('data-path="assets/jump.wav"');
+		expect(html).not.toContain('<img');
+		expect(renderMarkdown('![x](https://example.com/a.mp3)', { pictures: '/p' })).not.toContain(
+			'data-sound'
 		);
 	});
 
@@ -71,7 +114,6 @@ describe('renderMarkdown', () => {
 			'../outside',
 			'src/%2e%2e/%2e%2e/private',
 			'?query',
-			'dir/',
 			'/repos',
 			'//example.com/x',
 			'https://example.com/x',
@@ -136,5 +178,33 @@ describe('changedFileIn', () => {
 		expect(changedFileIn('src/b.ts', changed)).toBeUndefined();
 		expect(changedFileIn('/elsewhere/README.md', changed, '/w/t')).toBeUndefined();
 		expect(changedFileIn('pnpm test', changed)).toBeUndefined();
+	});
+});
+
+describe('agent review findings', () => {
+	const options = { root: '/repo', agentDirectives: true };
+	const finding = String.raw`::code-comment{file="src/a b.ts" priority=P1 start=8 end=10 title="Fix the boundary" body="Keep \"}\" and <script> literal."}`;
+	it('renders adjacent findings and keeps surrounding paragraphs', () => {
+		const html = renderMarkdown(['Before', finding, finding, 'After'].join('\n'), options);
+		expect(html.match(/data-source="src\/a b.ts" data-line="8"/g)).toHaveLength(2);
+		expect(html).toContain('[P1] Fix the boundary');
+		expect(html).toContain('Keep &quot;}&quot; and &lt;script&gt; literal.');
+		expect(html).toContain('<p>Before</p>');
+		expect(html).toContain('<p>After</p>');
+	});
+	it('keeps examples and incomplete findings literal', () => {
+		for (const text of [
+			'```\n' + finding + '\n```',
+			'`' + finding + '`',
+			'> ' + finding,
+			'    ' + finding,
+			finding.slice(0, -1)
+		]) {
+			expect(renderMarkdown(text, options)).not.toContain('data-source');
+		}
+		expect(renderMarkdown(finding, { root: '/repo' })).toContain('::code-comment');
+		expect(renderMarkdown(finding.replace('src/a b.ts', '../private'), options)).not.toContain(
+			'data-source'
+		);
 	});
 });

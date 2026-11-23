@@ -16,32 +16,29 @@ function setup() {
 	git(repoPath, 'init', '-q');
 	git(repoPath, 'commit', '-q', '--allow-empty', '-m', 'init');
 	const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-base-')));
-	const ref = { worktreeId: 'abcdefgh-1', repoPath };
+	const ref = { worktreeId: 'abcdefgh-1', repoPath, worktreeParent: 'repo-2' };
 
 	const seen: string[] = [];
 	const watches = createWatches(
-		async ({ repoPath, worktreeId }) => await locateWorktree(base, repoPath, worktreeId),
+		(ref) => locateWorktree(base, ref),
 		(id) => seen.push(id)
 	);
 	return { base, ref, git, seen, watches };
 }
 
 describe('watching workspaces', () => {
-	it('refreshes a watched child when its parent’s pull target changes', () => {
+	it('refreshes a watched worktree when its pull target changes', () => {
 		const { ref, watches, seen } = setup();
-		const parent = { worktreeId: 'parent00', branch: 'parent' };
-		watches.set([
-			{ ...ref, parents: [parent] },
-			{ ...ref, worktreeId: 'other' }
-		]);
-		watches.targetChanged(parent.worktreeId);
+		watches.set([ref, { ...ref, worktreeId: 'other' }]);
+		watches.targetChanged(ref.worktreeId);
+		watches.targetChanged('unwatched');
 		expect(seen).toEqual([ref.worktreeId]);
 		watches.stop();
 	});
 
 	it('keeps watching the Git state of a worktree in the background once nobody has it open', async () => {
 		const { base, ref, git, seen, watches } = setup();
-		const worktree = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const worktree = await ensureWorktree(base, ref);
 		// Let the checkout's filesystem notifications settle before observing this write.
 		await wait(300);
 		watches.set([ref], 'background');
@@ -68,8 +65,8 @@ describe('watching workspaces', () => {
 
 	it('ignores in the background what happens to other worktrees’ branches', async () => {
 		const { base, ref, git, seen, watches } = setup();
-		const worktree = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
-		const other = await ensureWorktree(base, ref.repoPath, 'otherxyz-1');
+		const worktree = await ensureWorktree(base, ref);
+		const other = await ensureWorktree(base, { ...ref, worktreeId: 'otherxyz-1' });
 		watches.set([ref], 'background');
 		await wait(100); // let the watchers start
 
@@ -87,7 +84,7 @@ describe('watching workspaces', () => {
 
 	it('reports a burst of file changes once, and commits too', async () => {
 		const { base, ref, git, seen, watches } = setup();
-		const worktree = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const worktree = await ensureWorktree(base, ref);
 		watches.set([ref]);
 		await wait(100); // let the watchers start
 
@@ -106,7 +103,7 @@ describe('watching workspaces', () => {
 
 	it('is not set off by looking at the changes', async () => {
 		const { base, ref, seen, watches } = setup();
-		const worktree = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const worktree = await ensureWorktree(base, ref);
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
 		await wait(300); // let that write pass before we start watching
 		watches.set([ref]);
@@ -124,7 +121,7 @@ describe('watching workspaces', () => {
 	it('stops watching workspaces nobody looks at, and picks up worktrees created later', async () => {
 		const { base, ref, seen, watches } = setup();
 		watches.set([ref]); // no worktree yet
-		const worktree = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const worktree = await ensureWorktree(base, ref);
 		watches.restart(ref.worktreeId);
 		await wait(100);
 		writeFileSync(join(worktree.path, 'a.txt'), 'one\n');
@@ -139,12 +136,12 @@ describe('watching workspaces', () => {
 
 	it('watches a worktree that was removed and came back', async () => {
 		const { base, ref, seen, watches } = setup();
-		const { path } = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const { path } = await ensureWorktree(base, ref);
 		watches.set([ref]);
 		rmSync(path, { recursive: true });
 		await wait(600);
 
-		await ensureWorktree(base, ref.repoPath, ref.worktreeId); // from its branch
+		await ensureWorktree(base, ref); // from its branch
 		watches.restart(ref.worktreeId);
 		await wait(600);
 		seen.length = 0;
@@ -156,7 +153,7 @@ describe('watching workspaces', () => {
 
 	it('knows which refs are a worktree’s own', async () => {
 		const { base, ref } = setup();
-		const worktree = await ensureWorktree(base, ref.repoPath, ref.worktreeId);
+		const worktree = await ensureWorktree(base, ref);
 		const branch = worktree.branch;
 		expect(concerns(worktree, `heads/${branch}`)).toBe(true);
 		expect(concerns(worktree, `remotes/origin/${branch}`)).toBe(true);

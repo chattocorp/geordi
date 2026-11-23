@@ -194,11 +194,9 @@ export function createWatches(
 				apply();
 			};
 		},
-		/** A discovered or retargeted pull changes this comparison and its descendants. */
+		/** A discovered or retargeted pull changes what this worktree is compared with. */
 		targetChanged(id: string) {
-			for (const ref of wanted.open)
-				if (ref.worktreeId === id || ref.parents?.some((parent) => parent.worktreeId === id))
-					onChange(ref.worktreeId);
+			if (wanted.open.some((ref) => ref.worktreeId === id)) onChange(id);
 		},
 		/** Replaces one set of watched workspaces. */
 		set(worktrees: WorktreeRef[], scope: WatchScope = 'open') {

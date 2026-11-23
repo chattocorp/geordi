@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { Virtualizer, type VirtualizerHandle } from 'virtua/svelte';
 	import BackgroundTasks from './BackgroundTasks.svelte';
@@ -23,6 +24,7 @@
 	import SubagentRow from '#lib/components/SubagentRow.svelte';
 	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
 	import Button from '@geordi/ui/Button.svelte';
+	import Spinner from '@geordi/ui/Spinner.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 
@@ -250,9 +252,9 @@
 			>
 				<span class="icon-[lucide--file-diff] size-3.5 shrink-0 text-muted"></span>
 				{#if files.length === 1}
-					<span class="truncate code-dense" title={files[0].path}
-						>{files[0].path.split('/').at(-1)}</span
-					>
+					<span class="truncate code-dense" title={files[0].path}>
+						{files[0].path.split('/').at(-1)}
+					</span>
 				{:else}
 					<span class="font-medium">{summary}</span>
 				{/if}
@@ -293,7 +295,7 @@
 					ending.latest
 				)}{/if}{/snippet}
 		<AgentText text={part.text} footer={ending ? footer : undefined}>
-			<Markdown preserveLineBreaks text={part.text} {dimmed} {pictures} />
+			<Markdown agentDirectives preserveLineBreaks text={part.text} {dimmed} {pictures} />
 		</AgentText>
 	{:else if part.kind === 'subagent'}
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />
@@ -364,13 +366,23 @@
 						{#if block.kind === 'user'}
 							{#if block.from || (block.delegated && i !== assignmentIndex)}
 								<!-- not the person's words: another agent's, and whose -->
+								{@const title = block.from && senders?.[block.from]}
 								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
 									<span class="icon-[lucide--bot] size-3.5"></span>
-									{block.from && senders?.[block.from]
-										? `From the agent in “${senders[block.from]}”`
-										: block.senderName
-											? `From ${block.senderName}`
-											: 'From another agent'}
+									{#if block.from && !block.from.startsWith('external:') && (title || block.senderName)}
+										<span>
+											{title ? 'From the agent in “' : 'From '}<a
+												href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`, {
+													id: block.from
+												})}
+												class="rounded-control hover:text-ink hover:underline focus-visible:underline"
+											>
+												{title || block.senderName}
+											</a>{title ? '”' : ''}
+										</span>
+									{:else}
+										{block.senderName ? `From ${block.senderName}` : 'From another agent'}
+									{/if}
 								</p>
 							{/if}
 							<UserMessage text={block.text}>
@@ -381,7 +393,10 @@
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">
 								<span class="h-px flex-1 bg-line"></span>
-								{block.text}
+								<span class="flex items-center gap-1.5">
+									{#if block.working}<span class="flex" aria-hidden="true"><Spinner /></span>{/if}
+									{block.text}
+								</span>
 								<span class="h-px flex-1 bg-line"></span>
 							</p>
 						{:else}

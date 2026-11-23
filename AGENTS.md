@@ -105,8 +105,8 @@ it, perhaps you.
   - A **project** (FDR-012) is a workspace in no repository (`repoId: null`), for
     orchestrating: its agent works in a folder of its own (`ProjectRef`, `projects.ts` in the
     daemon; kept when archived), with no worktree, so `ref()` refuses it and `locate()` says
-    where it works. Projects are started from the repository chooser and listed above the
-    repositories. Code that assumes a repository must leave projects out.
+    where it works. Projects are deprecated: new ones can't be started (planning `nzqqn`
+    removes them); existing ones are listed above the repositories. Code that assumes a repository must leave projects out.
   - Turns are the agent's to begin and end (ADR-010): the daemon says `turn.started` (an
     agent may start one unasked, when something it ran in the background ends) and how it
     ended. The forge drops what a daemon says of a workspace that is not working, as far as
@@ -141,7 +141,7 @@ it, perhaps you.
   stored.
 - **Agent API (ADR-004, FDR-002).** Agents start and supervise other agents through an MCP
   server on the forge (`mcp.ts`, served at `/mcp`). The forge derives a token per workspace; the
-  daemon hands URL and token to the CLI. Any caller can read any workspace; messaging and stopping follow parentage. External clients get a named token from Settings (`agent-access.ts`) for chosen repositories (`repoIds`; never later ones), see only those, start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. The calling workspace is the parent of what it starts
+  daemon hands URL and token to the CLI. Repository agents can read peers in accessible repositories, but message only their descendants and their parent. Steering, stopping and archiving follow parentage. External clients get a named token from Settings (`agent-access.ts`) for chosen repositories (`repoIds`; never later ones), see only those, start agents in a `repository` and supervise those (`startedBy`), and may message any agent without interrupting it. A child's own worktree starts from the repository’s base, or from the branch the caller names (`base`), and its changes are compared with that one branch until it has a pull request (FDR-001). Repository agents can start a child in another accessible repository with `repository`. It can also send a reviewer into a descendant’s worktree with `workspace`. Archiving follows children within the same repository and agents sharing those worktrees. The calling workspace is the parent of what it starts
   and the `actor` of the events. A project's agents act for the person: they start agents
   in any repository, or alongside any workspace's agent there (`workspace`), and supervise
   and archive any agent in a repository or in their own project; they never see another
@@ -163,13 +163,13 @@ it, perhaps you.
   count, notifications). **The app never plays sound itself**: on macOS that has the system
   ask for the microphone. Notifications are shown by the main process, with sounds that
   are files in the bundle and that the system plays (FDR-008).
-- **Repository configuration (FDR-006).** A repository's `.geordi.yml` (YAML; a `.geordi.toml` is still read where there is none) names jobs to run
-  (with what they need), links to open, and how many ports a workspace gets. The daemon reads
+- **Repository configuration (FDR-006).** A repository's `.geordi.yml` names tasks, each with a command, a `url`, or both, the ports its command listens on (`ports: [http, live]`; none unless named), and its dependencies and defaults.
+  Nothing else is read (no `jobs`, `urls`, `run`, `ports`, nor `.geordi.toml`). Every workspace also has ten spare ports. The daemon reads
   it (`config.ts`: the workspace's file, else the one on the branch work starts from) and
-  reports it with the worktree's state. Each job runs in a terminal named `JOB_TERMINAL` +
+  reports it with the worktree's state. Each task's command runs in a terminal named `JOB_TERMINAL` +
   its name, and is running only until its command ends (`terminal.ended`; the terminal
   stays, to be read); the forge says which to start when (`jobs.ts`). A workspace's ports are assigned
-  once and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
+  once per port name (names are the workspace's, each one task's) and written down (`ports.ts`), and reach everything in it as `GEORDI_PORT…`. Commands
   run only as a person saw and agreed to them (`approvals.ts`). The daemon runs the `setup`
   script by itself when it makes a worktree (the first turn waits for it; `setUp` in
   `main.ts`) and `teardown` before it removes one, each in a job-like terminal it tells the
@@ -226,14 +226,14 @@ it, perhaps you.
   Tailwind:
   - **Tokens** in `apps/web/src/routes/layout.css`: semantic colours (`bg`, `frame`, `sidebar`,
     `surface`, `sunken`, `bubble`, `ink`, `prose` (long text), `muted`, `line`, `accent`, `accent-soft`,
-    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
+    `accent-ink`, `on-accent`, `danger`, `danger-soft`, `warning`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
     it shows on any background), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `card`, `card-float`, `card-link`, `input`,
-    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `scroller`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
+    `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `item`,
     `item-active`, `tab-active`, `menu-item`, `menu-item-active`, `empty`, `dot`, `dot-live`,
     `status-ok`/`-danger`/`-merged`.
-  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`, `Toolbar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
+  - **Components** in `@geordi/ui` (`Badge`, `Button`, `ButtonGroup`, `Composer`, `Disclosure`, `PaneTabs`, `Ring`, `Spinner`, `StatusIcon`, `TitleBar`) and `#lib/ui/` (`ContextMenu`, `Dialog`, `ImageViewer`, `Notice`, `Page`, `Panes`,
     `Segmented`, `Select`, `Split`): generic, no domain knowledge. Domain components live in
     `#lib/components/` or, when both apps use them, in `@geordi/ui`.
   - Use `StatusIcon` for passive status icons. Show the glyph directly on the surrounding surface. Passive icons have no click interaction or pointer cursor. Use `indicator-action` on a link or button for an available action. It has a filled circle and pointer cursor at rest and expands into a labelled pill on hover or keyboard focus.
@@ -256,8 +256,8 @@ it, perhaps you.
   corner follows the sheet's. What paints its own background takes it from `--pane`.
 - **Look and feel:** dark mode is deliberately mid-tone, not near-black. Gold `accent` is for
   the primary action and things that are live. The only ambient motion is for things at
-  work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` for checks still running, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
-  `icon-[lucide--name]`. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
+  work: the `.visor` sweep and the Braille `Spinner` for agents, `bar-running` (and the light round a `Ring`) for checks still running, gold turning arrows for a task at work that has no ports, and `edge-live` round the reply box of an agent at work. Surfaces use shadows with a faint ring rather than hard borders. Icons: Iconify via
+  `icon-[lucide--name]`; Heroicons (`icon-[heroicons--name-solid]`) only where a filled icon is needed. Fonts: IBM Plex Sans and JetBrains Mono from Fontsource (no remote
   loading); mono only for actual code (paths, branches, commands, output). Terminals add
   Nerd Font symbols for prompt icons (`--font-terminal`; the file is in `#lib/fonts/`).
 - **Settings (FDR-005):** one page, `/settings/[[section]]` (`#lib/components/Settings.svelte`),
@@ -296,7 +296,14 @@ desktop and web apps' `package.json`.
 - Every user-facing change needs a release note, committed with the change:
   `printf 'Describe the change.\n' | sweet change . --type <type> --stdin`
 - Types are configured in `.sweet.config.yml`. Add `breaking: true` to a note's frontmatter
-  for breaking changes.
+  for breaking changes. The notes are shown in the app (Settings → Release notes) and on the
+  website (`/releases`), so the type says how much a change matters to the person:
+  - `feature`, `fix`, `performance`: the usual note for a change.
+  - `highlight`: in addition to that note, for the few changes of a release worth reading
+    about first. It bumps nothing; the change's other note does.
+  - `polish`: instead of `fix`, for small things people need not read about (spacing,
+    colours, wording). Shown folded away.
+  - `website`: changes to the website only. No note in the app.
 - Address the person who uses Geordi directly. Use “you” or “your” where natural.
   Describe what they can now do or what now works as expected for them.
 - Run `sweet doctor` before finishing; it must pass (CI checks it on every pull request).

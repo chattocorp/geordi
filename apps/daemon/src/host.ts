@@ -31,7 +31,7 @@ import {
 	writeFileSync
 } from 'node:fs';
 import { createRequire } from 'node:module';
-import { delimiter, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import type {
 	Agent,
@@ -40,18 +40,22 @@ import type {
 	BackgroundTask,
 	ContextUsage,
 	MessageImage,
+	SessionModel,
 	UsageLimit
 } from '@geordi/protocol';
+import { agentProgram, programVariable } from './agents/program.ts';
+import { connectOpenCode } from './agents/opencode.ts';
 import { connectAgent } from './agents/acp.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
 
 /** What the host writes down: the agent's events, and what it says that is live (`AgentLive`). */
 export type HostEvent = AgentEvent | LiveEvent;
 export type LiveEvent =
+	| { kind: 'session.model'; value: SessionModel }
 	| { kind: 'background'; tasks: BackgroundTask[] }
 	| { kind: 'usage'; usage: ContextUsage }
 	| { kind: 'commands'; commands: AgentCommand[] }
-	| { kind: 'limits'; limits: UsageLimit[] }
+	| { kind: 'limits'; limits: UsageLimit[]; at: number }
 	| { kind: 'suggestion'; text: string | null };
 
 export type Meta = {
@@ -85,18 +89,18 @@ const IDLE_MS = Number(process.env.GEORDI_SESSION_IDLE_MS) || 5 * 60_000;
 const dir = process.argv[2];
 const file = (name: string) => join(dir, name);
 const { agent, options, apiToken } = JSON.parse(readFileSync(file('meta.json'), 'utf8')) as Meta;
-const cmd = agent === 'codex' ? 'codex-acp' : 'claude-agent-acp';
-// Staged (a release), the wrapper is bundled next to this file; in the repository, it is the
-// package's. The optional argument lets the session tests exercise this same host with a fixture.
-const bundled = join(import.meta.dirname, `${cmd}.js`);
-const entry =
-	process.argv[3] ??
-	(existsSync(bundled)
-		? bundled
-		: join(
-				dirname(createRequire(import.meta.url).resolve(`@agentclientprotocol/${cmd}/package.json`)),
-				'dist/index.js'
-			));
+const cmd = { claude: 'claude-agent-acp', codex: 'codex-acp', opencode: 'opencode' }[agent];
+
+// Staged wrappers live next to the host. OpenCode implements ACP in the executable itself.
+function wrapperEntry() {
+	if (process.argv[3]) return process.argv[3]; // fixture for session tests
+	if (agent === 'opencode') return;
+	const bundled = join(import.meta.dirname, cmd + '.js');
+	if (existsSync(bundled)) return bundled;
+	const pkg = createRequire(import.meta.url).resolve(`@agentclientprotocol/${cmd}/package.json`);
+	return join(dirname(pkg), 'dist/index.js');
+}
+const entry = wrapperEntry();
 
 // A signal meant to end the session reaches the whole process group, the CLI with it. We
 // stay, to note how it ended.
@@ -105,12 +109,11 @@ for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(signal
 const env = { ...process.env, ...options.env };
 // The agent's own program is the one the person has installed: the wrappers would otherwise
 // look for a copy of their own, which Geordi leaves out (some 300 MB each).
-const program = agent === 'codex' ? 'codex' : 'claude';
-const programEnv = agent === 'codex' ? 'CODEX_PATH' : 'CLAUDE_CODE_EXECUTABLE';
-env[programEnv] ||= installed(program);
-const missing = env[programEnv]
+const program = agentProgram(agent, env);
+if (program) env[programVariable[agent]] = program;
+const missing = program
 	? undefined
-	: `Geordi could not find \`${program}\`. Install it, or put it on your PATH.`;
+	: `Geordi could not find \`${agent}\`. Install it, or put it on your PATH.`;
 if (agent === 'codex') {
 	const config = JSON.parse(env.CODEX_CONFIG || '{}');
 	config.features = { ...config.features, default_mode_request_user_input: true };
@@ -128,16 +131,17 @@ if (agent === 'codex') {
 	}
 	env.CODEX_CONFIG = JSON.stringify(config);
 }
-/** Where a program is on the `PATH`, if it is anywhere. */
-function installed(name: string): string | undefined {
-	const extensions = process.platform === 'win32' ? (env.PATHEXT || '.EXE').split(';') : [''];
-	for (const dir of (env.PATH ?? '').split(delimiter).filter(Boolean))
-		for (const extension of extensions)
-			if (existsSync(join(dir, name + extension))) return join(dir, name + extension);
-}
-
 const err = openSync(file('err.log'), 'a', 0o600);
-const child = spawn(process.execPath, [entry], {
+if (agent === 'opencode' && options.instructions) {
+	const path = file('opencode-instructions.md');
+	writeFileSync(path, options.instructions, { mode: 0o600 });
+	const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT || '{}');
+	env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
+		...config,
+		instructions: [...(config.instructions ?? []), path]
+	});
+}
+const child = spawn(entry ? process.execPath : (program ?? cmd), entry ? [entry] : ['acp'], {
 	cwd: options.cwd,
 	env,
 	stdio: ['pipe', 'pipe', err]
@@ -189,7 +193,10 @@ function emit(event: HostEvent) {
 	appendFileSync(file('out.jsonl'), JSON.stringify(event) + '\n', { mode: 0o600 });
 }
 
-const dialogue = connectAgent(agent, options, apiToken, stdin, stdout, emit);
+const dialogue =
+	agent === 'opencode'
+		? connectOpenCode(options, apiToken, stdin, stdout, emit)
+		: connectAgent(agent, options, apiToken, stdin, stdout, emit);
 const ready = dialogue.initialize();
 function failed(error: unknown) {
 	emit({ kind: 'turn.failed', error: error instanceof Error ? error.message : String(error) });

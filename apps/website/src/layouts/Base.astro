@@ -63,11 +63,14 @@ const image = new URL(card.src, Astro.site);
 					<Visor />
 					Geordi
 				</a>
-				<Button variant="ghost" href="#features" class="px-3 max-sm:hidden">
+				<Button variant="ghost" href="/#features" class="px-3 max-sm:hidden">
 					Features
 				</Button>
-				<Button variant="ghost" href="#install" class="px-3 max-sm:hidden">
+				<Button variant="ghost" href="/#install" class="px-3 max-sm:hidden">
 					Install
+				</Button>
+				<Button variant="ghost" href="/releases" class="px-3 max-sm:hidden">
+					Releases
 				</Button>
 				<Button variant="ghost" href={site.repo} class="px-3">
 					GitHub
@@ -83,7 +86,7 @@ const image = new URL(card.src, Astro.site);
 		<footer class="column flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-8 text-sm text-muted">
 			<span class="mr-auto flex items-center gap-2.5">
 				<Visor />
-				Geordi {site.version}, made by
+				Geordi, made by
 				<a
 					href="https://github.com/chattocorp"
 					class="text-ink underline decoration-accent underline-offset-2"
@@ -94,7 +97,7 @@ const image = new URL(card.src, Astro.site);
 			<a href={site.repo} class="hover:text-ink">
 				GitHub
 			</a>
-			<a href={`${site.repo}/releases`} class="hover:text-ink">
+			<a href="/releases" class="hover:text-ink">
 				Releases
 			</a>
 			<a href={site.docs.selfHosting} class="hover:text-ink">
@@ -102,6 +105,9 @@ const image = new URL(card.src, Astro.site);
 			</a>
 			<a href={site.docs.configuration} class="hover:text-ink">
 				Configuration
+			</a>
+			<a href={site.support} class="hover:text-ink">
+				Support
 			</a>
 		</footer>
 	</body>

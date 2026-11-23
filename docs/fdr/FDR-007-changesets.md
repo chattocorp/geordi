@@ -44,7 +44,7 @@ Many repositories keep notes on their changes with a release tool, which later t
 
 ### 4. Compare committed release plans at merge time
 
-The Changeset tab follows edits in the worktree. A merge uses only published changes, so its confirmation compares the target commit with the proposed merge result. Geordi reads these files in a temporary checkout and repeats the comparison when you confirm. This costs an extra read at merge time and keeps unpublished notes out of the decision.
+The Changeset tab follows edits in the worktree. A merge uses only published changes, so its confirmation compares the target commit with the proposed merge result. A tool that can read a commit reads both trees straight from the repository's objects (`sweet status --json --rev`, Sweet Release 0.5.0 and later); one that only reads files on disk (Changesets) gets a private checkout of each, with no Git filters (LFS) applied. Geordi repeats the comparison when you confirm. This costs an extra read at merge time and keeps unpublished notes out of the decision.
 
 ## Out of Scope
 

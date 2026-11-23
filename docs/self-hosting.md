@@ -19,11 +19,42 @@ It uses the desktop app's ports (7717 to 7719) and data (`~/.geordi`), so only o
 runs at a time, and prints what forge and daemon say. Ctrl+C stops Geordi and its agents;
 any other signal leaves the agents working for the next start. `PORT`, `GEORDI_DAEMON_PORT`,
 `GEORDI_LIVE_PORT` and `ORIGIN` (default `http://localhost:7717`) change where it runs, and
-the settings below apply to it too. It listens on 127.0.0.1 only. On a server, reach it
+the settings below apply to it too. To run a second CLI instance, give it a separate
+`GEORDI_DATA_DIR` and three distinct, unused ports. Its local daemon uses that directory
+for its token, worktrees, projects, sessions, run approvals and port assignments. Explicit
+daemon settings take precedence.
+
+If you already used a custom `GEORDI_DATA_DIR` with an earlier CLI, check where its daemon
+kept its files before upgrading. Set the daemon paths listed below to their existing
+locations to keep using those sessions, worktrees, approvals and port assignments.
+
+Geordi listens on 127.0.0.1 only. On a server, reach it
 through an SSH tunnel, for the web and the browsers' WebSocket:
 
 ```sh
 ssh -L 7717:localhost:7717 -L 7719:localhost:7719 your-server
+```
+
+To run the code on `main` (or any branch) instead of the published package, build the
+`geordi` command from a checkout. It runs the same way as `npx geordi`, with the same
+ports, data and settings:
+
+```sh
+git clone https://github.com/chattocorp/geordi.git && cd geordi
+pnpm install
+pnpm cli
+```
+
+`pnpm cli` builds the package into `apps/cli/stage` and runs it. To update, `git pull`,
+`pnpm install` and `pnpm cli` again. To build somewhere else and only run it on the
+server, pack the package and install it there. npm installs its native dependencies
+for the server's platform:
+
+```sh
+pnpm --filter @geordi/cli bundle
+npm pack apps/cli/stage
+scp geordi-*.tgz your-server:
+ssh your-server 'npx ./geordi-*.tgz'
 ```
 
 To run forge and daemon yourself, from a checkout (see [Contributing](../CONTRIBUTING.md)
@@ -65,7 +96,9 @@ The desktop app uses ports 7717 to 7719, keeps its data in `~/.geordi`, and logs
 - `GEORDI_PROJECTS_DIR` (default `~/.geordi/projects`): Where projects, workspaces that belong to no repository, keep their folders.
 - `GEORDI_RUN_APPROVALS_FILE` (default `~/.geordi/run-approvals.json`): The commands you have agreed to run, by repository.
 - `GEORDI_PORTS_FILE` (default `~/.geordi/ports.json`): The ports each workspace has been given.
-- `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/guides/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
+- `FORGES_GITHUB_TOKEN` and other [`FORGES_*`](https://forges.link/reference/environment-variables): Credentials for the forges your repositories are hosted on. For github.com, the GitHub CLI's login is used if this is unset.
+
+The daemon looks for `opencode` on its PATH. Set `OPENCODE_PATH` to the executable path if it is installed elsewhere. Sign in with `opencode auth login` as the user that runs the daemon.
 
 Codex's models are read from the list Codex keeps in `~/.codex` (or `CODEX_HOME`).
 
@@ -83,7 +116,7 @@ Use `FORGES_GITLAB_*` or `FORGES_FORGEJO_*` for those. A suffix adds another ins
 the same forge (`FORGES_GITEA_TOKEN_WORK`). The desktop app reads these from your login
 shell when it starts, so set them in your shell's profile and restart the app. Until then,
 a workspace whose `origin` is on such a forge says **Forge not set up**. See
-[forges.link](https://forges.link/guides/environment-variables) for every variable.
+[the Forges environment variable reference](https://forges.link/reference/environment-variables) for every variable.
 
 ## Connect an external agent
 
@@ -126,7 +159,7 @@ Start a new session and ask: “Use Geordi to list my workspaces.” For other c
 Streamable HTTP, enter the MCP URL, and set the `Authorization` header to `Bearer <token>`.
 
 Call `list_workspaces` to find a workspace, then `read_workspace` with its `workspace_id`.
-Use the same ID as `agent_id` for `workspace_status`, `send_message` and `wait_for_agent`. A
+Use the same ID as `workspace_id` for `workspace_status`, `send_message` and `wait_for_agent`. A
 message starts an idle agent; a busy one receives it after its turn.
 
 To start new work, find a repository with `list_repositories` and call `start_agent` with its

@@ -1,8 +1,10 @@
 <script lang="ts">
+	import Button from './Button.svelte';
 	import ProgressIcon from './ProgressIcon.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
+	import type { Attachment } from 'svelte/attachments';
 	import { fileTree, treeRows } from './tree.ts';
 	import type { Changes } from '@geordi/protocol';
 
@@ -17,10 +19,11 @@
 		/** The branch of a worktree that was removed outside Geordi, if that is what happened. */
 		gone?: string | null;
 		onopen(path: string): void;
+		onopencombined?: () => void;
 		/** The files as one list, in Git's order, or arranged in their directories. */
 		view?: View;
 	};
-	let { git, gone = null, onopen, view = $bindable('list') }: Props = $props();
+	let { git, gone = null, onopen, onopencombined, view = $bindable('list') }: Props = $props();
 
 	const files = $derived(git?.changes?.files ?? []);
 	/** Whether there are files to list, and so a choice of how to show them. */
@@ -28,6 +31,29 @@
 	/** Directories folded shut in the tree, by path; all are open to begin with. */
 	const folded = new SvelteSet<string>();
 	const rows = $derived(view === 'tree' ? treeRows(fileTree(files), folded) : []);
+
+	/**
+	 * A branch may change thousands of files: rows are drawn some hundred at a time, more as
+	 * the end of what is drawn comes near. (Not a virtualized list: one broke as the page
+	 * rendered another workspace in the background.)
+	 */
+	const PAGE = 200;
+	let drawn = $state(PAGE);
+	// shown another way, it starts again from the top
+	$effect.pre(() => {
+		void view;
+		drawn = PAGE;
+	});
+	const more: Attachment<HTMLElement> = (node) => {
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) drawn += PAGE;
+			},
+			{ root: node.closest('.scroller'), rootMargin: '600px' }
+		);
+		observer.observe(node);
+		return () => observer.disconnect();
+	};
 	const views: { value: View; label: string; icon: string }[] = [
 		{ value: 'list', label: 'As a list', icon: 'icon-[lucide--list]' },
 		{ value: 'tree', label: 'As a tree', icon: 'icon-[lucide--list-tree]' }
@@ -67,23 +93,27 @@
 					Compared with <span>{git.changes.comparisonTarget}</span>
 				{/if}
 			</p>
-			<div role="radiogroup" aria-label="Show the changes" class="flex shrink-0">
-				{#each views as option (option.value)}
-					<button
-						type="button"
-						role="radio"
-						aria-checked={view === option.value}
-						aria-label={option.label}
-						title={option.label}
-						onclick={() => (view = option.value)}
-						class={[
-							'flex size-7 items-center justify-center rounded-control',
-							view === option.value ? 'text-ink' : 'text-muted opacity-60 hover:opacity-100'
-						]}
-					>
-						<span class={[option.icon, 'size-4']}></span>
-					</button>
-				{/each}
+			<div class="tools">
+				{#if onopencombined}
+					<Button
+						variant="tool"
+						icon="icon-[lucide--files]"
+						label="Open combined diff"
+						onclick={onopencombined}
+					/>
+				{/if}
+				<div role="radiogroup" aria-label="Show the changes" class="tools">
+					{#each views as option (option.value)}
+						<Button
+							variant="tool"
+							role="radio"
+							aria-checked={view === option.value}
+							icon={option.icon}
+							label={option.label}
+							onclick={() => (view = option.value)}
+						/>
+					{/each}
+				</div>
 			</div>
 		</div>
 	{/if}
@@ -111,7 +141,7 @@
 			</div>
 		{:else if view === 'tree'}
 			<ul>
-				{#each rows as row (row.path)}
+				{#each rows.slice(0, drawn) as row (row.path)}
 					<li>
 						{#if row.kind === 'dir'}
 							<button
@@ -129,7 +159,7 @@
 										row.open && 'rotate-90'
 									]}
 								></span>
-								<FittedPath path={row.name} class={{ 'text-ink': row.name.includes('/') }} />
+								<FittedPath path={row.name} />
 							</button>
 						{:else}
 							{@render file(row.file, row.depth)}
@@ -139,10 +169,13 @@
 			</ul>
 		{:else}
 			<ul>
-				{#each files as entry (entry.path)}
+				{#each files.slice(0, drawn) as entry (entry.path)}
 					<li>{@render file(entry)}</li>
 				{/each}
 			</ul>
+		{/if}
+		{#if listed && (view === 'tree' ? rows : files).length > drawn}
+			{#key drawn}<div class="h-px" {@attach more}></div>{/key}
 		{/if}
 	</div>
 </section>
@@ -176,6 +209,6 @@
 				{entry.path.slice(entry.path.lastIndexOf('/') + 1)}
 			</span>
 		{/if}
-		<DiffStat class="tabular-nums" added={entry.added} removed={entry.removed} />
+		<DiffStat class="text-xs tabular-nums" added={entry.added} removed={entry.removed} />
 	</button>
 {/snippet}

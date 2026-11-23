@@ -29,9 +29,9 @@
 			external
 		>
 			{#snippet header()}<span class="icon-[lucide--circle-dot] size-4 text-ok"></span>#42{/snippet}
-			{#snippet footer()}<span>@alex</span><button type="button" class="ml-auto item px-2 py-1"
-					>Start workspace</button
-				>{/snippet}
+			{#snippet footer()}<span>@alex</span><button type="button" class="ml-auto item px-2 py-1">
+					Start workspace
+				</button>{/snippet}
 		</LinkCard>
 	</div>
 </Story>

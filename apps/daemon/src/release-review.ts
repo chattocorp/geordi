@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import type { ReleaseIncrease, ReleasePackage, ReleaseReview } from '@geordi/protocol';
@@ -45,6 +45,19 @@ async function adapterAt(worktree: Worktree, revision: string) {
 type Target = { number: string; head: string; base?: string; branch: string };
 const oid = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
+/** The tree the merge would produce. Git says a merge has conflicts by exiting with 1. */
+async function mergeTree(worktree: Worktree, base: string, target: Target) {
+	try {
+		return (await gitIn(worktree, 'merge-tree', '--write-tree', base, target.head)).trim();
+	} catch (error) {
+		if (error instanceof Error && 'code' in error && error.code === 1)
+			throw new Error(`The pull request has merge conflicts with ${target.branch}`, {
+				cause: error
+			});
+		throw error;
+	}
+}
+
 /** Compare committed trees in a private checkout. Never switch, clean or install into the person's worktree. */
 export async function reviewRelease(
 	worktree: Worktree,
@@ -70,7 +83,7 @@ export async function reviewRelease(
 		}
 		const before = await adapterAt(worktree, base);
 		if (!before && !(await adapterAt(worktree, target.head))) return null;
-		const tree = (await gitIn(worktree, 'merge-tree', '--write-tree', base, target.head)).trim();
+		const tree = await mergeTree(worktree, base, target);
 		if (!oid.test(tree)) throw new Error('Could not prepare the proposed merge');
 		const after = await adapterAt(worktree, tree);
 		if (before && after !== before)
@@ -104,7 +117,8 @@ export async function reviewRelease(
  * Where to find the release tool: the repository's own checkout, whose tool manager (mise)
  * configuration the person trusts. Never the snapshot (mise refuses a path it was never told
  * to trust) nor the workspace's worktree (an agent could point the tool at another program).
- * A bare repository has no checkout: then the snapshot, which fails rather than trusts.
+ * A bare repository has no checkout: then the snapshot (or the temporary directory), which
+ * fails rather than trusts.
  */
 const toolsAt = ({ commonDir }: Worktree) =>
 	basename(commonDir) === '.git' ? dirname(commonDir) : null;
@@ -116,10 +130,21 @@ async function compareTrees(
 	tree: string,
 	hadTool: boolean
 ) {
+	if (adapter.readAt) {
+		// The tool reads both trees from the repository's objects: nothing to check out.
+		const tools = toolsAt(source) ?? tmpdir();
+		const pending = hadTool ? await adapter.readAt(source, base, tools) : [];
+		return releaseIncreases(pending, await adapter.readAt(source, tree, tools));
+	}
+	// Tools that read only files on disk (Changesets) get a private checkout of each tree.
 	const path = await mkdtemp(join(tmpdir(), 'geordi-release-review-'));
 	try {
 		await git(path, ['clone', '--quiet', '--shared', '--no-checkout', '--', source.commonDir, '.']);
 		const commonDir = join(path, '.git');
+		// Release tools read manifests and notes, never what a filter (Git LFS) makes of a file:
+		// checking out pointers instead keeps a repository full of media from taking minutes.
+		await mkdir(join(commonDir, 'info'), { recursive: true });
+		await writeFile(join(commonDir, 'info', 'attributes'), '* -filter\n');
 		const snapshot = { path, commonDir, adminDir: commonDir, branch: '' };
 		await gitIn(snapshot, '-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', base);
 		const tools = toolsAt(source) ?? path;

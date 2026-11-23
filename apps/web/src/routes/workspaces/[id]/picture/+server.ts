@@ -3,7 +3,7 @@ import { hub, workspaces } from '#lib/server/app.ts';
 import type { RequestHandler } from './$types';
 
 /**
- * A picture the workspace's agent referred to in what it wrote (`?path=`, as it wrote it),
+ * A picture or sound the workspace's agent referred to in what it wrote (`?path=`, as it wrote it),
  * read by the daemon where the agent works. Live data (ADR-003): asked for, never stored.
  */
 export const GET: RequestHandler = async ({ params, url }) => {

@@ -29,9 +29,6 @@ export function tokenBreakdown(usage: TurnUsage) {
 		.join(' · ');
 }
 
-/** From how full a context is on, it is shown as a warning: the agent will soon compact it. */
-export const NEARLY_FULL = 0.9;
-
 /** How full an agent's context is, in words: "31k of 1M tokens · $0.27". */
 export function describeUsage({ used, size, cost }: ContextUsage): string {
 	const words = `${tokens(used)} of ${tokens(size)} tokens`;

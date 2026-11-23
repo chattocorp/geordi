@@ -31,16 +31,28 @@
 		waiting = false,
 		questionTarget,
 		senders,
+		autofocus = false,
+		onautofocus,
 		onopenturn,
 		onopensubagent
 	}: {
-		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion'>;
+		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel'>;
 		questionTarget?: { id: string; done(): void };
 		waiting?: boolean;
 		onopenturn?: (changes: TurnChanges) => void;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
+		/** Put the cursor in the reply box now (it may be in a tab that was in the background). */
+		autofocus?: boolean;
+		onautofocus?: () => void;
 	} = $props();
+
+	let reply = $state<HTMLElement>();
+	$effect(() => {
+		if (!autofocus || !reply) return;
+		reply.querySelector('textarea')?.focus();
+		onautofocus?.();
+	});
 
 	const searchFiles = $derived.by(() => {
 		const workspaceId = workspace.id;
@@ -75,13 +87,19 @@
 	const configure = (next: HarnessChoice) => {
 		if (!harnesses?.length) return;
 		const { model, permissionMode } = next.settings[workspace.agent] ?? {};
-		const { effort } = resolveChoice(harnesses, next);
+		const { effort } = resolveChoice(harnesses, next, workspace.sessionModel);
 		return configureWorkspace({ workspaceId: workspace.id, model, effort, permissionMode });
 	};
 
+	// the model that answers next, by its name, for the limits that hold for it alone (`Week (Opus)`)
+	const model = $derived(
+		resolveChoice(harnesses ?? [], choice, workspace.sessionModel).model?.name ??
+			workspace.sessionModel?.model
+	);
+
 	// The agent's own commands and skills, offered as one types `/`: once it has said which.
 	const commands = follow<AgentCommand[] | null>('commands', () => workspace.id);
-	// how much of the subscription's usage limits is used: told on hovering the context meter
+	// how much of each subscription's usage limits is used: in the context meter and the model list
 	const limits = follow<Limits>('limits');
 	const completions = $derived(
 		(commands.current ?? []).map(({ name, description, hint }) => ({
@@ -124,7 +142,7 @@
 	<div class="relative mx-auto flex max-h-full min-h-0 w-full max-w-5xl flex-col">
 		{#if !workspace.archivedAt}
 			<!-- Saying something brings the reader back down, to where it and the answer appear. -->
-			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest}>
+			<div class="flex min-h-0 flex-col px-5 pb-5" onsubmit={toLatest} bind:this={reply}>
 				<WithMessageImages
 					{form}
 					bind:images={written.images}
@@ -133,6 +151,7 @@
 				>
 					{#snippet children(imageProps, hasImages)}
 						<ReplyComposer
+							canSteer={workspace.agent !== 'opencode'}
 							files={searchFiles}
 							{...imageProps}
 							focused
@@ -159,14 +178,17 @@
 								{#if harnesses?.length}<HarnessPicker
 										{harnesses}
 										{choice}
+										sessionModel={workspace.sessionModel}
+										limits={limits.current}
 										onchange={configure}
 									/>{/if}
 							{/snippet}
-							{#snippet meter()}{#if workspace.usage}<ContextMeter
-										usage={workspace.usage}
-										agent={workspace.agent}
-										limits={limits.current?.[workspace.agent]}
-									/>{/if}{/snippet}
+							{#snippet meter()}<ContextMeter
+									usage={workspace.usage}
+									agent={workspace.agent}
+									limits={limits.current?.[workspace.agent]}
+									{model}
+								/>{/snippet}
 						</ReplyComposer>
 					{/snippet}
 				</WithMessageImages>

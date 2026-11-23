@@ -1,0 +1,37 @@
+diff --git a/dist/index.js b/dist/index.js
+index 89480ad6ab82c61973f82724e0a5205da5ed1edb..20b0a5cb32e9e5fc4971a770c711fa1c25b61491 100755
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -40134,7 +40134,7 @@ ${params.turnId}`;
+         ));
+       case "account/rateLimits/updated":
+         this.handleRateLimitsUpdated(notification.params);
+-        return null;
++        return this.createRateLimitsUpdate();
+       case "account/updated":
+         this.onAccountUpdated?.(notification.params);
+         return null;
+@@ -40763,6 +40763,23 @@ ${event.details}` : event.summary;
+       size
+     };
+   }
++  /**
++   * Geordi: the account's rate limits, all of them, as Codex just said, in `_meta` of a
++   * usage update with the context as it last stood; null until that is known.
++   */
++  createRateLimitsUpdate() {
++    const used = this.sessionState.lastTokenUsage?.totalTokens;
++    const size = this.sessionState.modelContextWindow;
++    if (used == null || size == null || size <= 0 || !this.sessionState.rateLimits) {
++      return null;
++    }
++    return {
++      sessionUpdate: "usage_update",
++      used,
++      size,
++      _meta: { "codex/rateLimits": [...this.sessionState.rateLimits.values()].map((entry) => entry.snapshot) }
++    };
++  }
+   handleRateLimitsUpdated(params) {
+     if (!this.sessionState.rateLimits) {
+       this.sessionState.rateLimits = /* @__PURE__ */ new Map();

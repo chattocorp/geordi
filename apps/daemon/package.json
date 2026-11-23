@@ -10,9 +10,9 @@
 		"test": "vitest --run"
 	},
 	"dependencies": {
-		"@agentclientprotocol/claude-agent-acp": "0.107.3",
-		"@agentclientprotocol/codex-acp": "2.7.0",
-		"@agentclientprotocol/sdk": "2.7.0",
+		"@agentclientprotocol/claude-agent-acp": "0.109.0",
+		"@agentclientprotocol/codex-acp": "2.8.0",
+		"@agentclientprotocol/sdk": "2.8.0",
 		"@changesets/get-release-plan": "^5.0.2",
 		"@geordi/protocol": "workspace:*",
 		"@lydell/node-pty": "1.2.0-beta.18",
@@ -20,7 +20,7 @@
 		"@parcel/watcher": "2.6.0",
 		"forges": "^0.3.2",
 		"smol-toml": "1.9.1",
-		"yaml": "2.9.1"
+		"yaml": "catalog:"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

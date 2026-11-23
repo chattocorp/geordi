@@ -6,7 +6,7 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
 
 - 🌳 **Workspaces.** One conversation with one agent, in its own Git worktree on its own
   branch. Run as many side by side as you like.
-- 🤖 **Claude and Codex.** Pick the agent, its model and how hard it thinks, per workspace.
+- 🤖 **Claude Code, Codex, and OpenCode.** Pick the agent, its model and how hard it thinks, per workspace.
 - 💬 **Talk while it works.** Steer an agent mid-turn or queue your next message. Agents
   can ask you questions, too.
 - 🧑‍🤝‍🧑 **Control agents through MCP.** Ask your workspace agent to start other agents,
@@ -51,8 +51,11 @@ On macOS, open **Settings → About** to check for updates, choose the Stable or
 and restart to install a downloaded update. Geordi also checks on startup and hourly.
 
 Geordi runs the agent CLIs you already use: sign in to
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code) or
-[Codex](https://github.com/openai/codex) first. For GitHub, Geordi uses the GitHub CLI's
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code),
+[Codex](https://github.com/openai/codex), or [OpenCode](https://opencode.ai) first.
+For OpenCode, run `opencode auth login`, then open the workspace model picker.
+Select **OpenCode** to use your configured model, or search the models reported by `opencode models`. For models with reasoning variants, the **Effort** menu lists the available levels. Leave it on **Default effort** to use OpenCode’s setting. Once OpenCode opens the session, the workspace shows the model and reasoning level it reports for your defaults. You can also enter a `provider/model` ID.
+Messages sent during an OpenCode turn wait in the workspace queue. For GitHub, Geordi uses the GitHub CLI's
 login.
 
 To run Geordi without the desktop app (Node.js 24 or newer), run `npx geordi` and open
@@ -73,21 +76,20 @@ http://localhost:7717. See [Self-hosting](docs/self-hosting.md).
 Agents need to commit, push and use tools like `gh`, so by default they run with **Full
 Access**: no permission prompts and no sandbox. They can do whatever your user can.
 Choose **Auto Mode** in the composer to restrict them: Claude then decides permissions
-automatically, and Codex runs in its sandbox with automatic review.
+automatically, and Codex runs in its sandbox with automatic review. For OpenCode, choose
+**Configured permissions** to use its permission rules and decline requests that require approval.
 
 ## Configuring a repository
 
 A `.geordi.yml` at the top of a repository says what to run and where to look at it.
-Workspaces get a **Run** button for it, and ports of their own:
+Workspaces get a **Tasks** tab for it, and ports of their own:
 
 ```yaml
-jobs:
+tasks:
   web:
     command: pnpm dev --port $PORT
-
-urls:
-  app:
-    url: http://localhost:{web}/
+    url: http://localhost:$PORT/
+    default: true
 ```
 
 See [Configuration](docs/configuration.md) for everything it can say.

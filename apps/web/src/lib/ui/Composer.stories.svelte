@@ -3,7 +3,7 @@
 	import { fuzzyMatch } from '@geordi/protocol/fuzzy';
 	import { expect, fn, waitFor } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import Button from '@geordi/ui/Button.svelte';
+	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
 	import Composer from '@geordi/ui/Composer.svelte';
 	import Select from './Select.svelte';
@@ -12,13 +12,19 @@
 
 	const slowFiles = fn(async (query: string) => [{ path: query + '.ts', indices: [0] }]);
 
+	let prompt = $state('');
+
 	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
 
 	let pending = $state(false);
+	let field = $state<{ name: string }>();
 	const replyForm = {
 		async onsubmit(event: SubmitEvent) {
 			event.preventDefault();
 			pending = true;
+			await tick();
+			// Refresh the text field while the form is still pending.
+			field = field ? undefined : { name: 'text' };
 			await tick();
 			pending = false;
 		}
@@ -62,11 +68,16 @@
 
 <Story name="Prompt" asChild>
 	<div class="max-w-2xl">
-		<Composer {form} focused rows={5} placeholder="What should the agent do?">
+		<Composer {form} bind:value={prompt} focused rows={5} placeholder="What should the agent do?">
 			{#snippet footer()}
-				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
-					Start workspace
-				</Button>
+				<ComposerButton
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					class="ml-auto"
+				>
+					{prompt.trim() ? 'Make it so' : 'Start workspace'}
+				</ComposerButton>
 			{/snippet}
 		</Composer>
 	</div>
@@ -85,9 +96,14 @@
 						{ value: 'sonnet', label: 'Sonnet' }
 					]}
 				/>
-				<Button type="submit" variant="primary" icon="icon-[lucide--arrow-up]" class="ml-auto">
+				<ComposerButton
+					type="submit"
+					variant="primary"
+					icon="icon-[lucide--arrow-up]"
+					class="ml-auto"
+				>
 					Start workspace
-				</Button>
+				</ComposerButton>
 			{/snippet}
 		</Composer>
 	</div>
@@ -100,9 +116,9 @@
 		const text = canvas.getByRole('textbox');
 		await expect(text).toHaveFocus();
 		await userEvent.keyboard('First reply{Enter}');
-		await expect(text).toHaveFocus();
+		await waitFor(() => expect(text).toHaveFocus());
 		await userEvent.click(canvas.getByRole('button', { name: 'Send' }));
-		await expect(text).toHaveFocus();
+		await waitFor(() => expect(text).toHaveFocus());
 	}}
 >
 	<div class="max-w-2xl">
@@ -111,7 +127,20 @@
 </Story>
 
 <Story
+	name="Queue restores focus after a field refresh"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		await userEvent.type(canvas.getByRole('textbox'), 'Follow up');
+		await userEvent.click(canvas.getByRole('button', { name: 'Queue' }));
+		await waitFor(() => expect(canvas.getByRole('textbox')).toHaveFocus());
+	}}
+>
+	<ReplyComposer running {field} form={replyForm} disabled={pending} onstop={() => {}} />
+</Story>
+
+<Story
 	name="While the agent works"
+	globals={{ theme: 'dark' }}
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		sentMode.mockClear();
@@ -136,7 +165,7 @@
 		<div class="max-w-2xl">
 			<Composer {form} live={args.live} rows={6} placeholder="Steer the agent, or queue a message">
 				{#snippet footer()}
-					<Button
+					<ComposerButton
 						type="submit"
 						variant="primary"
 						icon="icon-[lucide--arrow-up]"
@@ -159,7 +188,7 @@
 			problems={['Write something first']}
 		>
 			{#snippet footer()}
-				<Button icon="icon-[lucide--square]" class="ml-auto">Stop</Button>
+				<ComposerButton icon="icon-[lucide--square]" class="ml-auto">Stop</ComposerButton>
 			{/snippet}
 		</Composer>
 	</div>
@@ -178,7 +207,7 @@
 				</div>
 			{/snippet}
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -219,7 +248,7 @@
 	<div class="max-w-2xl pt-80">
 		<Composer {form} rows={2} completions={commands} placeholder="Reply to the agent">
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -245,7 +274,7 @@
 	<div class="max-w-2xl pt-80">
 		<Composer {form} rows={2} completions={many} placeholder="Reply to the agent">
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -264,10 +293,10 @@
 			focused
 			rows={2}
 			placeholder="Reply to the agent"
-			suggestion="Run the tests again and fix whatever still fails."
+			suggestion="Merge PR #308 once the checks pass."
 		>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -292,8 +321,7 @@
 			.getBoundingClientRect();
 		await expect(pen.left).toBeGreaterThanOrEqual(lastLine.right);
 		const lift = lastLine.top + lastLine.height / 2 - (pen.top + pen.height / 2);
-		await expect(lift).toBeGreaterThan(2);
-		await expect(lift).toBeLessThan(4);
+		await expect(Math.abs(lift)).toBeLessThan(1);
 		const text = canvas.getByRole('textbox');
 		await expect(text).toHaveAttribute('placeholder', '');
 		await expect(send.getBoundingClientRect().top).toBeGreaterThanOrEqual(
@@ -307,7 +335,7 @@
 	<div class="max-w-sm">
 		<Composer {form} rows={2} placeholder="Reply to the agent" suggestion={longSuggestion}>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -348,7 +376,7 @@
 			suggestion={Array(12).fill(longSuggestion).join('\n\n')}
 		>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -370,7 +398,7 @@
 			suggestion="Run the tests again."
 		>
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"
@@ -414,7 +442,10 @@
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		sentSuggestion.mockClear();
-		await userEvent.click(canvas.getByRole('button', { name: 'Edit suggested reply' }));
+		const edit = canvas.getByRole('button', { name: 'Edit suggested reply' });
+		await userEvent.hover(edit);
+		await expect(edit).toHaveStyle({ backgroundColor: 'rgba(0, 0, 0, 0)' });
+		await userEvent.click(edit);
 		const text = canvas.getByRole('combobox');
 		await expect(text).toHaveFocus();
 		await expect(text).toHaveValue('Run the tests again.');
@@ -441,7 +472,7 @@
 		placeholder="Reply to the agent"
 		suggestion="Run the tests again."
 	>
-		{#snippet footer()}<Button type="submit">Send</Button>{/snippet}
+		{#snippet footer()}<ComposerButton type="submit">Send</ComposerButton>{/snippet}
 	</Composer>
 </Story>
 
@@ -510,8 +541,9 @@
 					return indices ? [{ path, indices }] : [];
 				})}
 		>
-			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
-				>{/snippet}
+			{#snippet footer()}<ComposerButton type="submit" variant="primary" class="ml-auto">
+					Send
+				</ComposerButton>{/snippet}
 		</Composer>
 	</div>
 </Story>
@@ -552,8 +584,9 @@
 >
 	<div class="mx-auto mt-64 max-w-2xl">
 		<Composer form={suggestionForm} files={slowFiles} placeholder="Reply to the agent">
-			{#snippet footer()}<Button type="submit" variant="primary" class="ml-auto">Send</Button
-				>{/snippet}
+			{#snippet footer()}<ComposerButton type="submit" variant="primary" class="ml-auto">
+					Send
+				</ComposerButton>{/snippet}
 		</Composer>
 	</div>
 </Story>

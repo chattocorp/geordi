@@ -1,9 +1,17 @@
 import { createImages } from './images.ts';
-import { mkdtempSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	renameSync,
+	statSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import type { AgentEvent, ForgeMessage } from '@geordi/protocol';
+import type { Agent, AgentEvent, ForgeMessage } from '@geordi/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { createRepos } from './repos.ts';
@@ -19,7 +27,7 @@ function setup({ connected = true, database = ':memory:' } = {}) {
 	const dispatch = (message: ForgeMessage) => (sent.push(message), connected);
 	const workspaces = createWorkspaces(store, repos, dispatch);
 	const repo = repos.register(repoPath);
-	const create = (prompt: string, agent: 'claude' | 'codex' = 'claude') =>
+	const create = (prompt: string, agent: Agent = 'claude') =>
 		workspaces.create({ repoId: repo.id, agent, prompt });
 	return { store, repos, workspaces, sent, repo, create, dispatch };
 }
@@ -65,6 +73,36 @@ describe('workspaces', () => {
 			linked: [{ url, number: '31' }]
 		});
 	});
+
+	it('finds idle workspaces whose worktree it never heard of, and records each once', () => {
+		const { workspaces, sent, create, store } = setup();
+		const id = create('Hello');
+		acknowledgePrompt(workspaces, sent.at(-1));
+		workspaces.record(id, { kind: 'turn.started' });
+		workspaces.record(id, { kind: 'resume', id: 'session' });
+		expect(workspaces.unplaced()).toEqual([]); // at work: its turn may be making it
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.unplaced()).toEqual([id]);
+
+		const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/x' } as const;
+		workspaces.record(id, worktree);
+		const recorded = store.readAll().length;
+		workspaces.record(id, worktree);
+		expect(store.readAll().length).toBe(recorded);
+		expect(workspaces.unplaced()).toEqual([]);
+	});
+
+	it('replays an older worktree without assigning it a new parent directory', () => {
+		const { repo, store, repos, dispatch } = setup();
+		store.append({
+			type: 'workspace.created',
+			stream: 'workspace:old',
+			data: { id: 'old', repoId: repo.id, title: 'Old workspace', agent: 'codex' }
+		});
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.ref('old')).toEqual({ repoPath: repo.path, worktreeId: 'old' });
+	});
+
 	it('publishes nested reviewer edits without changing earlier snapshots', () => {
 		const { workspaces, create } = setup();
 		const id = create('Review');
@@ -157,6 +195,31 @@ describe('workspaces', () => {
 			startedAt: transcript[6].at,
 			at: expect.any(String)
 		});
+	});
+
+	it('keeps a compaction where it began, and ends one left running with its turn', () => {
+		const { workspaces, create, store, repos, dispatch } = setup();
+		const id = create('Keep going');
+		workspaces.record(id, { kind: 'compaction', id: 'c1', status: 'running' });
+		workspaces.record(id, { kind: 'text', text: 'Carrying on.' });
+		const began = workspaces.get(id).transcript[1].at;
+		workspaces.record(id, {
+			kind: 'compaction',
+			id: 'c1',
+			status: 'completed',
+			tokensBefore: 183000,
+			tokensAfter: 21000
+		});
+		workspaces.record(id, { kind: 'compaction', id: 'c2', status: 'running' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).transcript).toMatchObject([
+			{ kind: 'user' },
+			{ kind: 'compaction', id: 'c1', status: 'completed', tokensAfter: 21000, at: began },
+			{ kind: 'text' },
+			{ kind: 'compaction', id: 'c2', status: 'cancelled' },
+			{ kind: 'turn' }
+		]);
 	});
 
 	it('updates a plan in place and restores each plan when the forge restarts', () => {
@@ -339,6 +402,7 @@ describe('workspaces', () => {
 				agent: 'claude',
 				settings: {},
 				repoPath: repo.path,
+				worktreeParent: repo.id,
 				apiToken: expect.any(String),
 				resumeId: null,
 				instructions: expect.stringContaining('inside Geordi'),
@@ -438,6 +502,24 @@ describe('workspaces', () => {
 		});
 	});
 
+	it('starts a child from the repository’s base, or from the branch it is given', () => {
+		const { workspaces, repo } = setup();
+		const id = workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Go' });
+		const fresh = workspaces.agents.start(id, { worktree: 'own', prompt: 'Help' });
+		expect(workspaces.ref(fresh.id)).not.toHaveProperty('base');
+
+		workspaces.record(id, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const built = workspaces.agents.start(id, {
+			worktree: 'own',
+			base: 'geordi/lead',
+			prompt: 'Build on it'
+		});
+		expect(workspaces.ref(built.id)).toMatchObject({ base: 'geordi/lead' });
+		// one base, as it was given: the comparison never moves to another branch
+		workspaces.onBranch(id, 'perf/renamed');
+		expect(workspaces.ref(built.id)).toMatchObject({ base: 'geordi/lead' });
+	});
+
 	it('runs every turn with the model and effort chosen, and hands them on to agents it starts', () => {
 		const { workspaces, sent, repo } = setup();
 		const settings = { model: 'opus', effort: 'high', permissionMode: 'auto' } as const;
@@ -533,6 +615,47 @@ describe('workspaces', () => {
 		expect(workspaces.get(id).lastTurn).toBe('stopped');
 	});
 
+	it('keeps a workspace inactive until a person marks it active or prompts it, also across a restart', () => {
+		const { workspaces, store, repos, dispatch, create } = setup();
+		const id = create('One');
+		const other = create('Other');
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.setInactive(id, true);
+		expect(workspaces.get(id).inactive).toBe(true);
+		// what an agent says or does leaves it inactive
+		workspaces.send(id, 'From an agent', other);
+		workspaces.record(id, { kind: 'turn.completed' });
+		const restored = createWorkspaces(store, repos, dispatch);
+		expect(restored.get(id).inactive).toBe(true);
+		restored.send(id, 'Two');
+		expect(restored.get(id).inactive).toBe(false);
+		const again = createWorkspaces(store, repos, dispatch);
+		expect(again.get(id).inactive).toBe(false);
+		again.setInactive(id, true);
+		expect(again.get(id).inactive).toBe(true);
+		again.setInactive(id, false);
+		expect(createWorkspaces(store, repos, dispatch).get(id).inactive).toBe(false);
+	});
+
+	it('reads a workspace removed from Today, before inactive ones, as inactive', () => {
+		const { store, repos, dispatch, create } = setup();
+		const id = create('One');
+		store.append({ type: 'workspace.setAside', stream: `workspace:${id}`, data: { id } } as never);
+		expect(createWorkspaces(store, repos, dispatch).get(id).inactive).toBe(true);
+	});
+
+	it('keeps a workspace locked against archiving until a person unlocks it, across a restart', () => {
+		const { workspaces, store, repos, dispatch, create } = setup();
+		const id = create('One');
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.lock(id, true);
+		expect(() => workspaces.archive(id)).toThrow();
+		const restored = createWorkspaces(store, repos, dispatch);
+		expect(restored.get(id).locked).toBe(true);
+		restored.lock(id, false);
+		expect(createWorkspaces(store, repos, dispatch).get(id).locked).toBe(false);
+	});
+
 	it('lets a waiting message be taken back', () => {
 		const { workspaces, sent, create } = setup();
 		const id = create('One');
@@ -560,6 +683,18 @@ describe('workspaces', () => {
 		workspaces.send(id, 'Three');
 		expect(sent.at(-1)).toMatchObject({ prompt: 'Two' });
 		expect(workspaces.get(id).queue).toEqual(['Three']);
+	});
+
+	it('queues a steer to a working OpenCode session across forge replay', () => {
+		const { workspaces, store, repos, dispatch, sent, create } = setup();
+		const id = create('One', 'opencode');
+		workspaces.steer(id, 'Two');
+		expect(sent).toHaveLength(1);
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(id).queue).toEqual(['Two']);
+		replay.record(id, { kind: 'turn.completed' });
+		expect(sent.at(-1)).toMatchObject({ type: 'agent.message', prompt: 'Two' });
+		expect(replay.get(id).queue).toEqual([]);
 	});
 
 	it('steers a working agent: the message reaches it at once, in the middle of its turn', () => {
@@ -809,6 +944,39 @@ describe('workspaces', () => {
 		unfollow();
 	});
 
+	it('records what the agent suggests, until its next turn', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('Suggest');
+		workspaces.record(id, { kind: 'turn.started' });
+		// said while it works, it was meant for a turn that is over
+		workspaces.suggest(id, 'Too early');
+		expect(workspaces.summary(id).suggestion).toBeNull();
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.suggest(id, 'Ship it');
+		const recorded = () => store.readAll().filter((event) => event.type === 'workspace.suggested');
+		// after a restart, still there; a daemon that says it again records nothing new
+		const restarted = createWorkspaces(store, repos, dispatch);
+		expect(restarted.summary(id).suggestion).toBe('Ship it');
+		restarted.suggest(id, 'Ship it');
+		expect(recorded()).toHaveLength(1);
+		restarted.record(id, { kind: 'turn.started' });
+		expect(restarted.summary(id).suggestion).toBeNull();
+	});
+
+	it('withdraws a suggestion when a message starts the next turn', () => {
+		const { store, repos, workspaces, dispatch, create } = setup();
+		const id = create('Suggest');
+		workspaces.record(id, { kind: 'turn.started' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.suggest(id, 'Ship it');
+		// the reply starts the turn, so the agent's own word of it is dropped
+		workspaces.send(id, 'Not yet');
+		workspaces.record(id, { kind: 'turn.started' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		expect(workspaces.summary(id).suggestion).toBeNull();
+		expect(createWorkspaces(store, repos, dispatch).summary(id).suggestion).toBeNull();
+	});
+
 	it('keeps the queue across a restart', () => {
 		const { store, repos, workspaces, dispatch, create } = setup();
 		const id = create('One');
@@ -1029,14 +1197,15 @@ describe('moving', () => {
 		expect(titles(setup({ database }).workspaces.all())).toEqual(['D', 'C', 'A', 'B']);
 	});
 
-	it('moves workspaces only among their repository’s', () => {
+	it('moves workspaces across repositories, as one list', () => {
 		const { workspaces, repos, create } = setup();
 		const id = create('A');
 		const path = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
 		execFileSync('git', ['init', '-q', path]);
 		const elsewhere = repos.register(path);
 		const other = workspaces.create({ repoId: elsewhere.id, agent: 'claude', prompt: 'B' });
-		expect(() => workspaces.move(id, other)).toThrow();
+		workspaces.move(id, other);
+		expect(workspaces.all().map(({ title }) => title)).toEqual(['A', 'B']);
 		expect(() => workspaces.move(id, 'missing')).toThrow();
 	});
 });
@@ -1315,9 +1484,14 @@ describe('agents starting agents', () => {
 		expect(stranger.agents.authenticate(tokenOf(sent.at(-1)))).toBeNull();
 	});
 
-	it('starts a child that works in its own worktree, branched from the parent', () => {
+	it('starts a child that works in its own worktree, branched from where it is told', () => {
 		const { workspaces, agents, sent, repo, lead: caller } = lead();
-		const child = agents.start(caller, { worktree: 'own', agent: 'codex', prompt: 'Build it' });
+		const child = agents.start(caller, {
+			worktree: 'own',
+			base: 'geordi/parent',
+			agent: 'codex',
+			prompt: 'Build it'
+		});
 
 		expect(child).toMatchObject({ parentId: caller, agent: 'codex', sharesWorktree: false });
 		expect(workspaces.get(child.id)).toMatchObject({
@@ -1356,7 +1530,7 @@ describe('agents starting agents', () => {
 		expect(workspaces.ref(child.id)).toEqual(workspaces.ref(caller));
 	});
 
-	it('reports what a child said in its latest turn', async () => {
+	it('reports the last thing a child said in its latest turn', async () => {
 		const { workspaces, agents, lead: caller } = lead();
 		const { id } = agents.start(caller, { worktree: 'shared', prompt: 'Go' });
 		workspaces.record(id, { kind: 'text', text: 'Looking.' });
@@ -1366,7 +1540,7 @@ describe('agents starting agents', () => {
 		workspaces.record(id, { kind: 'turn.completed' });
 		expect(await waiting).toMatchObject({
 			status: 'idle',
-			reply: 'Looking.\n\nDone.',
+			reply: 'Done.',
 			error: null
 		});
 
@@ -1471,6 +1645,89 @@ describe('agents talking to the agents they started', () => {
 		workspaces.send(child, 'Thanks');
 		expect(said().at(-1)).toEqual(['Thanks', undefined]);
 	});
+
+	it('tells a parent when its agent ends a turn, with what it said', async () => {
+		const { workspaces, lead, child } = family();
+		const parentSaid = () =>
+			workspaces
+				.get(lead)
+				.transcript.flatMap((item) => (item.kind === 'user' ? [[item.text, item.from]] : []));
+
+		// a parent at work hears it when its own turn ends
+		workspaces.record(child, { kind: 'text', text: 'Built it.' });
+		workspaces.record(child, { kind: 'turn.completed' });
+		const notice = `Your agent “Build” (${child}) finished its turn.\n\nBuilt it.`;
+		expect(workspaces.get(lead).queue).toEqual([notice]);
+		workspaces.record(lead, { kind: 'turn.completed' });
+		expect(workspaces.get(lead).status).toBe('running');
+		expect(parentSaid().at(-1)).toEqual([notice, child]);
+
+		// an idle parent is woken by a failure too
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.agents.send(lead, child, 'Again');
+		workspaces.record(child, { kind: 'turn.failed', error: 'boom' });
+		expect(parentSaid().at(-1)).toEqual([`Your agent “Build” (${child}) stopped: boom`, child]);
+
+		// a parent waiting for it hears it from the wait alone
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.agents.send(lead, child, 'Once more');
+		const waited = workspaces.agents.wait(lead, child, 5000);
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(await waited).toMatchObject({ status: 'idle' });
+		expect(workspaces.get(lead)).toMatchObject({ status: 'idle', queue: [] });
+
+		// what a person talks over with it is theirs
+		const before = parentSaid().length;
+		workspaces.send(child, 'Rename that');
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(workspaces.get(lead).status).toBe('idle');
+
+		// news goes up a chain: a turn begun by its own agent's report is reported on
+		workspaces.agents.send(lead, child, 'Delegate');
+		workspaces.record(child, { kind: 'worktree', path: '/wt/child', branch: 'geordi/child' });
+		const grandchild = workspaces.agents.start(child, { worktree: 'shared', prompt: 'Part' }).id;
+		workspaces.record(child, { kind: 'turn.completed' });
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.record(grandchild, { kind: 'turn.completed' });
+		expect(workspaces.get(child).status).toBe('running');
+		workspaces.record(child, { kind: 'text', text: 'All parts done.' });
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(
+			parentSaid()
+				.slice(before)
+				.map(([, from]) => from)
+		).toEqual([child, child]);
+		expect(parentSaid().at(-1)?.[0]).toMatch(/All parts done\.$/);
+
+		// a long answer keeps its conclusion, not its start
+		workspaces.record(lead, { kind: 'turn.completed' });
+		workspaces.agents.send(lead, child, 'Write it up');
+		workspaces.record(child, { kind: 'text', text: 'Looking into it.' });
+		workspaces.record(child, { kind: 'text', text: `${'x'.repeat(5000)} In short: yes.` });
+		workspaces.record(child, { kind: 'turn.completed' });
+		const long = parentSaid().at(-1)?.[0] ?? '';
+		expect(long).toMatch(/begins earlier; see read_workspace/);
+		expect(long).toMatch(/In short: yes\.$/);
+		expect(long).not.toMatch(/Looking into it/);
+	});
+
+	it.each([false, true])(
+		'reports the delegated turn before a personal follow-up (wait=%s)',
+		async (wait) => {
+			const { workspaces, lead, child } = family();
+			const result = wait && workspaces.agents.wait(lead, child, 5000);
+			workspaces.send(child, 'My follow-up');
+			workspaces.record(child, { kind: 'text', text: 'Build result' });
+			workspaces.record(child, { kind: 'turn.completed' });
+			expect(workspaces.get(child).status).toBe('running');
+			workspaces.record(child, { kind: 'text', text: 'Personal reply' });
+			workspaces.record(child, { kind: 'turn.completed' });
+			if (result) expect(await result).toMatchObject({ status: 'idle', reply: 'Build result' });
+			expect(workspaces.get(lead).queue).toEqual(
+				wait ? [] : [`Your agent “Build” (${child}) finished its turn.\n\nBuild result`]
+			);
+		}
+	);
 
 	it('tells a working agent at once what a message that interrupts says', () => {
 		const { workspaces, lead, child, said, sent } = family();
@@ -1661,11 +1918,18 @@ describe('projects (FDR-012)', () => {
 				.filter((id) => id !== project)
 				.sort()
 		);
-		// only a project starts agents in other workspaces
+		// a repository agent can only place a reviewer with a descendant
 		const lead = create('Lead in a repository');
 		expect(() =>
 			workspaces.agents.start(lead, { worktree: 'own', workspace: target, prompt: 'No' })
 		).toThrow();
+		// or with itself, as with a shared worktree
+		const { id: own } = workspaces.agents.start(lead, {
+			worktree: 'own',
+			workspace: lead,
+			prompt: 'Review mine'
+		});
+		expect(workspaces.get(own)).toMatchObject({ worktreeId: lead, parentId: lead });
 	});
 
 	it('leave other projects alone, and are left alone by them', () => {
@@ -1691,5 +1955,212 @@ describe('projects (FDR-012)', () => {
 		expect(messageTo(sent, other)?.prompt).toBe('Change of plan');
 		workspaces.agents.stop(project, other);
 		expect(sent.at(-1)).toEqual({ type: 'agent.stop', workspaceId: other });
+	});
+});
+
+describe('purging archived workspaces', () => {
+	const png = Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+		'base64'
+	);
+	const worktree = { kind: 'worktree', path: '/wt', branch: 'geordi/lead' } as const;
+	const done = (workspaces: ReturnType<typeof createWorkspaces>, ...ids: string[]) =>
+		// until all are idle: a parent is woken by what its agents report
+		{
+			while (ids.some((id) => workspaces.get(id).status === 'running'))
+				ids.forEach((id) => workspaces.record(id, { kind: 'turn.completed' }));
+		};
+
+	it('deletes a workspace with the agents it started and those alongside, and nothing else', () => {
+		const { store, repos, workspaces, create, dispatch } = setup();
+		const lead = create('Lead');
+		workspaces.record(lead, worktree);
+		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
+		const aide = workspaces.join(lead);
+		const other = create('Other');
+		done(workspaces, lead, child, other);
+		for (const id of [lead, child, aide]) workspaces.archive(id);
+
+		const { purged, freed } = workspaces.purge([lead]);
+		expect(purged).toBe(3);
+		expect(freed).toBeGreaterThanOrEqual(0);
+		for (const id of [lead, child, aide]) expect(() => workspaces.get(id)).toThrow();
+		expect(workspaces.archived()).toEqual([]);
+		expect(store.readAll().filter((event) => event.stream === `workspace:${lead}`)).toEqual([]);
+
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(() => replay.get(lead)).toThrow();
+		expect(replay.get(other)).toEqual(workspaces.get(other));
+	});
+
+	it('refuses while one of them is not archived, and deletes nothing', () => {
+		const { store, workspaces, create } = setup();
+		const lead = create('Lead');
+		workspaces.record(lead, worktree);
+		workspaces.agents.start(lead, { worktree: 'own', prompt: 'Help' });
+		done(workspaces, lead);
+		workspaces.archive(lead);
+		const before = store.readAll().length;
+		expect(() => workspaces.purge([lead])).toThrow(refusal(/“Help” is not archived/));
+		expect(store.readAll()).toHaveLength(before);
+		const release = workspaces.hold([lead], 'being restored');
+		expect(() => workspaces.purge([lead])).toThrow();
+		release();
+	});
+
+	it('keeps what a purged agent said elsewhere as its own, and where a worktree is', () => {
+		const { store, repos, workspaces, create, dispatch } = setup();
+		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Plan' });
+		const owner = create('Owner');
+		done(workspaces, owner);
+		workspaces.agents.send(project, owner, 'Change of plan');
+		// an agent alongside said where the owner's worktree is
+		const aide = workspaces.join(owner);
+		workspaces.record(aide, { kind: 'worktree', path: '/owner', branch: 'geordi/owner' });
+		done(workspaces, project, owner);
+		workspaces.archive(project);
+		workspaces.archive(aide);
+
+		workspaces.purge([project]);
+		workspaces.purge([aide]);
+		const kept = workspaces.get(owner);
+		expect(kept.transcript.find((item) => item.kind === 'user' && item.from)).toMatchObject({
+			text: 'Change of plan',
+			from: project
+		});
+		expect(kept.worktree).toEqual({ path: '/owner', branch: 'geordi/owner' });
+		expect(createWorkspaces(store, repos, dispatch).get(owner)).toEqual(kept);
+	});
+
+	it('deletes the images sent to it, and keeps the bytes another image has too', () => {
+		const { store, workspaces, repo } = setup();
+		const images = createImages(store);
+		const gone = images.add(png);
+		const kept = images.add(png);
+		const purged = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'A',
+			images: [gone]
+		});
+		workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'B', images: [kept] });
+		done(workspaces, purged);
+		workspaces.archive(purged);
+		workspaces.purge([purged]);
+		expect(() => images.get(gone)).toThrow();
+		expect(images.get(kept).data).toBe(png.toString('base64'));
+	});
+
+	it('purges queued and withdrawn attachments after restart, preserving other workspaces’ images', () => {
+		const { store, workspaces, create, repos, dispatch } = setup();
+		const images = createImages(store);
+		const withdrawn = images.add(png);
+		const queued = images.add(png);
+		const shared = images.add(png);
+		const kept = create('Keep');
+		workspaces.send(kept, 'Still queued', null, [shared]);
+		const id = create('Work');
+		workspaces.send(id, 'Withdraw', null, [withdrawn]);
+		workspaces.dequeue(id, 0, 'Withdraw');
+		workspaces.send(id, 'Next', null, [queued, shared]);
+		workspaces.record(id, { kind: 'turn.failed', error: 'Stopped' });
+		workspaces.archive(id);
+		createWorkspaces(store, repos, dispatch).purge([id]);
+		expect(() => images.get(queued)).toThrow();
+		expect(() => images.get(withdrawn)).toThrow();
+		expect(images.get(shared).data).toBe(png.toString('base64'));
+	});
+
+	it('keeps the files of the images it deletes with the copy of the log it leaves', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-purge-')), 'events.db');
+		const { store, workspaces, repo } = setup({ database });
+		const images = createImages(store);
+		const image = images.add(png);
+		const id = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'A',
+			images: [image]
+		});
+		done(workspaces, id);
+		workspaces.archive(id);
+		const [blob] = store
+			.readStream(`image:${image}`)
+			.flatMap((event) =>
+				event.type === 'image.added' && 'blob' in event.data ? [event.data.blob] : []
+			);
+		workspaces.purge([id]);
+		const [copy] = readdirSync(store.purgeCopies!);
+		expect(existsSync(join(store.purgeCopies!, copy, 'events.db'))).toBe(true);
+		expect(existsSync(join(store.purgeCopies!, copy, 'blobs', blob))).toBe(true);
+		expect(existsSync(join(store.path, '..', 'blobs', blob))).toBe(false);
+		store.close();
+	});
+
+	it('can be undone by hand, as FDR-014 says, from the copy of the last purge', () => {
+		const directory = mkdtempSync(join(tmpdir(), 'geordi-purge-'));
+		const { store, workspaces, repos, repo, dispatch } = setup({
+			database: join(directory, 'events.db')
+		});
+		const image = createImages(store).add(png);
+		const id = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'A',
+			images: [image]
+		});
+		done(workspaces, id);
+		workspaces.archive(id);
+		const before = workspaces.get(id);
+		workspaces.purge([id]);
+		// work done after the deletion, still in the write-ahead log when Geordi stops
+		const picture = createImages(store).add(png);
+		const later = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'Later',
+			images: [picture]
+		});
+		void repos;
+
+		// the data as a crash leaves it, write-ahead log and all
+		const data = mkdtempSync(join(tmpdir(), 'geordi-undo-'));
+		cpSync(directory, data, { recursive: true });
+		store.close();
+		expect(existsSync(join(data, 'events.db-wal'))).toBe(true);
+
+		// 2. set the current data aside; 3. move the copy in; 4. move the images back
+		const aside = mkdtempSync(join(tmpdir(), 'geordi-aside-'));
+		for (const file of ['events.db', 'events.db-wal', 'events.db-shm'])
+			if (existsSync(join(data, file))) renameSync(join(data, file), join(aside, file));
+		cpSync(join(data, 'blobs'), join(aside, 'blobs'), { recursive: true });
+		// what else may be there: a deletion that never went through, and a folder of someone's own
+		mkdirSync(join(data, 'purge-copies', 'pending-2999-01-01T00-00-00.000Z-0123abcd'));
+		mkdirSync(join(data, 'purge-copies', 'saved'));
+		// 3. the newest folder named by a time alone
+		const copy = join(
+			data,
+			'purge-copies',
+			readdirSync(join(data, 'purge-copies'))
+				.filter((folder) => /^\d{4}-\d{2}-\d{2}T[\d.-]+Z-[0-9a-f]{8}$/.test(folder))
+				.sort()
+				.at(-1)!
+		);
+		renameSync(join(copy, 'events.db'), join(data, 'events.db'));
+		for (const blob of readdirSync(join(copy, 'blobs')))
+			renameSync(join(copy, 'blobs', blob), join(data, 'blobs', blob));
+
+		const restored = new EventStore<GeordiEvent>(join(data, 'events.db'));
+		const back = createWorkspaces(restored, createRepos(restored), dispatch);
+		expect(back.get(id)).toEqual(before);
+		expect(createImages(restored).get(image).data).toBe(png.toString('base64'));
+		// what happened since is not in it, as the warning says, but in what was set aside
+		expect(() => back.get(later)).toThrow();
+		expect(statSync(join(data, 'events.db')).mode & 0o777).toBe(0o600);
+		restored.close();
+		const kept = new EventStore<GeordiEvent>(join(aside, 'events.db'));
+		expect(createWorkspaces(kept, createRepos(kept), dispatch).get(later).title).toBe('Later');
+		expect(createImages(kept).get(picture).data).toBe(png.toString('base64'));
+		kept.close();
 	});
 });

@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, userEvent, waitFor, within } from 'storybook/test';
-	import Button from '@geordi/ui/Button.svelte';
+	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 	import MessageComposer from './MessageComposer.svelte';
 
 	const { Story } = defineMeta({ title: 'Workspace/MessageComposer', component: MessageComposer });
@@ -65,6 +65,25 @@
 			);
 			expect(uploads).toBe(4);
 			element.reset();
+
+			// In the app, other files are named by their path, typed where the cursor is.
+			const desktop = window as { geordiDesktop?: { pathOf: (file: File) => string } };
+			desktop.geordiDesktop = { pathOf: (dropped) => `/Users/me/${dropped.name}` };
+			try {
+				const other = new DataTransfer();
+				other.items.add(new File(['notes'], 'notes.md', { type: 'text/markdown' }));
+				other.items.add(new File(['plan'], 'my plan.txt', { type: 'text/plain' }));
+				other.items.add(file);
+				await userEvent.type(textarea, 'Read');
+				textarea.dispatchEvent(
+					new DragEvent('drop', { dataTransfer: other, bubbles: true, cancelable: true })
+				);
+				await canvas.findByRole('img', { name: 'Attached image 1' });
+				expect(textarea).toHaveValue('Read /Users/me/notes.md "/Users/me/my plan.txt"');
+				element.reset();
+			} finally {
+				delete desktop.geordiDesktop;
+			}
 		} finally {
 			window.fetch = original;
 		}
@@ -75,7 +94,7 @@
 	<div class="max-w-2xl">
 		<MessageComposer imageField={{ name: 'images' }} {form} placeholder="Reply to the agent">
 			{#snippet footer()}
-				<Button
+				<ComposerButton
 					type="submit"
 					variant="primary"
 					icon="icon-[lucide--arrow-up]"

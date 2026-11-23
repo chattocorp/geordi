@@ -1,0 +1,69 @@
+---
+import Button from './Button.astro';
+import { site } from '../site.ts';
+---
+
+<!--
+	The stable download, with what goes beside it (`beside`); below it, quieter, the next beta
+	if there is one, and the links given as children.
+-->
+<div class="flex flex-col items-start gap-4">
+	<div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+		<Button variant="primary" size="lg" href={site.download} icon="icon-[lucide--download]">
+			<span data-stable-version>Download stable</span>
+		</Button>
+		<slot name="beside" />
+	</div>
+	<p class="hidden flex-wrap gap-x-6 gap-y-2 text-sm has-[a]:flex">
+		<template data-prerelease>
+			<a class="text-link" href={`${site.repo}/releases`}>
+				Download prerelease
+			</a>
+		</template>
+		<slot />
+	</p>
+</div>
+
+<script>
+	import { site } from '../site.ts';
+
+	type Release = { tag_name: string; draft: boolean; prerelease: boolean };
+	const api = 'https://api.github.com/repos/chattocorp/geordi/releases';
+
+	async function showDownloads() {
+		const response = await fetch(`${api}/latest`);
+		if (!response.ok) return;
+		const stable: Release = await response.json();
+		if (!/^v\d+\.\d+\.\d+$/.test(stable.tag_name)) return;
+		for (const label of document.querySelectorAll('[data-stable-version]')) {
+			label.textContent = `Download stable ${stable.tag_name.slice(1)}`;
+			label.closest('a')!.href = `${site.repo}/releases/tag/${stable.tag_name}`;
+		}
+
+		for (let page = 1; ; page++) {
+			const response = await fetch(`${api}?page=${page}`);
+			if (!response.ok) return;
+			const releases: Release[] = await response.json();
+			const beta = releases.find((release) => {
+				if (release.draft || !release.prerelease) return false;
+				const match = /^(v\d+\.\d+\.\d+)-beta\.\d+$/.exec(release.tag_name);
+				return match && match[1].localeCompare(stable.tag_name, 'en', { numeric: true }) > 0;
+			});
+			if (beta) {
+				for (const template of document.querySelectorAll<HTMLTemplateElement>(
+					'template[data-prerelease]'
+				)) {
+					const link = template.content.querySelector('a')!;
+					link.href = `${site.repo}/releases/tag/${beta.tag_name}`;
+					link.textContent = `Try ${beta.tag_name.slice(1)}`;
+					template.replaceWith(link);
+				}
+				return;
+			}
+			if (!response.headers.get('link')?.includes('rel="next"')) return;
+		}
+	}
+
+	// The static stable link also works offline from the API or when it is rate-limited.
+	showDownloads().catch(() => {});
+</script>

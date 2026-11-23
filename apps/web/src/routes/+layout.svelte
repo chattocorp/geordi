@@ -9,11 +9,23 @@
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
-	import { openSettings } from '#lib/components/settings.svelte.ts';
-	import { activeOnDay, inFocus, inSidebarOrder, stepThrough } from '#lib/family.ts';
+	import { initRibbonPosition, openSettings, sections } from '#lib/components/settings.svelte.ts';
+	import CommandPalette from '#lib/ui/CommandPalette.svelte';
+	import { runShortcut } from '#lib/commands.ts';
+	import { globalCommands } from '#lib/components/commands.ts';
+	import AddRepository from '#lib/components/AddRepository.svelte';
+	import { theme } from '#lib/theme.svelte.ts';
+	import { daemon } from '#lib/daemon.svelte.ts';
+	import {
+		inFocus,
+		inSidebarOrder,
+		nextUnread,
+		stepThrough,
+		withoutInactive
+	} from '#lib/family.ts';
 	import { hint, pressed } from '@geordi/ui/keys';
-	import { ask, badge, isLooking, seen, watch } from '#lib/notifications.svelte.ts';
-	import { persisted } from '#lib/persisted.svelte.ts';
+	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
+	import { persisted } from '@geordi/ui/persisted';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
 	import { releaseReview } from '#lib/components/workspace/release-review.svelte.ts';
 	import ReleaseConfirm from '#lib/components/workspace/ReleaseConfirm.svelte';
@@ -24,6 +36,7 @@
 	import { setTitleBarLead } from '@geordi/ui/TitleBar.svelte';
 	import { connect, connection, follow } from '#lib/live.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
+	import { setWorkspaceLinks, workspaceLinks } from '#lib/workspace-links.ts';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -31,11 +44,27 @@
 	// everything live on the page comes over one connection: this is where it starts
 	// svelte-ignore state_referenced_locally
 	connect(data.live);
+	initRibbonPosition();
 	const lost = $derived(connection.state === 'lost');
 	const nav = follow<Navigation>('navigation');
 
 	/** The workspace on screen, if any. */
 	const viewed = $derived(page.url.pathname.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
+
+	// Branches and pull requests named in agent output link to their workspaces. Rebuilt
+	// only when one of those changes: every conversation on screen is rendered anew then.
+	const linkable = $derived(
+		JSON.stringify(
+			(nav.current?.workspaces ?? []).map(({ id, repoId, branch, pull }) => ({
+				id,
+				repoId,
+				branch,
+				pull
+			}))
+		)
+	);
+	const links = $derived(workspaceLinks(JSON.parse(linkable), viewed));
+	setWorkspaceLinks(() => links);
 
 	// Tells of workspaces that need the person, out of their sight (FDR-008)…
 	$effect(() => {
@@ -47,11 +76,21 @@
 		if (viewed && isLooking()) seen(viewed);
 	});
 	$effect(badge);
+	// A daemon has connected: what none could say before is asked again (`daemon.svelte.ts`).
+	let daemonConnected = false;
+	$effect(() => {
+		const connected = !!nav.current && nav.current.harnesses !== null;
+		if (connected && !daemonConnected) daemon.connections++;
+		daemonConnected = connected;
+	});
 
 	// The sidebar can be hidden and made wider or narrower; both are remembered here.
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
-	const toggleSidebar = () =>
-		(sidebar.current = { ...sidebar.current, open: !sidebar.current.open });
+	let repositoryPickerOpen = $state(false);
+	function toggleSidebar() {
+		repositoryPickerOpen = false;
+		sidebar.current = { ...sidebar.current, open: !sidebar.current.open };
+	}
 	setTitleBarLead(() => (sidebar.current.open ? undefined : lead));
 	// Leave room for the conversation and its tools in smaller windows.
 	const maxWidth = $derived(Math.max(240, Math.min(720, (innerWidth.current ?? 1320) - 600)));
@@ -61,33 +100,17 @@
 	const folded = persisted<string[]>('geordi:folded', []);
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
+	/** Whether the sidebar groups workspaces by repository, or lists them as one. */
+	const grouped = persisted('geordi:grouped', true);
 
-	let todayOnly = $state(false);
-	let day = $state('');
-	$effect(() => {
-		if (!todayOnly) return;
-		let timer: ReturnType<typeof setTimeout>;
-		function refreshDay() {
-			const now = new Date();
-			day = now.toDateString();
-			const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-			timer = setTimeout(refreshDay, midnight.getTime() - now.getTime());
-		}
-		refreshDay();
-		return () => clearTimeout(timer);
-	});
+	/** Whether the sidebar shows only the active workspaces, leaving out the inactive ones. */
+	const activeOnly = persisted('geordi:active-only', true);
 	const visibleWorkspaces = $derived(
-		activeOnDay(nav.current?.workspaces ?? [], todayOnly ? day : null)
+		withoutInactive(nav.current?.workspaces ?? [], activeOnly.current, viewed)
 	);
 
-	/** Shows only the repository of the workspace on screen; with that shown alone already, or none on screen, all again. */
-	function toggleFocus() {
-		const repoId = nav.current?.workspaces.find(({ id }) => id === viewed)?.repoId ?? null;
-		focus.current = repoId === focus.current ? null : repoId;
-	}
-
 	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
-	function stepWorkspace(step: 1 | -1) {
+	function stepWorkspace(step: 1 | -1 | 'unread') {
 		const all = nav.current;
 		if (!all) return;
 		const order = inSidebarOrder(
@@ -96,11 +119,70 @@
 				all.repos.filter((repo) => repo.workspaceCount > 0),
 				focus.current
 			).map(({ id }) => id),
-			folded.current
+			folded.current,
+			{ includeProjects: step === 'unread', grouped: grouped.current }
 		);
-		const to = stepThrough(order, viewed, step);
+		const to =
+			step === 'unread' ? nextUnread(order, viewed, unread) : stepThrough(order, viewed, step);
 		if (to) void goto(resolve('/workspaces/[id]', { id: to.id }));
 	}
+
+	/** Begins a workspace, on the start page; `choosing` its repository first. */
+	function newWorkspace(choosing = false) {
+		if (choosing) pickRepo();
+		if (page.url.pathname !== resolve('/')) void goto(resolve('/'));
+	}
+
+	// Every workspace to go to, and what can be done from anywhere, found by typing a few letters.
+	let commands = $state(false);
+	let adding = $state<AddRepository>();
+	/**
+	 * The workspaces as recently active as they were when the palette opened: kept while it
+	 * is open, so that agents at work don't reorder the list under the keyboard.
+	 */
+	let recency = $state.raw<string[]>([]);
+	$effect.pre(() => {
+		if (!commands) return;
+		recency = untrack(() =>
+			[...(nav.current?.workspaces ?? [])]
+				.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+				.map(({ id }) => id)
+		);
+	});
+	const commandList = $derived(
+		globalCommands({
+			nav: nav.current,
+			viewed,
+			recency,
+			anyUnread: unread.size > 0,
+			sidebarOpen: sidebar.current.open,
+			wide: (innerWidth.current ?? 0) >= 768,
+			grouped: grouped.current,
+			activeOnly: activeOnly.current,
+			focus: focus.current,
+			theme: theme.current,
+			sections,
+			newWorkspace,
+			open: (id) => void goto(resolve('/workspaces/[id]', { id })),
+			step: stepWorkspace,
+			addRepository: () => adding?.start(),
+			openArchive: () => void goto(resolve('/archive')),
+			openSettings,
+			toggleSidebar,
+			filterRepositories: () => {
+				if (!sidebar.current.open) toggleSidebar();
+				repositoryPickerOpen = true;
+			},
+			toggleGrouped: () => (grouped.current = !grouped.current),
+			toggleActiveOnly: () => (activeOnly.current = !activeOnly.current),
+			setFocus: (repo) => {
+				focus.current = repo;
+				// showing a repository alone is only seen in the sidebar
+				if (repo && !sidebar.current.open) toggleSidebar();
+			},
+			setTheme: (next) => (theme.current = next)
+		})
+	);
 
 	function resize(event: PointerEvent & { currentTarget: HTMLElement }) {
 		const handle = event.currentTarget;
@@ -134,28 +216,9 @@
 <svelte:window
 	onsubmitcapture={() => ask()}
 	onkeydown={(event) => {
-		const newIn = pressed(event, 'newWorkspaceIn');
-		if (newIn || pressed(event, 'newWorkspace')) {
-			event.preventDefault();
-			if (event.repeat) return;
-			if (newIn) pickRepo();
-			if (page.url.pathname !== resolve('/')) void goto(resolve('/'));
-		} else if (pressed(event, 'previousWorkspace') || pressed(event, 'nextWorkspace')) {
-			event.preventDefault();
-			stepWorkspace(pressed(event, 'nextWorkspace') ? 1 : -1);
-		} else if (pressed(event, 'settings')) {
-			event.preventDefault();
-			openSettings();
-		} else if (pressed(event, 'todayOnly')) {
-			event.preventDefault();
-			if (!event.repeat) todayOnly = !todayOnly;
-		} else if (pressed(event, 'focusRepo')) {
-			event.preventDefault();
-			toggleFocus();
-		} else if (pressed(event, 'toggleSidebar')) {
-			event.preventDefault();
-			toggleSidebar();
-		}
+		if (!pressed(event, 'commands')) return void runShortcut(event, commandList);
+		event.preventDefault();
+		if (!event.repeat) commands = !commands;
 	}}
 />
 <!-- the desktop app's "Settings…" menu item asks for them this way -->
@@ -196,11 +259,12 @@
 				The sidebar's part of the title bar. On macOS the window's buttons are on its left, so
 				the logo makes way and the toggle moves up beside them.
 			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2.5 pl-4 window-drag mac:pl-22">
+			<div class="flex h-14 shrink-0 items-center gap-1 pr-2 pl-4 window-drag mac:pl-22">
 				<span class="contents desktop:hidden">{@render logo()}</span>
 				<span class="flex-1 desktop:order-2"></span>
-				<span class="flex desktop:order-1">{@render toggle('icon-[lucide--panel-left-close]')}</span
-				>
+				<span class="flex desktop:order-1">
+					{@render toggle('icon-[lucide--panel-left-close]')}
+				</span>
 			</div>
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
@@ -212,7 +276,9 @@
 					path={page.url.pathname}
 					{folded}
 					{focus}
-					{todayOnly}
+					{grouped}
+					bind:activeOnly={() => activeOnly.current, (value) => (activeOnly.current = value)}
+					bind:repositoryPickerOpen
 				/>
 			</div>
 
@@ -250,6 +316,16 @@
 </div>
 
 <ContextMenu />
+<CommandPalette
+	bind:open={commands}
+	label="Go to a workspace, or do something"
+	placeholder="Workspaces and commands…"
+	items={commandList}
+/>
+<AddRepository
+	bind:this={adding}
+	onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
+/>
 <ArchiveConfirm asking={archiving.asking} />
 
 <ReleaseConfirm asking={releaseReview.asking} />

@@ -28,8 +28,9 @@
 			target={external ? '_blank' : undefined}
 			rel={external ? 'noreferrer' : undefined}
 			class="after:absolute after:inset-0 after:rounded-card focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-accent"
-			>{title}</a
 		>
+			{title}
+		</a>
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	</h2>
 	{#if footer}<div

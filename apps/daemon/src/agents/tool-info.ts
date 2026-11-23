@@ -22,7 +22,10 @@ export class ToolInfos {
 	}
 
 	/** What this update says of its tool call that was not said before. */
-	news(u: ToolCallUpdate, last = false): Said {
+	news(
+		u: Pick<ToolCallUpdate, 'toolCallId' | 'rawInput' | 'title' | 'kind' | 'locations'>,
+		last = false
+	): Said {
 		const fresh = !this.#said.has(u.toolCallId);
 		const said = this.#said.get(u.toolCallId) ?? {};
 		this.#said.set(u.toolCallId, said);

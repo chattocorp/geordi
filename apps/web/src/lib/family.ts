@@ -13,33 +13,70 @@ export type Listed<T> = {
 	depth: number;
 };
 
-/** Compare calendar days in the viewer's time zone. */
-export function activeOnDay<T extends { updatedAt: string }>(workspaces: T[], day: string | null) {
-	return day === null
-		? workspaces
-		: workspaces.filter((w) => new Date(w.updatedAt).toDateString() === day);
+/**
+ * The active workspaces, where `hideInactive`; otherwise all of them. A workspace is put
+ * aside with the one whose agent started it: what an inactive workspace started, at any
+ * depth, is left out too, though it is not inactive itself. The workspace on screen
+ * (`viewed`) stays, in its place: with the workspaces that started it.
+ */
+export function withoutInactive<
+	T extends { id: string; parentId: string | null; inactive?: boolean }
+>(workspaces: T[], hideInactive: boolean, viewed: string | null = null) {
+	if (!hideInactive) return workspaces;
+	const byId = new Map(workspaces.map((w) => [w.id, w]));
+	/** The workspace and those that started it, nearest first; stops at one gone, or a loop. */
+	const lineOf = (id: string | null) => {
+		const line: T[] = [];
+		let w = id ? byId.get(id) : undefined;
+		while (w && !line.includes(w)) {
+			line.push(w);
+			w = w.parentId ? byId.get(w.parentId) : undefined;
+		}
+		return line;
+	};
+	const kept = new Set(lineOf(viewed));
+	return workspaces.filter((w) => kept.has(w) || !lineOf(w.id).some((each) => each.inactive));
 }
 
 /** Keeps the order given, but puts each workspace right after the one that started it. */
 export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
+	return nested(all, (workspace) => workspace.repoId);
+}
+
+/**
+ * All workspaces as one list, in the order given, each right after the one that started
+ * it: also where that is in another repository, or a project.
+ */
+export function asOneList<T extends Member>(all: T[]): Listed<T>[] {
+	return nested(all, () => null).get(null) ?? [];
+}
+
+/** The workspaces by `groupOf`, each right after the one that started it, where that is in its group. */
+function nested<T extends Member>(
+	all: T[],
+	groupOf: (workspace: T) => string | null
+): Map<string | null, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
 	const parentOf = (workspace: T) => byId.get(workspace.parentId ?? '') ?? null;
-	// a workspace follows its parent only where the parent is listed: in the same repository
-	const follows = (workspace: T) => parentOf(workspace)?.repoId === workspace.repoId;
+	// a workspace follows its parent only where the parent is listed: in the same group
+	const follows = (workspace: T) => {
+		const parent = parentOf(workspace);
+		return !!parent && groupOf(parent) === groupOf(workspace);
+	};
 
-	const repos = new Map<string | null, Listed<T>[]>();
+	const groups = new Map<string | null, Listed<T>[]>();
 	const visited = new Set<string>();
 	const list = (workspace: T, depth: number) => {
 		if (visited.has(workspace.id)) return; // a cycle: list it once
 		visited.add(workspace.id);
-		const listed = repos.get(workspace.repoId) ?? [];
-		repos.set(workspace.repoId, listed);
+		const listed = groups.get(groupOf(workspace)) ?? [];
+		groups.set(groupOf(workspace), listed);
 		listed.push({ workspace, parent: parentOf(workspace), depth });
 		for (const child of all)
 			if (child.parentId === workspace.id && follows(child)) list(child, depth + 1);
 	};
 	for (const workspace of all) if (!follows(workspace)) list(workspace, 0);
-	return repos;
+	return groups;
 }
 
 /**
@@ -86,18 +123,30 @@ export function unfolded<T extends { id: string }>(
 
 /**
  * The workspaces the sidebar shows, top to bottom: by repository (in `repoIds`' order),
- * leaving out what is folded away. What the previous and next workspace are.
+ * or, not `grouped`, as one list of those in `repoIds` and the projects; leaving out what
+ * is folded away. What the previous and next workspace are.
  */
 export function inSidebarOrder<T extends Member>(
 	all: T[],
 	repoIds: readonly string[],
-	folded: readonly string[]
+	folded: readonly string[],
+	{ includeProjects = false, grouped = true } = {}
 ): T[] {
+	if (!grouped)
+		return unfolded(asOneList(shownUngrouped(all, repoIds)), folded).map(
+			({ workspace }) => workspace
+		);
 	const listed = byRepository(all);
-	return repoIds
-		.filter((repoId) => !folded.includes(repoId))
+	const groups = includeProjects ? [null, ...repoIds] : repoIds;
+	return groups
+		.filter((repoId) => !folded.includes(repoId ?? 'projects'))
 		.flatMap((repoId) => unfolded(listed.get(repoId) ?? [], folded))
 		.map(({ workspace }) => workspace);
+}
+
+/** What the sidebar lists as one list: the workspaces in `repoIds`, and the projects. */
+export function shownUngrouped<T extends Member>(all: T[], repoIds: readonly string[]): T[] {
+	return all.filter(({ repoId }) => repoId === null || repoIds.includes(repoId));
 }
 
 /**
@@ -118,4 +167,49 @@ export function stepThrough<T extends { id: string }>(
 	const at = order.findIndex(({ id }) => id === current);
 	if (at === -1) return step === 1 ? order[0] : order.at(-1);
 	return order[(at + step + order.length) % order.length];
+}
+
+/** Find the next unread row after the current one, wrapping once. */
+export function nextUnread<T extends { id: string }>(
+	order: T[],
+	current: string | null,
+	unread: ReadonlySet<string>
+): T | undefined {
+	const at = order.findIndex(({ id }) => id === current);
+	const isUnread = (row: T) => unread.has(row.id);
+	return order.slice(at + 1).find(isUnread) ?? order.slice(0, Math.max(0, at)).find(isUnread);
+}
+
+/**
+ * Where the row at `from` would go, dropped onto the row at `over` (on its upper half, or
+ * not): among its siblings only, so that it keeps its parent. `before` is the sibling it
+ * would go right above, `null` for after the last of them, where `after` is the row the
+ * line shows below. Nothing where it would stay where it is, or the row is not among
+ * its siblings' (their parent, or another family).
+ */
+export function dropTarget<T extends { id: string }>(
+	rows: Listed<T>[],
+	from: number,
+	over: number,
+	upper: boolean
+): { before: string | null; after: string } | undefined {
+	const { depth } = rows[from];
+	// the siblings and theirs: everything under the parent, or the whole list
+	let start = from;
+	while (start > 0 && rows[start - 1].depth >= depth) start--;
+	let end = from;
+	while (end < rows.length - 1 && rows[end + 1].depth >= depth) end++;
+	if (over < start || over > end) return undefined;
+
+	const siblingFrom = (at: number) => {
+		for (let index = at; index <= end; index++) if (rows[index].depth === depth) return index;
+		return -1;
+	};
+	const next = siblingFrom(upper ? over : over + 1);
+	const before = next === -1 ? null : rows[next].workspace.id;
+	const after = siblingFrom(from + 1);
+	const stays =
+		before === rows[from].workspace.id ||
+		before === (after === -1 ? null : rows[after].workspace.id);
+	return stays ? undefined : { before, after: rows[end].workspace.id };
 }

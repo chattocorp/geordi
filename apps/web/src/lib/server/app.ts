@@ -212,7 +212,7 @@ export async function continueWorkspace(id: string, actor: string | null = null)
 
 /**
  * Brings the latest of the branch a workspace's work is based on into it (FDR-003). Where
- * there is nothing to decide (no agent at work in it, nothing uncommitted, no conflicts),
+ * there is nothing to decide (no agent at work in it, local edits can be preserved, no conflicts),
  * the daemon does it with git, at once. Otherwise the agent is asked to, with `prompt`.
  */
 export async function updateWorkspace(id: string, prompt: string) {
@@ -290,13 +290,17 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		admit: daemonAdmission(store(), () => workspaces().hasRunningTurn()),
 		onHello: (_daemonId, running, runningTerminals, ended) => {
 			workspaces().reconcile(running);
+			for (const id of workspaces().unplaced())
+				prepareWorktree(id).catch((cause) => console.warn(`[worktree] ${cause?.message ?? cause}`));
 			terminals().reconcile(runningTerminals, ended);
 			watchers().resync();
 			// a daemon is there to ask: how the workspaces stand is wanted right away
 			void standings().tick(true);
 		},
 		onUsage: (workspaceId, usage) => workspaces().measure(workspaceId, usage),
-		onLimits: (workspaceId, known) => limits().note(workspaces().summary(workspaceId).agent, known),
+		onSuggestion: (workspaceId, text) => workspaces().suggest(workspaceId, text),
+		onLimits: (workspaceId, known, at) =>
+			limits().note(workspaces().summary(workspaceId).agent, known, at),
 		onMessage: (message) => {
 			if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.cursor);
@@ -320,6 +324,7 @@ export const limits = lazy(() => createLimits());
 /** Check every workspace affected by the archive, including agents sharing a worktree. */
 export async function concernsAboutArchiving(id: string) {
 	const family = [id, ...workspaces().descendants(id)].map(workspaces().summary);
+	workspaces().refuseLocked(family.map((workspace) => workspace.id));
 	const previews = await Promise.all(
 		family.map(async (workspace) => {
 			let standing: Standing = { changes: null };
@@ -333,35 +338,44 @@ export async function concernsAboutArchiving(id: string) {
 				}
 			}
 			const concerns = archiveConcerns(standing);
-			const blocked = workspaces().summary(workspace.id).status === 'running';
-			if (blocked) concerns.push('Stop busy agents before archiving.');
-			const active = terminals().running(workspace.id).length
-				? await hub()
-						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
-						.catch(() => null)
-				: false;
+			const stopAgents = workspaces().summary(workspace.id).status === 'running';
+			if (stopAgents) concerns.push('Busy agents will be stopped.');
 			return {
 				concerns,
-				active,
 				discard: !!standing.changes?.uncommitted,
-				blocked
+				stopAgents
 			};
 		})
 	);
 	const concerns = [...new Set(previews.flatMap((preview) => preview.concerns))];
-	if (previews.some((preview) => preview.active))
-		concerns.push('Running processes will be stopped.');
-	else if (previews.some((preview) => preview.active === null))
-		concerns.push('Any running terminal processes will be stopped.');
+	if (concerns.length) {
+		const activity = await Promise.all(
+			family
+				.filter((workspace) => terminals().running(workspace.id).length)
+				.map((workspace) =>
+					hub()
+						.request({ kind: 'terminalActivity', workspaceId: workspace.id })
+						.catch(() => null)
+				)
+		);
+		if (activity.includes(true)) concerns.push('Running processes will be stopped.');
+		else if (activity.includes(null))
+			concerns.push('Any running terminal processes will be stopped.');
+	}
 	return {
 		concerns,
 		discard: previews.some((preview) => preview.discard),
-		blocked: previews.some((preview) => preview.blocked)
+		stopAgents: previews.some((preview) => preview.stopAgents)
 	};
 }
 
 /** Archives a workspace and the workspaces its agent started; see `createArchiver`. */
-export const archiveWorkspace = (id: string, discard: boolean, actor: string | null = null) =>
+export const archiveWorkspace = (
+	id: string,
+	discard: boolean,
+	actor: string | null = null,
+	stopAgents = false
+) =>
 	createArchiver({
 		workspaces: workspaces(),
 		closeTerminals: (workspaceId) => terminals().closeAll(workspaceId),
@@ -376,24 +390,25 @@ export const archiveWorkspace = (id: string, discard: boolean, actor: string | n
 		closeProject: async (projectId) => {
 			await hub().request({ kind: 'closeProject', worktreeId: projectId, project: true });
 		}
-	})(id, discard, actor);
+	})(id, discard, actor, stopAgents);
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */
 const ICON_MS = 10 * 60_000;
-const icons = new Map<string, { at: number; icon: Promise<RepoIcon | null> }>();
+const icons = new Map<string, { at: number; icon: Promise<RepoIcon | null | undefined> }>();
 
 /**
  * The picture a repository has of itself, as a daemon finds it there (ADR-003: live data,
- * asked for and kept a while, never stored). `null` if it has none, or no daemon can say.
+ * asked for and kept a while, never stored). `null` if it has none; `undefined` if no
+ * daemon can say (none is connected yet, say), which is asked again next time.
  */
-export function repoIcon(repoId: string): Promise<RepoIcon | null> {
+export function repoIcon(repoId: string): Promise<RepoIcon | null | undefined> {
 	const known = icons.get(repoId);
 	if (known && Date.now() - known.at < ICON_MS) return known.icon;
 	const icon = hub()
 		.request({ kind: 'repoIcon', repoPath: repos().get(repoId).path })
 		.catch(() => {
 			icons.delete(repoId); // nobody could say: ask again next time
-			return null;
+			return undefined;
 		});
 	icons.set(repoId, { at: Date.now(), icon });
 	return icon;

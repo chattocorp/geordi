@@ -10,16 +10,18 @@ export {
 	type PictureType
 } from './images.ts';
 import type { MessageImage, Picture } from './images.ts';
+export { SOUND_TYPES, soundTypeOf, type Sound, type SoundType } from './sounds.ts';
+import type { Sound } from './sounds.ts';
 /**
  * Messages exchanged between the forge (apps/web) and daemons (apps/daemon).
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 40;
+export const PROTOCOL_VERSION = 41;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
-export const AGENTS = ['claude', 'codex'] as const;
+export const AGENTS = ['claude', 'codex', 'opencode'] as const;
 export type Agent = (typeof AGENTS)[number];
 
 export const PERMISSION_MODES = ['auto', 'full-access'] as const;
@@ -39,8 +41,19 @@ export function sameAgentSettings(a: AgentSettings, b: AgentSettings): boolean {
 	return a.model === b.model && a.effort === b.effort && a.permissionMode === b.permissionMode;
 }
 
+/** The values reported by a session, and the workspace choices it opened with. */
+export type SessionModel = {
+	requested: Pick<AgentSettings, 'model' | 'effort'>;
+	model?: string;
+	effort?: string;
+};
+
 /** What model names and effort levels look like. They end up as CLI arguments. */
 export const SETTING = /^[A-Za-z0-9][\w.:[\]-]{0,79}$/;
+
+/** Models may include the OpenCode provider prefix. */
+export const MODEL_SETTING =
+	/^(?=.{1,160}$)[A-Za-z0-9][\w.:[\]-]{0,79}(?:\/[A-Za-z0-9][\w.:[\]-]{0,79})*$/;
 
 export type Model = {
 	id: string;
@@ -70,13 +83,13 @@ export const NO_WORKTREE = 'This workspace has no worktree';
 export type WorktreeRef = {
 	worktreeId: string;
 	repoPath: string;
+	/** Parent directory for this worktree. Older workspaces use the checkout's basename. */
+	worktreeParent?: string;
 	/**
-	 * The branch the worktree started from.
+	 * The branch the worktree started from, and is compared with until it has a pull request.
 	 * Absent for worktrees started from where work in the repository starts.
 	 */
 	base?: string;
-	/** Branches this workspace was built on, nearest parent first. */
-	parents?: { worktreeId: string; branch: string }[];
 	/**
 	 * The branch the worktree is on, as far as the forge knows. Only needed to bring back a
 	 * worktree that went missing: one that was continued is no longer on the branch its ID
@@ -142,7 +155,8 @@ export type Changes = {
 	unknownForge?: string;
 };
 
-export type FileContent = string | Picture;
+/** A file as the viewer shows it: its text, or a picture or sound in its bytes. */
+export type FileContent = string | Picture | Sound;
 
 /**
  * Both versions of a changed file: where the workspace branched off (`old`) and now (`new`),
@@ -188,6 +202,8 @@ export type PullRequest = {
 		state: 'pending' | 'success' | 'failure' | 'unknown';
 		total: number | null;
 		failed: number | null;
+		/** The forge allows merging while the remaining checks run. */
+		optionalChecksRunning?: boolean;
 		/**
 		 * How many of them stand how; `skipped` are those that neither passed nor failed.
 		 * Absent where the forge only says how they stand overall.
@@ -238,34 +254,45 @@ export const CI_REFRESH_MS = 10_000;
 
 /** A repository says how Geordi should treat it in this file, at its top level. */
 export const CONFIG_FILE = '.geordi.yml';
-/**
- * The names such a file may go by, the first that is there being the one that counts. YAML
- * is what we say and write; TOML is what it was first, and is still read.
- */
-export const CONFIG_FILES = [CONFIG_FILE, '.geordi.toml'] as const;
-
-/** How many ports a workspace gets where its repository names no jobs to count, nor a number. */
-export const DEFAULT_PORTS = 10;
 
 /**
- * Something a repository can have run for a workspace (FDR-006): a dev server, a database,
- * a desktop app, a game. Each runs in a terminal of its own.
+ * How many ports every workspace has to spare, beside its tasks' own: for agents and
+ * terminals to start things on (`GEORDI_PORT`, `GEORDI_PORTS`).
  */
-export type Job = {
+export const SPARE_PORTS = 10;
+
+/** One of a task's ports in a workspace: its name in the file, and its number. */
+export type TaskPort = { name: string; port: number };
+
+/**
+ * Something a repository can have run or opened for a workspace (FDR-006): a dev server, a
+ * database, a desktop app, a game, a page to look at. One with a command runs in a terminal
+ * of its own.
+ */
+export type Task = {
 	name: string;
-	/** Optional display name; the key remains the job identity. */
+	/** Optional display name; the key remains the task's identity. */
 	label?: string;
-	command: string;
-	/** The jobs that have to be up before this one starts. Stopping one of them stops this one too. */
-	needs: string[];
-	/**
-	 * The port that is this job's in this workspace, for as long as the workspace lives. It
-	 * reaches the command as `PORT` (and everything else in the workspace as
-	 * `GEORDI_PORT_<NAME>`). A job that listens on it counts as up once it does.
-	 */
-	port: number;
-	/** Whether a person has agreed to run this command in this repository. */
+	/** What it runs; `null` for a task that only opens a link. */
+	command: string | null;
+	/** Whether a person has agreed to run the command in this repository (`true` without one). */
 	approved: boolean;
+	/**
+	 * Its ports in this workspace, in the order the file names them, for as long as the
+	 * workspace lives. Everything in the workspace gets each as `GEORDI_PORT_<NAME>`; the
+	 * command also gets the first as `PORT`.
+	 * It counts as up once something listens on all of them (at once, without any).
+	 */
+	ports: TaskPort[];
+	/**
+	 * Where to look at it, with the workspace's ports filled in; running the task opens it.
+	 * Always on this machine.
+	 */
+	href: string | null;
+	/** The tasks that have to be up before this one starts. Stopping one of them stops this one too. */
+	needs: string[];
+	/** Whether the Run shortcut runs it. */
+	default: boolean;
 };
 
 /**
@@ -279,76 +306,53 @@ export type Script = {
 };
 
 /**
- * The names of the setup and teardown scripts. No job can be called that: the setup runs in
- * a terminal named as a job's would be (`JOB_TERMINAL` + `setup`).
+ * The names of the setup and teardown scripts. No task can be called that: the setup runs in
+ * a terminal named as a task's would be (`JOB_TERMINAL` + `setup`).
  */
 export const SCRIPTS = ['setup', 'teardown'] as const;
-
-/** A place to look at what the jobs serve: a link, with the jobs that have to be up for it to lead anywhere. */
-export type Link = {
-	name: string;
-	/** Optional display name; the key remains the link identity. */
-	label?: string;
-	/** With the workspace's ports filled in. Always on this machine. */
-	href: string;
-	needs: string[];
-};
 
 /**
  * What a repository's `.geordi.yml` says, as it applies to one workspace: that of the
  * workspace if it has one, otherwise that of the branch work starts from.
  */
 export type RepoConfig = {
-	default?: `jobs.${string}` | `urls.${string}`;
-	jobs: Job[];
-	urls: Link[];
+	/** In the order the file has them. */
+	tasks: Task[];
 	/** Run once in a workspace's new worktree, before its agent starts. */
 	setup: Script | null;
 	/** Run when the workspace is archived, before its worktree is removed. */
 	teardown: Script | null;
-	/** The first of the workspace's ports, and how many it has. */
+	/** The workspace's spare ports: the first, and how many. */
 	ports: { first: number; count: number } | null;
 	/** What is wrong with the file, if it can't be made sense of. */
 	problem: string | null;
 	/** Which file this is from: the workspace's own, or the one on the branch work starts from. */
 	source: 'workspace' | 'base' | null;
-	/** What that file is called (see `CONFIG_FILES`); `null` if there is none. */
+	/** What that file is called; `null` if there is none. */
 	file: string | null;
 };
+
+/** The environment variable that holds a task's port: `GEORDI_PORT_WEB`, `GEORDI_PORT_WEB_LIVE`. */
+export const portVariable = (...names: string[]) =>
+	['GEORDI_PORT', ...names].join('_').toUpperCase().replaceAll('-', '_');
 
 /**
  * What a `.geordi.yml` can say, for agents to read (`configuration_reference`). The daemon's
  * parser (`config.ts`) accepts exactly these; a test holds the two together.
  */
 export const CONFIG_SETTINGS = {
-	default: {
-		does: 'The job or URL for the Run button. Use its key, such as `jobs.web` or `urls.app`. Without a default, Run selects the first URL, or the first job if there are no URLs.',
-		example: 'default: urls.app'
-	},
-	run: {
-		does: 'The command that runs the project for someone to look at or use: its development server, a desktop app, a game. Short for a single job called `run`. Use this unless the project needs several things running.',
-		example: 'run: pnpm dev --port $PORT'
-	},
-	jobs: {
-		does: "Several things to run, each a `command` under a name (lower case letters, digits and dashes). `needs` lists the jobs that have to be up first: starting a job starts those, and stopping one stops the jobs that need it. An optional `label` supplies a human-readable display name (1–100 characters); the key still identifies dependencies and ports. Each job runs in a terminal of its own, in the workspace's directory, and should keep running until stopped.",
+	tasks: {
+		does: "Named things to run or open, in the order the Tasks panel shows them (names: lower case letters, digits and dashes). Each has a `command`, a `url`, or both, and may have a `label` (a display name of 1–100 characters; the key still identifies it). `ports` names the ports the command listens on (`ports: [http, live]`). Port names are the workspace's, and each is one task's: two tasks can't list the same name. They are separate from task names; naming a server's main port after its task (`web` listening on `web`) is usual. Each is the workspace's for as long as it lives, and reaches everything in the workspace as `GEORDI_PORT_HTTP`, `GEORDI_PORT_LIVE` (upper case, dashes as underscores); the task's own command also gets its first as `$PORT`. A task without `ports` gets none. It counts as up once something listens on all of its ports, or at once without any. `url` is where to look at it; for more places to look, give each a task of its own with its `url`. In a URL, `{http}` is the port named `http`, and the task that lists it has to be up first too. URLs only lead to this machine (`localhost`). `needs` lists the tasks that have to be up before this one starts; stopping one stops those that need it. Running a task starts what it needs, then its command, and opens its `url` once that answers. A task with only a `url` that needs nothing just opens it. `default: true` marks the tasks the Run shortcut (⌥⌘R) runs or opens. Commands run in the person's shell in the workspace's directory, and should keep running until stopped.",
 		example:
-			'jobs:\n  db:\n    command: docker compose up db\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    needs: [db]'
-	},
-	urls: {
-		does: "Places to open in the browser, each a `url` under a name. `{job}` stands for that job's port. Opening one first starts the jobs it mentions (and any listed under `needs`) and waits for them. An optional `label` supplies a human-readable display name (1–100 characters); otherwise the key is shown. Only addresses on this machine (`localhost`).",
-		example: 'urls:\n  app:\n    label: Open app\n    url: http://localhost:{web}/'
+			'tasks:\n  db:\n    command: docker compose up db\n    ports: [postgres]\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    ports: [http, hmr]\n    needs: [db]\n    url: http://localhost:{http}/\n    default: true\n  admin:\n    label: Admin area\n    url: http://localhost:{http}/admin\n  docs:\n    url: http://localhost:8080/'
 	},
 	setup: {
-		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from its own branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
+		does: "A command that gets a new workspace ready to work in: installing dependencies, copying an `.env`, setting up a database. It runs once, in the workspace's directory, when its worktree is made from the main line (not in one an agent starts from another branch: there the agent sets up itself), in a terminal the person can watch; the agent's first turn waits for it. If it fails, the agent is told, with the end of its output. It gets the workspace's ports (`GEORDI_PORT…`) like everything else. A person has to agree to it once per repository (and again whenever it changes); until then it does not run, and the agent is told so.",
 		example: 'setup: pnpm install && cp ../.env .env'
 	},
 	teardown: {
 		does: 'A command that cleans up after a workspace when a person archives it, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
 		example: 'teardown: docker compose down --volumes'
-	},
-	ports: {
-		does: `How many ports each workspace gets: one per job unless said otherwise (and ${DEFAULT_PORTS} where there are no jobs). Only needed for spare ones, beyond the jobs'. Every job has one port of its own, and it stays the same for as long as the workspace lives: the command gets it as \`PORT\`, and every job's port is in \`GEORDI_PORT_<NAME>\` (upper case, dashes as underscores) for all jobs, terminals and agents of the workspace. \`GEORDI_PORT\` is the first of the workspace's ports and \`GEORDI_PORTS\` how many there are. \`GEORDI_ASSIGNED_PORTS\` is a JSON array of every assigned port, in allocation order; use it for spare ports because allocations need not be contiguous. Never hard-code a port: two workspaces would collide.`,
-		example: 'ports: 20'
 	}
 } as const;
 
@@ -356,7 +360,7 @@ export const CONFIG_SETTINGS = {
  * The jobs to start so that `names` are up, each after the ones it needs. Names that are
  * not jobs are left out: the file may have changed since they were asked for.
  */
-export function startOrder(jobs: Pick<Job, 'name' | 'needs'>[], names: string[]): string[] {
+export function startOrder(jobs: Pick<Task, 'name' | 'needs'>[], names: string[]): string[] {
 	const byName = new Map(jobs.map((job) => [job.name, job]));
 	const order: string[] = [];
 	const visit = (name: string, seen: string[]) => {
@@ -371,7 +375,7 @@ export function startOrder(jobs: Pick<Job, 'name' | 'needs'>[], names: string[])
 }
 
 /** The jobs that can't go on without `name`: those that need it, and those that need them. */
-export function dependentsOf(jobs: Pick<Job, 'name' | 'needs'>[], name: string): string[] {
+export function dependentsOf(jobs: Pick<Task, 'name' | 'needs'>[], name: string): string[] {
 	const found: string[] = [];
 	const visit = (needed: string) => {
 		for (const job of jobs)
@@ -391,7 +395,7 @@ export const REMOVE_TIMEOUT_MS = TEARDOWN_TIMEOUT_MS + 30_000;
 
 /** A job's terminal is named after it, so that it can be told from a shell someone opened. */
 export const JOB_TERMINAL = 'run-';
-/** Names of jobs and links: they end up in terminal names, and in the names of environment variables. */
+/** Names of tasks and ports: they end up in terminal names, and in the names of environment variables. */
 export const CONFIG_NAME = /^[a-z][a-z0-9-]{0,30}$/;
 
 /** A note on a change, as a release tool keeps them until the next release: what changed, and how much it matters. */
@@ -458,9 +462,33 @@ export type ReleasePlan = {
 	ask: string | null;
 };
 
+/**
+ * Whether the daemon can read a repository on its upstream forge, as Settings shows it: a
+ * summary, and what was found. `none` is an origin on no forge (a local path); `setup` means the forge
+ * setup guide helps. Never carries credentials or the forge's own error text.
+ */
+export type ForgeDiagnostic = {
+	status: 'ok' | 'problem' | 'none';
+	summary: string;
+	setup?: boolean;
+	/** The origin's URL, without any credentials it carries. */
+	origin?: string;
+	/** The kind of forge that matched (`github`, `forgejo`, …). */
+	forge?: string;
+	access?: 'anonymous' | 'credentials';
+};
+
 /** Questions the forge asks a daemon about a workspace; answered once, never stored. */
 /** A small picture, as it is served: its media type, and its bytes in base64. */
 export type RepoIcon = { type: string; data: string };
+
+export type PortConflict = {
+	port: number;
+	listener: { pid: number; name: string } | null;
+	/** Confirms the listener seen on this job's port. */
+	confirmation?: string;
+	problem?: string;
+};
 
 export type DaemonRequest =
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
@@ -483,7 +511,12 @@ export type DaemonRequest =
 	 * Waits until something on this machine listens on `port`, for `timeoutMs` at most.
 	 * Answers whether something does.
 	 */
-	| { kind: 'portReady'; port: number; timeoutMs: number }
+	| { kind: 'portReady'; port: number; timeoutMs: number; family?: 4 | 6 }
+	/**
+	 * Checks the job's assigned port before launch. A matching confirmation requests that
+	 * the daemon stop the observed listener. Returns null once the port is free.
+	 */
+	| ({ kind: 'jobPort'; job: string; confirmation?: string } & WorktreeRef)
 	/**
 	 * Has the workspace carry on with new work (FDR-001): fetches, and moves its worktree to
 	 * a new branch off where work in the repository starts. Refused while it has uncommitted
@@ -505,10 +538,14 @@ export type DaemonRequest =
 	| ({ kind: 'source'; path: string } & WorktreeRef)
 	/** Both versions of one of those files. */
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
+	/** Which of these worktree-relative paths are directories in the worktree. */
+	| ({ kind: 'folders'; paths: string[] } & WorktreeRef)
+	/** Opens a directory in the worktree in the file manager of the daemon's machine (Finder). */
+	| ({ kind: 'openFolder'; path: string } & WorktreeRef)
 	/**
 	 * A picture on the daemon's machine that the workspace's agent referred to, to be shown
 	 * where it did. `path` is as the agent wrote it: from the worktree, or absolute. `null`
-	 * if there is no such file, or it is not a picture. Set worktreeOnly for pictures in repository documents.
+	 * if there is no such file, or it is neither a picture nor a sound (shown as a player). Set worktreeOnly for pictures in repository documents.
 	 */
 	| ({ kind: 'picture'; path: string; worktreeOnly?: boolean } & WorktreeRef)
 	/** As `picture`, for a picture where a project's agent works: in its folder (FDR-012). */
@@ -539,10 +576,11 @@ export type DaemonRequest =
 	 */
 	| ({ kind: 'updateWorktree' } & WorktreeRef)
 	/** Up to forty ranked paths with highlight positions for the composer. */
-	| { kind: 'findFiles'; query: string; repoPath: string; worktreeId?: string }
+	| ({ kind: 'findFiles'; query: string } & (WorktreeRef | { repoPath: string }))
+	/** Whether the daemon can read a repository on its upstream forge. */
+	| { kind: 'checkForge'; repoPath: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
 	| { kind: 'repoIcon'; repoPath: string }
-	| { kind: 'repoThreads'; repoPath: string; category: 'issue' | 'pull_request'; after?: string }
 	/** A running terminal's recent output, to catch a new viewer up. */
 	| { kind: 'terminalActivity'; workspaceId: string }
 	| { kind: 'scrollback'; terminalId: string };
@@ -550,31 +588,28 @@ export type DaemonRequest =
 /** Highlight positions are UTF-16 offsets into the repository-relative path. */
 export type FileMatch = { path: string; indices: number[] };
 
-export type RepositoryThread = Pick<PullRequest, 'number' | 'title' | 'review' | 'draft'> & {
-	url: string;
-	author?: string;
-	updatedAt?: string;
-};
-
 export type DaemonResults = {
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
 	closeProject: null;
-	projectPicture: Picture | null;
+	projectPicture: Picture | Sound | null;
 	prepareWorktree: { path: string; branch: string };
 	continueWorktree: { branch: string };
 	approveRun: null;
 	portReady: boolean;
+	jobPort: PortConflict | null;
 	config: RepoConfig;
 	release: ReleasePlan | null;
 	findFiles: FileMatch[];
 	editReleaseNote: null;
+	checkForge: ForgeDiagnostic;
 	repoIcon: RepoIcon | null;
-	repoThreads: { items: RepositoryThread[]; next?: string };
 	diff: FileVersions;
 	source: FileContent | null;
-	picture: Picture | null;
+	folders: string[];
+	openFolder: null;
+	picture: Picture | Sound | null;
 	/** `null` if the repository has no remote on a forge we know. */
 	upstream: Upstream | null;
 	/** `queued` if the forge merges it later, on its own (a merge queue, say). */
@@ -682,6 +717,8 @@ export type ContextUsage = {
 export type UsageLimit = {
 	/** Which window it is, for people: `5h`, `Week`, `Week (Opus)`. */
 	name: string;
+	/** How long the window is, in minutes, where the provider says. */
+	minutes?: number;
 	/** How much of it is used, 0 to 100, where the provider says. */
 	usedPercent?: number;
 	/** When it starts over (milliseconds since the epoch), where the provider says. */
@@ -721,6 +758,7 @@ export type AgentCommand = {
  * event, said again by a reconnecting daemon. Each is there only once the agent has said it.
  */
 export type AgentLive = {
+	sessionModel?: SessionModel;
 	/** What it has running in the background. */
 	background?: BackgroundTask[];
 	/** How full its context is, said after every model step. */
@@ -729,6 +767,11 @@ export type AgentLive = {
 	commands?: AgentCommand[];
 	/** The usage limits of the subscription it runs on, all of them, as it last said. */
 	limits?: UsageLimit[];
+	/**
+	 * When it said them (milliseconds since the epoch): they are the account's, so the
+	 * latest any session said stands, and an idle session's older ones must not replace it.
+	 */
+	limitsAt?: number;
 	/** What it suggests the person say next, now that its turn is over; `null` once withdrawn. */
 	suggestion?: string | null;
 };
@@ -743,6 +786,11 @@ export type AgentEvent =
 	| { kind: 'text'; text: string }
 	/** A complete snapshot, or null when the wrapper withdraws this plan. */
 	| { kind: 'plan'; id: string; plan: AgentPlan | null }
+	/**
+	 * The agent compacts its context: said when it begins and again when it ends, with how
+	 * full the context was before and after, where the agent says. Never what it kept.
+	 */
+	| ({ kind: 'compaction'; id: string } & Compaction)
 	| ({ kind: 'tool'; id: string; name: string; input: string } & ToolInfo)
 	/** What an agent said of a tool call after it began: only what changed. */
 	| ({ kind: 'tool.update'; id: string; input?: string } & ToolInfo)
@@ -762,6 +810,12 @@ export type AgentEvent =
 	/** Every turn ends with exactly one of these two, with what it used where the agent says. */
 	| { kind: 'turn.completed'; diff?: TurnDiff; usage?: TurnUsage }
 	| { kind: 'turn.failed'; diff?: TurnDiff; error: string; usage?: TurnUsage };
+
+export type Compaction = {
+	status: 'running' | 'completed' | 'failed' | 'cancelled';
+	tokensBefore?: number;
+	tokensAfter?: number;
+};
 
 /** The net worktree diff for a turn, with repository-relative paths. */
 export type TurnDiff = ToolDiff & { added: number; removed: number };

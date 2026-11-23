@@ -8,10 +8,13 @@ import {
 	readFileSync,
 	realpathSync
 } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, sep } from 'node:path';
 import {
 	MAX_IMAGE_BYTES,
 	pictureTypeOf,
+	soundTypeOf,
 	type FileContent,
 	type Changes,
 	type FileChange,
@@ -19,6 +22,7 @@ import {
 } from '@geordi/protocol';
 import {
 	branchOf,
+	branchOn,
 	branchRef,
 	readBlobIn,
 	gitIn,
@@ -40,30 +44,18 @@ const SAFE = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
 export type Origin = {
 	repoPath: string;
 	base?: string;
+	/** The branch its pull request merges into, where it has one: that is what it is measured against. */
 	pullBase?: string;
-	parents?: { branch: string; pullBase?: string }[];
 };
 
-/** Work from the outermost target inward. A parent already in its target contributes no files. */
+/** The one branch a workspace is measured against: its pull request's target, else its base. */
 async function comparison(worktree: Worktree, origin: Origin) {
-	const remote = (branch: string) =>
-		branchRef(branch).replace('refs/heads/', 'refs/remotes/origin/');
-	const parents =
-		origin.parents ?? (origin.base ? [{ branch: origin.base, pullBase: undefined }] : []);
-	const nearestPull = parents.findIndex((parent) => parent.pullBase);
-	const pull = origin.pullBase ?? parents[nearestPull]?.pullBase;
-	let target = pull
-		? remote(pull)
-		: ((await baseOf({ repoPath: origin.repoPath })) ??
+	const target = origin.pullBase
+		? branchRef(origin.pullBase).replace('refs/heads/', 'refs/remotes/origin/')
+		: ((await baseOf(origin)) ??
+			// a base that is gone (merged and deleted) leaves where work in the repository starts
+			(await baseOf({ repoPath: origin.repoPath })) ??
 			(await git(origin.repoPath, ['rev-parse', 'HEAD'])).trim());
-	if (!origin.pullBase) {
-		const stack = nearestPull < 0 ? parents : parents.slice(0, nearestPull + 1);
-		for (const parent of stack.toReversed()) {
-			const ref = branchRef(parent.branch);
-			if ((await gitIn(worktree, 'rev-list', '--max-count=1', `${target}..${ref}`)).trim())
-				target = ref;
-		}
-	}
 	const fork = (await gitIn(worktree, 'merge-base', headOf(worktree), target)).trim();
 	return { fork, name: target.replace(/^refs\/(?:heads\/|remotes\/origin\/)/, '') };
 }
@@ -122,6 +114,8 @@ export function readText(worktree: Worktree, path: string) {
 
 function fileContent(bytes: Buffer | null): FileContent | null {
 	if (!bytes || bytes.length > MAX_IMAGE_BYTES) return null;
+	const sound = soundTypeOf(bytes);
+	if (sound) return { mediaType: sound, data: bytes.toString('base64') };
 	const mediaType = pictureTypeOf(bytes);
 	if (mediaType && mediaType !== 'image/svg+xml')
 		return { mediaType, data: bytes.toString('base64') };
@@ -130,8 +124,11 @@ function fileContent(bytes: Buffer | null): FileContent | null {
 
 export function readWorktreePicture(worktree: Worktree, path: string) {
 	const bytes = readBytes(worktree, path, MAX_IMAGE_BYTES);
-	const mediaType = bytes && pictureTypeOf(bytes);
-	return bytes && mediaType && { mediaType, data: bytes.toString('base64') };
+	if (!bytes) return null;
+	const sound = soundTypeOf(bytes);
+	if (sound) return { mediaType: sound, data: bytes.toString('base64') };
+	const mediaType = pictureTypeOf(bytes);
+	return mediaType && { mediaType, data: bytes.toString('base64') };
 }
 
 export function readSource(worktree: Worktree, path: string) {
@@ -188,22 +185,50 @@ export async function changes(worktree: Worktree, origin: Origin): Promise<FileC
 	return filesSince(worktree, fork, others);
 }
 
+async function trackedChanges(worktree: Worktree, base: string, options: string[]) {
+	const diff = async (format: string) =>
+		(await gitIn(worktree, 'diff', format, '-z', ...SAFE, base, ...options)).split('\0');
+	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
+	return parseFileChanges(names, fields);
+}
+
 async function filesSince(
 	worktree: Worktree,
 	base: string,
 	others: string[]
 ): Promise<FileChange[]> {
-	// With renames found (`-M`), so that a moved file is one change and not two. Git does
-	// that by comparing contents itself: nothing of the worktree's gets to run.
-	const diff = async (format: string) =>
-		(await gitIn(worktree, 'diff', format, '-z', '-M', ...SAFE, base)).split('\0');
-
-	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
-	const tracked = parseFileChanges(names, fields);
+	const tracked = await trackedChanges(worktree, base, ['-M']);
+	const untrackedPaths = new Set(others);
+	const recreated = tracked
+		.filter((file) => untrackedPaths.has(file.path))
+		.map((file) => file.path);
+	let files = tracked;
+	if (recreated.length) {
+		// A path deleted from the index can exist again on disk. Compare its current
+		// contents with the base, using a temporary index that still tracks the path.
+		files = tracked.filter((file) => !untrackedPaths.has(file.path));
+		for (const path of recreated) untrackedPaths.delete(path);
+		const adminDir = await mkdtemp(join(tmpdir(), 'geordi-compare-'));
+		try {
+			const comparison = { ...worktree, adminDir };
+			await gitIn(comparison, 'read-tree', base);
+			for (let i = 0; i < recreated.length; i += 32) {
+				files.push(
+					...(await trackedChanges(comparison, base, [
+						'--no-renames',
+						'--',
+						...recreated.slice(i, i + 32)
+					]))
+				);
+			}
+		} finally {
+			await rm(adminDir, { recursive: true, force: true });
+		}
+	}
 
 	// Reading files to count their lines is only worth it for a workspace's own handful of new
 	// files, not for a `node_modules` nobody ignored: beyond that, they are just listed.
-	const added = others.map((path, index): FileChange => {
+	const added = [...untrackedPaths].map((path, index): FileChange => {
 		const text = index < MAX_COUNTED ? readText(worktree, path) : null;
 		return {
 			path,
@@ -213,7 +238,7 @@ async function filesSince(
 		};
 	});
 
-	return [...tracked, ...added].sort((a, b) => a.path.localeCompare(b.path));
+	return [...files, ...added].sort((a, b) => a.path.localeCompare(b.path));
 }
 
 /**
@@ -246,11 +271,7 @@ async function modifiedFiles(worktree: Worktree) {
 // Git writes `branch: Created from …` but `Branch: renamed …`.
 const ownWork = (move: string) => !/: Fast-forward$|^reset:|^branch:/i.test(move);
 
-async function landed(
-	worktree: Worktree,
-	{ repoPath, base }: Origin,
-	head: string
-): Promise<boolean> {
+async function landed(worktree: Worktree, origin: Origin, head: string): Promise<boolean> {
 	if (!head.startsWith('refs/heads/')) return false;
 	try {
 		const tip = (await gitIn(worktree, 'rev-parse', head)).trim();
@@ -259,9 +280,8 @@ async function landed(
 			.split('\n')
 			.slice(0, -1); // the last is where it was made
 		if (!moves.some(ownWork)) return false;
-		const start = (
-			await git(repoPath, ['rev-parse', base ? branchRef(base) : await startOf(repoPath)])
-		).trim();
+		const start = await baseOf(origin);
+		if (!start) return false;
 		await gitIn(worktree, 'merge-base', '--is-ancestor', tip, start); // throws if it is not
 		return true;
 	} catch {
@@ -275,7 +295,8 @@ async function landed(
  */
 export async function baseOf({ repoPath, base }: Origin): Promise<string | null> {
 	try {
-		const ref = base ? branchRef(base) : await startOf(repoPath);
+		const ref = base ? await branchOn(repoPath, base) : await startOf(repoPath);
+		if (!ref) return null;
 		// Resolve HEAD in the source repository, never in the workspace.
 		const branch = (await git(repoPath, ['rev-parse', '--symbolic-full-name', ref])).trim();
 		return branch.startsWith('refs/') ? branch : null;
@@ -302,13 +323,7 @@ async function incoming(worktree: Worktree, origin: Origin): Promise<Changes['in
 const loading = new Map<string, Promise<Changes>>();
 
 export function status(worktree: Worktree, origin: Origin): Promise<Changes> {
-	const key = JSON.stringify([
-		worktree.path,
-		origin.repoPath,
-		origin.base,
-		origin.pullBase,
-		origin.parents
-	]);
+	const key = JSON.stringify([worktree.path, origin.repoPath, origin.base, origin.pullBase]);
 	let result = loading.get(key);
 	if (!result) {
 		result = readStatus(worktree, origin).finally(() => loading.delete(key));

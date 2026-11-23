@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import type { HostEvent, Meta } from './host.ts';
 import { signalTree } from './session-process.ts';
 import { resumeSessions, startSession, type Session } from './session.ts';
@@ -30,7 +30,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
  const result=result=>out({id:req.id,result});
  switch(req.method){
  case 'initialize': return result({protocolVersion:2,info:{name:'fixture',version:'1'},capabilities:{},authMethods:[]});
- case 'session/resume':
+ case 'session/resume': if(req.params.sessionId==='unsaved')return out({id:req.id,error:{code:-32002,message:'Resource not found'}});
  case 'session/new': return result({sessionId:id,configOptions});
  case 'session/set_config_option': if(!process.env.REFUSE_MODE)configOptions[0].currentValue=req.params.value;return result({configOptions});
  case 'tool_call/cancel':
@@ -70,6 +70,17 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
    items('codex-structured-plan',[step('completed')]);
    update({sessionUpdate:'plan_removed',planId:'review'});
    items('plan',[]);return done();
+  }
+  if(said==='compact'){
+   const air=(facts)=>({jetbrains:{air:{version:1,contextCompaction:{version:1,...facts}}}});
+   text('Before.');
+   update({sessionUpdate:'compaction_update',compactionId:'c1',status:'in_progress',_meta:air({})});
+   update({sessionUpdate:'compaction_summary_chunk',compactionId:'c1',content:{type:'text',text:'Kept '}});
+   update({sessionUpdate:'compaction_summary_chunk',compactionId:'c1',content:{type:'text',text:'this.'}});
+   const end={sessionUpdate:'compaction_update',compactionId:'c1',status:'completed'};
+   update(end);update({...end,_meta:air({trigger:'automatic',preTokens:180000,postTokens:20000})});update(end);
+   update({sessionUpdate:'compaction_update',compactionId:'c2',status:'failed',error:'Too short'});
+   return done();
   }
   if(said==='titles'){
    update({sessionUpdate:'session_info_update',_meta:{codex:{threadStatus:{type:'active'}}}});
@@ -133,6 +144,54 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line=
 `
 );
 
+const openCodeFixture = join(bin, 'opencode.cjs');
+writeFileSync(
+	openCodeFixture,
+	`
+const send = msg => console.log(JSON.stringify({jsonrpc:'2.0', ...msg}));
+let prompt;
+let model = 'provider/default-model';
+let effort = 'medium';
+const config = () => [
+	{id:'model',category:'model',name:'Model',type:'select',currentValue:model,options:[]},
+	{id:'variant',category:'thought_level',name:'Effort',type:'select',currentValue:effort,options:[]}
+];
+let sessionId;
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+	const req = JSON.parse(line);
+	switch (req.method) {
+	case 'initialize':
+		return send({id:req.id,result:{protocolVersion:1,agentCapabilities:{sessionCapabilities:{resume:{}}},authMethods:[]}});
+	case 'session/new':
+ case 'session/resume':
+		sessionId = req.params.sessionId ?? 'new-session';
+		return send({id:req.id,result:{sessionId,configOptions:config()}});
+	case 'session/set_config_option':
+		if (req.params.configId === 'model') model = req.params.value;
+		else if (req.params.configId === 'variant') effort = req.params.value;
+		return send({id:req.id,result:{configOptions:config()}});
+	case 'session/prompt':
+		prompt = req.id;
+		if (req.params.prompt[0].text === 'Change model') {
+			const update = (sessionId, configOptions) => send({method:'session/update',params:{sessionId,update:{sessionUpdate:'config_option_update',configOptions}}});
+			model = 'provider/other-model';
+			effort = 'default';
+			update(sessionId, config());
+			model = 'provider/child-model';
+			update('child-session', config());
+		}
+		return send({id:'permission',method:'session/request_permission',params:{sessionId,toolCall:{toolCallId:'edit'},options:[
+			{kind:'allow_once',optionId:'allow',name:'Allow'}, {kind:'reject_once',optionId:'deny',name:'Deny'}
+		]}});
+	default:
+		if (req.id !== 'permission') return;
+		send({method:'session/update',params:{sessionId,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:model+' '+effort+' '+req.result.outcome.optionId}}}});
+		send({id:prompt,result:{stopReason:'end_turn'}});
+	}
+});
+`
+);
+
 const root = () =>
 	mkdtempSync(join(process.platform === 'win32' ? homedir() : tmpdir(), 'geordi-sessions-'));
 const meta = (env: Record<string, string> = {}): Meta => ({
@@ -146,7 +205,7 @@ const meta = (env: Record<string, string> = {}): Meta => ({
 		api: null,
 		settings: {},
 		// The fixture stands in for the wrapper and the agent's own program: neither need be installed.
-		env: { CLAUDE_CODE_EXECUTABLE: 'claude', CODEX_PATH: 'codex', ...env }
+		env: { CLAUDE_CODE_EXECUTABLE: process.execPath, CODEX_PATH: process.execPath, ...env }
 	}
 });
 
@@ -198,7 +257,7 @@ function begin(
 		(event) => events.push(event),
 		dir,
 		ready,
-		env.MISSING ? join(bin, 'absent.cjs') : fixture
+		env.MISSING ? join(bin, 'absent.cjs') : launch.agent === 'opencode' ? openCodeFixture : fixture
 	);
 	delete process.env.GEORDI_SESSION_IDLE_MS;
 	started.push(session);
@@ -262,6 +321,64 @@ describe('a session', () => {
 		}
 	});
 
+	it('starts a new session when the one to resume was never saved', async () => {
+		const launch = meta();
+		launch.options.resumeId = 'unsaved';
+		const { events, ended } = begin('which mode', { launch });
+		await ended(1);
+		expect(events).toContainEqual({ kind: 'resume', id: 'cli-1' });
+		expect(events.at(-1)).toEqual({ kind: 'turn.completed' });
+	});
+
+	it.each([
+		['auto', 'deny'],
+		['full-access', 'allow']
+	] as const)(
+		'resumes OpenCode with the chosen model and %s permissions',
+		async (permissionMode, outcome) => {
+			const launch = meta({ OPENCODE_PATH: process.execPath });
+			launch.agent = 'opencode';
+			launch.options.resumeId = 'saved-session';
+			launch.options.settings = { model: 'provider/model', effort: 'high', permissionMode };
+			const { events, ended } = begin('Edit', { launch });
+			await ended(1);
+			expect(events).toEqual([
+				{ kind: 'turn.started' },
+				{ kind: 'resume', id: 'saved-session' },
+				{
+					kind: 'session.model',
+					value: {
+						requested: { model: 'provider/model', effort: 'high' },
+						model: 'provider/model',
+						effort: 'high'
+					}
+				},
+				{ kind: 'text', text: 'provider/model high ' + outcome },
+				{ kind: 'turn.completed' }
+			]);
+		}
+	);
+
+	it('reports the OpenCode defaults without selecting a model or effort', async () => {
+		const launch = meta({ OPENCODE_PATH: process.execPath });
+		launch.agent = 'opencode';
+		const { session, ended } = begin('Hello', { launch });
+		await ended(1);
+		expect(session.live().sessionModel).toEqual({
+			requested: {},
+			model: 'provider/default-model',
+			effort: 'medium'
+		});
+	});
+
+	it('updates live defaults from the root session and clears an undisclosed effort', async () => {
+		const launch = meta({ OPENCODE_PATH: process.execPath });
+		launch.agent = 'opencode';
+		const { session, ended } = begin('Change model', { launch });
+		await ended(1);
+		expect(session.live().sessionModel).toEqual({ requested: {}, model: 'provider/other-model' });
+	});
+
 	it('declines a tool permission request without asking the person', async () => {
 		const { events, ended } = begin('permission');
 		await ended(1);
@@ -284,17 +401,25 @@ describe('a session', () => {
 		expect(events).toContainEqual({ kind: 'text', text: mode });
 	});
 
-	it('fails the turn, saying so, when the agent is not installed', async () => {
-		const { events, ended } = begin('hello', {
-			launch: meta({ PATH: '', CLAUDE_CODE_EXECUTABLE: '' })
-		});
-		await ended(1);
-		expect(events).toContainEqual({
-			kind: 'turn.failed',
-			error: expect.stringContaining('could not find `claude`')
-		});
-		expect(events.some((event) => event.kind === 'text')).toBe(false);
-	});
+	it.each(['claude', 'codex', 'opencode'] as const)(
+		'fails the turn when %s is missing',
+		async (agent) => {
+			const launch = meta({
+				PATH: '',
+				CLAUDE_CODE_EXECUTABLE: '',
+				CODEX_PATH: '',
+				OPENCODE_PATH: ''
+			});
+			launch.agent = agent;
+			const { events, ended } = begin('hello', { launch });
+			await ended(1);
+			expect(events).toContainEqual({
+				kind: 'turn.failed',
+				error: expect.stringContaining('could not find `' + agent + '`')
+			});
+			expect(events.some((event) => event.kind === 'text')).toBe(false);
+		}
+	);
 
 	it('fails before prompting when the provider keeps a different mode', async () => {
 		const launch = meta({ REFUSE_MODE: '1' });
@@ -330,6 +455,26 @@ describe('a session', () => {
 			{ kind: 'message.received', id: 'second' },
 			{ kind: 'turn.started' },
 			{ kind: 'text', text: 'Heard: again' },
+			{ kind: 'turn.completed' }
+		]);
+	});
+
+	it('says when the agent compacts and how it ended, without its summary', async () => {
+		const { events, ended } = begin('compact');
+		await ended(1);
+		expect(events.slice(2)).toEqual([
+			{ kind: 'text', text: 'Before.' },
+			{ kind: 'compaction', id: 'c1', status: 'running' },
+			// Claude says the end, then again with the counts
+			{ kind: 'compaction', id: 'c1', status: 'completed' },
+			{
+				kind: 'compaction',
+				id: 'c1',
+				status: 'completed',
+				tokensBefore: 180000,
+				tokensAfter: 20000
+			},
+			{ kind: 'compaction', id: 'c2', status: 'failed' },
 			{ kind: 'turn.completed' }
 		]);
 	});
@@ -777,7 +922,7 @@ describe('a daemon restart', () => {
 	});
 });
 
-describe('a launched daemon', () => {
+describe('a launched daemon', { timeout: 60_000 }, () => {
 	// The app and the command start the daemon as a child of theirs (on Windows, in a job
 	// object that ends its members with it). The agent's session is to outlive both.
 	// Linux CI is headless. On the desktop runners, exercise the app's utilityProcess too.
@@ -788,6 +933,7 @@ describe('a launched daemon', () => {
 		const sessions = root();
 		const dir = join(sessions, 'w');
 		const scripts = mkdtempSync(join(tmpdir(), 'geordi-launch-'));
+		const wrapperPid = join(scripts, 'wrapper.pid');
 		const daemon = join(scripts, 'daemon.mjs');
 		const launcher = join(scripts, 'launcher.cjs');
 		writeFileSync(
@@ -796,7 +942,7 @@ describe('a launched daemon', () => {
 const { readFileSync } = await import('node:fs');
 const { startSession } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'session.ts')).href)});
 // nobody to report to: what the host writes waits in its files for the next daemon
-startSession(${JSON.stringify(meta())}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
+startSession(${JSON.stringify(meta({ PID_FILE: wrapperPid }))}, { prompt: 'slow', deliveryId: 'first' }, () => true, dir, () => false, ${JSON.stringify(fixture)});
 const out = dir + '/out.jsonl';
 setInterval(() => { try { if (readFileSync(out, 'utf8').includes('"resume"')) process.exit(0); } catch {} }, 20);
 setTimeout(() => { console.error(readFileSync(dir + '/host.log', 'utf8')); process.exit(1); }, 20000);`
@@ -823,16 +969,36 @@ if (process.versions.electron) {
 				: process.execPath;
 		const launched = spawn(executable, [launcher], {
 			stdio: 'inherit',
+			timeout: 30_000,
+			killSignal: 'SIGKILL',
 			env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined }
 		});
-		expect((await once(launched, 'exit'))[0]).toBe(0);
+		const exited = once(launched, 'exit');
+		const events: HostEvent[] = [];
+		let resumed: Session | undefined;
+		const resume = () =>
+			(resumed ??= resumeSessions(sessions, () => (event) => events.push(event)).get('w'));
+		onTestFinished(async () => {
+			// The launcher can fail after starting the host but before we resume it.
+			await exited;
+			const hostFile = join(dir, 'host.json');
+			const host = existsSync(hostFile)
+				? JSON.parse(readFileSync(hostFile, 'utf8')).pid
+				: undefined;
+			const wrapper = existsSync(wrapperPid) ? Number(readFileSync(wrapperPid, 'utf8')) : undefined;
+			const remaining = resume();
+			remaining?.kill();
+			await remaining?.done;
+			await until(() => (!host || !alive(host)) && (!wrapper || !alive(wrapper)));
+			rmSync(scripts, { recursive: true, force: true });
+			rmSync(sessions, { recursive: true, force: true });
+		});
+		expect((await exited)[0]).toBe(0);
 		await sleep(500); // for a job object to have ended its members
 
 		const host = JSON.parse(readFileSync(join(dir, 'host.json'), 'utf8')).pid;
 		expect(alive(host)).toBe(true);
-		const events: HostEvent[] = [];
-		const session = resumeSessions(sessions, () => (event) => events.push(event)).get('w')!;
-		started.push(session);
+		const session = resume()!;
 		expect(session.working()).toBe(true);
 		session.say({ prompt: 'slow', deliveryId: 'first' }); // a retry, which it has heard
 		session.say({ prompt: 'still there?' });

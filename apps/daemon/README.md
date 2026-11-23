@@ -6,11 +6,12 @@ Runs on the machine with your code: worktrees, agent sessions and terminals. See
 ## Live ACP session checks
 
 These start a real agent session against your provider account: sign in to the provider
-first. Each command starts a detached production session host with the pinned wrapper,
+first. Each command starts a detached production session host with the installed OpenCode CLI or a pinned wrapper,
 in a fresh temporary workspace, and exits with an error if the expected behaviour is
 missing or two minutes pass.
 
 ```sh
+pnpm --filter @geordi/daemon acp:probe opencode inspect
 pnpm --filter @geordi/daemon acp:probe <codex|claude> <scenario>
 ```
 
