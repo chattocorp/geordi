@@ -1,6 +1,6 @@
 import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
-import { withAides } from '#lib/family.ts';
+import { isInactive, withAides } from '#lib/family.ts';
 import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
@@ -30,6 +30,7 @@ export const navigation = () =>
 			const all = workspaces().all();
 			const harnesses = hub().harnesses();
 			const ownerOf = new Map(all.map((workspace) => [workspace.id, workspace.worktreeId]));
+			const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
 			const operations = new Map(
 				Array.from(hub().operations(), ({ worktreeId, action }) => [worktreeId, action])
 			);
@@ -78,8 +79,8 @@ export const navigation = () =>
 					pull: known.upstream?.pull
 						? { number: known.upstream.pull.number, url: known.upstream.pull.url }
 						: null,
-					// put aside for later, until a person makes it active again or prompts it
-					...(workspace.inactive && { inactive: true }),
+					// put aside for later, by itself or with what started it
+					...(isInactive(byId, id) && { inactive: true }),
 					// kept from archiving until a person unlocks it (FDR-015)
 					...(workspace.locked && { locked: true }),
 					// when anything last happened in it, also in the agents working alongside

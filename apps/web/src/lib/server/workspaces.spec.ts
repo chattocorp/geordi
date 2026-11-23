@@ -649,6 +649,21 @@ describe('workspaces', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(id).inactive).toBe(false);
 	});
 
+	it('makes the workspaces that started one active again when a person prompts it', () => {
+		const { workspaces, create } = setup();
+		const root = create('Root');
+		workspaces.record(root, { kind: 'turn.completed' });
+		const child = workspaces.agents.start(root, { worktree: 'own', prompt: 'Help' }).id;
+		workspaces.record(child, { kind: 'turn.completed' });
+		workspaces.setInactive(root, true);
+		workspaces.send(child, 'Explain this');
+		expect(workspaces.get(root).inactive).toBe(false);
+		// marking it active does the same
+		workspaces.setInactive(root, true);
+		workspaces.setInactive(child, false);
+		expect(workspaces.get(root).inactive).toBe(false);
+	});
+
 	it('reads a workspace removed from Today, before inactive ones, as inactive', () => {
 		const { store, repos, dispatch, create } = setup();
 		const id = create('One');

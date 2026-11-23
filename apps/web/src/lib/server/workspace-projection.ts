@@ -1,4 +1,5 @@
 import type { WorkspaceAction } from '@geordi/ui/actions';
+import { lineOf } from '#lib/family.ts';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { isExternal } from './agent-access.ts';
 import type {
@@ -368,7 +369,10 @@ export type Workspace = {
 	sentBy: { queue: (string | null)[] };
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
-	/** Whether a person marked it inactive, and has not marked it active or prompted it since. */
+	/**
+	 * Whether a person marked it inactive, and has not since made it, or anything it started,
+	 * active again (by marking or prompting). What it started is inactive with it (`isInactive`).
+	 */
 	inactive: boolean;
 	/** Whether a person locked it against archiving (FDR-015). */
 	locked: boolean;
@@ -459,6 +463,10 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		steering = steerers,
 		restoring = false
 	) {
+		/** Makes a workspace active, with those that started it: while one of them is inactive, so is it. */
+		const activate = (id: string) => {
+			for (const each of lineOf(workspaces, id)) each.inactive = false;
+		};
 		if (event.type === 'workspace.created') {
 			const workspace = initialWorkspace(
 				{ ...event.data, title: promptTitle(event.data.title) },
@@ -503,9 +511,13 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			if (locking) locking.locked = event.type === 'workspace.locked';
 			return;
 		}
-		if (event.type === 'workspace.deactivated' || event.type === 'workspace.activated') {
+		if (event.type === 'workspace.deactivated') {
 			const marked = workspaces.get(event.data.id);
-			if (marked) marked.inactive = event.type === 'workspace.deactivated';
+			if (marked) marked.inactive = true;
+			return;
+		}
+		if (event.type === 'workspace.activated') {
+			activate(event.data.id);
 			return;
 		}
 
@@ -524,8 +536,8 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			!!sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq);
 		/** A person prompted it: active again, with the workspace whose worktree it works in. */
 		const prompted = () => {
-			for (const each of [workspace, workspaces.get(workspace.worktreeId)])
-				if (each) each.inactive = false;
+			activate(workspace.id);
+			activate(workspace.worktreeId);
 		};
 		const replace = (item: TranscriptItem, next: TranscriptItem) =>
 			edit(transcript.indexOf(item), 1, next);

@@ -287,7 +287,7 @@
 		await waitFor(() =>
 			expect(canvas.queryByText('Scale live views and the event log')).toBeNull()
 		);
-		// put aside with the workspace whose agent started it, though not inactive itself
+		// put aside with the workspace whose agent started it
 		await expect(canvas.queryByText('Review the daemon')).toBeNull();
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
@@ -304,7 +304,9 @@
 		{
 			...nav,
 			workspaces: nav.workspaces.map((w) =>
-				w.id === 'working' || w.repoId === 'sample' ? { ...w, inactive: true } : w
+				w.id === 'working' || w.id === 'aide' || w.repoId === 'sample'
+					? { ...w, inactive: true }
+					: w
 			)
 		},
 		'/'
@@ -326,7 +328,9 @@
 	{@render frame(
 		{
 			...nav,
-			workspaces: nav.workspaces.map((w) => (w.id === 'working' ? { ...w, inactive: true } : w))
+			workspaces: nav.workspaces.map((w) =>
+				w.id === 'working' || w.id === 'aide' ? { ...w, inactive: true } : w
+			)
 		},
 		'/workspaces/working'
 	)}

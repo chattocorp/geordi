@@ -1,5 +1,6 @@
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
+import { isInactive } from '#lib/family.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -683,7 +684,7 @@ export function createWorkspaces(
 	}
 
 	function entry(workspace: Workspace) {
-		const { id, title, repoId, status, archivedAt, asking, inactive } = workspace;
+		const { id, title, repoId, status, archivedAt, asking } = workspace;
 		return {
 			id,
 			title,
@@ -691,8 +692,8 @@ export function createWorkspaces(
 			status,
 			archivedAt,
 			asking,
-			// a person put it aside for later
-			inactive,
+			// a person put it aside for later, or the one that started it
+			inactive: isInactive(projection.get(), id),
 			branch: projection.get().get(workspace.worktreeId)?.worktree?.branch ?? null,
 			url: `/workspaces/${id}`
 		};
@@ -1349,11 +1350,14 @@ export function createWorkspaces(
 			);
 		},
 
-		/** Marks the workspace inactive (put aside for later), or active again. Prompting it makes it active too. */
+		/**
+		 * Marks the workspace inactive (put aside for later), or active again, with those that
+		 * started it. Prompting it makes it active too.
+		 */
 		setInactive(id: string, inactive: boolean, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
-			if (workspace.inactive === inactive) return;
+			if (isInactive(projection.get(), id) === inactive) return;
 			const type = inactive ? 'workspace.deactivated' : 'workspace.activated';
 			store.append({ type, stream: `workspace:${id}`, data: { id } }, { actor });
 		},
