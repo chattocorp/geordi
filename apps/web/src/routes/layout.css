@@ -520,6 +520,15 @@
 		@apply bg-frame font-sans text-base text-ink subpixel-antialiased;
 	}
 
+	/* Scroll bars: a thin, see-through thumb of ink on no track, so that they sit on any
+	   sheet in either mode. (`scrollbar-color` is inherited; `scrollbar-width` is not.) */
+	:root {
+		scrollbar-color: color-mix(in oklab, var(--ink) 22%, transparent) transparent;
+	}
+	* {
+		scrollbar-width: thin;
+	}
+
 	/* Everything you can click says so. (Tailwind leaves buttons with the default cursor.) */
 	:where(
 		a[href],
