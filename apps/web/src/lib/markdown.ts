@@ -102,7 +102,7 @@ md.renderer.rules.image = (tokens, index, _options, env) => {
 	// A sound gets a player (`Markdown.svelte` puts it here). Its name only says so: the forge
 	// serves what the bytes are.
 	if (SOUND.test(path))
-		return `<span class="not-prose my-3 block max-w-md card px-3 py-2" data-sound="${url}" data-label="${alt || escapeHtml(path)}" data-file="${escapeHtml(path)}"></span>`;
+		return `<span class="not-prose my-3 block max-w-md card px-3 py-2" data-sound="${url}" data-label="${alt || escapeHtml(path)}" data-sound-path="${escapeHtml(path)}"></span>`;
 	return `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${alt}" data-picture="${escapeHtml(path)}" loading="lazy"></a>`;
 };
 
