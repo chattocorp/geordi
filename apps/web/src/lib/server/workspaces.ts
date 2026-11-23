@@ -179,26 +179,16 @@ export function createWorkspaces(
 
 	/** What a daemon needs to find the worktree a workspace works in. A project has none. */
 	function ref(id: string): WorktreeRef {
-		const { repoId, worktreeId, base } = find(id);
+		const { repoId, worktreeId } = find(id);
 		if (repoId === null) error(409, 'A project has no worktree');
+		// the worktree's base is its owner's: a workspace may work in another's worktree
 		const owner = find(worktreeId);
 		const branch = owner.worktree?.branch;
-		const parents: NonNullable<WorktreeRef['parents']> = [];
-		let child = owner;
-		while (child.base && child.parentId) {
-			const parent = find(find(child.parentId).worktreeId);
-			// the branch as it is called now: its agent may have renamed it since
-			parents.push({ worktreeId: parent.id, branch: parent.worktree?.branch ?? child.base });
-			child = parent;
-		}
-		// a workspace's own base is its parent's branch, under that branch's current name
-		const start = base && id === worktreeId ? (parents[0]?.branch ?? base) : base;
 		return {
 			worktreeId,
 			repoPath: repos.get(repoId).path,
 			...(owner.worktreeParent && { worktreeParent: owner.worktreeParent }),
-			...(start && { base: start }),
-			...(parents.length && { parents }),
+			...(owner.base && { base: owner.base }),
 			...(branch && { branch })
 		};
 	}
@@ -749,9 +739,9 @@ export function createWorkspaces(
 		},
 
 		/**
-		 * Starts an agent on the caller's behalf, as a workspace of its own. A workspace's agent
-		 * starts it in a new worktree branched from its own (`own`), or in its own worktree
-		 * (`shared`). In another repository it starts from that repository’s base. An
+		 * Starts an agent on the caller's behalf, as a workspace of its own: in a new worktree
+		 * (`own`), branched from `base` or else from the repository's base, or in the caller's
+		 * worktree (`shared`). An
 		 * agent of the caller's kind runs as the caller does, but for the `model` and `effort`
 		 * asked for. An effort is checked against what is `offered`, when that is known.
 		 */
@@ -760,6 +750,7 @@ export function createWorkspaces(
 			{
 				repository,
 				worktree,
+				base,
 				workspace: alongside,
 				agent,
 				model,
@@ -769,6 +760,8 @@ export function createWorkspaces(
 			}: {
 				repository?: string;
 				worktree: WorktreeMode;
+				/** The branch a new worktree starts from, and is compared with; the repository's base if absent. */
+				base?: string;
 				/** An existing workspace where the caller may start an agent alongside its agent. */
 				workspace?: string;
 				agent?: Agent;
@@ -794,6 +787,8 @@ export function createWorkspaces(
 			const project = caller?.repoId === null;
 			if (alongside !== undefined && external)
 				error(400, 'Only workspace agents can start a reviewer in a workspace');
+			if (base !== undefined && (alongside !== undefined || worktree === 'shared'))
+				error(400, 'A base is for a new worktree; a shared one keeps its own');
 			if (caller && (alongside !== undefined || (project && worktree === 'shared'))) {
 				// the caller's own workspace is where a reviewer may join it too, as with `shared`
 				const target =
@@ -814,16 +809,18 @@ export function createWorkspaces(
 					error(400, 'A shared worktree must be in the calling workspace’s repository');
 				if (!reaches(callerId, repository))
 					error(404, `There is no repository ${repository} you have access to`);
-				where = { repoId: repos.get(repository).id, ...(caller && { parentId: callerId }) };
+				where = {
+					repoId: repos.get(repository).id,
+					...(caller && { parentId: callerId }),
+					...(base && { base })
+				};
 			} else {
-				const branch = projection.get().get(caller.worktreeId)?.worktree?.branch;
-				if (!branch) error(409, 'Your workspace has no worktree yet');
 				where = {
 					repoId: caller.repoId,
 					parentId: callerId,
 					...(worktree === 'shared'
 						? { worktreeId: caller.worktreeId, ...(caller.base && { base: caller.base }) }
-						: { base: branch })
+						: base && { base })
 				};
 			}
 

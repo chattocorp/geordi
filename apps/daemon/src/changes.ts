@@ -1,4 +1,4 @@
-import { git, quietGit } from './git.ts';
+import { git } from './git.ts';
 import {
 	closeSync,
 	constants,
@@ -22,6 +22,7 @@ import {
 } from '@geordi/protocol';
 import {
 	branchOf,
+	branchOn,
 	branchRef,
 	readBlobIn,
 	gitIn,
@@ -43,33 +44,18 @@ const SAFE = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
 export type Origin = {
 	repoPath: string;
 	base?: string;
+	/** The branch its pull request merges into, where it has one: that is what it is measured against. */
 	pullBase?: string;
-	parents?: { branch: string; pullBase?: string }[];
 };
 
-/** Work from the outermost target inward. A parent already in its target contributes no files. */
+/** The one branch a workspace is measured against: its pull request's target, else its base. */
 async function comparison(worktree: Worktree, origin: Origin) {
-	const remote = (branch: string) =>
-		branchRef(branch).replace('refs/heads/', 'refs/remotes/origin/');
-	const parents =
-		origin.parents ?? (origin.base ? [{ branch: origin.base, pullBase: undefined }] : []);
-	const nearestPull = parents.findIndex((parent) => parent.pullBase);
-	const pull = origin.pullBase ?? parents[nearestPull]?.pullBase;
-	let target = pull
-		? remote(pull)
-		: ((await baseOf({ repoPath: origin.repoPath })) ??
+	const target = origin.pullBase
+		? branchRef(origin.pullBase).replace('refs/heads/', 'refs/remotes/origin/')
+		: ((await baseOf(origin)) ??
+			// a base that is gone (merged and deleted) leaves where work in the repository starts
+			(await baseOf({ repoPath: origin.repoPath })) ??
 			(await git(origin.repoPath, ['rev-parse', 'HEAD'])).trim());
-	if (!origin.pullBase) {
-		const stack = nearestPull < 0 ? parents : parents.slice(0, nearestPull + 1);
-		for (const parent of stack.toReversed()) {
-			const ref = branchRef(parent.branch);
-			// a parent's branch may be gone (merged and deleted): there is nothing to measure from
-			if ((await quietGit(origin.repoPath, 'rev-parse', '--verify', '--quiet', ref)) === null)
-				continue;
-			if ((await gitIn(worktree, 'rev-list', '--max-count=1', `${target}..${ref}`)).trim())
-				target = ref;
-		}
-	}
 	const fork = (await gitIn(worktree, 'merge-base', headOf(worktree), target)).trim();
 	return { fork, name: target.replace(/^refs\/(?:heads\/|remotes\/origin\/)/, '') };
 }
@@ -285,11 +271,7 @@ async function modifiedFiles(worktree: Worktree) {
 // Git writes `branch: Created from …` but `Branch: renamed …`.
 const ownWork = (move: string) => !/: Fast-forward$|^reset:|^branch:/i.test(move);
 
-async function landed(
-	worktree: Worktree,
-	{ repoPath, base }: Origin,
-	head: string
-): Promise<boolean> {
+async function landed(worktree: Worktree, origin: Origin, head: string): Promise<boolean> {
 	if (!head.startsWith('refs/heads/')) return false;
 	try {
 		const tip = (await gitIn(worktree, 'rev-parse', head)).trim();
@@ -298,9 +280,8 @@ async function landed(
 			.split('\n')
 			.slice(0, -1); // the last is where it was made
 		if (!moves.some(ownWork)) return false;
-		const start = (
-			await git(repoPath, ['rev-parse', base ? branchRef(base) : await startOf(repoPath)])
-		).trim();
+		const start = await baseOf(origin);
+		if (!start) return false;
 		await gitIn(worktree, 'merge-base', '--is-ancestor', tip, start); // throws if it is not
 		return true;
 	} catch {
@@ -314,7 +295,8 @@ async function landed(
  */
 export async function baseOf({ repoPath, base }: Origin): Promise<string | null> {
 	try {
-		const ref = base ? branchRef(base) : await startOf(repoPath);
+		const ref = base ? await branchOn(repoPath, base) : await startOf(repoPath);
+		if (!ref) return null;
 		// Resolve HEAD in the source repository, never in the workspace.
 		const branch = (await git(repoPath, ['rev-parse', '--symbolic-full-name', ref])).trim();
 		return branch.startsWith('refs/') ? branch : null;
@@ -341,13 +323,7 @@ async function incoming(worktree: Worktree, origin: Origin): Promise<Changes['in
 const loading = new Map<string, Promise<Changes>>();
 
 export function status(worktree: Worktree, origin: Origin): Promise<Changes> {
-	const key = JSON.stringify([
-		worktree.path,
-		origin.repoPath,
-		origin.base,
-		origin.pullBase,
-		origin.parents
-	]);
+	const key = JSON.stringify([worktree.path, origin.repoPath, origin.base, origin.pullBase]);
 	let result = loading.get(key);
 	if (!result) {
 		result = readStatus(worktree, origin).finally(() => loading.delete(key));

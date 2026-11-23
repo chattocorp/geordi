@@ -125,6 +125,21 @@ export async function startOf(repoPath: string): Promise<string> {
 }
 
 /**
+ * A branch named as a base, as a full ref: the local branch, or the upstream's where that is
+ * further along (a `main` checked out long ago) or there is no local one. `null` if neither exists.
+ */
+export async function branchOn(repoPath: string, branch: string): Promise<string | null> {
+	const exists = async (ref: string) =>
+		(await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', ref)) !== null;
+	const local = branchRef(branch);
+	const remote = local.replace('refs/heads/', 'refs/remotes/origin/');
+	if (!(await exists(remote))) return (await exists(local)) ? local : null;
+	if (!(await exists(local))) return remote;
+	const behind = await quietGit(repoPath, 'merge-base', '--is-ancestor', local, remote);
+	return behind === null ? local : remote;
+}
+
+/**
  * The name a branch goes by on the upstream. Its own, as a rule; but whoever pushed it may
  * have given it another one there (`git push -u origin HEAD:a-better-name`, which agents
  * like to do), and Git remembers that. Then that is where its pushed commits and its pull
@@ -193,7 +208,8 @@ export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireB
 				timeout: CHECKOUT_TIMEOUT
 			});
 		else {
-			const start = base ? branchRef(base) : await startOf(repoPath);
+			const start = base ? await branchOn(repoPath, base) : await startOf(repoPath);
+			if (!start) throw new Error(`There is no branch ${base} to start from.`);
 			// `--no-track`: the new branch is its own, not a local name for the upstream's main
 			// one (which is where a plain `git push` would otherwise try to send it)
 			await git(

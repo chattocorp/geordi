@@ -120,10 +120,17 @@ const startFields = {
 	)
 };
 const worktreeMode = v.optional(v.picklist(WORKTREE_MODES), 'own');
+const base = v.pipe(
+	v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(255))),
+	v.description(
+		"A branch for the new worktree to start from, such as your own to build on your committed work. Its changes are shown against this branch until it has a pull request. Omit it to start from the repository's base."
+	)
+);
 const startInput = v.strictObject({
 	...startFields,
 	repository: v.optional(repositoryId),
 	worktree: worktreeMode,
+	base,
 	workspace: v.optional(workspaceId)
 });
 
@@ -134,18 +141,19 @@ function startCatalogInput(kind: CallerKind) {
 		return v.strictObject({
 			...startFields,
 			repository: repositoryId,
-			worktree: v.optional(v.literal('own'), 'own')
+			worktree: v.optional(v.literal('own'), 'own'),
+			base
 		});
 	return startInput;
 }
 
 const startLocation = {
 	repository:
-		'The default, worktree "own", creates a branch from your current commit. Merge its branch to bring the work back. Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". The branch starts from that repository’s base. Pass workspace instead to start a reviewer in your own worktree or in that of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode.',
+		'The default, worktree "own", creates a new branch from the repository’s base, or from base if you pass one (your own branch, to build on what you committed; then merge its branch to bring the work back). Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". Pass workspace instead to start a reviewer in your own worktree or in that of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode.',
 	project:
-		'Pass repository to start on a new branch from the repository base. Pass workspace to share that workspace’s directory and branch, regardless of worktree mode. With worktree "shared" and no workspace, the agent joins your project folder. The shared forms ignore repository.',
+		'Pass repository to start on a new branch from the repository base, or from base if you pass one. Pass workspace to share that workspace’s directory and branch, regardless of worktree mode. With worktree "shared" and no workspace, the agent joins your project folder. The shared forms ignore repository.',
 	external:
-		'Supply repository from list_repositories. The agent gets a new worktree and branch from the repository base.'
+		'Supply repository from list_repositories. The agent gets a new worktree and branch from the repository base, or from base if you pass one.'
 };
 
 /** Each tool: what agents are told about it, its input, and what it does for a caller. */
@@ -169,6 +177,7 @@ const tools = {
 				prompt: string;
 				repository?: string;
 				worktree: 'own' | 'shared';
+				base?: string;
 				workspace?: string;
 				agent?: (typeof AGENTS)[number];
 				model?: string;
