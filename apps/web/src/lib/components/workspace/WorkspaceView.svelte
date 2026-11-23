@@ -60,7 +60,7 @@
 	import { workspaceCommands } from './commands.ts';
 	import Notice from '#lib/ui/Notice.svelte';
 	import Panes from '#lib/ui/Panes.svelte';
-	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
+	import Loading from '@geordi/ui/Loading.svelte';
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
@@ -261,7 +261,9 @@
 				saved[area] ?? singleGroup([], { id: area }),
 				(tab) =>
 					!placed.includes(tab) &&
-					(exists(tab) || (tab === CHANGESET && (!workspace.git || workspace.git.releasePending)))
+					(exists(tab) ||
+						(tab === CHANGESET && (!workspace.git || workspace.git.releasePending)) ||
+						(tab === RUN && configPending))
 			);
 			placed.push(...tabsOf(layout));
 			return layout;
@@ -315,6 +317,10 @@
 	const tasks = $derived(config?.tasks ?? []);
 	/** Whether there is anything to run, or something to say about the file that says so. */
 	const runnable = $derived(tasks.length > 0 || !!config?.problem);
+	/** Whether the configuration is still to come: a saved Run tab stays, and says so. */
+	const configPending = $derived(
+		!project && !workspace.archivedAt && (!workspace.git || workspace.git.configPending)
+	);
 	const jobOf = (terminal?: string) =>
 		terminal?.startsWith(JOB_TERMINAL) ? terminal.slice(JOB_TERMINAL.length) : undefined;
 	function isRunTerminal(terminal: string) {
@@ -1115,7 +1121,7 @@
 			{#if git?.unavailable}
 				<p class="text-sm text-muted">{git.unavailable}</p>
 			{:else if !git?.changes}
-				<p class="text-sm text-muted">Loading the changes…</p>
+				<Loading label="Loading the changes…" />
 			{:else}
 				{#each git.changes.files as file (file.path)}
 					<DiffSection path={file.path} added={file.added} removed={file.removed}>
@@ -1157,6 +1163,7 @@
 			{runDefault}
 			{stop}
 			{show}
+			loading={configPending}
 		>
 			{#each readyLinks as [name, href] (name)}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the task URL belongs to its local server -->
@@ -1210,9 +1217,7 @@
 					)}
 			/>
 		{:else}
-			<p class="flex items-center gap-2 p-5 text-sm text-muted">
-				<ProgressIcon label="Loading changeset" /> Loading changeset…
-			</p>
+			<Loading label="Loading the changeset…" />
 		{/if}
 	{:else if path}
 		<!-- loaded again whenever the worktree's files may have changed -->

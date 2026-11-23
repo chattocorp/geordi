@@ -79,7 +79,12 @@
 	let last = $state('No action');
 </script>
 
-{#snippet pane(stateOf: (name: string) => JobState, problem: string | null = null, opened = false)}
+{#snippet pane(
+	stateOf: (name: string) => JobState,
+	problem: string | null = null,
+	opened = false,
+	loading = false
+)}
 	<div class="flex h-120 w-96 flex-col sheet-quiet">
 		<PaneTabs prefix="run-tasks" tabs={['Terminal 1', 'Tasks']} current="Tasks">
 			{#snippet tab(id: string)}
@@ -92,7 +97,8 @@
 			{/snippet}
 		</PaneTabs>
 		<RunPane
-			tasks={problem ? [] : tasks}
+			tasks={problem || loading ? [] : tasks}
+			{loading}
 			shortcut="runDefault"
 			{stateOf}
 			hasTerminal={(name) => stateOf(name) !== 'stopped'}
@@ -246,6 +252,15 @@
 	}}
 >
 	{@render pane(() => 'running', null, true)}
+</Story>
+<Story
+	name="Loading"
+	asChild
+	play={async ({ canvas }) => {
+		await expect(canvas.getByRole('status')).toBeVisible();
+	}}
+>
+	{@render pane(() => 'stopped', null, false, true)}
 </Story>
 <Story name="Unreadable configuration" asChild>
 	{@render pane(

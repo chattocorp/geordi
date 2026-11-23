@@ -4,6 +4,7 @@
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import Keys from './Keys.svelte';
+	import Loading from './Loading.svelte';
 	import type { ShortcutId } from './keys.ts';
 
 	/**
@@ -23,6 +24,7 @@
 		runDefault,
 		stop,
 		show,
+		loading = false,
 		children
 	}: {
 		tasks: Task[];
@@ -40,6 +42,8 @@
 		stop: (task: string) => void;
 		/** Brings a task's terminal to the front. */
 		show: (task: string) => void;
+		/** The repository's configuration isn't known yet: its tasks are still to come. */
+		loading?: boolean;
 		children?: Snippet;
 	} = $props();
 
@@ -212,7 +216,9 @@
 <div class="scroller flex flex-col gap-3 p-2">
 	{@render children?.()}
 
-	{#if tasks.length > 0}
+	{#if loading}
+		<Loading label="Loading the tasks…" />
+	{:else if tasks.length > 0}
 		<!-- what is done with all of them: the default tasks, and stopping what runs -->
 		{#if defaults.length || running.length}
 			<div class="flex items-center gap-2">

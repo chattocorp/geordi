@@ -121,12 +121,17 @@ describe('watchers', () => {
 			checking: false,
 			version: 1,
 			upstream: { pull: { number: '1' } },
-			releasePending: true
+			releasePending: true,
+			configPending: true
 		});
 		await settled();
 		// its files, its pull request with each check, and its details: each asked once
 		expect(daemon.asked.toSorted()).toEqual(['a', 'a details', 'a upstream']);
-		expect(watchers.state('a')).toMatchObject({ version: 2, releasePending: false });
+		expect(watchers.state('a')).toMatchObject({
+			version: 2,
+			releasePending: false,
+			configPending: false
+		});
 		expect(seen.at(-1)).toBe(2);
 		close();
 	});
