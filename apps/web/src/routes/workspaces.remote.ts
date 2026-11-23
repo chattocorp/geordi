@@ -199,8 +199,10 @@ export const mergePull = command(
 			// A queue acknowledgment alone doesn't tell us the new standing.
 			if (status === 'queued') await upstreamMayHaveChanged(workspaceId);
 			else if (status === 'merged') {
+				// Known at once: the look after it must not announce itself, or the ribbon would
+				// hold on to the standing from before the merge until the forge has answered.
 				standings().merged(ref.worktreeId, pullNumber);
-				void upstreamMayHaveChanged(workspaceId);
+				void standings().look(ref.worktreeId, { fresh: true });
 			}
 			return status;
 		} catch (cause) {
