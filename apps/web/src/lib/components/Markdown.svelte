@@ -60,7 +60,7 @@
 					label: place.dataset.label!,
 					onfail: () => {
 						const path = document.createElement('code');
-						path.textContent = place.dataset.path!;
+						path.textContent = place.dataset.file!;
 						place.replaceWith(path);
 					}
 				}
