@@ -65,6 +65,5 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 
 ## Open Questions
 
-- Workspaces that span several repositories (one worktree per repository in one workspace directory).
 - Whether a named "project" level above workspaces is needed, or the tree is enough.
 - Budgets (tokens, time) per subtree rather than only counts.
