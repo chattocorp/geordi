@@ -63,7 +63,8 @@ export default defineConfig({
 					browser: {
 						enabled: true,
 						headless: true,
-						provider: playwright({}),
+						// Use Chromium's virtual output so macOS does not prompt for the microphone.
+						provider: playwright({ launchOptions: { args: ['--disable-audio-output'] } }),
 						instances: [{ browser: 'chromium' }]
 					}
 				}

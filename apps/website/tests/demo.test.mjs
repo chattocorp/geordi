@@ -10,7 +10,7 @@ before(async () => {
 		server: { host: '127.0.0.1', port: Number(process.env.GEORDI_PORT ?? 0) },
 		vite: { preview: { strictPort: true } }
 	});
-	browser = await chromium.launch();
+	browser = await chromium.launch({ args: ['--disable-audio-output'] });
 });
 
 after(async () => {
