@@ -316,6 +316,8 @@
 		await expect(finales).toHaveAttribute('aria-expanded', 'false');
 		await expect(canvas.queryByRole('button', { name: 'Run Act 2: the duel' })).toBeNull();
 		await expect(heading.getByRole('img', { name: 'Running' })).toBeVisible();
+		// and says so to whoever hears it, too
+		await expect(finales).toHaveAccessibleName(/Finales.*Running/);
 		await userEvent.hover(play);
 		await expect(header).toHaveClass('bg-hover');
 		await userEvent.click(finales);

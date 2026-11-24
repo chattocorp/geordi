@@ -18,6 +18,8 @@ import { startOf, type Worktree } from './worktree.ts';
 const MAX_COMMAND = 2000;
 const MAX_URL = 500;
 const MAX_SECTIONS = 100;
+/** What a section's `icon` may be: a picture the worktree's are shown as. */
+const PICTURE = /\.(png|jpe?g|webp|gif|svg)$/i;
 /** A port in a URL, by its name: `{http}`. */
 const PLACEHOLDER = /\{([^{}]*)\}/g;
 /** Links only ever lead to this machine: the file is not to be a way to send people anywhere. */
@@ -105,7 +107,7 @@ function parseSections(value: unknown): RepoSection[] {
 			title: displayText(title, `${where}.title`),
 			...(icon !== undefined && {
 				icon:
-					repoPath(icon) ??
+					(PICTURE.test(String(icon)) ? repoPath(icon) : null) ??
 					fail(
 						`${where}.icon must be a picture in the repository, such as apps/web/static/logo.svg`
 					)

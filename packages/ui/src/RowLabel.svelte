@@ -8,7 +8,7 @@
 	 * from here: its sign gives way to a chevron (where it has no sign, the chevron is its
 	 * sign), and folded, the title is followed by how many rows it holds. The cell is as wide
 	 * as the cells of the rows under it, so that their signs line up. A label that only folds
-	 * (no link of its own) is a group's heading, fainter than the rows under it.
+	 * (no link of its own) is a group's heading: muted beside the rows under it, its count fainter.
 	 */
 	let {
 		title,
@@ -41,7 +41,7 @@
 	const heading = $derived(!!fold && !href);
 	const labelClass = $derived([
 		'flex min-w-0 flex-1 items-center gap-1 px-1',
-		heading && 'text-faint hover:text-ink',
+		heading && 'text-muted hover:text-ink',
 		extraClass
 	]);
 	let pictureFailed = $state(false);
@@ -124,10 +124,11 @@
 		></button>
 	{/if}
 {:else if fold}
+	<!-- named by what it says (its title, and what still shows when folded, such as a task at
+	     work); whether it is open, `aria-expanded` says -->
 	<button
 		type="button"
 		class={labelClass}
-		aria-label={toggleLabel}
 		aria-expanded={!fold.folded}
 		title={hint}
 		onclick={fold.toggle}

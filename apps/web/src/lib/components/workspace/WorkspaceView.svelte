@@ -1240,7 +1240,7 @@
 			bind:folds={changesFolds.current}
 			sections={config?.sections}
 			picture={(path) =>
-				`${resolve('/workspaces/[id]/picture', { id })}?file&path=${encodeURIComponent(path)}`}
+				`${resolve('/workspaces/[id]/picture', { id })}?file&v=${git?.version ?? 0}&path=${encodeURIComponent(path)}`}
 			target={!pull && workspace.repoId ? compareWith : undefined}
 		/>
 		<!-- a pull request's target is chosen where the pull request is: then it is just a name -->

@@ -503,16 +503,13 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const repo = canvas.getByRole('button', { name: 'Collapse sample-project' });
+		const repo = canvas.getByRole('button', { name: 'sample-project' });
 		await fireEvent.click(within(repo).getByText('sample-project'));
 		await expect(repo).toBeVisible();
 		await expect(within(repo).getByText('2')).toBeVisible();
 		await expect(canvas.queryByText('Try out the new parser')).toBeNull();
-		await expect(canvas.getByRole('button', { name: 'Expand sample-project' })).toHaveAttribute(
-			'aria-expanded',
-			'false'
-		);
-		await fireEvent.click(canvas.getByRole('button', { name: 'Expand sample-project' }));
+		await expect(repo).toHaveAttribute('aria-expanded', 'false');
+		await fireEvent.click(repo);
 		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
 	}}
 >
@@ -524,7 +521,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const repo = canvas.getByRole('button', { name: 'Collapse sample-project' });
+		const repo = canvas.getByRole('button', { name: 'sample-project' });
 		unread.add('long');
 		await fireEvent.click(repo);
 		await waitFor(() => expect(within(repo).getByText('2')).toHaveClass('text-ink'));

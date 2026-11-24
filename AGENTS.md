@@ -228,7 +228,7 @@ it, perhaps you.
     `surface`, `sunken`, `bubble`, `ink`, `prose` (long text), `muted`, `line`, `accent`,
     `accent-ink`, `on-accent`, `danger`, `warning`, `ok`, `on-ok`, `merged`, `on-merged`, plus `claude`/`codex`) for light and dark
     mode, the relative `hover` (a see-through tint of `ink`: use it for every hover wash, so
-    it shows on any background) `faint` (`muted`, fainter still, for what need not be read first: placeholders, rows put aside, the headings of groups of rows (`RowLabel`); never `text-muted/NN`), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
+    it shows on any background) `faint` (`muted`, fainter still, for what need not be read: placeholders, rows put aside; never `text-muted/NN`), four font sizes, and the radii `rounded-card`, `rounded-control`, `rounded-full`.
   - **Utilities** (`@utility` in the same file): `raised` (the surface, shadow and ring that cards, inputs and small floating controls share), `card`, `card-float`, `input`,
     `message`, `sheet`, `sheet-quiet`, `pane-bar`, `tools` (icon buttons side by side, always `gap-px` apart), `scroller`, `render-near` (a long page's part painted only near the screen), `scrollbar-none`, `page`, `title`, `heading`, `label`, `code`, `code-dense`, `file-link`, `quiet-action`, `item` (every row you can pick; `item-active` for the current one, `item-picked` for one chosen or in hand),
     `menu-item`, `tab-active`, `tab-inactive`, `tab-drop-before`/`-after`, `row-drop-before`/`-after`, `dialog-actions`, `scroll-fade`, `scroll-fade-x`, `empty`, `dot`, `indicator-action`, `picture-raised`/`-gloss`/`-plate`,

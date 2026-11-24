@@ -142,6 +142,10 @@ tasks:
 		expect(() =>
 			parseConfig('sections:\n  - path: a\n    title: A\n    icon: ../logo.svg')
 		).toThrow(/sections\[0\]\.icon must be a picture in the repository/);
+		// a sound is no picture, though the worktree's are served alike
+		expect(() =>
+			parseConfig('sections:\n  - path: a\n    title: A\n    icon: a/chime.wav')
+		).toThrow(/sections\[0\]\.icon must be a picture/);
 		expect(
 			parseConfig('sections:\n  - path: a\n    title: A\n    icon: ./a/logo.svg').sections
 		).toEqual([{ path: 'a', title: 'A', icon: 'a/logo.svg' }]);
