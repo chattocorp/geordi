@@ -9,6 +9,7 @@ import {
 	REMOVE_TIMEOUT_MS,
 	UPSTREAM_TICK_MS,
 	type RepoIcon,
+	type RepositoryRelease,
 	type WorktreeRef
 } from '@geordi/protocol';
 import {
@@ -291,8 +292,29 @@ export const watchers = lazy(() =>
 	)
 );
 
-export const hub: () => ReturnType<typeof createHub> = lazy(() =>
-	createHub(GEORDI_DAEMON_PORT, loadSecret(join(GEORDI_DATA_DIR, 'daemon-token')), {
+const releases = new Map<string, RepositoryRelease>();
+const releaseListeners = new Set<() => void>();
+export const releaseOf = (path: string) => releases.get(path);
+export function followReleases(listener: () => void) {
+	releaseListeners.add(listener);
+	return () => {
+		releaseListeners.delete(listener);
+	};
+}
+function syncReleaseWatches() {
+	const paths = repos()
+		.list()
+		.map((repo) => repo.path);
+	for (const path of releases.keys()) if (!paths.includes(path)) releases.delete(path);
+	hub().send({ type: 'watchReleases', paths });
+}
+
+export const hub: () => ReturnType<typeof createHub> = lazy(() => {
+	store().subscribe((events) => {
+		if (events.some((event) => event.type === 'repo.registered' || event.type === 'repo.removed'))
+			syncReleaseWatches();
+	});
+	return createHub(GEORDI_DAEMON_PORT, loadSecret(join(GEORDI_DATA_DIR, 'daemon-token')), {
 		admit: daemonAdmission(store(), () => workspaces().hasRunningTurn()),
 		onHello: (_daemonId, running, runningTerminals, ended) => {
 			workspaces().reconcile(running);
@@ -300,6 +322,7 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 				prepareWorktree(id).catch((cause) => console.warn(`[worktree] ${cause?.message ?? cause}`));
 			terminals().reconcile(runningTerminals, ended);
 			watchers().resync();
+			syncReleaseWatches();
 			// a daemon is there to ask: how the workspaces stand is wanted right away
 			void standings().tick(true);
 		},
@@ -308,7 +331,16 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		onLimits: (workspaceId, known, at) =>
 			limits().note(workspaces().summary(workspaceId).agent, known, at),
 		onMessage: (message) => {
-			if (message.type === 'workspace.event') {
+			if (message.type === 'repo.release') {
+				if (
+					repos()
+						.list()
+						.some((repo) => repo.path === message.path)
+				) {
+					releases.set(message.path, message.release);
+					for (const notify of releaseListeners) notify();
+				}
+			} else if (message.type === 'workspace.event') {
 				workspaces().record(message.workspaceId, message.event, message.cursor);
 				if (message.event.kind === 'turn.completed' || message.event.kind === 'turn.failed')
 					upstreamMayHaveChanged(message.workspaceId);
@@ -321,8 +353,8 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 				terminals().opened(message.terminalId, message.run);
 			else if (message.type === 'worktree.changed') standings().changed(message.worktreeId);
 		}
-	})
-);
+	});
+});
 
 /** The usage limits of the agents' subscriptions, as their sessions last said (`createLimits`). */
 export const limits = lazy(() => createLimits());

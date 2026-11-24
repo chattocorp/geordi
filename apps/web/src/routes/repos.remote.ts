@@ -27,3 +27,13 @@ export const moveRepo = command(
 	v.object({ repoId: v.string(), before: v.nullable(v.string()) }),
 	({ repoId, before }) => repos().move(repoId, before, 'person')
 );
+
+export const refreshRepoRelease = command(
+	v.object({ id: v.string(), allow: v.optional(v.string()) }),
+	async ({ id, allow }) => {
+		await hub().request(
+			{ kind: 'refreshRepoRelease', repoPath: repos().get(id).path, allow },
+			150_000
+		);
+	}
+);

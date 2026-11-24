@@ -551,3 +551,27 @@
 	{@render frame(nav, '/workspaces/ready')}
 	<ContextMenu />
 </Story>
+
+<Story
+	name="Repository release"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole('link', { name: 'Upcoming release for geordi, 1.5.0' })
+		).toHaveAttribute('href', '/repos/geordi/release');
+		await fireEvent.contextMenu(canvas.getByRole('button', { name: 'geordi' }));
+		await expect(await canvas.findByRole('menuitem', { name: 'Upcoming release' })).toBeVisible();
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			repos: nav.repos.map((repo) =>
+				repo.id === 'geordi' ? { ...repo, release: { next: '1.5.0' } } : repo
+			)
+		},
+		'/'
+	)}
+	<ContextMenu />
+</Story>

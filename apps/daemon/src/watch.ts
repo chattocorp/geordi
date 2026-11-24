@@ -71,7 +71,7 @@ function thread(): Worker {
  * is called. In a thread of its own (`watch-worker.ts`): on macOS, starting and stopping a
  * watcher holds up the thread that does it, for a tenth of a second or more (ADR-014).
  */
-function subscribe(
+export function subscribe(
 	dir: string,
 	recursive: boolean,
 	onEvent: Subscription['onEvent'],

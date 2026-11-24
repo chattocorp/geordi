@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import ValueBadge from '@geordi/ui/ValueBadge.svelte';
 	import { resolve } from '$app/paths';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import Dialog from '#lib/ui/Dialog.svelte';
@@ -28,7 +30,7 @@
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
+	import { openMenu, contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
@@ -75,7 +77,9 @@
 
 	/** The workspaces by repository, each agent-started one after the one that started it. */
 	const listed = $derived(byRepository(visibleWorkspaces));
-	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
+	const withWorkspaces = $derived(
+		nav?.repos.filter((repo) => repo.workspaceCount > 0 || repo.release) ?? []
+	);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
 	const repoNames = $derived(new Map(nav?.repos.map((repo) => [repo.id, repo.name])));
 	/**
@@ -85,7 +89,7 @@
 	 */
 	const groups = $derived([
 		...(listed.get(null)?.length ? [{ id: null, name: 'Projects' }] : []),
-		...sidebarRepos.filter((repo) => listed.has(repo.id))
+		...sidebarRepos.filter((repo) => listed.has(repo.id) || repo.release)
 	]);
 	/** All of them as one list, where they are not grouped: the projects, and the repositories shown. */
 	const oneList = $derived(
@@ -463,6 +467,17 @@
 			{:else if nav}
 				{#each groups as repo (repo.id ?? PROJECTS)}
 					{@const all = listed.get(repo.id) ?? []}
+					{@const release = 'release' in repo ? repo.release : undefined}
+					{@const releaseMenu = (): MenuItem[] =>
+						release && repo.id
+							? [
+									{
+										label: 'Upcoming release',
+										icon: 'icon-[lucide--package]',
+										onselect: () => goto(resolve('/repos/[id]/release', { id: repo.id! }))
+									}
+								]
+							: []}
 					{@const rows = unfolded(all, folded.current)}
 					{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
 					{@const focused = focus.current === repo.id}
@@ -501,6 +516,7 @@
 								if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 							}}
 							ondragend={endRepoDrag}
+							{@attach contextMenu(releaseMenu)}
 						>
 							<RowLabel
 								title={repo.name}
@@ -518,30 +534,47 @@
 										></span>{/if}
 								{/snippet}
 							</RowLabel>
-							{#if repo.id !== null}
-								<Button
-									variant="ghost"
-									size="sm"
-									icon="icon-[lucide--search]"
-									class="invisible reveal:visible"
-									label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
-									title={focused
-										? `Show all repositories (${focusHint})`
-										: `Show only ${repo.name} (${focusHint})`}
-									aria-pressed={focused}
-									onclick={() => (focus.current = focused ? null : repo.id)}
-								/>
-							{/if}
-							<!-- no new projects (FDR-012): only repositories start something new -->
-							{#if repo.id !== null}
-								{@const newLabel = `New workspace in ${repo.name}`}
-								<Button
-									variant="ghost"
-									size="sm"
-									href={`${resolve('/')}?repo=${repo.id}`}
-									icon="icon-[lucide--plus]"
-									class="invisible reveal:visible"
-									label={newLabel}
+							<div class="hidden shrink-0 reveal:flex">
+								{#if repo.id && release}
+									<Button
+										size="sm"
+										variant="ghost"
+										icon="icon-[lucide--ellipsis]"
+										label={`Repository menu for ${repo.name}`}
+										onclick={(event) => openMenu(event.currentTarget, releaseMenu())}
+									/>
+								{/if}
+								{#if repo.id !== null}
+									<Button
+										variant="ghost"
+										size="sm"
+										icon="icon-[lucide--search]"
+										label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
+										title={focused
+											? `Show all repositories (${focusHint})`
+											: `Show only ${repo.name} (${focusHint})`}
+										aria-pressed={focused}
+										onclick={() => (focus.current = focused ? null : repo.id)}
+									/>
+								{/if}
+								<!-- no new projects (FDR-012): only repositories start something new -->
+								{#if repo.id !== null}
+									{@const newLabel = `New workspace in ${repo.name}`}
+									<Button
+										variant="ghost"
+										size="sm"
+										href={`${resolve('/')}?repo=${repo.id}`}
+										icon="icon-[lucide--plus]"
+										label={newLabel}
+									/>
+								{/if}
+							</div>
+							{#if repo.id && release?.next}
+								<ValueBadge
+									label="Next"
+									value={release.next}
+									href={resolve('/repos/[id]/release', { id: repo.id })}
+									linkLabel={`Upcoming release for ${repo.name}, ${release.next}`}
 								/>
 							{/if}
 						</div>

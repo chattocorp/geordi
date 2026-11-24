@@ -1,7 +1,17 @@
 import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { isInactive, withAides } from '#lib/family.ts';
-import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
+import {
+	followReleases,
+	releaseOf,
+	hub,
+	limits,
+	repos,
+	standings,
+	terminals,
+	watchers,
+	workspaces
+} from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
@@ -93,9 +103,16 @@ export const navigation = () =>
 				repos: repos()
 					.list()
 					.map((repo) => {
+						const release = releaseOf(repo.path);
+						const versions =
+							release?.plan?.packages.filter((pkg) => pkg.nextVersion && !pkg.problems.length) ??
+							[];
+						const next =
+							versions.length > 1 ? versions.length + ' packages' : versions[0]?.nextVersion;
 						const own = listed.filter((workspace) => workspace.repoId === repo.id);
 						return {
 							...repo,
+							...(release?.plan && { release: { next } }),
 							workspaceCount: own.length,
 							working: own.filter((workspace) => workspace.working).length
 						};
@@ -112,6 +129,7 @@ export const navigation = () =>
 		},
 		also: (changed) => {
 			const stops = [
+				followReleases(changed),
 				standings().subscribe(changed),
 				hub().subscribe(changed),
 				hub().followSession(changed),
@@ -305,8 +323,36 @@ const mergeVersions = (id: string) =>
 
 export type MergeVersions = ReturnType<ReturnType<typeof mergeVersions>['read']>;
 
+const repositoryRelease = (id: string) => ({
+	read: () => {
+		const repo = repos().get(id);
+		return {
+			name: repo.name,
+			release: releaseOf(repo.path) ?? null,
+			online: !!hub().connected().length
+		};
+	},
+	also: (changed: () => void) => {
+		// Opening the page also recovers from a missed filesystem notification.
+		const repoPath = repos().get(id).path;
+		if (hub().connected().length)
+			void hub()
+				.request({ kind: 'refreshRepoRelease', repoPath }, 150_000)
+				.catch(() => {});
+		const stop = followReleases(changed);
+		const disconnect = hub().subscribe(changed);
+		return () => {
+			stop();
+			disconnect();
+		};
+	},
+	affects: (event: GeordiEvent) => event.type === 'repo.removed' && event.data.id === id
+});
+export type RepositoryReleaseView = ReturnType<ReturnType<typeof repositoryRelease>['read']>;
+
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
 export const views = {
+	repositoryRelease,
 	navigation,
 	workspace,
 	commands,

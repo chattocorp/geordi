@@ -484,6 +484,12 @@ export type ReleasePlan = {
 	ask: string | null;
 };
 
+export type RepositoryRelease = {
+	branch: string | null;
+	plan: ReleasePlan | null;
+	problem: string | null;
+};
+
 /**
  * Whether the daemon can read a repository on its upstream forge, as Settings shows it: a
  * summary, and what was found. `none` is an origin on no forge (a local path); `setup` means the forge
@@ -601,6 +607,7 @@ export type DaemonRequest =
 	/** Whether the daemon can read a repository on its upstream forge. */
 	| { kind: 'checkForge'; repoPath: string }
 	/** The picture a repository has of itself (a favicon, a logo); `null` if it has none. */
+	| { kind: 'refreshRepoRelease'; repoPath: string; allow?: string }
 	| { kind: 'repoIcon'; repoPath: string }
 	/** The branches a new worktree may start from, the most recently committed to first. */
 	| { kind: 'branches'; repoPath: string }
@@ -627,6 +634,7 @@ export type DaemonResults = {
 	findFiles: FileMatch[];
 	editReleaseNote: null;
 	checkForge: ForgeDiagnostic;
+	refreshRepoRelease: null;
 	repoIcon: RepoIcon | null;
 	/** `start`: the branch work starts from unless another is named. */
 	branches: { start: string | null; branches: string[] };
@@ -892,6 +900,7 @@ export type ForgeMessage =
 	 * (`background`), all of them: the daemon watches their files and reports changes, and
 	 * stops watching any that are listed in neither.
 	 */
+	| { type: 'watchReleases'; paths: string[] }
 	| { type: 'watch'; worktrees: WorktreeRef[]; scope?: WatchScope }
 	/**
 	 * Starts a shell in the workspace's directory. A workspace can have several terminals.
@@ -959,4 +968,5 @@ export type DaemonMessage =
 	 */
 	| { type: 'terminal.opened'; terminalId: string; run?: { job: string; command: string } }
 	/** Something changed in a watched worktree's files or Git state. */
+	| { type: 'repo.release'; path: string; release: RepositoryRelease }
 	| { type: 'worktree.changed'; worktreeId: string };

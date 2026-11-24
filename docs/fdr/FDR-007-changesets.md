@@ -9,6 +9,9 @@ Many repositories keep notes on their changes with a release tool, which later t
 
 ## Behavior
 
+- A supported repository has an **Upcoming release** page. Open it from the repository header menu, even when nothing is pending. A **Next** pill on the header links there too when the tool reports a version bump. It shows the version for one package or a package count for several.
+- The page groups pending notes by package and change type, with current and planned versions and breaking changes. It follows the same base branch that new workspaces start from. Only committed changes on that base count, so a workspace on another branch cannot change the repository preview before its work lands.
+
 - In a repository that uses a release tool Geordi knows, a workspace has a **Changeset** tab next to **Changes**, above its terminals. Like every window but the conversation, both can be dragged to any of the workspace's three areas. Changes is in front to begin with.
 - Regardless of workspace or pull request status, the sidebar shows the next version of each package that has a workspace change note and a known version bump. Each pill includes the package name when the release tool provides one. Select a pill to open that workspace’s **Changeset** tab.
 - The Changeset tab's badge counts the change notes the workspace adds.

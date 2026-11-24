@@ -37,7 +37,7 @@ export function releaseIncreases(before: Package[], after: Package[]): ReleaseIn
 	return increases.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function adapterAt(worktree: Worktree, revision: string) {
+export async function adapterAt(worktree: Worktree, revision: string) {
 	const paths = (await gitIn(worktree, 'ls-tree', '-r', '--name-only', '-z', revision)).split('\0');
 	return releaseAdapter(worktree, undefined, paths);
 }
@@ -120,7 +120,7 @@ export async function reviewRelease(
  * A bare repository has no checkout: then the snapshot (or the temporary directory), which
  * fails rather than trusts.
  */
-const toolsAt = ({ commonDir }: Worktree) =>
+export const toolsAt = ({ commonDir }: Worktree) =>
 	basename(commonDir) === '.git' ? dirname(commonDir) : null;
 
 async function compareTrees(
@@ -136,6 +136,18 @@ async function compareTrees(
 		const pending = hadTool ? await adapter.readAt(source, base, tools) : [];
 		return releaseIncreases(pending, await adapter.readAt(source, tree, tools));
 	}
+	return withSnapshot(source, base, async (snapshot, tools) => {
+		const pending = hadTool ? await adapter.read(snapshot, tools) : [];
+		await gitIn(snapshot, 'read-tree', '--reset', '-u', tree);
+		return releaseIncreases(pending, await adapter.read(snapshot, tools));
+	});
+}
+
+export async function withSnapshot<T>(
+	source: Worktree,
+	base: string,
+	read: (snapshot: Worktree, tools: string) => Promise<T>
+) {
 	// Tools that read only files on disk (Changesets) get a private checkout of each tree.
 	const path = await mkdtemp(join(tmpdir(), 'geordi-release-review-'));
 	try {
@@ -147,10 +159,7 @@ async function compareTrees(
 		await writeFile(join(commonDir, 'info', 'attributes'), '* -filter\n');
 		const snapshot = { path, commonDir, adminDir: commonDir, branch: '' };
 		await gitIn(snapshot, '-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', base);
-		const tools = toolsAt(source) ?? path;
-		const pending = hadTool ? await adapter.read(snapshot, tools) : [];
-		await gitIn(snapshot, 'read-tree', '--reset', '-u', tree);
-		return releaseIncreases(pending, await adapter.read(snapshot, tools));
+		return await read(snapshot, toolsAt(source) ?? path);
 	} finally {
 		await rm(path, { recursive: true, force: true });
 	}

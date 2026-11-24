@@ -81,6 +81,7 @@ import {
 	unknownForge,
 	upstream
 } from './upstream.ts';
+import { watchRepositoryReleases } from './repository-releases.ts';
 import { createWatches } from './watch.ts';
 import { reportStalls } from './stalls.ts';
 import {
@@ -306,6 +307,10 @@ const watches = createWatches(
 	(worktreeId, changes) => fileSearch.invalidate(worktreeId, changes)
 );
 
+const repositoryReleases = watchRepositoryReleases(approvals, (path, release) =>
+	sendLive({ type: 'repo.release', path, release })
+);
+
 function comparisonOrigin(worktree: Worktree, ref: WorktreeRef) {
 	return {
 		...ref,
@@ -492,7 +497,10 @@ function connect(delay = 500) {
 		if (socket === ws) console.log('disconnected; reconnecting');
 		else if (event.reason) console.log(`connection refused: ${event.reason}`);
 		// Agents and terminals keep running: the forge picks them up again when it is back.
-		if (socket === ws) socket = null;
+		if (socket === ws) {
+			socket = null;
+			repositoryReleases.set([]);
+		}
 		retry();
 	};
 }
@@ -533,6 +541,10 @@ async function readRequest(request: DaemonRequest) {
 	}
 	if (request.kind === 'checkForge') return checkForge(request.repoPath);
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
+	if (request.kind === 'refreshRepoRelease') {
+		await repositoryReleases.refresh(request.repoPath, request.allow);
+		return null;
+	}
 	if (request.kind === 'branches') return branchesOf(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
@@ -573,6 +585,7 @@ async function readRequest(request: DaemonRequest) {
 	}
 	if (request.kind === 'approveRun') {
 		for (const command of request.commands) approvals.add(request.repoPath, command);
+		void repositoryReleases.refresh(request.repoPath);
 		sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId }); // it shows as agreed to
 		return null;
 	}
@@ -723,6 +736,10 @@ async function handle(message: ForgeMessage) {
 			} catch (error) {
 				send({ type: 'response', id: message.id, error: errorMessage(error) });
 			}
+			break;
+
+		case 'watchReleases':
+			repositoryReleases.set(message.paths);
 			break;
 
 		case 'watch':
