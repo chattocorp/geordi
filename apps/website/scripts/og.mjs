@@ -7,7 +7,7 @@ const server = await dev({
 	logLevel: 'warn',
 	server: { host: '127.0.0.1', port: Number(process.env.GEORDI_PORT ?? 0) }
 });
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--disable-audio-output'] });
 try {
 	// Without motion, the demo stays on its last step.
 	const page = await browser.newPage({
