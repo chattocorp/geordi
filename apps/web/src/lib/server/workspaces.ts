@@ -280,14 +280,15 @@ export function createWorkspaces(
 	type Wait = { callerId: string; finish(result?: AgentReport): void };
 	const waiting = new Map<string, Set<Wait>>();
 
-	function onParentTask(child: Workspace) {
-		const from = transcriptOf(child).findLast((item) => item.kind === 'user')?.from;
+	function onParentTask(child: Workspace, turn = latestTurn(child)) {
+		if (turn.some((item) => item.kind === 'user' && !item.from)) return false;
+		const from = turn.find((item) => item.kind === 'user')?.from;
 		return !!from && (from === child.parentId || projection.get().get(from)?.parentId === child.id);
 	}
 
 	/**
 	 * Tells an agent's parent that it has finished a turn, with what it said (FDR-002), unless
-	 * the parent is waiting for it already. A parent at work hears it when its own turn ends.
+	 * the parent is waiting for it already.
 	 * Only of turns on the parent's behalf: begun by the parent, or by what one of the agent's
 	 * own agents reported, so that news goes up a chain. A person's talk with it is theirs.
 	 */
@@ -296,8 +297,9 @@ export function createWorkspaces(
 		if (stoppingForArchive.has(child.id)) return;
 		const parent = projection.get().get(child.parentId);
 		if (!parent || parent.archivedAt || held.has(parent.id)) return;
-		if (!onParentTask(child)) return;
-		const { reply, error } = report(child);
+		const turn = latestTurn(child);
+		if (!onParentTask(child, turn)) return;
+		const { reply, error } = report(child, turn);
 		const text = [
 			error
 				? `Your agent “${child.title}” (${child.id}) stopped: ${error}`
@@ -310,7 +312,8 @@ export function createWorkspaces(
 			.filter(Boolean)
 			.join('\n\n');
 		// after a failed turn, a parent's waiting messages stay put (see `record`), and so does this
-		if (parent.status === 'idle' && parent.queue.length === 0) return say(parent, text, child.id);
+		if (parent.status === 'running' || parent.queue.length === 0)
+			return say(parent, text, child.id);
 		store.append(
 			{ type: 'workspace.queued', stream: `workspace:${parent.id}`, data: { id: parent.id, text } },
 			{ actor: child.id }
@@ -747,10 +750,18 @@ export function createWorkspaces(
 		return asked;
 	}
 
-	function report(workspace: Workspace): AgentReport {
+	function latestTurn(workspace: Workspace) {
 		const transcript = transcriptOf(workspace);
+		// A completed turn has its own closing marker. Search before it for the previous turn.
+		let end = transcript.length;
+		if (workspace.status === 'idle' && transcript[end - 1]?.kind === 'turn') end--;
+		let start = end;
+		while (start > 0 && transcript[start - 1].kind !== 'turn') start--;
+		return transcript.slice(start, end);
+	}
+
+	function report(workspace: Workspace, turn = latestTurn(workspace)): AgentReport {
 		const parentQuestions = routedQuestions(workspace, 'parent');
-		const turn = transcript.slice(transcript.findLastIndex((item) => item.kind === 'user') + 1);
 		return {
 			id: workspace.id,
 			parentId: workspace.parentId,
@@ -995,7 +1006,8 @@ export function createWorkspaces(
 			return report(find(id));
 		},
 
-		list: (callerId: string): AgentReport[] => descendantsOf(callerId).map(report),
+		list: (callerId: string): AgentReport[] =>
+			descendantsOf(callerId).map((workspace) => report(workspace)),
 
 		get: (callerId: string, id: string): AgentReport => report(findControlled(callerId, id)),
 
@@ -1007,26 +1019,19 @@ export function createWorkspaces(
 			return workspace.archivedAt ? view(workspace) : workspace;
 		},
 
-		/**
-		 * A workspace's agent talks along its own line: to the agents it started (directly or
-		 * not), and to the one that started it, which hears it when its turn ends. An external
-		 * client, granted by the person, may message any agent it sees. Only a supervisor
-		 * may steer a turn.
-		 */
-		send(callerId: string, id: string, text: string, interrupt = false) {
+		/** Delegated messages steer by default. Other authorized messages wait for the next turn. */
+		send(callerId: string, id: string, text: string, interrupt?: boolean) {
 			const workspace = findFor(callerId, id);
 			const project = isProject(callerId);
-			const supervised = descendantsOf(callerId).some((other) => other.id === workspace.id);
-			if (
-				!project &&
-				!isExternal(callerId) &&
-				!supervised &&
-				find(callerId).parentId !== workspace.id
-			)
+			const external = isExternal(callerId);
+			const delegated =
+				descendantsOf(callerId).some((other) => other.id === id) ||
+				(!external && find(callerId).parentId === id);
+			if (!project && !external && !delegated)
 				error(403, 'You can message only the agents you started and the agent that started you');
 			if (workspace.archivedAt) error(409, 'Workspace is archived');
 			refuseHeld(id);
-			if (!project && interrupt && workspace.status === 'running' && !supervised)
+			if (!project && interrupt && workspace.status === 'running' && !delegated)
 				error(
 					403,
 					'You can only interrupt agents you started; without interrupt, it gets the message when its turn ends'
@@ -1041,7 +1046,7 @@ export function createWorkspaces(
 				store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
 				return say(workspace, workspace.queue[0], null, 'queued');
 			}
-			if (!interrupt)
+			if (!(interrupt ?? delegated))
 				return void store.append({ type: 'workspace.queued', stream, data }, { actor: callerId });
 			say(workspace, text, callerId);
 		},
@@ -1584,7 +1589,8 @@ export function createWorkspaces(
 					type: 'workspace.purged',
 					stream: 'purges',
 					data: {
-						workspaces: [...family.values()].map(({ id, title }) => ({
+						workspaces: [...family.values()].map(({ id, title, parentId }) => ({
+							...(parentId && { parentId }),
 							id,
 							title,
 							born: projection.bornAt(id) ?? 0

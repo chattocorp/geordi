@@ -8,6 +8,7 @@
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
 	import { duration, relativeAge } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { messageRows, type ChildExchange } from '#lib/message-rows.ts';
 	import type { Block, Part, TurnChanges } from '#lib/transcript.ts';
 	import AgentText from '@geordi/ui/AgentText.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
@@ -39,6 +40,8 @@
 		cwd,
 		pictures,
 		senders,
+		childSenders = {},
+		queueSenders = [],
 		parentAgent,
 		queue = [],
 		queueImages = [],
@@ -60,6 +63,8 @@
 		/** Where the pictures the agent refers to are served. */
 		pictures?: string;
 		senders?: Record<string, string>;
+		childSenders?: Record<string, string>;
+		queueSenders?: (string | null)[];
 		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
@@ -89,6 +94,7 @@
 
 	const workspaceFiles = changedFiles();
 	const expanded = new SvelteSet<number>();
+	const openMessages = new SvelteSet<string>();
 
 	/**
 	 * Where a part's pictures are served: at an address of the part's own, since an agent may
@@ -148,7 +154,7 @@
 							open: () => {
 								following = false;
 								expanded.add(index);
-								list?.scrollToIndex(index);
+								list?.scrollToIndex(rowForBlock(index));
 								reveal = { id: tool.id, done: () => (reveal = undefined) };
 							}
 						};
@@ -183,15 +189,18 @@
 	const fade = 'transition-opacity pointer-fine:opacity-0 pointer-fine:focus-within:opacity-100';
 	const quietReply = `${fade} pointer-fine:group-hover/reply:opacity-100`;
 
-	const rows = $derived([
-		...blocks.map((block) => ({ kind: 'block' as const, block })),
-		...queue.map((text, index) => ({
-			kind: 'queue' as const,
-			text,
-			index,
-			images: queueImages[index] ?? []
-		}))
-	]);
+	const rows = $derived(messageRows(blocks, childSenders, queue, queueSenders, queueImages));
+	function isIncoming(row?: (typeof rows)[number]) {
+		return (
+			row?.kind === 'child' ||
+			(row?.kind === 'block' &&
+				row.block.kind === 'user' &&
+				!!(row.block.from || row.block.delegated))
+		);
+	}
+	function rowForBlock(index: number) {
+		return rows.findIndex((row) => row.kind === 'block' && row.index === index);
+	}
 	let list: VirtualizerHandle | undefined = $state();
 	// A fresh view, including a workspace switch, starts at the latest message.
 	onMount(toLatest);
@@ -229,7 +238,7 @@
 		if (index < 0) return;
 		following = false;
 		expanded.add(index);
-		list.scrollToIndex(index);
+		list.scrollToIndex(rowForBlock(index));
 	});
 
 	function scrolled(offset: number) {
@@ -249,6 +258,78 @@
 		});
 	});
 </script>
+
+{#snippet childExchange(exchange: ChildExchange)}
+	{@const { key, name, from, messages } = exchange}
+	{@const last = messages[messages.length - 1]}
+	{@const status = last.report ?? (messages.length === 1 ? 'sent a message' : 'sent messages')}
+	{@const open = openMessages.has(key)}
+	<div class="message message-incoming px-0 py-0">
+		<button
+			type="button"
+			aria-expanded={open}
+			class="flex w-full items-center gap-1.5 rounded-card rounded-tl-control px-3.5 py-2.5 text-left text-sm text-muted hover:bg-hover hover:text-ink"
+			onclick={() => {
+				if (open) openMessages.delete(key);
+				else {
+					following = false;
+					openMessages.add(key);
+				}
+			}}
+		>
+			<span
+				aria-hidden="true"
+				class={['icon-[lucide--chevron-right] size-3.5 shrink-0', open && 'rotate-90']}
+			></span>
+			<span class="min-w-0 wrap-anywhere">
+				<span class="font-medium">{name}</span>
+				{status}{last.queued ? ' (queued)' : ''}
+			</span>
+		</button>
+		{#if open}
+			<div class="px-3.5 pb-2.5">
+				<div class="space-y-3">
+					{#each messages as message, index (index)}
+						<div>
+							{#if message.report && messages.length > 1}<p class="label">
+									{message.report === 'finished' ? 'Finished' : 'Stopped'}
+								</p>{/if}
+							{#if message.queued}<p class="label">Queued</p>{/if}
+							{#if message.text}<Markdown preserveLineBreaks text={message.text} {pictures} />{/if}
+							<MessageImages images={message.images} />
+							{#if message.queued && onremove}
+								{@const queued = message.queued}
+								<Button
+									variant="ghost"
+									size="sm"
+									icon="icon-[lucide--x]"
+									label="Don't send this"
+									onclick={() => onremove?.(queued.index, queued.text, queued.images)}
+								/>
+							{/if}
+						</div>
+					{/each}
+				</div>
+
+				<div class="mt-1 flex items-center gap-1">
+					<a
+						href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(from)}`, { id: from })}
+						class="quiet-action text-xs"
+						aria-label={`Open ${name} workspace`}
+					>
+						<span aria-hidden="true" class="icon-[lucide--git-branch] size-3.5"></span>{name}
+					</a>
+					{#if messages.some((message) => message.text)}<MessageCopy
+							text={messages
+								.map((message) => message.text)
+								.filter(Boolean)
+								.join('\n\n')}
+						/>{/if}
+				</div>
+			</div>
+		{/if}
+	</div>
+{/snippet}
 
 {#snippet tokens(usage: TurnUsage)}
 	<p>{tokenSummary(usage)}</p>
@@ -363,17 +444,25 @@
 		itemProps={({ index }) => ({ 'aria-posinset': index + 1, 'aria-setsize': rows.length })}
 	>
 		{#snippet children(row, i)}
+			{@const incoming = isIncoming(row)}
+			{@const previousIncoming = isIncoming(rows[i - 1])}
 			<div
 				class={[
-					'mx-auto w-full max-w-5xl pr-16.5 pl-5',
-					i === 0 ? 'pt-6' : 'pt-8',
+					'mx-auto w-full max-w-5xl pl-5',
+					incoming ? 'pr-5' : 'pr-16.5',
+					{
+						'pt-6': i === 0,
+						'pt-2': incoming && previousIncoming,
+						'pt-4': i > 0 && incoming !== previousIncoming,
+						'pt-8': i > 0 && !incoming && !previousIncoming
+					},
 					i === rows.length - 1 && 'pb-6'
 				]}
 			>
 				{#if row.kind === 'block'}
 					{@const block = row.block}
 					<div>
-						{#if parentAgent && i === Math.max(0, assignmentIndex)}
+						{#if parentAgent && assignmentIndex < 0 && i === 0}
 							<div class={['flex pb-1', block.kind === 'user' && 'justify-end']}>
 								<button
 									type="button"
@@ -387,31 +476,46 @@
 							</div>
 						{/if}
 						{#if block.kind === 'user'}
-							{#if block.from || (block.delegated && i !== assignmentIndex)}
-								<!-- not the person's words: another agent's, and whose -->
-								{@const title = block.from && senders?.[block.from]}
-								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
-									<span class="icon-[lucide--bot] size-3.5"></span>
-									{#if block.from && !block.from.startsWith('external:') && (title || block.senderName)}
-										<span>
-											{title ? 'From the agent in “' : 'From '}<a
-												href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`, {
-													id: block.from
-												})}
-												class="rounded-control hover:text-ink hover:underline focus-visible:underline"
-											>
-												{title || block.senderName}
-											</a>{title ? '”' : ''}
-										</span>
-									{:else}
-										{block.senderName ? `From ${block.senderName}` : 'From another agent'}
+							{@const title = (block.from && senders?.[block.from]) || block.senderName}
+							<div class={incoming ? 'relative pl-11.5' : undefined}>
+								{#if incoming && !previousIncoming}
+									<span
+										aria-hidden="true"
+										class="absolute top-3 left-2 icon-[lucide--corner-down-right] size-4 text-faint"
+									></span>
+								{/if}
+								<UserMessage text={block.text} {incoming}>
+									{#if incoming}
+										<div class="mb-1 flex items-center gap-1.5 text-xs text-muted">
+											<span class="min-w-0 wrap-anywhere">
+												{#if block.from && !block.from.startsWith('external:')}
+													<a
+														href={resolve(
+															`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`,
+															{ id: block.from }
+														)}
+														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:text-ink hover:decoration-current focus-visible:decoration-current"
+													>
+														{title || 'Another agent'}
+													</a>
+												{:else if block.delegated && parentAgent}
+													<button
+														type="button"
+														onclick={parentAgent.open}
+														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:decoration-current focus-visible:decoration-current"
+													>
+														{row.index === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
+													</button>
+												{:else}
+													<span class="font-medium">{title || 'Another agent'}</span>
+												{/if}
+											</span>
+										</div>
 									{/if}
-								</p>
-							{/if}
-							<UserMessage text={block.text}>
-								{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
-								<MessageImages images={block.images} />
-							</UserMessage>
+									{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
+									<MessageImages images={block.images} />
+								</UserMessage>
+							</div>
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">
@@ -424,7 +528,7 @@
 							</p>
 						{:else}
 							{@const lastText = block.parts.findLastIndex((part) => part.kind === 'text')}
-							{@const live = running && !block.changes && i === blocks.length - 1}
+							{@const live = running && !block.changes && row.index === blocks.length - 1}
 							{@const last = block.parts.at(-1)}
 							{@const hiddenCount = live
 								? 0
@@ -433,22 +537,24 @@
 								.slice(0, hiddenCount)
 								.filter((part) => part.kind !== 'subagent')}
 							<!-- said where the reply ends: beside its last words, else on its own -->
-							{@const ending = live ? undefined : { reply: block, latest: i === latestReply }}
+							{@const ending = live
+								? undefined
+								: { reply: block, latest: row.index === latestReply }}
 							<AgentMessage {agent}>
 								{#if hidden.length}
 									<TurnActivity
 										summary={activitySummary(hidden)}
-										expanded={expanded.has(i)}
-										ontoggle={() => toggleActivity(i)}
+										expanded={expanded.has(row.index)}
+										ontoggle={() => toggleActivity(row.index)}
 									/>
 								{/if}
 								{#each block.parts as part, j (j)}
-									{#if part.kind === 'subagent' || j >= hiddenCount || expanded.has(i)}
+									{#if part.kind === 'subagent' || j >= hiddenCount || expanded.has(row.index)}
 										{@render agentPart(
 											part,
 											j !== lastText,
 											live && j === block.parts.length - 1,
-											`${i}.${j}`,
+											`${row.index}.${j}`,
 											j === block.parts.length - 1 ? ending : undefined
 										)}
 									{/if}
@@ -458,6 +564,14 @@
 								{/if}
 							</AgentMessage>
 						{/if}
+					</div>
+				{:else if row.kind === 'child'}
+					<div class="relative pl-11.5">
+						{#if !previousIncoming}<span
+								aria-hidden="true"
+								class="absolute top-3 left-2 icon-[lucide--corner-down-right] size-4 text-faint"
+							></span>{/if}
+						{@render childExchange(row)}
 					</div>
 				{:else}
 					{@const { text, index, images } = row}

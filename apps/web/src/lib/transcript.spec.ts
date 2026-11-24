@@ -13,6 +13,24 @@ const tool = (id: string) => ({
 });
 
 describe('toBlocks', () => {
+	it('shows the outcome of a report only when it matches the workspace that sent it', () => {
+		const text = 'Your agent “Review” (child) stopped: Build failed.\n\nThe log is attached.';
+		const message = { kind: 'user' as const, text, at };
+		expect(
+			toBlocks([{ ...message, from: 'child' }, { ...message, from: 'peer' }, message])
+		).toEqual([
+			{
+				kind: 'user',
+				from: 'child',
+				senderName: 'Review',
+				report: 'stopped',
+				text: 'Build failed.\n\nThe log is attached.'
+			},
+			{ kind: 'user', from: 'peer', text },
+			{ kind: 'user', text }
+		]);
+	});
+
 	it('gives a reply what its turn used, though a compaction follows it', () => {
 		const usage = { totalTokens: 10, inputTokens: 8, outputTokens: 2 };
 		expect(

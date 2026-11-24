@@ -23,6 +23,7 @@ export type Block =
 			'kind' | 'text' | 'from' | 'images' | 'senderName'
 	  > & {
 			delegated?: boolean;
+			report?: 'finished' | 'stopped';
 	  })
 	/**
 	 * Of the turns of this reply, together: what they `used`, where their agent said, and how
@@ -50,6 +51,24 @@ export function compactionNote(item: Extract<TranscriptItem, { kind: 'compaction
 			? `, ${tokens(before)} → ${tokens(after)} tokens`
 			: '';
 	return `Compacted the conversation${counts}`;
+}
+
+/** Read the envelope stored with a child report, including reports in older conversations. */
+export function childReport(item: { text: string; from?: string | null }) {
+	if (!item.from || item.from.startsWith('external:')) return;
+	const match =
+		/^Your agent “(?<name>[^\n]*)” \((?<id>[^)\n]+)\) (?<status>finished its turn\.(?:\n\n|$)|stopped: )/.exec(
+			item.text
+		);
+	const notice = match?.groups;
+	if (!match || !notice || notice.id !== item.from) return;
+	const report: 'finished' | 'stopped' = notice.status.startsWith('finished')
+		? 'finished'
+		: 'stopped';
+	const text = item.text
+		.slice(match[0].length)
+		.replace(/^\(Its reply begins earlier; see read_workspace\.\)\n\n(?=…)/, '');
+	return { report, senderName: notice.name, text };
 }
 
 /** Groups a flat transcript into turns, merging consecutive tool calls into one part. */
@@ -80,6 +99,7 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 			blocks.push({
 				kind: 'user',
 				text: item.text,
+				...childReport(item),
 				...(item.images?.length && { images: item.images }),
 				...(item.from && { from: item.from }),
 				...(item.senderName && { senderName: item.senderName })

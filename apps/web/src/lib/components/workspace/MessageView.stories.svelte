@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
-	import { subagentBlocks, type Block } from '#lib/transcript.ts';
+	import { subagentBlocks, toBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Composer from '@geordi/ui/Composer.svelte';
@@ -654,35 +654,66 @@
 	name="Agent follow-ups"
 	asChild
 	play={async ({ canvas }) => {
-		for (const [name, id] of [
-			['Simplify release CI', 'parent'],
-			['Review', 'peer']
-		]) {
-			await expect(await canvas.findByRole('link', { name })).toHaveAttribute(
-				'href',
-				`/workspaces/${id}?agent=${id}`
-			);
-		}
-		await expect(canvas.getByText('From Release assistant').closest('a')).toBeNull();
+		await expect(await canvas.findByRole('link', { name: 'Migration tests' })).toHaveAttribute(
+			'href',
+			'/workspaces/parent?agent=parent'
+		);
+		const toggle = await canvas.findByRole('button', { name: 'Review finished' });
+		const first = 'I’m checking the archived repositories.';
+		const final = 'The migration covers archived repositories. Both regression tests pass.';
+		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		await expect(canvas.queryByRole('button', { name: 'Review sent a message' })).toBeNull();
+		await expect(canvas.queryByText(first)).toBeNull();
+		await expect(canvas.queryByText(final)).toBeNull();
+		await userEvent.click(toggle);
+		await expect(canvas.getByText(first)).toBeVisible();
+		await expect(canvas.getByText(final)).toBeVisible();
+		await expect(canvas.getByRole('link', { name: 'Open Review workspace' })).toHaveAttribute(
+			'href',
+			'/workspaces/peer?agent=peer'
+		);
+		await userEvent.click(toggle);
+		await expect(canvas.queryByText(first)).toBeNull();
+		await expect(canvas.queryByText(final)).toBeNull();
+		await expect(canvas.getByText('Release assistant').closest('a')).toBeNull();
 	}}
 >
-	<div class="flex h-80 flex-col overflow-hidden card">
+	<div class="flex h-160 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
-			blocks={[
+			blocks={toBlocks([
+				{ kind: 'user', at: '', text: 'Please review the migration before we merge.' },
+				{ kind: 'text', at: '', text: 'I’ll ask for a second look at archived repositories.' },
 				{
 					kind: 'user',
-					text: 'Please check the release.',
+					at: '',
+					text: 'I found an archived repository in the test fixtures.',
 					from: 'parent'
 				},
-				{ kind: 'user', text: 'The review is ready.', from: 'peer', senderName: 'Review' },
 				{
 					kind: 'user',
-					text: 'Please check the migration.',
+					at: '',
+					text: 'I’m checking the archived repositories.',
+					from: 'peer',
+					senderName: 'Review'
+				},
+				{
+					kind: 'user',
+					at: '',
+					text: 'Your agent “Review” (peer) finished its turn.\n\nThe migration covers archived repositories. Both regression tests pass.',
+					from: 'peer',
+					senderName: 'Review'
+				},
+				{
+					kind: 'user',
+					at: '',
+					text: 'The release build passed.',
 					from: 'external:example',
 					senderName: 'Release assistant'
-				}
-			]}
-			senders={{ parent: 'Simplify release CI' }}
+				},
+				{ kind: 'text', at: '', text: 'The migration is ready to merge.' }
+			])}
+			senders={{ parent: 'Migration tests' }}
+			childSenders={{ peer: 'Review' }}
 			agent="codex"
 			onremove={() => {}}
 			onanswer={() => {}}
@@ -719,7 +750,7 @@
 		);
 	}}
 >
-	<div class="mx-auto flex h-144 max-w-3xl flex-col sheet overflow-hidden">
+	<div class="mx-auto flex h-160 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
 			agent="codex"
 			withComposer

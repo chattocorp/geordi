@@ -639,12 +639,18 @@ describe('installation-wide workspace access', () => {
 		expect(
 			(await fromChild('send_message', { workspace_id: sibling.id, message: 'Hi' })).error
 		).toMatch(/only the agents you started/);
-		expect(
-			(await fromChild('send_message', { workspace_id: caller, message: 'Now', interrupt: true }))
-				.error
-		).toMatch(/only interrupt/);
 		await fromChild('send_message', { workspace_id: caller, message: 'Which approach?' });
-		expect(workspaces.get(caller).queue.at(-1)).toBe('Which approach?');
+		expect(workspaces.get(caller).childSenders?.[child.id]).toBe(workspaces.get(child.id).title);
+		expect(workspaces.get(caller).transcript.at(-1)).toMatchObject({
+			from: child.id,
+			text: 'Which approach?'
+		});
+		await fromChild('send_message', {
+			workspace_id: caller,
+			message: 'Next task',
+			interrupt: false
+		});
+		expect(workspaces.get(caller).queue).toEqual(['Next task']);
 
 		const fromGrandchild = callAs(grandchild.id);
 		expect(
