@@ -16,7 +16,13 @@ if (!existsSync(app)) throw new Error('Build the trial app with pnpm desktop:pac
 const env = devEnvironment(process.env, repo);
 const data = join(repo, '.data/jj-desktop');
 const control = join(data, 'control');
-execFileSync('jj', ['--version'], { stdio: 'inherit' });
+if (execFileSync('jj', ['--version'], { encoding: 'utf8' }).trim() !== 'jj 0.45.1')
+	throw new Error('The native checkout helper requires jj 0.45.1 in this trial.');
+execFileSync(
+	join(import.meta.dirname, 'build-jj-checkout.sh'),
+	[join(data, 'bin/geordi-jj-checkout')],
+	{ stdio: 'inherit' }
+);
 seed(data);
 if (!existsSync(control)) {
 	const temp = mkdtempSync(join(data, 'init-'));

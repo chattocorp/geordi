@@ -13,3 +13,5 @@ The side-by-side rehearsal preserved different staged and working contents, a lo
 An isolated desktop trial now gives Auto-mode agents a workspace-bound snapshot, refresh and publish tool. The daemon holds the control store. The packaged app uses a private sample repository and local origin. Quit the trial to resume the regular Git app. Global enablement and live cutover remain open.
 
 Interactive terminals now use the native checkout in the jj trial. Verified the working directory through the terminal UI in both sample-services and the Git sample-cli workspace.
+
+The macOS draft broker now synchronizes jj checkout metadata after a revision and refreshes open descendants. Plain jj status sees local additions. A parent/child regression covers edits, publication, daemon reinitialization, archive/restore and refusal of overlapping changes.

@@ -1,0 +1,13 @@
+[package]
+name = "geordi-jj-checkout"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+jj-lib = "=0.45.1"
+pollster = "0.4"
+
+[profile.dev]
+debug = 0
+incremental = false

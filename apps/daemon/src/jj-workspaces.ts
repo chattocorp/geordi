@@ -180,7 +180,41 @@ export async function nativeWorkspaces(
 	}
 	const drafts =
 		brokered &&
-		draftActions(control, { location, jj, rev, withIndex, indexed, diskTree, captureTree, forget });
+		draftActions(control, {
+			location,
+			jj,
+			rev,
+			withIndex,
+			indexed,
+			diskTree,
+			captureTree,
+			forget,
+			async checkoutState(ref, action, head) {
+				const { path, name } = location(ref);
+				terminal(ref); // Verify checkout identity before granting access to its metadata.
+				const state = join(realpathSync(root), relative(root, path), '.jj', 'working_copy');
+				const profile =
+					'(version 1)(allow default)(deny file-write*)(allow file-write* (subpath ' +
+					JSON.stringify(state) +
+					'))';
+				return (
+					await run(
+						'/usr/bin/sandbox-exec',
+						[
+							'-p',
+							profile,
+							join(dirname(control), 'bin', 'geordi-jj-checkout'),
+							action,
+							repository,
+							path,
+							name,
+							head
+						],
+						{ timeout: 30_000 }
+					)
+				).stdout.trim();
+			}
+		});
 	async function archive(ref: WorktreeRef) {
 		const { path, name, branch } = location(ref);
 		const removing = path + '.removing';

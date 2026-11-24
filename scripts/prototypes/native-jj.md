@@ -3,7 +3,9 @@
 ## Try it in Geordi.app
 
 From a shell in this Geordi worktree, run the following with the workspace's desktop
-ports in the environment and jj on PATH. The trial was tested with jj 0.45.1.
+ports in the environment and jj 0.45.1 on PATH. The macOS launcher builds a small
+helper against the matching jj library and needs Cargo with a recent Rust toolchain
+or mise.
 
 ```sh
 pnpm desktop:package
@@ -27,6 +29,14 @@ directory and stores the last checkout revision outside the sandbox. Refresh pre
 unrelated live edits and reports an error if they overlap incoming changes. Publish
 uses only the workspace bookmark and the sample's local origin. Running jj directly
 inside the sandbox is unnecessary. This trial exercises drafts and local pushes.
+After an agent snapshots a draft, run `jj status` or `jj diff` in that workspace's
+terminal. jj includes new, non-ignored files such as `README2.md` in its working-copy
+commit under the usual snapshot rules. The daemon synchronizes the owner's checkout
+metadata under jj's working-copy lock and refreshes checked-out descendants. If a
+restack overlaps local edits, the parent revision is saved and the daemon reports
+the affected checkout. Preserve or reconcile the overlapping edit there before
+retrying the child's refresh.
+
 Interactive terminals open in the native checkout. Automatic setup jobs and the release pane
 are still outside the native prototype.
 

@@ -5,7 +5,10 @@ import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
 import { nativeWorkspaces } from './jj-workspaces.ts';
 
-it.skipIf(spawnSync('jj', ['--version']).status !== 0)(
+it.skipIf(
+	process.platform !== 'darwin' ||
+		spawnSync('jj', ['--version'], { encoding: 'utf8' }).stdout?.trim() !== 'jj 0.45.1'
+)(
 	'restacks and publishes scoped drafts without granting agents store access',
 	async () => {
 		const scratch = resolve(import.meta.dirname, '../../../.context');
@@ -19,6 +22,12 @@ it.skipIf(spawnSync('jj', ['--version']).status !== 0)(
 		const jj = (...args: string[]) =>
 			execFileSync('jj', ['-R', control, ...args], { cwd: dir, encoding: 'utf8' }).trim();
 		try {
+			execFileSync(
+				resolve(import.meta.dirname, '../../../scripts/prototypes/build-jj-checkout.sh'),
+				[join(dir, 'bin', 'geordi-jj-checkout')]
+			);
+			const status = (path: string) =>
+				execFileSync('jj', ['status'], { cwd: path, encoding: 'utf8' });
 			git('init', '--bare', origin);
 			execFileSync('jj', ['git', 'init', '--no-colocate', control], { cwd: dir });
 			jj('config', 'set', '--repo', 'user.name', 'Geordi Test');
@@ -60,19 +69,24 @@ it.skipIf(spawnSync('jj', ['--version']).status !== 0)(
 			await backend.draft!(child, 'snapshot', 'test: cover API');
 			await backend.draft!(child, 'publish');
 			const old = git('--git-dir', origin, 'rev-parse', 'refs/heads/' + c.branch);
+			writeFileSync(join(c.path, 'README2.md'), 'keep these exact bytes');
+			writeFileSync(join(c.path, 'client'), 'edited child');
 			writeFileSync(join(p.path, 'api'), 'revised');
 			await backend.draft!(parent, 'snapshot', 'feat: revise API');
-			writeFileSync(join(c.path, 'local'), 'local edit');
-			await expect(backend.draft!(child, 'publish')).rejects.toThrow(/refresh/i);
-			const restarted = (await open())!;
-			writeFileSync(join(c.path, 'api'), 'local conflict');
-			await expect(restarted.draft!(child, 'refresh')).rejects.toThrow();
-			expect(readFileSync(join(c.path, 'api'), 'utf8')).toBe('local conflict');
-			writeFileSync(join(c.path, 'api'), 'original');
-			await restarted.draft!(child, 'refresh');
+			expect(status(p.path)).toContain('api');
+			expect(status(c.path)).toContain('README2.md');
+			expect(readFileSync(join(c.path, 'README2.md'), 'utf8')).toBe('keep these exact bytes');
+			expect(readFileSync(join(c.path, 'client'), 'utf8')).toBe('edited child');
 			expect(readFileSync(join(c.path, 'api'), 'utf8')).toBe('revised');
-			expect(readFileSync(join(c.path, 'local'), 'utf8')).toBe('local edit');
-			expect(await restarted.versions(child, 'client')).toEqual({ old: null, new: 'child edit' });
+			expect(
+				jj('--ignore-working-copy', 'log', '-r', 'divergent()', '--no-graph', '-T', 'commit_id')
+			).toBe('');
+			expect(git('--git-dir', origin, 'rev-parse', 'refs/heads/' + c.branch)).toBe(old);
+			// A CLI snapshot and another unsnapshotted edit must both survive restart.
+			const restarted = (await open())!;
+			writeFileSync(join(c.path, 'local'), 'local edit');
+			await restarted.draft!(child, 'refresh');
+			expect(await restarted.versions(child, 'client')).toEqual({ old: null, new: 'edited child' });
 			await expect(restarted.draft!(child, 'publish')).rejects.toThrow(/snapshot/i);
 			await restarted.draft!(child, 'snapshot', 'test: cover revised API');
 			const result = await restarted.draft!(child, 'publish');
@@ -85,9 +99,23 @@ it.skipIf(spawnSync('jj', ['--version']).status !== 0)(
 			await restarted.prepare(child, true);
 			await restarted.draft!(child, 'refresh');
 			expect(readFileSync(join(c.path, 'local'), 'utf8')).toBe('local edit');
+			writeFileSync(join(c.path, 'api'), 'child overlaps parent');
+			writeFileSync(join(p.path, 'api'), 'another parent revision');
+			await expect(restarted.draft!(parent, 'snapshot', 'feat: another revision')).rejects.toThrow(
+				/Saved draft .*Could not refresh dependent/s
+			);
+			expect(readFileSync(join(c.path, 'api'), 'utf8')).toBe('child overlaps parent');
+			writeFileSync(join(c.path, 'api'), 'revised');
+			await restarted.draft!(child, 'refresh');
+			expect(status(c.path)).toContain('client');
+			// The originally reported ordering: revise, THEN create README2.md,
+			// then run ordinary jj status in that same checkout.
+			writeFileSync(join(p.path, 'README2.md'), 'after the revision');
+			expect(status(p.path)).toContain('README2.md');
+			expect(readFileSync(join(p.path, 'README2.md'), 'utf8')).toBe('after the revision');
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	},
-	60000
+	300000
 );
