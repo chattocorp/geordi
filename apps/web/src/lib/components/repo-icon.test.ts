@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isDarkMark, monogram, tint } from './repo-icon.ts';
+import { isDarkMark } from '@geordi/ui/picture';
+import { monogram, tint } from './repo-icon.ts';
 
 /** `count` pixels of one colour, then transparent ones up to `total`. */
 function pixels(rgba: number[], count: number, total = 100) {

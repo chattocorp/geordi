@@ -7,7 +7,7 @@
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
-	import SidebarRowLabel from '@geordi/ui/SidebarRowLabel.svelte';
+	import RowLabel from '@geordi/ui/RowLabel.svelte';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import {
 		actFromAfar,
@@ -502,7 +502,7 @@
 							}}
 							ondragend={endRepoDrag}
 						>
-							<SidebarRowLabel
+							<RowLabel
 								title={repo.name}
 								fold={{
 									folded: isFolded,
@@ -510,14 +510,14 @@
 									unread: isFolded && all.some(({ workspace }) => unread.has(workspace.id)),
 									toggle: () => toggleFolded(repo.id ?? PROJECTS)
 								}}
-								class="h-6 rounded-control text-sm font-semibold text-muted hover:text-ink"
+								class="h-6 rounded-control text-sm font-semibold"
 							>
 								{#snippet icon()}
 									{#if repo.id !== null}<RepoIcon id={repo.id} name={repo.name} />{:else}<span
 											class="icon-[lucide--folders] size-5"
 										></span>{/if}
 								{/snippet}
-							</SidebarRowLabel>
+							</RowLabel>
 							{#if repo.id !== null}
 								<Button
 									variant="ghost"

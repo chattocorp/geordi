@@ -223,6 +223,11 @@
 	}>('geordi:frame', { side: 0.28, changes: 0.45, open: true, fold: null });
 	/** How the Changes tab shows its files: a preference of this browser, like the frame. */
 	const changesView = persisted<'list' | 'tree'>('geordi:changes-view', 'list');
+	/** What is folded shut in the Changes tab, remembered for each workspace. */
+	const changesFolds = persisted(`geordi:changes-folds:${id}`, {
+		sections: [] as string[],
+		dirs: [] as string[]
+	});
 	const toggleSide = () => (frame.current = { ...frame.current, open: !frame.current.open });
 	/** Folds one of the two sheets beside the conversation, or unfolds it: never both at once. */
 	const toggleFold = (area: 'side' | 'dock') =>
@@ -1232,6 +1237,10 @@
 			onopen={openDiff}
 			onopencombined={() => showTab(COMBINED)}
 			bind:view={changesView.current}
+			bind:folds={changesFolds.current}
+			sections={config?.sections}
+			picture={(path) =>
+				`${resolve('/workspaces/[id]/picture', { id })}?file&v=${git?.version ?? 0}&path=${encodeURIComponent(path)}`}
 			target={!pull && workspace.repoId ? compareWith : undefined}
 		/>
 		<!-- a pull request's target is chosen where the pull request is: then it is just a name -->

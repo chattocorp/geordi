@@ -312,6 +312,18 @@ export type Script = {
  */
 export const SCRIPTS = ['setup', 'teardown'] as const;
 
+/** A part of the repository, as its `.geordi.yml` names it (`sections`): a directory and what it is. */
+export type RepoSection = {
+	/** From the top of the repository, without a leading or trailing slash. */
+	path: string;
+	title: string;
+	/**
+	 * A picture of it, from the top of the repository: the one the file names, else (as the
+	 * daemon reports it) the one nearest its directory, where it has one.
+	 */
+	icon?: string;
+};
+
 /**
  * What a repository's `.geordi.yml` says, as it applies to one workspace: that of the
  * workspace if it has one, otherwise that of the branch work starts from.
@@ -323,6 +335,8 @@ export type RepoConfig = {
 	setup: Script | null;
 	/** Run when the workspace is archived, before its worktree is removed. */
 	teardown: Script | null;
+	/** The repository's parts, in the order the file names them. */
+	sections?: RepoSection[];
 	/** The workspace's spare ports: the first, and how many. */
 	ports: { first: number; count: number } | null;
 	/** What is wrong with the file, if it can't be made sense of. */
@@ -343,7 +357,7 @@ export const portVariable = (...names: string[]) =>
  */
 export const CONFIG_SETTINGS = {
 	tasks: {
-		does: "Named things to run or open, in the order the Tasks panel shows them (names: lower case letters, digits and dashes). Each has a `command`, a `url`, or both, and may have a `label` (a display name of 1–100 characters; the key still identifies it). Labels that begin alike with ` / ` (`Sorties / Ring 1`, `Sorties / Ring 2`) are shown as a section of their own, which the person can fold, each task named by the rest (`Ring 1`); the section stands where its first task is. Use sections where a repository has many tasks, to keep the panel short (the services of one app, variants of one command); a short list needs none. `ports` names the ports the command listens on (`ports: [http, live]`). Port names are the workspace's, and each is one task's: two tasks can't list the same name. They are separate from task names; naming a server's main port after its task (`web` listening on `web`) is usual. Each is the workspace's for as long as it lives, and reaches everything in the workspace as `GEORDI_PORT_HTTP`, `GEORDI_PORT_LIVE` (upper case, dashes as underscores); the task's own command also gets its first as `$PORT`. A task without `ports` gets none. It counts as up once something listens on all of its ports, or at once without any. `url` is where to look at it; for more places to look, give each a task of its own with its `url`. In a URL, `{http}` is the port named `http`, and the task that lists it has to be up first too. URLs only lead to this machine (`localhost`). `needs` lists the tasks that have to be up before this one starts; stopping one stops those that need it. Running a task starts what it needs, then its command, and opens its `url` once that answers. A task with only a `url` that needs nothing just opens it. `default: true` marks the tasks the Run shortcut (⌥⌘R) runs or opens. Commands run in the person's shell in the workspace's directory, and should keep running until stopped.",
+		does: "Named things to run or open, in the order the Tasks panel shows them (names: lower case letters, digits and dashes). Each has a `command`, a `url`, or both, and may have a `label` (a display name of 1–100 characters; the key still identifies it). You can group tasks by their labels: labels that begin alike with ` / ` (`Sorties / Ring 1`, `Sorties / Ring 2`) make a task group, which the person can fold, each task named by the rest (`Ring 1`); the group stands where its first task is. Group tasks where a repository has many, to keep the panel short (the services of one app, variants of one command); a short list needs no groups. `ports` names the ports the command listens on (`ports: [http, live]`). Port names are the workspace's, and each is one task's: two tasks can't list the same name. They are separate from task names; naming a server's main port after its task (`web` listening on `web`) is usual. Each is the workspace's for as long as it lives, and reaches everything in the workspace as `GEORDI_PORT_HTTP`, `GEORDI_PORT_LIVE` (upper case, dashes as underscores); the task's own command also gets its first as `$PORT`. A task without `ports` gets none. It counts as up once something listens on all of its ports, or at once without any. `url` is where to look at it; for more places to look, give each a task of its own with its `url`. In a URL, `{http}` is the port named `http`, and the task that lists it has to be up first too. URLs only lead to this machine (`localhost`). `needs` lists the tasks that have to be up before this one starts; stopping one stops those that need it. Running a task starts what it needs, then its command, and opens its `url` once that answers. A task with only a `url` that needs nothing just opens it. `default: true` marks the tasks the Run shortcut (⌥⌘R) runs or opens. Commands run in the person's shell in the workspace's directory, and should keep running until stopped.",
 		example:
 			'tasks:\n  db:\n    command: docker compose up db\n    ports: [postgres]\n  web:\n    label: Development server\n    command: pnpm dev --port $PORT\n    ports: [http, hmr]\n    needs: [db]\n    url: http://localhost:{http}/\n    default: true\n  admin:\n    label: Admin area\n    url: http://localhost:{http}/admin\n  seed:\n    label: Data / Seed the database\n    command: pnpm db:seed\n  reset:\n    label: Data / Reset the database\n    command: pnpm db:reset\n  docs:\n    url: http://localhost:8080/'
 	},
@@ -354,6 +368,11 @@ export const CONFIG_SETTINGS = {
 	teardown: {
 		does: 'A command that cleans up after a workspace when a person archives it, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
 		example: 'teardown: docker compose down --volumes'
+	},
+	sections: {
+		does: "The repository's parts, each a `path` (a directory, from the top of the repository) with a human-readable `title` (1–100 characters). Worth adding where a repository has distinct parts that changes often cross, such as the apps and packages of a monorepo. The Changes tab groups a workspace's changed files under these titles, in this order, when they touch more than one section. A file belongs to the section with the longest path that contains it, so one section may lie within another; files in none are listed last, under Other. Each path may be named only once. A section is shown with the picture nearest its directory, as a repository is with its favicon or logo; a `.geordi.svg` or `.geordi.png` right in its directory is one made for Geordi, and comes first (one at the top of the repository is the repository's). `icon` names another (a PNG, JPEG, WebP, GIF or SVG in the repository). Keep to a handful, in the order people read the project (the most important first), each a whole app, package or area rather than every folder, with the title people call it by (`Web app`, not `apps/web`).",
+		example:
+			'sections:\n  - path: apps/web\n    title: Web app\n    icon: apps/web/static/logo.svg\n  - path: apps/api\n    title: API\n  - path: docs\n    title: Documentation'
 	}
 } as const;
 

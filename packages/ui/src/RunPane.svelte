@@ -4,6 +4,7 @@
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import Loading from './Loading.svelte';
+	import RowLabel from './RowLabel.svelte';
 	import { persisted } from './persisted.svelte.ts';
 
 	/**
@@ -12,7 +13,7 @@
 	 * default tasks and stopping all is `RunTools`, in the tab). A
 	 * task is a row: it runs the task (again) and opens its URL; pointing at it offers its
 	 * terminal and stopping it, right after its name. Tasks whose labels begin alike
-	 * (`Sorties / Ring 1`) are a section of their own, which folds; it stands where its first
+	 * (`Sorties / Ring 1`) are a group of their own, which folds; it stands where its first
 	 * task would. What comes before them (a problem with the configuration, say) is `children`.
 	 */
 	let {
@@ -42,39 +43,39 @@
 	} = $props();
 
 	const live = (state: JobState) => state === 'running' || state === 'starting';
-	/** A label's section and its name in it: `Sorties / Ring 1` is `Ring 1` in `Sorties`. */
-	function sectionOf(task: Task): { section: string | null; label: string } {
+	/** A label's group and its name in it: `Sorties / Ring 1` is `Ring 1` in `Sorties`. */
+	function groupOf(task: Task): { group: string | null; label: string } {
 		const label = task.label ?? task.name;
-		const [, section, rest] = label.match(/^(.+?) \/ (.+)$/) ?? [];
-		return section ? { section: section.trim(), label: rest.trim() } : { section: null, label };
+		const [, group, rest] = label.match(/^(.+?) \/ (.+)$/) ?? [];
+		return group ? { group: group.trim(), label: rest.trim() } : { group: null, label };
 	}
 	type Entry =
-		{ task: Task; label: string } | { section: string; tasks: { task: Task; label: string }[] };
-	/** The default tasks first, by their full label; then the rest, a section where its first task is. */
+		{ task: Task; label: string } | { group: string; tasks: { task: Task; label: string }[] };
+	/** The default tasks first, by their full label; then the rest, a group where its first task is. */
 	const entries = $derived.by(() => {
 		const list: Entry[] = tasks
 			.filter((task) => task.default)
 			.map((task) => ({ task, label: task.label ?? task.name }));
 		for (const task of tasks.filter((task) => !task.default)) {
-			const { section, label } = sectionOf(task);
-			if (!section) {
+			const { group, label } = groupOf(task);
+			if (!group) {
 				list.push({ task, label });
 				continue;
 			}
-			const found = list.find((entry) => 'section' in entry && entry.section === section);
-			if (found && 'section' in found) found.tasks.push({ task, label });
-			else list.push({ section, tasks: [{ task, label }] });
+			const found = list.find((entry) => 'group' in entry && entry.group === group);
+			if (found && 'group' in found) found.tasks.push({ task, label });
+			else list.push({ group, tasks: [{ task, label }] });
 		}
 		return list;
 	});
-	/** Sections folded away, in this browser. */
+	/** Groups folded away, in this browser. */
 	const folded = persisted<string[]>('geordi:tasks-folded', []);
-	function fold(section: string, open: boolean) {
-		const others = folded.current.filter((name) => name !== section);
-		folded.current = open ? others : [...others, section];
+	function fold(group: string, open: boolean) {
+		const others = folded.current.filter((name) => name !== group);
+		folded.current = open ? others : [...others, group];
 	}
-	/** How a folded section is, at a glance: starting if anything is, else running if anything is. */
-	function sectionState(names: string[]): JobState {
+	/** How a folded group is, at a glance: starting if anything is, else running if anything is. */
+	function groupState(names: string[]): JobState {
 		const states = names.map(stateOf);
 		if (states.includes('starting')) return 'starting';
 		return states.includes('running') ? 'running' : 'stopped';
@@ -150,7 +151,7 @@
 		<div
 			{@attach pointing(task.name)}
 			class={[
-				'group/task relative item h-8 gap-1 pr-1 pl-0.5 text-ink',
+				'group/task relative item h-8 gap-1 pr-1 pl-1 text-ink',
 				needed.includes(task.name) && 'bg-hover'
 			]}
 		>
@@ -245,43 +246,43 @@
 	{:else if tasks.length > 0}
 		<!-- a hair between rows, as in the sidebar: rows that stand out together stay apart -->
 		<ul aria-label="Tasks" class="space-y-px">
-			{#each entries as entry ('section' in entry ? `section:${entry.section}` : entry.task.name)}
-				{#if 'section' in entry}
+			{#each entries as entry ('group' in entry ? `group:${entry.group}` : entry.task.name)}
+				{#if 'group' in entry}
 					{@const names = entry.tasks.map(({ task }) => task.name)}
-					{@const open = !folded.current.includes(entry.section)}
+					{@const open = !folded.current.includes(entry.group)}
 					<li>
-						<details {open} ontoggle={(event) => fold(entry.section, event.currentTarget.open)}>
-							<summary
-								class={[
-									'group/section item h-8 list-none gap-1 pr-1 pl-0.5 text-ink select-none',
-									!open && names.some((name) => needed.includes(name)) && 'bg-hover'
-								]}
+						<div
+							class={[
+								'item h-8 pr-1 text-ink select-none',
+								!open && names.some((name) => needed.includes(name)) && 'bg-hover'
+							]}
+						>
+							<RowLabel
+								title={entry.group}
+								fold={{
+									folded: !open,
+									count: entry.tasks.length,
+									toggle: () => fold(entry.group, !open)
+								}}
+								class="h-full pr-1 font-medium"
 							>
-								<span class="grid size-6 shrink-0 place-items-center text-muted">
-									<span
-										aria-hidden="true"
-										class={[
-											'icon-[lucide--chevron-right] size-4 transition-transform motion-reduce:transition-none',
-											open && 'rotate-90'
-										]}
-									></span>
-								</span>
-								<span class="min-w-0 truncate pr-1 font-medium text-muted">{entry.section}</span>
 								<!-- folded, it still says whether anything in it is at work -->
-								{#if !open && sectionState(names) !== 'stopped'}
+								{#if !open && groupState(names) !== 'stopped'}
 									<JobMark
-										state={sectionState(names)}
+										state={groupState(names)}
 										listens={entry.tasks.some(({ task }) => task.ports.length > 0)}
 									/>
 								{/if}
-							</summary>
-							<!-- its tasks, under the section's name -->
-							<ul aria-label={entry.section} class="mt-px space-y-px pl-4">
+							</RowLabel>
+						</div>
+						<!-- its tasks, under the group's name -->
+						{#if open}
+							<ul aria-label={entry.group} class="mt-px space-y-px pl-4">
 								{#each entry.tasks as { task, label } (task.name)}
 									{@render taskRow(task, label)}
 								{/each}
 							</ul>
-						</details>
+						{/if}
 					</li>
 				{:else}
 					{@render taskRow(entry.task, entry.label)}

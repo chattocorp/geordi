@@ -7,7 +7,7 @@ import { eventDelivery } from './event-delivery.ts';
 import { pruneFileCheckpoints } from './file-index-cache.ts';
 import { createFileSearch } from './file-search.ts';
 import { git } from './git.ts';
-import { repoIcon } from './icon.ts';
+import { repoIcon, withIcons } from './icon.ts';
 import { folderIn, openFolder, sortPaths } from './folders.ts';
 import { readPicture } from './picture.ts';
 import { existsSync, readFileSync } from 'node:fs';
@@ -160,6 +160,7 @@ async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeR
 	const found = await settingsOf(worktree, repoPath);
 	const assigned = await ports.ensure(worktreeId, wantedPorts(found.settings));
 	const config = resolve(found, assigned, (command) => approvals.has(repoPath, command));
+	if (config.sections?.length) config.sections = await withIcons(worktree, config.sections);
 	return { config, env: portEnv(config.tasks, config.ports) };
 }
 

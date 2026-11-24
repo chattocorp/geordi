@@ -32,6 +32,13 @@
 		added: 0,
 		removed: 0
 	}));
+	const svg = (fill: string, shape: string) =>
+		`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="4" fill="${fill}"/>${shape}</svg>`)}`;
+	/** The pictures the sections' icons stand for, as the forge would serve them. */
+	const pictures: Record<string, string> = {
+		'apps/web/static/favicon.svg': svg('#e8a33d', '<circle cx="8" cy="8" r="4" fill="#fff"/>'),
+		'apps/api/logo.svg': svg('#5b6cff', '<path d="M4 8h8M8 4v8" stroke="#fff" stroke-width="2"/>')
+	};
 	const pending = {
 		changes: null,
 		unavailable: null,
@@ -331,6 +338,125 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Sections of the repository"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const forge = canvas.getByRole('button', { name: /Forge/ });
+		await expect(canvas.getByRole('button', { name: /Other/ })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: /\+page\.svelte/ })).toBeVisible();
+		await userEvent.click(forge);
+		await expect(forge).toHaveAttribute('aria-expanded', 'false');
+		// folded, it says how much changed in it, all its files together
+		await expect(forge.parentElement!).toHaveTextContent(/\+16\s*−4/);
+		await expect(canvas.queryByRole('button', { name: /\+page\.svelte/ })).toBeNull();
+		// the tree is drawn within each section
+		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
+		await expect(canvas.getByRole('button', { name: 'docs/adr' })).toBeVisible();
+		await userEvent.click(forge);
+		await expect(canvas.getByRole('button', { name: 'apps/web/src' })).toBeVisible();
+	}}
+>
+	<div class="w-80 sheet-quiet">
+		<Changes
+			sections={[
+				{ path: 'apps/web', title: 'Forge' },
+				{ path: 'apps/daemon', title: 'Daemon' },
+				{ path: 'docs', title: 'Documentation' }
+			]}
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: [
+						{ path: 'apps/web/src/routes/+page.svelte', status: 'modified', added: 12, removed: 3 },
+						{ path: 'apps/web/src/lib/server/app.ts', status: 'modified', added: 4, removed: 1 },
+						{ path: 'apps/daemon/src/config.ts', status: 'modified', added: 40, removed: 6 },
+						{ path: 'apps/daemon/src/config.spec.ts', status: 'modified', added: 31, removed: 0 },
+						{ path: 'docs/adr/ADR-012-map.md', status: 'added', added: 24, removed: 0 },
+						{ path: 'README.md', status: 'modified', added: 2, removed: 1 }
+					]
+				}
+			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Sections with pictures"
+	asChild
+	play={async ({ canvas }) => {
+		// a section with a picture shows it; one whose picture can't be shown has its chevron
+		const web = canvas.getByRole('button', { name: /Web app/ });
+		await waitFor(() => expect(web.querySelector('img')).toBeVisible());
+		const docs = canvas.getByRole('button', { name: /Documentation/ });
+		await waitFor(() => expect(docs.querySelector('img')).toBeNull());
+	}}
+>
+	<div class="w-80 sheet-quiet">
+		<Changes
+			sections={[
+				{ path: 'apps/web', title: 'Web app', icon: 'apps/web/static/favicon.svg' },
+				{ path: 'apps/api', title: 'API', icon: 'apps/api/logo.svg' },
+				{ path: 'docs', title: 'Documentation', icon: 'docs/missing.svg' }
+			]}
+			picture={(path) => pictures[path] ?? 'data:,'}
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: [
+						{ path: 'apps/web/src/routes/+page.svelte', status: 'modified', added: 12, removed: 3 },
+						{ path: 'apps/api/src/server.ts', status: 'modified', added: 4, removed: 1 },
+						{ path: 'docs/adr/ADR-012-map.md', status: 'added', added: 24, removed: 0 },
+						{ path: 'README.md', status: 'modified', added: 2, removed: 1 }
+					]
+				}
+			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Remembered folds"
+	args={{
+		sections: [{ path: 'docs', title: 'Documentation' }],
+		folds: { sections: ['docs'], dirs: [] },
+		git: {
+			...pending,
+			changes: {
+				branch: 'feature',
+				comparisonTarget: 'main',
+				uncommitted: 0,
+				unpushed: null,
+				landed: false,
+				files: [
+					{ path: 'docs/adr/ADR-012-map.md', status: 'added', added: 24, removed: 0 },
+					{ path: 'README.md', status: 'modified', added: 2, removed: 1 }
+				]
+			}
+		},
+		onopen: fn()
+	}}
+	play={async ({ canvas, userEvent }) => {
+		const docs = canvas.getByRole('button', { name: /Documentation/ });
+		await expect(docs).toHaveAttribute('aria-expanded', 'false');
+		await expect(canvas.queryByRole('button', { name: /ADR-012/ })).toBeNull();
+		await userEvent.click(docs);
+		await expect(canvas.getByRole('button', { name: /ADR-012/ })).toBeVisible();
+	}}
+/>
 
 <Story name="No changes yet" asChild>
 	<div class="flex h-96 w-80 flex-col">

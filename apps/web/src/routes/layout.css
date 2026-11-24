@@ -200,7 +200,8 @@
 	 * Relative colours: tints of the ink, see-through, so that they show on whatever is
 	 * behind them (a sheet, a card, a row that is itself hovered) in both modes. `hover` is
 	 * the wash under something the pointer is on. `faint` is `muted`, fainter still: for what
-	 * need not be read (a placeholder, a row put aside, an icon that only marks a kind).
+	 * need not be read (a placeholder, a row put aside, an icon that only marks a kind, the
+	 * count beside a folded group's heading).
 	 */
 	--color-hover: color-mix(in oklab, var(--ink) 9%, transparent);
 	--color-faint: color-mix(in oklab, var(--muted) 60%, transparent);

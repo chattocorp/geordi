@@ -1,7 +1,14 @@
 import { git } from './git.ts';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE, CONFIG_NAME, SCRIPTS, type RepoConfig, type Task } from '@geordi/protocol';
+import {
+	CONFIG_FILE,
+	CONFIG_NAME,
+	SCRIPTS,
+	type RepoConfig,
+	type RepoSection,
+	type Task
+} from '@geordi/protocol';
 import { parse as parseYaml } from 'yaml';
 import { readText } from './changes.ts';
 import { portAt, portKey, spareOf, type Assigned } from './ports.ts';
@@ -10,6 +17,9 @@ import { startOf, type Worktree } from './worktree.ts';
 /** Commands are for a shell to run, not for storing things in. */
 const MAX_COMMAND = 2000;
 const MAX_URL = 500;
+const MAX_SECTIONS = 100;
+/** What a section's `icon` may be: a picture the worktree's are shown as. */
+const PICTURE = /\.(png|jpe?g|webp|gif|svg)$/i;
 /** A port in a URL, by its name: `{http}`. */
 const PLACEHOLDER = /\{([^{}]*)\}/g;
 /** Links only ever lead to this machine: the file is not to be a way to send people anywhere. */
@@ -37,6 +47,7 @@ export type Settings = {
 	/** The commands run when a worktree is made, and before it is removed. */
 	setup: string | null;
 	teardown: string | null;
+	sections: RepoSection[];
 };
 
 const fail = (message: string): never => {
@@ -45,17 +56,64 @@ const fail = (message: string): never => {
 const isTable = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** Display names never replace the keys used by dependencies and ports. */
-function displayLabel(value: unknown, where: string): { label?: string } {
-	if (value === undefined) return {};
+/** A name to show: one line of text, trimmed. */
+function displayText(value: unknown, where: string): string {
 	if (
 		typeof value !== 'string' ||
 		!value.trim() ||
 		value.trim().length > 100 ||
 		/[\r\n\t]/.test(value)
 	)
-		fail(`${where}.label must be a non-empty, single-line string of at most 100 characters`);
-	return { label: (value as string).trim() };
+		fail(`${where} must be a non-empty, single-line string of at most 100 characters`);
+	return (value as string).trim();
+}
+
+/** Display names never replace the keys used by dependencies and ports. */
+function displayLabel(value: unknown, where: string): { label?: string } {
+	return value === undefined ? {} : { label: displayText(value, `${where}.label`) };
+}
+
+/** A path in the repository, from its top (`apps/web`, not `/apps/web` or `../web`), or `null`. */
+function repoPath(said: unknown): string | null {
+	const path = typeof said === 'string' ? said.trim().replace(/^\.\//, '').replace(/\/+$/, '') : '';
+	return !path ||
+		path.length > MAX_URL ||
+		path.startsWith('/') ||
+		/[\\\r\n\t]/.test(path) ||
+		path.split('/').some((part) => part === '' || part === '.' || part === '..')
+		? null
+		: path;
+}
+
+/** The repository's parts: directories in it, each with a title, and perhaps its picture. */
+function parseSections(value: unknown): RepoSection[] {
+	if (value === undefined) return [];
+	if (!Array.isArray(value) || value.length > MAX_SECTIONS)
+		fail(
+			`\`sections\` must be a list of at most ${MAX_SECTIONS} sections, each with a path and a title`
+		);
+	const seen = new Set<string>();
+	return (value as unknown[]).map((section, index) => {
+		const where = `sections[${index}]`;
+		if (!isTable(section)) fail(`${where} must have a path and a title`);
+		const { path: said, title, icon } = section as Record<string, unknown>;
+		const path =
+			repoPath(said) ??
+			fail(`${where}.path must be a directory in the repository, such as apps/web`);
+		if (seen.has(path)) fail(`${where}.path: ${path} is named twice`);
+		seen.add(path);
+		return {
+			path,
+			title: displayText(title, `${where}.title`),
+			...(icon !== undefined && {
+				icon:
+					(PICTURE.test(String(icon)) ? repoPath(icon) : null) ??
+					fail(
+						`${where}.icon must be a picture in the repository, such as apps/web/static/logo.svg`
+					)
+			})
+		};
+	});
 }
 
 function nameList(value: unknown, where: string, what: string): string[] {
@@ -172,7 +230,7 @@ export function parseConfig(text: string): Settings {
 	const [setup, teardown] = SCRIPTS.map((script) =>
 		settings[script] === undefined ? null : command(settings[script], `\`${script}\``)
 	);
-	return { tasks, setup, teardown };
+	return { tasks, setup, teardown, sections: parseSections(settings.sections) };
 }
 
 /**
@@ -267,6 +325,7 @@ export function resolve(
 		})),
 		setup: script(settings?.setup, approved),
 		teardown: script(settings?.teardown, approved),
+		sections: settings?.sections ?? [],
 		ports: spareOf(assigned),
 		problem,
 		source,
