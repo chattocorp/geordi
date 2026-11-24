@@ -111,7 +111,8 @@ const tokenFile =
 const native = await nativeWorkspaces(
 	worktreesDir,
 	process.env.GEORDI_JJ_SOURCE,
-	process.env.GEORDI_JJ_CONTROL
+	process.env.GEORDI_JJ_CONTROL,
+	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
 );
 prepareSessionsDirectory(sessionsDir);
 const owner = claimDaemon(sessionsDir);
@@ -771,6 +772,8 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'watch':
+			if (native && message.scope !== 'background')
+				native.watch(message.worktrees.filter(native.matches));
 			watches.set(
 				message.worktrees.filter((ref) => !native?.matches(ref)),
 				message.scope
