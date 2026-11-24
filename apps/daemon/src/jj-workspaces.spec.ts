@@ -33,10 +33,14 @@ it.skipIf(spawnSync('jj', ['--version']).status !== 0)(
 			writeFileSync(join(parent.path, 'obsolete'), 'remove me');
 			jj(parent.path, 'bookmark', 'create', parent.branch, '-r', '@');
 			const childRef = { ...parentRef, worktreeId: randomUUID(), base: parent.branch };
+			const publications = join(control, '.jj', 'geordi', 'publications');
+			mkdirSync(publications, { recursive: true });
+			writeFileSync(join(publications, childRef.worktreeId), 'geordi/child-review\n');
 			backend.watch([childRef]);
 			const child = await backend.prepare(childRef);
 			expect(await notification.promise).toBe(childRef.worktreeId);
 			notification = Promise.withResolvers<string>();
+			expect(child.branch).toBe('geordi/child-review');
 			expect(existsSync(join(child.path, '.git'))).toBe(false);
 			writeFileSync(join(child.path, 'client'), 'child');
 			expect(await notification.promise).toBe(childRef.worktreeId);
@@ -78,7 +82,7 @@ it.skipIf(spawnSync('jj', ['--version']).status !== 0)(
 			mkdirSync(child.path);
 			writeFileSync(join(child.path, 'partial'), 'incomplete');
 
-			await restarted.prepare(childRef, true);
+			expect((await restarted.prepare(childRef, true)).branch).toBe(child.branch);
 			expect(existsSync(join(child.path, 'partial'))).toBe(false);
 			expect(existsSync(join(child.path, 'obsolete'))).toBe(false);
 			expect(existsSync(join(child.path, '.context', 'scratch'))).toBe(false);

@@ -50,3 +50,62 @@ archive and restore. Terminals, setup jobs, per-turn patches, release-note
 editing, merged-branch detection and migration of existing Git workspaces still need
 implementation. Agents in the trial ran with full access. Sandboxed writes to a shared
 jj store need their own design before enabling this backend by default.
+
+## Rehearsing a Git worktree migration
+
+From a trusted, idle test checkout, use a fresh destination outside the source. Supply
+the actual PR base and the checkout owner's full workspace ID. Agents that share the
+checkout use the same owner. The rehearsal requires Git, jj and rsync.
+
+```sh
+scripts/prototypes/jj-migration-rehearsal.sh "$legacy_checkout" "$new_directory" "$pr_base_branch" "$worktree_id"
+```
+
+The destination contains an independent control repository and a native candidate under
+`workspaces/candidate/`. The script imports the local HEAD, the last fetched publication
+tip and the review base independently. It records the original branch name in the
+control workspace. The daemon uses that name for Changes, agent instructions, archive,
+restore and upstream PR lookup. A renamed branch can therefore keep its PR while its
+local tip has unpublished commits. The source checkout and upstream refs stay in place.
+
+The rehearsal copies tracked, untracked and ignored files. A checksum pass compares
+file contents, symlink targets, ordinary modes and deletions. The binary staged patch
+and a reconstructed Git index live beside the candidate. Git's staged version may
+differ from both HEAD and the working file. For example, to read its exact bytes:
+
+```sh
+GIT_INDEX_FILE="$new_directory/recovered.index" git --git-dir="$(jj -R "$new_directory/control" git root)" show ":$file"
+```
+
+The native working copy presents the on-disk version. Keep the index and patch with
+the migration backup until the owner has reconciled their staged changes. The script
+does not perform a live cutover. Detached HEADs, in-progress merges or rebases,
+submodules, nested repositories, shallow history and mismatched upstream branch
+names require separate handling. Stashes, reflogs, hooks, worktree-specific Git
+configuration and filesystem ACLs stay with the original Git repository.
+
+## Rollout and rollback
+
+1. Record the backend on the checkout owner's creation event. Old events must resolve
+   to Git, including archived owners with no directory. Aides inherit the owner's
+   backend. Persist a migration event only after the candidate passes verification.
+2. Before making jj the creation default, provision one trusted control store per
+   registered repository, verify jj availability in packaged installs, and exercise
+   sandboxed agent writes, setup jobs, terminals, release tools and PR actions. Today
+   the native turn path skips setup and passes no writable shared-store root to a
+   sandboxed agent. Several daemon requests still reject native workspaces.
+3. For a cutover, stop all writers, including terminals, tasks and agents sharing
+   the checkout. Capture the existing remote, branch, local HEAD, PR head/base and
+   the exact staged and working contents under an owner lock. A missing checkout
+   needs its legacy archive/branch inspected before conversion. Refuse ambiguous
+   cases and keep the owner on Git.
+4. Compare the Git and native Changes lists and diffs against the PR base. Account
+   for excludes from Git configuration or `info/exclude` that a new store does not
+   inherit. Look up the existing PR through Geordi and compare repository, number,
+   head and base. Journal the verified candidate. Park the original with
+   `git worktree move` and install the candidate at the owner's path. Test interruption
+   before and after each step, including forge and daemon restart. An incomplete cutover must resume or return to the original checkout.
+5. Rollback before new edits can restore the parked Git worktree and its original
+   index. After editing resumes, preserve the jj history and working files and
+   reconcile them into a separate Git candidate before switching back. Keep both
+   copies until the owner verifies the result.

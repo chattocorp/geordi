@@ -1,6 +1,6 @@
 // Experimental native workspace backend for one explicitly selected repository.
 import { execFile } from 'node:child_process';
-import { existsSync, lstatSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -51,7 +51,16 @@ export async function nativeWorkspaces(
 		jj('--ignore-working-copy', 'log', '--no-graph', '-r', expression, '-T', 'commit_id');
 	const remoteBookmark = (name: string) =>
 		'remote_bookmarks(exact:' + JSON.stringify(name) + ', exact:"origin")';
+	async function baseRevision(base?: string) {
+		if (!base) return rev('trunk()');
+		branchRef(base);
+		const revision =
+			(await rev('present(' + JSON.stringify(base) + ')')) || (await rev(remoteBookmark(base)));
+		if (!revision) throw new Error('Unknown base branch: ' + base);
+		return revision;
+	}
 	const object = (...args: string[]) => git(store, ['--git-dir', store, ...args]);
+	const publications = join(control, '.jj', 'geordi', 'publications');
 	function location(ref: WorktreeRef) {
 		const path = worktreePath(root, ref);
 		if (
@@ -59,7 +68,13 @@ export async function nativeWorkspaces(
 			dirname(dirname(resolve(path))) !== resolve(root)
 		)
 			throw new Error('Invalid native workspace location');
-		return { path, branch: 'geordi/' + ref.worktreeId.slice(0, 8), name: 'ws-' + ref.worktreeId };
+		// A migrated worktree can already publish under a person-chosen branch.
+		const publication = join(publications, ref.worktreeId);
+		const branch = existsSync(publication)
+			? readFileSync(publication, 'utf8').trim()
+			: 'geordi/' + ref.worktreeId.slice(0, 8);
+		branchRef(branch);
+		return { path, branch, name: 'ws-' + ref.worktreeId };
 	}
 	const watches = changed && nativeWatches((ref) => location(ref).path, changed);
 	let open: WorktreeRef[] = [];
@@ -186,16 +201,7 @@ export async function nativeWorkspaces(
 				} else {
 					if (restore || existsSync(restoring))
 						throw new Error('Archived native workspace is missing');
-					if (ref.base) branchRef(ref.base);
-					await jj(
-						'workspace',
-						'add',
-						'--name',
-						name,
-						'-r',
-						ref.base ? JSON.stringify(ref.base) : 'trunk()',
-						path
-					);
+					await jj('workspace', 'add', '--name', name, '-r', await baseRevision(ref.base), path);
 				}
 			}
 		}
@@ -220,7 +226,7 @@ export async function nativeWorkspaces(
 		const base = target || ref.base;
 		if (base) branchRef(base);
 		const publishedBase = target && (await rev(remoteBookmark(target)));
-		const comparison = publishedBase || (await rev(base ? JSON.stringify(base) : 'trunk()'));
+		const comparison = publishedBase || (await baseRevision(base));
 		const fork = (await object('merge-base', head, comparison)).trim();
 		return withIndex(path, async (env) => {
 			const tree = await diskTree(env, head);

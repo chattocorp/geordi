@@ -1,0 +1,11 @@
+---
+data:
+  priority: normal
+  status: in_progress
+  type: feature
+id: x90xm
+title: Make native jj the default and migrate existing workspaces
+---
+Rehearse an offline conversion that keeps the local branch tip, review base, staged bytes, working files and PR identity. Before changing the global creation default, persist backend selection per checkout owner, provision repository control stores, complete daemon command and sandbox support, and verify rollback and archive recovery.
+
+The side-by-side rehearsal preserved different staged and working contents, a local-only commit, deletions, executable files, symlinks and ignored files. The native and Git Changes lists and child test diff matched. The daemon found draft PR #511 by its existing branch after rebuilding the native backend and restoring the candidate. The global default and live cutover remain open. See scripts/prototypes/native-jj.md for implementation gates and rollback.
