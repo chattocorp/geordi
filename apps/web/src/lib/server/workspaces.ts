@@ -1,3 +1,4 @@
+import { questionLabel } from '#lib/question-label.ts';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { isInactive } from '#lib/family.ts';
@@ -840,7 +841,18 @@ export function createWorkspaces(
 		answerQuestion(caller: string, id: string, question: string, answers: string[]) {
 			const asked = childQuestion(caller, id, question);
 			if (asked.route !== 'parent') error(409, 'This question was passed to the person');
-			answer(id, question, answers, caller);
+			const values = answers.map((value, index) => {
+				const field = asked.questions[index];
+				if (!field?.options.length || asked.answers?.[index] === value) return value;
+				const picks = field.multiSelect ? value.split('\n') : [value];
+				const labels = picks.map((pick) => {
+					if (field.options.some((option) => option.label === pick)) return pick;
+					const matches = field.options.filter((option) => questionLabel(option.label) === pick);
+					return matches.length === 1 ? matches[0].label : undefined;
+				});
+				return labels.every((label) => label !== undefined) ? labels.join('\n') : value;
+			});
+			answer(id, question, values, caller);
 		},
 		forwardQuestion(caller: string, id: string, question: string) {
 			const asked = childQuestion(caller, id, question);

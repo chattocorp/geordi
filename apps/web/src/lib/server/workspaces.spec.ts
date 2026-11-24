@@ -1487,12 +1487,14 @@ describe('agents starting agents', () => {
 		const { agents, workspaces, lead: parent, sent, create } = lead();
 		const child = agents.start(parent, { worktree: 'own', prompt: 'Test' });
 		const other = create('Peer');
-		const request = {
-			kind: 'question',
-			id: 'choice',
-			questions: [{ question: 'Which database?', options: [], multiSelect: false }]
-		} as const;
-		const questions = [...request.questions].map((q) => ({ ...q, options: [] }));
+		const questions = [
+			{
+				question: 'Which database?',
+				options: [{ label: 'SQLite (Recommended)' }, { label: 'Memory' }],
+				multiSelect: false
+			}
+		];
+		const request = { kind: 'question' as const, id: 'choice', questions };
 		const waiting = agents.wait(parent, child.id, 30000);
 		workspaces.record(child.id, { ...request, questions });
 		expect(await waiting).toMatchObject({
@@ -1507,7 +1509,12 @@ describe('agents starting agents', () => {
 		agents.answerQuestion(parent, child.id, 'choice', ['SQLite']);
 		agents.answerQuestion(parent, child.id, 'choice', ['SQLite']);
 		expect(sent.filter((m) => m.type === 'agent.answer')).toEqual([
-			{ type: 'agent.answer', workspaceId: child.id, questionId: 'choice', answers: ['SQLite'] }
+			{
+				type: 'agent.answer',
+				workspaceId: child.id,
+				questionId: 'choice',
+				answers: ['SQLite (Recommended)']
+			}
 		]);
 		expect(() => agents.forwardQuestion(parent, child.id, 'choice')).toThrow();
 		workspaces.steer(child.id, 'A task from the person');

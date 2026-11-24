@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { questionLabel } from '#lib/question-label.ts';
 	import type { Question } from '@geordi/protocol';
 	import Badge from '@geordi/ui/Badge.svelte';
 	import Button from '@geordi/ui/Button.svelte';
@@ -32,9 +33,6 @@
 	let chosen = $state<string[][]>([]);
 	let own = $state<string[]>([]);
 	let sending = $state(false);
-
-	/** Agents mark the option they would take by saying so in its label. */
-	const RECOMMENDED = /\s*\(recommended\)\s*$/i;
 
 	const given = $derived(questions.map((_, i) => own[i]?.trim() || (chosen[i] ?? []).join('\n')));
 
@@ -92,7 +90,7 @@
 						<div class="-mx-2 space-y-0.5">
 							{#each question.options as option (option.label)}
 								{@const picked = (chosen[i] ?? []).includes(option.label)}
-								{@const label = option.label.replace(RECOMMENDED, '')}
+								{@const label = questionLabel(option.label)}
 								<button
 									type="button"
 									class={[
