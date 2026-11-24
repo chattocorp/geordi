@@ -1,8 +1,8 @@
 // Experimental native workspace backend for one explicitly selected repository.
 import { execFile } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
 	MAX_IMAGE_BYTES,
@@ -78,6 +78,37 @@ export async function nativeWorkspaces(
 			: 'geordi/' + ref.worktreeId.slice(0, 8);
 		branchRef(branch);
 		return { path, branch, name: 'ws-' + ref.worktreeId };
+	}
+	// An interactive shell may inspect Git and jj metadata as it draws its prompt.
+	// Check the registered checkout again on input, including after archive/restore.
+	const repository = realpathSync(join(control, '.jj', 'repo'));
+	function terminal(ref: WorktreeRef) {
+		const { path } = location(ref);
+		const initial = lstatSync(path);
+		const meta = join(path, '.jj');
+		const pointer = join(meta, 'repo');
+		function guard() {
+			const current = lstatSync(path);
+			if (
+				!current.isDirectory() ||
+				current.ino !== initial.ino ||
+				current.dev !== initial.dev ||
+				!lstatSync(dirname(path)).isDirectory() ||
+				lstatSync(join(path, '.git'), { throwIfNoEntry: false }) ||
+				!lstatSync(meta).isDirectory() ||
+				!lstatSync(pointer).isFile() ||
+				!lstatSync(join(meta, 'working_copy')).isDirectory() ||
+				readdirSync(meta).some((entry) => entry !== 'repo' && entry !== 'working_copy') ||
+				![repository, relative(realpathSync(meta), repository)].includes(
+					readFileSync(pointer, 'utf8')
+				)
+			)
+				throw new Error(
+					'The native workspace metadata changed. Reopen the terminal after restoring the checkout.'
+				);
+		}
+		guard();
+		return { path, guard, env: { GIT_CEILING_DIRECTORIES: dirname(path) } };
 	}
 	const watches = changed && nativeWatches((ref) => location(ref).path, changed);
 	let open: WorktreeRef[] = [];
@@ -343,6 +374,7 @@ export async function nativeWorkspaces(
 			? (...args: Parameters<typeof prepare>) => inWorktree(control, () => prepare(...args))
 			: prepare,
 		location,
+		terminal,
 		status,
 		versions,
 		archive: brokered ? (ref: WorktreeRef) => inWorktree(control, () => archive(ref)) : archive,

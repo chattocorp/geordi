@@ -41,6 +41,14 @@ it.skipIf(spawnSync('jj', ['--version']).status !== 0)(
 			expect(await notification.promise).toBe(childRef.worktreeId);
 			notification = Promise.withResolvers<string>();
 			expect(child.branch).toBe('geordi/child-review');
+			const shell = backend.terminal(childRef);
+			expect(shell.path).toBe(child.path);
+			expect(() => shell.guard()).not.toThrow();
+			const pointer = join(child.path, '.jj', 'repo');
+			const original = readFileSync(pointer);
+			writeFileSync(pointer, '../another-repository');
+			expect(() => shell.guard()).toThrow(/metadata changed/);
+			writeFileSync(pointer, original);
 			expect(existsSync(join(child.path, '.git'))).toBe(false);
 			writeFileSync(join(child.path, 'client'), 'child');
 			expect(await notification.promise).toBe(childRef.worktreeId);

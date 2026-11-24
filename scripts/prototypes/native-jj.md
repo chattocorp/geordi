@@ -27,7 +27,8 @@ directory and stores the last checkout revision outside the sandbox. Refresh pre
 unrelated live edits and reports an error if they overlap incoming changes. Publish
 uses only the workspace bookmark and the sample's local origin. Running jj directly
 inside the sandbox is unnecessary. This trial exercises drafts and local pushes.
-Terminals, setup jobs and the release pane are still outside the native prototype.
+Interactive terminals open in the native checkout. Automatic setup jobs and the release pane
+are still outside the native prototype.
 
 To return to Git, quit **Geordi Dev** and open your usual Geordi.app. The trial's data
 stays in the worktree for your next run. Reverting the prototype commits leaves the
@@ -83,7 +84,7 @@ workspace. It snapshots the checkout and runs Sweet Release with a temporary bar
 directory and private index backed by jj's objects.
 
 The trial covers agent launch, live changes and diffs, PR lookup, restart,
-archive and restore. Terminals, setup jobs, per-turn patches, release-note
+archive and restore. Setup jobs, per-turn patches, release-note
 editing, merged-branch detection and migration of existing Git workspaces still need
 implementation. The original direct-CLI trial used full access. The isolated desktop trial
 above exercises the daemon-owned workflow for sandboxed callers.

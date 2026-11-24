@@ -763,6 +763,16 @@ async function readRequest(request: DaemonRequest) {
 	}
 }
 
+async function terminalCheckout(ref: WorktreeRef): Promise<{
+	path: string;
+	guard: () => void;
+	env: Record<string, string>;
+}> {
+	if (native?.matches(ref)) return native.terminal(ref);
+	const worktree = await locateWorktree(worktreesDir, ref);
+	return { path: worktree.path, guard: () => verifyLinks(worktree), env: {} };
+}
+
 async function handle(message: ForgeMessage) {
 	switch (message.type) {
 		case 'workspace.ack': {
@@ -794,8 +804,8 @@ async function handle(message: ForgeMessage) {
 			const { output, exit } = relay(terminalId);
 			return inWorktree(worktreePath(worktreesDir, message), async () => {
 				try {
-					const worktree = await locateWorktree(worktreesDir, message);
-					const guard = () => verifyLinks(worktree);
+					const worktree = await terminalCheckout(message);
+					const { guard } = worktree;
 					const { config, env } = await configFor(worktree, message);
 					// A job runs only as the person asking saw it, and has agreed to run it (FDR-006):
 					// the file is the agent's to change, also in the moment between their looking at
@@ -827,6 +837,7 @@ async function handle(message: ForgeMessage) {
 							// every terminal knows the workspace's ports; a task also which are its own
 							env: {
 								...env,
+								...worktree.env,
 								...(agreed && ownPortEnv(job)),
 								...(taken && { GEORDI_PORT_TAKEN: taken })
 							},
