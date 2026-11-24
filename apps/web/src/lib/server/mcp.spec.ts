@@ -338,6 +338,8 @@ describe('the agent API as an MCP server', () => {
 			'list_repositories',
 			'list_workspaces',
 			'read_workspace',
+			'answer_question',
+			'forward_question',
 			'send_message',
 			'archive_agent',
 			'configuration_reference',
@@ -415,6 +417,31 @@ describe('the agent API as an MCP server', () => {
 			reply: 'LGTM'
 		});
 		expect(await call('list_agents')).toHaveLength(1);
+	});
+
+	it('answers and forwards child requests by ID through the agent API', async () => {
+		const { workspaces, caller, call } = setup();
+		const child = await call('start_agent', { prompt: 'Run tests' });
+		const request = {
+			kind: 'question' as const,
+			questions: [{ question: 'Which database?', options: [], multiSelect: false }]
+		};
+		for (const id of ['first', 'second']) workspaces.record(child.id, { ...request, id });
+		const report = await call('wait_for_agent', { workspace_id: child.id });
+		const [first, second] = report.parentQuestions;
+		expect(
+			await call('answer_question', {
+				workspace_id: child.id,
+				question_id: first.id,
+				answers: ['SQLite']
+			})
+		).toMatchObject({ status: 'answered' });
+		expect(
+			await call('forward_question', { workspace_id: child.id, question_id: second.id })
+		).toMatchObject({ status: 'forwarded' });
+		expect(workspaces.forwardedQuestions(caller)).toMatchObject([
+			{ workspaceId: child.id, id: 'second' }
+		]);
 	});
 
 	it('lets an agent archive the agents it started, and no others', async () => {

@@ -42,7 +42,7 @@ export function instructionsFor(workspace: {
 		LINKS,
 
 		workspace.mayDelegate
-			? `To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the \`geordi\` MCP server: \`start_agent\`, then \`wait_for_agent\`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup. ${CHOOSING_MODEL} An agent you started does not ask the person: it ends its turn with its question. Answer it with \`send_message\` where you can; where the decision is the person’s, ask them, then pass on their answer.`
+			? `To hand work to another agent (a task that can run alongside yours, or a look by fresh eyes), use the tools of the \`geordi\` MCP server: \`start_agent\`, then \`wait_for_agent\`. An agent started that way is a workspace of its own, which the person can see, write to and stop. When it ends a turn you were not waiting for, Geordi tells you in a message with its reply, so you can end your turn instead of waiting. Prefer it to your own built-in subagents for anything more than a quick lookup. ${CHOOSING_MODEL} ${CHILD_QUESTIONS}`
 			: 'You cannot start further agents from here.',
 		// one that was started with a name has it from whoever knows what it is for
 		workspace.manuallyNamed || (parent && workspace.named)
@@ -59,8 +59,10 @@ const ASKING =
 	'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.';
 /** An agent started by another asks that one: the person may not be watching, and its parent waits for it. */
 const ASKING_PARENT =
-	'When you need a decision before you can continue, do not use your blocking question tool: the agent that started you waits for your reply, and would wait on the person too. End your turn with the question instead, saying what you would choose and why. That agent answers it, or asks the person, and its answer comes as a message.';
+	'Use your blocking question tool to ask the agent that started you for a decision. It receives the form and can answer or pass it to the person. Ask once and wait for the answer in the tool.';
 /** Delegating well: a sub-agent defaults to the caller's model, which fits few tasks exactly. */
+const CHILD_QUESTIONS =
+	'When a child needs a decision, read its parentQuestions in list_agents and answer with answer_question. For decisions that need the person’s judgment or permission, use forward_question with the original ID. Geordi delivers the answer to the child, so leave the request and answer out of chat.';
 const CHOOSING_MODEL =
 	'Choose the model and reasoning effort of every agent you start (`model`, `effort`) on purpose, to suit its task: a strong model and high effort for hard design, debugging or review; a fast, cheap one and low effort for mechanical or well-specified work. Don’t leave them at the defaults without thinking about it.';
 const PICTURES =
@@ -79,6 +81,7 @@ function projectInstructions(manuallyNamed = false): string {
 			CHOOSING_MODEL +
 			' Bring what they report together, and tell the person where things stand.',
 		'You act for the person: you may look at any workspace in a repository, start agents alongside an existing one’s agent (`start_agent` with `workspace`) or alongside you in this project (`worktree: "shared"`), and message, steer, stop and archive any agent in a repository or in this project, whoever started it. Other projects are not yours to see or touch. Interrupt or stop agents you did not start only when the person asks you to.',
+		CHILD_QUESTIONS,
 		ASKING,
 		PICTURES,
 		DIAGRAMS,

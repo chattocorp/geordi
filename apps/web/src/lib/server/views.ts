@@ -157,6 +157,17 @@ export const workspace = (id: string) => {
 			if (!event.stream.startsWith('workspace:')) return false;
 			const source = event.data.id;
 			if (source === id || transcripts.has(source)) return true;
+			if (
+				event.type === 'workspace.questionForwarded' ||
+				event.type === 'workspace.answered' ||
+				event.type === 'workspace.archived' ||
+				event.type === 'workspace.titled' ||
+				(event.type === 'workspace.output' &&
+					['turn.completed', 'turn.failed', 'question.closed'].includes(event.data.event.kind))
+			) {
+				const parent = workspaces().parentOf(source);
+				if (parent && (parent === id || transcripts.has(parent))) return true;
+			}
 			if (event.type === 'workspace.titled' && ancestors.has(source)) return true;
 			if (
 				source === owner &&
@@ -198,6 +209,7 @@ export const workspace = (id: string) => {
 			}
 			return {
 				...workspace,
+				forwardedQuestions: workspaces().forwardedQuestions(id),
 				background: hub().background(id),
 				sessionModel: hub().sessionModel(id),
 				transcript: readTranscript(id),
@@ -206,6 +218,7 @@ export const workspace = (id: string) => {
 				// Each aide has its own snapshot and subsequent edits.
 				aides: aides.map((aide) => ({
 					...aide,
+					forwardedQuestions: workspaces().forwardedQuestions(aide.id),
 					background: hub().background(aide.id),
 					sessionModel: hub().sessionModel(aide.id),
 					transcript: readTranscript(aide.id),
@@ -320,5 +333,8 @@ export type WorkspaceUpdate = ReturnType<ReturnType<typeof workspace>['read']>;
 export type WorkspaceLive = Omit<WorkspaceUpdate, 'transcript' | 'aides'> &
 	Workspace & {
 		aides: (Workspace &
-			Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel' | 'pendingDelivery'>)[];
+			Pick<
+				WorkspaceUpdate,
+				'background' | 'suggestion' | 'sessionModel' | 'pendingDelivery' | 'forwardedQuestions'
+			>)[];
 	};
