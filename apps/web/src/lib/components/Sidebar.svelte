@@ -27,7 +27,8 @@
 	} from '#lib/family.ts';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
-	import type { Navigation } from '#lib/server/views.ts';
+	import { follow } from '#lib/live.svelte.ts';
+	import type { MergeVersions, Navigation } from '#lib/server/views.ts';
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
@@ -70,6 +71,16 @@
 		repositoryPickerOpen?: boolean;
 		lost?: boolean;
 	} = $props();
+
+	let hovered = $state<string>();
+	let focused = $state<string>();
+	const mergeVersions = follow<MergeVersions>('mergeVersions', () => {
+		const row = visibleWorkspaces.find((row) => row.id === (hovered ?? focused));
+		return row?.standing?.tone === 'ok' &&
+			row.actions.find((action) => !action.aside)?.id === 'merge-pull'
+			? row.id
+			: undefined;
+	});
 
 	type Item = Navigation['workspaces'][number];
 
@@ -612,6 +623,10 @@
 		]}
 		transition:slide={motion()}
 		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
+		onpointerenter={() => (hovered = workspace.id)}
+		onpointerleave={() => (hovered = undefined)}
+		onfocusin={() => (focused = workspace.id)}
+		onfocusout={() => (focused = undefined)}
 		draggable={!leaving}
 		ondragstart={(event) => {
 			dragged = workspace;
@@ -662,6 +677,9 @@
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
 					? 'merge-pull'
 					: workspace.activeAction)}
+			versions={mergeVersions.current?.id === workspace.id
+				? mergeVersions.current.versions
+				: undefined}
 			standing={workspace.standing}
 			actions={workspace.actions}
 			fold={under > 0

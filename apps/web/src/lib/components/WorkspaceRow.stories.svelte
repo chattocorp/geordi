@@ -233,3 +233,31 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Merge versions"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const merge = canvas.getByRole('button', { name: 'Merge PR — Publish widgets' });
+		await expect(canvas.getByTitle('Widgets 1.3.0')).not.toBeVisible();
+		merge.focus();
+		await expect(canvas.getByTitle('Widgets 1.3.0')).toBeVisible();
+		await expect(canvas.getByTitle('API 2.0.1')).toBeVisible();
+	}}
+>
+	<div class="w-96 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Publish widgets"
+			href="#widgets"
+			current
+			standing={{ label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' }}
+			actions={[{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]}
+			versions={[
+				{ path: 'widgets', name: 'Widgets', version: '1.3.0' },
+				{ path: 'api', name: 'API', version: '2.0.1' }
+			]}
+			onaction={fn()}
+		/>
+	</div>
+</Story>

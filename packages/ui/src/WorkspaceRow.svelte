@@ -28,6 +28,7 @@
 		background = 0,
 		progress,
 		standing = null,
+		versions = [],
 		actions = [],
 		fold,
 		onpoint,
@@ -56,6 +57,7 @@
 		background?: number;
 		progress?: ActivityId;
 		standing?: WorkspaceStanding | null;
+		versions?: { path: string; name: string; version: string }[];
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
@@ -136,7 +138,7 @@
 		/>
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
-	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
+	<span class="flex min-h-6 max-w-2/3 min-w-6 items-center justify-end">
 		{#if typeof asking === 'string' || (asking && href)}
 			<QuestionLink workspaceHref={typeof asking === 'string' ? asking : href!} />
 		{:else if asking}
@@ -150,6 +152,18 @@
 				<span aria-hidden="true" class="inline-flex"><Spinner still /></span>
 			</StatusIcon>
 		{:else if primary && pillColor}
+			{#if primary.id === 'merge-pull' && standing?.tone === 'ok' && versions.length}
+				<span class="mr-1 hidden min-w-0 flex-wrap justify-end gap-1 reveal:flex">
+					{#each versions as pkg (pkg.path)}
+						<span
+							class="max-w-full truncate rounded-full bg-sunken px-1.5 text-xs font-medium text-muted"
+							title="{pkg.name} {pkg.version}"
+						>
+							<span class="sr-only">{pkg.name} </span>{pkg.version}
+						</span>
+					{/each}
+				</span>
+			{/if}
 			<button
 				type="button"
 				class={['indicator-action hover:bg-current/20', pillColor]}
