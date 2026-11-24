@@ -477,8 +477,8 @@ else {
 			case 'read':
 				event.reply('geordi:update-state', updates?.state() ?? null);
 				break;
-			case 'beta':
-				updates?.setBeta(value);
+			case 'channel':
+				updates?.setChannel(value);
 				break;
 			case 'check':
 				void updates?.check();

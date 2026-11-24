@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { desktopUpdates } from '../src/updates.js';
 
-test('release checks remember beta, prevent downgrades and restart only on request', async () => {
+test('release checks follow the selected channel, prevent downgrades and restart only on request', async () => {
 	const updater = new EventEmitter();
 	let installs = 0;
 	updater.quitAndInstall = () => installs++;
@@ -21,12 +21,19 @@ test('release checks remember beta, prevent downgrades and restart only on reque
 	assert.equal(updater.allowPrerelease, true);
 	assert.equal(updater.channel, 'beta');
 	assert.equal(updater.autoInstallOnAppQuit, false);
-	updates.setBeta(false);
+	updates.setChannel('invalid');
+	assert.equal(saved, 'beta');
+	await updates.setChannel('alpha');
+	assert.equal(saved, 'alpha');
+	assert.equal(updater.channel, 'alpha');
+	assert.equal(updates.state().channel, 'alpha');
+	assert.equal(updater.allowPrerelease, true);
+	assert.equal(updater.allowDowngrade, false);
+	await updates.setChannel('latest');
 	assert.equal(saved, 'latest');
 	assert.equal(updater.allowPrerelease, false);
 	assert.equal(updater.allowDowngrade, false);
-	await updates.check();
-	assert.equal(checks, 1);
+	assert.equal(checks, 2);
 	updater.emit('update-downloaded', { version: '1.0.0' });
 	await Promise.resolve();
 	assert.equal(installs, 0);
