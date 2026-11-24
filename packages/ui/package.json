@@ -56,6 +56,7 @@
 		"./persisted": "./src/persisted.svelte.ts",
 		"./paths": "./src/paths.ts",
 		"./tools": "./src/tools.ts",
+		"./sections": "./src/sections.ts",
 		"./tree": "./src/tree.ts"
 	},
 	"dependencies": {

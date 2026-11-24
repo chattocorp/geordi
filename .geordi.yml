@@ -38,3 +38,27 @@ tasks:
   install:
     label: Desktop / Install Geordi.app
     command: pnpm desktop:install
+
+sections:
+  - path: apps/web
+    title: Forge
+  - path: apps/daemon
+    title: Daemon
+  - path: apps/desktop
+    title: Desktop app
+  - path: apps/cli
+    title: CLI
+  - path: apps/website
+    title: Website
+  - path: packages/ui
+    title: UI components
+  - path: packages/protocol
+    title: Protocol
+  - path: packages/launch
+    title: Launch
+  - path: docs
+    title: Decision records
+  - path: planning
+    title: Backlog
+  - path: .sweet
+    title: Release notes

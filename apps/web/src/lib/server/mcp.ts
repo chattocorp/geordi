@@ -331,7 +331,7 @@ const tools = {
 		description: `Read this workspace's ${CONFIG_FILE} the way Geordi does, and say which file applies, what it sets (including task defaults in the Tasks panel), and any problem in the workspace file. A parse error in the fallback file on the base branch is reported as no applicable file. Call this after changing the file.`,
 		input: v.strictObject({}),
 		run: async (agents: Agents, caller: string) => {
-			const { tasks, source, file, problem, ports, setup, teardown } =
+			const { tasks, source, file, problem, ports, setup, teardown, sections } =
 				await agents.configuration(caller);
 			const commands = [
 				...tasks.filter((task) => task.command !== null),
@@ -358,6 +358,7 @@ const tools = {
 				spare_ports: ports,
 				setup: setup?.command ?? null,
 				teardown: teardown?.command ?? null,
+				...(sections?.length && { sections }),
 				...(commands.some((command) => !command.approved) && {
 					note: 'Nobody has agreed to run some of these commands yet. The person is shown them and asked before they first run; you cannot agree on their behalf.'
 				})

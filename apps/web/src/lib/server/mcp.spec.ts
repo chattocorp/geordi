@@ -308,6 +308,11 @@ describe('configuring the repository', () => {
 
 		config.current = { ...none, problem: null, source: null, file: null };
 		expect((await call('check_configuration')).applies).toMatch(/^none/);
+
+		// the sections, where there are any
+		expect(await call('check_configuration')).not.toHaveProperty('sections');
+		config.current = { ...config.current, sections: [{ path: 'docs', title: 'Docs' }] };
+		expect((await call('check_configuration')).sections).toEqual([{ path: 'docs', title: 'Docs' }]);
 	});
 });
 

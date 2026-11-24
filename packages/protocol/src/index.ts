@@ -312,6 +312,13 @@ export type Script = {
  */
 export const SCRIPTS = ['setup', 'teardown'] as const;
 
+/** A part of the repository, as its `.geordi.yml` names it (`sections`): a directory and what it is. */
+export type RepoSection = {
+	/** From the top of the repository, without a leading or trailing slash. */
+	path: string;
+	title: string;
+};
+
 /**
  * What a repository's `.geordi.yml` says, as it applies to one workspace: that of the
  * workspace if it has one, otherwise that of the branch work starts from.
@@ -323,6 +330,8 @@ export type RepoConfig = {
 	setup: Script | null;
 	/** Run when the workspace is archived, before its worktree is removed. */
 	teardown: Script | null;
+	/** The repository's parts, in the order the file names them. */
+	sections?: RepoSection[];
 	/** The workspace's spare ports: the first, and how many. */
 	ports: { first: number; count: number } | null;
 	/** What is wrong with the file, if it can't be made sense of. */
@@ -354,6 +363,11 @@ export const CONFIG_SETTINGS = {
 	teardown: {
 		does: 'A command that cleans up after a workspace when a person archives it, before its directory is removed: stopping services, dropping databases. It gets the same ports as everything in the workspace did. It has two minutes; archiving goes on however it ends. A person agrees to it together with the first commands they agree to run in the repository.',
 		example: 'teardown: docker compose down --volumes'
+	},
+	sections: {
+		does: "The repository's parts, each a `path` (a directory, from the top of the repository) with a human-readable `title` (1–100 characters). Worth adding where a repository has distinct parts that changes often cross, such as the apps and packages of a monorepo. The Changes tab groups a workspace's changed files under these titles, in this order, when they touch more than one section. A file belongs to the section with the longest path that contains it, so one section may lie within another; files in none are listed last, under Other. Each path may be named only once.",
+		example:
+			'sections:\n  - path: apps/web\n    title: Web app\n  - path: apps/api\n    title: API\n  - path: docs\n    title: Documentation'
 	}
 } as const;
 

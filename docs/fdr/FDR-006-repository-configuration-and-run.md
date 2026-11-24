@@ -15,10 +15,18 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - `tasks:` names what a workspace runs or opens, each under its name, in the order the Tasks tab shows them. A task has a `command`, a `url`, or both, and may have a `label` (shown instead of its key; dependencies, ports, approvals and terminals keep the key), `needs` and `default: true`. Labels that begin alike with `/` (`Sorties / Ring 1`) make a section in the Tasks tab, which folds (per browser) and stands where its first task would; each task in it is named by the rest of its label (`Ring 1`). The default tasks stay first, under their full labels.
 - `ports:` names the ports a task's command listens on: `ports: [http, live]`, as many as it needs. A task without `ports` gets none.
 - `url:` is where to look at a task, on this machine (`localhost`). In a URL, `{http}` is the port named `http`, as in `GEORDI_PORT_HTTP`, and the task with the URL needs the one that lists it. More places to look are tasks of their own, each with its `url`.
+- `sections:` names the repository's parts, in order: each a `path` (a directory) with a `title`. The Changes tab groups a workspace's changed files under those titles when they touch two or more of them; see "Repository sections" below. (These are not the Tasks tab's sections, which come from task labels.)
 - `setup: …` names a command that gets a new workspace ready (install dependencies, copy an `.env`, create a database); `teardown: …` one that cleans up after it (stop services, drop databases). No task can be called `setup` or `teardown`.
 - Which file applies to a workspace: the one in the workspace's own worktree if there is one, otherwise the one on the branch work starts from (the upstream's main branch, or the repository's checkout where there is no upstream). They are not merged. So a change to the file can be tried out in a workspace before it is merged, and a workspace that branched off before the file existed gets it all the same.
 - It is read afresh whenever the workspace's files or the repository's branches change: editing the file, or fetching a main branch that changed it, shows at once.
 - A workspace's file that can't be made sense of shows a quiet warning with the reason, where the tasks would be. It does not fall back to the main branch's file.
+
+### Repository sections
+
+- A file belongs to the section with the longest path that holds it, so sections may lie within others (`apps/web` and `apps/web/src/lib/server`). Files in none are listed last, under Other.
+- Sections show only where the changes touch two or more of them (Other counts); otherwise the tab looks as it does without them.
+- Each section shows its title and how many files it has, and folds shut; what is folded (sections and directories) is remembered for each workspace in this browser. Within it, the files are a list or a tree, as the tab is set to.
+- Paths are directories from the top of the repository, without `..`; a section's title is one line of up to 100 characters. A path named twice is a problem with the file.
 
 ### Ports
 
@@ -134,6 +142,7 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - Health checks beyond "listens on its port".
 - Previews inside Geordi: links open in the browser.
 - Links to anywhere but this machine.
+- The combined diff in repository sections (not yet).
 
 ### 12. YAML, and tasks only
 
@@ -164,3 +173,9 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 **Decision:** Tasks whose labels begin alike with `/` (`Sorties / Ring 1`) are a section of the Tasks tab, which folds. There is no `group` setting and no nesting of tasks.
 **Why:** A long list needs sections, a short one nothing new: a simple file stays as it is, and a long one says what belongs together where it names it. One more setting, or tasks under a group's key, would ask that of every file.
 **Tradeoff:** A label with `/` in it for another reason makes a section; a task is in one section at most.
+
+### 17. Repository sections are a list of directories, matched by the longest path
+
+**Decision:** `sections` is an ordered list of `path` and `title`, matched as directory prefixes; the longest wins. No globs. The key is at the top of the file, like every other setting.
+**Why:** The order is the order people want to read the parts in, which a table keyed by path would not keep reliably. Directories are how repositories are already divided, and longest-match lets a section be carved out of another without exclusions. The whole file is about the repository, so a `repo:` block would set nothing apart. It starts simple; agents are to get the sections as context later.
+**Tradeoff:** Files spread by pattern (`*.spec.ts` everywhere) can't be a section. "Sections" also names the Tasks tab's groups of tasks (decision 16), which are a different thing.

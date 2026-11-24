@@ -4,13 +4,14 @@
 	import Loading from './Loading.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
-	import { SvelteSet } from 'svelte/reactivity';
 	import type { Attachment } from 'svelte/attachments';
 	import type { Snippet } from 'svelte';
-	import { fileTree, treeRows } from './tree.ts';
-	import type { Changes } from '@geordi/protocol';
+	import { fileTree, treeRows, type TreeRow } from './tree.ts';
+	import { bySection, type Section } from './sections.ts';
+	import type { Changes, RepoSection } from '@geordi/protocol';
 
 	type View = 'list' | 'tree';
+	type Folds = { sections: string[]; dirs: string[] };
 
 	type Props = {
 		/**
@@ -29,6 +30,13 @@
 		 * looking like the name does (a button padded as a tool is, its sign first).
 		 */
 		target?: Snippet<[string]>;
+		/** The repository's sections (from its `.geordi.yml`): the files are grouped by them. */
+		sections?: RepoSection[];
+		/**
+		 * What is folded shut: sections by their path (`''` for Other), directories of the tree
+		 * by theirs. Everything is open to begin with.
+		 */
+		folds?: Folds;
 	};
 	let {
 		git,
@@ -36,15 +44,54 @@
 		onopen,
 		onopencombined,
 		view = $bindable('list'),
-		target
+		target,
+		sections = [],
+		folds = $bindable({ sections: [], dirs: [] })
 	}: Props = $props();
 
 	const files = $derived(git?.changes?.files ?? []);
 	/** Whether there are files to list, and so a choice of how to show them. */
 	const listed = $derived(!gone && !git?.unavailable && files.length > 0);
-	/** Directories folded shut in the tree, by path; all are open to begin with. */
-	const folded = new SvelteSet<string>();
-	const rows = $derived(view === 'tree' ? treeRows(fileTree(files), folded) : []);
+	type File = (typeof files)[number];
+	const folded = $derived(new Set(folds.dirs));
+	/** Folds `key` of `kind` shut, or opens it. */
+	const toggle = (kind: keyof Folds, key: string) =>
+		(folds = {
+			...folds,
+			[kind]: folds[kind].includes(key)
+				? folds[kind].filter((other) => other !== key)
+				: [...folds[kind], key]
+		});
+
+	/** The files by the repository's sections; shown so only where there are two. */
+	const groups = $derived(bySection(files, sections));
+	/**
+	 * Every line there is to draw, in order: a section's heading, then (unless it is folded)
+	 * its files as a list or a tree. A tree within a section starts a level in, under the
+	 * section's title.
+	 */
+	type Row =
+		| { kind: 'section'; key: string; group: Section<File>; open: boolean }
+		| { kind: 'entry'; key: string; file: File }
+		| (TreeRow<File> & { key: string });
+	const rowsOf = (entries: File[], level = 0): Row[] =>
+		view === 'tree'
+			? treeRows(fileTree(entries), folded, level).map((row) => ({
+					...row,
+					key: `${row.kind}:${row.path}`
+				}))
+			: entries.map((file) => ({ kind: 'entry', key: `entry:${file.path}`, file }));
+	const rows = $derived(
+		groups.length > 1
+			? groups.flatMap((group): Row[] => {
+					const open = !folds.sections.includes(group.path ?? '');
+					return [
+						{ kind: 'section', key: `section:${group.path ?? ''}`, group, open },
+						...(open ? rowsOf(group.files, 1) : [])
+					];
+				})
+			: rowsOf(files)
+	);
 
 	/**
 	 * A branch may change thousands of files: rows are drawn some hundred at a time, more as
@@ -73,7 +120,8 @@
 		{ value: 'tree', label: 'As a tree', icon: 'icon-[lucide--list-tree]' }
 	];
 
-	type File = (typeof files)[number];
+	/** How far a row is indented, `depth` levels into the tree: a chevron and its gap each. */
+	const inset = (depth: number) => `${0.875 + depth * 1.25}rem`;
 	const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1);
 
 	/** Git's letter for what became of a file, and what that means in words. */
@@ -152,18 +200,35 @@
 				<span class="icon-[lucide--file-diff] size-6 text-muted opacity-60"></span>
 				<p class="font-medium text-ink">No changes yet</p>
 			</div>
-		{:else if view === 'tree'}
+		{:else}
 			<ul>
-				{#each rows.slice(0, drawn) as row (row.path)}
-					<li>
-						{#if row.kind === 'dir'}
+				{#each rows.slice(0, drawn) as row, index (row.key)}
+					<li class={[row.kind === 'section' && index > 0 && 'mt-1.5']}>
+						{#if row.kind === 'section'}
+							<button
+								type="button"
+								aria-expanded={row.open}
+								onclick={() => toggle('sections', row.group.path ?? '')}
+								title={row.group.path ?? undefined}
+								class="flex w-full items-center gap-1.5 py-1 pr-3.5 pl-3.5 text-left whitespace-nowrap hover:bg-hover"
+							>
+								<span
+									class={[
+										'icon-[lucide--chevron-right] size-3.5 shrink-0 text-muted',
+										row.open && 'rotate-90'
+									]}
+								></span>
+								<span class="min-w-0 flex-1 truncate font-medium text-ink">{row.group.title}</span>
+								<span class="shrink-0 text-muted tabular-nums">{row.group.files.length}</span>
+							</button>
+						{:else if row.kind === 'dir'}
 							<button
 								type="button"
 								aria-label={row.name}
 								aria-expanded={row.open}
-								onclick={() => (row.open ? folded.add(row.path) : folded.delete(row.path))}
+								onclick={() => toggle('dirs', row.path)}
 								title={row.path}
-								style:padding-left="{0.875 + row.depth * 1.25}rem"
+								style:padding-left={inset(row.depth)}
 								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap text-muted hover:bg-hover"
 							>
 								<span
@@ -174,20 +239,16 @@
 								></span>
 								<FittedPath path={row.name} />
 							</button>
-						{:else}
+						{:else if row.kind === 'file'}
 							{@render file(row.file, row.depth)}
+						{:else}
+							{@render file(row.file)}
 						{/if}
 					</li>
 				{/each}
 			</ul>
-		{:else}
-			<ul>
-				{#each files.slice(0, drawn) as entry (entry.path)}
-					<li>{@render file(entry)}</li>
-				{/each}
-			</ul>
 		{/if}
-		{#if listed && (view === 'tree' ? rows : files).length > drawn}
+		{#if listed && rows.length > drawn}
 			{#key drawn}<div class="h-px" {@attach more}></div>{/key}
 		{/if}
 	</div>
@@ -201,11 +262,8 @@
 		type="button"
 		onclick={() => onopen(entry.path)}
 		title="{means}: {entry.path}"
-		style:padding-left={depth === undefined ? undefined : `${0.875 + depth * 1.25}rem`}
-		class={[
-			'flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap hover:bg-hover',
-			depth === undefined && 'pl-3.5'
-		]}
+		style:padding-left={inset(depth ?? 0)}
+		class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap hover:bg-hover"
 	>
 		<span class={['w-3.5 shrink-0 text-center font-semibold', tone]} aria-label={means}>
 			{letter}

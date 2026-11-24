@@ -18,7 +18,7 @@ const task = (fields: object) => ({
 
 describe('parseConfig', () => {
 	it('takes a file that says nothing, and ignores what it does not know', () => {
-		const nothing = { tasks: [], setup: null, teardown: null };
+		const nothing = { tasks: [], setup: null, teardown: null, sections: [] };
 		expect(parseConfig('')).toEqual(nothing);
 		expect(parseConfig('something: else')).toEqual(nothing);
 		expect(() => parseConfig('- a list')).toThrow(/settings/);
@@ -111,9 +111,44 @@ tasks:
 		expect(() => parseConfig(text)).toThrow(problem);
 	});
 
+	it('divides the repository into titled sections, in order', () => {
+		expect(parseConfig('').sections).toEqual([]);
+		expect(
+			parseConfig(
+				'sections:\n  - path: ./apps/web/\n    title: " Forge "\n  - path: docs\n    title: Docs'
+			).sections
+		).toEqual([
+			{ path: 'apps/web', title: 'Forge' },
+			{ path: 'docs', title: 'Docs' }
+		]);
+		// with tasks too
+		expect(
+			parseConfig('tasks:\n  web:\n    command: dev\nsections:\n  - path: web\n    title: Web')
+				.sections
+		).toEqual([{ path: 'web', title: 'Web' }]);
+	});
+
+	it('refuses sections that are not', () => {
+		expect(() => parseConfig('sections: apps')).toThrow(/`sections` must be a list/);
+		expect(() => parseConfig('sections:\n  - apps')).toThrow(/sections\[0\] must have a path/);
+		for (const path of ['/etc', '../up', 'a/../b', '.', 'a//b', 'a\\\\b'])
+			expect(() => parseConfig(`sections:\n  - path: "${path}"\n    title: T`)).toThrow(
+				/sections\[0\]\.path must be a directory/
+			);
+		expect(() => parseConfig('sections:\n  - path: a\n')).toThrow(/sections\[0\]\.title must be/);
+		expect(() =>
+			parseConfig('sections:\n  - path: a\n    title: A\n  - path: a/\n    title: B')
+		).toThrow(/sections\[1\]\.path: a is named twice/);
+	});
+
 	it('understands every setting agents are told about', () => {
-		const { tasks, setup, teardown, ...others } = CONFIG_SETTINGS;
+		const { tasks, setup, teardown, sections, ...others } = CONFIG_SETTINGS;
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
+		expect(parseConfig(sections.example).sections).toEqual([
+			{ path: 'apps/web', title: 'Web app' },
+			{ path: 'apps/api', title: 'API' },
+			{ path: 'docs', title: 'Documentation' }
+		]);
 		expect(parseConfig(tasks.example).tasks).toMatchObject([
 			{ name: 'db', ports: ['postgres'] },
 			{
@@ -305,6 +340,7 @@ tasks:
 			tasks: [],
 			setup: null,
 			teardown: null,
+			sections: [],
 			ports: { first: 20000, count: 10 },
 			problem: null,
 			source: null,

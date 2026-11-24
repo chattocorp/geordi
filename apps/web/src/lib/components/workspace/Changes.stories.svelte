@@ -332,6 +332,83 @@
 	</div>
 </Story>
 
+<Story
+	name="Sections of the repository"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		const forge = canvas.getByRole('button', { name: /Forge/ });
+		await expect(canvas.getByRole('button', { name: /Other/ })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: /\+page\.svelte/ })).toBeVisible();
+		await userEvent.click(forge);
+		await expect(forge).toHaveAttribute('aria-expanded', 'false');
+		await expect(canvas.queryByRole('button', { name: /\+page\.svelte/ })).toBeNull();
+		// the tree is drawn within each section
+		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
+		await expect(canvas.getByRole('button', { name: 'docs/adr' })).toBeVisible();
+		await userEvent.click(forge);
+		await expect(canvas.getByRole('button', { name: 'apps/web/src' })).toBeVisible();
+	}}
+>
+	<div class="w-80 sheet-quiet">
+		<Changes
+			sections={[
+				{ path: 'apps/web', title: 'Forge' },
+				{ path: 'apps/daemon', title: 'Daemon' },
+				{ path: 'docs', title: 'Documentation' }
+			]}
+			git={{
+				...pending,
+				changes: {
+					branch: 'feature',
+					comparisonTarget: 'main',
+					uncommitted: 0,
+					unpushed: null,
+					landed: false,
+					files: [
+						{ path: 'apps/web/src/routes/+page.svelte', status: 'modified', added: 12, removed: 3 },
+						{ path: 'apps/web/src/lib/server/app.ts', status: 'modified', added: 4, removed: 1 },
+						{ path: 'apps/daemon/src/config.ts', status: 'modified', added: 40, removed: 6 },
+						{ path: 'apps/daemon/src/config.spec.ts', status: 'modified', added: 31, removed: 0 },
+						{ path: 'docs/adr/ADR-012-map.md', status: 'added', added: 24, removed: 0 },
+						{ path: 'README.md', status: 'modified', added: 2, removed: 1 }
+					]
+				}
+			}}
+			onopen={() => {}}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Remembered folds"
+	args={{
+		sections: [{ path: 'docs', title: 'Documentation' }],
+		folds: { sections: ['docs'], dirs: [] },
+		git: {
+			...pending,
+			changes: {
+				branch: 'feature',
+				comparisonTarget: 'main',
+				uncommitted: 0,
+				unpushed: null,
+				landed: false,
+				files: [
+					{ path: 'docs/adr/ADR-012-map.md', status: 'added', added: 24, removed: 0 },
+					{ path: 'README.md', status: 'modified', added: 2, removed: 1 }
+				]
+			}
+		},
+		onopen: fn()
+	}}
+	play={async ({ canvas, userEvent }) => {
+		const docs = canvas.getByRole('button', { name: /Documentation/ });
+		await expect(docs).toHaveAttribute('aria-expanded', 'false');
+		await expect(canvas.queryByRole('button', { name: /ADR-012/ })).toBeNull();
+		await userEvent.click(docs);
+		await expect(canvas.getByRole('button', { name: /ADR-012/ })).toBeVisible();
+	}}
+/>
+
 <Story name="No changes yet" asChild>
 	<div class="flex h-96 w-80 flex-col">
 		<Changes
