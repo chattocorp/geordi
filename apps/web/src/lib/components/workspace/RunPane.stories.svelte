@@ -68,8 +68,8 @@
 			href: 'http://localhost:8080/'
 		})
 	];
-	// tasks whose labels begin alike are a section of their own
-	const sectioned: Task[] = [
+	// tasks whose labels begin alike are a group of their own
+	const grouped: Task[] = [
 		task('play', 'Play', { command: 'pnpm play', default: true, needs: ['act2'] }),
 		task('ring1', 'Sorties / Ring 1', { command: 'pnpm play --ring 1' }),
 		task('ring2', 'Sorties / Ring 2', { command: 'pnpm play --ring 2' }),
@@ -78,7 +78,7 @@
 		task('act1', 'Finales / Act 1: the camp', { command: 'pnpm play --act 1' }),
 		task('act2', 'Finales / Act 2: the duel', { command: 'pnpm play --act 2' })
 	];
-	const sectionStates: Record<string, JobState> = { act2: 'running' };
+	const groupStates: Record<string, JobState> = { act2: 'running' };
 	const states: Record<string, JobState> = {
 		web: 'running',
 		daemon: 'starting',
@@ -284,11 +284,11 @@
 	{@render pane(() => 'stopped', null, false, true)}
 </Story>
 <Story
-	name="Sections"
+	name="Task groups"
 	asChild
 	play={async ({ canvas, userEvent }) => {
 		localStorage.removeItem('geordi:tasks-folded');
-		// a section stands where its first task would, its tasks named without it
+		// a group stands where its first task would, its tasks named without it
 		const sorties = canvas.getByRole('list', { name: 'Sorties' });
 		await expect(
 			within(sorties)
@@ -300,7 +300,7 @@
 			.map((row) => row.getAttribute('aria-label'));
 		await expect(rows.indexOf('Run Ring 1')).toBeLessThan(rows.indexOf('Run Shipyard'));
 		await expect(rows.indexOf('Run Ring 3')).toBeLessThan(rows.indexOf('Run Shipyard'));
-		// folded, a section hides its tasks, and still says that something in it runs
+		// folded, a group hides its tasks, and still says that something in it runs
 		const finales = canvas.getByRole('button', { name: /Finales/ });
 		const heading = within(finales);
 		const header = finales.parentElement!;
@@ -326,9 +326,9 @@
 >
 	<div class="flex h-120 w-96 flex-col sheet-quiet">
 		<RunPane
-			tasks={sectioned}
-			stateOf={(name) => sectionStates[name] ?? 'stopped'}
-			hasTerminal={(name) => name in sectionStates}
+			tasks={grouped}
+			stateOf={(name) => groupStates[name] ?? 'stopped'}
+			hasTerminal={(name) => name in groupStates}
 			run={(ref) => (last = `Run: ${ref}`)}
 			stop={(name) => (last = `Stop: ${name}`)}
 			show={(name) => (last = `Show: ${name}`)}
