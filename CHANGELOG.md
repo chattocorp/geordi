@@ -1,5 +1,16 @@
 # Geordi Changelog
 
+## 0.8.2
+
+### Fixes
+
+- When you open Geordi, its window now appears at once and shows Geordi's logo while it starts. If it cannot start (a port another program uses, a forge that does not answer), Geordi tells you so and where to find its log, instead of showing nothing. The Mac app also opens without having to reach Apple first. ([#501](https://github.com/chattocorp/geordi/pull/501))
+- Electron apps that your agents start, such as a desktop app they are working on, now open as apps. Before, they started as plain Node and quit at once, because the agents had inherited a setting meant for Geordi itself. ([#503](https://github.com/chattocorp/geordi/pull/503))
+
+### Smaller changes
+
+- Rows you can pick, soft colour tints and raised surfaces now look the same everywhere: every row darkens a little under the pointer, and badges, notices and ribbons share one set of tints. ([#504](https://github.com/chattocorp/geordi/pull/504))
+
 ## 0.8.1
 
 ### Fixes
