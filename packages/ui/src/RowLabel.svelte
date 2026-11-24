@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import PictureIcon from './PictureIcon.svelte';
 
 	/**
 	 * The label of a row in a list: a cell for its sign, then its title. A row with rows folded
@@ -12,6 +13,7 @@
 	let {
 		title,
 		icon,
+		picture,
 		href,
 		current = false,
 		hint,
@@ -22,6 +24,8 @@
 	}: {
 		title: string;
 		icon?: Snippet;
+		/** A picture to show as its sign, where it has no `icon`: where it can't be shown, none. */
+		picture?: string;
 		href?: string;
 		current?: boolean;
 		hint?: string;
@@ -40,6 +44,14 @@
 		heading && 'text-faint hover:text-ink',
 		extraClass
 	]);
+	let pictureFailed = $state(false);
+	// another picture may well be shown
+	$effect.pre(() => {
+		void picture;
+		pictureFailed = false;
+	});
+	/** What it has for a sign, if anything; else the chevron is its sign. */
+	const signed = $derived(!!icon || (!!picture && !pictureFailed));
 	const toggleLabel = $derived(`${fold?.folded ? 'Expand' : 'Collapse'} ${title}`);
 </script>
 
@@ -55,16 +67,19 @@
 {/snippet}
 
 {#snippet label()}
-	{#if icon || fold}
+	{#if icon || picture || fold}
 		<span class={['grid size-6 shrink-0 place-items-center', !heading && 'text-muted']}>
-			{#if icon}
+			{#if icon || (picture && !pictureFailed)}
 				<span
 					class={['col-start-1 row-start-1 grid place-items-center', fold && 'reveal:opacity-0']}
 				>
-					{@render icon()}
+					{#if icon}{@render icon()}{:else if picture}<PictureIcon
+							src={picture}
+							bind:failed={pictureFailed}
+						/>{/if}
 				</span>
 			{/if}
-			{#if fold}{@render chevron(!icon)}{/if}
+			{#if fold}{@render chevron(!signed)}{/if}
 		</span>
 	{/if}
 	<span class="min-w-0 truncate">{title}</span>

@@ -25,8 +25,9 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 
 - A file belongs to the section with the longest path that holds it, so sections may lie within others (`apps/web` and `apps/web/src/lib/server`). Files in none are listed last, under Other.
 - Sections show only where the changes touch two or more of them (Other counts); otherwise the tab looks as it does without them.
-- Each section shows its title and how many files it has, and folds shut; what is folded (sections and directories) is remembered for each workspace in this browser. Within it, the files are a list or a tree, as the tab is set to.
+- Each section shows its title and folds shut; folded, it says how many files it has; what is folded (sections and directories) is remembered for each workspace in this browser. Within it, the files are a list or a tree, as the tab is set to.
 - Paths are directories from the top of the repository, without `..`; a section's title is one line of up to 100 characters. A path named twice is a problem with the file.
+- A section is shown with a picture of its own, as a repository is in the sidebar: the one its `icon` names (a PNG, JPEG, WebP, GIF or SVG in the repository), else the favicon, icon or logo nearest its directory among the workspace's tracked files (the daemon finds it, by the names it looks for a repository's, of which a `.geordi.svg`, `.geordi.png` or `.geordi.ico` put there for Geordi comes first; such a file stands only for the directory it is in, so a section's is not the repository's; never an `.ico`, which can't be shown as a picture of the worktree). It gives way to the chevron on hover; a section without one, or whose picture can't be shown, has the chevron.
 
 ### Ports
 

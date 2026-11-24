@@ -33,6 +33,8 @@
 		target?: Snippet<[string]>;
 		/** The repository's sections (from its `.geordi.yml`): the files are grouped by them. */
 		sections?: RepoSection[];
+		/** Where a picture in the worktree is shown from (a section's icon), by its path. */
+		picture?: (path: string) => string;
 		/**
 		 * What is folded shut: sections by their path (`''` for Other), directories of the tree
 		 * by theirs. Everything is open to begin with.
@@ -47,6 +49,7 @@
 		view = $bindable('list'),
 		target,
 		sections = [],
+		picture,
 		folds = $bindable({ sections: [], dirs: [] })
 	}: Props = $props();
 
@@ -208,9 +211,10 @@
 				{#each rows.slice(0, drawn) as row (row.key)}
 					<li>
 						{#if row.kind === 'section'}
-							<div class="item h-8 pr-2">
+							<div class="group item h-8 pr-2">
 								<RowLabel
 									title={row.group.title}
+									picture={row.group.icon && picture?.(row.group.icon)}
 									hint={row.group.path ?? undefined}
 									fold={{
 										folded: !row.open,

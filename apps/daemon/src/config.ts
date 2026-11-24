@@ -71,7 +71,19 @@ function displayLabel(value: unknown, where: string): { label?: string } {
 	return value === undefined ? {} : { label: displayText(value, `${where}.label`) };
 }
 
-/** The repository's parts: directories in it, each with a title. */
+/** A path in the repository, from its top (`apps/web`, not `/apps/web` or `../web`), or `null`. */
+function repoPath(said: unknown): string | null {
+	const path = typeof said === 'string' ? said.trim().replace(/^\.\//, '').replace(/\/+$/, '') : '';
+	return !path ||
+		path.length > MAX_URL ||
+		path.startsWith('/') ||
+		/[\\\r\n\t]/.test(path) ||
+		path.split('/').some((part) => part === '' || part === '.' || part === '..')
+		? null
+		: path;
+}
+
+/** The repository's parts: directories in it, each with a title, and perhaps its picture. */
 function parseSections(value: unknown): RepoSection[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value) || value.length > MAX_SECTIONS)
@@ -82,20 +94,23 @@ function parseSections(value: unknown): RepoSection[] {
 	return (value as unknown[]).map((section, index) => {
 		const where = `sections[${index}]`;
 		if (!isTable(section)) fail(`${where} must have a path and a title`);
-		const { path: said, title } = section as Record<string, unknown>;
+		const { path: said, title, icon } = section as Record<string, unknown>;
 		const path =
-			typeof said === 'string' ? said.trim().replace(/^\.\//, '').replace(/\/+$/, '') : '';
-		if (
-			!path ||
-			path.length > MAX_URL ||
-			path.startsWith('/') ||
-			/[\\\r\n\t]/.test(path) ||
-			path.split('/').some((part) => part === '' || part === '.' || part === '..')
-		)
+			repoPath(said) ??
 			fail(`${where}.path must be a directory in the repository, such as apps/web`);
 		if (seen.has(path)) fail(`${where}.path: ${path} is named twice`);
 		seen.add(path);
-		return { path, title: displayText(title, `${where}.title`) };
+		return {
+			path,
+			title: displayText(title, `${where}.title`),
+			...(icon !== undefined && {
+				icon:
+					repoPath(icon) ??
+					fail(
+						`${where}.icon must be a picture in the repository, such as apps/web/static/logo.svg`
+					)
+			})
+		};
 	});
 }
 

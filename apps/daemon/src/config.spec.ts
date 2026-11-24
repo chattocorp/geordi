@@ -139,13 +139,19 @@ tasks:
 		expect(() =>
 			parseConfig('sections:\n  - path: a\n    title: A\n  - path: a/\n    title: B')
 		).toThrow(/sections\[1\]\.path: a is named twice/);
+		expect(() =>
+			parseConfig('sections:\n  - path: a\n    title: A\n    icon: ../logo.svg')
+		).toThrow(/sections\[0\]\.icon must be a picture in the repository/);
+		expect(
+			parseConfig('sections:\n  - path: a\n    title: A\n    icon: ./a/logo.svg').sections
+		).toEqual([{ path: 'a', title: 'A', icon: 'a/logo.svg' }]);
 	});
 
 	it('understands every setting agents are told about', () => {
 		const { tasks, setup, teardown, sections, ...others } = CONFIG_SETTINGS;
 		expect(others).toEqual({}); // a new setting wants parsing, and a place in this test
 		expect(parseConfig(sections.example).sections).toEqual([
-			{ path: 'apps/web', title: 'Web app' },
+			{ path: 'apps/web', title: 'Web app', icon: 'apps/web/static/logo.svg' },
 			{ path: 'apps/api', title: 'API' },
 			{ path: 'docs', title: 'Documentation' }
 		]);

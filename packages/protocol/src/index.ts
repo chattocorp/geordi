@@ -317,6 +317,11 @@ export type RepoSection = {
 	/** From the top of the repository, without a leading or trailing slash. */
 	path: string;
 	title: string;
+	/**
+	 * A picture of it, from the top of the repository: the one the file names, else (as the
+	 * daemon reports it) the one nearest its directory, where it has one.
+	 */
+	icon?: string;
 };
 
 /**
@@ -365,9 +370,9 @@ export const CONFIG_SETTINGS = {
 		example: 'teardown: docker compose down --volumes'
 	},
 	sections: {
-		does: "The repository's parts, each a `path` (a directory, from the top of the repository) with a human-readable `title` (1–100 characters). Worth adding where a repository has distinct parts that changes often cross, such as the apps and packages of a monorepo. The Changes tab groups a workspace's changed files under these titles, in this order, when they touch more than one section. A file belongs to the section with the longest path that contains it, so one section may lie within another; files in none are listed last, under Other. Each path may be named only once. Keep to a handful, in the order people read the project (the most important first), each a whole app, package or area rather than every folder, with the title people call it by (`Web app`, not `apps/web`).",
+		does: "The repository's parts, each a `path` (a directory, from the top of the repository) with a human-readable `title` (1–100 characters). Worth adding where a repository has distinct parts that changes often cross, such as the apps and packages of a monorepo. The Changes tab groups a workspace's changed files under these titles, in this order, when they touch more than one section. A file belongs to the section with the longest path that contains it, so one section may lie within another; files in none are listed last, under Other. Each path may be named only once. A section is shown with the picture nearest its directory, as a repository is with its favicon or logo; a `.geordi.svg` or `.geordi.png` right in its directory is one made for Geordi, and comes first (one at the top of the repository is the repository's). `icon` names another (a PNG, JPEG, WebP, GIF or SVG in the repository). Keep to a handful, in the order people read the project (the most important first), each a whole app, package or area rather than every folder, with the title people call it by (`Web app`, not `apps/web`).",
 		example:
-			'sections:\n  - path: apps/web\n    title: Web app\n  - path: apps/api\n    title: API\n  - path: docs\n    title: Documentation'
+			'sections:\n  - path: apps/web\n    title: Web app\n    icon: apps/web/static/logo.svg\n  - path: apps/api\n    title: API\n  - path: docs\n    title: Documentation'
 	}
 } as const;
 

@@ -1,7 +1,7 @@
 import type { RepoSection } from '@geordi/protocol';
 
 /** Files of one of the repository's sections; `path` is `null` for those in none. */
-export type Section<F> = { path: string | null; title: string; files: F[] };
+export type Section<F> = { path: string | null; title: string; icon?: string; files: F[] };
 
 const inside = (file: string, dir: string) => file === dir || file.startsWith(`${dir}/`);
 
@@ -15,7 +15,7 @@ export function bySection<F extends { path: string }>(
 	sections: readonly RepoSection[]
 ): Section<F>[] {
 	const all: Section<F>[] = [
-		...sections.map(({ path, title }) => ({ path, title, files: [] as F[] })),
+		...sections.map(({ path, title, icon }) => ({ path, title, icon, files: [] as F[] })),
 		{ path: null, title: 'Other', files: [] }
 	];
 	for (const file of files) {
