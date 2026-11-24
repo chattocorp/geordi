@@ -142,6 +142,7 @@
 }
 
 @theme inline {
+	--spacing-row-group: calc(var(--spacing) * 4);
 	--animate-checks-spin: spin 2s linear infinite;
 	/*
 	 * Type. One family for text and one for code, and four sizes. Hierarchy comes from
@@ -392,6 +393,17 @@
 /* An aside you can act on, in running text: muted, ink on hover, no background. */
 @utility quiet-action {
 	@apply inline-flex items-center gap-1.5 rounded-control text-muted hover:text-ink;
+}
+
+/* Mark the first and last rows of a group, or both edges on a wrapped group. */
+@utility grouped-rows {
+	& > * + * {
+		margin-block-start: 1px;
+	}
+	& > * + [data-group-start],
+	& > [data-group-end] + * {
+		@apply mt-row-group;
+	}
 }
 
 /*
