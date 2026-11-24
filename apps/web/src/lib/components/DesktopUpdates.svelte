@@ -1,12 +1,13 @@
 <script module lang="ts">
+	type Channel = 'latest' | 'beta' | 'alpha';
 	export type UpdateState = {
-		beta: boolean;
+		channel: Channel;
 		ready: string | null;
 		status: 'idle' | 'checking' | 'current' | 'downloading' | 'ready' | 'installing' | 'error';
 		busy: boolean;
 	};
 	export type UpdateControls = {
-		setBeta(value: boolean): void;
+		setChannel(value: Channel): void;
 		check(): void;
 		restart(): void;
 	};
@@ -38,12 +39,11 @@
 			<Segmented
 				label="Release channel"
 				options={[
-					{ value: 'stable', label: 'Stable' },
-					{ value: 'beta', label: 'Beta' }
+					{ value: 'latest', label: 'Stable' },
+					{ value: 'beta', label: 'Beta' },
+					{ value: 'alpha', label: 'Alpha' }
 				]}
-				bind:value={
-					() => (state.beta ? 'beta' : 'stable'), (value) => controls.setBeta(value === 'beta')
-				}
+				bind:value={() => state.channel, (value) => controls.setChannel(value)}
 			/>
 		</fieldset>
 	</div>

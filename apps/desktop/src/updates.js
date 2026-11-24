@@ -1,12 +1,14 @@
 export function desktopUpdates({ updater, preferences, refresh, note }) {
-	let beta = preferences.read() === 'beta';
+	const channels = ['latest', 'beta', 'alpha'];
+	const saved = preferences.read();
+	let channel = channels.includes(saved) ? saved : 'latest';
 	let ready = null;
 	let busy = false;
 	let status = 'idle';
 
 	function selectChannel() {
-		updater.channel = beta ? 'beta' : 'latest';
-		updater.allowPrerelease = beta;
+		updater.channel = channel;
+		updater.allowPrerelease = channel !== 'latest';
 		updater.allowDowngrade = false;
 	}
 
@@ -47,19 +49,19 @@ export function desktopUpdates({ updater, preferences, refresh, note }) {
 
 	return {
 		check,
-		state: () => ({ beta, ready, status, busy: busy || status === 'installing' }),
-		setBeta(value) {
-			if (typeof value !== 'boolean' || beta === value || busy || status === 'installing') return;
+		state: () => ({ channel, ready, status, busy: busy || status === 'installing' }),
+		setChannel(value) {
+			if (!channels.includes(value) || channel === value || busy || status === 'installing') return;
 			try {
-				preferences.write(value ? 'beta' : 'latest');
+				preferences.write(value);
 			} catch (error) {
 				failed(error);
 				return;
 			}
-			beta = value;
+			channel = value;
 			ready = null;
 			selectChannel();
-			void check();
+			return check();
 		},
 		restart() {
 			if (!ready || busy || status === 'installing') return;

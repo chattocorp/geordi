@@ -5,10 +5,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
-const channel = /^\d+\.\d+\.\d+$/.test(version) ? 'latest' : 'beta';
-if (channel === 'beta' && !/^\d+\.\d+\.\d+-beta\.\d+$/.test(version)) {
-	throw new Error(`Unsupported release version: ${version}`);
-}
+const release = /^\d+\.\d+\.\d+(?:-(alpha|beta)\.\d+)?$/.exec(version);
+if (!release) throw new Error(`Unsupported release version: ${version}`);
+const channel = release[1] ?? 'latest';
 await build({
 	prepackaged: resolve('dist/Geordi-darwin-arm64/Geordi.app'),
 	targets: Platform.MAC.createTarget(['zip'], Arch.arm64),

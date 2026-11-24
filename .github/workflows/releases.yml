@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: write
     # Sweet Release 0.5.0, pinned by commit. Tags are pushed with GITHUB_TOKEN, so they
-    # start no tag workflow (no second beta build): this run publishes them.
+    # start no tag workflow (no second prerelease build): this run publishes them.
     uses: chattocorp/sweet-release/.github/workflows/tag.yml@70a402d3552871474f3a0f152fb2795592ec714a # sweet@0.5.0
     with:
       sweet-version: sweet@0.5.0
@@ -53,7 +53,7 @@ jobs:
 
   website:
     needs: [tag, desktop]
-    # Stable releases only: betas are desktop downloads.
+    # Stable releases only: prereleases are desktop downloads.
     if: fromJSON(needs.tag.outputs.packages || '{}')['.'] != null && !fromJSON(needs.tag.outputs.packages || '{}')['.'].prerelease
     permissions:
       contents: read
@@ -66,7 +66,7 @@ jobs:
 
   npm:
     needs: tag
-    # Stable releases only: betas are desktop downloads.
+    # Stable releases only: prereleases are desktop downloads.
     if: fromJSON(needs.tag.outputs.packages || '{}')['.'] != null && !fromJSON(needs.tag.outputs.packages || '{}')['.'].prerelease
     permissions:
       contents: read
