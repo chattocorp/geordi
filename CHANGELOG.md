@@ -1,5 +1,33 @@
 # Geordi Changelog
 
+## 0.9.0-alpha.0
+
+### Features
+
+- As soon as your workspace adds a change note with a known version bump, the sidebar shows the next version of the affected package. The version pills match the merge button’s height. Each pill emphasizes the version and shows the package name in muted text when available. Select a version to open the workspace’s Changeset tab. ([#514](https://github.com/chattocorp/geordi/pull/514))
+- Your agents now receive messages and child results during their current turn. They can still queue follow-up work for the next turn. ([#521](https://github.com/chattocorp/geordi/pull/521))
+- Name the parts of your repository in `.geordi.yml` under `sections` (a path and a title for each), and the Changes tab groups larger changes into sections you can fold. Each section shows its favicon or logo: put a `.geordi.svg` or `.geordi.png` in its directory to give it one of your own, or name any picture with `icon`. Folded, a section says how many files it holds and how many lines changed in them, and it stays folded. ([#507](https://github.com/chattocorp/geordi/pull/507))
+- You can opt in to alpha releases of the macOS app in Settings → About. ([#518](https://github.com/chattocorp/geordi/pull/518))
+- Child agents can ask their parent for a decision. The parent can answer or pass the original question to you, and your answer goes directly to the child. ([#517](https://github.com/chattocorp/geordi/pull/517))
+
+### Fixes
+
+- You can jump to each open question above the reply box, even after queued messages push it out of view. ([#517](https://github.com/chattocorp/geordi/pull/517))
+- Parent agents can select a recommended answer by its displayed name. ([#517](https://github.com/chattocorp/geordi/pull/517))
+- Going back and forward now works with your mouse’s buttons in the app, and switching tabs in a workspace counts as a step you can go back to. ([#505](https://github.com/chattocorp/geordi/pull/505))
+- Running Geordi’s browser tests on macOS no longer opens the microphone permission dialog during audio playback. ([#510](https://github.com/chattocorp/geordi/pull/510))
+
+### Smaller changes
+
+- When you point at a task, its dependencies highlight individually in open groups. Folded groups highlight their header. ([#508](https://github.com/chattocorp/geordi/pull/508))
+- Messages from other agents now appear in a compact group of left-aligned tinted bubbles. Consecutive messages from the same child share one collapsed row so you can read the parent’s summary first. Select the row to read the exchange in order or open the child workspace. ([#521](https://github.com/chattocorp/geordi/pull/521))
+- Groups in Changes and Tasks now use the same spacing as repositories in your sidebar. ([#519](https://github.com/chattocorp/geordi/pull/519))
+- The Geordi mark fades in gently when you open the desktop app, with a softer pulse. ([#509](https://github.com/chattocorp/geordi/pull/509))
+- See how long each pull request check took in the Checks list. ([#516](https://github.com/chattocorp/geordi/pull/516))
+- Sending an empty reply now does nothing. ([#513](https://github.com/chattocorp/geordi/pull/513))
+- Foldable groups look and work the same everywhere: repositories in the sidebar, groups in the Tasks tab and sections in the Changes tab. Folded, each says how many items it holds, and the files in the Changes tab now look like the rest of your lists. ([#507](https://github.com/chattocorp/geordi/pull/507))
+- Turn bylines show how long ago your agent finished each reply. ([#515](https://github.com/chattocorp/geordi/pull/515))
+
 ## 0.8.2
 
 ### Fixes
