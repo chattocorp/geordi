@@ -240,7 +240,9 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const merge = canvas.getByRole('button', { name: 'Merge PR — Publish widgets' });
-		await expect(canvas.getByTitle('Widgets 1.3.0')).toBeVisible();
+		const namedPill = canvas.getByTitle('Widgets 1.3.0');
+		await expect(namedPill).toBeVisible();
+		await expect(namedPill.offsetHeight).toBe(merge.offsetHeight);
 		await expect(canvas.getByTitle('2.0.1')).toBeVisible();
 		merge.focus();
 		const name = canvas.getByText('Widgets', { exact: true });

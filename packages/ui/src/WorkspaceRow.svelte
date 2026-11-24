@@ -156,7 +156,7 @@
 				<span class="mr-1 flex min-w-0 flex-wrap justify-end gap-1">
 					{#each versions as pkg (pkg.path)}
 						<span
-							class="inline-flex max-w-full items-baseline gap-1 rounded-full bg-sunken px-1.5 text-xs font-normal text-muted"
+							class="inline-flex h-6 max-w-full items-center gap-1 rounded-full bg-sunken px-2 text-xs font-normal text-muted"
 							title={pkg.name ? `${pkg.name} ${pkg.version}` : pkg.version}
 						>
 							{#if pkg.name}<span class="truncate">{pkg.name}</span>{/if}
