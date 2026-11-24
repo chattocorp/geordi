@@ -140,6 +140,18 @@
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span data-row-actions class="flex min-h-6 max-w-2/3 min-w-6 items-center justify-end">
+		{#if versions.length}
+			<span class="mr-1 flex min-w-0 flex-wrap justify-end gap-1">
+				{#each versions as pkg (pkg.path)}
+					<ValueBadge
+						label={pkg.name}
+						value={pkg.version}
+						href={href ? `${href}?changeset` : undefined}
+						linkLabel={`Open Changeset for ${title}: ${pkg.name ? pkg.name + ' ' : ''}${pkg.version}`}
+					/>
+				{/each}
+			</span>
+		{/if}
 		{#if typeof asking === 'string' || (asking && href)}
 			<QuestionLink workspaceHref={typeof asking === 'string' ? asking : href!} />
 		{:else if asking}
@@ -153,18 +165,6 @@
 				<span aria-hidden="true" class="inline-flex"><Spinner still /></span>
 			</StatusIcon>
 		{:else if primary && pillColor}
-			{#if primary.id === 'merge-pull' && standing?.tone === 'ok' && versions.length}
-				<span class="mr-1 flex min-w-0 flex-wrap justify-end gap-1">
-					{#each versions as pkg (pkg.path)}
-						<ValueBadge
-							label={pkg.name}
-							value={pkg.version}
-							href={href ? `${href}?changeset` : undefined}
-							linkLabel={`Open Changeset for ${title}: ${pkg.name ? pkg.name + ' ' : ''}${pkg.version}`}
-						/>
-					{/each}
-				</span>
-			{/if}
 			<button
 				type="button"
 				class={['indicator-action hover:bg-current/20', pillColor]}

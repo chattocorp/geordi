@@ -272,3 +272,25 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Versions before a pull request"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole('link', { name: 'Open Changeset for Add widgets: Widgets 1.3.0' })
+		).toBeVisible();
+		await expect(canvas.getByRole('img', { name: 'Working' })).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /Merge PR/ })).toBeNull();
+	}}
+>
+	<div class="w-96 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Add widgets"
+			href="/workspaces/widgets"
+			working
+			versions={[{ path: 'widgets', name: 'Widgets', version: '1.3.0' }]}
+		/>
+	</div>
+</Story>

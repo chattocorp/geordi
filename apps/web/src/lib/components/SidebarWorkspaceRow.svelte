@@ -8,20 +8,13 @@
 		workspaceId,
 		...row
 	}: Omit<ComponentProps<typeof WorkspaceRow>, 'versions'> & {
-		workspaceId: string;
+		workspaceId?: string;
 	} = $props();
 
-	const releaseId = $derived(
-		row.onaction &&
-			row.standing?.tone === 'ok' &&
-			row.actions?.find((action) => !action.aside)?.id === 'merge-pull'
-			? workspaceId
-			: undefined
-	);
-	const releases = follow<MergeVersions>('mergeVersions', () => releaseId);
+	const releases = follow<MergeVersions>('mergeVersions', () => workspaceId);
 </script>
 
 <WorkspaceRow
 	{...row}
-	versions={releases.current?.id === workspaceId ? releases.current.versions : undefined}
+	versions={releases.current?.id === workspaceId ? releases.current?.versions : undefined}
 />

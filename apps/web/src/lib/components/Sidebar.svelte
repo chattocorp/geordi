@@ -638,7 +638,7 @@
 		ondrop={(event) => drop(event, workspace.repoId)}
 	>
 		<SidebarWorkspaceRow
-			workspaceId={workspace.id}
+			workspaceId={workspace.repoId && workspace.branch ? workspace.id : undefined}
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
