@@ -4,6 +4,7 @@
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import Loading from './Loading.svelte';
+	import RowLabel from './RowLabel.svelte';
 	import { persisted } from './persisted.svelte.ts';
 
 	/**
@@ -150,7 +151,7 @@
 		<div
 			{@attach pointing(task.name)}
 			class={[
-				'group/task relative item h-8 gap-1 pr-1 pl-0.5 text-ink',
+				'group/task relative item h-8 gap-1 pr-1 pl-1 text-ink',
 				needed.includes(task.name) && 'bg-hover'
 			]}
 		>
@@ -250,23 +251,21 @@
 					{@const names = entry.tasks.map(({ task }) => task.name)}
 					{@const open = !folded.current.includes(entry.section)}
 					<li>
-						<details {open} ontoggle={(event) => fold(entry.section, event.currentTarget.open)}>
-							<summary
-								class={[
-									'group/section item h-8 list-none gap-1 pr-1 pl-0.5 text-ink select-none',
-									names.some((name) => needed.includes(name)) && 'bg-hover'
-								]}
+						<div
+							class={[
+								'item h-8 pr-1 text-ink select-none',
+								names.some((name) => needed.includes(name)) && 'bg-hover'
+							]}
+						>
+							<RowLabel
+								title={entry.section}
+								fold={{
+									folded: !open,
+									count: entry.tasks.length,
+									toggle: () => fold(entry.section, !open)
+								}}
+								class="h-full pr-1 font-medium"
 							>
-								<span class="grid size-6 shrink-0 place-items-center text-muted">
-									<span
-										aria-hidden="true"
-										class={[
-											'icon-[lucide--chevron-right] size-4 transition-transform motion-reduce:transition-none',
-											open && 'rotate-90'
-										]}
-									></span>
-								</span>
-								<span class="min-w-0 truncate pr-1 font-medium text-muted">{entry.section}</span>
 								<!-- folded, it still says whether anything in it is at work -->
 								{#if !open && sectionState(names) !== 'stopped'}
 									<JobMark
@@ -274,14 +273,16 @@
 										listens={entry.tasks.some(({ task }) => task.ports.length > 0)}
 									/>
 								{/if}
-							</summary>
-							<!-- its tasks, under the section's name -->
+							</RowLabel>
+						</div>
+						<!-- its tasks, under the section's name -->
+						{#if open}
 							<ul aria-label={entry.section} class="mt-px space-y-px pl-4">
 								{#each entry.tasks as { task, label } (task.name)}
 									{@render taskRow(task, label)}
 								{/each}
 							</ul>
-						</details>
+						{/if}
 					</li>
 				{:else}
 					{@render taskRow(entry.task, entry.label)}

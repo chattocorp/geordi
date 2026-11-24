@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import WorkspaceActivity from './WorkspaceActivity.svelte';
 	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
-	import SidebarRowLabel from './SidebarRowLabel.svelte';
+	import RowLabel from './RowLabel.svelte';
 
 	import QuestionLink from './QuestionLink.svelte';
 	import StandingIcon from './StandingIcon.svelte';
@@ -124,7 +124,7 @@
 		</a>
 	{/if}
 	<div class="relative flex min-w-0 flex-1">
-		<SidebarRowLabel
+		<RowLabel
 			{title}
 			{href}
 			{current}

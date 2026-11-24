@@ -4,6 +4,7 @@
 	import Loading from './Loading.svelte';
 	import DiffStat from './DiffStat.svelte';
 	import FittedPath from './FittedPath.svelte';
+	import RowLabel from './RowLabel.svelte';
 	import type { Attachment } from 'svelte/attachments';
 	import type { Snippet } from 'svelte';
 	import { fileTree, treeRows, type TreeRow } from './tree.ts';
@@ -120,8 +121,8 @@
 		{ value: 'tree', label: 'As a tree', icon: 'icon-[lucide--list-tree]' }
 	];
 
-	/** How far a row is indented, `depth` levels into the tree: a chevron and its gap each. */
-	const inset = (depth: number) => `${0.875 + depth * 1.25}rem`;
+	/** How far a row is indented, `depth` levels into the tree (as a task group's tasks are). */
+	const inset = (depth: number) => `${0.25 + depth}rem`;
 	const dirOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1);
 
 	/** Git's letter for what became of a file, and what that means in words. */
@@ -150,7 +151,7 @@
 <section class="flex min-h-0 flex-1 flex-col text-sm" aria-label="Changes">
 	{#if listed}
 		<!-- the branch's sign lines up with the files' letters below (the button pads it) -->
-		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-1.5">
+		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-2">
 			<div class="flex min-w-0 flex-1">
 				{#if git?.changes?.comparisonTarget}
 					{@const name = git.changes.comparisonTarget}
@@ -201,26 +202,24 @@
 				<p class="font-medium text-ink">No changes yet</p>
 			</div>
 		{:else}
-			<ul>
-				{#each rows.slice(0, drawn) as row, index (row.key)}
-					<li class={[row.kind === 'section' && index > 0 && 'mt-1.5']}>
+			<!-- rows you can pick (`item`), a hair apart, as in the Tasks tab: each starts with a
+			     cell for its sign, the chevron of what folds or the letter of a file -->
+			<ul class="space-y-px px-2">
+				{#each rows.slice(0, drawn) as row (row.key)}
+					<li>
 						{#if row.kind === 'section'}
-							<button
-								type="button"
-								aria-expanded={row.open}
-								onclick={() => toggle('sections', row.group.path ?? '')}
-								title={row.group.path ?? undefined}
-								class="flex w-full items-center gap-1.5 py-1 pr-3.5 pl-3.5 text-left whitespace-nowrap hover:bg-hover"
-							>
-								<span
-									class={[
-										'icon-[lucide--chevron-right] size-3.5 shrink-0 text-muted',
-										row.open && 'rotate-90'
-									]}
-								></span>
-								<span class="min-w-0 flex-1 truncate font-medium text-ink">{row.group.title}</span>
-								<span class="shrink-0 text-muted tabular-nums">{row.group.files.length}</span>
-							</button>
+							<div class="item h-8 pr-2">
+								<RowLabel
+									title={row.group.title}
+									hint={row.group.path ?? undefined}
+									fold={{
+										folded: !row.open,
+										count: row.group.files.length,
+										toggle: () => toggle('sections', row.group.path ?? '')
+									}}
+									class="h-full pr-1 font-medium"
+								/>
+							</div>
 						{:else if row.kind === 'dir'}
 							<button
 								type="button"
@@ -229,14 +228,9 @@
 								onclick={() => toggle('dirs', row.path)}
 								title={row.path}
 								style:padding-left={inset(row.depth)}
-								class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap text-muted hover:bg-hover"
+								class="item h-8 w-full gap-1 overflow-hidden pr-2 text-left whitespace-nowrap"
 							>
-								<span
-									class={[
-										'icon-[lucide--chevron-right] size-3.5 shrink-0',
-										row.open && 'rotate-90'
-									]}
-								></span>
+								{@render chevron(!!row.open)}
 								<FittedPath path={row.name} />
 							</button>
 						{:else if row.kind === 'file'}
@@ -263,9 +257,12 @@
 		onclick={() => onopen(entry.path)}
 		title="{means}: {entry.path}"
 		style:padding-left={inset(depth ?? 0)}
-		class="flex w-full items-center gap-1.5 overflow-hidden py-1 pr-3.5 text-left whitespace-nowrap hover:bg-hover"
+		class="item h-8 w-full gap-1 overflow-hidden pr-2 text-left whitespace-nowrap text-ink"
 	>
-		<span class={['w-3.5 shrink-0 text-center font-semibold', tone]} aria-label={means}>
+		<span
+			class={['grid size-6 shrink-0 place-items-center font-semibold', tone]}
+			aria-label={means}
+		>
 			{letter}
 		</span>
 		{#if depth === undefined}
@@ -279,4 +276,17 @@
 		{/if}
 		<DiffStat class="text-xs tabular-nums" added={entry.added} removed={entry.removed} />
 	</button>
+{/snippet}
+
+<!-- what folds shows whether it is open, in the cell a file's letter takes -->
+{#snippet chevron(open: boolean)}
+	<span class="grid size-6 shrink-0 place-items-center text-muted">
+		<span
+			aria-hidden="true"
+			class={[
+				'icon-[lucide--chevron-right] size-4 transition-transform motion-reduce:transition-none',
+				open && 'rotate-90'
+			]}
+		></span>
+	</span>
 {/snippet}
