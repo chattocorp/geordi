@@ -28,7 +28,14 @@ export type Block =
 	 * Of the turns of this reply, together: what they `used`, where their agent said, and how
 	 * long they `took` (ms), where they said when they began.
 	 */
-	| { kind: 'agent'; parts: Part[]; changes?: TurnChanges; usage?: TurnUsage; took?: number }
+	| {
+			kind: 'agent';
+			parts: Part[];
+			changes?: TurnChanges;
+			usage?: TurnUsage;
+			took?: number;
+			endedAt?: string;
+	  }
 	/** `working`: what it says is still going on. */
 	| { kind: 'note'; text: string; working?: boolean };
 
@@ -87,6 +94,7 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 			if (item.diff && (agent?.kind !== 'agent' || agent.changes))
 				blocks.push((agent = { kind: 'agent', parts: [] }));
 			if (agent?.kind !== 'agent') continue;
+			agent.endedAt = item.at;
 			if (item.diff) agent.changes = { number: turnNumber, diff: item.diff };
 			if (item.usage) agent.usage = addUsage(agent.usage, item.usage);
 			if (item.startedAt)
