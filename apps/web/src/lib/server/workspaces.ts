@@ -1445,7 +1445,8 @@ export function createWorkspaces(
 					type: 'workspace.purged',
 					stream: 'purges',
 					data: {
-						workspaces: [...family.values()].map(({ id, title }) => ({
+						workspaces: [...family.values()].map(({ id, title, parentId }) => ({
+							...(parentId && { parentId }),
 							id,
 							title,
 							born: projection.bornAt(id) ?? 0

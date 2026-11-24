@@ -130,6 +130,8 @@
 			{senders}
 			{onopensubagent}
 			{onopenturn}
+			childSenders={workspace.childSenders}
+			queueSenders={workspace.sentBy.queue}
 			queue={workspace.queue}
 			queueImages={workspace.attachments.queue}
 			onremove={(index, text, images) =>

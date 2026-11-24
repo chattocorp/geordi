@@ -2088,6 +2088,21 @@ describe('purging archived workspaces', () => {
 		expect(createWorkspaces(store, repos, dispatch).get(owner)).toEqual(kept);
 	});
 
+	it('keeps queued child messages identifiable after purge and replay', async () => {
+		const { store, repos, dispatch, create, workspaces } = setup();
+		const parent = create('Parent');
+		const { id } = workspaces.agents.start(parent, { worktree: 'own', prompt: 'Review' });
+		workspaces.agents.send(id, parent, 'One more finding', false);
+		const waiting = workspaces.agents.wait(parent, id, 5000);
+		done(workspaces, id);
+		workspaces.archive(id);
+		workspaces.purge([id]);
+		const replay = createWorkspaces(store, repos, dispatch).get(parent);
+		expect(replay.queue).toEqual(['One more finding']);
+		expect(replay.childSenders).toEqual({ [id]: 'Review' });
+		await waiting;
+	});
+
 	it('deletes the images sent to it, and keeps the bytes another image has too', () => {
 		const { store, workspaces, repo } = setup();
 		const images = createImages(store);

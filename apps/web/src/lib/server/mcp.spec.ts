@@ -613,6 +613,7 @@ describe('installation-wide workspace access', () => {
 			(await fromChild('send_message', { workspace_id: sibling.id, message: 'Hi' })).error
 		).toMatch(/only the agents you started/);
 		await fromChild('send_message', { workspace_id: caller, message: 'Which approach?' });
+		expect(workspaces.get(caller).childSenders?.[child.id]).toBe(workspaces.get(child.id).title);
 		expect(workspaces.get(caller).transcript.at(-1)).toMatchObject({
 			from: child.id,
 			text: 'Which approach?'

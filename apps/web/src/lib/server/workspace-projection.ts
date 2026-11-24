@@ -174,7 +174,7 @@ export type WorkspacesEvent =
 			type: 'workspace.purged';
 			stream: 'purges';
 			data: {
-				workspaces: { id: string; title: string; born: number }[];
+				workspaces: { id: string; title: string; born: number; parentId?: string }[];
 				worktrees: { id: string; path: string; branch: string }[];
 			};
 	  };
@@ -367,6 +367,8 @@ export type Workspace = {
 	briefing: string | null;
 	/** Who sent the messages that wait, in step with `queue`: workspace IDs, `null` for people. */
 	sentBy: { queue: (string | null)[] };
+	/** Children that have sent this workspace a message, including queued messages. */
+	childSenders?: Record<string, string>;
 	/** When the workspace was archived; `null` while it is in use. */
 	archivedAt: string | null;
 	/**
@@ -452,7 +454,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	// All images ever attached, including messages withdrawn or still queued at archive.
 	const attachedImages = new Map<string, Set<string>>();
 	// Sender attribution on a later replay must reflect who existed at the time.
-	const born = new Map<string, number>();
+	const born = new Map<string, { seq: number; parentId?: string; purgedTitle?: string }>();
 
 	function apply(
 		workspaces: Map<string, Workspace>,
@@ -533,7 +535,18 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		const append = (item: TranscriptItem) => edit(transcript.length, 0, item);
 		/** Whether `sender` is an agent (a workspace, or an external client) rather than a person. */
 		const byAgent = (sender: string | null): sender is string =>
-			!!sender && (isExternal(sender) || (born.get(sender) ?? Infinity) <= seq);
+			!!sender && (isExternal(sender) || (born.get(sender)?.seq ?? Infinity) <= seq);
+		const rememberChild = (sender: string | null, name?: string) => {
+			if (sender && born.get(sender)?.parentId === id) {
+				(workspace.childSenders ??= {})[sender] =
+					name ??
+					workspaces.get(sender)?.title ??
+					workspace.childSenders[sender] ??
+					born.get(sender)?.purgedTitle ??
+					'Child agent';
+			}
+		};
+
 		/** A person prompted it: active again, with the workspace whose worktree it works in. */
 		const prompted = () => {
 			activate(workspace.id);
@@ -614,6 +627,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			workspace.queue.push(event.data.text);
 			workspace.attachments.queue.push(event.data.images ?? []);
 			workspace.sentBy.queue.push(actor);
+			rememberChild(actor);
 			if (!byAgent(actor)) prompted();
 			return;
 		}
@@ -675,6 +689,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			// an agent's word is marked as such; a person's is the rule
 			const from = byAgent(sender) ? sender : undefined;
 			if (!from) prompted();
+			else rememberChild(from, event.data.senderName);
 			append({
 				kind: 'user',
 				text: event.data.text,
@@ -829,14 +844,15 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	// Purged workspaces were workspaces from when they were born, which replay no longer sees.
 	for (const event of store.readStream('purges'))
 		if (event.type === 'workspace.purged')
-			for (const { id, born: seq } of event.data.workspaces) born.set(id, seq);
+			for (const { id, born: seq, parentId, title } of event.data.workspaces)
+				born.set(id, { seq, parentId, purgedTitle: title });
 	const projection = store.project(
 		'workspaces',
 		() => new Map<string, Workspace>(),
 		(workspaces, event) => {
 			for (const current of upcast(event)) {
 				if (current.type === 'workspace.created') {
-					born.set(current.data.id, event.seq);
+					born.set(current.data.id, { seq: event.seq, parentId: current.data.parentId });
 					if (event.type === 'session.created') sessionStreams.set(current.data.id, event.stream);
 				}
 				if (
@@ -868,7 +884,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		);
 		const copy = new Map([[id, restored]]);
 		const steering = new Map<string, string | null>();
-		const createdAtSeq = born.get(id)!;
+		const createdAtSeq = born.get(id)!.seq;
 		const events = store.readStream(`workspace:${id}`);
 		const session = sessionStreams.get(id);
 		if (session) {
@@ -905,7 +921,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			return [`workspace:${id}`, ...(session ? [session] : [])];
 		},
 		/** The `seq` a workspace was created at. */
-		bornAt: (id: string) => born.get(id),
+		bornAt: (id: string) => born.get(id)?.seq,
 		/** Tells `listener` each edit of a workspace's transcript, until the returned function is called. */
 		followEdits(id: string, listener: (edit: TranscriptEdit) => void): () => void {
 			const followers = listeners.get(id) ?? new Set<(edit: TranscriptEdit) => void>();

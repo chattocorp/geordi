@@ -54,7 +54,7 @@ export function compactionNote(item: Extract<TranscriptItem, { kind: 'compaction
 }
 
 /** Read the envelope stored with a child report, including reports in older conversations. */
-function childReport(item: Extract<TranscriptItem, { kind: 'user' }>) {
+export function childReport(item: { text: string; from?: string | null }) {
 	if (!item.from || item.from.startsWith('external:')) return;
 	const match =
 		/^Your agent “(?<name>[^\n]*)” \((?<id>[^)\n]+)\) (?<status>finished its turn\.(?:\n\n|$)|stopped: )/.exec(

@@ -8,7 +8,7 @@
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
 	import { duration, relativeAge } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
-	import type { Block, Part, TurnChanges } from '#lib/transcript.ts';
+	import { childReport, type Block, type Part, type TurnChanges } from '#lib/transcript.ts';
 	import AgentText from '@geordi/ui/AgentText.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
@@ -39,6 +39,8 @@
 		cwd,
 		pictures,
 		senders,
+		childSenders = {},
+		queueSenders = [],
 		parentAgent,
 		queue = [],
 		queueImages = [],
@@ -60,6 +62,8 @@
 		/** Where the pictures the agent refers to are served. */
 		pictures?: string;
 		senders?: Record<string, string>;
+		childSenders?: Record<string, string>;
+		queueSenders?: (string | null)[];
 		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
@@ -74,6 +78,7 @@
 
 	const workspaceFiles = changedFiles();
 	const expanded = new SvelteSet<number>();
+	const openMessages = new SvelteSet<string>();
 
 	/**
 	 * Where a part's pictures are served: at an address of the part's own, since an agent may
@@ -239,6 +244,53 @@
 	});
 </script>
 
+{#snippet childMessage(
+	key: string,
+	from: string,
+	name: string,
+	status: string,
+	text: string,
+	images?: string[]
+)}
+	{@const open = openMessages.has(key)}
+	<div class="message message-incoming px-0 py-0">
+		<button
+			type="button"
+			aria-expanded={open}
+			class="flex w-full items-center gap-1.5 rounded-card rounded-tl-control px-3.5 py-2.5 text-left text-sm text-muted hover:bg-hover hover:text-ink"
+			onclick={() => {
+				if (open) openMessages.delete(key);
+				else {
+					following = false;
+					openMessages.add(key);
+				}
+			}}
+		>
+			<span
+				aria-hidden="true"
+				class={['icon-[lucide--chevron-right] size-3.5 shrink-0', open && 'rotate-90']}
+			></span>
+			<span class="min-w-0 wrap-anywhere"><span class="font-medium">{name}</span> {status}</span>
+		</button>
+		{#if open}
+			<div class="px-3.5 pb-2.5">
+				{#if text}<Markdown preserveLineBreaks {text} {pictures} />{/if}
+				<MessageImages {images} />
+				<div class="mt-1 flex items-center gap-1">
+					<a
+						href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(from)}`, { id: from })}
+						class="quiet-action text-xs"
+						aria-label={`Open ${name} workspace`}
+					>
+						<span aria-hidden="true" class="icon-[lucide--git-branch] size-3.5"></span>{name}
+					</a>
+					{#if text}<MessageCopy {text} />{/if}
+				</div>
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
 {#snippet tokens(usage: TurnUsage)}
 	<p>{tokenSummary(usage)}</p>
 	<p class="text-muted">{tokenBreakdown(usage)}</p>
@@ -392,50 +444,52 @@
 										class="absolute top-3 left-2 icon-[lucide--corner-down-right] size-4 text-faint"
 									></span>
 								{/if}
-								<UserMessage text={block.text} {incoming}>
-									{#if incoming}
-										<div class="mb-1 flex items-center gap-1.5 text-xs text-muted">
-											{#if block.report}
-												<span
-													aria-hidden="true"
-													class={[
-														'size-3.5 shrink-0',
-														block.report === 'finished'
-															? 'icon-[lucide--circle-check] text-ok'
-															: 'icon-[lucide--circle-stop] text-muted'
-													]}
-												></span>
-											{/if}
-											<span class="min-w-0 wrap-anywhere">
-												{#if block.from && !block.from.startsWith('external:')}
-													<a
-														href={resolve(
-															`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`,
-															{ id: block.from }
-														)}
-														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:text-ink hover:decoration-current focus-visible:decoration-current"
-													>
-														{title || 'Another agent'}
-													</a>
-												{:else if block.delegated && parentAgent}
-													<button
-														type="button"
-														onclick={parentAgent.open}
-														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:decoration-current focus-visible:decoration-current"
-													>
-														{i === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
-													</button>
-												{:else}
-													<span class="font-medium">{title || 'Another agent'}</span>
-												{/if}
-												{#if block.report}
-													{block.report}{/if}
-											</span>
-										</div>
-									{/if}
-									{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
-									<MessageImages images={block.images} />
-								</UserMessage>
+								{#if block.from && (block.report || childSenders[block.from])}
+									{@render childMessage(
+										String(i),
+										block.from,
+										title || childSenders[block.from] || 'Child agent',
+										block.report ?? 'sent a message',
+										block.text,
+										block.images
+									)}
+								{:else}
+									<UserMessage text={block.text} {incoming}>
+										{#if incoming}
+											<div class="mb-1 flex items-center gap-1.5 text-xs text-muted">
+												<span class="min-w-0 wrap-anywhere">
+													{#if block.from && !block.from.startsWith('external:')}
+														<a
+															href={resolve(
+																`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`,
+																{ id: block.from }
+															)}
+															class="rounded-control font-medium underline decoration-line underline-offset-2 hover:text-ink hover:decoration-current focus-visible:decoration-current"
+														>
+															{title || 'Another agent'}
+														</a>
+													{:else if block.delegated && parentAgent}
+														<button
+															type="button"
+															onclick={parentAgent.open}
+															class="rounded-control font-medium underline decoration-line underline-offset-2 hover:decoration-current focus-visible:decoration-current"
+														>
+															{i === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
+														</button>
+													{:else}
+														<span class="font-medium">{title || 'Another agent'}</span>
+													{/if}
+												</span>
+											</div>
+										{/if}
+										{#if block.text}<Markdown
+												preserveLineBreaks
+												text={block.text}
+												{pictures}
+											/>{/if}
+										<MessageImages images={block.images} />
+									</UserMessage>
+								{/if}
 							</div>
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
@@ -486,13 +540,29 @@
 					</div>
 				{:else}
 					{@const { text, index, images } = row}
-					<div class="ml-auto message ring-1 ring-line">
-						<p class="label">Queued</p>
-						{#if text}<Markdown preserveLineBreaks {text} {pictures} dimmed />{/if}
-						<MessageImages {images} />
-					</div>
-					<div class="mt-1 flex items-center justify-end gap-1">
-						{#if text}<MessageCopy {text} />{/if}
+					{@const from = queueSenders[index]}
+					{@const report = childReport({ from, text })}
+					{@const child = from && (report || childSenders[from])}
+					{#if from && child}
+						<div class="pl-11.5">
+							{@render childMessage(
+								JSON.stringify(['queue', index, from, text]),
+								from,
+								report?.senderName || childSenders[from],
+								report ? `${report.report} (queued)` : 'sent a message (queued)',
+								report?.text ?? text,
+								images
+							)}
+						</div>
+					{:else}
+						<div class="ml-auto message ring-1 ring-line">
+							<p class="label">Queued</p>
+							{#if text}<Markdown preserveLineBreaks {text} {pictures} dimmed />{/if}
+							<MessageImages {images} />
+						</div>
+					{/if}
+					<div class={['mt-1 flex items-center gap-1', child ? 'pl-11.5' : 'justify-end']}>
+						{#if text && !child}<MessageCopy {text} />{/if}
 						{#if onremove}<Button
 								variant="ghost"
 								size="sm"

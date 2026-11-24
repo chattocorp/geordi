@@ -653,18 +653,26 @@
 	name="Agent follow-ups"
 	asChild
 	play={async ({ canvas }) => {
-		for (const [name, id] of [
-			['Migration tests', 'parent'],
-			['Review', 'peer']
-		]) {
-			await expect(await canvas.findByRole('link', { name })).toHaveAttribute(
-				'href',
-				`/workspaces/${id}?agent=${id}`
-			);
-		}
-		await expect(canvas.getByText('finished', { exact: true })).toHaveTextContent(
-			'Review finished'
+		await expect(await canvas.findByRole('link', { name: 'Migration tests' })).toHaveAttribute(
+			'href',
+			'/workspaces/parent?agent=parent'
 		);
+		for (const [heading, body] of [
+			['Review sent a message', 'I’m checking the archived repositories.'],
+			['Review finished', 'The migration covers archived repositories. Both regression tests pass.']
+		]) {
+			const toggle = await canvas.findByRole('button', { name: heading });
+			await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+			await expect(canvas.queryByText(body)).toBeNull();
+			await userEvent.click(toggle);
+			await expect(canvas.getByText(body)).toBeVisible();
+			await expect(canvas.getByRole('link', { name: 'Open Review workspace' })).toHaveAttribute(
+				'href',
+				'/workspaces/peer?agent=peer'
+			);
+			await userEvent.click(toggle);
+			await expect(canvas.queryByText(body)).toBeNull();
+		}
 		await expect(canvas.getByText('Release assistant').closest('a')).toBeNull();
 	}}
 >
@@ -678,6 +686,13 @@
 					at: '',
 					text: 'I found an archived repository in the test fixtures.',
 					from: 'parent'
+				},
+				{
+					kind: 'user',
+					at: '',
+					text: 'I’m checking the archived repositories.',
+					from: 'peer',
+					senderName: 'Review'
 				},
 				{
 					kind: 'user',
@@ -696,6 +711,7 @@
 				{ kind: 'text', at: '', text: 'The migration is ready to merge.' }
 			])}
 			senders={{ parent: 'Migration tests' }}
+			childSenders={{ peer: 'Review' }}
 			agent="codex"
 			onremove={() => {}}
 			onanswer={() => {}}
