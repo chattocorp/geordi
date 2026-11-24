@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import WorkspaceActivity from './WorkspaceActivity.svelte';
 	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
+	import ValueBadge from './ValueBadge.svelte';
 	import RowLabel from './RowLabel.svelte';
 
 	import QuestionLink from './QuestionLink.svelte';
@@ -155,15 +156,7 @@
 			{#if primary.id === 'merge-pull' && standing?.tone === 'ok' && versions.length}
 				<span class="mr-1 flex min-w-0 flex-wrap justify-end gap-1">
 					{#each versions as pkg (pkg.path)}
-						<span
-							class="inline-flex h-6 max-w-full items-center gap-1 rounded-full bg-sunken px-2 text-xs font-normal text-muted"
-							title={pkg.name ? `${pkg.name} ${pkg.version}` : pkg.version}
-						>
-							{#if pkg.name}<span class="truncate">{pkg.name}</span>{/if}
-							<span class="max-w-full shrink-0 truncate font-semibold text-ink tabular-nums">
-								{pkg.version}
-							</span>
-						</span>
+						<ValueBadge label={pkg.name} value={pkg.version} />
 					{/each}
 				</span>
 			{/if}
