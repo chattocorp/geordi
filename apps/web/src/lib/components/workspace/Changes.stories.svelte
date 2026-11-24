@@ -348,6 +348,8 @@
 		await expect(canvas.getByRole('button', { name: /\+page\.svelte/ })).toBeVisible();
 		await userEvent.click(forge);
 		await expect(forge).toHaveAttribute('aria-expanded', 'false');
+		// folded, it says how much changed in it, all its files together
+		await expect(forge.parentElement!).toHaveTextContent(/\+16\s*−4/);
 		await expect(canvas.queryByRole('button', { name: /\+page\.svelte/ })).toBeNull();
 		// the tree is drawn within each section
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));

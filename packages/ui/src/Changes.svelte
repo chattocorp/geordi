@@ -67,6 +67,12 @@
 				: [...folds[kind], key]
 		});
 
+	/** The lines added and removed in these files, together; a binary file has none to count. */
+	const linesOf = (entries: File[]) => ({
+		added: entries.reduce((sum, file) => sum + (file.added ?? 0), 0),
+		removed: entries.reduce((sum, file) => sum + (file.removed ?? 0), 0)
+	});
+
 	/** The files by the repository's sections; shown so only where there are two. */
 	const groups = $derived(bySection(files, sections));
 	/**
@@ -223,6 +229,10 @@
 									}}
 									class="h-full pr-1 font-medium"
 								/>
+								<!-- folded, it says how much changed in it, where its files say theirs -->
+								{#if !row.open}
+									<DiffStat class="text-xs tabular-nums" {...linesOf(row.group.files)} />
+								{/if}
 							</div>
 						{:else if row.kind === 'dir'}
 							<button
