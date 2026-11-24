@@ -153,7 +153,7 @@
 			</StatusIcon>
 		{:else if primary && pillColor}
 			{#if primary.id === 'merge-pull' && standing?.tone === 'ok' && versions.length}
-				<span class="mr-1 hidden min-w-0 flex-wrap justify-end gap-1 reveal:flex">
+				<span class="mr-1 flex min-w-0 flex-wrap justify-end gap-1">
 					{#each versions as pkg (pkg.path)}
 						<span
 							class="inline-flex max-w-full items-baseline gap-1 rounded-full bg-sunken px-1.5 text-xs font-medium text-muted"
