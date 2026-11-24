@@ -9,16 +9,18 @@
 		imageField,
 		suggestion,
 		disabled = false,
+		allowEmpty = false,
 		images = $bindable([]),
 		...props
 	}: Omit<ComponentProps<typeof Composer>, 'attachments' | 'onpaste'> & {
 		imageField: HTMLInputAttributes;
+		allowEmpty?: boolean;
 		/** The images attached, by ID: bind it to keep them (a draft). */
 		images?: string[];
 	} = $props();
 </script>
 
-<WithMessageImages {form} {imageField} bind:images {disabled}>
+<WithMessageImages {allowEmpty} {form} {imageField} bind:images {disabled}>
 	{#snippet children(imageProps, hasImages)}
 		<Composer {...props} {...imageProps} {disabled} suggestion={hasImages ? null : suggestion} />
 	{/snippet}
