@@ -254,7 +254,7 @@
 						<div
 							class={[
 								'item h-8 pr-1 text-ink select-none',
-								names.some((name) => needed.includes(name)) && 'bg-hover'
+								!open && names.some((name) => needed.includes(name)) && 'bg-hover'
 							]}
 						>
 							<RowLabel

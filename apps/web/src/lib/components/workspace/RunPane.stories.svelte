@@ -70,7 +70,7 @@
 	];
 	// tasks whose labels begin alike are a section of their own
 	const sectioned: Task[] = [
-		task('play', 'Play', { command: 'pnpm play', default: true }),
+		task('play', 'Play', { command: 'pnpm play', default: true, needs: ['act2'] }),
 		task('ring1', 'Sorties / Ring 1', { command: 'pnpm play --ring 1' }),
 		task('ring2', 'Sorties / Ring 2', { command: 'pnpm play --ring 2' }),
 		task('shipyard', 'Shipyard', { command: 'pnpm play --shipyard' }),
@@ -303,11 +303,21 @@
 		// folded, a section hides its tasks, and still says that something in it runs
 		const finales = canvas.getByRole('button', { name: /Finales/ });
 		const heading = within(finales);
+		const header = finales.parentElement!;
+		// open, what a task needs is shown on its own row; folded, on the group's
+		const play = canvas.getByRole('button', { name: 'Run Play' });
+		await userEvent.hover(play);
+		await expect(header).not.toHaveClass('bg-hover');
+		await expect(
+			canvas.getByRole('button', { name: 'Run Act 2: the duel' }).closest('div')
+		).toHaveClass('bg-hover');
 		await expect(heading.queryByRole('img', { name: 'Running' })).toBeNull();
 		await userEvent.click(finales);
 		await expect(finales).toHaveAttribute('aria-expanded', 'false');
 		await expect(canvas.queryByRole('button', { name: 'Run Act 2: the duel' })).toBeNull();
 		await expect(heading.getByRole('img', { name: 'Running' })).toBeVisible();
+		await userEvent.hover(play);
+		await expect(header).toHaveClass('bg-hover');
 		await userEvent.click(finales);
 		await expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).toBeVisible();
 	}}
