@@ -1,3 +1,4 @@
+import { questionLabel } from '#lib/question-label.ts';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { isInactive } from '#lib/family.ts';
@@ -14,6 +15,7 @@ import {
 	type Agent,
 	type AgentEvent,
 	type AgentSettings,
+	type Question,
 	type ContextUsage,
 	type ForgeMessage,
 	type Harness,
@@ -54,6 +56,9 @@ export type WorkspaceSummary = Omit<Workspace, 'transcript' | 'pendingMessages'>
 
 /** What an agent sees of an agent it started (FDR-002). */
 export type AgentReport = {
+	parentQuestions?: { id: string; questions: Question[] }[];
+	/** Other direct children with a decision for the caller of wait_for_agent. */
+	childrenAsking?: string[];
 	id: string;
 	parentId: string | null;
 	agent: Agent;
@@ -233,11 +238,26 @@ export function createWorkspaces(
 			!running
 		)
 			return;
+		const parent =
+			event.kind === 'question' && event.blocking !== false && workspace.parentId
+				? projection.get().get(workspace.parentId)
+				: undefined;
+		const toParent =
+			parent && !parent.archivedAt && !held.has(parent.id) && onParentTask(workspace);
+		const newRequest = toParent && event.kind === 'question' && !questionById(workspace, event.id);
 		store.append({
 			type: 'workspace.output',
 			stream: `workspace:${id}`,
-			data: { id, event, ...(cursor && { cursor }) }
+			data: { id, event, ...(toParent && { toParent: true as const }), ...(cursor && { cursor }) }
 		});
+		if (newRequest && parent) {
+			const waits = [...waiting.values()].flatMap((group) =>
+				[...group].filter((wait) => wait.callerId === parent.id)
+			);
+			if (waits.length) {
+				for (const wait of waits) wait.finish();
+			} else notifyQuestion(parent);
+		}
 		const measured = usages.get(id);
 		if (measured && workspace.status === 'idle') keepUsage(workspace, measured);
 		if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
@@ -250,12 +270,21 @@ export function createWorkspaces(
 				for (const wait of waits) wait.finish(result);
 			}
 			if (!parentWaiting) tellParent(workspace);
-			if (event.kind === 'turn.completed') promoteCompletedQueue(workspace);
+			if (event.kind === 'turn.completed') {
+				promoteCompletedQueue(workspace);
+				notifyQuestion(workspace);
+			}
 		}
 	}
 
-	type Wait = { callerId: string; finish(result: AgentReport): void };
+	type Wait = { callerId: string; finish(result?: AgentReport): void };
 	const waiting = new Map<string, Set<Wait>>();
+
+	function onParentTask(child: Workspace, turn = latestTurn(child)) {
+		if (turn.some((item) => item.kind === 'user' && !item.from)) return false;
+		const from = turn.find((item) => item.kind === 'user')?.from;
+		return !!from && (from === child.parentId || projection.get().get(from)?.parentId === child.id);
+	}
 
 	/**
 	 * Tells an agent's parent that it has finished a turn, with what it said (FDR-002), unless
@@ -269,9 +298,7 @@ export function createWorkspaces(
 		const parent = projection.get().get(child.parentId);
 		if (!parent || parent.archivedAt || held.has(parent.id)) return;
 		const turn = latestTurn(child);
-		if (turn.some((item) => item.kind === 'user' && !item.from)) return;
-		const from = turn.find((item) => item.kind === 'user')?.from;
-		if (!from || (from !== parent.id && projection.get().get(from)?.parentId !== child.id)) return;
+		if (!onParentTask(child, turn)) return;
 		const { reply, error } = report(child, turn);
 		const text = [
 			error
@@ -374,7 +401,8 @@ export function createWorkspaces(
 		actor: string | null,
 		from?: 'queued',
 		images: string[] = [],
-		action?: ActionId
+		action?: ActionId,
+		questionNotice?: { id: string; question: string }
 	) {
 		const { id } = workspace;
 		if (workspace.agent === 'opencode' && workspace.status !== 'idle' && !from) {
@@ -395,20 +423,30 @@ export function createWorkspaces(
 		if (from === 'queued') images = workspace.attachments.queue[0];
 		const deliveryId = randomUUID();
 		const working = workspace.status === 'running';
+		const message: GeordiEvent = {
+			type: 'workspace.message',
+			stream: `workspace:${id}`,
+			data: {
+				id,
+				text,
+				deliveryId,
+				...(action && { action }),
+				...(images.length && { images }),
+				...(from && { [from]: true }),
+				...(senderName && { senderName })
+			}
+		};
 		store.append(
-			{
-				type: 'workspace.message',
-				stream: `workspace:${id}`,
-				data: {
-					id,
-					text,
-					deliveryId,
-					...(action && { action }),
-					...(images.length && { images }),
-					...(from && { [from]: true }),
-					...(senderName && { senderName })
-				}
-			},
+			questionNotice
+				? [
+						message,
+						{
+							type: 'workspace.questionNotified',
+							stream: `workspace:${questionNotice.id}`,
+							data: questionNotice
+						}
+					]
+				: message,
 			{ actor }
 		);
 		// append applies the projection synchronously, including the briefing and attachments.
@@ -669,6 +707,49 @@ export function createWorkspaces(
 			error(429, `${limits.children} agents are already running; wait for one to finish`);
 	}
 
+	// A waiting parent's tool returns the request. Otherwise the child can wait for the
+	// parent's next free turn. Persist the wake-up with its receipt so a restart can retry it.
+	function notifyQuestion(parent: Workspace) {
+		if (
+			parent.status !== 'idle' ||
+			parent.archivedAt ||
+			parent.queue.length ||
+			held.has(parent.id) ||
+			stoppingForArchive.has(parent.id)
+		)
+			return;
+		for (const child of childrenOf(parent.id)) {
+			if (child.status !== 'running') continue;
+			const asked = child.transcript.find(
+				(item) =>
+					item.kind === 'question' && item.open && item.route === 'parent' && !item.parentNotified
+			);
+			if (asked?.kind !== 'question') continue;
+			say(parent, 'A child workspace needs your decision.', child.id, undefined, [], undefined, {
+				id: child.id,
+				question: asked.id
+			});
+			return;
+		}
+	}
+
+	function routedQuestions(workspace: Workspace, route: 'parent' | 'forwarded') {
+		return workspace.transcript.flatMap((item) =>
+			item.kind === 'question' && item.open && item.route === route
+				? [{ id: item.id, questions: item.questions }]
+				: []
+		);
+	}
+
+	function childQuestion(caller: string, id: string, question: string) {
+		const child = findFor(caller, id);
+		if (child.archivedAt || child.parentId !== caller)
+			error(403, 'Only the direct parent can handle this request');
+		const asked = questionById(child, question);
+		if (!asked?.route) error(409, 'This question was not addressed to the parent');
+		return asked;
+	}
+
 	function latestTurn(workspace: Workspace) {
 		const transcript = transcriptOf(workspace);
 		// A completed turn has its own closing marker. Search before it for the previous turn.
@@ -680,9 +761,11 @@ export function createWorkspaces(
 	}
 
 	function report(workspace: Workspace, turn = latestTurn(workspace)): AgentReport {
+		const parentQuestions = routedQuestions(workspace, 'parent');
 		return {
 			id: workspace.id,
 			parentId: workspace.parentId,
+			...(parentQuestions.length && { parentQuestions }),
 			agent: workspace.agent,
 			title: workspace.title,
 			status: workspace.status,
@@ -711,6 +794,39 @@ export function createWorkspaces(
 	}
 
 	/**
+	 * Answers a question the workspace's agent asked, which it waits to hear about: one
+	 * answer per question, in their order.
+	 */
+	function answer(id: string, question: string, answers: string[], actor: string | null = null) {
+		const asked = questionById(find(id), question);
+		const saved = asked?.answers;
+		if (
+			saved &&
+			asked.delivery !== 'unconfirmed' &&
+			answers.length === saved.length &&
+			answers.every((value, i) => value === saved[i])
+		)
+			return;
+		if (!asked?.open) error(409, 'That question no longer waits for an answer');
+		if (
+			answers.length !== asked.questions.length ||
+			asked.questions.some((q, i) => !q.optional && !answers[i].trim())
+		)
+			error(400, 'Give an answer for each required question');
+		if (asked.blocking === false && !answers.some((value) => value.trim()))
+			error(400, 'Give at least one answer');
+		store.append(
+			{
+				type: 'workspace.answered',
+				stream: `workspace:${id}`,
+				data: { id, question, answers, pending: true }
+			},
+			{ actor }
+		);
+		dispatch({ type: 'agent.answer', workspaceId: id, questionId: question, answers });
+	}
+
+	/**
 	 * What agents can do through the agent API (ADR-004, FDR-002). Every function takes the
 	 * caller: a workspace, or an external client's grant. It is recorded as the actor of what
 	 * it causes. A workspace's agent can read any workspace, an external client those in the
@@ -732,6 +848,31 @@ export function createWorkspaces(
 				.reverse()
 				.filter((w) => (archived || !w.archivedAt) && sees(callerId, w))
 				.map(entry);
+		},
+		answerQuestion(caller: string, id: string, question: string, answers: string[]) {
+			const asked = childQuestion(caller, id, question);
+			if (asked.route !== 'parent') error(409, 'This question was passed to the person');
+			const values = answers.map((value, index) => {
+				const field = asked.questions[index];
+				if (!field?.options.length || asked.answers?.[index] === value) return value;
+				const picks = field.multiSelect ? value.split('\n') : [value];
+				const labels = picks.map((pick) => {
+					if (field.options.some((option) => option.label === pick)) return pick;
+					const matches = field.options.filter((option) => questionLabel(option.label) === pick);
+					return matches.length === 1 ? matches[0].label : undefined;
+				});
+				return labels.every((label) => label !== undefined) ? labels.join('\n') : value;
+			});
+			answer(id, question, values, caller);
+		},
+		forwardQuestion(caller: string, id: string, question: string) {
+			const asked = childQuestion(caller, id, question);
+			if (!asked.open) error(409, 'This question is closed');
+			if (asked.route === 'forwarded') return;
+			store.append(
+				{ type: 'workspace.questionForwarded', stream: `workspace:${id}`, data: { id, question } },
+				{ actor: caller }
+			);
 		},
 		readWorkspace(callerId: string, id: string, before?: number) {
 			const workspace = findFor(callerId, id);
@@ -917,7 +1058,21 @@ export function createWorkspaces(
 		/** Resolves once a workspace's agent is idle, or after `timeoutMs` at the latest. */
 		async wait(callerId: string, id: string, timeoutMs: number): Promise<AgentReport> {
 			const workspace = findFor(callerId, id);
-			if (workspace.status === 'idle') return report(workspace);
+			const snapshot = () => {
+				const value = report(workspace);
+				const others = childrenOf(callerId).filter(
+					(child) => child.id !== id && routedQuestions(child, 'parent').length
+				);
+				if (others.length) value.childrenAsking = others.map((child) => child.id);
+				return value;
+			};
+			const current = snapshot();
+			if (
+				workspace.status === 'idle' ||
+				current.childrenAsking ||
+				(workspace.parentId === callerId && current.parentQuestions)
+			)
+				return current;
 			return new Promise<AgentReport>((resolve) => {
 				const waits = waiting.get(id) ?? new Set<Wait>();
 				const wait: Wait = {
@@ -926,10 +1081,10 @@ export function createWorkspaces(
 						clearTimeout(timer);
 						waits.delete(wait);
 						if (!waits.size) waiting.delete(id);
-						resolve(result);
+						resolve(result ?? snapshot());
 					}
 				};
-				const timer = setTimeout(() => wait.finish(report(workspace)), timeoutMs);
+				const timer = setTimeout(() => wait.finish(), timeoutMs);
 				waits.add(wait);
 				waiting.set(id, waits);
 			});
@@ -964,6 +1119,18 @@ export function createWorkspaces(
 	return {
 		access,
 		agents,
+		parentOf: (id: string) => projection.get().get(id)?.parentId,
+		forwardedQuestions: (id: string) =>
+			childrenOf(id)
+				.filter((child) => child.asking)
+				.flatMap((child) =>
+					routedQuestions(child, 'forwarded').map((question) => ({
+						...question,
+						workspaceId: child.id,
+						title: child.title
+					}))
+				),
+
 		followTranscript,
 		measure,
 		suggest,
@@ -1141,38 +1308,7 @@ export function createWorkspaces(
 			say(workspace, text, actor, undefined, images);
 		},
 
-		/**
-		 * Answers a question the workspace's agent asked, which it waits to hear about: one
-		 * answer per question, in their order.
-		 */
-		answer(id: string, question: string, answers: string[], actor: string | null = null) {
-			const asked = questionById(find(id), question);
-			const saved = asked?.answers;
-			if (
-				saved &&
-				asked.delivery !== 'unconfirmed' &&
-				answers.length === saved.length &&
-				answers.every((value, i) => value === saved[i])
-			)
-				return;
-			if (!asked?.open) error(409, 'That question no longer waits for an answer');
-			if (
-				answers.length !== asked.questions.length ||
-				asked.questions.some((q, i) => !q.optional && !answers[i].trim())
-			)
-				error(400, 'Give an answer for each required question');
-			if (asked.blocking === false && !answers.some((value) => value.trim()))
-				error(400, 'Give at least one answer');
-			store.append(
-				{
-					type: 'workspace.answered',
-					stream: `workspace:${id}`,
-					data: { id, question, answers, pending: true }
-				},
-				{ actor }
-			);
-			dispatch({ type: 'agent.answer', workspaceId: id, questionId: question, answers });
-		},
+		answer,
 
 		/**
 		 * Takes back a waiting message, by its place in the queue. `text` is the message that
@@ -1399,8 +1535,16 @@ export function createWorkspaces(
 			if (workspace.archivedAt) return;
 			if (workspace.locked) error(409, `“${workspace.title}” is locked. Unlock it to archive it.`);
 			if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
+			// Children in another repository can keep running after their parent is archived.
+			const requests = childrenOf(id).flatMap((child) =>
+				routedQuestions(child, 'parent').map(({ id: question }): GeordiEvent => ({
+					type: 'workspace.questionForwarded',
+					stream: `workspace:${child.id}`,
+					data: { id: child.id, question }
+				}))
+			);
 			store.append(
-				{ type: 'workspace.archived', stream: `workspace:${id}`, data: { id } },
+				[...requests, { type: 'workspace.archived', stream: `workspace:${id}`, data: { id } }],
 				{ actor }
 			);
 		},
@@ -1504,6 +1648,8 @@ export function createWorkspaces(
 					if (deliver(workspace, message, working)) working = true;
 				// A restart can fall between recording completion and promoting the queue.
 				promoteCompletedQueue(workspace);
+				if (workspace.lastTurn !== 'failed' && workspace.lastTurn !== 'stopped')
+					notifyQuestion(workspace);
 			}
 			for (const id of running)
 				if (projection.get().get(id)?.status !== 'running')

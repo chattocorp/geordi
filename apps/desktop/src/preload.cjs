@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld('geordiDesktop', {
 			ipcRenderer.send('geordi:updates', 'read');
 			return () => ipcRenderer.removeListener('geordi:update-state', receive);
 		},
-		setBeta: (value) => ipcRenderer.send('geordi:updates', 'beta', value),
+		setChannel: (value) => ipcRenderer.send('geordi:updates', 'channel', value),
 		check: () => ipcRenderer.send('geordi:updates', 'check'),
 		restart: () => ipcRenderer.send('geordi:updates', 'restart')
 	}

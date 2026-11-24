@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import ForwardedQuestions from './ForwardedQuestions.svelte';
 	import MessageView from './MessageView.svelte';
 	import type { Workspace } from '#lib/server/workspaces.ts';
 	import { draft } from '#lib/drafts.svelte.ts';
@@ -36,7 +37,8 @@
 		onopenturn,
 		onopensubagent
 	}: {
-		workspace: Workspace & Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel'>;
+		workspace: Workspace &
+			Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel' | 'forwardedQuestions'>;
 		questionTarget?: { id: string; done(): void };
 		waiting?: boolean;
 		onopenturn?: (changes: TurnChanges) => void;
@@ -139,6 +141,13 @@
 			onanswer={(question, answers) =>
 				answerQuestion({ workspaceId: workspace.id, question, answers })}
 		/>
+		{#if workspace.forwardedQuestions.length}
+			<ForwardedQuestions
+				requests={workspace.forwardedQuestions}
+				onanswer={(workspaceId, question, answers) =>
+					answerQuestion({ workspaceId, question, answers })}
+			/>
+		{/if}
 	{/key}
 
 	<div class="relative mx-auto flex max-h-full min-h-0 w-full max-w-5xl flex-col">

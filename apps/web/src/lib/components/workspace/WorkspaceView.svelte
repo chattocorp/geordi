@@ -801,7 +801,11 @@
 				state: page.state
 			});
 			const question = askingAgent?.transcript.find(
-				(item) => item.kind === 'question' && item.open && item.blocking !== false
+				(item) =>
+					item.kind === 'question' &&
+					item.open &&
+					item.route !== 'parent' &&
+					item.blocking !== false
 			);
 			if (!askingAgent || question?.kind !== 'question') return;
 			showTab(askingAgent.id === id ? CHAT : `agent:${askingAgent.id}`);

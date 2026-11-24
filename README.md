@@ -47,7 +47,7 @@ For a portable Linux download, make the AppImage executable (`chmod +x Geordi-*.
 and run it, or extract the tarball and run `geordi` in it.
 The app runs everything Geordi needs and keeps its data in `~/.geordi`.
 
-On macOS, open **Settings → About** to check for updates, choose the Stable or Beta channel,
+On macOS, open **Settings → About** to check for updates, choose the Stable, Beta, or Alpha channel,
 and restart to install a downloaded update. Geordi also checks on startup and hourly.
 
 Geordi runs the agent CLIs you already use: sign in to

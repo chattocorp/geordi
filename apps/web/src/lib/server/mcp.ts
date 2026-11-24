@@ -212,7 +212,7 @@ const tools = {
 	},
 	wait_for_agent: {
 		description:
-			'Wait for a visible workspace to finish its current turn and return its agent report. For its pull request and checks, call workspace_status. If it is still running at timeout, check read_workspace.pendingQuestions for a blocking question that needs the person, then wait again as needed. An idle report can include an error.',
+			'Wait for a visible workspace to finish its current turn and return its agent report. For its pull request and checks, call workspace_status. A direct child returns early with parentQuestions when it needs your decision. If another direct child needs a decision, childrenAsking gives its workspace ID. Use list_agents to read the requests, then answer_question or forward_question. An idle report can include an error.',
 		input: v.strictObject({
 			workspace_id: workspaceId,
 			timeout_seconds: v.pipe(
@@ -265,6 +265,32 @@ const tools = {
 		}),
 		run: (agents: Agents, caller: string, input: { workspace_id: string; before?: number }) =>
 			agents.readWorkspace(caller, input.workspace_id, input.before)
+	},
+	answer_question: {
+		description:
+			'Answer a blocking request addressed to you by your direct child. Pass the request ID and one answer string per question in order. Geordi delivers your answer to the waiting child.',
+		input: v.strictObject({
+			workspace_id: workspaceId,
+			question_id: v.string(),
+			answers: v.pipe(v.array(v.pipe(v.string(), v.maxLength(10000))), v.maxLength(20))
+		}),
+		run: (
+			agents: Agents,
+			caller: string,
+			input: { workspace_id: string; question_id: string; answers: string[] }
+		) => {
+			agents.answerQuestion(caller, input.workspace_id, input.question_id, input.answers);
+			return { question_id: input.question_id, status: 'answered' };
+		}
+	},
+	forward_question: {
+		description:
+			'Pass a blocking request from your direct child to the person in your workspace. Pass its existing ID. The person answers the child directly. Leave the request text out of chat.',
+		input: v.strictObject({ workspace_id: workspaceId, question_id: v.string() }),
+		run: (agents: Agents, caller: string, input: { workspace_id: string; question_id: string }) => {
+			agents.forwardQuestion(caller, input.workspace_id, input.question_id);
+			return { question_id: input.question_id, status: 'forwarded' };
+		}
 	},
 	send_message: {
 		description: (kind: CallerKind) =>
@@ -454,6 +480,8 @@ const content = (text: string, isError = false) => ({ content: [{ type: 'text', 
 
 /** What only an agent in a workspace can use: it is about that workspace. */
 const workspaceTools = new Set([
+	'answer_question',
+	'forward_question',
 	'name_workspace',
 	'set_base',
 	'configuration_reference',
@@ -524,7 +552,7 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 				instructions: [
 					introduction[kind],
 					reportGuide,
-					'Call start_agent to delegate work and wait_for_agent with the returned id to follow its turn. When an agent you started ends a turn you are not waiting for, you get a message with its reply; a long task needs no repeated waits. Questions are for the person to answer. If the forge restarts, reconnect and continue waiting. Agents keep running.'
+					'Call start_agent to delegate work and wait_for_agent with the returned id to follow its turn. When an agent you started ends a turn you are not waiting for, you get a message with its reply; a long task needs no repeated waits. A direct child can return parentQuestions. Use answer_question or forward_question. If the forge restarts, reconnect and continue waiting. Agents keep running.'
 				].join(' ')
 			});
 		}

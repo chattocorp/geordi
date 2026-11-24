@@ -472,7 +472,7 @@
 						role="group"
 						aria-label={repo.name}
 						class={[
-							'pb-4',
+							'pb-row-group',
 							repo.id !== null && draggedRepo === repo.id && 'opacity-60',
 							repo.id !== null && repoDropBefore === repo.id && 'row-drop-before',
 							last && repoDropBefore === null && 'row-drop-after'

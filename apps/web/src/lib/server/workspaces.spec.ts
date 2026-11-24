@@ -1483,6 +1483,129 @@ describe('agents starting agents', () => {
 		return { ...context, lead: id, agents: context.workspaces.agents };
 	}
 
+	it('returns a child request to its waiting parent and delivers the answer in the same turn', async () => {
+		const { agents, workspaces, lead: parent, sent, create } = lead();
+		const child = agents.start(parent, { worktree: 'own', prompt: 'Test' });
+		const other = create('Peer');
+		const questions = [
+			{
+				question: 'Which database?',
+				options: [{ label: 'SQLite (Recommended)' }, { label: 'Memory' }],
+				multiSelect: false
+			}
+		];
+		const request = { kind: 'question' as const, id: 'choice', questions };
+		const waiting = agents.wait(parent, child.id, 30000);
+		workspaces.record(child.id, { ...request, questions });
+		expect(await waiting).toMatchObject({
+			status: 'running',
+			parentQuestions: [{ id: 'choice', questions }]
+		});
+		expect(workspaces.get(parent).queue).toEqual([]);
+		expect(workspaces.get(child.id).asking).toBe(false);
+		expect(() => agents.answerQuestion(other, child.id, 'choice', ['No'])).toThrow();
+		expect(() => agents.forwardQuestion(other, child.id, 'choice')).toThrow();
+		expect(() => agents.answerQuestion(parent, child.id, 'choice', [])).toThrow();
+		agents.answerQuestion(parent, child.id, 'choice', ['SQLite']);
+		agents.answerQuestion(parent, child.id, 'choice', ['SQLite']);
+		expect(sent.filter((m) => m.type === 'agent.answer')).toEqual([
+			{
+				type: 'agent.answer',
+				workspaceId: child.id,
+				questionId: 'choice',
+				answers: ['SQLite (Recommended)']
+			}
+		]);
+		expect(() => agents.forwardQuestion(parent, child.id, 'choice')).toThrow();
+		workspaces.steer(child.id, 'A task from the person');
+		agents.send(parent, child.id, 'Any news?');
+		workspaces.record(child.id, { ...request, id: 'personal', questions });
+		expect(workspaces.get(child.id).asking).toBe(true);
+		expect(() => agents.answerQuestion(parent, child.id, 'personal', ['No'])).toThrow();
+	});
+
+	it('forwards the original forms independently and replays their routes after a restart', async () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-child-questions-')), 'events.db');
+		const { agents, workspaces, lead: parent, sent } = lead({ database });
+		const children = ['Tests', 'Fixtures'].map(
+			(prompt) => agents.start(parent, { prompt, worktree: 'own' }).id
+		);
+		const questions = [{ question: 'Use the small sample?', options: [], multiSelect: false }];
+		for (const id of children) {
+			workspaces.record(id, { kind: 'question', id: 'q', questions });
+			expect(await agents.wait(parent, id, 30000)).toHaveProperty('parentQuestions');
+			agents.forwardQuestion(parent, id, 'q');
+			agents.forwardQuestion(parent, id, 'q');
+			expect(() => agents.answerQuestion(parent, id, 'q', ['Yes'])).toThrow();
+		}
+		workspaces.record(parent, { kind: 'turn.completed' });
+		expect(workspaces.get(parent).queue).toEqual([]);
+		expect(
+			workspaces
+				.get(parent)
+				.transcript.some(
+					(item) => item.kind === 'user' && item.text.includes(questions[0].question)
+				)
+		).toBe(false);
+		const store = new EventStore<GeordiEvent>(database);
+		const replay = createWorkspaces(
+			store,
+			createRepos(store),
+			(message) => (sent.push(message), true)
+		);
+		expect(
+			replay
+				.forwardedQuestions(parent)
+				.map((q) => q.workspaceId)
+				.sort()
+		).toEqual([...children].sort());
+		replay.answer(children[0], 'q', ['Yes']);
+		expect(sent.at(-1)).toEqual({
+			type: 'agent.answer',
+			workspaceId: children[0],
+			questionId: 'q',
+			answers: ['Yes']
+		});
+		expect(replay.forwardedQuestions(parent)).toHaveLength(1);
+		replay.record(children[1], { kind: 'question.closed', id: 'q' });
+		expect(replay.forwardedQuestions(parent)).toEqual([]);
+	});
+
+	it('alerts the parent waiting on another child without changing which agent it reports', async () => {
+		const { agents, workspaces, lead: parent } = lead();
+		const first = agents.start(parent, { worktree: 'own', prompt: 'First' }).id;
+		const second = agents.start(parent, { worktree: 'own', prompt: 'Second' }).id;
+		const waited = agents.wait(parent, first, 30000);
+		workspaces.record(second, {
+			kind: 'question',
+			id: 'q',
+			questions: [{ question: 'Continue?', options: [], multiSelect: false }]
+		});
+		expect(await waited).toMatchObject({ id: first, childrenAsking: [second] });
+		expect(await agents.wait(parent, first, 30000)).toMatchObject({
+			id: first,
+			childrenAsking: [second]
+		});
+		expect(workspaces.get(parent).queue).toEqual([]);
+	});
+
+	it('wakes an idle parent once without copying the request into its chat', () => {
+		const { agents, workspaces, lead: parent, sent } = lead();
+		const child = agents.start(parent, { worktree: 'own', prompt: 'Test' });
+		workspaces.record(parent, { kind: 'turn.completed' });
+		const count = sent.length;
+		const request = {
+			kind: 'question' as const,
+			id: 'q',
+			questions: [{ question: 'Which database?', options: [], multiSelect: false }]
+		};
+		workspaces.record(child.id, request);
+		workspaces.record(child.id, request);
+		expect(sent.slice(count)).toMatchObject([{ type: 'agent.message', workspaceId: parent }]);
+		expect(JSON.stringify(sent.slice(count))).not.toContain('Which database?');
+		workspaces.record(parent, { kind: 'turn.completed' });
+		expect(sent).toHaveLength(count + 1);
+	});
 	it('identifies an agent by its token, while it is at work only', () => {
 		const { workspaces, agents, sent, lead: caller } = lead();
 		const first = tokenOf(sent[0]);

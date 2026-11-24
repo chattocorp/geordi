@@ -133,6 +133,16 @@ export type WorkspacesEvent =
 	| { type: 'workspace.locked'; stream: WorkspaceStream; data: { id: string } }
 	| { type: 'workspace.unlocked'; stream: WorkspaceStream; data: { id: string } }
 	| { type: 'workspace.restored'; stream: WorkspaceStream; data: { id: string } }
+	| {
+			type: 'workspace.questionForwarded';
+			stream: WorkspaceStream;
+			data: { id: string; question: string };
+	  }
+	| {
+			type: 'workspace.questionNotified';
+			stream: WorkspaceStream;
+			data: { id: string; question: string };
+	  }
 	/** What a person answered to a question the agent asked: one answer per question, in their order. */
 	| {
 			type: 'workspace.answered';
@@ -160,7 +170,7 @@ export type WorkspacesEvent =
 	| {
 			type: 'workspace.output';
 			stream: WorkspaceStream;
-			data: { id: string; event: AgentEvent; cursor?: string };
+			data: { id: string; event: AgentEvent; cursor?: string; toParent?: true };
 	  }
 	/**
 	 * Archived workspaces were deleted from the log for good, their streams with them
@@ -274,6 +284,8 @@ export type TranscriptItem =
 			id: string;
 			questions: Question[];
 			blocking?: boolean;
+			route?: 'parent' | 'forwarded';
+			parentNotified?: true;
 			delivery?: 'pending' | 'unconfirmed';
 			answers: string[] | null;
 			open: boolean;
@@ -306,7 +318,8 @@ export function questionById(workspace: Workspace, id: string) {
 
 function updateAsking(workspace: Workspace) {
 	workspace.asking = workspace.transcript.some(
-		(item) => item.kind === 'question' && item.open && item.blocking !== false
+		(item) =>
+			item.kind === 'question' && item.open && item.route !== 'parent' && item.blocking !== false
 	);
 }
 
@@ -642,6 +655,22 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			steering.set(workspace.id, actor);
 			return;
 		}
+		if (
+			event.type === 'workspace.questionForwarded' ||
+			event.type === 'workspace.questionNotified'
+		) {
+			const asked = questionById(workspace, event.data.question);
+			if (asked?.open && asked.route === 'parent') {
+				replace(
+					asked,
+					event.type === 'workspace.questionForwarded'
+						? { ...asked, route: 'forwarded' }
+						: { ...asked, parentNotified: true }
+				);
+				updateAsking(workspace);
+			}
+			return;
+		}
 		if (event.type === 'workspace.answered') {
 			const question = questionById(workspace, event.data.question);
 			if (question && (question.open || !event.data.pending)) {
@@ -786,8 +815,14 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			}
 			case 'question':
 				if (questionById(workspace, output.id)) break;
-				append({ ...output, answers: null, open: true, at });
-				if (output.blocking !== false) workspace.asking = true;
+				append({
+					...output,
+					...(event.data.toParent && { route: 'parent' }),
+					answers: null,
+					open: true,
+					at
+				});
+				if (!event.data.toParent && output.blocking !== false) workspace.asking = true;
 				break;
 			case 'turn.started':
 				startTurn(workspace, at);

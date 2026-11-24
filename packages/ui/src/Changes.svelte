@@ -213,9 +213,9 @@
 		{:else}
 			<!-- rows you can pick (`item`), a hair apart, as in the Tasks tab: each starts with a
 			     cell for its sign, the chevron of what folds or the letter of a file -->
-			<ul class="space-y-px px-2">
+			<ul class="grouped-rows px-2">
 				{#each rows.slice(0, drawn) as row (row.key)}
-					<li>
+					<li data-group-start={row.kind === 'section' || undefined}>
 						{#if row.kind === 'section'}
 							<div class="group item h-8 pr-2">
 								<RowLabel

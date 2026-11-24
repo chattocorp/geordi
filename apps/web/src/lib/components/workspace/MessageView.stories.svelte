@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, fn, userEvent, waitFor } from 'storybook/test';
+	import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 	import { subagentBlocks, toBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '@geordi/ui/Button.svelte';
@@ -59,6 +59,7 @@
 	];
 	let questionTarget = $state<{ id: string; done(): void }>();
 	let answers = $state<string[] | null>(null);
+	let browserAnswers = $state<string[] | null>(null);
 </script>
 
 <Story
@@ -841,7 +842,7 @@
 	asChild
 	play={async ({ canvas }) => {
 		// A virtual row can stay hidden for measurement after its controls mount.
-		const conversation = canvas.getByRole('list');
+		const conversation = canvas.getByRole('list', { name: '' });
 		conversation.style.visibility = 'hidden';
 		await userEvent.click(canvas.getByRole('button', { name: 'Open question' }));
 		await waitFor(() => expect(canvas.getByText('SQLite')).toBeInTheDocument());
@@ -872,6 +873,76 @@
 			{questionTarget}
 			onanswer={() => {}}
 		/>
+	</div>
+</Story>
+
+<Story
+	name="Questions above queued messages"
+	asChild
+	play={async ({ canvas }) => {
+		const first = await canvas.findByRole('button', { name: asked[0].question });
+		await expect(
+			canvas.getByRole('button', { name: 'Which browser should we test?' })
+		).toBeVisible();
+		await userEvent.click(first);
+		const sqlite = await canvas.findByRole('button', { name: /SQLite/ });
+		await waitFor(() => expect(sqlite).toHaveFocus());
+		await waitFor(() => userEvent.click(sqlite));
+		await userEvent.click(within(sqlite.closest('form')!).getByRole('button', { name: 'Answer' }));
+		await waitFor(() =>
+			expect(canvas.queryByRole('button', { name: asked[0].question })).toBeNull()
+		);
+		await expect(
+			canvas.getByRole('button', { name: 'Which browser should we test?' })
+		).toBeVisible();
+	}}
+>
+	<div class="flex h-128 flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[
+				{
+					kind: 'agent',
+					parts: [
+						{ kind: 'question', id: 'db', questions: asked, answers, open: !answers },
+						{
+							kind: 'question',
+							id: 'browser',
+							questions: [
+								{ question: 'Which browser should we test?', options: [], multiSelect: false }
+							],
+							answers: browserAnswers,
+							open: !browserAnswers,
+							blocking: false
+						}
+					]
+				},
+				...history
+			]}
+			queue={[
+				'The database workspace needs a decision before it can run the tests.',
+				'The browser workspace has asked which browser to cover.'
+			]}
+			agent="codex"
+			onanswer={(id, given) => {
+				if (id === 'db') answers = given;
+				else browserAnswers = given;
+			}}
+		/>
+		<div class="relative px-5 pb-5">
+			<Composer
+				form={{ onsubmit: (event) => event.preventDefault() }}
+				rows={2}
+				placeholder="Reply to the agent"
+			>
+				{#snippet footer()}<Button
+						type="submit"
+						variant="primary"
+						icon="icon-[lucide--arrow-up]"
+						label="Send"
+						class="ml-auto"
+					/>{/snippet}
+			</Composer>
+		</div>
 	</div>
 </Story>
 

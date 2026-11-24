@@ -28,10 +28,10 @@ describe('instructionsFor', () => {
 
 	it('has an agent that an agent started ask that one, not the person', () => {
 		const child = instructionsFor({ ...own, parent: { title: 'x' } });
-		expect(child).toContain('do not use your blocking question tool');
+		expect(child).toContain('Use your blocking question tool to ask the agent');
 		expect(instructionsFor(own)).toContain('use your blocking question tool and wait');
 		// whoever starts agents learns to answer them
-		expect(instructionsFor(own)).toContain('ends its turn with its question');
+		expect(instructionsFor(own)).toContain('use forward_question');
 	});
 
 	it('says so when the directory is shared, and when there is no delegating', () => {

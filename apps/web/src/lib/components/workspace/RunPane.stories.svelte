@@ -302,6 +302,7 @@
 		await expect(rows.indexOf('Run Ring 3')).toBeLessThan(rows.indexOf('Run Shipyard'));
 		// folded, a group hides its tasks, and still says that something in it runs
 		const finales = canvas.getByRole('button', { name: /Finales/ });
+		await expect(finales.closest('li')).toHaveStyle({ marginBlockStart: '16px' });
 		const heading = within(finales);
 		const header = finales.parentElement!;
 		// open, what a task needs is shown on its own row; folded, on the group's

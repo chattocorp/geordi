@@ -1,7 +1,7 @@
 # FDR-005: Settings
 
 **Status:** Active
-**Last reviewed:** 2026-11-20
+**Last reviewed:** 2026-11-24
 
 ## Overview
 
@@ -46,7 +46,7 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 
 ### 4. Update preferences belong to the installed app
 
-Signed macOS releases check for stable updates at startup and hourly. **Settings → About** shows update status and lets the person check for updates or choose Stable or Beta. Its setting persists across releases. Choosing Stable keeps
+Signed macOS releases check for stable updates at startup and hourly. **Settings → About** shows update status and lets the person check for updates or choose Stable, Beta, or Alpha. Alpha also receives eligible beta and stable releases. Its setting persists across releases. Choosing Stable keeps
 the installed version until a newer stable release is available. Builds installed from source
 stay on the developer's chosen revision.
 
