@@ -22,7 +22,7 @@ describe('toBlocks', () => {
 				{ kind: 'turn', usage, at }
 			])
 		).toEqual([
-			{ kind: 'agent', parts: [{ kind: 'text', text: 'Done.' }], usage },
+			{ kind: 'agent', parts: [{ kind: 'text', text: 'Done.' }], usage, endedAt: at },
 			{ kind: 'note', text: 'Compacted the conversation' }
 		]);
 	});
@@ -119,6 +119,7 @@ describe('toBlocks', () => {
 					{ kind: 'text', text: 'Finished.' }
 				],
 				usage: { totalTokens: 127, inputTokens: 7, outputTokens: 20, cachedReadTokens: 100 },
+				endedAt: '2026-01-01T10:06:00Z',
 				took: 90_000
 			}
 		]);

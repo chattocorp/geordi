@@ -6,7 +6,7 @@
 	import { toolSummary } from '@geordi/ui/tools';
 	import type { Agent, BackgroundTask, TurnUsage } from '@geordi/protocol';
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
-	import { duration } from '#lib/format.ts';
+	import { duration, relativeAge } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Block, Part, TurnChanges } from '#lib/transcript.ts';
 	import AgentText from '@geordi/ui/AgentText.svelte';
@@ -180,6 +180,11 @@
 	let list: VirtualizerHandle | undefined = $state();
 	// A fresh view, including a workspace switch, starts at the latest message.
 	onMount(toLatest);
+	let now = $state(Date.now());
+	onMount(() => {
+		const timer = setInterval(() => (now = Date.now()), 60_000);
+		return () => clearInterval(timer);
+	});
 	let previousOffset = 0;
 	let scroller: HTMLDivElement;
 	let frame = 0;
@@ -275,6 +280,9 @@
 			{:else if usage}
 				<!-- from before turns said when they began: what it used is all there is to say -->
 				<span title={tokenBreakdown(usage)}>{tokenSummary(usage)}</span>
+			{/if}
+			{#if reply.endedAt}
+				<time datetime={reply.endedAt}>{relativeAge(reply.endedAt, now)}</time>
 			{/if}
 		</div>
 	</div>

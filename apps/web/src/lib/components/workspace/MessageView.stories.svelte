@@ -183,6 +183,8 @@
 	asChild
 	play={async ({ canvas }) => {
 		await waitFor(() => expect(canvas.getByText('48s')).toBeVisible());
+		expect(canvas.getByText('12 minutes ago')).toBeVisible();
+		expect(canvas.getByText('8 days ago')).toBeInTheDocument();
 		expect(canvas.getByText('2m 14s')).toBeInTheDocument();
 		const tokens = canvas.getByText('79k tokens');
 		expect(tokens).not.toBeVisible();
@@ -199,6 +201,7 @@
 				{
 					kind: 'agent',
 					parts: [{ kind: 'text', text: reply }],
+					endedAt: new Date(Date.now() - 8 * 86_400_000 - 30_000).toISOString(),
 					took: 134_000,
 					usage: {
 						totalTokens: 150330,
@@ -227,6 +230,7 @@
 							]
 						}
 					],
+					endedAt: new Date(Date.now() - 12 * 60_000 - 30_000).toISOString(),
 					took: 48_000,
 					usage: {
 						totalTokens: 79476,
