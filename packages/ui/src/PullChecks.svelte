@@ -43,7 +43,7 @@
 	function label(check: PullCheck) {
 		return Object.hasOwn(labels, check.status) ? labels[check.status] : states[check.state].label;
 	}
-	function timed(check: PullCheck): check is PullCheck & { startedAt: number } {
+	function runningWithStart(check: PullCheck): check is PullCheck & { startedAt: number } {
 		return (
 			check.state === 'pending' && label(check) === 'Running' && Number.isFinite(check.startedAt)
 		);
@@ -54,7 +54,7 @@
 		const timer = setInterval(() => (now = Date.now()), 1000);
 		return () => clearInterval(timer);
 	}
-	const ticking = $derived(sorted.some(timed));
+	const ticking = $derived(sorted.some(runningWithStart));
 	const statusText = $derived.by(() => {
 		if (!sorted.length) return summary.text;
 		const groups = Object.groupBy(sorted, (check) => label(check).toLowerCase());
@@ -146,8 +146,12 @@
 							{check.name}
 						</span>
 						<span class="shrink-0 text-xs whitespace-nowrap text-muted tabular-nums">
-							<span class:sr-only={label(check) === 'Running'}>{label(check)}</span>
-							{#if timed(check)}{duration(now - check.startedAt)}{/if}
+							<span class="sr-only">{label(check)}</span>
+							{#if runningWithStart(check)}
+								{duration(now - check.startedAt)}
+							{:else if check.startedAt != null && check.completedAt != null && Number.isFinite(check.completedAt - check.startedAt)}
+								{duration(check.completedAt - check.startedAt)}
+							{/if}
 						</span>
 					</svelte:element>
 				</li>

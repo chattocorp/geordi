@@ -82,7 +82,7 @@
 		const summary = canvas.getByRole('button', { name: /^Checks 6/ });
 		await expect(summary).toHaveAttribute('aria-expanded', 'false');
 		await userEvent.click(canvas.getByRole('img', { name: /1 queued/ }));
-		const browser = canvas.getByRole('link', { name: 'Browser tests Running' });
+		const browser = canvas.getByRole('link', { name: /^Browser tests Running/ });
 		await expect(browser).toBeVisible();
 		await expect(canvas.getAllByRole('listitem')[0]).toHaveTextContent('Unit tests');
 		await expect(canvas.getByText('Lint')).toBeVisible();
@@ -90,7 +90,7 @@
 		await expect(browser).not.toBeVisible();
 		await expect(localStorage.getItem('geordi:checks-expanded')).toBe('false');
 		await userEvent.click(summary);
-		await expect(canvas.getByText('Queued')).toBeVisible();
+		await expect(canvas.getByText('2m 14s')).toBeVisible();
 		await expect(localStorage.getItem('geordi:checks-expanded')).toBe('true');
 	}}
 >
@@ -102,12 +102,20 @@
 				failed: 1,
 				counts: { passed: 2, failed: 1, pending: 2, skipped: 1 },
 				items: [
-					{ id: 'lint', name: 'Lint', state: 'success', status: 'success' },
+					{
+						id: 'lint',
+						name: 'Lint',
+						state: 'success',
+						status: 'success',
+						startedAt: 1000,
+						completedAt: 135000
+					},
 					{
 						id: 'browser',
 						name: 'Browser tests',
 						state: 'pending',
 						status: 'in_progress',
+						startedAt: Date.now() - 45000,
 						url: 'https://github.com/acme/widgets/actions/runs/123'
 					},
 					{
@@ -115,6 +123,8 @@
 						name: 'Unit tests',
 						state: 'failure',
 						status: 'failure',
+						startedAt: 1000,
+						completedAt: 20000,
 						url: 'https://github.com/acme/widgets/actions/runs/124'
 					},
 					{ id: 'preview', name: 'Deploy preview', state: 'pending', status: 'queued' },

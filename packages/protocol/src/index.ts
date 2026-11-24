@@ -184,6 +184,8 @@ export type PullCheck = {
 	status: string;
 	/** Check start time in milliseconds since the Unix epoch, when the forge supplies it. */
 	startedAt?: number;
+	/** Check completion time in milliseconds since the Unix epoch, when available. */
+	completedAt?: number;
 	url?: string;
 };
 
