@@ -275,8 +275,10 @@ const tools = {
 						: kind === 'external'
 							? 'another unarchived agent in a repository you can access'
 							: 'an unarchived agent you started (directly or through another agent), or to the agent that started you'
-				}. An idle agent starts a turn, processing any previously queued messages first. A running agent receives the message after its turn unless you set interrupt to steer the current turn.`,
-				kind !== 'project' ? 'You may steer only your own direct or indirect descendants.' : '',
+				}. An idle agent starts a turn, processing any previously queued messages first. Within a delegation, a running agent receives the message during its current turn. Set interrupt to false to queue it for the next turn. Providers without live steering queue it automatically.`,
+				kind === 'external'
+					? 'You may steer only your own direct or indirect descendants. Messages to other running agents are queued.'
+					: '',
 				'Returns the current agent report immediately. Use wait_for_agent for the reply.'
 			]
 				.filter(Boolean)
@@ -288,16 +290,16 @@ const tools = {
 			),
 			message: v.pipe(v.string(), v.minLength(1)),
 			interrupt: v.pipe(
-				v.optional(v.boolean(), false),
+				v.optional(v.boolean()),
 				v.description(
-					'For an agent that is working: give it this message now, in the middle of what it is doing. It reads it at its next step and goes on from there, with nothing stopped. Use it to turn an agent around that is going the wrong way, or to tell it something it needs now. Without it, the message waits for the turn to end. (To make it stop altogether, use stop_agent.)'
+					'Set false to queue a follow-up for the next turn. Set true to steer a running agent. By default, messages steer within a delegation and queue elsewhere.'
 				)
 			)
 		}),
 		run: (
 			agents: Agents,
 			caller: string,
-			input: { workspace_id: string; message: string; interrupt: boolean }
+			input: { workspace_id: string; message: string; interrupt?: boolean }
 		) => {
 			agents.send(caller, input.workspace_id, input.message, input.interrupt);
 			return agents.reportWorkspace(caller, input.workspace_id);

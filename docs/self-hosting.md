@@ -160,7 +160,9 @@ Streamable HTTP, enter the MCP URL, and set the `Authorization` header to `Beare
 
 Call `list_workspaces` to find a workspace, then `read_workspace` with its `workspace_id`.
 Use the same ID as `workspace_id` for `workspace_status`, `send_message` and `wait_for_agent`. A
-message starts an idle agent; a busy one receives it after its turn.
+message starts an idle agent. It steers a busy agent that your client started, directly or indirectly.
+Set `interrupt: false` to queue the message for its next turn. Messages to other busy agents
+and to providers without live steering are queued.
 
 To start new work, find a repository with `list_repositories` and call `start_agent` with its
 ID as `repository`. The agents a client starts are its own: it can also interrupt them

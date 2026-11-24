@@ -1641,21 +1641,21 @@ describe('repos', () => {
 });
 
 describe('agents talking to the agents they started', () => {
-	function family() {
-		const { workspaces, create, sent } = setup();
-		const lead = create('Lead');
+	function family(agent: Agent = 'claude') {
+		const { workspaces, create, sent, store, repos, dispatch } = setup();
+		const lead = create('Lead', agent);
 		workspaces.record(lead, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
 		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Build' }).id;
 		const said = () =>
 			workspaces
 				.get(child)
 				.transcript.flatMap((item) => (item.kind === 'user' ? [[item.text, item.from]] : []));
-		return { workspaces, lead, child, said, sent };
+		return { workspaces, lead, child, said, sent, store, repos, dispatch };
 	}
 
 	it('has a message to a working agent wait for its turn to end, and marks whose it is', () => {
 		const { workspaces, lead, child, said } = family();
-		workspaces.agents.send(lead, child, 'Also update the docs');
+		workspaces.agents.send(lead, child, 'Also update the docs', false);
 		expect(workspaces.get(child)).toMatchObject({
 			status: 'running',
 			queue: ['Also update the docs']
@@ -1680,12 +1680,12 @@ describe('agents talking to the agents they started', () => {
 				.get(lead)
 				.transcript.flatMap((item) => (item.kind === 'user' ? [[item.text, item.from]] : []));
 
-		// a parent at work hears it when its own turn ends
+		// a parent at work hears it during its current turn
 		workspaces.record(child, { kind: 'text', text: 'Built it.' });
+		workspaces.agents.send(lead, child, 'Any news?');
 		workspaces.record(child, { kind: 'turn.completed' });
 		const notice = `Your agent “Build” (${child}) finished its turn.\n\nBuilt it.`;
-		expect(workspaces.get(lead).queue).toEqual([notice]);
-		workspaces.record(lead, { kind: 'turn.completed' });
+		expect(workspaces.get(lead).queue).toEqual([]);
 		expect(workspaces.get(lead).status).toBe('running');
 		expect(parentSaid().at(-1)).toEqual([notice, child]);
 
@@ -1750,7 +1750,13 @@ describe('agents talking to the agents they started', () => {
 			workspaces.record(child, { kind: 'text', text: 'Personal reply' });
 			workspaces.record(child, { kind: 'turn.completed' });
 			if (result) expect(await result).toMatchObject({ status: 'idle', reply: 'Build result' });
-			expect(workspaces.get(lead).queue).toEqual(
+			const notices = workspaces
+				.get(lead)
+				.transcript.flatMap((item) =>
+					item.kind === 'user' && item.from === child ? [item.text] : []
+				);
+			expect(workspaces.get(lead).queue).toEqual([]);
+			expect(notices).toEqual(
 				wait ? [] : [`Your agent “Build” (${child}) finished its turn.\n\nBuild result`]
 			);
 		}
@@ -1758,7 +1764,7 @@ describe('agents talking to the agents they started', () => {
 
 	it('tells a working agent at once what a message that interrupts says', () => {
 		const { workspaces, lead, child, said, sent } = family();
-		workspaces.agents.send(lead, child, 'Stop: wrong directory', true);
+		workspaces.agents.send(lead, child, 'Stop: wrong directory');
 		expect(sent.at(-1)).toMatchObject({
 			type: 'agent.message',
 			workspaceId: child,
@@ -1766,6 +1772,29 @@ describe('agents talking to the agents they started', () => {
 		});
 		expect(workspaces.get(child)).toMatchObject({ status: 'running', lastTurn: null });
 		expect(said().at(-1)).toEqual(['Stop: wrong directory', lead]);
+	});
+
+	it('queues a child report for a busy OpenCode parent across a forge restart', () => {
+		const { workspaces, lead, child, store, repos, dispatch } = family('opencode');
+		workspaces.record(child, { kind: 'turn.failed', error: 'Build failed' });
+		const replay = createWorkspaces(store, repos, dispatch);
+		expect(replay.get(lead).queue).toEqual([`Your agent “Build” (${child}) stopped: Build failed`]);
+		replay.record(lead, { kind: 'turn.completed' });
+		expect(replay.get(lead).transcript.at(-1)).toMatchObject({
+			from: child,
+			text: expect.stringContaining('Build failed')
+		});
+		expect(replay.get(lead).queue).toEqual([]);
+	});
+
+	it('keeps a personal exchange private when a child receives steering', () => {
+		const { workspaces, lead, child } = family();
+		workspaces.steer(child, 'Review my private changes');
+		workspaces.agents.send(lead, child, 'Any news?');
+		workspaces.record(child, { kind: 'text', text: 'Personal reply' });
+		workspaces.record(child, { kind: 'turn.completed' });
+		expect(workspaces.get(lead).transcript.at(-1)).toMatchObject({ text: 'Lead' });
+		expect(workspaces.get(lead).queue).toEqual([]);
 	});
 
 	it('remembers a turn that failed until the agent is told something again', () => {
