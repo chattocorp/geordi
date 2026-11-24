@@ -243,7 +243,11 @@
 		await expect(canvas.getByTitle('Widgets 1.3.0')).toBeVisible();
 		await expect(canvas.getByTitle('2.0.1')).toBeVisible();
 		merge.focus();
-		await expect(canvas.getByText('Widgets', { exact: true })).toBeVisible();
+		const name = canvas.getByText('Widgets', { exact: true });
+		await expect(name).toBeVisible();
+		await expect(getComputedStyle(name).color).not.toBe(
+			getComputedStyle(canvas.getByText('1.3.0', { exact: true })).color
+		);
 		await expect(canvas.getByText('2.0.1', { exact: true })).toBeVisible();
 		await expect(canvas.getByTitle('2.0.1')).toHaveTextContent(/^2\.0\.1$/);
 	}}

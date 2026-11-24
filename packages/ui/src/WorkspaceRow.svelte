@@ -156,11 +156,13 @@
 				<span class="mr-1 flex min-w-0 flex-wrap justify-end gap-1">
 					{#each versions as pkg (pkg.path)}
 						<span
-							class="inline-flex max-w-full items-baseline gap-1 rounded-full bg-sunken px-1.5 text-xs font-medium text-muted"
+							class="inline-flex max-w-full items-baseline gap-1 rounded-full bg-sunken px-1.5 text-xs font-normal text-muted"
 							title={pkg.name ? `${pkg.name} ${pkg.version}` : pkg.version}
 						>
 							{#if pkg.name}<span class="truncate">{pkg.name}</span>{/if}
-							<span class="max-w-full shrink-0 truncate">{pkg.version}</span>
+							<span class="max-w-full shrink-0 truncate font-semibold text-ink tabular-nums">
+								{pkg.version}
+							</span>
 						</span>
 					{/each}
 				</span>
