@@ -254,7 +254,7 @@
 							<summary
 								class={[
 									'group/section item h-8 list-none gap-1 pr-1 pl-0.5 text-ink select-none',
-									names.some((name) => needed.includes(name)) && 'bg-hover'
+									!open && names.some((name) => needed.includes(name)) && 'bg-hover'
 								]}
 							>
 								<span class="grid size-6 shrink-0 place-items-center text-muted">
