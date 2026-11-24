@@ -2,4 +2,4 @@
 type: polish
 ---
 
-Messages from other agents now appear in a compact group of left-aligned tinted bubbles. Child messages start collapsed so you can read the parent’s summary first. Select a message to see its contents or open the child workspace.
+Messages from other agents now appear in a compact group of left-aligned tinted bubbles. Consecutive messages from the same child share one collapsed row so you can read the parent’s summary first. Select the row to read the exchange in order or open the child workspace.

@@ -657,22 +657,23 @@
 			'href',
 			'/workspaces/parent?agent=parent'
 		);
-		for (const [heading, body] of [
-			['Review sent a message', 'I’m checking the archived repositories.'],
-			['Review finished', 'The migration covers archived repositories. Both regression tests pass.']
-		]) {
-			const toggle = await canvas.findByRole('button', { name: heading });
-			await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-			await expect(canvas.queryByText(body)).toBeNull();
-			await userEvent.click(toggle);
-			await expect(canvas.getByText(body)).toBeVisible();
-			await expect(canvas.getByRole('link', { name: 'Open Review workspace' })).toHaveAttribute(
-				'href',
-				'/workspaces/peer?agent=peer'
-			);
-			await userEvent.click(toggle);
-			await expect(canvas.queryByText(body)).toBeNull();
-		}
+		const toggle = await canvas.findByRole('button', { name: 'Review finished' });
+		const first = 'I’m checking the archived repositories.';
+		const final = 'The migration covers archived repositories. Both regression tests pass.';
+		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		await expect(canvas.queryByRole('button', { name: 'Review sent a message' })).toBeNull();
+		await expect(canvas.queryByText(first)).toBeNull();
+		await expect(canvas.queryByText(final)).toBeNull();
+		await userEvent.click(toggle);
+		await expect(canvas.getByText(first)).toBeVisible();
+		await expect(canvas.getByText(final)).toBeVisible();
+		await expect(canvas.getByRole('link', { name: 'Open Review workspace' })).toHaveAttribute(
+			'href',
+			'/workspaces/peer?agent=peer'
+		);
+		await userEvent.click(toggle);
+		await expect(canvas.queryByText(first)).toBeNull();
+		await expect(canvas.queryByText(final)).toBeNull();
 		await expect(canvas.getByText('Release assistant').closest('a')).toBeNull();
 	}}
 >
