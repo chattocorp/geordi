@@ -692,7 +692,8 @@
 					text: 'The release build passed.',
 					from: 'external:example',
 					senderName: 'Release assistant'
-				}
+				},
+				{ kind: 'text', at: '', text: 'The migration is ready to merge.' }
 			])}
 			senders={{ parent: 'Migration tests' }}
 			agent="codex"

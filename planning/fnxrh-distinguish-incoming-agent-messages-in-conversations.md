@@ -6,4 +6,4 @@ data:
 id: fnxrh
 title: Distinguish incoming agent messages in conversations
 ---
-Incoming agent messages use left-aligned tinted bubbles with the sender inside. Child reports show the outcome and reply, including in older conversations. Verified the sender links and inspected the Storybook conversation in both themes (FDR-002).
+Incoming messages form a compact group of tinted bubbles aligned with the conversation text. A linked sender and a small outcome icon identify child reports, including in older conversations. Checked the conversation in wide and narrow panes in both themes (FDR-002).

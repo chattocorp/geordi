@@ -168,6 +168,10 @@
 	const fade = 'transition-opacity pointer-fine:opacity-0 pointer-fine:focus-within:opacity-100';
 	const quietReply = `${fade} pointer-fine:group-hover/reply:opacity-100`;
 
+	function isIncoming(block?: Block) {
+		return block?.kind === 'user' && !!(block.from || block.delegated);
+	}
+
 	const rows = $derived([
 		...blocks.map((block) => ({ kind: 'block' as const, block })),
 		...queue.map((text, index) => ({
@@ -348,10 +352,18 @@
 		itemProps={({ index }) => ({ 'aria-posinset': index + 1, 'aria-setsize': rows.length })}
 	>
 		{#snippet children(row, i)}
+			{@const incoming = row.kind === 'block' && isIncoming(row.block)}
+			{@const previousIncoming = isIncoming(blocks[i - 1])}
 			<div
 				class={[
-					'mx-auto w-full max-w-5xl pr-16.5 pl-5',
-					i === 0 ? 'pt-6' : 'pt-8',
+					'mx-auto w-full max-w-5xl pl-5',
+					incoming ? 'pr-5' : 'pr-16.5',
+					{
+						'pt-6': i === 0,
+						'pt-2': incoming && previousIncoming,
+						'pt-4': i > 0 && incoming !== previousIncoming,
+						'pt-8': i > 0 && !incoming && !previousIncoming
+					},
 					i === rows.length - 1 && 'pb-6'
 				]}
 			>
@@ -372,45 +384,59 @@
 							</div>
 						{/if}
 						{#if block.kind === 'user'}
-							{@const incoming = !!(block.from || block.delegated)}
 							{@const title = (block.from && senders?.[block.from]) || block.senderName}
-							<UserMessage text={block.text} {incoming}>
-								{#if incoming}
-									<div class="flex items-baseline gap-1.5 text-sm text-muted">
-										<span
-											aria-hidden="true"
-											class="icon-[lucide--git-branch] size-3.5 shrink-0 self-center"
-										></span>
-										<span>
-											{#if block.from && !block.from.startsWith('external:')}
-												<a
-													href={resolve(
-														`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`,
-														{ id: block.from }
-													)}
-													class="rounded-control font-semibold hover:text-ink hover:underline focus-visible:underline"
-												>
-													{title || 'Another agent'}
-												</a>
-											{:else if block.delegated && parentAgent}
-												<button
-													type="button"
-													onclick={parentAgent.open}
-													class="rounded-control font-semibold hover:underline focus-visible:underline"
-												>
-													{i === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
-												</button>
-											{:else}
-												<span class="font-semibold">{title || 'Another agent'}</span>
-											{/if}
-											{#if block.report}
-												{block.report}{/if}
-										</span>
-									</div>
+							<div class={incoming ? 'relative pl-11.5' : undefined}>
+								{#if incoming && !previousIncoming}
+									<span
+										aria-hidden="true"
+										class="absolute top-3 left-2 icon-[lucide--corner-down-right] size-4 text-faint"
+									></span>
 								{/if}
-								{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
-								<MessageImages images={block.images} />
-							</UserMessage>
+								<UserMessage text={block.text} {incoming}>
+									{#if incoming}
+										<div class="mb-1 flex items-center gap-1.5 text-xs text-muted">
+											{#if block.report}
+												<span
+													aria-hidden="true"
+													class={[
+														'size-3.5 shrink-0',
+														block.report === 'finished'
+															? 'icon-[lucide--circle-check] text-ok'
+															: 'icon-[lucide--circle-stop] text-muted'
+													]}
+												></span>
+											{/if}
+											<span class="min-w-0 wrap-anywhere">
+												{#if block.from && !block.from.startsWith('external:')}
+													<a
+														href={resolve(
+															`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`,
+															{ id: block.from }
+														)}
+														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:text-ink hover:decoration-current focus-visible:decoration-current"
+													>
+														{title || 'Another agent'}
+													</a>
+												{:else if block.delegated && parentAgent}
+													<button
+														type="button"
+														onclick={parentAgent.open}
+														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:decoration-current focus-visible:decoration-current"
+													>
+														{i === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
+													</button>
+												{:else}
+													<span class="font-medium">{title || 'Another agent'}</span>
+												{/if}
+												{#if block.report}
+													{block.report}{/if}
+											</span>
+										</div>
+									{/if}
+									{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
+									<MessageImages images={block.images} />
+								</UserMessage>
+							</div>
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">

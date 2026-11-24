@@ -423,8 +423,8 @@
 
 /* A message from another workspace, with a cool tint in either theme. */
 @utility message-incoming {
-	@apply rounded-br-card rounded-bl-control;
-	background-color: color-mix(in srgb, var(--tint-0) 60%, var(--pane));
+	@apply max-w-prose min-w-0 rounded-tl-control rounded-br-card px-3.5 py-2.5;
+	background-color: color-mix(in srgb, var(--tint-2) 35%, var(--pane));
 }
 
 /*
