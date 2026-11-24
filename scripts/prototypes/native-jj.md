@@ -1,5 +1,42 @@
 # Native jj daemon trial
 
+## Try it in Geordi.app
+
+From a shell in this Geordi worktree, run the following with the workspace's desktop
+ports in the environment and jj on PATH. The trial was tested with jj 0.45.1.
+
+```sh
+pnpm desktop:package
+pnpm desktop:jj
+```
+
+The launcher runs the worktree-built Geordi.app with a separate Electron profile,
+forge database, daemon, checkouts, and local bare remotes under `.data/jj-desktop`.
+In **New workspace**, choose **sample-services** in the repository picker, select
+**Codex** and **Auto**, then start the agent.
+The other sample repositories continue to use Git. Try this prompt:
+
+> Add a greeting to the README. Snapshot the draft with a message. Start a child in
+> its own workspace based on your publication bookmark and ask it to add an example
+> in a second file and snapshot it. Revise your greeting and snapshot again. Ask
+> the child to refresh, check its example, and publish.
+
+The agent's `jj_draft` tool accepts `snapshot`, `refresh`, and `publish`. The forge
+binds it to the authenticated caller's checkout. The daemon snapshots from a private
+directory and stores the last checkout revision outside the sandbox. Refresh preserves
+unrelated live edits and reports an error if they overlap incoming changes. Publish
+uses only the workspace bookmark and the sample's local origin. Running jj directly
+inside the sandbox is unnecessary. This trial exercises drafts and local pushes.
+Terminals, setup jobs and the release pane are still outside the native prototype.
+
+To return to Git, quit **Geordi Dev** and open your usual Geordi.app. The trial's data
+stays in the worktree for your next run. Reverting the prototype commits leaves the
+ordinary Git worktrees and their forge history accessible in the normal app.
+A double-click on the packaged build also uses the ordinary profile; use the launcher
+for the isolated trial.
+
+## Manual daemon trial
+
 The daemon can run agents for one selected repository in non-colocated Jujutsu workspaces.
 The trial used jj 0.45.1. Start an isolated development forge and daemon with their own
 data, sessions and ports. Register the usual source repository with that forge. Before
@@ -48,8 +85,8 @@ directory and private index backed by jj's objects.
 The trial covers agent launch, live changes and diffs, PR lookup, restart,
 archive and restore. Terminals, setup jobs, per-turn patches, release-note
 editing, merged-branch detection and migration of existing Git workspaces still need
-implementation. Agents in the trial ran with full access. Sandboxed writes to a shared
-jj store need their own design before enabling this backend by default.
+implementation. The original direct-CLI trial used full access. The isolated desktop trial
+above exercises the daemon-owned workflow for sandboxed callers.
 
 ## Rehearsing a Git worktree migration
 
@@ -91,9 +128,9 @@ configuration and filesystem ACLs stay with the original Git repository.
    backend. Persist a migration event only after the candidate passes verification.
 2. Before making jj the creation default, provision one trusted control store per
    registered repository, verify jj availability in packaged installs, and exercise
-   sandboxed agent writes, setup jobs, terminals, release tools and PR actions. Today
-   the native turn path skips setup and passes no writable shared-store root to a
-   sandboxed agent. Several daemon requests still reject native workspaces.
+   the scoped draft tool with each supported sandbox provider, setup jobs, terminals,
+   release tools and PR actions. The native turn path still skips setup, and several
+   daemon requests still reject native workspaces.
 3. For a cutover, stop all writers, including terminals, tasks and agents sharing
    the checkout. Capture the existing remote, branch, local HEAD, PR head/base and
    the exact staged and working contents under an owner lock. A missing checkout

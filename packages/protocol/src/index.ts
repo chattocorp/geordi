@@ -491,7 +491,10 @@ export type PortConflict = {
 	problem?: string;
 };
 
+export type DraftAction = 'snapshot' | 'refresh' | 'publish';
+
 export type DaemonRequest =
+	| ({ kind: 'jjDraft'; action: DraftAction; message?: string } & WorktreeRef)
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
 	| ({ kind: 'changes' } & WorktreeRef)
 	/**
@@ -591,6 +594,7 @@ export type DaemonRequest =
 export type FileMatch = { path: string; indices: number[] };
 
 export type DaemonResults = {
+	jjDraft: { branch: string; revision: string };
 	changes: Changes;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };

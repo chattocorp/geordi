@@ -8,6 +8,7 @@ import {
 	SETTING,
 	WORKTREE_MODES,
 	type Changes,
+	type DraftAction,
 	type Harness,
 	type RepoConfig,
 	type Upstream
@@ -27,6 +28,7 @@ import { MAX_NAMES, type createWorkspaces } from './workspaces.ts';
 type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
 	/** Archives a workspace on the caller's behalf. Never discards uncommitted work. */
 	archive(caller: string, id: string): Promise<void>;
+	draft?(action: DraftAction, message?: string): Promise<{ branch: string; revision: string }>;
 	/** What the repository's configuration says for the caller's workspace, as a daemon reads it. */
 	configuration(caller: string): Promise<RepoConfig>;
 	/** How a worktree's work stands, as a daemon says. Rejects if none can. */
@@ -193,6 +195,16 @@ const tools = {
 		input: v.strictObject({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
 		run: (agents: Agents, caller: string, input: { title: string }) =>
 			agents.name(caller, input.title)
+	},
+	jj_draft: {
+		description:
+			'Manage your native workspace draft. Snapshot saves current files to your local bookmark. Refresh applies a parent revision. Publish pushes your snapshotted bookmark to origin.',
+		input: v.strictObject({
+			action: v.picklist(['snapshot', 'refresh', 'publish']),
+			message: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(2000)))
+		}),
+		run: (agents: Agents, _caller: string, input: { action: DraftAction; message?: string }) =>
+			agents.draft!(input.action, input.message)
 	},
 	set_base: {
 		description:
@@ -458,10 +470,12 @@ const workspaceTools = new Set([
 ]);
 /** What is about a workspace's repository, which a project has none of (FDR-012). */
 const repositoryTools = new Set(['set_base', 'configuration_reference', 'check_configuration']);
-const available = (kind: CallerKind, name: string) =>
-	kind === 'external'
-		? !workspaceTools.has(name)
-		: kind !== 'project' || !repositoryTools.has(name);
+const available = (kind: CallerKind, name: string, agents: Agents) =>
+	name === 'jj_draft'
+		? kind === 'repository' && !!agents.draft
+		: kind === 'external'
+			? !workspaceTools.has(name)
+			: kind !== 'project' || !repositoryTools.has(name);
 
 /**
  * What is wrong with a tool call, by parameter name. An unknown parameter is a mistake (a
@@ -477,7 +491,8 @@ function describeIssue(issue: v.BaseIssue<unknown>) {
 async function callTool(agents: Agents, caller: string, kind: CallerKind, params: unknown) {
 	const { name, arguments: args = {} } = (params ?? {}) as { name?: string; arguments?: unknown };
 	const tool = name && Object.hasOwn(tools, name) ? tools[name as keyof typeof tools] : null;
-	if (!name || !tool || !available(kind, name)) return content(`Unknown tool: ${name}`, true);
+	if (!name || !tool || !available(kind, name, agents))
+		return content(`Unknown tool: ${name}`, true);
 
 	const input = v.safeParse(tool.input, args);
 	if (!input.success)
@@ -530,7 +545,7 @@ export async function handleMcp(agents: Agents, caller: string, message: Request
 		case 'tools/list':
 			return result(id, {
 				tools: Object.entries(tools)
-					.filter(([name]) => available(kind, name))
+					.filter(([name]) => available(kind, name, agents))
 					.map(([name, tool]) => ({
 						name,
 						description:

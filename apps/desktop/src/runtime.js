@@ -31,3 +31,14 @@ export function desktopRuntime(env) {
 		}
 	};
 }
+
+/** Only a deliberately isolated desktop launch can select the prototype. A login
+ * shell can supply credentials and PATH, but cannot switch the installed backend. */
+export function desktopJjEnvironment(env) {
+	const trial = !!env.GEORDI_DESKTOP_DEV_DIR && env.GEORDI_JJ_TRIAL === '1';
+	return {
+		GEORDI_JJ_TRIAL: trial ? '1' : '',
+		GEORDI_JJ_SOURCE: trial ? join(env.GEORDI_DESKTOP_DEV_DIR, 'samples/sample-services') : '',
+		GEORDI_JJ_CONTROL: trial ? join(env.GEORDI_DESKTOP_DEV_DIR, 'control') : ''
+	};
+}

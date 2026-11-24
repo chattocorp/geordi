@@ -112,7 +112,8 @@ const native = await nativeWorkspaces(
 	worktreesDir,
 	process.env.GEORDI_JJ_SOURCE,
 	process.env.GEORDI_JJ_CONTROL,
-	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId })
+	(worktreeId) => sendLive({ type: 'worktree.changed', worktreeId }),
+	process.env.GEORDI_JJ_TRIAL === '1'
 );
 prepareSessionsDirectory(sessionsDir);
 const owner = claimDaemon(sessionsDir);
@@ -510,6 +511,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 
 function answer(request: DaemonRequest) {
 	switch (request.kind) {
+		case 'jjDraft':
 		case 'prepareWorktree':
 		case 'continueWorktree':
 		case 'updateWorktree':
@@ -529,6 +531,12 @@ async function readRequest(request: DaemonRequest) {
 		const { branch, path } = native.location(request);
 		const target = cachedPullBase(request.worktreeId, branch);
 		switch (request.kind) {
+			case 'jjDraft': {
+				if (!native.draft) throw new Error('Sandbox draft tools are disabled.');
+				const result = await native.draft(request, request.action, request.message);
+				sendLive({ type: 'worktree.changed', worktreeId: request.worktreeId });
+				return result;
+			}
 			case 'prepareWorktree':
 				return native.prepare(request, request.requireBranch);
 			case 'removeWorktree': {
@@ -564,6 +572,7 @@ async function readRequest(request: DaemonRequest) {
 				throw new Error('Native jj prototype does not implement ' + request.kind);
 		}
 	}
+	if (request.kind === 'jjDraft') throw new Error('This workspace uses Git.');
 	if (request.kind === 'findFiles') {
 		const { repoPath, query } = request;
 		if ('worktreeId' in request) {

@@ -1,3 +1,6 @@
+import { GEORDI_JJ_TRIAL, GEORDI_JJ_SOURCE } from '$app/env/private';
+import { isExternal } from '#lib/server/agent-access.ts';
+import type { DraftAction } from '@geordi/protocol';
 import { error, json } from '@sveltejs/kit';
 import { archiveWorkspace, changeBase, hub, standings, workspaces } from '#lib/server/app.ts';
 import { handleMcp } from '#lib/server/mcp.ts';
@@ -19,7 +22,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } });
 	}
 
+	const trial =
+		GEORDI_JJ_TRIAL && !isExternal(caller) && !workspaces().agents.isProject(caller)
+			? workspaces().ref(caller)
+			: null;
 	const agents = {
+		...(trial &&
+			trial.repoPath === GEORDI_JJ_SOURCE && {
+				draft: (action: DraftAction, message?: string) =>
+					hub()
+						.request({ kind: 'jjDraft', ...trial, action, message }, 120_000)
+						.catch((cause) => error(502, cause instanceof Error ? cause.message : String(cause)))
+			}),
 		...workspaces().agents,
 		archive: (actor: string, id: string) => archiveWorkspace(id, false, actor),
 		configuration: (id: string) =>

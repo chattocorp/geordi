@@ -1,5 +1,5 @@
 import { desktopUpdates } from './updates.js';
-import { desktopRuntime } from './runtime.js';
+import { desktopJjEnvironment, desktopRuntime } from './runtime.js';
 import { forgeReady, services } from './services.js';
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -114,7 +114,13 @@ function start(/** @type {'forge' | 'daemon'} */ name) {
 	const child = utilityProcess.fork(join(here, entry), [], {
 		serviceName: `Geordi ${name}`,
 		stdio: 'pipe',
-		env: { ...process.env, ...loginEnv, ...runtime.env, ...env }
+		env: {
+			...process.env,
+			...loginEnv,
+			...runtime.env,
+			...desktopJjEnvironment(process.env),
+			...env
+		}
 	});
 	for (const stream of [child.stdout, child.stderr])
 		stream?.on('data', (data) => log.write(`[${name}] ${data}`));

@@ -15,6 +15,8 @@ import { git } from './git.ts';
 import { fileContent, parseFileChanges } from './changes.ts';
 import { branchRef, ensureContext, worktreePath } from './worktree.ts';
 
+import { draftActions } from './jj-draft-actions.ts';
+import { inWorktree } from './worktree-queue.ts';
 import { nativeWatches } from './jj-watch.ts';
 
 const run = promisify(execFile);
@@ -32,7 +34,8 @@ export async function nativeWorkspaces(
 	root: string,
 	source?: string,
 	control?: string,
-	changed?: (id: string) => void
+	changed?: (id: string) => void,
+	brokered = false
 ) {
 	if (!source && !control) return;
 	if (!source || !control) throw new Error('Set both GEORDI_JJ_SOURCE and GEORDI_JJ_CONTROL');
@@ -129,11 +132,30 @@ export async function nativeWorkspaces(
 		await indexed(checkout, 'read-tree', head);
 		await indexed(checkout, 'read-tree', '--reset', '-u', tree);
 	}
+	async function captureTree(
+		name: string,
+		path: string,
+		head: string,
+		tree: string,
+		env: NodeJS.ProcessEnv
+	) {
+		await jj('workspace', 'add', '--name', name, '-r', head, path);
+		await materialize(path, head, tree, env);
+		await runJj(path, '--config', 'snapshot.max-new-file-size=0', 'util', 'snapshot');
+		const snapshot = await rev(name + '@');
+		if ((await object('rev-parse', snapshot + '^{tree}')).trim() !== tree)
+			throw new Error('Jujutsu could not capture every file.');
+		return snapshot;
+	}
+	const drafts =
+		brokered &&
+		draftActions(control, { location, jj, rev, withIndex, indexed, diskTree, captureTree, forget });
 	async function archive(ref: WorktreeRef) {
 		const { path, name, branch } = location(ref);
 		const removing = path + '.removing';
 		const discarded = path + '.discarded';
 		if (existsSync(path)) {
+			if (drafts) await drafts.act(ref, 'refresh');
 			if (!lstatSync(path).isDirectory()) throw new Error('Invalid native checkout');
 			await rename(path, removing);
 		}
@@ -147,12 +169,7 @@ export async function nativeWorkspaces(
 				const head = await rev(name + '@');
 				await withIndex(removing, async (env) => {
 					const tree = await diskTree(env, head);
-					await jj('workspace', 'add', '--name', captureName, '-r', head, capture);
-					await materialize(capture, head, tree, env);
-					await runJj(capture, '--config', 'snapshot.max-new-file-size=0', 'util', 'snapshot');
-					const snapshot = await rev(captureName + '@');
-					if ((await object('rev-parse', snapshot + '^{tree}')).trim() !== tree)
-						throw new Error('Jujutsu could not capture every file.');
+					await captureTree(captureName, capture, head, tree, env);
 					if ((await rev(name + '@')) !== head || (await diskTree(env, head)) !== tree)
 						throw new Error('The workspace changed during archive. Retry.');
 				});
@@ -195,6 +212,7 @@ export async function nativeWorkspaces(
 						if (tree !== (await object('rev-parse', snapshot + '^{tree}')).trim())
 							throw new Error('The restored files differ from the archive.');
 					});
+					if (drafts) await drafts.remember(ref, await rev(name + '@'));
 					await rm(restoring);
 					await forget(checkpoint(name));
 					await rm(join(root, '.' + checkpoint(name)), { recursive: true, force: true });
@@ -202,6 +220,7 @@ export async function nativeWorkspaces(
 					if (restore || existsSync(restoring))
 						throw new Error('Archived native workspace is missing');
 					await jj('workspace', 'add', '--name', name, '-r', await baseRevision(ref.base), path);
+					if (drafts) await drafts.remember(ref, await rev(name + '@'));
 				}
 			}
 		}
@@ -302,13 +321,31 @@ export async function nativeWorkspaces(
 		});
 	}
 	return {
-		matches: (ref: { repoPath: string }) => ref.repoPath === source,
+		matches(ref: WorktreeRef) {
+			if (ref.repoPath !== source) return false;
+			if (!drafts) return true;
+			if (drafts.owns(ref)) return true;
+			// Legacy owners (including archived ones) keep the Git backend. Only new
+			// owners of the selected repository can acquire a draft record.
+			return !ref.branch && !existsSync(join(location(ref).path, '.git'));
+		},
 		store,
-		prepare,
+		instructions(branch: string) {
+			const actions = brokered
+				? 'Edit files normally. Use jj_draft to snapshot with a commit message, refresh after parent revisions, and publish to the local trial remote. Snapshot before starting a child with your bookmark as its base. The daemon manages jj metadata.'
+				: 'Use jj commands here. Set your bookmark to @ before starting a child with it as base. Use jj workspace update-stale after parent revisions. Use gh with an explicit repository, head and base for pull requests.';
+			return `You are in a native jj workspace in Geordi. Your publication bookmark is ${branch}. ${actions}`;
+		},
+		draft: drafts
+			? (...args: Parameters<typeof drafts.act>) => inWorktree(control, () => drafts.act(...args))
+			: undefined,
+		prepare: brokered
+			? (...args: Parameters<typeof prepare>) => inWorktree(control, () => prepare(...args))
+			: prepare,
 		location,
 		status,
 		versions,
-		archive,
+		archive: brokered ? (ref: WorktreeRef) => inWorktree(control, () => archive(ref)) : archive,
 		watch
 	};
 }

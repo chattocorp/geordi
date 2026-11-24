@@ -10,6 +10,14 @@ function count(value: string | undefined, fallback: number, name: string): numbe
 }
 
 export const variables = defineEnvVars({
+	GEORDI_JJ_TRIAL: {
+		description: 'Enable the scoped draft tool in the isolated jj trial.',
+		schema: (value) => value === '1'
+	},
+	GEORDI_JJ_SOURCE: {
+		description: 'Repository registered for the jj trial.',
+		schema: (value) => value || ''
+	},
 	GEORDI_DATA_DIR: {
 		description: 'Directory where Geordi stores its data. Defaults to ~/.geordi.',
 		schema: (value) => value || join(homedir(), '.geordi')

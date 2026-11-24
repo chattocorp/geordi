@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { devEnvironment } from './dev.js';
-import { desktopRuntime } from '../src/runtime.js';
+import { desktopJjEnvironment, desktopRuntime } from '../src/runtime.js';
 
 const env = {
 	PORT: '24000',
@@ -60,4 +60,22 @@ test('dev desktop refuses incomplete or colliding configuration', () => {
 			}),
 		/distinct/
 	);
+});
+
+test('only the explicit trial profile can enable native jj in the desktop services', () => {
+	const stray = {
+		GEORDI_JJ_SOURCE: '/real-repo',
+		GEORDI_JJ_CONTROL: '/real-store',
+		GEORDI_JJ_TRIAL: '1'
+	};
+	assert.deepEqual(desktopJjEnvironment(stray), {
+		GEORDI_JJ_SOURCE: '',
+		GEORDI_JJ_CONTROL: '',
+		GEORDI_JJ_TRIAL: ''
+	});
+	assert.deepEqual(desktopJjEnvironment({ ...stray, GEORDI_DESKTOP_DEV_DIR: '/trial' }), {
+		GEORDI_JJ_TRIAL: '1',
+		GEORDI_JJ_SOURCE: '/trial/samples/sample-services',
+		GEORDI_JJ_CONTROL: '/trial/control'
+	});
 });

@@ -136,6 +136,23 @@ function setup() {
 	};
 }
 
+it('exposes the scoped trial tool only when bound and refuses caller-selected targets', async () => {
+	const { agents, call } = setup();
+	expect(await call('jj_draft', { action: 'snapshot' })).toEqual({
+		error: 'Unknown tool: jj_draft'
+	});
+	Object.assign(agents, { draft: async () => ({ branch: 'geordi/owner', revision: 'abc' }) });
+	for (const field of ['workspace_id', 'branch', 'revision', 'remote']) {
+		expect((await call('jj_draft', { action: 'publish', [field]: 'parent' })).error).toMatch(
+			/Unknown parameter/
+		);
+	}
+	expect(await call('jj_draft', { action: 'snapshot', message: 'Save my edit' })).toEqual({
+		branch: 'geordi/owner',
+		revision: 'abc'
+	});
+});
+
 describe('setting the base', () => {
 	it('lets an agent say which branch its work is compared with', async () => {
 		const { workspaces, store, caller, rpc } = setup();

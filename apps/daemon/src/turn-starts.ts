@@ -163,7 +163,7 @@ export function turnStarts({
 								: (await configFor(worktree, message)).env,
 					instructions:
 						'native' in worktree
-							? `You are in a native jj workspace in Geordi. Use jj commands here. Your publication bookmark is ${worktree.branch}. To start a child from your draft, set your bookmark to @ and use that bookmark as the child base. Use jj workspace update-stale when a parent draft is revised. Use gh with an explicit repository, head and base for pull requests.
+							? `${native!.instructions(worktree.branch)}
 ${(message.instructions ?? '')
 	.split('\n\n')
 	.filter((part) => !part.startsWith('Your working directory'))
