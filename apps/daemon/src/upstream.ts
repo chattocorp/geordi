@@ -27,7 +27,7 @@ import { providersFromEnv } from 'forges/env';
 import { findBranchPulls, graphqlOf, readPull, rollupCounts } from './pull-batch.ts';
 import { createRateLimits } from './rate-limit.ts';
 import { createRecentPulls } from './recent-pulls.ts';
-import { upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
+import { branchRef, upstreamBranchOf, gitIn, headOf, type Worktree } from './worktree.ts';
 
 /**
  * Talks to the forge a repository is hosted on (ADR-006), through the `forges` library so
@@ -481,7 +481,7 @@ export function withoutCredentials(remote: string): string {
  * Where a worktree's branch lives upstream. `null` if the repository has no `origin` remote
  * on a forge we know, or the worktree is on no branch.
  */
-async function locate(worktree: Worktree, repoPath: string) {
+async function locate(worktree: Worktree | string, repoPath: string) {
 	const remote = await quietGit(repoPath, 'remote', 'get-url', 'origin');
 	if (!remote) return null;
 
@@ -489,7 +489,7 @@ async function locate(worktree: Worktree, repoPath: string) {
 	const parsed = all.parseUrl(remote);
 	if (!parsed) return null;
 
-	const head = headOf(worktree);
+	const head = typeof worktree === 'string' ? branchRef(worktree) : headOf(worktree);
 	// a detached HEAD has no branch to have a pull request
 	if (!head.startsWith('refs/heads/')) return null;
 	// what the branch is called upstream, which is where its pull request is
@@ -545,7 +545,7 @@ type Request = { repoPath: string; worktreeId: string; fresh?: boolean; includeC
  * answer to that must not come from a lookup that began before it.
  */
 export function upstream(
-	worktree: Worktree,
+	worktree: Worktree | string,
 	request: Request,
 	now = Date.now()
 ): Promise<Upstream | null> {
@@ -560,7 +560,7 @@ export function upstream(
 }
 
 async function lookUpstream(
-	worktree: Worktree,
+	worktree: Worktree | string,
 	{ repoPath, worktreeId, fresh: asked, includeChecks = false }: Request,
 	now: number
 ): Promise<Upstream | null> {

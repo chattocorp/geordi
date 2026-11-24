@@ -75,7 +75,7 @@ const untracked = async (worktree: Worktree, ...paths: string[]) =>
  * checked on the open file, not on the path. Opening never waits (a named pipe would block
  * the whole daemon otherwise).
  */
-function readBytes(worktree: Worktree, path: string, limit: number): Buffer | null {
+function readBytes(worktree: Pick<Worktree, 'path'>, path: string, limit: number): Buffer | null {
 	if (
 		isAbsolute(path) ||
 		path.split(sep).some((part) => part === '..' || part.toLowerCase() === '.git')
@@ -108,11 +108,11 @@ function asText(bytes: Buffer | null) {
 	return bytes && bytes.length <= MAX_FILE && !bytes.includes(0) ? bytes.toString('utf8') : null;
 }
 
-export function readText(worktree: Worktree, path: string) {
+export function readText(worktree: Pick<Worktree, 'path'>, path: string) {
 	return asText(readBytes(worktree, path, MAX_FILE));
 }
 
-function fileContent(bytes: Buffer | null): FileContent | null {
+export function fileContent(bytes: Buffer | null): FileContent | null {
 	if (!bytes || bytes.length > MAX_IMAGE_BYTES) return null;
 	const sound = soundTypeOf(bytes);
 	if (sound) return { mediaType: sound, data: bytes.toString('base64') };
@@ -131,7 +131,7 @@ export function readWorktreePicture(worktree: Worktree, path: string) {
 	return mediaType && { mediaType, data: bytes.toString('base64') };
 }
 
-export function readSource(worktree: Worktree, path: string) {
+export function readSource(worktree: Pick<Worktree, 'path'>, path: string) {
 	return fileContent(readBytes(worktree, path, MAX_IMAGE_BYTES));
 }
 

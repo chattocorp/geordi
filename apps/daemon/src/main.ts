@@ -1,3 +1,4 @@
+import { nativeWorkspaces } from './jj-workspaces.ts';
 import { projectPath } from './projects.ts';
 import { claimDaemon } from './daemon-owner.ts';
 import { prepareSessionsDirectory } from './session-process.ts';
@@ -107,6 +108,11 @@ const projectsDir = process.env.GEORDI_PROJECTS_DIR || join(homedir(), '.geordi'
 const sessionsDir = process.env.GEORDI_SESSIONS_DIR || join(homedir(), '.geordi', 'sessions');
 const tokenFile =
 	process.env.GEORDI_DAEMON_TOKEN_FILE || join(homedir(), '.geordi', 'daemon-token');
+const native = await nativeWorkspaces(
+	worktreesDir,
+	process.env.GEORDI_JJ_SOURCE,
+	process.env.GEORDI_JJ_CONTROL
+);
 prepareSessionsDirectory(sessionsDir);
 const owner = claimDaemon(sessionsDir);
 const daemonId = owner.id;
@@ -156,7 +162,7 @@ const ports = createPorts(
  * What the repository's configuration says for a workspace, with its ports. Asking is what
  * gives a workspace its ports, and each task's port its own among them, the first time around.
  */
-async function configFor(worktree: Worktree, { repoPath, worktreeId }: WorktreeRef) {
+async function configFor(worktree: Pick<Worktree, 'path'>, { repoPath, worktreeId }: WorktreeRef) {
 	const found = await settingsOf(worktree, repoPath);
 	const assigned = await ports.ensure(worktreeId, wantedPorts(found.settings));
 	const config = resolve(found, assigned, (command) => approvals.has(repoPath, command));
@@ -391,6 +397,7 @@ function attend(workspaceId: string, session: Session) {
  * what was said to them since: all of it is the new session's to hear.
  */
 const { beginning, startMessage } = turnStarts({
+	native,
 	worktreesDir,
 	projectsDir,
 	sessions,
@@ -517,6 +524,45 @@ function answer(request: DaemonRequest) {
 async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
+	if (native && 'worktreeId' in request && 'repoPath' in request && native.matches(request)) {
+		const { branch, path } = native.location(request);
+		const target = cachedPullBase(request.worktreeId, branch);
+		switch (request.kind) {
+			case 'prepareWorktree':
+				return native.prepare(request, request.requireBranch);
+			case 'removeWorktree': {
+				if (workingIn(path)) throw new Error('Its agent is still at work');
+				const closing = sessionsIn(path);
+				for (const session of closing) {
+					retired.add(session);
+					session.kill();
+				}
+				await Promise.all(closing.map((session) => session.done));
+				const result = await native.archive(request);
+				ports.release(request.worktreeId);
+				return result;
+			}
+			case 'config':
+				return (await configFor({ path }, request)).config;
+			case 'paths':
+				return sortPaths(
+					{ path },
+					request.paths.filter((p) => !p.split('/').includes('.jj'))
+				);
+			case 'source':
+				return request.path.split('/').includes('.jj') ? null : readSource({ path }, request.path);
+			case 'changes':
+				return native.status(request, target);
+			case 'diff':
+				return native.versions(request, request.path, target);
+			case 'upstream':
+				return upstream(branch, { ...request, repoPath: native.store });
+			case 'release':
+				return null;
+			default:
+				throw new Error('Native jj prototype does not implement ' + request.kind);
+		}
+	}
 	if (request.kind === 'findFiles') {
 		const { repoPath, query } = request;
 		if ('worktreeId' in request) {
@@ -725,7 +771,10 @@ async function handle(message: ForgeMessage) {
 			break;
 
 		case 'watch':
-			watches.set(message.worktrees, message.scope);
+			watches.set(
+				message.worktrees.filter((ref) => !native?.matches(ref)),
+				message.scope
+			);
 			break;
 
 		case 'terminal.open': {

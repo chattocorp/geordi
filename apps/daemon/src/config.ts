@@ -182,7 +182,7 @@ export function parseConfig(text: string): Settings {
  * `startOf`), so that a workspace that branched off before the file existed gets it too.
  * A workspace with a file by the old name only is told to move it.
  */
-async function fileFor(worktree: Worktree, repoPath: string) {
+async function fileFor(worktree: Pick<Worktree, 'path'>, repoPath: string) {
 	const there = (file: string) => !!lstatSync(join(worktree.path, file), { throwIfNoEntry: false });
 	if (there(CONFIG_FILE))
 		return {
@@ -212,7 +212,10 @@ type Found = {
  * workspace's file that can't be made sense of says so (`problem`) rather than making way
  * for the other one: whoever is working on it should hear about it.
  */
-export async function settingsOf(worktree: Worktree, repoPath: string): Promise<Found> {
+export async function settingsOf(
+	worktree: Pick<Worktree, 'path'>,
+	repoPath: string
+): Promise<Found> {
 	const found = await fileFor(worktree, repoPath);
 	if (!found) return { settings: null, problem: null, source: null, file: null };
 	const { source, file, text } = found;

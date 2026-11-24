@@ -41,3 +41,6 @@ storybook-static
 # Website
 /apps/website/dist/
 .astro
+
+# Local agent scratch files and prototype workspaces
+/.context/

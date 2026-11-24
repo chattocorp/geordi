@@ -1,3 +1,5 @@
+import { dirname } from 'node:path';
+import type { NativeWorkspaces } from './jj-workspaces.ts';
 import { inWorktree } from './worktree-queue.ts';
 import { sameAgentSettings, type ForgeMessage, type AgentEvent } from '@geordi/protocol';
 import {
@@ -21,6 +23,7 @@ export function turnStarts({
 	sessions,
 	setups,
 	apiUrl,
+	native,
 	prepared,
 	configFor,
 	begin,
@@ -32,6 +35,7 @@ export function turnStarts({
 	sessions: ReadonlyMap<string, Session>;
 	setups: Map<string, Promise<string | null>>;
 	apiUrl: string;
+	native?: NativeWorkspaces;
 	prepared(worktree: Worktree, message: WorktreeMessage): void;
 	configFor(worktree: Worktree, message: WorktreeMessage): Promise<{ env: Record<string, string> }>;
 	begin(id: string, meta: Meta, heard: Said[]): void;
@@ -109,6 +113,11 @@ export function turnStarts({
 
 				// A workspace of its own starts from where its upstream stands now, whichever
 				// branch it starts from.
+				if (native?.matches(message)) {
+					const tree = await native.prepare(message);
+					emit({ kind: 'worktree', ...tree });
+					return { ...tree, native: true as const };
+				}
 				const { repoPath } = message;
 				if (!hasWorktree(worktreesDir, message)) {
 					const problem = await Promise.race([stopped.promise, fetchUpstream(repoPath)]);
@@ -127,7 +136,7 @@ export function turnStarts({
 			});
 			const worktree = await Promise.race([stopped.promise, prepare]);
 			if (!worktree) return;
-			const project = 'project' in worktree;
+			const ordinary = !('project' in worktree || 'native' in worktree);
 
 			// The agent starts once the directory is set up, and hears how that went. Stopped
 			// meanwhile, the turn ends; the setup goes on, for the next one to wait for.
@@ -147,17 +156,26 @@ export function turnStarts({
 					settings,
 					// a project has no repository, and so no ports or jobs of one
 					env:
-						'project' in worktree || 'project' in message
-							? {}
-							: (await configFor(worktree, message)).env,
-					instructions: message.instructions,
+						'native' in worktree
+							? { GIT_CEILING_DIRECTORIES: dirname(worktree.path) }
+							: !ordinary || 'project' in message
+								? {}
+								: (await configFor(worktree, message)).env,
+					instructions:
+						'native' in worktree
+							? `You are in a native jj workspace in Geordi. Use jj commands here. Your publication bookmark is ${worktree.branch}. Snapshot edits with jj status before finishing a turn. To start a child from your draft, set your bookmark to @ and use that bookmark as the child base. Use jj workspace update-stale when a parent draft is revised. Use gh with an explicit repository, head and base for pull requests.
+${(message.instructions ?? '')
+	.split('\n\n')
+	.filter((part) => !part.startsWith('Your working directory'))
+	.join('\n\n')}`
+							: message.instructions,
 					cwd: worktree.path,
-					...(!project && { worktree }),
-					writableRoots: project ? [] : worktree.writableRoots,
+					...(ordinary && { worktree }),
+					writableRoots: ordinary ? worktree.writableRoots : [],
 					api: { url: apiUrl }
 				};
 				checkStop();
-				if (!project) verifyLinks(worktree);
+				if (ordinary) verifyLinks(worktree);
 				begin(workspaceId, { agent, options, apiToken: message.apiToken }, heard);
 			});
 			await Promise.race([stopped.promise, launch]);

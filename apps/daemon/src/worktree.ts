@@ -263,7 +263,7 @@ export const CONTEXT_DIR = '.context';
  * (`*` ignores the folder too), so that no shared ignore file needs touching. Left alone
  * if it is there already, whatever it is: the agent may have made it, or removed the file.
  */
-function ensureContext(path: string) {
+export function ensureContext(path: string) {
 	const dir = join(path, CONTEXT_DIR);
 	if (lexists(dir)) return;
 	mkdirSync(dir);
