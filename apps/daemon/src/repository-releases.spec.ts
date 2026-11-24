@@ -69,6 +69,12 @@ it('reads Changesets from the repository base, including packages bumped togethe
 			['api', '1.5.0', ['Export results.']],
 			['client', '1.5.0', []]
 		]);
+		git('update-ref', 'refs/remotes/origin/stable', 'HEAD');
+		await expect
+			.poll(() => reports.at(-1)?.plan?.packages.find((pkg) => pkg.name === 'api')?.nextVersion, {
+				timeout: 3000
+			})
+			.toBe('2.0.0');
 	} finally {
 		watches.set([]);
 		rmSync(path, { recursive: true, force: true });

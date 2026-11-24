@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { ReleasePlan, RepositoryRelease } from '@geordi/protocol';
@@ -58,6 +59,25 @@ function follow(path: string, approvals: Approvals, publish: (release: Repositor
 	let previous: string | undefined;
 	let source: Worktree | undefined;
 	let unwatch: (() => void) | undefined;
+	// macOS can coalesce directory events. A watch on the loose ref itself reports
+	// its atomic replacement through kqueue. Reattach to the new inode after a write.
+	let refFile: string | undefined;
+	let stopRef: (() => void) | undefined;
+	function followRef(file: string) {
+		if (process.platform !== 'darwin' || stopped || file === refFile) return;
+		stopRef?.();
+		stopRef = undefined;
+		refFile = undefined;
+		if (!existsSync(file)) return; // packed refs are covered by the directory watch
+		refFile = file;
+		const replaced = () => {
+			stopRef?.();
+			stopRef = undefined;
+			refFile = undefined;
+			changed();
+		};
+		stopRef = subscribe(file, false, replaced, replaced);
+	}
 	let queue = Promise.resolve();
 	let timer: NodeJS.Timeout | undefined;
 	function changed() {
@@ -81,11 +101,16 @@ function follow(path: string, approvals: Approvals, publish: (release: Repositor
 				unwatch = watchBase(commonDir, adminDir, changed);
 			}
 			const ref = await startOf(path);
-			const commit = (await git(path, ['rev-parse', '--verify', ref + '^{commit}'])).trim();
+			const local = ref === 'HEAD' ? await quietGit(path, 'symbolic-ref', '--quiet', 'HEAD') : null;
+			const fullRef = local ?? ref;
+			followRef(
+				fullRef === 'HEAD' ? join(source.adminDir, 'HEAD') : join(source.commonDir, fullRef)
+			);
+			const commit = (await git(path, ['rev-parse', '--verify', fullRef + '^{commit}'])).trim();
 			branch =
-				ref === 'HEAD'
-					? ((await quietGit(path, 'symbolic-ref', '--short', 'HEAD')) ?? commit.slice(0, 8))
-					: ref.replace(/^refs\/remotes\/origin\//, '');
+				fullRef === 'HEAD'
+					? commit.slice(0, 8)
+					: fullRef.replace(/^refs\/(?:heads|remotes\/origin)\//, '');
 			const key = JSON.stringify([branch, commit]);
 			if (!force && previous === key) return;
 			const plan = await planAt(source, commit, approvals, allow);
@@ -112,6 +137,7 @@ function follow(path: string, approvals: Approvals, publish: (release: Repositor
 			stopped = true;
 			clearTimeout(timer);
 			unwatch?.();
+			stopRef?.();
 		}
 	};
 }
