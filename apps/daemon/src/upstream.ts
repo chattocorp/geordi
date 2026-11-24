@@ -150,14 +150,17 @@ async function checksFor(
 			return {
 				counts: count(page.items.map((check) => check.state)),
 				items: includeChecks
-					? page.items.map(({ ref, name, state, stateRaw, conclusionRaw, startedAt, url }) => ({
-							id: ref.type + '/' + ref.id,
-							name,
-							state,
-							status: (conclusionRaw || stateRaw).toLowerCase(),
-							startedAt: startedAt?.getTime(),
-							url
-						}))
+					? page.items.map(
+							({ ref, name, state, stateRaw, conclusionRaw, startedAt, completedAt, url }) => ({
+								id: ref.type + '/' + ref.id,
+								name,
+								state,
+								status: (conclusionRaw || stateRaw).toLowerCase(),
+								startedAt: startedAt?.getTime(),
+								completedAt: completedAt?.getTime(),
+								url
+							})
+						)
 					: undefined
 			};
 		}

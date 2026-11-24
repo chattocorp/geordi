@@ -19,3 +19,5 @@ Long lists scroll below the checks summary. Yellow icons pulse when motion is en
 The Checks list starts collapsed and remembers the last choice across pull requests in this browser. Both open and closed states survived a reload in Chromium.
 
 The full Checks summary toggles the list, including its status bar and padding. The forge link has its own click target.
+
+Completed checks show their recorded duration. Rows without timing data leave the time column empty. The status remains available to screen readers. Verified in the pull request stories.
