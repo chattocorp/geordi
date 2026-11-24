@@ -242,8 +242,9 @@
 		const merge = canvas.getByRole('button', { name: 'Merge PR — Publish widgets' });
 		await expect(canvas.getByTitle('Widgets 1.3.0')).not.toBeVisible();
 		merge.focus();
-		await expect(canvas.getByTitle('Widgets 1.3.0')).toBeVisible();
-		await expect(canvas.getByTitle('API 2.0.1')).toBeVisible();
+		await expect(canvas.getByText('Widgets', { exact: true })).toBeVisible();
+		await expect(canvas.getByText('2.0.1', { exact: true })).toBeVisible();
+		await expect(canvas.getByTitle('2.0.1')).toHaveTextContent(/^2\.0\.1$/);
 	}}
 >
 	<div class="w-96 sheet-quiet p-2">
@@ -255,7 +256,7 @@
 			actions={[{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]}
 			versions={[
 				{ path: 'widgets', name: 'Widgets', version: '1.3.0' },
-				{ path: 'api', name: 'API', version: '2.0.1' }
+				{ path: 'api', name: null, version: '2.0.1' }
 			]}
 			onaction={fn()}
 		/>

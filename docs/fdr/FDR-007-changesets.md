@@ -10,7 +10,7 @@ Many repositories keep notes on their changes with a release tool, which later t
 ## Behavior
 
 - In a repository that uses a release tool Geordi knows, a workspace has a **Changeset** tab next to **Changes**, above its terminals. Like every window but the conversation, both can be dragged to any of the workspace's three areas. Changes is in front to begin with.
-- When the green **Merge PR** button expands in the sidebar, a pill beside it shows the next version of each package that has a workspace change note and a known version bump. Hover over a pill to see the package name.
+- When the green **Merge PR** button expands in the sidebar, a pill beside it shows the next version of each package that has a workspace change note and a known version bump. Each pill includes the package name when the release tool provides one.
 - The Changeset tab's badge counts the change notes the workspace adds.
 - The tab is about what the workspace adds, and nothing else: how many notes merging it adds, and for each package it adds notes to, its name, its version now and after the next release, how big that step is, and those notes with their kind and text. A breaking change is marked. Select the filename to open its diff. Use the pencil to edit the note’s Markdown in place. Save writes the text to the worktree and preserves the note metadata. Cancel discards the draft. If another edit changes the body, saving reports the conflict and keeps the draft.
 - Where notes were pending for such a package already, a line says how many: the next version counts them too.

@@ -294,7 +294,7 @@ const mergeVersions = (id: string) =>
 				pkg.nextVersion !== pkg.version &&
 				!pkg.problems.length &&
 				pkg.notes.some((note) => note.added)
-					? [{ path: pkg.path, name: pkg.name ?? pkg.path, version: pkg.nextVersion }]
+					? [{ path: pkg.path, name: pkg.name, version: pkg.nextVersion }]
 					: []
 			);
 			return { id, versions };

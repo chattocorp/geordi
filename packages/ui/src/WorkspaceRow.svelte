@@ -57,7 +57,7 @@
 		background?: number;
 		progress?: ActivityId;
 		standing?: WorkspaceStanding | null;
-		versions?: { path: string; name: string; version: string }[];
+		versions?: { path: string; name: string | null; version: string }[];
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
@@ -156,10 +156,11 @@
 				<span class="mr-1 hidden min-w-0 flex-wrap justify-end gap-1 reveal:flex">
 					{#each versions as pkg (pkg.path)}
 						<span
-							class="max-w-full truncate rounded-full bg-sunken px-1.5 text-xs font-medium text-muted"
-							title="{pkg.name} {pkg.version}"
+							class="inline-flex max-w-full items-baseline gap-1 rounded-full bg-sunken px-1.5 text-xs font-medium text-muted"
+							title={pkg.name ? `${pkg.name} ${pkg.version}` : pkg.version}
 						>
-							<span class="sr-only">{pkg.name} </span>{pkg.version}
+							{#if pkg.name}<span class="truncate">{pkg.name}</span>{/if}
+							<span class="max-w-full shrink-0 truncate">{pkg.version}</span>
 						</span>
 					{/each}
 				</span>
