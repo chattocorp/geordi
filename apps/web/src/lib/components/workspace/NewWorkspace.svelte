@@ -121,6 +121,7 @@
 	</div>
 {:else}
 	<MessageComposer
+		allowEmpty
 		files={searchFiles}
 		bind:images={written.images}
 		imageField={images.as('hidden', '[]')}

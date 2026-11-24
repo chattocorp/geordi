@@ -1,11 +1,11 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, userEvent, waitFor, within } from 'storybook/test';
+	import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 	import ComposerButton from '@geordi/ui/ComposerButton.svelte';
 	import MessageComposer from './MessageComposer.svelte';
 
 	const { Story } = defineMeta({ title: 'Workspace/MessageComposer', component: MessageComposer });
-	const form = { onsubmit: (event: SubmitEvent) => event.preventDefault() };
+	const form = { onsubmit: fn((event: SubmitEvent) => event.preventDefault()) };
 
 	async function exercise({ canvasElement }: { canvasElement: HTMLElement }) {
 		const canvas = within(canvasElement);
@@ -19,6 +19,11 @@
 		};
 		try {
 			const textarea = canvas.getByRole('textbox');
+			form.onsubmit.mockClear();
+			await userEvent.type(textarea, '  {Enter}');
+			await userEvent.click(canvas.getByRole('button', { name: 'Send' }));
+			expect(form.onsubmit).not.toHaveBeenCalled();
+			await userEvent.clear(textarea);
 			const file = new File(['png'], 'screen.png', { type: 'image/png' });
 			const clipboard = new DataTransfer();
 			clipboard.items.add(file);
@@ -29,6 +34,7 @@
 			const element = canvasElement.querySelector('form')!;
 			expect(new FormData(element).get('images')).toBe('["image-1"]');
 			await userEvent.click(canvas.getByRole('button', { name: 'Send' }));
+			expect(form.onsubmit).toHaveBeenCalledTimes(1);
 			// A failed submission leaves the images in place.
 			expect(new FormData(element).get('images')).toBe('["image-1"]');
 			await userEvent.click(canvas.getByRole('button', { name: 'Remove image 1' }));

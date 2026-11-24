@@ -10,11 +10,13 @@
 		form,
 		imageField,
 		disabled = false,
+		allowEmpty = false,
 		images = $bindable([]),
 		children
 	}: {
 		form: HTMLFormAttributes;
 		imageField: HTMLInputAttributes;
+		allowEmpty?: boolean;
 		disabled?: boolean;
 		images?: string[];
 		children: Snippet<
@@ -99,7 +101,7 @@
 		};
 		// (the text stays open while images upload: sending waits for them instead)
 		const submit = (event: SubmitEvent) => {
-			if (uploading || disabled) {
+			if (uploading || disabled || (!allowEmpty && !images.length && !text?.value.trim())) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 			}
