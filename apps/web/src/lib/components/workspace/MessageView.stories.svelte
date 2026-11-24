@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, fn, userEvent, waitFor } from 'storybook/test';
-	import { subagentBlocks, type Block } from '#lib/transcript.ts';
+	import { subagentBlocks, toBlocks, type Block } from '#lib/transcript.ts';
 	import MessageView from './MessageView.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Composer from '@geordi/ui/Composer.svelte';
@@ -654,7 +654,7 @@
 	asChild
 	play={async ({ canvas }) => {
 		for (const [name, id] of [
-			['Simplify release CI', 'parent'],
+			['Migration tests', 'parent'],
 			['Review', 'peer']
 		]) {
 			await expect(await canvas.findByRole('link', { name })).toHaveAttribute(
@@ -662,26 +662,39 @@
 				`/workspaces/${id}?agent=${id}`
 			);
 		}
-		await expect(canvas.getByText('From Release assistant').closest('a')).toBeNull();
+		await expect(canvas.getByText('finished', { exact: true })).toHaveTextContent(
+			'Review finished'
+		);
+		await expect(canvas.getByText('Release assistant').closest('a')).toBeNull();
 	}}
 >
-	<div class="flex h-80 flex-col overflow-hidden card">
+	<div class="flex h-160 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
-			blocks={[
+			blocks={toBlocks([
+				{ kind: 'user', at: '', text: 'Please review the migration before we merge.' },
+				{ kind: 'text', at: '', text: 'I’ll ask for a second look at archived repositories.' },
 				{
 					kind: 'user',
-					text: 'Please check the release.',
+					at: '',
+					text: 'I found an archived repository in the test fixtures.',
 					from: 'parent'
 				},
-				{ kind: 'user', text: 'The review is ready.', from: 'peer', senderName: 'Review' },
 				{
 					kind: 'user',
-					text: 'Please check the migration.',
+					at: '',
+					text: 'Your agent “Review” (peer) finished its turn.\n\nThe migration covers archived repositories. Both regression tests pass.',
+					from: 'peer',
+					senderName: 'Review'
+				},
+				{
+					kind: 'user',
+					at: '',
+					text: 'The release build passed.',
 					from: 'external:example',
 					senderName: 'Release assistant'
 				}
-			]}
-			senders={{ parent: 'Simplify release CI' }}
+			])}
+			senders={{ parent: 'Migration tests' }}
 			agent="codex"
 			onremove={() => {}}
 			onanswer={() => {}}
@@ -718,7 +731,7 @@
 		);
 	}}
 >
-	<div class="mx-auto flex h-144 max-w-3xl flex-col sheet overflow-hidden">
+	<div class="mx-auto flex h-160 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
 			agent="codex"
 			withComposer

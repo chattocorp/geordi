@@ -421,6 +421,12 @@
 	@apply w-fit max-w-5/6 rounded-card rounded-br-control px-4 py-2.5;
 }
 
+/* A message from another workspace, with a cool tint in either theme. */
+@utility message-incoming {
+	@apply rounded-br-card rounded-bl-control;
+	background-color: color-mix(in srgb, var(--tint-0) 60%, var(--pane));
+}
+
 /*
  * What the desktop app's window is dragged by, in place of a title bar: the bars at the top
  * themselves. A draggable region takes the mouse for itself, so what can be used inside one

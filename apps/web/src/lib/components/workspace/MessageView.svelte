@@ -358,7 +358,7 @@
 				{#if row.kind === 'block'}
 					{@const block = row.block}
 					<div>
-						{#if parentAgent && i === Math.max(0, assignmentIndex)}
+						{#if parentAgent && assignmentIndex < 0 && i === 0}
 							<div class={['flex pb-1', block.kind === 'user' && 'justify-end']}>
 								<button
 									type="button"
@@ -372,28 +372,42 @@
 							</div>
 						{/if}
 						{#if block.kind === 'user'}
-							{#if block.from || (block.delegated && i !== assignmentIndex)}
-								<!-- not the person's words: another agent's, and whose -->
-								{@const title = block.from && senders?.[block.from]}
-								<p class="flex items-center justify-end gap-1.5 pb-1 text-xs text-muted">
-									<span class="icon-[lucide--bot] size-3.5"></span>
-									{#if block.from && !block.from.startsWith('external:') && (title || block.senderName)}
+							{@const incoming = !!(block.from || block.delegated)}
+							{@const title = (block.from && senders?.[block.from]) || block.senderName}
+							<UserMessage text={block.text} {incoming}>
+								{#if incoming}
+									<div class="flex items-baseline gap-1.5 text-sm text-muted">
+										<span
+											aria-hidden="true"
+											class="icon-[lucide--git-branch] size-3.5 shrink-0 self-center"
+										></span>
 										<span>
-											{title ? 'From the agent in “' : 'From '}<a
-												href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`, {
-													id: block.from
-												})}
-												class="rounded-control hover:text-ink hover:underline focus-visible:underline"
-											>
-												{title || block.senderName}
-											</a>{title ? '”' : ''}
+											{#if block.from && !block.from.startsWith('external:')}
+												<a
+													href={resolve(
+														`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`,
+														{ id: block.from }
+													)}
+													class="rounded-control font-semibold hover:text-ink hover:underline focus-visible:underline"
+												>
+													{title || 'Another agent'}
+												</a>
+											{:else if block.delegated && parentAgent}
+												<button
+													type="button"
+													onclick={parentAgent.open}
+													class="rounded-control font-semibold hover:underline focus-visible:underline"
+												>
+													{i === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
+												</button>
+											{:else}
+												<span class="font-semibold">{title || 'Another agent'}</span>
+											{/if}
+											{#if block.report}
+												{block.report}{/if}
 										</span>
-									{:else}
-										{block.senderName ? `From ${block.senderName}` : 'From another agent'}
-									{/if}
-								</p>
-							{/if}
-							<UserMessage text={block.text}>
+									</div>
+								{/if}
 								{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
 								<MessageImages images={block.images} />
 							</UserMessage>
