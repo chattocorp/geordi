@@ -622,14 +622,16 @@
 		onclickcapture={(event) => {
 			// with only active workspaces shown, shift-click marks one inactive: not on what the row has to click besides its link
 			if (!activeOnly || !event.shiftKey || leaving) return;
-			if (event.target instanceof Element && event.target.closest('button')) return;
+			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
+				return;
 			event.preventDefault();
 			event.stopPropagation();
 			void setInactive(workspace, true, activeOnly);
 		}}
 		ondblclick={(event) => {
 			// not on what the row has to click besides its link
-			if (event.target instanceof Element && event.target.closest('button')) return;
+			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
+				return;
 			foreground.ask(workspace.id);
 		}}
 		ondragover={(event) => overRow(event, rows, index)}

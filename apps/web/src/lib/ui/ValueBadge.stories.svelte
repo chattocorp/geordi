@@ -1,5 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
+	import { expect, within } from 'storybook/test';
 	import ValueBadge from '@geordi/ui/ValueBadge.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Value badge', component: ValueBadge });
@@ -14,4 +15,24 @@
 			Merge PR
 		</button>
 	</div>
+</Story>
+
+<Story
+	name="Link"
+	asChild
+	play={async ({ canvasElement }) => {
+		const link = within(canvasElement).getByRole('link', {
+			name: 'Open Changeset for Widgets 1.3.0'
+		});
+		await expect(link).toHaveAttribute('href', '#changeset');
+		link.focus();
+		await expect(link).toHaveFocus();
+	}}
+>
+	<ValueBadge
+		label="Widgets"
+		value="1.3.0"
+		href="#changeset"
+		linkLabel="Open Changeset for Widgets 1.3.0"
+	/>
 </Story>
