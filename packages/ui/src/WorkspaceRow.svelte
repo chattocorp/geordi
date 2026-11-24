@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import WorkspaceActivity from './WorkspaceActivity.svelte';
 	import type { ActivityId, WorkspaceAction, WorkspaceStanding } from './actions.ts';
+	import ValueBadge from './ValueBadge.svelte';
 	import RowLabel from './RowLabel.svelte';
 
 	import QuestionLink from './QuestionLink.svelte';
@@ -28,6 +29,7 @@
 		background = 0,
 		progress,
 		standing = null,
+		versions = [],
 		actions = [],
 		fold,
 		onpoint,
@@ -56,6 +58,7 @@
 		background?: number;
 		progress?: ActivityId;
 		standing?: WorkspaceStanding | null;
+		versions?: { path: string; name: string | null; version: string }[];
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
@@ -136,7 +139,19 @@
 		/>
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
-	<span class="grid h-6 min-w-6 shrink-0 place-items-center">
+	<span data-row-actions class="flex min-h-6 max-w-2/3 min-w-6 items-center justify-end">
+		{#if versions.length}
+			<span class="mr-1 flex min-w-0 flex-wrap justify-end gap-1">
+				{#each versions as pkg (pkg.path)}
+					<ValueBadge
+						label={pkg.name}
+						value={pkg.version}
+						href={href ? `${href}?changeset` : undefined}
+						linkLabel={`Open Changeset for ${title}: ${pkg.name ? pkg.name + ' ' : ''}${pkg.version}`}
+					/>
+				{/each}
+			</span>
+		{/if}
 		{#if typeof asking === 'string' || (asking && href)}
 			<QuestionLink workspaceHref={typeof asking === 'string' ? asking : href!} />
 		{:else if asking}

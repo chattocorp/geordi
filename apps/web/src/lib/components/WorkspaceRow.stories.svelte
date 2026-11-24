@@ -233,3 +233,64 @@
 		/>
 	</div>
 </Story>
+
+<Story
+	name="Merge versions"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const merge = canvas.getByRole('button', { name: 'Merge PR — Publish widgets' });
+		const namedPill = canvas.getByRole('link', {
+			name: 'Open Changeset for Publish widgets: Widgets 1.3.0'
+		});
+		await expect(namedPill).toHaveAttribute('href', '/workspaces/widgets?changeset');
+		await expect(namedPill).toBeVisible();
+		await expect(namedPill.offsetHeight).toBe(merge.offsetHeight);
+		await expect(canvas.getByTitle('2.0.1')).toBeVisible();
+		merge.focus();
+		const name = canvas.getByText('Widgets', { exact: true });
+		await expect(name).toBeVisible();
+		await expect(getComputedStyle(name).color).not.toBe(
+			getComputedStyle(canvas.getByText('1.3.0', { exact: true })).color
+		);
+		await expect(canvas.getByText('2.0.1', { exact: true })).toBeVisible();
+		await expect(canvas.getByTitle('2.0.1')).toHaveTextContent(/^2\.0\.1$/);
+	}}
+>
+	<div class="w-96 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Publish widgets"
+			href="/workspaces/widgets"
+			current
+			standing={{ label: 'Ready to merge', tone: 'ok', icon: 'icon-[lucide--circle-check]' }}
+			actions={[{ id: 'merge-pull', label: 'Merge PR', icon: 'icon-[lucide--git-merge]' }]}
+			versions={[
+				{ path: 'widgets', name: 'Widgets', version: '1.3.0' },
+				{ path: 'api', name: null, version: '2.0.1' }
+			]}
+			onaction={fn()}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Versions before a pull request"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole('link', { name: 'Open Changeset for Add widgets: Widgets 1.3.0' })
+		).toBeVisible();
+		await expect(canvas.getByRole('img', { name: 'Working' })).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /Merge PR/ })).toBeNull();
+	}}
+>
+	<div class="w-96 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Add widgets"
+			href="/workspaces/widgets"
+			working
+			versions={[{ path: 'widgets', name: 'Widgets', version: '1.3.0' }]}
+		/>
+	</div>
+</Story>

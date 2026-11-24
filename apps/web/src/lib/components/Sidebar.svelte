@@ -8,7 +8,7 @@
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
 	import RowLabel from '@geordi/ui/RowLabel.svelte';
-	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
+	import SidebarWorkspaceRow from './SidebarWorkspaceRow.svelte';
 	import {
 		actFromAfar,
 		archiveAndNavigate,
@@ -622,20 +622,23 @@
 		onclickcapture={(event) => {
 			// with only active workspaces shown, shift-click marks one inactive: not on what the row has to click besides its link
 			if (!activeOnly || !event.shiftKey || leaving) return;
-			if (event.target instanceof Element && event.target.closest('button')) return;
+			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
+				return;
 			event.preventDefault();
 			event.stopPropagation();
 			void setInactive(workspace, true, activeOnly);
 		}}
 		ondblclick={(event) => {
 			// not on what the row has to click besides its link
-			if (event.target instanceof Element && event.target.closest('button')) return;
+			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
+				return;
 			foreground.ask(workspace.id);
 		}}
 		ondragover={(event) => overRow(event, rows, index)}
 		ondrop={(event) => drop(event, workspace.repoId)}
 	>
-		<WorkspaceRow
+		<SidebarWorkspaceRow
+			workspaceId={workspace.repoId && workspace.branch ? workspace.id : undefined}
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
