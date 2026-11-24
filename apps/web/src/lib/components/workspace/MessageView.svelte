@@ -72,6 +72,21 @@
 		following?: boolean;
 	} = $props();
 
+	let selectedQuestion = $state<{ id: string; done(): void }>();
+	const targetQuestion = $derived(questionTarget ?? selectedQuestion);
+	const pendingQuestions = $derived(
+		onanswer
+			? blocks.flatMap((block) =>
+					block.kind === 'agent'
+						? block.parts.filter(
+								(part): part is Extract<Part, { kind: 'question' }> =>
+									part.kind === 'question' && part.open
+							)
+						: []
+				)
+			: []
+	);
+
 	const workspaceFiles = changedFiles();
 	const expanded = new SvelteSet<number>();
 
@@ -204,7 +219,7 @@
 	}
 
 	$effect(() => {
-		const target = questionTarget;
+		const target = targetQuestion;
 		if (!target || !list) return;
 		const index = blocks.findIndex(
 			(block) =>
@@ -324,7 +339,7 @@
 		{/key}
 	{:else if part.kind === 'question'}
 		<QuestionCard
-			onreveal={questionTarget?.id === part.id ? questionTarget.done : undefined}
+			onreveal={targetQuestion?.id === part.id ? targetQuestion.done : undefined}
 			questions={part.questions}
 			answers={part.answers}
 			open={part.open && !!onanswer}
@@ -475,6 +490,37 @@
 			class="absolute right-5 bottom-2 bg-surface shadow-float"
 		/>
 	</div>
+{/if}
+{#if pendingQuestions.length}
+	<nav aria-label="Pending questions" class="mx-auto w-full max-w-5xl shrink-0 px-5 pb-2">
+		<div class="mx-1 rounded-card bg-sidebar px-3 py-2">
+			<p class="flex items-center gap-2 text-sm font-semibold text-ink">
+				<span
+					aria-hidden="true"
+					class="icon-[lucide--message-circle-question-mark] size-4 text-accent"
+				></span>
+				{pendingQuestions.length === 1 ? 'Pending question' : 'Pending questions'}
+			</p>
+			<ul aria-label="Open requests" class="max-h-24 overflow-y-auto">
+				{#each pendingQuestions as part (part.id)}
+					<li>
+						<button
+							type="button"
+							class="item w-full gap-2 px-2 py-1 text-left text-sm"
+							onclick={() =>
+								(selectedQuestion = { id: part.id, done: () => (selectedQuestion = undefined) })}
+						>
+							<span class="min-w-0 flex-1 truncate">{part.questions[0]?.question}</span>
+							<span
+								aria-hidden="true"
+								class="icon-[lucide--arrow-up-right] size-4 shrink-0 text-muted"
+							></span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</div>
+	</nav>
 {/if}
 {#if backgroundRows.length}
 	<BackgroundTasks rows={backgroundRows} {onstoptask} {withComposer} />

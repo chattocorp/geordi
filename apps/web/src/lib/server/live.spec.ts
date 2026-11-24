@@ -205,6 +205,33 @@ describe('live', () => {
 		domain.archive('aide');
 		await consume();
 		expect(current!.aides).toEqual([]);
+		// A child in its own worktree contributes only the forwarded form to the parent's view.
+		store.append({
+			type: 'workspace.created',
+			stream: 'workspace:child',
+			data: { id: 'child', repoId: 'r', parentId: 'owner', title: 'Tests', agent: 'claude' }
+		});
+		store.append(
+			{
+				type: 'workspace.message',
+				stream: 'workspace:child',
+				data: { id: 'child', text: 'Run the tests' }
+			},
+			{ actor: 'owner' }
+		);
+		domain.record('child', {
+			kind: 'question',
+			id: 'q',
+			questions: [{ question: 'SQLite?', options: [], multiSelect: false }]
+		});
+		domain.agents.forwardQuestion('owner', 'child', 'q');
+		await consume();
+		expect(current!.forwardedQuestions).toMatchObject([
+			{ id: 'q', workspaceId: 'child', title: 'Tests' }
+		]);
+		domain.answer('child', 'q', ['Yes']);
+		await consume();
+		expect(current!.forwardedQuestions).toEqual([]);
 		connection.socket.close();
 		domain.record('owner', { kind: 'text', text: 'while disconnected' });
 		const next = await connect();

@@ -1,7 +1,7 @@
 # FDR-002: Agents starting and supervising agents
 
 **Status:** Active
-**Last reviewed:** 2026-11-22
+**Last reviewed:** 2026-11-24
 
 ## Overview
 
@@ -14,6 +14,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
   - **A shared worktree:** the parent can share its own directory or start a reviewer in its own worktree or in that of any of its descendants. A tool call with a parameter the tool does not know is refused. The reviewer sees uncommitted files and reports to the agent that started it.
 - The parent can message a child, wait until it has finished its turn, read its latest reply, stop it, and archive it once it is done with it (after merging its branch, say). Archiving on an agent's behalf never discards uncommitted work. Children can start children of their own, up to a limit.
 - A message to a child that is working waits for its turn to end; the parent can have it interrupt instead, which gives the child the message at once, in the middle of what it is doing (ADR-010). In the child's conversation, what an agent said is marked as that agent's, by its workspace's name.
+- When a child needs a decision on its parent's task, it asks once and waits in the same turn. A waiting parent gets the form immediately. Otherwise the parent can review it when free. The parent can answer or pass the original form to the person in its own workspace. Each forwarded form names the child. The answer goes directly to that child, including after a reconnect. Withdrawing or answering one request removes only that form.
 - When a child ends a turn (completed or failed), its parent is told in a message from the child with its reply: the last message of that turn, which is its answer (the last 4000 characters of it, since an answer ends with its conclusion; what it said on the way is in its transcript), unless the parent is waiting for it with `wait_for_agent` at that moment. A parent at work gets the message when its own turn ends; an idle one starts a turn. So a parent hands off work and ends its turn, without polling, and can't forget a child that finished.
 - The parent can give the new agent's workspace a name when it starts it; otherwise the child names itself, like any workspace.
 - Agents can find, read and wait on any workspace in the installation, in any repository, archived conversations included. A repository agent can message only its own descendants and the agent that started it, never another agent: work stays in the tree that was asked for it, and an agent can't set the person's other agents to work. The message starts a turn if the recipient is idle or waits for its current turn to finish. A repository agent can interrupt, stop and archive its own descendants.
