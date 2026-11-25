@@ -60,7 +60,7 @@ import {
 	writeTerminal
 } from './terminals.ts';
 import { editReleaseNote, releasePlan } from './releases.ts';
-import { emptyTrash, removable, removeWorktree } from './remove.ts';
+import { archiveWorktree, emptyTrash, entryExists, missingCheckout } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import {
 	endLegacyTurns,
@@ -515,6 +515,15 @@ function answer(request: DaemonRequest) {
 	}
 }
 
+/** Retire idle hosts too: a background result could otherwise start another turn. */
+function stopSessions(path: string) {
+	for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
+	for (const session of sessionsIn(path)) {
+		retired.add(session);
+		session.kill();
+	}
+}
+
 async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
@@ -531,41 +540,23 @@ async function readRequest(request: DaemonRequest) {
 		).trim();
 		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
-	if (request.kind === 'checkForge') return checkForge(request.repoPath);
+	if (request.kind === 'missingCheckout') return missingCheckout(worktreesDir, request);
+	if (request.kind === 'checkForge') {
+		if (!entryExists(request.repoPath))
+			return { status: 'problem', summary: 'The repository checkout is missing' } as const;
+		return checkForge(request.repoPath);
+	}
 	if (request.kind === 'repoIcon') return repoIcon(request.repoPath);
 	if (request.kind === 'branches') return branchesOf(request.repoPath);
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
 	if (request.kind === 'closeProject') {
-		// its agents, whose CLIs may still be running there with nothing to do, end; the folder stays
-		const path = projectPath(projectsDir, request.worktreeId);
-		for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
-		for (const session of sessionsIn(path)) {
-			retired.add(session);
-			session.kill();
-		}
+		stopSessions(projectPath(projectsDir, request.worktreeId));
 		return null;
 	}
 	if (request.kind === 'removeWorktree') {
-		const { worktreeId, force } = request;
-		const worktree = await removable(worktreesDir, request, force);
-		if (worktree && request.teardown) await tearDown(worktree, request);
-		// what it comes back from if the workspace is brought back, which the agent may have renamed
-		let branch: string | null = null;
-		try {
-			if (worktree) branch = branchOf(worktree);
-		} catch {
-			// an unreadable HEAD (forced removal of a tampered worktree): the forge keeps what it knows
-		}
-		// an agent whose CLI is still running there (with nothing to do) goes with its directory
-		await removeWorktree(worktreesDir, request, force, () => {
-			const path = worktreePath(worktreesDir, request);
-			for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
-			for (const session of sessionsIn(path)) {
-				retired.add(session);
-				session.kill();
-			}
-		});
+		const { worktreeId } = request;
+		const branch = await archiveWorktree(worktreesDir, request, tearDown, stopSessions);
 		await fileSearch.discard(worktreeId, worktreePath(worktreesDir, request));
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
@@ -620,6 +611,8 @@ async function readRequest(request: DaemonRequest) {
 		return { branch };
 	}
 	if (request.kind === 'prepareWorktree') {
+		if (!entryExists(request.repoPath))
+			throw new Error(`Restore the repository checkout at ${request.repoPath} to resume work.`);
 		const { repoPath, worktreeId } = request;
 		// a new one starts from where its upstream stands now, as with a first turn
 		if (!request.requireBranch && !hasWorktree(worktreesDir, request)) {

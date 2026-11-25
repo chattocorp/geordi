@@ -222,6 +222,8 @@
 								{#each repos as repo (repo.id)}
 									<li>
 										<RepositoryRow
+											openWorkspaces={nav.current?.workspaces.filter((w) => w.repoId === repo.id) ??
+												[]}
 											{repo}
 											check={() => checkRepoForge(repo.id)}
 											onremove={() => attempt(() => removeRepo(repo.id), 'Could not remove it')}

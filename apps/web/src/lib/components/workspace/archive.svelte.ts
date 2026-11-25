@@ -12,6 +12,7 @@ export type ArchiveQuestion = {
 	title: string;
 	concerns: string[];
 	stopAgents: boolean;
+	missingCheckout?: boolean;
 	busy: boolean;
 	answer(go: boolean): void;
 };
@@ -29,15 +30,22 @@ export async function archive(workspaceId: string, title: string): Promise<boole
 	beingArchived.add(workspaceId);
 	let hasQuestion = false;
 	try {
-		const { concerns, discard, stopAgents } = await previewArchive(workspaceId);
+		const { concerns, discard, stopAgents, keepFiles } = await previewArchive(workspaceId);
 		if (concerns.length) {
 			const decision = Promise.withResolvers<boolean>();
-			questions.push({ title, concerns, stopAgents, busy: false, answer: decision.resolve });
+			questions.push({
+				title,
+				concerns,
+				stopAgents,
+				missingCheckout: !!keepFiles?.length,
+				busy: false,
+				answer: decision.resolve
+			});
 			hasQuestion = true;
 			if (!(await decision.promise)) return false;
 			questions[0].busy = true;
 		}
-		await archiveWorkspace({ workspaceId, discard, stopAgents });
+		await archiveWorkspace({ workspaceId, discard, stopAgents, ...(keepFiles && { keepFiles }) });
 		return true;
 	} catch (error) {
 		archiveProblems[workspaceId] = problemOf(error, 'Could not archive the workspace');

@@ -63,3 +63,20 @@
 		await expect(answer).toHaveBeenCalledWith(true);
 	}}
 />
+
+<Story
+	name="Missing checkout"
+	args={{
+		asking: {
+			title: 'Review login changes',
+			concerns: [
+				'The repository checkout is missing at /code/login.',
+				'Your workspace files will stay in /worktrees/login/review.'
+			],
+			missingCheckout: true,
+			stopAgents: false,
+			busy: false,
+			answer
+		}
+	}}
+/>

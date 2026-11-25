@@ -14,12 +14,18 @@
 >
 	<div class="flex min-h-0 flex-col gap-4 p-6">
 		<p class="heading wrap-anywhere">{heading}</p>
-		<ul class="scroller min-h-0 list-disc space-y-1 overflow-y-auto pl-5 text-sm marker:text-muted">
+		<ul
+			class="scroller min-h-0 list-disc space-y-1 overflow-y-auto pl-5 text-sm wrap-anywhere marker:text-muted"
+		>
 			{#each asking?.concerns ?? [] as concern (concern)}
 				<li>{concern}</li>
 			{/each}
 		</ul>
-		<p class="text-sm text-muted">Your conversations and Git branches are kept.</p>
+		<p class="text-sm text-muted">
+			{asking?.missingCheckout
+				? 'You can still read your conversations in Archive. To resume work, restore the checkout first.'
+				: 'Your conversations and Git branches are kept.'}
+		</p>
 		<div class="dialog-actions">
 			<Button variant="soft" disabled={asking?.busy} onclick={() => asking?.answer(false)}>
 				Cancel

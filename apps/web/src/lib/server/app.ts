@@ -333,20 +333,38 @@ export async function concernsAboutArchiving(id: string) {
 	workspaces().refuseLocked(family.map((workspace) => workspace.id));
 	const previews = await Promise.all(
 		family.map(async (workspace) => {
+			let missingId: string | undefined;
+			const concerns: string[] = [];
 			let standing: Standing = { changes: null };
 			if (workspace.worktree && workspace.worktreeId === workspace.id) {
-				await standings().look(workspace.id, { fresh: true });
-				const known = standings().state(workspace.id);
-				if (known && !known.missing) {
-					if (!known.changes) throw new Error(known.unavailable ?? 'No daemon could say');
-					// where the forge cannot be asked, what was last known of the pull request
-					standing = { changes: known.changes, upstream: known.upstream };
+				const ref = workspaces().ref(workspace.id);
+				const missing = await hub()
+					.request({ kind: 'missingCheckout', ...ref })
+					.catch((cause) =>
+						error(
+							503,
+							cause instanceof Error ? cause.message : 'Could not check the repository checkout'
+						)
+					);
+				if (missing) {
+					missingId = workspace.id;
+					concerns.push(`The repository checkout is missing at ${ref.repoPath}.`);
+					if (missing.folder) concerns.push(`Your workspace files will stay in ${missing.folder}.`);
+				} else {
+					await standings().look(workspace.id, { fresh: true });
+					const known = standings().state(workspace.id);
+					if (known && !known.missing) {
+						if (!known.changes) throw new Error(known.unavailable ?? 'No daemon could say');
+						// where the forge cannot be asked, what was last known of the pull request
+						standing = { changes: known.changes, upstream: known.upstream };
+					}
 				}
 			}
-			const concerns = archiveConcerns(standing);
+			concerns.push(...archiveConcerns(standing));
 			const stopAgents = workspaces().summary(workspace.id).status === 'running';
 			if (stopAgents) concerns.push('Busy agents will be stopped.');
 			return {
+				missingId,
 				concerns,
 				discard: !!standing.changes?.uncommitted,
 				stopAgents
@@ -368,7 +386,9 @@ export async function concernsAboutArchiving(id: string) {
 		else if (activity.includes(null))
 			concerns.push('Any running terminal processes will be stopped.');
 	}
+	const keepFiles = previews.flatMap(({ missingId }) => (missingId ? [missingId] : []));
 	return {
+		...(keepFiles.length && { keepFiles }),
 		concerns,
 		discard: previews.some((preview) => preview.discard),
 		stopAgents: previews.some((preview) => preview.stopAgents)
@@ -380,7 +400,8 @@ export const archiveWorkspace = (
 	id: string,
 	discard: boolean,
 	actor: string | null = null,
-	stopAgents = false
+	stopAgents = false,
+	keepFiles: string[] = []
 ) =>
 	createArchiver({
 		workspaces: workspaces(),
@@ -388,7 +409,13 @@ export const archiveWorkspace = (
 		// with the repository's teardown script first, which may take a while
 		removeWorktree: async (ref, force, teardown) => {
 			const { branch } = await hub().request(
-				{ kind: 'removeWorktree', force, teardown, ...ref },
+				{
+					kind: 'removeWorktree',
+					force,
+					teardown,
+					keepFiles: keepFiles.includes(ref.worktreeId),
+					...ref
+				},
 				REMOVE_TIMEOUT_MS
 			);
 			workspaces().onBranch(ref.worktreeId, branch);

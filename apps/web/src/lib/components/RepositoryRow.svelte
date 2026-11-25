@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { onMount, type Snippet } from 'svelte';
 	import type { ForgeDiagnostic } from '@geordi/protocol';
 	import Button from '@geordi/ui/Button.svelte';
@@ -13,10 +14,12 @@
 	 */
 	let {
 		repo,
+		openWorkspaces,
 		check,
 		onremove
 	}: {
 		repo: { id: string; name: string; path: string; workspaceCount: number };
+		openWorkspaces: { id: string; title: string }[];
 		check: () => Promise<ForgeDiagnostic>;
 		onremove: () => void;
 	} = $props();
@@ -125,6 +128,18 @@
 			{@render row('Forge', kind)}
 			{#if forge?.status === 'problem'}{@render row('Problem', problem)}{/if}
 		</dl>
+		{#if openWorkspaces.length}
+			<p class="text-xs text-muted">Archive these workspaces to remove this repository.</p>
+			<ul class="space-y-1 text-sm">
+				{#each openWorkspaces as workspace (workspace.id)}
+					<li>
+						<a class="hover:underline" href={resolve('/workspaces/[id]', { id: workspace.id })}>
+							{workspace.title}
+						</a>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 		<div class="flex flex-wrap items-center gap-2">
 			<Button size="sm" icon="icon-[lucide--refresh-cw]" busy={checking} onclick={run}>
 				Check again

@@ -138,6 +138,15 @@ export const restoreWorkspace = command(v.string(), async (id) => {
 	if (!workspace.archivedAt) return;
 	// a project has no worktree to bring back: its folder is made again, empty, when it next works
 	if (workspace.repoId === null) return domain.restore(id);
+	if (
+		!repos()
+			.list()
+			.some((repo) => repo.id === workspace.repoId)
+	)
+		error(
+			409,
+			'Add the original checkout in Settings → Repositories before restoring this workspace.'
+		);
 	const ref = domain.ref(id);
 	const release = domain.hold([id, ref.worktreeId], 'being restored');
 	try {
@@ -172,10 +181,11 @@ export const archiveWorkspace = command(
 	v.object({
 		workspaceId: v.string(),
 		discard: v.boolean(),
-		stopAgents: v.optional(v.boolean(), false)
+		stopAgents: v.optional(v.boolean(), false),
+		keepFiles: v.optional(v.array(v.string()))
 	}),
-	async ({ workspaceId, discard, stopAgents }) => {
-		await archive(workspaceId, discard, null, stopAgents);
+	async ({ workspaceId, discard, stopAgents, keepFiles }) => {
+		await archive(workspaceId, discard, null, stopAgents, keepFiles);
 	}
 );
 

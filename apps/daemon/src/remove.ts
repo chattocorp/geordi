@@ -1,11 +1,28 @@
-import type { WorktreeRef } from '@geordi/protocol';
+import type { DaemonRequest, WorktreeRef } from '@geordi/protocol';
 import { randomUUID } from 'node:crypto';
 import { git } from './git.ts';
-import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { uncommittedFiles } from './changes.ts';
-import { describe, verifyLinks, type Worktree } from './worktree.ts';
+import { branchOf, describe, verifyLinks, worktreePath, type Worktree } from './worktree.ts';
+
+/** Inspect directory entries without following a worktree's agent-writable Git links. */
+export function entryExists(path: string) {
+	try {
+		lstatSync(path);
+		return true;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+		throw error;
+	}
+}
+
+export function missingCheckout(baseDir: string, ref: WorktreeRef) {
+	if (entryExists(ref.repoPath)) return null;
+	const path = worktreePath(baseDir, ref);
+	return { folder: entryExists(path) ? path : null };
+}
 
 /**
  * Gets a directory out of the way at once, and deletes it in its own time. A worktree with
@@ -29,7 +46,7 @@ export const emptyTrash = (baseDir: string) =>
  * The workspace's worktree, if it is there and may be removed: it has no uncommitted or
  * untracked files, or `force` says to discard them. Throws if it may not.
  */
-export async function removable(
+async function removable(
 	baseDir: string,
 	ref: WorktreeRef,
 	force: boolean
@@ -61,7 +78,36 @@ export async function removeWorktree(
 	beforeDiscard = () => {}
 ) {
 	const worktree = await removable(baseDir, ref, force);
+	if (!entryExists(ref.repoPath))
+		throw new Error('The checkout disappeared. Review the archive again.');
 	beforeDiscard();
 	if (worktree) discard(baseDir, worktree.path);
 	await git(ref.repoPath, ['worktree', 'prune']);
+}
+
+/** Apply the archive the person reviewed, including the missing-checkout case on a retry. */
+export async function archiveWorktree(
+	baseDir: string,
+	request: Extract<DaemonRequest, { kind: 'removeWorktree' }>,
+	tearDown: (tree: Worktree, ref: WorktreeRef) => Promise<void>,
+	stopSessions: (path: string) => void
+) {
+	const path = worktreePath(baseDir, request);
+	const missing = missingCheckout(baseDir, request);
+	if (Boolean(missing) !== Boolean(request.keepFiles))
+		throw new Error('The repository checkout changed. Open Archive again to review it.');
+	if (missing) {
+		stopSessions(path);
+		return null;
+	}
+	const tree = await removable(baseDir, request, request.force);
+	if (tree && request.teardown) await tearDown(tree, request);
+	let branch: string | null = null;
+	try {
+		if (tree) branch = branchOf(tree);
+	} catch {
+		// Forced removal can encounter an unreadable HEAD. Keep the forge's last known branch.
+	}
+	await removeWorktree(baseDir, request, request.force, () => stopSessions(path));
+	return branch;
 }

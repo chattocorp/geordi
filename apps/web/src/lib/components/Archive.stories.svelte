@@ -123,6 +123,10 @@
 		await userEvent.click(canvas.getByRole('button', { name: /Publish the release guide/ }));
 		const dialog = within(document.body).getByRole('dialog');
 		await expect(dialog).toHaveAccessibleName('Restore “Publish the release guide”?');
+		await expect(within(dialog).getByRole('link', { name: 'Read conversation' })).toHaveAttribute(
+			'href',
+			'/workspaces/release'
+		);
 		await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 		await expect(args.onrestore).not.toHaveBeenCalled();
 		await userEvent.click(canvas.getByRole('button', { name: /Publish the release guide/ }));

@@ -1,7 +1,7 @@
 ---
 data:
   priority: high
-  status: todo
+  status: done
   tags:
     - repos
     - workspaces
@@ -25,3 +25,9 @@ Deleting a registered checkout outside Geordi can strand its workspaces. Setting
 - Recheck the checkout at confirmation and handle retries after partial cleanup. An offline daemon or unreadable directory must not be reported as a deleted checkout.
 - Restart the forge. The registration stays removed, conversations remain readable and other repositories are unaffected. Adding the same path again retains its repository identity.
 - Add regression tests, verify both paths in the dev app and update FDR-001 and FDR-005 when the fix ships.
+
+## Outcome
+
+Implemented the missing-checkout archive flow. Settings links to the open workspaces. Archived conversations can be read after repository removal.
+
+Verified with an isolated forge, daemon and disposable checkouts. Archived and removed repositories with and without a surviving workspace folder, checked untracked bytes, cancelled an archive and restored a checkout during confirmation. Restarted the forge, opened the archived conversation, re-added each checkout and restored its workspace. Regression tests cover locks, shared worktrees, a running job, offline and permission errors, and retries.

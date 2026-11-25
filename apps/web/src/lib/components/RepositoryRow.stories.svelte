@@ -7,12 +7,16 @@
 		id: 'widgets',
 		name: 'widgets',
 		path: '/Users/ada/src/widgets',
-		workspaceCount: 2
+		workspaceCount: 1
 	};
 	const { Story } = defineMeta({
 		title: 'Geordi/Repository row',
 		component: RepositoryRow,
-		args: { repo, onremove: () => {} }
+		args: {
+			repo,
+			openWorkspaces: [{ id: 'review', title: 'Review the widgets' }],
+			onremove: () => {}
+		}
 	});
 </script>
 
@@ -33,6 +37,7 @@
 	name="Unknown forge"
 	args={{
 		repo: { ...repo, workspaceCount: 0 },
+		openWorkspaces: [],
 		check: async () => ({
 			status: 'problem',
 			summary: 'No forge set up for git.example.com',

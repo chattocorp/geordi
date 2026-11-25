@@ -17,7 +17,7 @@ import type { Sound } from './sounds.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 40;
+export const PROTOCOL_VERSION = 41;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
@@ -515,13 +515,21 @@ export type PortConflict = {
 export type DaemonRequest =
 	/** What changed since the workspace branched off, and whether it is committed and pushed. */
 	| ({ kind: 'changes' } & WorktreeRef)
+	/** Checks the registered checkout before archive. A surviving workspace folder is kept. */
+	| ({ kind: 'missingCheckout' } & WorktreeRef)
 	/**
 	 * Removes the worktree (the branch stays). Refuses if it has uncommitted or untracked
 	 * files, unless `force` says to discard them. With `teardown`, runs the repository's
 	 * teardown script first, if a person agreed to it: give this `REMOVE_TIMEOUT_MS`. Only
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
-	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
+	| ({
+			kind: 'removeWorktree';
+			force: boolean;
+			teardown: boolean;
+			/** Archive a confirmed missing checkout. Refuse if the checkout has returned. */
+			keepFiles?: boolean;
+	  } & WorktreeRef)
 	/**
 	 * Ends the agents working in a project's folder (FDR-012), which is archived. The folder
 	 * stays, with whatever they left there: restored, the project finds it again.
@@ -613,6 +621,7 @@ export type FileMatch = { path: string; indices: number[] };
 
 export type DaemonResults = {
 	changes: Changes;
+	missingCheckout: { folder: string | null } | null;
 	/** The branch the worktree was on, as with `changes`; `null` if it was not there or on none. */
 	removeWorktree: { branch: string | null };
 	closeProject: null;
