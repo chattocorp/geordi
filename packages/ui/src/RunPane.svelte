@@ -245,7 +245,7 @@
 		<Loading label="Loading the tasks…" />
 	{:else if tasks.length > 0}
 		<!-- a hair between rows, as in the sidebar: rows that stand out together stay apart -->
-		<ul aria-label="Tasks" class="grouped-rows">
+		<ul aria-label="Tasks" class="grouped-rows-ruled grouped-rows">
 			{#each entries as entry ('group' in entry ? `group:${entry.group}` : entry.task.name)}
 				{#if 'group' in entry}
 					{@const names = entry.tasks.map(({ task }) => task.name)}
