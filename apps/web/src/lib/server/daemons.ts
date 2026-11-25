@@ -289,7 +289,10 @@ export function createHub(port: number, token: string, handlers: Handlers) {
 		): Promise<DaemonResults[K]> {
 			const id = randomUUID();
 			return new Promise<DaemonResults[K]>((resolve, reject) => {
-				const timeout = setTimeout(() => settle({ error: 'The daemon did not answer' }), timeoutMs);
+				const timeout = setTimeout(() => {
+					if (request.kind === 'removeWorktree') send({ type: 'cancelRemoval', id });
+					settle({ error: 'The daemon did not answer' });
+				}, timeoutMs);
 				const settle = ({ result, error }: { result?: unknown; error?: string }) => {
 					clearTimeout(timeout);
 					pending.delete(id);

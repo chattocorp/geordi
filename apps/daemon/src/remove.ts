@@ -76,8 +76,14 @@ async function removable(
  * metadata, which an agent can write. We look for uncommitted work the careful way, delete
  * the directory ourselves, and have git forget it from the repository's side.
  */
-export async function removeWorktree(baseDir: string, ref: WorktreeRef, force: boolean) {
+export async function removeWorktree(
+	baseDir: string,
+	ref: WorktreeRef,
+	force: boolean,
+	signal?: AbortSignal
+) {
 	const worktree = await removable(baseDir, ref, force);
+	signal?.throwIfAborted();
 	if (!hasCheckout(ref.repoPath))
 		throw new Error('The checkout disappeared. Review the archive again.');
 	if (worktree) discard(baseDir, worktree.path);
@@ -89,13 +95,16 @@ export async function archiveWorktree(
 	baseDir: string,
 	request: Extract<DaemonRequest, { kind: 'removeWorktree' }>,
 	tearDown: (tree: Worktree, ref: WorktreeRef) => Promise<void>,
-	stopSessions: (path: string) => Promise<void>
+	stopSessions: (path: string) => Promise<void>,
+	signal?: AbortSignal
 ) {
+	signal?.throwIfAborted();
 	const path = worktreePath(baseDir, request);
 	if (request.removingRepository) {
 		checkParent(path);
 		if (!hasCheckout(request.repoPath)) {
 			await stopSessions(path);
+			signal?.throwIfAborted();
 			if (entryExists(path)) discard(baseDir, path);
 			return null;
 		}
@@ -103,7 +112,9 @@ export async function archiveWorktree(
 		throw new Error('The checkout is missing. Remove the repository in Settings → Repositories.');
 	}
 	const tree = await removable(baseDir, request, request.force);
+	signal?.throwIfAborted();
 	if (tree && request.teardown) await tearDown(tree, request);
+	signal?.throwIfAborted();
 	let branch: string | null = null;
 	try {
 		if (tree) branch = branchOf(tree);
@@ -111,6 +122,7 @@ export async function archiveWorktree(
 		// Forced removal can encounter an unreadable HEAD. Keep the forge's last known branch.
 	}
 	await stopSessions(path);
-	await removeWorktree(baseDir, request, request.force);
+	signal?.throwIfAborted();
+	await removeWorktree(baseDir, request, request.force, signal);
 	return branch;
 }

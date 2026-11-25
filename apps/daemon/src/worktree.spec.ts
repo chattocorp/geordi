@@ -1089,16 +1089,21 @@ describe('removing a repository', () => {
 					stopping.resolve();
 					await ending.promise;
 				});
-				const archiving = archiveWorktree(base, request, teardown, stop);
+				const connection = new AbortController();
+				const archiving = archiveWorktree(base, request, teardown, stop, connection.signal);
 				await stopping.promise;
 				expect(existsSync(path)).toBe(true);
+				connection.abort();
 				ending.resolve();
-				await archiving;
+				await expect(archiving).rejects.toThrow(/abort/i);
+				expect(readFileSync(join(path, 'draft'), 'utf8')).toBe('unfinished');
 				await archiveWorktree(base, request, teardown, stop);
 				expect(existsSync(path)).toBe(false);
+				// A retry after a lost success response also succeeds.
+				await archiveWorktree(base, request, teardown, stop);
 				expect(existsSync(other)).toBe(true);
 				expect(stop).toHaveBeenCalledWith(path);
-				expect(teardown).toHaveBeenCalledTimes(present ? 1 : 0);
+				expect(teardown).toHaveBeenCalledTimes(present ? 2 : 0);
 				if (present) {
 					execFileSync('git', ['-C', repoPath, 'rev-parse', '--verify', branch]);
 					expect(

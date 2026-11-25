@@ -441,6 +441,7 @@ function connect(delay = 500) {
 		return retry();
 	}
 
+	const removals = new Map<string, AbortController>();
 	const ws = new WebSocket(forgeUrl);
 	const nonce = createNonce();
 
@@ -453,7 +454,7 @@ function connect(delay = 500) {
 		}
 
 		if (socket === ws)
-			return handle(message).catch((error) =>
+			return handle(message, removals).catch((error) =>
 				console.error('could not handle', message.type, error)
 			);
 
@@ -489,6 +490,7 @@ function connect(delay = 500) {
 	};
 
 	ws.onclose = (event) => {
+		for (const removal of removals.values()) removal.abort();
 		if (socket === ws) console.log('disconnected; reconnecting');
 		else if (event.reason) console.log(`connection refused: ${event.reason}`);
 		// Agents and terminals keep running: the forge picks them up again when it is back.
@@ -501,7 +503,7 @@ function connect(delay = 500) {
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-function answer(request: DaemonRequest) {
+function answer(request: DaemonRequest, signal?: AbortSignal) {
 	switch (request.kind) {
 		case 'prepareWorktree':
 		case 'continueWorktree':
@@ -509,7 +511,7 @@ function answer(request: DaemonRequest) {
 		case 'removeWorktree':
 		case 'editReleaseNote':
 		case 'config':
-			return inWorktree(worktreePath(worktreesDir, request), () => readRequest(request));
+			return inWorktree(worktreePath(worktreesDir, request), () => readRequest(request, signal));
 		default:
 			return readRequest(request);
 	}
@@ -528,7 +530,7 @@ async function stopSessions(path: string) {
 	await Promise.all(retiring.map((session) => session.done));
 }
 
-async function readRequest(request: DaemonRequest) {
+async function readRequest(request: DaemonRequest, signal?: AbortSignal) {
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'findFiles') {
@@ -559,7 +561,7 @@ async function readRequest(request: DaemonRequest) {
 	}
 	if (request.kind === 'removeWorktree') {
 		const { worktreeId } = request;
-		const branch = await archiveWorktree(worktreesDir, request, tearDown, stopSessions);
+		const branch = await archiveWorktree(worktreesDir, request, tearDown, stopSessions, signal);
 		await fileSearch.discard(worktreeId, worktreePath(worktreesDir, request));
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
@@ -704,7 +706,7 @@ async function readRequest(request: DaemonRequest) {
 	}
 }
 
-async function handle(message: ForgeMessage) {
+async function handle(message: ForgeMessage, removals: Map<string, AbortController>) {
 	switch (message.type) {
 		case 'workspace.ack': {
 			acknowledge(message.workspaceId, message.cursor, sessions.get(message.workspaceId)?.read);
@@ -713,13 +715,26 @@ async function handle(message: ForgeMessage) {
 		case 'agent.message':
 			return startMessage(message);
 
-		case 'request':
+		case 'cancelRemoval':
+			removals.get(message.id)?.abort();
+			return;
+
+		case 'request': {
+			const removal = message.request.kind === 'removeWorktree' ? new AbortController() : undefined;
+			if (removal) removals.set(message.id, removal);
 			try {
-				send({ type: 'response', id: message.id, result: await answer(message.request) });
+				send({
+					type: 'response',
+					id: message.id,
+					result: await answer(message.request, removal?.signal)
+				});
 			} catch (error) {
 				send({ type: 'response', id: message.id, error: errorMessage(error) });
+			} finally {
+				removals.delete(message.id);
 			}
 			break;
+		}
 
 		case 'watch':
 			watches.set(message.worktrees, message.scope);

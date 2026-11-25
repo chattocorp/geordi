@@ -271,8 +271,11 @@ export function createWorkspaces(
 			}
 			if (!parentWaiting) tellParent(workspace);
 			if (event.kind === 'turn.completed') {
-				promoteCompletedQueue(workspace);
-				notifyQuestion(workspace);
+				if (archiving.has(id)) deferredCompletions.add(id);
+				else {
+					promoteCompletedQueue(workspace);
+					notifyQuestion(workspace);
+				}
 			}
 		}
 	}
@@ -294,9 +297,8 @@ export function createWorkspaces(
 	 */
 	function tellParent(child: Workspace) {
 		if (child.status !== 'idle' || !child.parentId) return;
-		if (archiving.has(child.id)) return;
 		const parent = projection.get().get(child.parentId);
-		if (!parent || parent.archivedAt || held.has(parent.id)) return;
+		if (!parent || parent.archivedAt) return;
 		const turn = latestTurn(child);
 		if (!onParentTask(child, turn)) return;
 		const { reply, error } = report(child, turn);
@@ -311,6 +313,17 @@ export function createWorkspaces(
 		]
 			.filter(Boolean)
 			.join('\n\n');
+		// Keep the exact report: a background result can start another turn during teardown.
+		if (archiving.has(child.id) || held.has(parent.id)) {
+			deferredReports.add({ child, parent, text });
+			return;
+		}
+		deliverReport(child, parent, text);
+	}
+
+	const deferredReports = new Set<{ child: Workspace; parent: Workspace; text: string }>();
+
+	function deliverReport(child: Workspace, parent: Workspace, text: string) {
 		// after a failed turn, a parent's waiting messages stay put (see `record`), and so does this
 		if (parent.status === 'running' || parent.queue.length === 0)
 			return say(parent, text, child.id);
@@ -345,6 +358,7 @@ export function createWorkspaces(
 	/** Workspaces that must not start a turn right now, and what is being done to them; see `hold`. */
 	const held = new Map<string, string>();
 	const archiving = new Set<string>();
+	const deferredCompletions = new Set<string>();
 	function refuseHeld(id: string) {
 		const doing = held.get(id);
 		if (doing) error(409, `This workspace is ${doing}`);
@@ -1351,6 +1365,19 @@ export function createWorkspaces(
 			return () => {
 				for (const id of ids) held.delete(id);
 				for (const id of archiveIds) archiving.delete(id);
+				for (const report of deferredReports) {
+					const { child, parent, text } = report;
+					if (archiving.has(child.id) || held.has(parent.id)) continue;
+					deferredReports.delete(report);
+					if (!child.archivedAt && !parent.archivedAt) deliverReport(child, parent, text);
+				}
+				for (const id of archiveIds) {
+					if (!deferredCompletions.delete(id)) continue;
+					const workspace = find(id);
+					if (workspace.archivedAt || workspace.lastTurn !== 'completed') continue;
+					promoteCompletedQueue(workspace);
+					notifyQuestion(workspace);
+				}
 			};
 		},
 
