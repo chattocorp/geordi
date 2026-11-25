@@ -5,6 +5,7 @@
 	import MessageView from './MessageView.svelte';
 	import Button from '@geordi/ui/Button.svelte';
 	import Composer from '@geordi/ui/Composer.svelte';
+	import ReplyComposer from '@geordi/ui/ReplyComposer.svelte';
 
 	const { Story } = defineMeta({ title: 'Geordi/Message view', component: MessageView });
 	const openReviewer = fn();
@@ -133,6 +134,43 @@
 					onanswer={() => {}}
 				/>
 			{/key}
+		</div>
+	</div>
+</Story>
+
+<Story
+	name="Send while scrolling through history"
+	asChild
+	play={async ({ canvasElement, canvas }) => {
+		const scroller = canvasElement.querySelector('.scroller') as HTMLElement;
+		const bottom = () => scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+		const text = canvas.getByRole('textbox') as HTMLTextAreaElement;
+		await userEvent.type(text, 'Run the tests again.');
+		await waitFor(() => expect(canvas.getByText(/Reply 499/)).toBeVisible());
+		await waitFor(() => expect(bottom()).toBeLessThan(2));
+		// Submit before the browser delivers the pending upward scroll event.
+		scroller.scrollTop = 0;
+		text.form!.requestSubmit();
+		await waitFor(() =>
+			expect(canvas.getByText('Run the tests again.', { selector: 'p' })).toBeVisible()
+		);
+		await waitFor(() => expect(bottom()).toBeLessThan(2));
+	}}
+>
+	<div class="flex h-96 flex-col overflow-hidden card">
+		<MessageView bind:this={view} {blocks} agent="codex" withComposer />
+		<div onsubmit={() => view?.toLatest()}>
+			<ReplyComposer
+				form={{
+					onsubmit: (event) => {
+						event.preventDefault();
+						const text = event.currentTarget.querySelector('textarea')!;
+						blocks = [...blocks, { kind: 'user', text: text.value }];
+						event.currentTarget.reset();
+					}
+				}}
+				onstop={() => {}}
+			/>
 		</div>
 	</div>
 </Story>

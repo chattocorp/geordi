@@ -216,15 +216,18 @@
 	onDestroy(() => cancelAnimationFrame(frame));
 
 	function followLatest() {
-		cancelAnimationFrame(frame);
+		if (frame) return;
 		// ResizeObserver runs during layout. Scroll on the next frame to avoid resize loops.
 		frame = requestAnimationFrame(() => {
+			frame = 0;
 			if (following && scroller) scroller.scrollTop = scroller.scrollHeight;
 		});
 	}
 
 	export function toLatest() {
 		following = true;
+		// Move now so a pending scroll event sees the new position.
+		if (scroller) scroller.scrollTop = scroller.scrollHeight;
 		followLatest();
 	}
 
