@@ -176,27 +176,31 @@ const changesets: ReleaseAdapter = {
 		if (relative(path, rootDir))
 			throw new Error('Changesets workspace root is outside the repository');
 		const { releases, changesets: notes } = await getReleasePlan(path);
-		return releases.map((release) => {
-			const pkg = packages.find((p) => p.packageJson.name === release.name);
-			if (!pkg) throw new Error(`Unknown Changesets package ${release.name}`);
+		const byName = new Map(releases.map((release) => [release.name, release]));
+		return packages.map((pkg) => {
+			const name = pkg.packageJson.name;
+			const release = byName.get(name);
 			return {
 				path: relative(path, pkg.dir) || '.',
-				name: release.name,
-				version: release.oldVersion ?? '',
-				nextVersion: release.type === 'none' ? null : release.newVersion,
-				bump: release.type,
+				name,
+				version: release?.oldVersion ?? pkg.packageJson.version,
+				nextVersion: release && release.type !== 'none' ? release.newVersion : null,
+				bump: release?.type ?? 'none',
 				problems: [],
-				notes: notes
-					.filter((note) => release.changesets.includes(note.id))
-					.map((note) => {
-						const type = note.releases.find((r) => r.name === release.name)?.type ?? release.type;
-						return {
-							path: `.changeset/${note.id}.md`,
-							type,
-							breaking: type === 'major',
-							body: note.summary
-						};
-					})
+				notes: release
+					? notes
+							.filter((note) => release.changesets.includes(note.id))
+							.map((note) => {
+								const type =
+									note.releases.find((r) => r.name === release.name)?.type ?? release.type;
+								return {
+									path: `.changeset/${note.id}.md`,
+									type,
+									breaking: type === 'major',
+									body: note.summary
+								};
+							})
+					: []
 			};
 		});
 	}
