@@ -13,6 +13,7 @@
 	import AgentText from '@geordi/ui/AgentText.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
+	import IncomingMessage from '@geordi/ui/IncomingMessage.svelte';
 	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import PatchView from '../PatchView.svelte';
@@ -259,76 +260,65 @@
 	});
 </script>
 
-{#snippet childExchange(exchange: ChildExchange)}
+{#snippet childExchange(exchange: ChildExchange, first: boolean)}
 	{@const { key, name, from, messages } = exchange}
 	{@const last = messages[messages.length - 1]}
 	{@const status = last.report ?? (messages.length === 1 ? 'sent a message' : 'sent messages')}
 	{@const open = openMessages.has(key)}
-	<div class="message message-incoming px-0 py-0">
-		<button
-			type="button"
-			aria-expanded={open}
-			class="flex w-full items-center gap-1.5 rounded-card rounded-tl-control px-3.5 py-2.5 text-left text-sm text-muted hover:bg-hover hover:text-ink"
-			onclick={() => {
+	{@const text = messages
+		.map((message) => message.text)
+		.filter(Boolean)
+		.join('\n\n')}
+	<IncomingMessage
+		{first}
+		fold={{
+			open,
+			toggle: () => {
 				if (open) openMessages.delete(key);
 				else {
 					following = false;
 					openMessages.add(key);
 				}
-			}}
-		>
-			<span
-				aria-hidden="true"
-				class={['icon-[lucide--chevron-right] size-3.5 shrink-0', open && 'rotate-90']}
-			></span>
-			<span class="min-w-0 wrap-anywhere">
-				<span class="font-medium">{name}</span>
-				{status}{last.queued ? ' (queued)' : ''}
-			</span>
-		</button>
-		{#if open}
-			<div class="px-3.5 pb-2.5">
-				<div class="space-y-3">
-					{#each messages as message, index (index)}
-						<div>
-							{#if message.report && messages.length > 1}<p class="label">
-									{message.report === 'finished' ? 'Finished' : 'Stopped'}
-								</p>{/if}
-							{#if message.queued}<p class="label">Queued</p>{/if}
-							{#if message.text}<Markdown preserveLineBreaks text={message.text} {pictures} />{/if}
-							<MessageImages images={message.images} />
-							{#if message.queued && onremove}
-								{@const queued = message.queued}
-								<Button
-									variant="ghost"
-									size="sm"
-									icon="icon-[lucide--x]"
-									label="Don't send this"
-									onclick={() => onremove?.(queued.index, queued.text, queued.images)}
-								/>
-							{/if}
-						</div>
-					{/each}
+			}
+		}}
+	>
+		{#snippet heading()}
+			<span class="font-medium text-ink">{name}</span>
+			{status}{last.queued ? ' (queued)' : ''}
+		{/snippet}
+		<div class="space-y-3">
+			{#each messages as message, index (index)}
+				<div>
+					{#if message.report && messages.length > 1}<p class="label">
+							{message.report === 'finished' ? 'Finished' : 'Stopped'}
+						</p>{/if}
+					{#if message.queued}<p class="label">Queued</p>{/if}
+					{#if message.text}<Markdown preserveLineBreaks text={message.text} {pictures} />{/if}
+					<MessageImages images={message.images} />
+					{#if message.queued && onremove}
+						{@const queued = message.queued}
+						<Button
+							variant="ghost"
+							size="sm"
+							icon="icon-[lucide--x]"
+							label="Don't send this"
+							onclick={() => onremove?.(queued.index, queued.text, queued.images)}
+						/>
+					{/if}
 				</div>
-
-				<div class="mt-1 flex items-center gap-1">
-					<a
-						href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(from)}`, { id: from })}
-						class="quiet-action text-xs"
-						aria-label={`Open ${name} workspace`}
-					>
-						<span aria-hidden="true" class="icon-[lucide--git-branch] size-3.5"></span>{name}
-					</a>
-					{#if messages.some((message) => message.text)}<MessageCopy
-							text={messages
-								.map((message) => message.text)
-								.filter(Boolean)
-								.join('\n\n')}
-						/>{/if}
-				</div>
-			</div>
-		{/if}
-	</div>
+			{/each}
+		</div>
+		{#snippet footer()}
+			<a
+				href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(from)}`, { id: from })}
+				class="quiet-action text-xs"
+				aria-label={`Open ${name} workspace`}
+			>
+				<span aria-hidden="true" class="icon-[lucide--git-branch] size-3.5"></span>{name}
+			</a>
+			{#if text}<MessageCopy {text} />{/if}
+		{/snippet}
+	</IncomingMessage>
 {/snippet}
 
 {#snippet tokens(usage: TurnUsage)}
@@ -477,45 +467,42 @@
 						{/if}
 						{#if block.kind === 'user'}
 							{@const title = (block.from && senders?.[block.from]) || block.senderName}
-							<div class={incoming ? 'relative pl-11.5' : undefined}>
-								{#if incoming && !previousIncoming}
-									<span
-										aria-hidden="true"
-										class="absolute top-3 left-2 icon-[lucide--corner-down-right] size-4 text-faint"
-									></span>
-								{/if}
-								<UserMessage text={block.text} {incoming}>
-									{#if incoming}
-										<div class="mb-1 flex items-center gap-1.5 text-xs text-muted">
-											<span class="min-w-0 wrap-anywhere">
-												{#if block.from && !block.from.startsWith('external:')}
-													<a
-														href={resolve(
-															`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`,
-															{ id: block.from }
-														)}
-														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:text-ink hover:decoration-current focus-visible:decoration-current"
-													>
-														{title || 'Another agent'}
-													</a>
-												{:else if block.delegated && parentAgent}
-													<button
-														type="button"
-														onclick={parentAgent.open}
-														class="rounded-control font-medium underline decoration-line underline-offset-2 hover:decoration-current focus-visible:decoration-current"
-													>
-														{row.index === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
-													</button>
-												{:else}
-													<span class="font-medium">{title || 'Another agent'}</span>
-												{/if}
-											</span>
-										</div>
-									{/if}
-									{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
-									<MessageImages images={block.images} />
-								</UserMessage>
-							</div>
+							{#snippet body()}
+								{#if block.text}<Markdown preserveLineBreaks text={block.text} {pictures} />{/if}
+								<MessageImages images={block.images} />
+							{/snippet}
+							{#if incoming}
+								<IncomingMessage first={!previousIncoming}>
+									{#snippet heading()}
+										{#if block.from && !block.from.startsWith('external:')}
+											<a
+												href={resolve(`/workspaces/[id]?agent=${encodeURIComponent(block.from)}`, {
+													id: block.from
+												})}
+												class="rounded-control font-medium text-ink hover:underline focus-visible:underline"
+											>
+												{title || 'Another agent'}
+											</a>
+										{:else if block.delegated && parentAgent}
+											<button
+												type="button"
+												onclick={parentAgent.open}
+												class="rounded-control font-medium text-ink hover:underline focus-visible:underline"
+											>
+												{row.index === assignmentIndex ? 'Assigned by ' : ''}{parentAgent.name}
+											</button>
+										{:else}
+											<span class="font-medium text-ink">{title || 'Another agent'}</span>
+										{/if}
+									{/snippet}
+									{@render body()}
+									{#snippet footer()}{#if block.text}<MessageCopy
+												text={block.text}
+											/>{/if}{/snippet}
+								</IncomingMessage>
+							{:else}
+								<UserMessage text={block.text}>{@render body()}</UserMessage>
+							{/if}
 						{:else if block.kind === 'note'}
 							<!-- something that happened to the workspace: said in passing, between the two -->
 							<p class="flex items-center gap-3 text-xs text-muted">
@@ -566,13 +553,7 @@
 						{/if}
 					</div>
 				{:else if row.kind === 'child'}
-					<div class="relative pl-11.5">
-						{#if !previousIncoming}<span
-								aria-hidden="true"
-								class="absolute top-3 left-2 icon-[lucide--corner-down-right] size-4 text-faint"
-							></span>{/if}
-						{@render childExchange(row)}
-					</div>
+					{@render childExchange(row, !previousIncoming)}
 				{:else}
 					{@const { text, index, images } = row}
 					<div class="ml-auto message ring-1 ring-line">
