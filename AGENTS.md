@@ -252,7 +252,7 @@ it, perhaps you.
   (`bg-frame`: the window and its title bar), 8px from the window's edge and from the next
   sheet: the sidebar, a page's content, and in a workspace the conversation, the changes
   and the terminals. `sheet` is what is read (the lightest tone); `sheet-quiet` is what is
-  beside it (a tone between that and the frame's). Shapes part things: no separator lines
+  beside it (a tone between that and the frame's). Use `grouped-rows` for task groups and Changes sections, and its `group-separator` rule between sidebar repository groups. Elsewhere, shapes part things: no separator lines
   between or inside sheets (a `Split` between sheets is `bare`, and its gap is what is
   dragged). What sits in a sheet's corner (a tab, a row) is 8px from both edges, so that its
   corner follows the sheet's. What paints its own background takes it from `--pane`.

@@ -562,6 +562,17 @@
 	@apply inline-flex items-center gap-1.5 rounded-control text-muted hover:text-ink;
 }
 
+/* Keep the sheet outline within reach of its clipped, full-width separators. */
+:where(.sheet, .sheet-quiet):has(.group-separator, [data-group-start]) {
+	@apply ring-inset;
+}
+
+/* A full-width rule in the gap between groups of rows in a sheet. */
+@utility group-separator {
+	@apply pointer-events-none absolute -inset-x-2 h-px;
+	background-color: light-dark(var(--frame), color-mix(in srgb, var(--frame) 75%, var(--pane)));
+}
+
 /* Mark the first and last rows of a group, or both edges on a wrapped group. */
 @utility grouped-rows {
 	& > * + * {
@@ -569,7 +580,12 @@
 	}
 	& > * + [data-group-start],
 	& > [data-group-end] + * {
-		@apply mt-row-group;
+		@apply relative mt-row-group;
+		&::before {
+			content: '';
+			@apply group-separator;
+			inset-block-start: calc(var(--spacing-row-group) / -2);
+		}
 	}
 }
 

@@ -283,6 +283,19 @@
 >
 	{@render pane(() => 'stopped', null, false, true)}
 </Story>
+{#snippet groupedPane()}
+	<div class="flex h-120 w-96 flex-col sheet-quiet">
+		<RunPane
+			tasks={grouped}
+			stateOf={(name) => groupStates[name] ?? 'stopped'}
+			hasTerminal={(name) => name in groupStates}
+			run={(ref) => (last = `Run: ${ref}`)}
+			stop={(name) => (last = `Stop: ${name}`)}
+			show={(name) => (last = `Show: ${name}`)}
+		/>
+	</div>
+{/snippet}
+
 <Story
 	name="Task groups"
 	asChild
@@ -302,9 +315,22 @@
 		await expect(rows.indexOf('Run Ring 3')).toBeLessThan(rows.indexOf('Run Shipyard'));
 		// folded, a group hides its tasks, and still says that something in it runs
 		const finales = canvas.getByRole('button', { name: /Finales/ });
-		await expect(finales.closest('li')).toHaveStyle({ marginBlockStart: '16px' });
+		const entries = within(canvas.getByRole('list', { name: 'Tasks' }))
+			.getAllByRole('listitem')
+			.filter((row) => row.parentElement?.getAttribute('aria-label') === 'Tasks');
+		await expect(entries.map((row) => getComputedStyle(row, '::before').height)).toEqual([
+			'auto',
+			'1px',
+			'1px',
+			'1px'
+		]);
+		const pane = finales.closest('.scroller')!;
+		const sheet = pane.closest('.sheet-quiet')!;
+		await expect(getComputedStyle(sheet).getPropertyValue('--tw-ring-inset').trim()).toBe('inset');
+		await expect(getComputedStyle(entries[1], '::before').width).toBe(`${pane.clientWidth}px`);
 		const heading = within(finales);
 		const header = finales.parentElement!;
+		const expandedColor = getComputedStyle(heading.getByText('Finales')).color;
 		// open, what a task needs is shown on its own row; folded, on the group's
 		const play = canvas.getByRole('button', { name: 'Run Play' });
 		await userEvent.hover(play);
@@ -321,20 +347,15 @@
 		await expect(finales).toHaveAccessibleName(/Finales.*Running/);
 		await userEvent.hover(play);
 		await expect(header).toHaveClass('bg-hover');
+		await expect(getComputedStyle(heading.getByText('Finales')).color).not.toBe(expandedColor);
 		await userEvent.click(finales);
 		await expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).toBeVisible();
 	}}
 >
-	<div class="flex h-120 w-96 flex-col sheet-quiet">
-		<RunPane
-			tasks={grouped}
-			stateOf={(name) => groupStates[name] ?? 'stopped'}
-			hasTerminal={(name) => name in groupStates}
-			run={(ref) => (last = `Run: ${ref}`)}
-			stop={(name) => (last = `Stop: ${name}`)}
-			show={(name) => (last = `Show: ${name}`)}
-		/>
-	</div>
+	{@render groupedPane()}
+</Story>
+<Story name="Task groups in dark mode" globals={{ theme: 'dark' }} asChild>
+	{@render groupedPane()}
 </Story>
 <Story name="Unreadable configuration" asChild>
 	{@render pane(

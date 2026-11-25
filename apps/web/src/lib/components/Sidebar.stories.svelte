@@ -205,6 +205,10 @@
 			'aria-current',
 			'page'
 		);
+		const main = canvas.getByRole('navigation', { name: 'Main' });
+		const separators = () => main.querySelectorAll('.group-separator');
+		await expect(separators()).toHaveLength(1);
+		await expect(separators()[0].getBoundingClientRect().width).toBe(main.clientWidth);
 		// a repository without workspaces has no place here
 		await expect(canvas.queryByText('no-workspaces')).toBeNull();
 		await expect(canvas.queryByText('Reconnecting')).toBeNull();
