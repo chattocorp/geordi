@@ -25,6 +25,17 @@ function setup({ connected = true } = {}) {
 }
 
 describe('terminals', () => {
+	it('reuses an open app terminal and requires an explicit launch to start it again', () => {
+		const { terminals, sent } = setup();
+		const app = { ...at, terminal: 'app-editor' };
+		terminals.launch(app, 'nvim .');
+		terminals.launch(app, 'nvim .');
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toMatchObject({ type: 'terminal.open', openCommand: 'nvim .' });
+		terminals.exit('w:app-editor');
+		terminals.input(app, 'x');
+		expect(sent).toHaveLength(1);
+	});
 	it('never starts a shell just because someone is watching', async () => {
 		const { terminals, sent, watch } = setup();
 		const { text } = watch();

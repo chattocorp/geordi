@@ -13,6 +13,9 @@
 		type WorkspaceStanding
 	} from '@geordi/ui/actions';
 	import { hint, pressed } from '@geordi/ui/keys';
+	import { launchApp } from '../../../routes/open-in.remote';
+	import { OPEN_IN_TERMINAL, type OpenInApp } from '#lib/open-in.ts';
+	import OpenInButton from './OpenInButton.svelte';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
 	import MessageView from './MessageView.svelte';
 	import { subagentBlocks, type TurnChanges } from '#lib/transcript.ts';
@@ -48,7 +51,7 @@
 	import RunTab from '@geordi/ui/RunTab.svelte';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import { follow } from '#lib/live.svelte.ts';
-	import { getRibbonPosition } from '#lib/components/settings.svelte.ts';
+	import { getRibbonPosition, openSettings } from '#lib/components/settings.svelte.ts';
 	import { persisted } from '@geordi/ui/persisted';
 	import type { Navigation, WorkspaceLive } from '#lib/server/views.ts';
 	import { problemOf } from '#lib/problem.ts';
@@ -524,6 +527,36 @@
 		return DRAFT;
 	}
 
+	const openIn = $derived(everything.current?.openIn);
+	let requestedApp = $state<string>();
+	async function launch(app: OpenInApp) {
+		if (!openIn) return;
+		const current = openIn.apps.find((entry) => entry.id === app.id);
+		if (!current?.enabled || current.command !== app.command || current.name !== app.name) {
+			mergeProblem = 'Open in settings changed. Choose the app again.';
+			return;
+		}
+		mergeProblem = null;
+		try {
+			requestedApp = undefined;
+			requestedApp = await launchApp({ workspaceId: id, appId: app.id, revision: openIn.revision });
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not open workspace');
+		}
+	}
+	// GUI launchers usually exit at once. Focus the terminal only if it stays open.
+	const appToFocus = $derived(
+		requestedApp && workspace.terminals.includes(requestedApp) ? requestedApp : undefined
+	);
+	$effect(() => {
+		const terminal = appToFocus;
+		if (!terminal) return;
+		const timer = setTimeout(() => {
+			requestedApp = undefined;
+			showShell('terminal:' + terminal);
+		}, 180);
+		return () => clearTimeout(timer);
+	});
 	let focusTerminal = $state<string>();
 	function newTerminal(focus = true) {
 		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
@@ -548,7 +581,11 @@
 		showTab(tab);
 	}
 	/** Terminals without a job in them, in the order they were opened. */
-	const shellTabs = () => everywhere().filter((tab) => terminalOf(tab) && !jobOf(terminalOf(tab)));
+	const shellTabs = () =>
+		everywhere().filter(
+			(tab) =>
+				terminalOf(tab) && !jobOf(terminalOf(tab)) && !terminalOf(tab)?.startsWith(OPEN_IN_TERMINAL)
+		);
 	function openNewTerminal() {
 		if (!frame.current.open) toggleSide();
 		arrange({ dock: open(dock, newTerminal()) });
@@ -1152,10 +1189,14 @@
 				listens={(tasks.find((task) => task.name === job)?.ports.length ?? 1) > 0}
 			/>
 			<span class="truncate">{labelOf(job)}</span>
+		{:else if terminalOf(tab)?.startsWith(OPEN_IN_TERMINAL)}
+			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
+			<span class="truncate">
+				{openIn?.apps.find((app) => OPEN_IN_TERMINAL + app.id === terminalOf(tab))?.name ??
+					'Open in…'}
+			</span>
 		{:else}
-			{@const terminals = everywhere()
-				.filter((other) => terminalOf(other) && !jobOf(terminalOf(other)))
-				.sort()}
+			{@const terminals = shellTabs().sort()}
 			{@const title = terminalTitles.get(tab) || `Terminal ${terminals.indexOf(tab) + 1}`}
 			<span class="icon-[lucide--square-terminal] size-3.5 shrink-0"></span>
 			<span class="truncate" {title}>{title}</span>
@@ -1406,6 +1447,13 @@
 			</div>
 		</div>
 		{#snippet actions()}
+			{#if workspace.worktree && !project && !workspace.archivedAt && !git?.missing && openIn}
+				<OpenInButton
+					apps={openIn.apps}
+					onlaunch={launch}
+					onconfigure={() => openSettings('open-in')}
+				/>
+			{/if}
 			<WorkspaceActions
 				{standing}
 				pull={standingState?.upstream?.pull}

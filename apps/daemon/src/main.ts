@@ -762,8 +762,10 @@ async function handle(message: ForgeMessage) {
 						worktree.path,
 						{
 							...message,
-							closeOnSuccess: asked?.job === 'setup',
-							command: asked && (taken ? PORT_TAKEN : agreed ? job!.command! : RUN_CHANGED),
+							closeOnSuccess: !!message.openCommand || asked?.job === 'setup',
+							command:
+								message.openCommand ??
+								(asked && (taken ? PORT_TAKEN : agreed ? job!.command! : RUN_CHANGED)),
 							// every terminal knows the workspace's ports; a task also which are its own
 							env: {
 								...env,

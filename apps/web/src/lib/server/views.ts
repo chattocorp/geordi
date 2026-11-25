@@ -1,7 +1,7 @@
 import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { isInactive, withAides } from '#lib/family.ts';
-import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
+import { openIn, hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
@@ -101,6 +101,7 @@ export const navigation = () =>
 						};
 					}),
 				workspaces: listed,
+				openIn: openIn().get(),
 				access: workspaces().access.list(),
 				/**
 				 * What each agent can be asked to run: its models and their effort levels, as the

@@ -2,6 +2,8 @@
 	import { version } from '../../../package.json';
 	import changelog from '../../../../../CHANGELOG.md?raw';
 	import { onMount } from 'svelte';
+	import OpenInSettings from './OpenInSettings.svelte';
+	import { saveOpenIn } from '../../routes/open-in.remote';
 	import Providers from './Providers.svelte';
 	import AgentAccess from './AgentAccess.svelte';
 	import DesktopUpdates, { type UpdateBridge, type UpdateState } from './DesktopUpdates.svelte';
@@ -150,6 +152,8 @@
 							]}
 						/>
 					</div>
+				{:else if section === 'open-in'}
+					{#if nav.current}<OpenInSettings settings={nav.current.openIn} onsave={saveOpenIn} />{/if}
 				{:else if section === 'notifications'}
 					<h2 class="heading">Notifications</h2>
 					<p class="pb-4 text-sm text-muted">

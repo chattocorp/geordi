@@ -6,6 +6,7 @@ import { resolve } from '$app/paths';
 /** The settings page (FDR-005): its sections, and the one last looked at. */
 export const sections = [
 	{ id: 'general', label: 'General', icon: 'icon-[lucide--sliders-horizontal]' },
+	{ id: 'open-in', label: 'Open in…', icon: 'icon-[lucide--external-link]' },
 	{ id: 'notifications', label: 'Notifications', icon: 'icon-[lucide--bell]' },
 	{ id: 'keyboard', label: 'Keyboard', icon: 'icon-[lucide--keyboard]' },
 	{ id: 'repositories', label: 'Repositories', icon: 'icon-[lucide--folder-git-2]' },

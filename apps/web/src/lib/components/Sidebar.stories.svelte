@@ -80,6 +80,7 @@
 
 	/** One of each state a row can be in: what is at work, what waits, how the work stands. */
 	const nav: Navigation = {
+		openIn: { revision: 0, apps: [] },
 		repos: [
 			repo('geordi', 'geordi', 8),
 			repo('sample', 'sample-project', 2),

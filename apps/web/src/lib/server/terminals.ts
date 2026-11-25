@@ -4,6 +4,7 @@ import {
 	type TerminalSize,
 	type WorktreeRef
 } from '@geordi/protocol';
+import { OPEN_IN_TERMINAL } from '../open-in.ts';
 import type { Dispatch } from './workspaces.ts';
 
 type Terminal = {
@@ -75,17 +76,19 @@ export function createTerminals(
 	/** Something the forge has to say; it belongs after any output. */
 	const tell = (terminal: Terminal, text: string) => emit(terminal, notice(text), Infinity);
 
-	function start(at: TerminalRef) {
+	function start(at: TerminalRef, openCommand?: string) {
+		if (at.terminal.startsWith(OPEN_IN_TERMINAL) && !openCommand) return false;
 		const terminalId = idOf(at);
 		const terminal = get(terminalId);
 		// one whose command has ended is started again: the daemon puts a new one in its place
-		if (terminal.running && terminal.ended === undefined) return;
+		if (terminal.running && terminal.ended === undefined) return true;
 		delete terminal.ended;
 		terminal.running = dispatch({
 			type: 'terminal.open',
 			terminalId,
 			...ref(at.workspaceId),
 			...terminal.size,
+			...(openCommand && { openCommand }),
 			// A job's terminal (FDR-006) runs the job's command as someone saw and asked for it.
 			// Started again by a key press, it is that same command; with none on record (we
 			// restarted since), there is none, and the daemon says to start the job again.
@@ -95,6 +98,7 @@ export function createTerminals(
 		});
 		if (terminal.running) changed();
 		else tell(terminal, 'No daemon connected. Press any key to retry.');
+		return terminal.running;
 	}
 
 	function exit(terminal: Terminal) {
@@ -106,6 +110,7 @@ export function createTerminals(
 	}
 
 	return {
+		launch: (at: TerminalRef, command: string) => start(at, command),
 		/**
 		 * Starts the terminal's shell, at the given size. For a job's terminal, `run` is the
 		 * job and its command as whoever asked for it saw it.
