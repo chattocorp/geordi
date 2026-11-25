@@ -9,6 +9,7 @@
 	import { notifications, test } from '#lib/notifications.svelte.ts';
 	import { problemOf } from '#lib/problem.ts';
 	import { hint, shortcutGroups } from '@geordi/ui/keys';
+	import PalettePicker from './PalettePicker.svelte';
 	import { theme } from '#lib/theme.svelte.ts';
 	import { lba } from '#lib/lba.svelte.ts';
 	import Button from '@geordi/ui/Button.svelte';
@@ -106,13 +107,13 @@
 			<div class="max-w-2xl">
 				{#if section === 'general'}
 					<h2 class="pb-4 heading">General</h2>
-					<div class="flex items-center justify-between gap-4">
+					<div class="flex flex-wrap items-center justify-between gap-3">
 						<div>
-							<p class="text-sm font-medium">Theme</p>
-							<p class="text-sm text-muted">How Geordi looks in this browser.</p>
+							<p class="text-sm font-medium">Color mode</p>
+							<p class="text-sm text-muted">System follows your device.</p>
 						</div>
 						<Segmented
-							label="Theme"
+							label="Color mode"
 							bind:value={theme.current}
 							options={[
 								{ value: 'system', label: 'System' },
@@ -121,6 +122,7 @@
 							]}
 						/>
 					</div>
+					<PalettePicker bind:value={theme.palette} />
 					<div class="flex items-center justify-between gap-4 pt-6">
 						<div>
 							<p class="text-sm font-medium">Action ribbon position</p>

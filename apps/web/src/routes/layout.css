@@ -46,7 +46,8 @@
  * primary actions and things that are live. Dark mode is a mid-tone, not near-black:
  * easy on the eyes, with clearly lifted surfaces.
  */
-:root {
+:root,
+[data-palette='Geordi'] {
 	color-scheme: light;
 	--pane: var(--frame);
 	--frame: #e3e3eb;
@@ -98,7 +99,8 @@
 	--picture-gloss: linear-gradient(to bottom, rgb(255 255 255 / 0.3), transparent 60%);
 }
 
-.dark {
+.dark,
+.dark [data-palette='Geordi'] {
 	color-scheme: dark;
 	--bg: #2c2e38;
 	--frame: #17181e;
@@ -139,6 +141,171 @@
 	--picture-lift: drop-shadow(0 -0.5px 0 rgb(255 255 255 / 0.2))
 		drop-shadow(0 0 0.5px rgb(255 255 255 / 0.12)) drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.6));
 	--picture-gloss: linear-gradient(to bottom, rgb(255 255 255 / 0.16), transparent 55%);
+}
+
+[data-palette='Graphite'] {
+	--frame: #dedede;
+	--sidebar: #e9e9e9;
+	--bg: #f5f5f5;
+	--surface: #ffffff;
+	--sunken: #d8d8d8;
+	--bubble: #e6e6e6;
+	--line: #cccccc;
+	--ink: #242424;
+	--prose: #383838;
+	--muted: #595959;
+	--accent: #595959;
+	--accent-ink: #494949;
+	--on-accent: #ffffff;
+}
+
+.dark[data-palette='Graphite'],
+.dark [data-palette='Graphite'] {
+	--frame: #191919;
+	--sidebar: #252525;
+	--bg: #303030;
+	--surface: #414141;
+	--sunken: #353535;
+	--bubble: #505050;
+	--line: #5b5b5b;
+	--ink: #f0f0f0;
+	--prose: #dadada;
+	--muted: #b5b5b5;
+	--accent: #c7c7c7;
+	--accent-ink: #d6d6d6;
+	--on-accent: #202020;
+}
+
+[data-palette='Slate'] {
+	--frame: #cedde8;
+	--sidebar: #e0eaf1;
+	--bg: #f1f6fa;
+	--surface: #fbfdff;
+	--sunken: #d2dfe9;
+	--bubble: #dce9f3;
+	--line: #b7cbd9;
+	--ink: #182e40;
+	--prose: #30485a;
+	--muted: #486173;
+	--accent: #24658f;
+	--accent-ink: #205a81;
+	--on-accent: #ffffff;
+}
+
+.dark[data-palette='Slate'],
+.dark [data-palette='Slate'] {
+	--frame: #141d26;
+	--sidebar: #202f3c;
+	--bg: #2a3b49;
+	--surface: #394e5e;
+	--sunken: #304250;
+	--bubble: #405d70;
+	--line: #526979;
+	--ink: #edf4fa;
+	--prose: #d4e1ea;
+	--muted: #b1c4d2;
+	--accent: #83c9f1;
+	--accent-ink: #9cd6f9;
+	--on-accent: #142938;
+}
+
+[data-palette='Parchment'] {
+	--frame: #dfd0b6;
+	--sidebar: #ede2cd;
+	--bg: #faf4e6;
+	--surface: #fffbf1;
+	--sunken: #e6d7bd;
+	--bubble: #f1e4cd;
+	--line: #ccbda3;
+	--ink: #342b21;
+	--prose: #4b3d2e;
+	--muted: #695945;
+	--accent: #955022;
+	--accent-ink: #814218;
+	--on-accent: #ffffff;
+}
+
+.dark[data-palette='Parchment'],
+.dark [data-palette='Parchment'] {
+	--frame: #201b17;
+	--sidebar: #302920;
+	--bg: #3c3328;
+	--surface: #504435;
+	--sunken: #443a2c;
+	--bubble: #60513c;
+	--line: #6a5c48;
+	--ink: #f6efe1;
+	--prose: #e3d8c6;
+	--muted: #c6b79e;
+	--accent: #e6ab73;
+	--accent-ink: #f4c196;
+	--on-accent: #352319;
+}
+
+[data-palette='Forest'] {
+	--frame: #cdddcf;
+	--sidebar: #dfebe0;
+	--bg: #f1f7ef;
+	--surface: #fbfff9;
+	--sunken: #d2e2d3;
+	--bubble: #dcebdd;
+	--line: #b8ccb9;
+	--ink: #1d3225;
+	--prose: #334b3a;
+	--muted: #4e6555;
+	--accent: #346d4d;
+	--accent-ink: #2a593d;
+	--on-accent: #ffffff;
+}
+
+.dark[data-palette='Forest'],
+.dark [data-palette='Forest'] {
+	--frame: #141e19;
+	--sidebar: #202e25;
+	--bg: #2b3b30;
+	--surface: #3b4e40;
+	--sunken: #304336;
+	--bubble: #465d4c;
+	--line: #536c5a;
+	--ink: #edf5eb;
+	--prose: #d6e4d6;
+	--muted: #b3c7b7;
+	--accent: #87cda0;
+	--accent-ink: #a0dfb6;
+	--on-accent: #193022;
+}
+
+[data-palette='Plum'] {
+	--frame: #e2d2e2;
+	--sidebar: #eee2ee;
+	--bg: #f9f2f8;
+	--surface: #fffaff;
+	--sunken: #e8d9e6;
+	--bubble: #f0e0ec;
+	--line: #cfbccd;
+	--ink: #382738;
+	--prose: #503f50;
+	--muted: #705870;
+	--accent: #854b80;
+	--accent-ink: #743f70;
+	--on-accent: #ffffff;
+}
+
+.dark[data-palette='Plum'],
+.dark [data-palette='Plum'] {
+	--frame: #201921;
+	--sidebar: #302431;
+	--bg: #3c2e3d;
+	--surface: #503e51;
+	--sunken: #443446;
+	--bubble: #604a5e;
+	--line: #705771;
+	--ink: #f7eef7;
+	--prose: #e8d8e7;
+	--muted: #c9b6c7;
+	--accent: #d8a3d5;
+	--accent-ink: #e7bde3;
+	--on-accent: #321e33;
 }
 
 @theme inline {

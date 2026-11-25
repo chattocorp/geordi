@@ -6,11 +6,13 @@
 		<meta name="text-scale" content="scale" />
 		<script>
 			// Apply the theme before first paint: saved choice, else the system preference.
+			let dark = matchMedia('(prefers-color-scheme: dark)').matches;
 			try {
-				const saved = localStorage.getItem('theme');
-				const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-				document.documentElement.classList.toggle('dark', dark);
+				const mode = localStorage.getItem('theme');
+				if (mode === 'light' || mode === 'dark') dark = mode === 'dark';
+				document.documentElement.dataset.palette = localStorage.getItem('palette') || 'Geordi';
 			} catch {}
+			document.documentElement.classList.toggle('dark', dark);
 			// The desktop app (ADR-008) has no title bar: the layout makes up for it. On macOS the
 			// window's buttons are on the left; elsewhere they are drawn over the top right, and
 			// take the page's colours.
@@ -25,7 +27,7 @@
 					});
 				};
 				if (!root.dataset.desktop) {
-					new MutationObserver(paint).observe(root, { attributeFilter: ['class'] });
+					new MutationObserver(paint).observe(root, { attributeFilter: ['class', 'data-palette'] });
 					addEventListener('load', paint);
 				}
 			}
