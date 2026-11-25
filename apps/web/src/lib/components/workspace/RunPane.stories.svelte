@@ -313,6 +313,7 @@
 		]);
 		const heading = within(finales);
 		const header = finales.parentElement!;
+		const expandedColor = getComputedStyle(heading.getByText('Finales')).color;
 		// open, what a task needs is shown on its own row; folded, on the group's
 		const play = canvas.getByRole('button', { name: 'Run Play' });
 		await userEvent.hover(play);
@@ -329,6 +330,7 @@
 		await expect(finales).toHaveAccessibleName(/Finales.*Running/);
 		await userEvent.hover(play);
 		await expect(header).toHaveClass('bg-hover');
+		await expect(getComputedStyle(heading.getByText('Finales')).color).not.toBe(expandedColor);
 		await userEvent.click(finales);
 		await expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).toBeVisible();
 	}}

@@ -264,7 +264,7 @@
 									count: entry.tasks.length,
 									toggle: () => fold(entry.group, !open)
 								}}
-								class="h-full pr-1 font-medium"
+								class="h-full pr-1 font-medium aria-[expanded=false]:not-hover:text-prose"
 							>
 								<!-- folded, it still says whether anything in it is at work -->
 								{#if !open && groupState(names) !== 'stopped'}
