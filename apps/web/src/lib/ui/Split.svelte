@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { sidebarMotion } from './sidebar-motion.ts';
 
 	type Props = {
 		dir: 'row' | 'column';
@@ -47,6 +48,8 @@
 	/** How each side grows: the share it has, all the room left over, or none. */
 	const flexOf = (side: 'a' | 'b', own: number) =>
 		fold === side ? '0 0 auto' : fold ? '1 1 0' : `${own} 1 0`;
+	const visible = sidebarMotion(() => !collapsed);
+	const bShare = $derived((1 - share) * visible.current);
 	const extent = $derived(dir === 'row' ? 'width' : 'height');
 
 	let root: HTMLElement;
@@ -81,7 +84,7 @@
 	<!-- a share below 1 would leave room unused once `b` is hidden -->
 	<div
 		class="flex min-h-0 min-w-0 flex-col"
-		style:flex={collapsed ? '1 1 0' : flexOf('a', share)}
+		style:flex={visible.current === 0 ? '1 1 0' : flexOf('a', 1 - bShare)}
 		style:min-width={dir === 'row' && fold !== 'a' ? `${min[0]}px` : undefined}
 		style:min-height={dir === 'column' && fold !== 'a' ? `${min[0]}px` : undefined}
 	>
@@ -106,10 +109,17 @@
 		]}
 	></div>
 	<div
-		class={['min-h-0 min-w-0 flex-col', collapsed ? 'hidden' : 'flex']}
-		style:flex={flexOf('b', 1 - share)}
-		style:min-width={dir === 'row' && fold !== 'b' ? `${min[1]}px` : undefined}
-		style:min-height={dir === 'column' && fold !== 'b' ? `${min[1]}px` : undefined}
+		inert={collapsed}
+		class={[
+			'min-h-0 min-w-0 flex-col',
+			visible.current === 0 ? 'hidden' : 'flex',
+			visible.current < 1 && 'overflow-clip'
+		]}
+		style:flex={flexOf('b', bShare)}
+		style:min-width={dir === 'row' && fold !== 'b' ? `${min[1] * visible.current}px` : undefined}
+		style:min-height={dir === 'column' && fold !== 'b'
+			? `${min[1] * visible.current}px`
+			: undefined}
 	>
 		{@render b()}
 	</div>

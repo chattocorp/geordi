@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './layout.css';
+	import { sidebarMotion } from '#lib/ui/sidebar-motion.ts';
 	import favicon from '#lib/assets/favicon.svg';
 	import { untrack } from 'svelte';
 	import { innerWidth } from 'svelte/reactivity/window';
@@ -86,6 +87,7 @@
 
 	// The sidebar can be hidden and made wider or narrower; both are remembered here.
 	const sidebar = persisted('geordi:nav', { open: true, width: 256 });
+	const visibleSidebar = sidebarMotion(() => sidebar.current.open);
 	let repositoryPickerOpen = $state(false);
 	function toggleSidebar() {
 		repositoryPickerOpen = false;
@@ -250,10 +252,13 @@
 {/snippet}
 
 <div class="flex min-h-dvh">
-	{#if sidebar.current.open}
+	{#if sidebar.current.open || visibleSidebar.current > 0}
+		{@const width = clampWidth(sidebar.current.width)}
 		<aside
 			class="sticky top-0 hidden h-dvh shrink-0 flex-col bg-frame md:flex"
-			style:width="{clampWidth(sidebar.current.width)}px"
+			style:width="{width}px"
+			style:margin-left="{(visibleSidebar.current - 1) * width}px"
+			inert={!sidebar.current.open}
 		>
 			<!--
 				The sidebar's part of the title bar. On macOS the window's buttons are on its left, so
