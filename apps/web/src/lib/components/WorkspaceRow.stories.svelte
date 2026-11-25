@@ -34,6 +34,18 @@
 			}
 		}
 	} satisfies Parameters<typeof standingOf>[0];
+
+	const optionalChecks = {
+		...checking,
+		upstream: {
+			...checking.upstream,
+			pull: {
+				...checking.upstream.pull,
+				checks: { ...checking.upstream.pull.checks, optionalChecksRunning: true },
+				autoMerge: { ...checking.upstream.pull.autoMerge, enabled: false }
+			}
+		}
+	} satisfies Parameters<typeof standingOf>[0];
 </script>
 
 <Story
@@ -235,11 +247,33 @@
 </Story>
 
 <Story
+	name="Merge while optional checks run"
+	asChild
+	play={async ({ canvasElement }) => {
+		const merge = within(canvasElement).getByRole('button', { name: /Merge PR/ });
+		await expect(merge).toHaveAttribute('title', 'Optional checks running');
+		await expect(merge).toHaveClass('bg-sunken', 'text-muted');
+		await expect(merge).toBeEnabled();
+	}}
+>
+	<div class="w-80 sheet-quiet p-2">
+		<WorkspaceRow
+			title="Publish widgets"
+			current
+			standing={standingOf(optionalChecks)}
+			actions={actionsFor(optionalChecks)}
+			onaction={fn()}
+		/>
+	</div>
+</Story>
+
+<Story
 	name="Merge versions"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const merge = canvas.getByRole('button', { name: 'Merge PR — Publish widgets' });
+		await expect(merge).toHaveClass('tone-ok');
 		const namedPill = canvas.getByRole('link', {
 			name: 'Open Changeset for Publish widgets: Widgets 1.3.0'
 		});
