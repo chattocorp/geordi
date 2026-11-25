@@ -11,7 +11,7 @@ import {
 	type Upstream
 } from '@geordi/protocol';
 import { error } from '@sveltejs/kit';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EventStore, type GeordiEvent } from './events/index.ts';
 import { handleMcp } from './mcp.ts';
 import { createRepos } from './repos.ts';
@@ -80,6 +80,14 @@ function setup() {
 	const archived: string[] = [];
 	const agents = {
 		...workspaces.agents,
+		jobs: {
+			list: vi.fn(async () => ({
+				tasks: config.current.tasks.map((task) => ({ ...task, running: false })),
+				problem: null
+			})),
+			run: vi.fn(async () => [{ name: 'web' }]),
+			stop: vi.fn(async () => {})
+		},
 		archive: async (actor: string, id: string) => {
 			workspaces.archive(id, actor);
 			archived.push(id);
@@ -317,6 +325,19 @@ describe('configuring the repository', () => {
 });
 
 describe('the agent API as an MCP server', () => {
+	it('uses the shared worktree for task discovery and control', async () => {
+		const { call, callAs, agents, caller } = setup();
+		const child = await call('start_agent', { prompt: 'Check tasks', worktree: 'shared' });
+		const act = callAs(child.id);
+		expect((await act('list_tasks')).tasks[0].name).toBe('web');
+		expect(agents.jobs.list).toHaveBeenCalledWith(caller);
+		expect(await act('run_task', { name: 'web' })).toEqual({ name: 'web' });
+		expect(agents.jobs.run).toHaveBeenCalledWith(caller, ['web'], { web: 'pnpm dev' });
+		expect(await act('stop_task', { name: 'setup' })).toHaveProperty('error');
+		expect(await act('stop_task', { name: 'web' })).toEqual({ stopped: 'web' });
+		expect(agents.jobs.stop).toHaveBeenCalledWith(caller, 'web');
+	});
+
 	it('introduces itself and lists its tools with JSON schemas', async () => {
 		const { rpc } = setup();
 		const init = await rpc('initialize', { protocolVersion: '2025-03-26' });
@@ -342,6 +363,9 @@ describe('the agent API as an MCP server', () => {
 			'forward_question',
 			'send_message',
 			'archive_agent',
+			'list_tasks',
+			'run_task',
+			'stop_task',
 			'configuration_reference',
 			'check_configuration',
 			'workspace_status',
@@ -375,6 +399,10 @@ describe('the agent API as an MCP server', () => {
 		const repoTools = await catalog(caller);
 		const projectTools = await catalog(project);
 		const clientTools = await catalog(external);
+		for (const name of ['list_tasks', 'run_task', 'stop_task']) {
+			expect(projectTools).not.toHaveProperty(name);
+			expect(clientTools).not.toHaveProperty(name);
+		}
 		expect(repoTools.start_agent.inputSchema.properties).toHaveProperty('repository');
 		expect(repoTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
 		expect(projectTools.start_agent.inputSchema.properties).toHaveProperty('workspace');
