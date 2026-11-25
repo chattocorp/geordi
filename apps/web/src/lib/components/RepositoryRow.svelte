@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import Dialog from '#lib/ui/Dialog.svelte';
 	import { onMount, type Snippet } from 'svelte';
 	import type { ForgeDiagnostic } from '@geordi/protocol';
 	import Button from '@geordi/ui/Button.svelte';
@@ -14,18 +14,28 @@
 	 */
 	let {
 		repo,
-		openWorkspaces,
 		check,
 		onremove
 	}: {
 		repo: { id: string; name: string; path: string; workspaceCount: number };
-		openWorkspaces: { id: string; title: string }[];
 		check: () => Promise<ForgeDiagnostic>;
-		onremove: () => void;
+		onremove: () => Promise<unknown> | void;
 	} = $props();
 
 	let forge = $state<ForgeDiagnostic>();
 	let checking = $state(false);
+	let confirming = $state(false);
+	let removing = $state(false);
+
+	async function remove() {
+		if (removing) return;
+		removing = true;
+		try {
+			await onremove();
+		} finally {
+			removing = confirming = false;
+		}
+	}
 
 	async function run() {
 		checking = true;
@@ -128,18 +138,6 @@
 			{@render row('Forge', kind)}
 			{#if forge?.status === 'problem'}{@render row('Problem', problem)}{/if}
 		</dl>
-		{#if openWorkspaces.length}
-			<p class="text-xs text-muted">Archive these workspaces to remove this repository.</p>
-			<ul class="space-y-1 text-sm">
-				{#each openWorkspaces as workspace (workspace.id)}
-					<li>
-						<a class="hover:underline" href={resolve('/workspaces/[id]', { id: workspace.id })}>
-							{workspace.title}
-						</a>
-					</li>
-				{/each}
-			</ul>
-		{/if}
 		<div class="flex flex-wrap items-center gap-2">
 			<Button size="sm" icon="icon-[lucide--refresh-cw]" busy={checking} onclick={run}>
 				Check again
@@ -148,14 +146,31 @@
 				size="sm"
 				variant="ghost"
 				icon="icon-[lucide--trash-2]"
-				disabled={repo.workspaceCount > 0}
-				title={repo.workspaceCount
-					? `Archive ${repo.name}'s workspaces to remove it`
-					: 'Geordi forgets it; nothing on disk changes'}
-				onclick={onremove}
+				onclick={() => (confirming = true)}
 			>
 				Remove
 			</Button>
 		</div>
 	</div>
 </Disclosure>
+
+<Dialog
+	bind:open={() => confirming, (open) => !removing && (confirming = open)}
+	label={`Remove ${repo.name}?`}
+	class="max-w-lg"
+>
+	<div class="space-y-4 p-6">
+		<h2 class="heading wrap-anywhere">Remove {repo.name}?</h2>
+		<p class="text-sm">
+			Geordi will stop this repository’s agents and jobs and delete its worktree folders, including
+			uncommitted changes. Your conversations will stay in Archive.
+		</p>
+		<p class="text-sm text-muted">Your original checkout and Git branches are kept.</p>
+		<div class="dialog-actions">
+			<Button variant="soft" disabled={removing} onclick={() => (confirming = false)}>
+				Cancel
+			</Button>
+			<Button variant="primary" busy={removing} onclick={remove}>Remove repository</Button>
+		</div>
+	</div>
+</Dialog>

@@ -158,13 +158,14 @@ export const standings = lazy(() => {
  * workspace that has had no turn to make one in, or whose worktree went missing.
  */
 export async function prepareWorktree(id: string) {
-	const { path, branch } = await hub().request(
-		{ kind: 'prepareWorktree', ...workspaces().ref(id) },
-		90_000
-	);
-	// as a daemon says when it makes one for a turn (it goes to whoever owns the worktree)
-	workspaces().record(id, { kind: 'worktree', path, branch });
-	void standings().look(workspaces().ref(id).worktreeId);
+	const domain = workspaces();
+	const workspace = domain.summary(id);
+	if (workspace.archivedAt) error(409, 'This workspace is archived');
+	const ref = domain.ref(id);
+	domain.refuseHeld(ref.worktreeId);
+	const { path, branch } = await hub().request({ kind: 'prepareWorktree', ...ref }, 90_000);
+	domain.record(id, { kind: 'worktree', path, branch });
+	void standings().look(ref.worktreeId);
 }
 
 /**
@@ -333,38 +334,20 @@ export async function concernsAboutArchiving(id: string) {
 	workspaces().refuseLocked(family.map((workspace) => workspace.id));
 	const previews = await Promise.all(
 		family.map(async (workspace) => {
-			let missingId: string | undefined;
-			const concerns: string[] = [];
 			let standing: Standing = { changes: null };
 			if (workspace.worktree && workspace.worktreeId === workspace.id) {
-				const ref = workspaces().ref(workspace.id);
-				const missing = await hub()
-					.request({ kind: 'missingCheckout', ...ref })
-					.catch((cause) =>
-						error(
-							503,
-							cause instanceof Error ? cause.message : 'Could not check the repository checkout'
-						)
-					);
-				if (missing) {
-					missingId = workspace.id;
-					concerns.push(`The repository checkout is missing at ${ref.repoPath}.`);
-					if (missing.folder) concerns.push(`Your workspace files will stay in ${missing.folder}.`);
-				} else {
-					await standings().look(workspace.id, { fresh: true });
-					const known = standings().state(workspace.id);
-					if (known && !known.missing) {
-						if (!known.changes) throw new Error(known.unavailable ?? 'No daemon could say');
-						// where the forge cannot be asked, what was last known of the pull request
-						standing = { changes: known.changes, upstream: known.upstream };
-					}
+				await standings().look(workspace.id, { fresh: true });
+				const known = standings().state(workspace.id);
+				if (known && !known.missing) {
+					if (!known.changes) throw new Error(known.unavailable ?? 'No daemon could say');
+					// where the forge cannot be asked, what was last known of the pull request
+					standing = { changes: known.changes, upstream: known.upstream };
 				}
 			}
-			concerns.push(...archiveConcerns(standing));
+			const concerns = archiveConcerns(standing);
 			const stopAgents = workspaces().summary(workspace.id).status === 'running';
 			if (stopAgents) concerns.push('Busy agents will be stopped.');
 			return {
-				missingId,
 				concerns,
 				discard: !!standing.changes?.uncommitted,
 				stopAgents
@@ -386,9 +369,7 @@ export async function concernsAboutArchiving(id: string) {
 		else if (activity.includes(null))
 			concerns.push('Any running terminal processes will be stopped.');
 	}
-	const keepFiles = previews.flatMap(({ missingId }) => (missingId ? [missingId] : []));
 	return {
-		...(keepFiles.length && { keepFiles }),
 		concerns,
 		discard: previews.some((preview) => preview.discard),
 		stopAgents: previews.some((preview) => preview.stopAgents)
@@ -400,8 +381,7 @@ export const archiveWorkspace = (
 	id: string,
 	discard: boolean,
 	actor: string | null = null,
-	stopAgents = false,
-	keepFiles: string[] = []
+	stopAgents = false
 ) =>
 	createArchiver({
 		workspaces: workspaces(),
@@ -409,13 +389,7 @@ export const archiveWorkspace = (
 		// with the repository's teardown script first, which may take a while
 		removeWorktree: async (ref, force, teardown) => {
 			const { branch } = await hub().request(
-				{
-					kind: 'removeWorktree',
-					force,
-					teardown,
-					keepFiles: keepFiles.includes(ref.worktreeId),
-					...ref
-				},
+				{ kind: 'removeWorktree', force, teardown, ...ref },
 				REMOVE_TIMEOUT_MS
 			);
 			workspaces().onBranch(ref.worktreeId, branch);
@@ -424,6 +398,43 @@ export const archiveWorkspace = (
 			await hub().request({ kind: 'closeProject', worktreeId: projectId, project: true });
 		}
 	})(id, discard, actor, stopAgents);
+
+/** Remove the registration only after its worktrees have been cleaned up by the daemon. */
+export async function removeRepository(id: string) {
+	const domain = workspaces();
+	repos().get(id);
+	const members = domain.list(id, true);
+	const ids = members.map((member) => member.id);
+	domain.refuseLocked(ids);
+	const release = domain.hold([`repo:${id}`, ...ids], 'being removed');
+	try {
+		await domain.stopForArchive(ids);
+		for (const [owner, sharing] of Map.groupBy(members, (member) => member.worktreeId)) {
+			const { branch } = await hub().request(
+				{
+					kind: 'removeWorktree',
+					...domain.ref(owner),
+					force: true,
+					teardown: true,
+					removingRepository: true
+				},
+				REMOVE_TIMEOUT_MS
+			);
+			domain.onBranch(owner, branch);
+			for (const member of sharing) {
+				if (member.archivedAt) continue;
+				terminals().closeAll(member.id);
+				domain.archive(member.id, 'person');
+			}
+		}
+		repos().remove(id, 'person');
+	} catch (cause) {
+		if (cause instanceof Error) error(422, cause.message);
+		throw cause;
+	} finally {
+		release();
+	}
+}
 
 /** How long a repository's picture is good for, found or not, before a daemon is asked again. */
 const ICON_MS = 10 * 60_000;

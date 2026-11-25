@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JOB_TERMINAL } from '@geordi/protocol';
 import { expect, it, vi } from 'vitest';
-import { archiveWorkspace, concernsAboutArchiving, repos, terminals, workspaces } from './app.ts';
+import {
+	archiveWorkspace,
+	concernsAboutArchiving,
+	removeRepository,
+	repos,
+	terminals,
+	workspaces
+} from './app.ts';
 
 const { send, request } = vi.hoisted(() => ({
 	send: vi.fn(() => true),
@@ -48,7 +55,7 @@ it('mentions running processes when a busy agent needs confirmation', async () =
 	});
 });
 
-it('keeps a missing checkout’s shared worktree after reviewing the lock and running job', async () => {
+it('removes a repository with a shared worktree, preserving its conversations', async () => {
 	const checkout = mkdtempSync(join(tmpdir(), 'geordi-archive-preview-'));
 	execFileSync('git', ['init', '-q', checkout]);
 	const repo = repos().register(checkout);
@@ -62,30 +69,30 @@ it('keeps a missing checkout’s shared worktree after reviewing the lock and ru
 	const job = id + ':' + JOB_TERMINAL + 'web';
 	terminals().opened(job, { job: 'web', command: 'pnpm dev' });
 	domain.lock(id, true);
-	await expect(concernsAboutArchiving(id)).rejects.toMatchObject({ status: 409 });
+	await expect(removeRepository(repo.id)).rejects.toMatchObject({ status: 409 });
 	domain.lock(id, false);
 	request.mockRejectedValueOnce(new Error('No daemon connected'));
-	await expect(concernsAboutArchiving(id)).rejects.toMatchObject({
+	await expect(removeRepository(repo.id)).rejects.toMatchObject({
 		body: { message: 'No daemon connected' }
 	});
+	expect(repos().get(repo.id)).toBeDefined();
 	expect(domain.summary(id).archivedAt).toBeNull();
-	request.mockResolvedValueOnce({ folder: '/workspace' }).mockResolvedValueOnce(true);
-	const preview = await concernsAboutArchiving(id);
-	expect(preview).toMatchObject({
-		keepFiles: [id],
-		discard: false,
-		concerns: [
-			`The repository checkout is missing at ${repo.path}.`,
-			'Your workspace files will stay in /workspace.',
-			'Running processes will be stopped.'
-		]
-	});
-	request.mockResolvedValueOnce({ branch: null });
-	await archiveWorkspace(id, preview.discard, null, preview.stopAgents, preview.keepFiles);
-	expect(request).toHaveBeenCalledWith(
-		expect.objectContaining({ kind: 'removeWorktree', worktreeId: id, keepFiles: true }),
+	const cleanup = Promise.withResolvers<{ branch: null }>();
+	request.mockReturnValueOnce(cleanup.promise);
+	const removal = removeRepository(repo.id);
+	expect(() => domain.create({ repoId: repo.id, agent: 'codex', prompt: '' })).toThrow();
+	cleanup.resolve({ branch: null });
+	await removal;
+	expect(request).toHaveBeenLastCalledWith(
+		expect.objectContaining({
+			kind: 'removeWorktree',
+			worktreeId: id,
+			removingRepository: true,
+			force: true
+		}),
 		expect.any(Number)
 	);
+	expect(() => repos().get(repo.id)).toThrow();
 	expect(send).toHaveBeenCalledWith({ type: 'terminal.close', terminalId: job });
 	expect(domain.list(repo.id)).toEqual([]);
 	expect(domain.summary(helper).archivedAt).toBeTruthy();

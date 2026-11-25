@@ -2,4 +2,4 @@
 type: fix
 ---
 
-You can archive workspaces and remove a repository from Settings after its checkout disappears. Geordi keeps surviving workspace files and conversations.
+Settings warns when a repository checkout is missing. Remove the repository in one step to delete its Geordi worktrees and keep its conversations in Archive.

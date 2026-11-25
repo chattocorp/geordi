@@ -576,7 +576,10 @@ export function createWorkspaces(
 		// an agent must not start in a worktree on its way out, or on the move
 		if (workspace.worktreeId) refuseHeld(workspace.worktreeId);
 		const { repoId, ...rest } = workspace;
-		if (repoId !== null) repos.get(repoId); // 404s for unknown repos
+		if (repoId !== null) {
+			repos.get(repoId);
+			refuseHeld(`repo:${repoId}`);
+		}
 		const chosen = chosenOf(settings);
 		const id = randomUUID();
 		const title = promptTitle(prompt) || UNTITLED;
@@ -1163,9 +1166,11 @@ export function createWorkspaces(
 		},
 
 		/** A repository's workspaces in use, newest first, without their transcripts. */
-		list: (repoId: string): WorkspaceSummary[] =>
+		list: (repoId: string, includeArchived = false): WorkspaceSummary[] =>
 			[...projection.get().values()]
-				.filter((workspace) => workspace.repoId === repoId && !workspace.archivedAt)
+				.filter(
+					(workspace) => workspace.repoId === repoId && (includeArchived || !workspace.archivedAt)
+				)
 				.reverse()
 				.map(summarise),
 
@@ -1255,6 +1260,7 @@ export function createWorkspaces(
 		worktreeOf: (id: string) => projection.get().get(id)?.worktreeId,
 		summary: (id: string): WorkspaceSummary => summarise(find(id)),
 		ref,
+		refuseHeld,
 		locate,
 
 		/**

@@ -16,7 +16,7 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 - **Notifications** turns telling of finished agents on or off (FDR-008), and sends a test: a notification and the sound, as when an agent is done, with a word on what came of it and where to look if nothing showed.
 - **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. **Add repository…** opens a folder chooser on desktop. In a browser, enter a Git checkout’s path on the Geordi host. Geordi explains invalid paths and lets you try again.
 - Each repository is a row like a provider's: its picture, its name, and below it one line saying whether the daemon can read it on its upstream forge, independently of any workspace (the host and whether it signed in or read anonymously, or what is wrong). Unfolded, the row shows its directory, its origin (without credentials), the kind of forge and how the daemon signs in, and any problem with a link to the setup guide, beside **Check again** and **Remove**. The daemon checks each time the page is shown, through the same forge registry workspaces use; nothing shown carries credentials or the forge's own error text. An origin on no forge (a local path) says so, without alarm.
-- A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. If workspaces are still open, expand the repository to see links to them. Archive each one to enable **Remove**. This also works after the checkout has disappeared.
+- Settings warns when a registered checkout is missing. Expand the row and choose **Remove**. Confirm once to stop the repository’s agents and jobs, delete its Geordi worktrees (including uncommitted edits), and archive its conversations. Existing checkouts and Git branches stay on disk.
 - **Providers** shows which agent programs the daemon found when it connected and how many turns each is running. When the daemon disconnects, availability is unknown. New workspaces can use any available provider.
 - **Agent access** issues and revokes named MCP tokens, each for the repositories chosen with checkboxes (All and None only change the choice; repositories added later are never included). Settings shows a new token once, with the URL to use in the client (FDR-002).
 - **Release notes** lists published versions, newest first. When you build Geordi from source, pending app notes appear above them under **Unreleased**.
@@ -38,11 +38,9 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 **Why:** A theme shouldn't follow you to another screen, and a repository shouldn't exist in one browser only.
 **Tradeoff:** The page doesn't say which is which.
 
-### 3. Removing a repository waits for its workspaces
+### 3. Remove a repository in one operation
 
-**Decision:** A repository with workspaces in use can't be removed; the page says to archive them first.
-**Why:** Its agents work in worktrees of it. Taking those along silently could lose work, which archiving a workspace already guards against, one workspace at a time.
-**Tradeoff:** Removing a busy repository takes several steps.
+The confirmation covers all worktrees in the repository, including folders left behind when a checkout disappears. Geordi checks workspace locks first (FDR-015). It removes the registration after cleanup succeeds so the person can retry an interrupted removal.
 
 ### 4. Update preferences belong to the installed app
 

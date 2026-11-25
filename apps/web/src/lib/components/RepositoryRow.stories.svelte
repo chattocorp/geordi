@@ -14,7 +14,6 @@
 		component: RepositoryRow,
 		args: {
 			repo,
-			openWorkspaces: [{ id: 'review', title: 'Review the widgets' }],
 			onremove: () => {}
 		}
 	});
@@ -37,7 +36,6 @@
 	name="Unknown forge"
 	args={{
 		repo: { ...repo, workspaceCount: 0 },
-		openWorkspaces: [],
 		check: async () => ({
 			status: 'problem',
 			summary: 'No forge set up for git.example.com',
@@ -69,3 +67,17 @@
 />
 
 <Story name="Checking" args={{ check: () => new Promise(() => {}) }} />
+
+<Story
+	name="Missing checkout"
+	args={{
+		check: async () => ({ status: 'problem', summary: 'The repository checkout is missing' })
+	}}
+	play={async ({ canvas }) => {
+		await expect(await canvas.findByRole('status')).toHaveTextContent('checkout is missing');
+		await userEvent.click(canvas.getByText('widgets'));
+		await userEvent.click(canvas.getByRole('button', { name: 'Remove' }));
+		await expect(canvas.getByRole('dialog')).toHaveTextContent('including uncommitted changes');
+		await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }));
+	}}
+/>

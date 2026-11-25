@@ -181,11 +181,10 @@ export const archiveWorkspace = command(
 	v.object({
 		workspaceId: v.string(),
 		discard: v.boolean(),
-		stopAgents: v.optional(v.boolean(), false),
-		keepFiles: v.optional(v.array(v.string()))
+		stopAgents: v.optional(v.boolean(), false)
 	}),
-	async ({ workspaceId, discard, stopAgents, keepFiles }) => {
-		await archive(workspaceId, discard, null, stopAgents, keepFiles);
+	async ({ workspaceId, discard, stopAgents }) => {
+		await archive(workspaceId, discard, null, stopAgents);
 	}
 );
 

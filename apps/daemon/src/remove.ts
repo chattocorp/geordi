@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { git } from './git.ts';
 import { existsSync, lstatSync, mkdirSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { uncommittedFiles } from './changes.ts';
 import { branchOf, describe, verifyLinks, worktreePath, type Worktree } from './worktree.ts';
 
 /** Inspect directory entries without following a worktree's agent-writable Git links. */
-export function entryExists(path: string) {
+function entryExists(path: string) {
 	try {
 		lstatSync(path);
 		return true;
@@ -18,11 +18,8 @@ export function entryExists(path: string) {
 	}
 }
 
-export function missingCheckout(baseDir: string, ref: WorktreeRef) {
-	if (entryExists(ref.repoPath)) return null;
-	const path = worktreePath(baseDir, ref);
-	return { folder: entryExists(path) ? path : null };
-}
+/** Registered checkouts have a .git directory or a linked-worktree .git file. */
+export const hasCheckout = (repoPath: string) => entryExists(join(repoPath, '.git'));
 
 /**
  * Gets a directory out of the way at once, and deletes it in its own time. A worktree with
@@ -78,14 +75,14 @@ export async function removeWorktree(
 	beforeDiscard = () => {}
 ) {
 	const worktree = await removable(baseDir, ref, force);
-	if (!entryExists(ref.repoPath))
+	if (!hasCheckout(ref.repoPath))
 		throw new Error('The checkout disappeared. Review the archive again.');
 	beforeDiscard();
 	if (worktree) discard(baseDir, worktree.path);
 	await git(ref.repoPath, ['worktree', 'prune']);
 }
 
-/** Apply the archive the person reviewed, including the missing-checkout case on a retry. */
+/** Archive one worktree, including leftover folders from a removed checkout. */
 export async function archiveWorktree(
 	baseDir: string,
 	request: Extract<DaemonRequest, { kind: 'removeWorktree' }>,
@@ -93,12 +90,18 @@ export async function archiveWorktree(
 	stopSessions: (path: string) => void
 ) {
 	const path = worktreePath(baseDir, request);
-	const missing = missingCheckout(baseDir, request);
-	if (Boolean(missing) !== Boolean(request.keepFiles))
-		throw new Error('The repository checkout changed. Open Archive again to review it.');
-	if (missing) {
-		stopSessions(path);
-		return null;
+	if (request.removingRepository) {
+		// Never follow a replaced worktree parent to a directory outside the daemon's worktrees.
+		const parent = lstatSync(dirname(path), { throwIfNoEntry: false });
+		if (parent && !parent.isDirectory())
+			throw new Error(`Invalid worktree directory: ${dirname(path)}`);
+		if (!hasCheckout(request.repoPath)) {
+			stopSessions(path);
+			if (entryExists(path)) discard(baseDir, path);
+			return null;
+		}
+	} else if (!hasCheckout(request.repoPath)) {
+		throw new Error('The checkout is missing. Remove the repository in Settings → Repositories.');
 	}
 	const tree = await removable(baseDir, request, request.force);
 	if (tree && request.teardown) await tearDown(tree, request);

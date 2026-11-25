@@ -60,7 +60,7 @@ import {
 	writeTerminal
 } from './terminals.ts';
 import { editReleaseNote, releasePlan } from './releases.ts';
-import { archiveWorktree, emptyTrash, entryExists, missingCheckout } from './remove.ts';
+import { archiveWorktree, emptyTrash, hasCheckout } from './remove.ts';
 import { setupNote } from './scripts.ts';
 import {
 	endLegacyTurns,
@@ -540,9 +540,8 @@ async function readRequest(request: DaemonRequest) {
 		).trim();
 		return fileSearch.search(JSON.stringify([repoPath, revision]), { repoPath, revision }, query);
 	}
-	if (request.kind === 'missingCheckout') return missingCheckout(worktreesDir, request);
 	if (request.kind === 'checkForge') {
-		if (!entryExists(request.repoPath))
+		if (!hasCheckout(request.repoPath))
 			return { status: 'problem', summary: 'The repository checkout is missing' } as const;
 		return checkForge(request.repoPath);
 	}
@@ -611,7 +610,7 @@ async function readRequest(request: DaemonRequest) {
 		return { branch };
 	}
 	if (request.kind === 'prepareWorktree') {
-		if (!entryExists(request.repoPath))
+		if (!hasCheckout(request.repoPath))
 			throw new Error(`Restore the repository checkout at ${request.repoPath} to resume work.`);
 		const { repoPath, worktreeId } = request;
 		// a new one starts from where its upstream stands now, as with a first turn

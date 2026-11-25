@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
 import { startTurnDiff } from './turn-diff.ts';
-import { archiveWorktree, missingCheckout, removeWorktree } from './remove.ts';
+import { archiveWorktree, hasCheckout, removeWorktree } from './remove.ts';
 import {
 	branchesOf,
 	branchOf,
@@ -1049,16 +1049,14 @@ it('captures net changes across a commit without staging files or including earl
 	}
 });
 
-describe('archiving a missing checkout', () => {
+describe('removing a repository', () => {
 	it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
 		'reports an unreadable parent as a permission error',
 		() => {
 			const parent = mkdtempSync(join(tmpdir(), 'geordi-private-'));
 			chmodSync(parent, 0);
 			try {
-				expect(() =>
-					missingCheckout(parent, { repoPath: join(parent, 'checkout'), worktreeId: 'abcdefgh' })
-				).toThrow(/EACCES/);
+				expect(() => hasCheckout(join(parent, 'checkout'))).toThrow(/EACCES/);
 			} finally {
 				chmodSync(parent, 0o700);
 				rmSync(parent, { recursive: true });
@@ -1067,42 +1065,41 @@ describe('archiving a missing checkout', () => {
 	);
 
 	it.each([true, false])(
-		'keeps remaining files and releases sessions (folder exists: %s)',
-		async (keepFolder) => {
+		'removes dirty worktrees and keeps other folders (checkout present: %s)',
+		async (present) => {
 			const repoPath = repo();
-			const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-archive-')));
+			const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-remove-')));
 			const request = {
 				kind: 'removeWorktree',
 				repoPath,
 				worktreeId: 'abcdefgh-test',
 				force: true,
-				teardown: true
+				teardown: true,
+				removingRepository: true
 			} as const;
-			const { path } = await ensureWorktree(base, request);
-			const bytes = Buffer.from([0, 128, 255]);
-			writeFileSync(join(path, 'draft'), bytes);
-			rmSync(repoPath, { recursive: true });
-			if (!keepFolder) rmSync(path, { recursive: true });
-			const teardown = vi.fn();
-			const stop = vi.fn();
-			expect(missingCheckout(base, request)).toEqual({ folder: keepFolder ? path : null });
-			await expect(archiveWorktree(base, request, teardown, stop)).rejects.toThrow(
-				/checkout changed/
-			);
-			expect(stop).not.toHaveBeenCalled();
-			for (let attempt = 0; attempt < 2; attempt++)
-				await archiveWorktree(base, { ...request, keepFiles: true }, teardown, stop);
-			expect(stop).toHaveBeenCalledWith(path);
-			expect(teardown).not.toHaveBeenCalled();
-			if (keepFolder) expect(readFileSync(join(path, 'draft'))).toEqual(bytes);
-			else expect(existsSync(path)).toBe(false);
-			mkdirSync(repoPath);
-			await expect(
-				archiveWorktree(base, { ...request, keepFiles: true }, teardown, stop)
-			).rejects.toThrow(/checkout changed/);
-			expect(missingCheckout(base, request)).toBeNull();
-			rmSync(base, { recursive: true });
-			rmSync(repoPath, { recursive: true });
+			try {
+				const { path, branch } = await ensureWorktree(base, request);
+				const { path: other } = await ensureWorktree(base, { ...request, worktreeId: 'other-id' });
+				writeFileSync(join(path, 'draft'), 'unfinished');
+				if (!present) rmSync(repoPath, { recursive: true });
+				const teardown = vi.fn();
+				const stop = vi.fn();
+				await archiveWorktree(base, request, teardown, stop);
+				await archiveWorktree(base, request, teardown, stop);
+				expect(existsSync(path)).toBe(false);
+				expect(existsSync(other)).toBe(true);
+				expect(stop).toHaveBeenCalledWith(path);
+				expect(teardown).toHaveBeenCalledTimes(present ? 1 : 0);
+				if (present) {
+					execFileSync('git', ['-C', repoPath, 'rev-parse', '--verify', branch]);
+					expect(
+						execFileSync('git', ['-C', repoPath, 'worktree', 'list'], { encoding: 'utf8' })
+					).not.toContain(path);
+				}
+			} finally {
+				rmSync(base, { recursive: true, force: true });
+				rmSync(repoPath, { recursive: true, force: true });
+			}
 		}
 	);
 });
