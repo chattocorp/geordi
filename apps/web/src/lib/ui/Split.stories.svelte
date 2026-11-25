@@ -7,6 +7,7 @@
 </script>
 
 <script lang="ts">
+	let closed = $state(false);
 	let across = $state(0.6);
 	let saved = $state(0.15);
 	let down = $state(0.5);
@@ -49,6 +50,16 @@
 		<Split dir="row" bind:ratio={across} bare>
 			{#snippet a()}<div class="mr-1 flex flex-1 sheet">{@render pane('A')}</div>{/snippet}
 			{#snippet b()}<div class="ml-1 flex flex-1 sheet-quiet">{@render pane('B')}</div>{/snippet}
+		</Split>
+	</div>
+</Story>
+
+<Story name="Toggle sidebar" asChild>
+	<button class="quiet-action" onclick={() => (closed = !closed)}>Toggle sidebar</button>
+	<div class="flex h-48 card">
+		<Split dir="row" ratio={0.6} collapsed={closed} min={[120, 120]}>
+			{#snippet a()}{@render pane('Conversation')}{/snippet}
+			{#snippet b()}{@render pane('Changes')}{/snippet}
 		</Split>
 	</div>
 </Story>
