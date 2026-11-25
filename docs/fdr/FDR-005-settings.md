@@ -1,7 +1,7 @@
 # FDR-005: Settings
 
 **Status:** Active
-**Last reviewed:** 2026-11-24
+**Last reviewed:** 2026-11-25
 
 ## Overview
 
@@ -17,7 +17,7 @@ One place for what is set up once and then left alone: how Geordi looks, and whi
 - **Repositories** lists the repositories Geordi knows, with their paths and how many workspaces are in use in each. **Add repository…** opens a folder chooser on desktop. In a browser, enter a Git checkout’s path on the Geordi host. Geordi explains invalid paths and lets you try again.
 - Each repository is a row like a provider's: its picture, its name, and below it one line saying whether the daemon can read it on its upstream forge, independently of any workspace (the host and whether it signed in or read anonymously, or what is wrong). Unfolded, the row shows its directory, its origin (without credentials), the kind of forge and how the daemon signs in, and any problem with a link to the setup guide, beside **Check again** and **Remove**. The daemon checks each time the page is shown, through the same forge registry workspaces use; nothing shown carries credentials or the forge's own error text. An origin on no forge (a local path) says so, without alarm.
 - A repository without workspaces in use can be removed. That only makes Geordi forget it: nothing on disk changes, and adding it again brings it back. One with workspaces can't be removed until they are archived.
-- **Providers** shows which agent programs the daemon found when it connected and how many turns each is running. When the daemon disconnects, availability is unknown. New workspaces can use any available provider.
+- **Providers** shows which agent programs the daemon found when it connected and how many turns each is running. When the daemon disconnects, availability is unknown. New workspaces can use any available provider. Below them, **Identify Geordi to Claude Code** (off by default, experimental) is a choice for the installation: see decision 5.
 - **Agent access** issues and revokes named MCP tokens, each for the repositories chosen with checkboxes (All and None only change the choice; repositories added later are never included). Settings shows a new token once, with the URL to use in the client (FDR-002).
 - **Release notes** lists published versions, newest first. When you build Geordi from source, pending app notes appear above them under **Unreleased**.
 - **About** describes Geordi and shows the running release version.
@@ -52,3 +52,9 @@ stay on the developer's chosen revision.
 
 After downloading an update, About shows its version and a **Restart to update** button. People choose the time because restarting ends terminal sessions
 and jobs. Detached agent turns continue.
+
+### 5. Telling Claude Code that Geordi started it
+
+**Decision:** An installation setting (the `preferences.changed` event), off by default. On, the forge marks each Claude turn it sends (`identify` on `agent.message`), and the host starts the ACP wrapper with `CLAUDE_CODE_ENTRYPOINT=geordi` (`apps/daemon/src/agents/entrypoint.ts`). Off, the variable is removed, so the Agent SDK puts in its own `sdk-ts`. A value inherited from the daemon's environment (`cli` from a Claude Code terminal, say) is never passed on. Our own name is the only one we set; never one of Anthropic's clients (`cli`, `claude-vscode`, `claude-desktop`). It takes effect when an agent's CLI next starts (a new or resumed session, or after five idle minutes); a running one keeps its label. Claude Code records the label as `entrypoint` in each transcript line.
+**Why:** The wrapper runs Claude Code through the TypeScript Agent SDK, which labels it `sdk-ts`. People measured `sdk-*` sessions filling the 5-hour limit about 1.8–2.9× as fast as interactive ones for the same tokens, and a custom label at about the interactive rate ([anthropics/claude-code#97074](https://github.com/anthropics/claude-code/issues/97074)). A setting, not an environment variable, because nobody should have to edit the app's environment.
+**Tradeoff:** The variable is undocumented and Anthropic has not said whether third parties should set it, so this is no promised saving and may stop mattering or change. A custom label also changes some of Claude Code's own behaviour (Paseo found the `claude-code-guide` agent added, background memory consolidation allowed, and the sessions listed in `claude --resume`). That is why it is off by default, a rare option where Geordi otherwise decides.
