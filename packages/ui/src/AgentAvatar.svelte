@@ -5,8 +5,8 @@
 	type Props = {
 		agent: Agent;
 		size?: 'sm' | 'md';
-		/** Just the agent's mark in its colour, without the tile: for tabs and other tight rows. */
-		bare?: boolean;
+		/** Show just the mark. Use 'muted' for single-color metadata. */
+		bare?: boolean | 'muted';
 	};
 	const marks = {
 		claude: { color: 'text-claude', background: 'bg-claude/15', icon: 'icon-[lucide--sparkles]' },
@@ -20,7 +20,7 @@
 	class={[
 		'grid shrink-0 place-items-center',
 		!bare && ['rounded-control', size === 'sm' ? 'size-6' : 'size-8'],
-		marks[agent].color,
+		bare === 'muted' ? 'text-muted' : marks[agent].color,
 		!bare && marks[agent].background
 	]}
 	title={agentName[agent]}
@@ -28,7 +28,7 @@
 	<span
 		class={[
 			agent === 'opencode' && !bare ? 'h-5 w-4' : bare || size === 'sm' ? 'size-3.5' : 'size-4.5',
-			marks[agent].icon
+			agent === 'opencode' && bare === 'muted' ? 'opencode-muted' : marks[agent].icon
 		]}
 	></span>
 	<span class="sr-only">{agentName[agent]}</span>
@@ -41,5 +41,9 @@
 	}
 	:global(.dark .opencode-logo) {
 		background-image: url('./assets/opencode-dark.svg');
+	}
+	.opencode-muted {
+		background-color: currentColor;
+		mask: center / contain no-repeat url('./assets/opencode-light.svg');
 	}
 </style>

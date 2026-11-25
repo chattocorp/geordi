@@ -2,4 +2,4 @@
 type: feature
 ---
 
-You can see the sending agent, model, and effort on cross-agent messages, even when a report is folded.
+Cross-agent messages show the sending agent’s icon, model, and reasoning effort, even when a report is folded.

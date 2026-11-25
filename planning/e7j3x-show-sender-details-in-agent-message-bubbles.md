@@ -6,4 +6,4 @@ data:
 id: e7j3x
 title: Show sender details in agent message bubbles
 ---
-Incoming agent messages show the sender’s agent, selected model and effort. Folded child reports show the latest message’s details. Verified queued attribution across purge and replay, expanded the report in the restarted forge, and ran the repository checks.
+Incoming agent messages show a muted agent icon with the selected model and a gauge with the reasoning effort. Folded child reports show the latest message’s details. Verified queued attribution across purge and replay, the accessible label, and the expanded report in the forge.

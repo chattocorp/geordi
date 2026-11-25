@@ -7,10 +7,11 @@
 	import type { Agent, BackgroundTask, TurnUsage } from '@geordi/protocol';
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
 	import type { SenderDetails } from '#lib/server/workspace-projection.ts';
-	import { agentName, duration, relativeAge } from '#lib/format.ts';
+	import { duration, relativeAge } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { messageRows, type ChildExchange } from '#lib/message-rows.ts';
 	import type { Block, Part, TurnChanges } from '#lib/transcript.ts';
+	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import AgentText from '@geordi/ui/AgentText.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
@@ -270,14 +271,15 @@
 
 {#snippet senderDetails(details?: SenderDetails)}
 	{#if details}
-		<span class="block text-xs text-muted">
-			{[
-				agentName[details.agent],
-				details.model,
-				details.effort ? details.effort + ' effort' : 'Default effort'
-			]
-				.filter(Boolean)
-				.join(' · ')}
+		<span class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+			<span class="inline-flex min-w-0 items-center gap-1">
+				<AgentAvatar agent={details.agent} bare="muted" />
+				{#if details.model}<span class="min-w-0 wrap-anywhere">{details.model}</span>{/if}
+			</span>
+			<span class="inline-flex items-center gap-1" title="Reasoning effort">
+				<span aria-hidden="true" class="icon-[lucide--gauge] size-3.5"></span>
+				{details.effort ?? 'Default'}<span class="sr-only"> effort</span>
+			</span>
 		</span>
 	{/if}
 {/snippet}
