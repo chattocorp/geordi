@@ -660,7 +660,6 @@
 			working={workspace.working || (isFolded && busy)}
 			locked={workspace.locked}
 			inactive={workspace.inactive}
-			background={workspace.background}
 			progress={pendingPullAction.get(workspace.id) ??
 				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
 					? 'merge-pull'
