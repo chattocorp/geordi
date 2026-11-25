@@ -26,6 +26,9 @@ import { createUpcaster, type CurrentEvent } from './legacy.ts';
  * reducer that makes one of the other. What is done with workspaces is in `workspaces.ts`.
  */
 
+export type SenderDetails = { agent: Agent } & Pick<AgentSettings, 'model' | 'effort'>;
+type SenderTurn = { seq: number; details: SenderDetails };
+
 export type ActionId = WorkspaceAction['id'];
 type WorkspaceStream = `workspace:${string}`;
 
@@ -184,7 +187,13 @@ export type WorkspacesEvent =
 			type: 'workspace.purged';
 			stream: 'purges';
 			data: {
-				workspaces: { id: string; title: string; born: number; parentId?: string }[];
+				workspaces: {
+					id: string;
+					title: string;
+					born: number;
+					parentId?: string;
+					senderTurns?: SenderTurn[];
+				}[];
 				worktrees: { id: string; path: string; branch: string }[];
 			};
 	  };
@@ -254,6 +263,7 @@ export type TranscriptItem =
 			images?: string[];
 			at: string;
 			from?: string;
+			senderDetails?: SenderDetails;
 			senderName?: string;
 	  }
 	| { kind: 'text'; text: string; at: string }
@@ -379,7 +389,7 @@ export type Workspace = {
 	 */
 	briefing: string | null;
 	/** Who sent the messages that wait, in step with `queue`: workspace IDs, `null` for people. */
-	sentBy: { queue: (string | null)[] };
+	sentBy: { queue: (string | null)[]; details: (SenderDetails | null)[] };
 	/** Children that have sent this workspace a message, including queued messages. */
 	childSenders?: Record<string, string>;
 	/** When the workspace was archived; `null` while it is in use. */
@@ -395,15 +405,6 @@ export type Workspace = {
 	updatedAt: string;
 	transcript: TranscriptItem[];
 };
-
-/** A turn begins: with a message to the agent, or because the agent says so. */
-function startTurn(workspace: Workspace, at: string) {
-	if (workspace.status !== 'running') workspace.turnStartedAt = at;
-	workspace.status = 'running';
-	workspace.lastTurn = null;
-	// what it suggested was for the turn that ended, not for this one
-	workspace.suggestion = null;
-}
 
 function initialWorkspace(
 	created: Extract<CurrentEvent, { type: 'workspace.created' }>['data'],
@@ -436,7 +437,7 @@ function initialWorkspace(
 		resumeId: null,
 		queue: [],
 		attachments: { queue: [] },
-		sentBy: { queue: [] },
+		sentBy: { queue: [], details: [] },
 		briefing: null,
 		archivedAt: null,
 		inactive: false,
@@ -468,6 +469,28 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	const attachedImages = new Map<string, Set<string>>();
 	// Sender attribution on a later replay must reflect who existed at the time.
 	const born = new Map<string, { seq: number; parentId?: string; purgedTitle?: string }>();
+
+	// Archived transcripts replay one stream. Keep the settings used by each sender's
+	// turns so a message can still resolve them at its original event sequence.
+	const senderTurns = new Map<string, SenderTurn[]>();
+	function beginTurn(workspace: Workspace, at: string, seq: number, restoring: boolean) {
+		if (!restoring && workspace.status !== 'running') {
+			const history = senderTurns.get(workspace.id) ?? [];
+			const previous = history.at(-1)?.details;
+			const { model, effort } = workspace.settings;
+			if (!previous || previous.model !== model || previous.effort !== effort) {
+				history.push({ seq, details: { agent: workspace.agent, model, effort } });
+				senderTurns.set(workspace.id, history);
+			}
+		}
+		if (workspace.status !== 'running') workspace.turnStartedAt = at;
+		workspace.status = 'running';
+		workspace.lastTurn = null;
+		// what it suggested was for the turn that ended, not for this one
+		workspace.suggestion = null;
+	}
+	const detailsAt = (sender: string | null, seq: number) =>
+		sender ? senderTurns.get(sender)?.findLast((turn) => turn.seq <= seq)?.details : undefined;
 
 	function apply(
 		workspaces: Map<string, Workspace>,
@@ -629,6 +652,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			delete workspace.queuedActions;
 			workspace.attachments.queue = [];
 			workspace.sentBy.queue = [];
+			workspace.sentBy.details = [];
 			return;
 		}
 		if (event.type === 'workspace.queued') {
@@ -640,6 +664,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			workspace.queue.push(event.data.text);
 			workspace.attachments.queue.push(event.data.images ?? []);
 			workspace.sentBy.queue.push(actor);
+			workspace.sentBy.details.push(detailsAt(actor, seq) ?? null);
 			rememberChild(actor);
 			if (!byAgent(actor)) prompted();
 			return;
@@ -649,6 +674,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			workspace.queue.splice(event.data.index, 1);
 			workspace.attachments.queue.splice(event.data.index, 1);
 			workspace.sentBy.queue.splice(event.data.index, 1);
+			workspace.sentBy.details.splice(event.data.index, 1);
 			return;
 		}
 		if (event.type === 'workspace.steered') {
@@ -702,6 +728,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				});
 			// said by whoever queued it, or steered with it, or says it now
 			let sender = actor;
+			const queuedDetails = event.data.queued ? workspace.sentBy.details.shift() : undefined;
 			workspace.activeAction = event.data.action;
 			if (event.data.queued) {
 				workspace.activeAction = workspace.queuedActions?.shift() ?? undefined;
@@ -713,10 +740,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				sender = steering.get(workspace.id) ?? null;
 				steering.delete(workspace.id);
 			}
-			startTurn(workspace, at);
+			beginTurn(workspace, at, seq, restoring);
 			workspace.briefing = null; // it went out with this message
 			// an agent's word is marked as such; a person's is the rule
 			const from = byAgent(sender) ? sender : undefined;
+			const senderDetails = event.data.queued ? queuedDetails : detailsAt(sender, seq);
 			if (!from) prompted();
 			else rememberChild(from, event.data.senderName);
 			append({
@@ -725,6 +753,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				...(event.data.images?.length && { images: event.data.images }),
 				at,
 				...(from && { from }),
+				...(senderDetails && { senderDetails }),
 				...(event.data.senderName && { senderName: event.data.senderName })
 			});
 			return;
@@ -825,7 +854,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 				if (!event.data.toParent && output.blocking !== false) workspace.asking = true;
 				break;
 			case 'turn.started':
-				startTurn(workspace, at);
+				beginTurn(workspace, at, seq, restoring);
 				break;
 			case 'turn.completed':
 			case 'turn.failed':
@@ -879,8 +908,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	// Purged workspaces were workspaces from when they were born, which replay no longer sees.
 	for (const event of store.readStream('purges'))
 		if (event.type === 'workspace.purged')
-			for (const { id, born: seq, parentId, title } of event.data.workspaces)
+			for (const { id, born: seq, parentId, title, senderTurns: history } of event.data
+				.workspaces) {
 				born.set(id, { seq, parentId, purgedTitle: title });
+				if (history) senderTurns.set(id, history);
+			}
 	const projection = store.project(
 		'workspaces',
 		() => new Map<string, Workspace>(),
@@ -955,6 +987,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			const session = sessionStreams.get(id);
 			return [`workspace:${id}`, ...(session ? [session] : [])];
 		},
+		senderTurns: (id: string) => senderTurns.get(id),
 		/** The `seq` a workspace was created at. */
 		bornAt: (id: string) => born.get(id)?.seq,
 		/** Tells `listener` each edit of a workspace's transcript, until the returned function is called. */

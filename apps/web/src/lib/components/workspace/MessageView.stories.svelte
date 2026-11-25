@@ -696,7 +696,9 @@
 			'href',
 			'/workspaces/parent?agent=parent'
 		);
-		const toggle = await canvas.findByRole('button', { name: 'Review finished' });
+		const toggle = await canvas.findByRole('button', {
+			name: 'Review finished Claude Code · Sonnet · high effort'
+		});
 		const first = 'I’m checking the archived repositories.';
 		const final = 'The migration covers archived repositories. Both regression tests pass.';
 		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -732,14 +734,16 @@
 					at: '',
 					text: 'I’m checking the archived repositories.',
 					from: 'peer',
-					senderName: 'Review'
+					senderName: 'Review',
+					senderDetails: { agent: 'claude', model: 'Sonnet', effort: 'high' }
 				},
 				{
 					kind: 'user',
 					at: '',
 					text: 'Your agent “Review” (peer) finished its turn.\n\nThe migration covers archived repositories. Both regression tests pass.',
 					from: 'peer',
-					senderName: 'Review'
+					senderName: 'Review',
+					senderDetails: { agent: 'claude', model: 'Sonnet', effort: 'high' }
 				},
 				{
 					kind: 'user',

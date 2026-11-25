@@ -20,7 +20,7 @@ export type Part =
 export type Block =
 	| (Pick<
 			Extract<TranscriptItem, { kind: 'user' }>,
-			'kind' | 'text' | 'from' | 'images' | 'senderName'
+			'kind' | 'text' | 'from' | 'images' | 'senderName' | 'senderDetails'
 	  > & {
 			delegated?: boolean;
 			report?: 'finished' | 'stopped';
@@ -102,6 +102,7 @@ export function toBlocks(transcript: TranscriptItem[] | SubagentItem['items']): 
 				...childReport(item),
 				...(item.images?.length && { images: item.images }),
 				...(item.from && { from: item.from }),
+				...(item.senderDetails && { senderDetails: item.senderDetails }),
 				...(item.senderName && { senderName: item.senderName })
 			});
 			continue;

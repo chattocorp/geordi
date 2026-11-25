@@ -2262,15 +2262,29 @@ describe('purging archived workspaces', () => {
 	it('keeps queued child messages identifiable after purge and replay', async () => {
 		const { store, repos, dispatch, create, workspaces } = setup();
 		const parent = create('Parent');
-		const { id } = workspaces.agents.start(parent, { worktree: 'own', prompt: 'Review' });
+		const { id } = workspaces.agents.start(parent, {
+			worktree: 'own',
+			prompt: 'Review',
+			model: 'sonnet',
+			effort: 'high'
+		});
+		workspaces.configure(id, { model: 'opus', effort: 'low' });
 		workspaces.agents.send(id, parent, 'One more finding', false);
 		const waiting = workspaces.agents.wait(parent, id, 5000);
 		done(workspaces, id);
 		workspaces.archive(id);
 		workspaces.purge([id]);
-		const replay = createWorkspaces(store, repos, dispatch).get(parent);
+		const restarted = createWorkspaces(store, repos, dispatch);
+		const replay = restarted.get(parent);
+		const details = { agent: 'claude', model: 'sonnet', effort: 'high' };
+		expect(replay.sentBy.details).toEqual([details]);
 		expect(replay.queue).toEqual(['One more finding']);
 		expect(replay.childSenders).toEqual({ [id]: 'Review' });
+		restarted.record(parent, { kind: 'turn.completed' });
+		expect(restarted.get(parent).transcript.at(-1)).toMatchObject({
+			text: 'One more finding',
+			senderDetails: details
+		});
 		await waiting;
 	});
 

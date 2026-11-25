@@ -6,7 +6,8 @@
 	import { toolSummary } from '@geordi/ui/tools';
 	import type { Agent, BackgroundTask, TurnUsage } from '@geordi/protocol';
 	import { tokenBreakdown, tokenSummary } from '#lib/tokens.ts';
-	import { duration, relativeAge } from '#lib/format.ts';
+	import type { SenderDetails } from '#lib/server/workspace-projection.ts';
+	import { agentName, duration, relativeAge } from '#lib/format.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { messageRows, type ChildExchange } from '#lib/message-rows.ts';
 	import type { Block, Part, TurnChanges } from '#lib/transcript.ts';
@@ -43,6 +44,7 @@
 		senders,
 		childSenders = {},
 		queueSenders = [],
+		queueDetails = [],
 		parentAgent,
 		queue = [],
 		queueImages = [],
@@ -66,6 +68,7 @@
 		senders?: Record<string, string>;
 		childSenders?: Record<string, string>;
 		queueSenders?: (string | null)[];
+		queueDetails?: (SenderDetails | null)[];
 		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
@@ -190,7 +193,9 @@
 	const fade = 'transition-opacity pointer-fine:opacity-0 pointer-fine:focus-within:opacity-100';
 	const quietReply = `${fade} pointer-fine:group-hover/reply:opacity-100`;
 
-	const rows = $derived(messageRows(blocks, childSenders, queue, queueSenders, queueImages));
+	const rows = $derived(
+		messageRows(blocks, childSenders, queue, queueSenders, queueImages, queueDetails)
+	);
 	function isIncoming(row?: (typeof rows)[number]) {
 		return (
 			row?.kind === 'child' ||
@@ -263,6 +268,20 @@
 	});
 </script>
 
+{#snippet senderDetails(details?: SenderDetails)}
+	{#if details}
+		<span class="block text-xs text-muted">
+			{[
+				agentName[details.agent],
+				details.model,
+				details.effort ? details.effort + ' effort' : 'Default effort'
+			]
+				.filter(Boolean)
+				.join(' · ')}
+		</span>
+	{/if}
+{/snippet}
+
 {#snippet childExchange(exchange: ChildExchange, first: boolean)}
 	{@const { key, name, from, messages } = exchange}
 	{@const last = messages[messages.length - 1]}
@@ -288,6 +307,7 @@
 		{#snippet heading()}
 			<span class="font-medium text-ink">{name}</span>
 			{status}{last.queued ? ' (queued)' : ''}
+			{@render senderDetails(last.senderDetails)}
 		{/snippet}
 		<div class="space-y-3">
 			{#each messages as message, index (index)}
@@ -497,6 +517,7 @@
 										{:else}
 											<span class="font-medium text-ink">{title || 'Another agent'}</span>
 										{/if}
+										{@render senderDetails(block.senderDetails)}
 									{/snippet}
 									{@render body()}
 									{#snippet footer()}{#if block.text}<MessageCopy

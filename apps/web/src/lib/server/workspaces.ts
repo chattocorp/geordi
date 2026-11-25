@@ -1630,6 +1630,7 @@ export function createWorkspaces(
 							...(parentId && { parentId }),
 							id,
 							title,
+							senderTurns: projection.senderTurns(id),
 							born: projection.bornAt(id) ?? 0
 						})),
 						worktrees

@@ -1,7 +1,10 @@
 import { childReport, type Block } from './transcript.ts';
 
+import type { SenderDetails } from './server/workspace-projection.ts';
+
 type QueuedMessage = { text: string; index: number; images: string[] };
 type ChildMessage = {
+	senderDetails?: SenderDetails;
 	text: string;
 	images?: string[];
 	report?: 'finished' | 'stopped';
@@ -27,7 +30,8 @@ export function messageRows(
 	childSenders: Record<string, string>,
 	queue: string[],
 	queueSenders: (string | null)[],
-	queueImages: string[][]
+	queueImages: string[][],
+	queueDetails: (SenderDetails | null)[] = []
 ) {
 	const rows: Row[] = [];
 	function addChild(from: string, name: string, key: string, message: ChildMessage) {
@@ -60,6 +64,7 @@ export function messageRows(
 					text: report?.text ?? text,
 					images: queued.images,
 					report: report?.report,
+					...(queueDetails[index] && { senderDetails: queueDetails[index] }),
 					queued
 				}
 			);
