@@ -79,6 +79,17 @@ export function createJobs(
 	}
 
 	return {
+		async list(workspaceId: string) {
+			const { tasks, problem } = await configOf(workspaceId);
+			return {
+				tasks: tasks.map((task) => ({
+					...task,
+					running: terminals.isRunning(terminalOf(workspaceId, task.name))
+				})),
+				problem
+			};
+		},
+
 		/**
 		 * Runs the tasks `names` and what they need, each once what it needs is up, sharing
 		 * what they have in common; then says where each one's URL leads once it answers.

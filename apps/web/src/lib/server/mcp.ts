@@ -1,4 +1,4 @@
-import { isHttpError } from '@sveltejs/kit';
+import { error, isHttpError } from '@sveltejs/kit';
 import {
 	AGENTS,
 	CONFIG_FILE,
@@ -15,6 +15,7 @@ import {
 import { toJsonSchema } from '@valibot/to-json-schema';
 import * as v from 'valibot';
 import { actionsFor, standingOf } from '@geordi/ui/actions';
+import type { createJobs } from './jobs.ts';
 import { isExternal } from './agent-access.ts';
 import { MAX_NAMES, type createWorkspaces } from './workspaces.ts';
 
@@ -25,6 +26,7 @@ import { MAX_NAMES, type createWorkspaces } from './workspaces.ts';
 
 /** What the tools work with: the agents API, and archiving (which needs a daemon). */
 type Agents = ReturnType<typeof createWorkspaces>['agents'] & {
+	jobs: Pick<ReturnType<typeof createJobs>, 'list' | 'run' | 'stop'>;
 	/** Archives a workspace on the caller's behalf. Never discards uncommitted work. */
 	archive(caller: string, id: string): Promise<void>;
 	/** What the repository's configuration says for the caller's workspace, as a daemon reads it. */
@@ -157,6 +159,10 @@ const startLocation = {
 	external:
 		'Supply repository from list_repositories. The agent gets a new worktree and branch from the repository base, or from base if you pass one.'
 };
+
+const taskInput = v.strictObject({
+	name: v.pipe(v.string(), v.description('Task name from list_tasks.'))
+});
 
 /** Each tool: what agents are told about it, its input, and what it does for a caller. */
 const tools = {
@@ -350,6 +356,40 @@ const tools = {
 			return { archived: agent.id };
 		}
 	},
+	list_tasks: {
+		description:
+			'List the configured tasks in your current worktree, including commands, approvals, dependencies, resolved links and whether each command is running.',
+		input: v.strictObject({}),
+		run: (agents: Agents, caller: string) => agents.jobs.list(agents.workspace(caller).worktreeId)
+	},
+	run_task: {
+		description:
+			'Run a task from list_tasks and its dependencies in your current worktree. Commands require prior approval by the person. Returns its link when ready, or a problem or port conflict.',
+		input: taskInput,
+		run: async (agents: Agents, caller: string, { name }: { name: string }) => {
+			const id = agents.workspace(caller).worktreeId;
+			const { tasks, problem } = await agents.configuration(id);
+			if (problem) error(400, problem);
+			const seen = Object.fromEntries(
+				tasks.flatMap((task) => (task.command === null ? [] : [[task.name, task.command]]))
+			);
+			const [result] = await agents.jobs.run(id, [name], seen);
+			return result;
+		}
+	},
+	stop_task: {
+		description:
+			'Stop a configured task in your current worktree and any running tasks that depend on it.',
+		input: taskInput,
+		run: async (agents: Agents, caller: string, { name }: { name: string }) => {
+			const id = agents.workspace(caller).worktreeId;
+			const { tasks, problem } = await agents.configuration(id);
+			if (problem) error(400, problem);
+			if (!tasks.some((task) => task.name === name)) error(404, 'Unknown task');
+			await agents.jobs.stop(id, name);
+			return { stopped: name };
+		}
+	},
 	configuration_reference: {
 		description: `How to configure this repository for Geordi, in its ${CONFIG_FILE}: the settings there are and what they do. Read this before creating or changing that file.`,
 		input: v.strictObject({}),
@@ -478,17 +518,22 @@ const failure = (id: Request['id'], code: number, message: string) => ({
 /** A tool's outcome, as text for the model. Failures are results the agent can act on. */
 const content = (text: string, isError = false) => ({ content: [{ type: 'text', text }], isError });
 
-/** What only an agent in a workspace can use: it is about that workspace. */
-const workspaceTools = new Set([
-	'answer_question',
-	'forward_question',
-	'name_workspace',
+/** What is about a workspace's repository, which a project has none of (FDR-012). */
+const repositoryTools = new Set([
 	'set_base',
 	'configuration_reference',
-	'check_configuration'
+	'check_configuration',
+	'list_tasks',
+	'run_task',
+	'stop_task'
 ]);
-/** What is about a workspace's repository, which a project has none of (FDR-012). */
-const repositoryTools = new Set(['set_base', 'configuration_reference', 'check_configuration']);
+/** What only an agent in a workspace can use: it is about that workspace. */
+const workspaceTools = new Set([
+	...repositoryTools,
+	'answer_question',
+	'forward_question',
+	'name_workspace'
+]);
 const available = (kind: CallerKind, name: string) =>
 	kind === 'external'
 		? !workspaceTools.has(name)

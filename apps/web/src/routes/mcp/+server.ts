@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { archiveWorkspace, changeBase, hub, standings, workspaces } from '#lib/server/app.ts';
+import { archiveWorkspace, changeBase, hub, jobs, standings, workspaces } from '#lib/server/app.ts';
 import { handleMcp } from '#lib/server/mcp.ts';
 import type { RequestHandler } from './$types';
 
@@ -21,6 +21,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const agents = {
 		...workspaces().agents,
+		jobs: jobs(),
 		archive: (actor: string, id: string) => archiveWorkspace(id, false, actor),
 		configuration: (id: string) =>
 			hub()

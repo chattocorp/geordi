@@ -64,6 +64,7 @@ it('shares prerequisites, waits for all their ports, and opens the first link', 
 		}),
 		task('worker', { command: 'worker', needs: ['web'] })
 	]);
+	expect((await jobs.list('w')).tasks.every((task) => !task.running)).toBe(true);
 	const seen = { web: 'web', worker: 'worker' };
 	const run = () => jobs.run('w', ['preview', 'worker'], seen);
 	expect(await run()).toEqual([
@@ -71,6 +72,9 @@ it('shares prerequisites, waits for all their ports, and opens the first link', 
 		{ name: 'worker' }
 	]);
 	expect(started).toEqual(['web', 'worker']);
+	expect(
+		(await jobs.list('w')).tasks.filter((task) => task.running).map((task) => task.name)
+	).toEqual(['web', 'worker']);
 	// web is up once both its ports answer; the worker, with none, at once
 	expect(checked).toEqual([21100, 21101, 21102]);
 

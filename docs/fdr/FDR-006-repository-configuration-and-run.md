@@ -1,7 +1,7 @@
 # FDR-006: Repository configuration: tasks, ports, setup and teardown
 
 **Status:** Active
-**Last reviewed:** 2026-11-23
+**Last reviewed:** 2026-11-25
 
 ## Overview
 
@@ -38,6 +38,8 @@ A repository can tell Geordi how it wants to be treated, in a `.geordi.yml` at i
 - A task's command gets its first port as `PORT`. Everything in the workspace (tasks, terminals, and the agent) gets every named port as `GEORDI_PORT_<NAME>`, and the spare ones as `GEORDI_PORT` (the first) and `GEORDI_PORTS` (how many). Agents are told to use these, never a default port.
 
 ### Running
+
+- Repository agents can list, run and stop tasks in their current worktree through MCP. Agents that share a worktree see the same tasks and terminals. Running a task requires the same command approvals as the Tasks tab.
 
 - The **Tasks** tab in the dock lists the tasks one row each: the default tasks first, then the rest, each in file order. The URL of a task that runs something sits at the end of its row. A row's mark says how its task is: a quiet dot while stopped (it turns into what the row does where one points at it), then starting, running (a gold play mark where it listens on ports and is ready to look at, the turning arrows of something under way, in gold, where it has none and simply works), ended (with its status), so that what runs stands out. Running a task starts what it needs, then its command, and opens its URL once that answers. A task with only a URL that needs nothing just opens it. A URL's icon is gold while what it needs runs: it opens at once.
 - Pointing at a task highlights the tasks it needs, and what those need in turn, as the sidebar does with a workspace's parent. Selecting a task's row runs it, also again once it ended (one that runs is reused). At rest a row is its mark, its name and its only link; pointing at it (or focusing it) adds its terminal, running or from the last run, and a stop button while it runs, taking no room until then. A middle click on a task goes to its terminal: one that has not run yet starts first. Its ports show when you point at the row.
