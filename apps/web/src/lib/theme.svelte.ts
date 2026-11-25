@@ -1,31 +1,61 @@
-/**
- * Light or dark, or whatever the system says. Kept in this browser (`theme` in
- * localStorage; nothing stored means "system") and applied as the `dark` class on <html>,
- * which `app.html` also does before first paint.
- */
+/** The palette and color mode belong to this browser. app.html applies both before first paint. */
 export type Theme = 'system' | 'light' | 'dark';
+
+export const palettes = ['Geordi', 'Graphite', 'Slate', 'Parchment', 'Forest', 'Plum'] as const;
+export type Palette = (typeof palettes)[number];
 
 const system = () => matchMedia('(prefers-color-scheme: dark)');
 
-function stored(): Theme {
+function stored(key: string) {
+	if (typeof window === 'undefined') return null;
 	try {
-		const saved = localStorage.getItem('theme');
-		return saved === 'light' || saved === 'dark' ? saved : 'system';
+		return localStorage.getItem(key);
 	} catch {
-		return 'system'; // storage unavailable (private mode)
+		return null;
 	}
 }
 
-let current = $state<Theme>(typeof document === 'undefined' ? 'system' : stored());
+function savedMode(): Theme {
+	const value = stored('theme');
+	return value === 'light' || value === 'dark' ? value : 'system';
+}
 
-const apply = () =>
+function savedPalette(): Palette {
+	const value = stored('palette');
+	return palettes.find((palette) => palette === value) ?? 'Geordi';
+}
+
+let current = $state<Theme>(savedMode());
+let palette = $state<Palette>(savedPalette());
+
+function apply() {
 	document.documentElement.classList.toggle(
 		'dark',
 		current === 'system' ? system().matches : current === 'dark'
 	);
+	document.documentElement.dataset.palette = palette;
+}
 
-// follow the system while that is what was asked for
-if (typeof document !== 'undefined') system().addEventListener('change', apply);
+if (typeof document !== 'undefined') {
+	system().addEventListener('change', apply);
+	window.addEventListener('storage', (event) => {
+		if (event.key === null || event.key === 'theme' || event.key === 'palette') {
+			current = savedMode();
+			palette = savedPalette();
+			apply();
+		}
+	});
+}
+
+function save(key: string, value: string | null) {
+	try {
+		if (value === null) localStorage.removeItem(key);
+		else localStorage.setItem(key, value);
+	} catch {
+		// Storage unavailable: the choice lasts for this page only.
+	}
+	switchTo();
+}
 
 /** Applies the theme, cross-fading to it (the View Transition's default) unless motion is unwelcome. */
 function switchTo() {
@@ -40,12 +70,13 @@ export const theme = {
 	},
 	set current(next: Theme) {
 		current = next;
-		switchTo();
-		try {
-			if (next === 'system') localStorage.removeItem('theme');
-			else localStorage.setItem('theme', next);
-		} catch {
-			// storage unavailable: the choice lasts for this page only
-		}
+		save('theme', next === 'system' ? null : next);
+	},
+	get palette() {
+		return palette;
+	},
+	set palette(next: Palette) {
+		palette = next;
+		save('palette', next === 'Geordi' ? null : next);
 	}
 };

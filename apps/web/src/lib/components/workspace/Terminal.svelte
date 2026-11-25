@@ -121,7 +121,7 @@
 			resized.observe(node);
 
 			const themed = new MutationObserver(() => (term.options.theme = theme(node)));
-			themed.observe(document.documentElement, { attributeFilter: ['class'] });
+			themed.observe(document.documentElement, { attributeFilter: ['class', 'data-palette'] });
 
 			dispose = () => {
 				unfollow();

@@ -140,21 +140,27 @@
 		</main>
 
 		<!-- beside it: a list of rows, one pointed at -->
-		<aside class="flex w-64 shrink-0 flex-col sheet-quiet">
-			<div class="pane-bar px-2">
-				<span class="item h-7 tab-active px-2">Run</span>
-			</div>
-			<div class="space-y-px px-2">
-				{#each [['icon-[lucide--play]', 'Web server', ''], ['icon-[lucide--play]', 'Agent daemon', 'bg-hover'], ['icon-[lucide--link]', 'Geordi', ''], ['icon-[lucide--play]', 'Storybook', '']] as [icon, label, state] (label)}
-					<div class={['item h-8 gap-1 pr-1 pl-0.5 text-ink', state]}>
-						<span class="grid size-6 shrink-0 place-items-center text-muted">
-							<span class={[icon, 'size-3.5']}></span>
-						</span>
-						{label}
-					</div>
-				{/each}
-			</div>
-		</aside>
+		<div class="flex w-64 shrink-0 flex-col gap-2">
+			<aside class="flex-1 sheet-quiet p-2">
+				<span class="item inline-flex h-7 tab-active px-2">Changes</span>
+				<p class="mt-2 item px-2 py-1 text-ink">layout.css</p>
+			</aside>
+			<aside class="flex-1 sheet-quiet">
+				<div class="pane-bar px-2">
+					<span class="item h-7 tab-active px-2">Run</span>
+				</div>
+				<div class="space-y-px px-2">
+					{#each [['icon-[lucide--play]', 'Web server', ''], ['icon-[lucide--play]', 'Agent daemon', 'bg-hover'], ['icon-[lucide--link]', 'Geordi', ''], ['icon-[lucide--play]', 'Storybook', '']] as [icon, label, state] (label)}
+						<div class={['item h-8 gap-1 pr-1 pl-0.5 text-ink', state]}>
+							<span class="grid size-6 shrink-0 place-items-center text-muted">
+								<span class={[icon, 'size-3.5']}></span>
+							</span>
+							{label}
+						</div>
+					{/each}
+				</div>
+			</aside>
+		</div>
 	</div>
 </Story>
 
