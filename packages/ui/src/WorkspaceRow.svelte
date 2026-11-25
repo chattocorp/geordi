@@ -66,13 +66,13 @@
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
-	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = {
-		'merge-pull': 'tone-ok',
+	const pillColors: Partial<Record<WorkspaceAction['id'], string>> = $derived({
+		'merge-pull': standing?.tone === 'ok' ? 'tone-ok' : 'bg-sunken text-muted',
 		'resolve-conflicts': 'tone-danger',
 		'fix-checks': 'tone-danger',
 		'address-review': 'tone-danger',
 		archive: 'tone-merged'
-	};
+	});
 
 	const primary = $derived(actions.find((action) => !action.aside));
 	const pillColor = $derived(standing && primary && onaction && pillColors[primary.id]);
