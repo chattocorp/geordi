@@ -332,6 +332,23 @@ describe('workspaces', () => {
 		expect((sent.at(-1) as typeof turn).prompt).toBe('And another');
 	});
 
+	it('tells Claude that Geordi started it only once that was chosen, and after a restart', () => {
+		const { workspaces, sent, create, store, repos, dispatch } = setup();
+		create('Off by default');
+		expect(sent.at(-1)).not.toHaveProperty('identify');
+
+		workspaces.preferences.set({ identifyClaude: true });
+		create('Now on');
+		expect(sent.at(-1)).toMatchObject({ agent: 'claude', identify: true });
+		create('Not Claude', 'codex');
+		expect(sent.at(-1)).not.toHaveProperty('identify');
+
+		const replayed = createWorkspaces(store, repos, dispatch);
+		expect(replayed.preferences.get()).toEqual({ identifyClaude: true });
+		replayed.preferences.set({ identifyClaude: false });
+		expect(replayed.preferences.get()).toEqual({ identifyClaude: false });
+	});
+
 	it('runs the next turn with the model and effort chosen since', () => {
 		const { workspaces, sent, create, store } = setup();
 		const id = create('Fix the bug');

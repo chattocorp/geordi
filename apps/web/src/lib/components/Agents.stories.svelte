@@ -37,6 +37,7 @@
 
 <script lang="ts">
 	let defaultChoice = $state<HarnessChoice>({ agent: 'opencode', settings: {} });
+	let identifyClaude = $state(false);
 	let choice = $state<HarnessChoice>({
 		agent: 'claude',
 		settings: { claude: { model: 'opus', effort: 'high', permissionMode: 'auto' } }
@@ -85,6 +86,15 @@
 
 <Story name="Provider status" asChild>
 	<Providers harnesses={[harnesses[0]]} active={['claude']} />
+</Story>
+
+<Story name="Identify Geordi to Claude Code" asChild>
+	<Providers
+		harnesses={[harnesses[0]]}
+		active={[]}
+		{identifyClaude}
+		onidentify={(on) => (identifyClaude = on)}
+	/>
 </Story>
 
 <Story name="Daemon offline" asChild>

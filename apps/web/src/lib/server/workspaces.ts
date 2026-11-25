@@ -3,6 +3,7 @@ import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
 import { isInactive } from '#lib/family.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
+import { createPreferences } from './preferences.ts';
 import { createImages } from './images.ts';
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { error } from '@sveltejs/kit';
@@ -115,6 +116,7 @@ export function createWorkspaces(
 	} = {}
 ) {
 	const access = createAgentAccess(store, repos.get);
+	const preferences = createPreferences(store);
 	const imageStore = createImages(store);
 	const projection = createWorkspaceProjection(store);
 	const { transcriptOf } = projection;
@@ -395,6 +397,7 @@ export function createWorkspaces(
 			settings: workspace.settings,
 			apiToken: tokenFor(workspace),
 			resumeId: workspace.resumeId,
+			...(workspace.agent === 'claude' && preferences.get().identifyClaude && { identify: true }),
 			instructions: instructionsFor({
 				parent: (workspace.parentId && projection.get().get(workspace.parentId)) || null,
 				project: workspace.repoId === null,
@@ -1135,6 +1138,7 @@ export function createWorkspaces(
 
 	return {
 		access,
+		preferences,
 		agents,
 		parentOf: (id: string) => projection.get().get(id)?.parentId,
 		forwardedQuestions: (id: string) =>

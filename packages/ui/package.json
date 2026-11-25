@@ -17,6 +17,7 @@
 		"./DiffView.svelte": "./src/DiffView.svelte",
 		"./Disclosure.svelte": "./src/Disclosure.svelte",
 		"./FittedPath.svelte": "./src/FittedPath.svelte",
+		"./IncomingMessage.svelte": "./src/IncomingMessage.svelte",
 		"./JobMark.svelte": "./src/JobMark.svelte",
 		"./Loading.svelte": "./src/Loading.svelte",
 		"./Keys.svelte": "./src/Keys.svelte",

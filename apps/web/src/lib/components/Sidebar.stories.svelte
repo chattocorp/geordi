@@ -149,6 +149,7 @@
 			)
 		],
 		access: [],
+		preferences: { identifyClaude: false },
 		activeAgents: [],
 		harnesses: null
 	};

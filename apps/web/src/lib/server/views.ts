@@ -102,6 +102,7 @@ export const navigation = () =>
 					}),
 				workspaces: listed,
 				access: workspaces().access.list(),
+				preferences: workspaces().preferences.get(),
 				/**
 				 * What each agent can be asked to run: its models and their effort levels, as the
 				 * connected daemon reports them. `null` while no daemon is connected.
@@ -154,7 +155,7 @@ export const workspace = (id: string) => {
 					event.data.workspaces.some((gone) => gone.id === id || transcripts.has(gone.id)) ||
 					event.data.worktrees.some((worktree) => worktree.id === owner)
 				);
-			if (!event.stream.startsWith('workspace:')) return false;
+			if (!event.stream.startsWith('workspace:') || !('id' in event.data)) return false;
 			const source = event.data.id;
 			if (source === id || transcripts.has(source)) return true;
 			if (

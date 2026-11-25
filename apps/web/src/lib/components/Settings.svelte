@@ -24,6 +24,7 @@
 	import RepositoryRow from './RepositoryRow.svelte';
 	import { checkRepoForge, removeRepo } from '../../routes/repos.remote';
 	import { issueAccess, revokeAccess } from '../../routes/access.remote';
+	import { setPreferences } from '../../routes/preferences.remote';
 	import { getRibbonPosition, sections, settingsPath, type Section } from './settings.svelte.ts';
 
 	let { section }: { section: Section } = $props();
@@ -246,7 +247,11 @@
 					<Providers
 						harnesses={nav.connected ? nav.current?.harnesses : undefined}
 						active={nav.current?.activeAgents ?? []}
+						identifyClaude={nav.current?.preferences.identifyClaude}
+						onidentify={(on) =>
+							attempt(() => setPreferences({ identifyClaude: on }), 'Could not change it')}
 					/>
+					{#if problem}<Notice>{problem}</Notice>{/if}
 				{:else if section === 'access'}
 					<AgentAccess
 						{repos}

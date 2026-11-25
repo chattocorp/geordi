@@ -881,6 +881,11 @@ export type ForgeMessage =
 			apiToken: string;
 			/** The CLI's own ID of the conversation so far; `null` if this is its beginning. */
 			resumeId: string | null;
+			/**
+			 * Claude only: tell Claude Code that Geordi started it (`CLAUDE_CODE_ENTRYPOINT`),
+			 * instead of the Agent SDK's `sdk-ts`. Experimental; a choice in Settings.
+			 */
+			identify?: boolean;
 			/** What the agent is told on top of its CLI's own system prompt: that it works in Geordi, and how. */
 			instructions?: string;
 			prompt: string;
