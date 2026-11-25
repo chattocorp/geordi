@@ -442,7 +442,7 @@
 			Each repository keeps its own space below it, rather than space between them: what
 			slides away takes its space along, and nothing is left to jump when it is gone.
 		-->
-		<div class="scroller scroll-fade" {@attach watchScrollEdges}>
+		<div class="scroller -mx-2 scroll-fade px-2" {@attach watchScrollEdges}>
 			<div aria-hidden="true"></div>
 			{#if nav && !grouped.current}
 				{@const rows = unfolded(oneList, folded.current)}
@@ -461,7 +461,7 @@
 					<p class="px-2 py-1 text-sm text-muted">All workspaces are inactive.</p>
 				{/if}
 			{:else if nav}
-				{#each groups as repo (repo.id ?? PROJECTS)}
+				{#each groups as repo, index (repo.id ?? PROJECTS)}
 					{@const all = listed.get(repo.id) ?? []}
 					{@const rows = unfolded(all, folded.current)}
 					{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
@@ -472,7 +472,7 @@
 						role="group"
 						aria-label={repo.name}
 						class={[
-							'pb-row-group',
+							'relative pb-row-group',
 							repo.id !== null && draggedRepo === repo.id && 'opacity-60',
 							repo.id !== null && repoDropBefore === repo.id && 'row-drop-before',
 							last && repoDropBefore === null && 'row-drop-after'
@@ -557,6 +557,9 @@
 									{@render row(workspace, parent, depth, under, rows, index)}
 								{/each}
 							</ul>
+						{/if}
+						{#if index < groups.length - 1}
+							<span aria-hidden="true" class="group-separator bottom-2"></span>
 						{/if}
 					</div>
 				{/each}

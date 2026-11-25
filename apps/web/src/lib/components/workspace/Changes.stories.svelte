@@ -345,6 +345,10 @@
 	play={async ({ canvas, userEvent }) => {
 		const forge = canvas.getByRole('button', { name: /Forge/ });
 		const other = canvas.getByRole('button', { name: /Other/ });
+		await expect(getComputedStyle(forge.closest('li')!, '::before').content).toBe('none');
+		await expect(getComputedStyle(other.closest('li')!, '::before').width).toBe(
+			`${other.closest('.scroller')!.clientWidth}px`
+		);
 		await expect(other.closest('li')).toHaveStyle({ marginBlockStart: '16px' });
 		await expect(canvas.getByRole('button', { name: /\+page\.svelte/ })).toBeVisible();
 		await userEvent.click(forge);

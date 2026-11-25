@@ -562,6 +562,15 @@
 	@apply inline-flex items-center gap-1.5 rounded-control text-muted hover:text-ink;
 }
 
+/* A full-width rule in the gap between groups of rows in a sheet. */
+@utility group-separator {
+	@apply pointer-events-none absolute -inset-x-2 h-px;
+	background-color: light-dark(
+		color-mix(in srgb, var(--ink) 10%, transparent),
+		color-mix(in srgb, var(--line) 25%, transparent)
+	);
+}
+
 /* Mark the first and last rows of a group, or both edges on a wrapped group. */
 @utility grouped-rows {
 	& > * + * {
@@ -569,18 +578,10 @@
 	}
 	& > * + [data-group-start],
 	& > [data-group-end] + * {
-		@apply mt-row-group;
-	}
-	&.grouped-rows-ruled > * + [data-group-start],
-	&.grouped-rows-ruled > [data-group-end] + * {
-		position: relative;
+		@apply relative mt-row-group;
 		&::before {
 			content: '';
-			@apply pointer-events-none absolute -inset-x-2 h-px;
-			background-color: light-dark(
-				color-mix(in srgb, var(--ink) 10%, transparent),
-				color-mix(in srgb, var(--line) 25%, transparent)
-			);
+			@apply group-separator;
 			inset-block-start: calc(var(--spacing-row-group) / -2);
 		}
 	}
