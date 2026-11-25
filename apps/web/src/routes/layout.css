@@ -576,7 +576,7 @@
 		position: relative;
 		&::before {
 			content: '';
-			@apply pointer-events-none absolute inset-x-2 h-px bg-line;
+			@apply pointer-events-none absolute -inset-x-2 h-px bg-line/50;
 			inset-block-start: calc(var(--spacing-row-group) / -2);
 		}
 	}

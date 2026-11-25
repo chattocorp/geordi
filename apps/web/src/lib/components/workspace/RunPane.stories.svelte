@@ -311,6 +311,8 @@
 			'1px',
 			'1px'
 		]);
+		const pane = finales.closest('.scroller')!;
+		await expect(getComputedStyle(entries[1], '::before').width).toBe(`${pane.clientWidth}px`);
 		const heading = within(finales);
 		const header = finales.parentElement!;
 		const expandedColor = getComputedStyle(heading.getByText('Finales')).color;
