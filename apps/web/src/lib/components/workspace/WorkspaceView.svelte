@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
-	import { archiveAndNavigate } from './afar.svelte.ts';
+	import { appProblems, archiveAndNavigate } from './afar.svelte.ts';
 	import { goto, invalidateAll, pushState, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
@@ -13,7 +13,7 @@
 		type WorkspaceStanding
 	} from '@geordi/ui/actions';
 	import { hint, pressed } from '@geordi/ui/keys';
-	import { launchApp } from '../../../routes/open-in.remote';
+	import { appFocus, openInApp } from './open-in.svelte.ts';
 	import { OPEN_IN_TERMINAL, type OpenInApp } from '#lib/open-in.ts';
 	import OpenInButton from './OpenInButton.svelte';
 	import WorkspaceHeading from './WorkspaceHeading.svelte';
@@ -528,7 +528,9 @@
 	}
 
 	const openIn = $derived(everything.current?.openIn);
-	let requestedApp = $state<string>();
+	const requestedApp = $derived(
+		appFocus.requested?.workspaceId === id ? appFocus.requested.terminal : undefined
+	);
 	async function launch(app: OpenInApp) {
 		if (!openIn) return;
 		const current = openIn.apps.find((entry) => entry.id === app.id);
@@ -538,8 +540,7 @@
 		}
 		mergeProblem = null;
 		try {
-			requestedApp = undefined;
-			requestedApp = await launchApp({ workspaceId: id, appId: app.id, revision: openIn.revision });
+			await openInApp(id, app.id, openIn.revision);
 		} catch (error) {
 			mergeProblem = problemOf(error, 'Could not open workspace');
 		}
@@ -552,7 +553,7 @@
 		const terminal = appToFocus;
 		if (!terminal) return;
 		const timer = setTimeout(() => {
-			requestedApp = undefined;
+			appFocus.requested = undefined;
 			showShell('terminal:' + terminal);
 		}, 180);
 		return () => clearTimeout(timer);
@@ -1308,7 +1309,17 @@
 			picture={(path) =>
 				`${resolve('/workspaces/[id]/picture', { id })}?file&v=${git?.version ?? 0}&path=${encodeURIComponent(path)}`}
 			target={!pull && workspace.repoId ? compareWith : undefined}
+			appLauncher={terminalsOpen && !git?.missing && openIn?.apps.some((app) => app.enabled)
+				? appLauncher
+				: undefined}
 		/>
+		{#snippet appLauncher()}
+			<OpenInButton
+				apps={openIn?.apps ?? []}
+				onlaunch={launch}
+				onconfigure={() => openSettings('open-in')}
+			/>
+		{/snippet}
 		<!-- a pull request's target is chosen where the pull request is: then it is just a name -->
 		{#snippet compareWith(name: string)}
 			<BranchPicker
@@ -1447,13 +1458,6 @@
 			</div>
 		</div>
 		{#snippet actions()}
-			{#if workspace.worktree && !project && !workspace.archivedAt && !git?.missing && openIn}
-				<OpenInButton
-					apps={openIn.apps}
-					onlaunch={launch}
-					onconfigure={() => openSettings('open-in')}
-				/>
-			{/if}
 			<WorkspaceActions
 				{standing}
 				pull={standingState?.upstream?.pull}
@@ -1500,14 +1504,17 @@
 		</div>
 	{/if}
 
-	{#if mergeProblem || reviewProblems[id]}
+	{#if mergeProblem || appProblems[id] || reviewProblems[id]}
 		<div class="flex items-center gap-3 px-5 py-2.5">
-			<div class="min-w-0 flex-1"><Notice>{mergeProblem ?? reviewProblems[id]}</Notice></div>
+			<div class="min-w-0 flex-1">
+				<Notice>{mergeProblem ?? appProblems[id] ?? reviewProblems[id]}</Notice>
+			</div>
 			<Button
 				variant="ghost"
 				onclick={() => {
 					mergeProblem = null;
 					delete reviewProblems[id];
+					delete appProblems[id];
 				}}
 			>
 				Dismiss

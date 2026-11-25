@@ -75,6 +75,8 @@ export const navigation = () =>
 						(action) => !working || !PUBLISHING.includes(action.id)
 					),
 					branch: worktree?.branch ?? null,
+					...(worktree &&
+						standings().state(workspace.worktreeId)?.missing && { worktreeMissing: true }),
 					// so that agent output that names it can link to this workspace (`workspace-links.ts`)
 					pull: known.upstream?.pull
 						? { number: known.upstream.pull.number, url: known.upstream.pull.url }

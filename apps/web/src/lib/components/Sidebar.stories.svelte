@@ -552,3 +552,29 @@
 	{@render frame(nav, '/workspaces/ready')}
 	<ContextMenu />
 </Story>
+
+<Story
+	name="Open in the default app"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.contextMenu(canvas.getByText('Raise light mode text contrast'));
+		await expect(await canvas.findByRole('menuitem', { name: 'Open in Zed' })).toBeVisible();
+		await expect(canvas.queryByRole('menuitem', { name: 'Open in Finder' })).toBeNull();
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			openIn: {
+				revision: 1,
+				apps: [
+					{ id: 'finder', name: 'Finder', command: 'open .', enabled: false },
+					{ id: 'zed', name: 'Zed', command: 'zed .', enabled: true }
+				]
+			}
+		},
+		'/workspaces/working'
+	)}
+	<ContextMenu />
+</Story>

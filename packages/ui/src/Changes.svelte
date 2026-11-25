@@ -31,6 +31,7 @@
 		 * looking like the name does (a button padded as a tool is, its sign first).
 		 */
 		target?: Snippet<[string]>;
+		appLauncher?: Snippet;
 		/** The repository's sections (from its `.geordi.yml`): the files are grouped by them. */
 		sections?: RepoSection[];
 		/** Where a picture in the worktree is shown from (a section's icon), by its path. */
@@ -48,6 +49,7 @@
 		onopencombined,
 		view = $bindable('list'),
 		target,
+		appLauncher,
 		sections = [],
 		picture,
 		folds = $bindable({ sections: [], dirs: [] })
@@ -157,8 +159,8 @@
 	}
 </script>
 
-<section class="flex min-h-0 flex-1 flex-col text-sm" aria-label="Changes">
-	{#if listed}
+<section class="@container/changes flex min-h-0 flex-1 flex-col text-sm" aria-label="Changes">
+	{#if listed || appLauncher}
 		<!-- the branch's sign lines up with the files' letters below (the button pads it) -->
 		<div class="flex shrink-0 items-center gap-2 pt-1.5 pr-2 pl-2">
 			<div class="flex min-w-0 flex-1">
@@ -177,17 +179,20 @@
 					{/if}
 				{/if}
 			</div>
-			<div class="tools">
-				{#if onopencombined}
-					<Button
-						variant="ghost"
-						icon="icon-[lucide--files]"
-						label="Open combined diff"
-						onclick={onopencombined}
-					/>
-				{/if}
-				<Segmented label="Show the changes" icons bind:value={view} options={views} />
-			</div>
+			{@render appLauncher?.()}
+			{#if listed}
+				<div class="tools">
+					{#if onopencombined}
+						<Button
+							variant="ghost"
+							icon="icon-[lucide--files]"
+							label="Open combined diff"
+							onclick={onopencombined}
+						/>
+					{/if}
+					<Segmented label="Show the changes" icons bind:value={view} options={views} />
+				</div>
+			{/if}
 		</div>
 	{/if}
 	<div class="scroller py-1.5">

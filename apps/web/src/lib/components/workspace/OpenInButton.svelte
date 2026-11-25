@@ -26,7 +26,9 @@
 			label={'Open in ' + enabled[0].name}
 			onclick={() => onlaunch(enabled[0])}
 		>
-			<span class="hidden max-w-36 truncate @lg/titlebar:block">Open in {enabled[0].name}</span>
+			<span class="sr-only max-w-28 truncate @xs/changes:not-sr-only">
+				Open in {enabled[0].name}
+			</span>
 		</Button>
 		<Button
 			size="sm"

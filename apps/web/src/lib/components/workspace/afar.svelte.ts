@@ -3,6 +3,7 @@ import { resolve } from '$app/paths';
 import { navigating, page } from '$app/state';
 import type { WorkspaceAction } from '@geordi/ui/actions';
 import { problemOf } from '#lib/problem.ts';
+import { openInApp } from './open-in.svelte.ts';
 import { archive, archiveProblems } from './archive.svelte.ts';
 import { reviewProblems, runPullAction } from './review.svelte.ts';
 import {
@@ -20,6 +21,18 @@ import {
 type Target = { id: string; title: string; parentId: string | null };
 
 const open = (id: string) => goto(resolve('/workspaces/[id]', { id }));
+
+export const appProblems = $state<Record<string, string | undefined>>({});
+
+export async function openAppFromAfar(workspaceId: string, appId: string, revision: number) {
+	delete appProblems[workspaceId];
+	try {
+		await openInApp(workspaceId, appId, revision);
+	} catch (error) {
+		appProblems[workspaceId] = problemOf(error, 'Could not open workspace');
+		await open(workspaceId);
+	}
+}
 
 /** Archives a workspace, wherever we are. */
 export async function archiveAndNavigate(workspace: Target) {

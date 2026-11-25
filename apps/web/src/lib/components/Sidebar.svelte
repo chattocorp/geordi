@@ -11,6 +11,7 @@
 	import SidebarWorkspaceRow from './SidebarWorkspaceRow.svelte';
 	import {
 		actFromAfar,
+		openAppFromAfar,
 		archiveAndNavigate,
 		continueFromAfar,
 		setInactive
@@ -161,6 +162,8 @@
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
 		const project = workspace.repoId === null;
+		const settings = nav?.openIn;
+		const app = settings?.apps.find((entry) => entry.enabled);
 		// archiving takes the workspaces its agent started along: none of them may be working
 		const busy = working(workspace);
 		// the menu has these already, below
@@ -179,6 +182,15 @@
 				icon: 'icon-[lucide--external-link]',
 				onselect: () => window.open(href, '_blank', 'noopener')
 			},
+			...(settings && app && !project && workspace.branch && !workspace.worktreeMissing
+				? [
+						{
+							label: 'Open in ' + app.name,
+							icon: 'icon-[lucide--app-window]',
+							onselect: () => openAppFromAfar(workspace.id, app.id, settings.revision)
+						}
+					]
+				: []),
 			{
 				label: 'Rename workspace',
 				icon: 'icon-[lucide--pencil]',
