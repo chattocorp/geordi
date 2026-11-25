@@ -1,11 +1,32 @@
-import type { WorktreeRef } from '@geordi/protocol';
+import type { DaemonRequest, WorktreeRef } from '@geordi/protocol';
 import { randomUUID } from 'node:crypto';
 import { git } from './git.ts';
-import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { uncommittedFiles } from './changes.ts';
-import { describe, verifyLinks, type Worktree } from './worktree.ts';
+import { branchOf, describe, verifyLinks, worktreePath, type Worktree } from './worktree.ts';
+
+/** Inspect directory entries without following a worktree's agent-writable Git links. */
+function entryExists(path: string) {
+	try {
+		lstatSync(path);
+		return true;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+		throw error;
+	}
+}
+
+/** Registered checkouts have a .git directory or a linked-worktree .git file. */
+export const hasCheckout = (repoPath: string) => entryExists(join(repoPath, '.git'));
+
+/** A worktree parent must still be a directory inside the daemon's worktrees. */
+function checkParent(path: string) {
+	const parent = lstatSync(dirname(path), { throwIfNoEntry: false });
+	if (parent && !parent.isDirectory())
+		throw new Error(`Invalid worktree directory: ${dirname(path)}`);
+}
 
 /**
  * Gets a directory out of the way at once, and deletes it in its own time. A worktree with
@@ -14,6 +35,7 @@ import { describe, verifyLinks, type Worktree } from './worktree.ts';
  * did it in one go would do nothing else (follow no agent, relay no terminal).
  */
 function discard(baseDir: string, path: string) {
+	checkParent(path);
 	const trash = join(baseDir, '.trash');
 	mkdirSync(trash, { recursive: true });
 	const doomed = join(trash, `${basename(path)}-${randomUUID()}`);
@@ -29,7 +51,7 @@ export const emptyTrash = (baseDir: string) =>
  * The workspace's worktree, if it is there and may be removed: it has no uncommitted or
  * untracked files, or `force` says to discard them. Throws if it may not.
  */
-export async function removable(
+async function removable(
 	baseDir: string,
 	ref: WorktreeRef,
 	force: boolean
@@ -58,10 +80,49 @@ export async function removeWorktree(
 	baseDir: string,
 	ref: WorktreeRef,
 	force: boolean,
-	beforeDiscard = () => {}
+	signal?: AbortSignal
 ) {
 	const worktree = await removable(baseDir, ref, force);
-	beforeDiscard();
+	signal?.throwIfAborted();
+	if (!hasCheckout(ref.repoPath))
+		throw new Error('The checkout disappeared. Review the archive again.');
 	if (worktree) discard(baseDir, worktree.path);
 	await git(ref.repoPath, ['worktree', 'prune']);
+}
+
+/** Archive one worktree, including leftover folders from a removed checkout. */
+export async function archiveWorktree(
+	baseDir: string,
+	request: Extract<DaemonRequest, { kind: 'removeWorktree' }>,
+	tearDown: (tree: Worktree, ref: WorktreeRef) => Promise<void>,
+	stopSessions: (path: string) => Promise<void>,
+	signal?: AbortSignal
+) {
+	signal?.throwIfAborted();
+	const path = worktreePath(baseDir, request);
+	if (request.removingRepository) {
+		checkParent(path);
+		if (!hasCheckout(request.repoPath)) {
+			await stopSessions(path);
+			signal?.throwIfAborted();
+			if (entryExists(path)) discard(baseDir, path);
+			return null;
+		}
+	} else if (!hasCheckout(request.repoPath)) {
+		throw new Error('The checkout is missing. Remove the repository in Settings → Repositories.');
+	}
+	const tree = await removable(baseDir, request, request.force);
+	signal?.throwIfAborted();
+	if (tree && request.teardown) await tearDown(tree, request);
+	signal?.throwIfAborted();
+	let branch: string | null = null;
+	try {
+		if (tree) branch = branchOf(tree);
+	} catch {
+		// Forced removal can encounter an unreadable HEAD. Keep the forge's last known branch.
+	}
+	await stopSessions(path);
+	signal?.throwIfAborted();
+	await removeWorktree(baseDir, request, request.force, signal);
+	return branch;
 }

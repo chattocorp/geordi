@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Button from '@geordi/ui/Button.svelte';
 	import Dialog from '#lib/ui/Dialog.svelte';
 	import Page from '#lib/ui/Page.svelte';
@@ -209,10 +210,15 @@
 	<div class="flex flex-col gap-4 p-6">
 		<p class="heading wrap-anywhere">Restore “{restoring?.title}”?</p>
 		<p class="text-sm">
-			It returns to the sidebar{restoring?.repoId !== null
+			Restoring returns it to the sidebar{restoring?.repoId !== null
 				? ', with its worktree checked out again from its branch'
 				: ''}.
 		</p>
+		{#if restoring}
+			<a class="quiet-action self-start" href={resolve('/workspaces/[id]', { id: restoring.id })}>
+				Read conversation
+			</a>
+		{/if}
 		{#if problem}<p class="text-sm text-danger" role="alert">{problem}</p>{/if}
 		<div class="dialog-actions">
 			<Button variant="soft" disabled={busy} onclick={() => (restoring = null)}>Cancel</Button>

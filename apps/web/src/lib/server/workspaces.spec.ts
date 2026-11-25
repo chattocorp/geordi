@@ -1902,6 +1902,37 @@ describe('agents talking to the agents they started', () => {
 		}
 	);
 
+	it.each([false, true])(
+		'resumes a completed turn after archive failure (parent waiting=%s)',
+		async (waiting) => {
+			const { workspaces, lead, child, said } = family();
+			const result = waiting && workspaces.agents.wait(lead, child, 5000);
+			workspaces.send(child, 'My follow-up');
+			const release = workspaces.hold([lead, child], 'being removed', [lead, child]);
+			workspaces.record(child, { kind: 'text', text: 'Build result' });
+			workspaces.record(child, { kind: 'turn.completed' });
+			expect(workspaces.get(child).queue).toEqual(['My follow-up']);
+			const notices = () =>
+				workspaces
+					.get(lead)
+					.transcript.flatMap((item) =>
+						item.kind === 'user' && item.from === child ? [item.text] : []
+					);
+			expect(notices()).toEqual([]);
+			release();
+			if (result) expect(await result).toMatchObject({ reply: 'Build result' });
+			const retry = workspaces.hold([child], 'being removed', [child]);
+			retry();
+			expect(notices()).toEqual(
+				waiting ? [] : [`Your agent “Build” (${child}) finished its turn.\n\nBuild result`]
+			);
+			expect(said()).toEqual([
+				['Build', lead],
+				['My follow-up', undefined]
+			]);
+		}
+	);
+
 	it('tells a working agent at once what a message that interrupts says', () => {
 		const { workspaces, lead, child, said, sent } = family();
 		workspaces.agents.send(lead, child, 'Stop: wrong directory');

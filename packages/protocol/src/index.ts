@@ -17,7 +17,7 @@ import type { Sound } from './sounds.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 40;
+export const PROTOCOL_VERSION = 43;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
@@ -521,7 +521,13 @@ export type DaemonRequest =
 	 * teardown script first, if a person agreed to it: give this `REMOVE_TIMEOUT_MS`. Only
 	 * for a person archiving: unasked, it would run what an agent wrote in the worktree.
 	 */
-	| ({ kind: 'removeWorktree'; force: boolean; teardown: boolean } & WorktreeRef)
+	| ({
+			kind: 'removeWorktree';
+			force: boolean;
+			teardown: boolean;
+			/** Delete remaining workspace files even when the registered checkout is gone. */
+			removingRepository?: boolean;
+	  } & WorktreeRef)
 	/**
 	 * Ends the agents working in a project's folder (FDR-012), which is archived. The folder
 	 * stays, with whatever they left there: restored, the project finds it again.
@@ -892,6 +898,7 @@ export type ForgeMessage =
 	/** Answers a `question` the agent asked: one answer per question, in their order. */
 	| { type: 'agent.answer'; workspaceId: string; questionId: string; answers: string[] }
 	| { type: 'request'; id: string; request: DaemonRequest }
+	| { type: 'cancelRemoval'; id: string }
 	/**
 	 * The worktrees someone is looking at right now (`open`), or all others in use
 	 * (`background`), all of them: the daemon watches their files and reports changes, and

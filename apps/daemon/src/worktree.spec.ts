@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { NO_WORKTREE } from '@geordi/protocol';
 import {
+	chmodSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
@@ -14,10 +15,10 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
 import { startTurnDiff } from './turn-diff.ts';
-import { removeWorktree } from './remove.ts';
+import { archiveWorktree, hasCheckout, removeWorktree } from './remove.ts';
 import {
 	branchesOf,
 	branchOf,
@@ -1046,4 +1047,73 @@ it('captures net changes across a commit without staging files or including earl
 		rmSync(base, { recursive: true, force: true });
 		rmSync(repoPath, { recursive: true, force: true });
 	}
+});
+
+describe('removing a repository', () => {
+	it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+		'reports an unreadable parent as a permission error',
+		() => {
+			const parent = mkdtempSync(join(tmpdir(), 'geordi-private-'));
+			chmodSync(parent, 0);
+			try {
+				expect(() => hasCheckout(join(parent, 'checkout'))).toThrow(/EACCES/);
+			} finally {
+				chmodSync(parent, 0o700);
+				rmSync(parent, { recursive: true });
+			}
+		}
+	);
+
+	it.each([true, false])(
+		'removes dirty worktrees and keeps other folders (checkout present: %s)',
+		async (present) => {
+			const repoPath = repo();
+			const base = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-remove-')));
+			const request = {
+				kind: 'removeWorktree',
+				repoPath,
+				worktreeId: 'abcdefgh-test',
+				force: true,
+				teardown: true,
+				removingRepository: true
+			} as const;
+			try {
+				const { path, branch } = await ensureWorktree(base, request);
+				const { path: other } = await ensureWorktree(base, { ...request, worktreeId: 'other-id' });
+				writeFileSync(join(path, 'draft'), 'unfinished');
+				if (!present) rmSync(repoPath, { recursive: true });
+				const teardown = vi.fn();
+				const ending = Promise.withResolvers<void>();
+				const stopping = Promise.withResolvers<void>();
+				const stop = vi.fn(async () => {
+					stopping.resolve();
+					await ending.promise;
+				});
+				const connection = new AbortController();
+				const archiving = archiveWorktree(base, request, teardown, stop, connection.signal);
+				await stopping.promise;
+				expect(existsSync(path)).toBe(true);
+				connection.abort();
+				ending.resolve();
+				await expect(archiving).rejects.toThrow(/abort/i);
+				expect(readFileSync(join(path, 'draft'), 'utf8')).toBe('unfinished');
+				await archiveWorktree(base, request, teardown, stop);
+				expect(existsSync(path)).toBe(false);
+				// A retry after a lost success response also succeeds.
+				await archiveWorktree(base, request, teardown, stop);
+				expect(existsSync(other)).toBe(true);
+				expect(stop).toHaveBeenCalledWith(path);
+				expect(teardown).toHaveBeenCalledTimes(present ? 2 : 0);
+				if (present) {
+					execFileSync('git', ['-C', repoPath, 'rev-parse', '--verify', branch]);
+					expect(
+						execFileSync('git', ['-C', repoPath, 'worktree', 'list'], { encoding: 'utf8' })
+					).not.toContain(path);
+				}
+			} finally {
+				rmSync(base, { recursive: true, force: true });
+				rmSync(repoPath, { recursive: true, force: true });
+			}
+		}
+	);
 });

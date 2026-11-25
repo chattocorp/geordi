@@ -7,12 +7,15 @@
 		id: 'widgets',
 		name: 'widgets',
 		path: '/Users/ada/src/widgets',
-		workspaceCount: 2
+		workspaceCount: 1
 	};
 	const { Story } = defineMeta({
 		title: 'Geordi/Repository row',
 		component: RepositoryRow,
-		args: { repo, onremove: () => {} }
+		args: {
+			repo,
+			onremove: () => {}
+		}
 	});
 </script>
 
@@ -64,3 +67,17 @@
 />
 
 <Story name="Checking" args={{ check: () => new Promise(() => {}) }} />
+
+<Story
+	name="Missing checkout"
+	args={{
+		check: async () => ({ status: 'problem', summary: 'The repository checkout is missing' })
+	}}
+	play={async ({ canvas }) => {
+		await expect(await canvas.findByRole('status')).toHaveTextContent('checkout is missing');
+		await userEvent.click(canvas.getByText('widgets'));
+		await userEvent.click(canvas.getByRole('button', { name: 'Remove' }));
+		await expect(canvas.getByRole('dialog')).toHaveTextContent('including uncommitted changes');
+		await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }));
+	}}
+/>

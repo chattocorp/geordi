@@ -138,6 +138,15 @@ export const restoreWorkspace = command(v.string(), async (id) => {
 	if (!workspace.archivedAt) return;
 	// a project has no worktree to bring back: its folder is made again, empty, when it next works
 	if (workspace.repoId === null) return domain.restore(id);
+	if (
+		!repos()
+			.list()
+			.some((repo) => repo.id === workspace.repoId)
+	)
+		error(
+			409,
+			'Add the original checkout in Settings → Repositories before restoring this workspace.'
+		);
 	const ref = domain.ref(id);
 	const release = domain.hold([id, ref.worktreeId], 'being restored');
 	try {

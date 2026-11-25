@@ -242,9 +242,6 @@
 							onadded={({ id }) => goto(resolve(`/?repo=${encodeURIComponent(id)}`))}
 						/>
 						{#if problem}<Notice>{problem}</Notice>{/if}
-						<p class="text-xs text-muted">
-							Removing a repository only makes Geordi forget it. Nothing on disk changes.
-						</p>
 					</div>
 				{:else if section === 'providers'}
 					<Providers
