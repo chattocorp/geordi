@@ -100,19 +100,19 @@
 
 .dark {
 	color-scheme: dark;
-	--bg: #23252f;
-	--frame: #17191f;
-	--sidebar: #1a1c24;
-	--surface: #2c2f3b;
-	--sunken: #262833;
+	--bg: #2c2e38;
+	--frame: #17181e;
+	--sidebar: #23252d;
+	--surface: #3b3e49;
+	--sunken: #30323d;
 	--ink: #eceef4;
 	--prose: #d4d6de;
 	--inline-code: #ff85c0;
-	--muted: #a0a3b4;
-	--line: #3a3d4b;
+	--muted: #adb0c0;
+	--line: #535764;
 	--accent: #f7b733;
 	--accent-ink: #fac95f;
-	--bubble: #383c4b;
+	--bubble: #454956;
 	--on-accent: #2a1c00;
 	--danger: #ff7b72;
 	--warning: #e3c35a;
