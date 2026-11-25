@@ -15,4 +15,4 @@ No `group:` setting and no nesting (the person disliked both). Sections come fro
 
 Task groups and change sections (wy0wt) share the sidebar repository spacing. Adjacent rows within a group keep their one-pixel gap.
 
-The Tasks tab shows one faint, full-width separator in the space between a group and its neighbor. The first and last rows have no outer separator. Folded group labels use a stronger text color at the same size. The separator uses the frame color at full opacity in light mode and 75% opacity in dark mode. Changes sections (wy0wt) and the sidebar’s repository groups use the same separator.
+The Tasks tab shows one faint, full-width separator in the space between a group and its neighbor. The first and last rows have no outer separator. Folded group labels use a stronger text color at the same size. The separator uses the frame color at full opacity in light mode and 75% opacity in dark mode. Changes sections (wy0wt) and the sidebar’s repository groups use the same separator. Sheets draw their outline inside the edge so each separator crosses it.

@@ -325,6 +325,8 @@
 			'1px'
 		]);
 		const pane = finales.closest('.scroller')!;
+		const sheet = pane.closest('.sheet-quiet')!;
+		await expect(getComputedStyle(sheet).getPropertyValue('--tw-ring-inset').trim()).toBe('inset');
 		await expect(getComputedStyle(entries[1], '::before').width).toBe(`${pane.clientWidth}px`);
 		const heading = within(finales);
 		const header = finales.parentElement!;
