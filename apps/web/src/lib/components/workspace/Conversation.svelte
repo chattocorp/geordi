@@ -134,6 +134,7 @@
 			{onopenturn}
 			childSenders={workspace.childSenders}
 			queueSenders={workspace.sentBy.queue}
+			queueDetails={workspace.sentBy.details}
 			queue={workspace.queue}
 			queueImages={workspace.attachments.queue}
 			onremove={(index, text, images) =>

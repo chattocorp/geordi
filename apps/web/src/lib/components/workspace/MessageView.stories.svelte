@@ -696,10 +696,14 @@
 			'href',
 			'/workspaces/parent?agent=parent'
 		);
-		const toggle = await canvas.findByRole('button', { name: 'Review finished' });
+		const toggle = await canvas.findByRole('button', {
+			name: /Review finished.*Claude Code.*Sonnet.*high.*effort/
+		});
 		const first = 'I’m checking the archived repositories.';
 		const final = 'The migration covers archived repositories. Both regression tests pass.';
 		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		await expect(toggle).toHaveStyle({ fontSize: '13px' });
+		await expect(toggle.querySelector('[title="Claude Code"]')).toHaveClass('text-muted');
 		await expect(canvas.queryByRole('button', { name: 'Review sent a message' })).toBeNull();
 		await expect(canvas.queryByText(first)).toBeNull();
 		await expect(canvas.queryByText(final)).toBeNull();
@@ -732,14 +736,16 @@
 					at: '',
 					text: 'I’m checking the archived repositories.',
 					from: 'peer',
-					senderName: 'Review'
+					senderName: 'Review',
+					senderDetails: { agent: 'claude', model: 'Sonnet', effort: 'high' }
 				},
 				{
 					kind: 'user',
 					at: '',
 					text: 'Your agent “Review” (peer) finished its turn.\n\nThe migration covers archived repositories. Both regression tests pass.',
 					from: 'peer',
-					senderName: 'Review'
+					senderName: 'Review',
+					senderDetails: { agent: 'claude', model: 'Sonnet', effort: 'high' }
 				},
 				{
 					kind: 'user',
