@@ -283,6 +283,19 @@
 >
 	{@render pane(() => 'stopped', null, false, true)}
 </Story>
+{#snippet groupedPane()}
+	<div class="flex h-120 w-96 flex-col sheet-quiet">
+		<RunPane
+			tasks={grouped}
+			stateOf={(name) => groupStates[name] ?? 'stopped'}
+			hasTerminal={(name) => name in groupStates}
+			run={(ref) => (last = `Run: ${ref}`)}
+			stop={(name) => (last = `Stop: ${name}`)}
+			show={(name) => (last = `Show: ${name}`)}
+		/>
+	</div>
+{/snippet}
+
 <Story
 	name="Task groups"
 	asChild
@@ -337,16 +350,10 @@
 		await expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).toBeVisible();
 	}}
 >
-	<div class="flex h-120 w-96 flex-col sheet-quiet">
-		<RunPane
-			tasks={grouped}
-			stateOf={(name) => groupStates[name] ?? 'stopped'}
-			hasTerminal={(name) => name in groupStates}
-			run={(ref) => (last = `Run: ${ref}`)}
-			stop={(name) => (last = `Stop: ${name}`)}
-			show={(name) => (last = `Show: ${name}`)}
-		/>
-	</div>
+	{@render groupedPane()}
+</Story>
+<Story name="Task groups in dark mode" globals={{ theme: 'dark' }} asChild>
+	{@render groupedPane()}
 </Story>
 <Story name="Unreadable configuration" asChild>
 	{@render pane(

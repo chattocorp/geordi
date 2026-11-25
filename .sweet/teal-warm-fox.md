@@ -2,4 +2,4 @@
 type: polish
 ---
 
-Faint, full-width separators show where task groups begin and end in the Tasks tab. Folded group names have a little more contrast.
+Full-width separators mark task groups in the Tasks tab, with a darker line on light surfaces and a faint line on dark surfaces. Folded group names have a little more contrast.

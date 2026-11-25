@@ -576,7 +576,11 @@
 		position: relative;
 		&::before {
 			content: '';
-			@apply pointer-events-none absolute -inset-x-2 h-px bg-line/50;
+			@apply pointer-events-none absolute -inset-x-2 h-px;
+			background-color: light-dark(
+				color-mix(in srgb, var(--ink) 10%, transparent),
+				color-mix(in srgb, var(--line) 25%, transparent)
+			);
 			inset-block-start: calc(var(--spacing-row-group) / -2);
 		}
 	}
