@@ -33,7 +33,7 @@
 				<button
 					type="button"
 					aria-expanded={fold.open}
-					class="flex w-full items-center gap-2 rounded-card rounded-tl-control px-3.5 py-2.5 text-left text-sm text-muted hover:text-ink"
+					class="flex w-full items-center gap-2 rounded-card rounded-tl-control px-3.5 py-2.5 text-left text-xs text-muted hover:text-ink"
 					onclick={fold.toggle}
 				>
 					<span class="min-w-0 wrap-anywhere">{@render heading()}</span>
@@ -46,7 +46,7 @@
 					></span>
 				</button>
 			{:else}
-				<p class="px-3.5 pt-2.5 text-sm wrap-anywhere text-muted">{@render heading()}</p>
+				<p class="px-3.5 pt-2.5 text-xs wrap-anywhere text-muted">{@render heading()}</p>
 			{/if}
 			{#if open && children}
 				<div class={['px-3.5 pb-3', fold ? 'pt-0' : 'pt-1']}>{@render children()}</div>

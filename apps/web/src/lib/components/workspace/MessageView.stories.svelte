@@ -702,6 +702,7 @@
 		const first = 'I’m checking the archived repositories.';
 		const final = 'The migration covers archived repositories. Both regression tests pass.';
 		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		await expect(toggle).toHaveStyle({ fontSize: '13px' });
 		await expect(toggle.querySelector('[title="Claude Code"]')).toHaveClass('text-muted');
 		await expect(canvas.queryByRole('button', { name: 'Review sent a message' })).toBeNull();
 		await expect(canvas.queryByText(first)).toBeNull();
