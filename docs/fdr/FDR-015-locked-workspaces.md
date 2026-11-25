@@ -1,7 +1,7 @@
 # FDR-015: Locked workspaces
 
 **Status:** Active
-**Last reviewed:** 2026-11-21
+**Last reviewed:** 2026-11-25
 
 ## Overview
 
@@ -10,7 +10,7 @@ Some workspaces are meant to last: a release workspace, a scratchpad, one that c
 ## Behavior
 
 - In the sidebar, right-click a workspace and choose **Lock**. **Unlock** undoes it. The workspace's command palette has **Lock workspace** and **Unlock workspace**.
-- A locked workspace's sidebar row shows a lock in its status slot, only while it has no other status: no agent at work, no question, nothing running in the background, and no status about its work shown there (a pull request, its checks). A status is never hidden by the lock.
+- A locked workspace shows a lock in the sidebar when its row has no other status or action. Background tasks leave the lock visible.
 - Geordi doesn't offer to archive a locked workspace. Archive isn't in its context menu, its ribbon or its next steps. If something else would have been offered next to Archive (**Continue** after a merge, **Sync**), that becomes the next step. Where Archive was all there was (the work landed without a pull request), **Continue** is offered instead.
 - Archiving takes along the agents a workspace started and those working in its worktree. If any of them is locked, nothing is archived, and Geordi names the locked workspace.
 - Agents can't archive a locked workspace either. The agent API refuses, and it has no way to lock or unlock.

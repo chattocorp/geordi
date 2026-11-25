@@ -60,7 +60,6 @@
 		status: 'idle',
 		working: false,
 		outcome: 'completed',
-		background: 0,
 		standing: null,
 		actions: [],
 		branch: `geordi/${id}`,

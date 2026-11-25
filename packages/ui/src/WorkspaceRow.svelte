@@ -7,7 +7,6 @@
 
 	import QuestionLink from './QuestionLink.svelte';
 	import StandingIcon from './StandingIcon.svelte';
-	import Spinner from './Spinner.svelte';
 	import StatusIcon from './StatusIcon.svelte';
 
 	let {
@@ -26,7 +25,6 @@
 		working = false,
 		locked = false,
 		inactive = false,
-		background = 0,
 		progress,
 		standing = null,
 		versions = [],
@@ -54,8 +52,6 @@
 		locked?: boolean;
 		/** Whether a person marked it inactive (put it aside for later): its title is quieter. */
 		inactive?: boolean;
-		/** How many tasks its agents left running in the background. */
-		background?: number;
 		progress?: ActivityId;
 		standing?: WorkspaceStanding | null;
 		versions?: { path: string; name: string | null; version: string }[];
@@ -160,10 +156,6 @@
 			</StatusIcon>
 		{:else if activity}
 			<WorkspaceActivity {activity} />
-		{:else if background}
-			<StatusIcon label="{background} running in the background">
-				<span aria-hidden="true" class="inline-flex"><Spinner still /></span>
-			</StatusIcon>
 		{:else if primary && pillColor}
 			<button
 				type="button"

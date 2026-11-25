@@ -163,26 +163,6 @@
 </Story>
 
 <Story
-	name="Running in the background"
-	asChild
-	play={async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const icon = canvas.getByRole('img', { name: '2 running in the background' });
-		await expect(icon.closest('a, button')).toBeNull();
-		await expect(getComputedStyle(icon).backgroundColor).toBe('rgba(0, 0, 0, 0)');
-		// a spinner standing still
-		await expect(icon.querySelector('.spinner')).toHaveClass('still');
-		// while the agent works, its own spinner says enough
-		await expect(canvas.queryByRole('img', { name: '1 running in the background' })).toBeNull();
-	}}
->
-	<div class="w-64 sheet-quiet p-2">
-		<WorkspaceRow title="Watch the build" href="/workspaces/build" background={2} />
-		<WorkspaceRow title="Run the tests" href="/workspaces/tests" working background={1} />
-	</div>
-</Story>
-
-<Story
 	name="Open agent question"
 	asChild
 	play={async ({ canvasElement }) => {
@@ -325,6 +305,12 @@
 			href="/workspaces/widgets"
 			working
 			versions={[{ path: 'widgets', name: 'Widgets', version: '1.3.0' }]}
+		/>
+		<WorkspaceRow
+			title="Update the API"
+			href="/workspaces/api"
+			current
+			versions={[{ path: '.', name: null, version: '2.0.1' }]}
 		/>
 	</div>
 </Story>

@@ -64,11 +64,6 @@ export const navigation = () =>
 					...(activeAction && { activeAction }),
 					...(waiting && { waiting: true }),
 					outcome: outcome([workspace, ...aides]),
-					// what its agents left running in the background (ADR-003: live, never stored)
-					background: [workspace, ...aides].reduce(
-						(count, member) => count + hub().background(member.id).length,
-						0
-					),
 					standing: standingOf(state),
 					// what could happen next (FDR-003): offered in its context menu
 					actions: actionsFor(state).filter(
@@ -115,7 +110,6 @@ export const navigation = () =>
 			const stops = [
 				standings().subscribe(changed),
 				hub().subscribe(changed),
-				hub().followSession(changed),
 				hub().followOperations(changed)
 			];
 			return () => stops.forEach((stop) => stop());
