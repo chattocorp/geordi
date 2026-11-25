@@ -1,10 +1,21 @@
 <script lang="ts">
 	import { AGENTS, type Agent, type Harness } from '@geordi/protocol';
 	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
+	import Segmented from '@geordi/ui/Segmented.svelte';
 	import { agentName } from '#lib/format.ts';
 
-	let { harnesses, active }: { harnesses: Harness[] | null | undefined; active: Agent[] } =
-		$props();
+	let {
+		harnesses,
+		active,
+		identifyClaude,
+		onidentify
+	}: {
+		harnesses: Harness[] | null | undefined;
+		active: Agent[];
+		/** Whether Claude Code is told that Geordi started it; unknown while loading. */
+		identifyClaude?: boolean;
+		onidentify?: (on: boolean) => void;
+	} = $props();
 </script>
 
 <h2 class="heading">Providers</h2>
@@ -37,3 +48,21 @@
 		</li>
 	{/each}
 </ul>
+{#if identifyClaude !== undefined && onidentify}
+	<div class="flex items-center justify-between gap-4 pt-6">
+		<div>
+			<p class="text-sm font-medium">Identify Geordi to Claude Code</p>
+			<p class="text-sm text-muted">
+				Experimental. Claude Code sessions identify Geordi as their client.
+			</p>
+		</div>
+		<Segmented
+			label="Identify Geordi to Claude Code"
+			bind:value={() => (identifyClaude ? 'on' : 'off'), (value) => onidentify(value === 'on')}
+			options={[
+				{ value: 'on', label: 'On' },
+				{ value: 'off', label: 'Off' }
+			]}
+		/>
+	</div>
+{/if}

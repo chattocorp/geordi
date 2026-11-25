@@ -20,6 +20,7 @@
 import { startTurnDiff } from './turn-diff.ts';
 import { signalTree } from './session-process.ts';
 import { linesFrom } from './journal.ts';
+import { setEntrypoint } from './agents/entrypoint.ts';
 import { spawn } from 'node:child_process';
 import {
 	appendFileSync,
@@ -118,6 +119,7 @@ if (program) env[programVariable[agent]] = program;
 const missing = program
 	? undefined
 	: `Geordi could not find \`${agent}\`. Install it, or put it on your PATH.`;
+if (agent === 'claude') setEntrypoint(env, options.identify);
 if (agent === 'codex') {
 	const config = JSON.parse(env.CODEX_CONFIG || '{}');
 	config.features = { ...config.features, default_mode_request_user_input: true };

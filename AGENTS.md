@@ -265,7 +265,8 @@ it, perhaps you.
 - **Settings (FDR-005):** one page, `/settings/[[section]]` (`#lib/components/Settings.svelte`),
   opened with `openSettings(section?)` or Cmd/Ctrl+,. Preferences of this browser (the theme,
   `#lib/theme.svelte.ts`) live in localStorage; what belongs to the installation
-  (repositories) is events.
+  (repositories; choices in `preferences.ts`, such as telling Claude Code that Geordi started
+  it) is events.
 - **Workspace UI:** components in `#lib/components/workspace/`. The frame is fixed, three
   areas: main | side above dock. Each is a `Panes` with its own layout tree (`#lib/layout.ts`,
   pure functions); only the main area can be split, the two beside it are one row of tabs

@@ -22,6 +22,8 @@ export type SessionOptions = {
 	settings: AgentSettings;
 	/** On top of the daemon's own environment: the workspace's ports, for one (FDR-006). */
 	env?: Record<string, string>;
+	/** Whether Claude Code is told that Geordi started it (`CLAUDE_CODE_ENTRYPOINT`; see `host.ts`). */
+	identify?: boolean;
 	/** What to tell the agent on top of its CLI's own system prompt: where it is, and how to work there. */
 	instructions?: string;
 	/**
