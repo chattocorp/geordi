@@ -406,7 +406,7 @@ export async function removeRepository(id: string) {
 	const members = domain.list(id, true);
 	const ids = members.map((member) => member.id);
 	domain.refuseLocked(ids);
-	const release = domain.hold([`repo:${id}`, ...ids], 'being removed');
+	const release = domain.hold([`repo:${id}`, ...ids], 'being removed', ids);
 	try {
 		await domain.stopForArchive(ids);
 		for (const [owner, sharing] of Map.groupBy(members, (member) => member.worktreeId)) {

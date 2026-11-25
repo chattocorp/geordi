@@ -46,7 +46,8 @@ export function createArchiver({
 		// children before their parents, so a shared worktree goes with its last user
 		const family = [id, ...workspaces.descendants(id)].reverse().map(workspaces.summary);
 		// a locked workspace stays, and so does everything archived with it (FDR-015)
-		workspaces.refuseLocked(family.map((workspace) => workspace.id));
+		const ids = family.map((workspace) => workspace.id);
+		workspaces.refuseLocked(ids);
 
 		const busy = family.find((workspace) => workspace.status === 'running');
 		if (busy && (!stopAgents || actor !== null))
@@ -54,10 +55,11 @@ export function createArchiver({
 
 		const release = workspaces.hold(
 			family.flatMap((workspace) => [workspace.id, workspace.worktreeId]),
-			'being archived'
+			'being archived',
+			ids
 		);
 		try {
-			if (busy) await workspaces.stopForArchive(family.map(({ id }) => id));
+			if (busy) await workspaces.stopForArchive(ids);
 			for (const member of family) {
 				const workspace = workspaces.summary(member.id);
 				if (workspace.archivedAt) continue;

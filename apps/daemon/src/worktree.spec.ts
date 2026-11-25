@@ -1083,8 +1083,17 @@ describe('removing a repository', () => {
 				writeFileSync(join(path, 'draft'), 'unfinished');
 				if (!present) rmSync(repoPath, { recursive: true });
 				const teardown = vi.fn();
-				const stop = vi.fn();
-				await archiveWorktree(base, request, teardown, stop);
+				const ending = Promise.withResolvers<void>();
+				const stopping = Promise.withResolvers<void>();
+				const stop = vi.fn(async () => {
+					stopping.resolve();
+					await ending.promise;
+				});
+				const archiving = archiveWorktree(base, request, teardown, stop);
+				await stopping.promise;
+				expect(existsSync(path)).toBe(true);
+				ending.resolve();
+				await archiving;
 				await archiveWorktree(base, request, teardown, stop);
 				expect(existsSync(path)).toBe(false);
 				expect(existsSync(other)).toBe(true);

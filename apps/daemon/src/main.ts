@@ -516,12 +516,16 @@ function answer(request: DaemonRequest) {
 }
 
 /** Retire idle hosts too: a background result could otherwise start another turn. */
-function stopSessions(path: string) {
+async function stopSessions(path: string) {
 	for (const turn of beginning.values()) if (turn.cwd === path) turn.stop();
-	for (const session of sessionsIn(path)) {
+	const retiring = sessionsIn(path);
+	for (const session of retiring) {
 		retired.add(session);
 		session.kill();
 	}
+	// A host can wake during teardown. Its final turn event must reach the forge before
+	// cleanup replies, or the forge can still see a running agent when it tries to archive.
+	await Promise.all(retiring.map((session) => session.done));
 }
 
 async function readRequest(request: DaemonRequest) {
@@ -550,7 +554,7 @@ async function readRequest(request: DaemonRequest) {
 	if (request.kind === 'projectPicture')
 		return readPicture(projectPath(projectsDir, request.worktreeId), request.path);
 	if (request.kind === 'closeProject') {
-		stopSessions(projectPath(projectsDir, request.worktreeId));
+		await stopSessions(projectPath(projectsDir, request.worktreeId));
 		return null;
 	}
 	if (request.kind === 'removeWorktree') {

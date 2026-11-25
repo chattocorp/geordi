@@ -294,7 +294,7 @@ export function createWorkspaces(
 	 */
 	function tellParent(child: Workspace) {
 		if (child.status !== 'idle' || !child.parentId) return;
-		if (stoppingForArchive.has(child.id)) return;
+		if (archiving.has(child.id)) return;
 		const parent = projection.get().get(child.parentId);
 		if (!parent || parent.archivedAt || held.has(parent.id)) return;
 		const turn = latestTurn(child);
@@ -344,7 +344,7 @@ export function createWorkspaces(
 
 	/** Workspaces that must not start a turn right now, and what is being done to them; see `hold`. */
 	const held = new Map<string, string>();
-	const stoppingForArchive = new Set<string>();
+	const archiving = new Set<string>();
 	function refuseHeld(id: string) {
 		const doing = held.get(id);
 		if (doing) error(409, `This workspace is ${doing}`);
@@ -458,7 +458,7 @@ export function createWorkspaces(
 		if (
 			workspace.lastTurn === 'completed' &&
 			workspace.queue.length &&
-			!stoppingForArchive.has(workspace.id)
+			!archiving.has(workspace.id)
 		)
 			say(workspace, workspace.queue[0], null, 'queued');
 	}
@@ -718,7 +718,7 @@ export function createWorkspaces(
 			parent.archivedAt ||
 			parent.queue.length ||
 			held.has(parent.id) ||
-			stoppingForArchive.has(parent.id)
+			archiving.has(parent.id)
 		)
 			return;
 		for (const child of childrenOf(parent.id)) {
@@ -1343,31 +1343,31 @@ export function createWorkspaces(
 		 * archived”: what waits for a daemon). Returns a function that ends it. Not in the event
 		 * log: it lasts no longer than the request that asked for it.
 		 */
-		hold(ids: string[], doing: string): () => void {
+		hold(ids: string[], doing: string, archiveIds: string[] = []): () => void {
 			ids.forEach(refuseHeld);
 			for (const id of ids) held.set(id, doing);
-			return () => ids.forEach((id) => held.delete(id));
+			// A turn ending during teardown must not start queued work or wake its parent.
+			for (const id of archiveIds) archiving.add(id);
+			return () => {
+				for (const id of ids) held.delete(id);
+				for (const id of archiveIds) archiving.delete(id);
+			};
 		},
 
 		async stopForArchive(ids: string[]) {
 			const family = ids.map(find);
 			const busy = () => family.find((workspace) => workspace.status === 'running');
-			try {
-				for (const workspace of family) {
-					stoppingForArchive.add(workspace.id);
-					if (
-						workspace.status === 'running' &&
-						!dispatch({ type: 'agent.stop', workspaceId: workspace.id })
-					)
-						error(503, 'Connect the daemon to stop busy agents.');
-				}
-				await waitUntil(() => !busy(), 30_000);
-				const stillRunning = busy();
-				if (stillRunning)
-					error(409, `“${stillRunning.title}” is still running. Try archiving again.`);
-			} finally {
-				for (const workspace of family) stoppingForArchive.delete(workspace.id);
+			for (const workspace of family) {
+				if (
+					workspace.status === 'running' &&
+					!dispatch({ type: 'agent.stop', workspaceId: workspace.id })
+				)
+					error(503, 'Connect the daemon to stop busy agents.');
 			}
+			await waitUntil(() => !busy(), 30_000);
+			const stillRunning = busy();
+			if (stillRunning)
+				error(409, `“${stillRunning.title}” is still running. Try archiving again.`);
 		},
 
 		stop,

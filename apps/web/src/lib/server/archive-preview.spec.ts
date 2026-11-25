@@ -77,8 +77,17 @@ it('removes a repository with a shared worktree, preserving its conversations', 
 	});
 	expect(repos().get(repo.id)).toBeDefined();
 	expect(domain.summary(id).archivedAt).toBeNull();
+	domain.send(helper, 'Start another turn');
+	domain.send(helper, 'Queued until later');
+	domain.record(helper, { kind: 'turn.failed', error: 'Stopped' });
 	const cleanup = Promise.withResolvers<{ branch: null }>();
-	request.mockReturnValueOnce(cleanup.promise);
+	request.mockImplementationOnce(async () => {
+		// A background result starts and finishes a turn after the initial stop check.
+		domain.record(helper, { kind: 'turn.started' });
+		domain.record(helper, { kind: 'turn.completed' });
+		expect(domain.get(helper)).toMatchObject({ status: 'idle', queue: ['Queued until later'] });
+		return cleanup.promise;
+	});
 	const removal = removeRepository(repo.id);
 	expect(() => domain.create({ repoId: repo.id, agent: 'codex', prompt: '' })).toThrow();
 	cleanup.resolve({ branch: null });

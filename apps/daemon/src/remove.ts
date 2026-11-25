@@ -21,6 +21,13 @@ function entryExists(path: string) {
 /** Registered checkouts have a .git directory or a linked-worktree .git file. */
 export const hasCheckout = (repoPath: string) => entryExists(join(repoPath, '.git'));
 
+/** A worktree parent must still be a directory inside the daemon's worktrees. */
+function checkParent(path: string) {
+	const parent = lstatSync(dirname(path), { throwIfNoEntry: false });
+	if (parent && !parent.isDirectory())
+		throw new Error(`Invalid worktree directory: ${dirname(path)}`);
+}
+
 /**
  * Gets a directory out of the way at once, and deletes it in its own time. A worktree with
  * its dependencies installed is tens of thousands of files: deleting them takes seconds,
@@ -28,6 +35,7 @@ export const hasCheckout = (repoPath: string) => entryExists(join(repoPath, '.gi
  * did it in one go would do nothing else (follow no agent, relay no terminal).
  */
 function discard(baseDir: string, path: string) {
+	checkParent(path);
 	const trash = join(baseDir, '.trash');
 	mkdirSync(trash, { recursive: true });
 	const doomed = join(trash, `${basename(path)}-${randomUUID()}`);
@@ -68,16 +76,10 @@ async function removable(
  * metadata, which an agent can write. We look for uncommitted work the careful way, delete
  * the directory ourselves, and have git forget it from the repository's side.
  */
-export async function removeWorktree(
-	baseDir: string,
-	ref: WorktreeRef,
-	force: boolean,
-	beforeDiscard = () => {}
-) {
+export async function removeWorktree(baseDir: string, ref: WorktreeRef, force: boolean) {
 	const worktree = await removable(baseDir, ref, force);
 	if (!hasCheckout(ref.repoPath))
 		throw new Error('The checkout disappeared. Review the archive again.');
-	beforeDiscard();
 	if (worktree) discard(baseDir, worktree.path);
 	await git(ref.repoPath, ['worktree', 'prune']);
 }
@@ -87,16 +89,13 @@ export async function archiveWorktree(
 	baseDir: string,
 	request: Extract<DaemonRequest, { kind: 'removeWorktree' }>,
 	tearDown: (tree: Worktree, ref: WorktreeRef) => Promise<void>,
-	stopSessions: (path: string) => void
+	stopSessions: (path: string) => Promise<void>
 ) {
 	const path = worktreePath(baseDir, request);
 	if (request.removingRepository) {
-		// Never follow a replaced worktree parent to a directory outside the daemon's worktrees.
-		const parent = lstatSync(dirname(path), { throwIfNoEntry: false });
-		if (parent && !parent.isDirectory())
-			throw new Error(`Invalid worktree directory: ${dirname(path)}`);
+		checkParent(path);
 		if (!hasCheckout(request.repoPath)) {
-			stopSessions(path);
+			await stopSessions(path);
 			if (entryExists(path)) discard(baseDir, path);
 			return null;
 		}
@@ -111,6 +110,7 @@ export async function archiveWorktree(
 	} catch {
 		// Forced removal can encounter an unreadable HEAD. Keep the forge's last known branch.
 	}
-	await removeWorktree(baseDir, request, request.force, () => stopSessions(path));
+	await stopSessions(path);
+	await removeWorktree(baseDir, request, request.force);
 	return branch;
 }
