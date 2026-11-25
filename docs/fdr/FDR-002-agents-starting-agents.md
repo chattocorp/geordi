@@ -1,7 +1,7 @@
 # FDR-002: Agents starting and supervising agents
 
 **Status:** Active
-**Last reviewed:** 2026-11-24
+**Last reviewed:** 2026-11-25
 
 ## Overview
 
@@ -20,7 +20,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 - Agents can find, read and wait on any workspace in the installation, in any repository, archived conversations included. A repository agent can message only its own descendants and the agent that started it, never another agent: work stays in the tree that was asked for it, and an agent can't set the person's other agents to work. A message to an idle agent starts a turn. A repository agent can stop and archive its own descendants.
 - People can give an MCP client outside Geordi a named token in Settings (FDR-005), for the repositories they choose; it sees nothing of the others, nor of repositories added later. Such a client can start agents in those repositories, each a workspace of its own, as a person would start it, and supervise them like a parent. Messages to other busy agents wait for their current turn to end. Its messages are marked with its name.
 - Work from a child with its own worktree is merged in the repository where the child worked. Geordi does not merge on its own.
-- The sidebar groups current workspaces by repository. Archiving the last workspace in a repository removes its heading. A workspace started by an agent is marked as such, appears in its destination repository, and sits under its parent when both are in the same repository; pointing at it lights that one up.
+- In the grouped sidebar, each delegation tree appears under the repository of its highest ancestor whose group is shown. A project can be that ancestor. A child working in another repository shows its repository picture and name on hover. Focusing its repository or archiving its parent can bring the child to the top of its own group.
 - A child workspace shows changes against the branch it started from, like any workspace (FDR-001), until it has a pull request.
 - An agent working in another workspace's directory is shown in that workspace, not beside it: as a conversation of its own next to the workspace's (a tab with its name, which turns while it works), and not in the sidebar or among the workspaces started. The workspace shows as working while any of its agents is. A link to such an agent leads to its conversation there. Closing the tab of one that is not working archives it. Once the workspace it worked in is archived, it stands for itself.
 - People can add an agent to a workspace too: the "+" beside its conversations opens a new one, begun as a workspace is, by writing what to do and choosing who does it and how. The agent is there once that is sent, working in the same directory. It belongs to the workspace like one an agent started there, and goes when the workspace is archived.
@@ -52,8 +52,8 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 ### 4. The sidebar groups current workspaces by repository
 
 **Decision:** Show a repository heading while it has a workspace in the sidebar. Within each group, list child workspaces under their parent.
-**Why:** Each heading helps the person find current work in that repository.
-**Tradeoff:** To start work in an empty repository, the person selects it from New workspace.
+**Why:** Keeping the delegation together lets the person follow work across repositories.
+**Tradeoff:** A repository can have ongoing work visible only under another heading. Focusing the repository brings that work into view.
 
 ## Gates
 

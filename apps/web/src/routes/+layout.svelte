@@ -120,7 +120,7 @@
 				focus.current
 			).map(({ id }) => id),
 			folded.current,
-			{ includeProjects: step === 'unread', grouped: grouped.current }
+			{ includeProjects: true, grouped: grouped.current }
 		);
 		const to =
 			step === 'unread' ? nextUnread(order, viewed, unread) : stepThrough(order, viewed, step);

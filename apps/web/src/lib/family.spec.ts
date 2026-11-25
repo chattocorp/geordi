@@ -102,16 +102,45 @@ describe('byRepository', () => {
 		expect(repos.get('one')?.map(({ depth }) => depth)).toEqual([0, 0, 1, 2, 1]);
 	});
 
-	it('lists a workspace whose parent is elsewhere, or gone, on its own', () => {
-		const repos = byRepository([
-			workspace('parent', 'one'),
-			workspace('abroad', 'two', 'parent'),
-			workspace('orphan', 'two', 'archived')
+	const tree = [
+		workspace('grandchild', 'one', 'child'),
+		workspace('child', 'two', 'root'),
+		workspace('root', 'one'),
+		workspace('orphan', 'two', 'archived')
+	];
+
+	it('keeps a cross-repository tree together, even when a grandchild returns home', () => {
+		const listed = byRepository(tree, ['two', 'one']);
+		expect(listed.get('one')?.map(({ workspace, depth }) => [workspace.id, depth])).toEqual([
+			['root', 0],
+			['child', 1],
+			['grandchild', 2]
 		]);
-		expect(ids(repos.get('two'))).toEqual(['abroad', 'orphan']);
-		expect(repos.get('two')?.[0].parent?.id).toBe('parent');
-		expect(repos.get('two')?.[1].parent).toBeNull();
-		expect(repos.get('two')?.map(({ depth }) => depth)).toEqual([0, 0]);
+		// Archived workspaces are absent from navigation, like a missing parent.
+		expect(listed.get('two')).toEqual([{ workspace: tree[3], parent: null, depth: 0 }]);
+	});
+
+	it('starts a tree at its highest member in the focused repository', () => {
+		const listed = byRepository(tree, ['two']);
+		expect(listed.get('two')?.map(({ workspace, depth }) => [workspace.id, depth])).toEqual([
+			['child', 0],
+			['grandchild', 1],
+			['orphan', 0]
+		]);
+	});
+
+	it('uses Projects as a home only when shown', () => {
+		const all = [workspace('project', null), workspace('child', 'two', 'project')];
+		expect(ids(byRepository(all, [null, 'two']).get(null))).toEqual(['project', 'child']);
+		expect(byRepository(all, ['two']).get('two')?.[0]).toMatchObject({
+			workspace: all[1],
+			depth: 0
+		});
+	});
+
+	it('lists each member of a parent cycle once', () => {
+		const all = [workspace('a', 'one', 'b'), workspace('b', 'one', 'a')];
+		expect(ids(byRepository(all, ['one']).get('one'))).toEqual(['a', 'b']);
 	});
 });
 
@@ -195,7 +224,7 @@ describe('inSidebarOrder', () => {
 	const all = [
 		workspace('a', 'one'),
 		workspace('b', 'two'),
-		workspace('child', 'one', 'a'),
+		workspace('child', 'two', 'a'),
 		workspace('c', 'one')
 	];
 

@@ -14,7 +14,7 @@
 		title,
 		href,
 		parentTitle,
-		parentHref,
+		repositoryName,
 		icon,
 		current = false,
 		leaving = false,
@@ -38,7 +38,7 @@
 		title: string;
 		href?: string;
 		parentTitle?: string;
-		parentHref?: string;
+		repositoryName?: string;
 		/** What it is, where it is not a branch: an Iconify class (a project's, say), or a picture (its repository's). */
 		icon?: string | Snippet;
 		current?: boolean;
@@ -108,34 +108,18 @@
 		inactive && !current && !unread && !highlighted && 'text-faint'
 	]}
 >
-	<!-- one with its own folded under it shows the link as its icon, which turns into the fold on hover -->
-	{#if parentHref && !fold}
-		{@const label = parentTitle ? `Open parent workspace: ${parentTitle}` : 'Open parent workspace'}
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes a resolved URL -->
-		<a
-			href={parentHref}
-			class="ml-1.5 grid size-5 shrink-0 place-items-center rounded-control text-faint hover:text-ink focus-visible:text-ink"
-			aria-label={label}
-			title={label}
-			draggable="false"
-			onpointerenter={() => onpoint?.(true)}
-			onpointerleave={() => onpoint?.(false)}
-			onfocus={() => onpoint?.(true)}
-			onblur={() => onpoint?.(false)}
-		>
-			<span class="icon-[lucide--link] size-4"></span>
-		</a>
-	{/if}
 	<div class="relative flex min-w-0 flex-1">
 		<RowLabel
 			{title}
 			{href}
 			{current}
 			{onpoint}
-			icon={parentHref && !fold && !waiting ? undefined : statusIcon}
-			hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
+			icon={statusIcon}
+			hint={[repositoryName, parentTitle && `Started by the agent in "${parentTitle}"`]
+				.filter(Boolean)
+				.join(' · ') || undefined}
 			fold={leaving ? undefined : fold}
-			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
+			class="py-1"
 		/>
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
@@ -157,6 +141,10 @@
 		{:else if asking}
 			<StatusIcon tone="accent" label="Waiting for your answer">
 				<span class="icon-[lucide--message-circle-question] size-4"></span>
+			</StatusIcon>
+		{:else if waiting && repositoryName}
+			<StatusIcon label="Waiting for daemon">
+				<span class="icon-[lucide--clock] size-4"></span>
 			</StatusIcon>
 		{:else if activity}
 			<WorkspaceActivity {activity} />
@@ -187,14 +175,12 @@
 	</span>
 </div>
 {#snippet statusIcon()}
-	{#if waiting}
+	{#if waiting && !repositoryName}
 		<span class="icon-[lucide--clock] size-4" role="img" aria-label="Waiting for daemon"></span>
 	{:else if typeof icon === 'function'}
 		{@render icon()}
 	{:else if icon}
 		<span class={[icon, 'size-4 text-faint']}></span>
-	{:else if parentHref && fold}
-		<span class="icon-[lucide--link] size-4 text-faint"></span>
 	{:else}
 		<span class="icon-[lucide--git-branch] size-4 text-faint"></span>
 	{/if}

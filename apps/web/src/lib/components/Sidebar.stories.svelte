@@ -154,7 +154,7 @@
 		harnesses: null
 	};
 
-	/** Projects (FDR-012) above the repositories; what one started is listed with its repository. */
+	/** Projects (FDR-012) above the repositories; what one started is listed below it. */
 	const withProjects: Navigation = {
 		...nav,
 		workspaces: [
@@ -486,13 +486,10 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText('Projects')).toBeVisible();
-		await expect(
-			canvas.getByRole('link', { name: 'Open parent workspace: Ship the protocol bump everywhere' })
-		).toHaveAttribute('href', '/workspaces/project');
 		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',
-			'Started by the agent in "Ship the protocol bump everywhere"'
+			'geordi · Started by the agent in "Ship the protocol bump everywhere"'
 		);
 	}}
 >
@@ -551,4 +548,35 @@
 >
 	{@render frame(nav, '/workspaces/ready')}
 	<ContextMenu />
+</Story>
+
+<Story
+	name="Cross-repository tree"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const home = within(canvas.getByRole('group', { name: 'geordi' }));
+		const child = home.getByRole('link', { name: 'Update docs site' });
+		await expect(child).toHaveAttribute(
+			'title',
+			'sample-project · Started by the agent in "Fix archive flow"'
+		);
+		await fireEvent.click(home.getByRole('button', { name: 'Collapse Fix archive flow' }));
+		await waitFor(() => expect(home.queryByText('Update docs site')).toBeNull());
+		await fireEvent.click(home.getByRole('button', { name: 'Expand Fix archive flow' }));
+		await waitFor(() => expect(home.getByText('Update docs site')).toBeVisible());
+	}}
+>
+	{@render frame(
+		{
+			...nav,
+			workspaces: [
+				workspace('root', 'Fix archive flow'),
+				workspace('docs', 'Update docs site', { parentId: 'root', repoId: 'sample' }),
+				workspace('review', 'Review', { parentId: 'root' }),
+				workspace('pricing', 'Redesign pricing page', { repoId: 'sample' })
+			]
+		},
+		'/workspaces/root'
+	)}
 </Story>

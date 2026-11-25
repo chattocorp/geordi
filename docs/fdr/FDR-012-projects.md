@@ -1,7 +1,7 @@
 # FDR-012: Projects
 
 **Status:** Deprecated
-**Last reviewed:** 2026-11-21
+**Last reviewed:** 2026-11-25
 
 > **Deprecated (2026-11-21):** new projects can no longer be started. Existing projects still work and can be archived and restored; projects will be removed entirely in a later version.
 
@@ -18,7 +18,7 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 - Its agent is told where it is: in a project, with no repository, there to orchestrate rather than to write code itself.
 - The project's agent can do in Geordi what the person can (FDR-002): see every repository and workspace, start agents in any repository, start agents alongside the agent of any workspace in a repository, and message, steer, stop and archive any agent in a repository or in the project itself, whoever started it.
 - Projects don't interact: a project's agents can't see, start agents in, message or archive another project.
-- What it starts in a repository begins in a worktree of its own, from the repository's main branch, and appears under that repository in the sidebar as usual, marked as started by the project.
+- What it starts in a repository begins in a worktree of its own, from the repository's main branch, and appears beneath the project in the grouped sidebar with the repository picture.
 - A project has none of what follows from a repository: no changes, diffs, changeset, jobs, links or ports, no pull request actions, no setup or teardown.
 - Archiving a project archives the conversations in it and ends their agents; its folder stays. The agents it started in repositories carry on where they are, without a parent.
 
@@ -33,7 +33,7 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 ### 2. Just conversations
 
 **Decision:** A project shows its conversations and nothing beside them: no list of the agents it started, no terminals.
-**Why:** The simplest shape first. The agent can say how the work stands when asked, and the sidebar already shows every workspace under its repository.
+**Why:** The simplest shape first. The agent can say how the work stands when asked, and the sidebar already shows the workspaces it started.
 **Tradeoff:** No overview of a project's work at a glance; the person asks for one.
 
 ### 3. A folder of its own, never "no directory"
@@ -54,11 +54,11 @@ A project is a workspace that belongs to no repository. From it, an agent orches
 **Why:** Each project is its own effort. No agent is to stop, archive or otherwise touch another effort's work.
 **Tradeoff:** Two projects can't hand work to each other; the person carries it over.
 
-### 6. What a project starts lives with its repository
+### 6. The sidebar keeps a project's delegation tree together
 
-**Decision:** Agents a project starts show under their repository in the sidebar, like any other work there.
-**Why:** Work on a repository is found under the repository, whoever started it.
-**Tradeoff:** Nothing on screen gathers a project's agents in one place.
+**Decision:** A project's children appear beneath it in the Projects group while that group is shown (FDR-002).
+**Why:** The person can follow the project's work across repositories.
+**Tradeoff:** A repository heading can omit work a project started there.
 
 ### 7. Many projects, archived when done
 

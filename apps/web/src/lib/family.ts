@@ -54,9 +54,20 @@ export function withoutInactive<
 	return workspaces.filter((w) => kept.has(w) || !w.inactive);
 }
 
-/** Keeps the order given, but puts each workspace right after the one that started it. */
-export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
-	return nested(all, (workspace) => workspace.repoId);
+/** Group each tree under its highest ancestor whose repository (or Projects) is shown. */
+export function byRepository<T extends Member>(
+	all: T[],
+	shown: readonly (string | null)[] = all.map(({ repoId }) => repoId)
+): Map<string | null, Listed<T>[]> {
+	const groups = new Set(shown);
+	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
+	const home = new Map(
+		all.map((workspace) => {
+			const ancestor = lineOf(byId, workspace.id).findLast(({ repoId }) => groups.has(repoId));
+			return [workspace.id, ancestor ? ancestor.repoId : workspace.repoId];
+		})
+	);
+	return nested(all, (workspace) => home.get(workspace.id)!);
 }
 
 /**
@@ -92,6 +103,8 @@ function nested<T extends Member>(
 			if (child.parentId === workspace.id && follows(child)) list(child, depth + 1);
 	};
 	for (const workspace of all) if (!follows(workspace)) list(workspace, 0);
+	// A cycle has no root. Start at its first remaining member.
+	for (const workspace of all) if (!visited.has(workspace.id)) list(workspace, 0);
 	return groups;
 }
 
@@ -152,8 +165,8 @@ export function inSidebarOrder<T extends Member>(
 		return unfolded(asOneList(shownUngrouped(all, repoIds)), folded).map(
 			({ workspace }) => workspace
 		);
-	const listed = byRepository(all);
 	const groups = includeProjects ? [null, ...repoIds] : repoIds;
+	const listed = byRepository(all, groups);
 	return groups
 		.filter((repoId) => !folded.includes(repoId ?? 'projects'))
 		.flatMap((repoId) => unfolded(listed.get(repoId) ?? [], folded))

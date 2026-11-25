@@ -22,6 +22,7 @@
 		byRepository,
 		dropTarget,
 		inFocus,
+		lineOf,
 		shownUngrouped,
 		unfolded
 	} from '#lib/family.ts';
@@ -31,6 +32,7 @@
 	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { slide } from 'svelte/transition';
 	import { foreground } from '#lib/foreground.svelte.ts';
 	import {
@@ -73,10 +75,11 @@
 
 	type Item = Navigation['workspaces'][number];
 
-	/** The workspaces by repository, each agent-started one after the one that started it. */
-	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
+	const listed = $derived(
+		byRepository(visibleWorkspaces, [null, ...sidebarRepos.map(({ id }) => id)])
+	);
 	const repoNames = $derived(new Map(nav?.repos.map((repo) => [repo.id, repo.name])));
 	/**
 	 * What the sidebar groups workspaces under: projects first (FDR-012: workspaces in no
@@ -114,21 +117,19 @@
 	 * A workspace counts as working, for archiving, while anything its agent started is. Not
 	 * a project's: what it started in a repository carries on without it.
 	 */
-	const working = (workspace: Item): boolean =>
-		workspace.working ||
-		(workspace.repoId !== null &&
-			(nav?.workspaces ?? []).some((other) => other.parentId === workspace.id && working(other)));
-	/**
-	 * The workspace, of this one and what its agents started, whose agent waits for the
-	 * person's answer: a folded row stands for all of them, and must not hide a question.
-	 */
-	const asker = (workspace: Item): Item | undefined =>
-		workspace.outcome === 'asking'
-			? workspace
-			: (nav?.workspaces ?? [])
-					.filter((other) => other.parentId === workspace.id)
-					.map(asker)
-					.find((found) => found);
+	const busyIds = $derived.by(() => {
+		const all = nav?.workspaces ?? [];
+		const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
+		const busy = new SvelteSet<string>();
+		for (const workspace of all.filter(({ working }) => working)) {
+			busy.add(workspace.id);
+			for (const parent of lineOf(byId, workspace.parentId)) {
+				if (parent.repoId === null) break;
+				busy.add(parent.id);
+			}
+		}
+		return busy;
+	});
 	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
 	let pointedAt = $state<string | null>(null);
 
@@ -162,7 +163,7 @@
 		const running = workspace.status === 'running';
 		const project = workspace.repoId === null;
 		// archiving takes the workspaces its agent started along: none of them may be working
-		const busy = working(workspace);
+		const busy = busyIds.has(workspace.id);
 		// the menu has these already, below
 		const next = workspace.actions.filter(({ id }) => id !== 'continue' && id !== 'archive');
 		return [
@@ -256,13 +257,12 @@
 	let dragged = $state<Item | null>(null);
 	let dropBefore = $state<string | null | undefined>(undefined);
 	let dropAfter = $state<string | null>(null);
-	/** Whether the one being dragged may be dropped among `repoId`'s: in one list, anywhere. */
-	const droppable = (repoId: string | null) =>
-		!!dragged && (!grouped.current || dragged.repoId === repoId);
-
 	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
 		const from = dragged ? rows.findIndex((row) => row.workspace.id === dragged!.id) : -1;
-		if (from === -1) return;
+		if (from === -1) {
+			dropBefore = undefined;
+			return;
+		}
 		event.preventDefault();
 		const rect = event.currentTarget.getBoundingClientRect();
 		const target = dropTarget(rows, from, index, event.clientY < rect.top + rect.height / 2);
@@ -271,9 +271,13 @@
 		dropAfter = target?.after ?? null;
 	}
 
-	function drop(event: DragEvent, repoId: string | null) {
+	function drop(event: DragEvent, rows: Row[]) {
 		event.preventDefault();
-		if (dragged && droppable(repoId) && dropBefore !== undefined)
+		if (
+			dragged &&
+			rows.some(({ workspace }) => workspace.id === dragged?.id) &&
+			dropBefore !== undefined
+		)
 			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
 		endDrag();
 	}
@@ -454,7 +458,7 @@
 					}}
 				>
 					{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-						{@render row(workspace, parent, depth, under, rows, index)}
+						{@render row(workspace, parent, depth, under, rows, index, oneList)}
 					{/each}
 				</ul>
 				{#if activeOnly && anyInactive && rows.length === 0}
@@ -554,7 +558,7 @@
 								}}
 							>
 								{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-									{@render row(workspace, parent, depth, under, rows, index)}
+									{@render row(workspace, parent, depth, under, rows, index, all, repo.id)}
 								{/each}
 							</ul>
 						{/if}
@@ -590,12 +594,20 @@
 	depth: number,
 	under: number,
 	rows: Row[],
-	index: number
+	index: number,
+	all: Row[],
+	group?: string | null
 )}
+	{@const foreign = group !== undefined && workspace.repoId !== group}
 	{@const isFolded = under > 0 && folded.current.includes(workspace.id)}
 	{@const current = path === `/workspaces/${workspace.id}`}
-	{@const busy = working(workspace)}
-	{@const asking = isFolded ? asker(workspace) : workspace.outcome === 'asking' && workspace}
+	{@const busy = busyIds.has(workspace.id)}
+	{@const start = isFolded ? all.findIndex((row) => row.workspace.id === workspace.id) : -1}
+	{@const hidden = isFolded ? all.slice(start + 1, start + under + 1) : []}
+	{@const asking =
+		workspace.outcome === 'asking'
+			? workspace
+			: hidden.find(({ workspace }) => workspace.outcome === 'asking')?.workspace}
 	{@const leaving = beingArchived.has(workspace.id)}
 	{#snippet repoIcon()}<RepoIcon
 			id={workspace.repoId!}
@@ -635,21 +647,19 @@
 			foreground.ask(workspace.id);
 		}}
 		ondragover={(event) => overRow(event, rows, index)}
-		ondrop={(event) => drop(event, workspace.repoId)}
+		ondrop={(event) => drop(event, rows)}
 	>
 		<SidebarWorkspaceRow
 			workspaceId={workspace.repoId && workspace.branch ? workspace.id : undefined}
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
-			parentHref={grouped.current && workspace.parentId
-				? resolve('/workspaces/[id]', { id: workspace.parentId })
-				: undefined}
+			repositoryName={foreign && workspace.repoId ? repoNames.get(workspace.repoId) : undefined}
 			icon={workspace.repoId === null
 				? 'icon-[lucide--folder-kanban]'
-				: grouped.current
-					? undefined
-					: repoIcon}
+				: foreign || !grouped.current
+					? repoIcon
+					: undefined}
 			{current}
 			{leaving}
 			dragging={dragged?.id === workspace.id}
@@ -657,7 +667,7 @@
 			unread={unread.has(workspace.id)}
 			asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
 			waiting={workspace.waiting}
-			working={workspace.working || (isFolded && busy)}
+			working={workspace.working || hidden.some(({ workspace }) => workspace.working)}
 			locked={workspace.locked}
 			inactive={workspace.inactive}
 			background={workspace.background}

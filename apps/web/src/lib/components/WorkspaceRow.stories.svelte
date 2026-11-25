@@ -115,7 +115,6 @@
 		<WorkspaceRow
 			title="Bump the protocol"
 			href="#child"
-			parentHref="#parent"
 			parentTitle="Plan the 0.7 release"
 			fold={{ count: 1, folded: false, toggle: () => {} }}
 		/>
@@ -123,7 +122,6 @@
 			<WorkspaceRow
 				title="Pick the release highlights"
 				href="#grandchild"
-				parentHref="#child"
 				parentTitle="Bump the protocol"
 			/>
 		</div>
