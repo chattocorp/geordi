@@ -219,7 +219,7 @@ it('edits one Changesets note shared by two packages', async () => {
 		JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'] })
 	);
 	writeFileSync(file('pnpm-workspace.yaml'), 'packages: ["packages/*"]\n');
-	for (const name of ['api', 'client']) {
+	for (const name of ['api', 'client', 'worker']) {
 		mkdirSync(file('packages/' + name), { recursive: true });
 		writeFileSync(
 			file('packages/' + name + '/package.json'),
@@ -236,8 +236,11 @@ it('edits one Changesets note shared by two packages', async () => {
 		);
 	editReleaseNote(tree, await read(), { path, original: 'Old summary', body: 'Updated summary' });
 	expect(readFileSync(file(path), 'utf8')).toBe(header + 'Updated summary\n');
-	expect((await read())?.packages.map((pkg) => pkg.notes[0].body)).toEqual([
-		'Updated summary',
-		'Updated summary'
+	expect(
+		(await read())?.packages.map((pkg) => [pkg.name, pkg.notes.map((note) => note.body)])
+	).toEqual([
+		['api', ['Updated summary']],
+		['client', ['Updated summary']],
+		['worker', []]
 	]);
 });

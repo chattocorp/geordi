@@ -303,12 +303,19 @@ const mergeVersions = (id: string) =>
 	({
 		read: () => {
 			const plan = watchers().state(workspaces().ref(id).worktreeId)?.release;
-			const versions = (plan?.packages ?? []).flatMap((pkg) =>
+			const packages = plan?.packages ?? [];
+			const versions = packages.flatMap((pkg) =>
 				pkg.nextVersion &&
 				pkg.nextVersion !== pkg.version &&
 				!pkg.problems.length &&
 				pkg.notes.some((note) => note.added)
-					? [{ path: pkg.path, name: pkg.name, version: pkg.nextVersion }]
+					? [
+							{
+								path: pkg.path,
+								name: packages.length > 1 ? pkg.name : null,
+								version: pkg.nextVersion
+							}
+						]
 					: []
 			);
 			return { id, versions };
