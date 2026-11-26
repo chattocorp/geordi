@@ -304,6 +304,18 @@
 	</div>
 </Story>
 
+<Story name="Stacked tool calls" asChild>
+	<div class="max-w-xs sheet p-3">
+		<ToolGroup
+			tools={[0, 1, 0, 0, 0, 0, 2, 2, 0, 0, 0, 2, 0, 3].map((sample, i) => ({
+				...tools[sample],
+				id: String(i)
+			}))}
+			live
+		/>
+	</div>
+</Story>
+
 <!-- As recorded before Geordi kept what agents say of a tool call: its name and input. -->
 <Story
 	name="Tool calls"
@@ -311,6 +323,11 @@
 	play={async ({ canvasElement }) => {
 		const summary = canvasElement.querySelector('summary')!;
 		const firstRow = Array.from(summary.querySelectorAll('[role="img"]'));
+		const [first, second] = firstRow.map((tile) => tile.getBoundingClientRect());
+		await expect(second.left).toBeLessThan(first.right);
+		await expect(firstRow[0].firstElementChild!.getBoundingClientRect().right).toBeLessThanOrEqual(
+			second.left
+		);
 		await expect(firstRow.map((icon) => icon.getAttribute('aria-label'))).toEqual([
 			'shell',
 			'Read',
@@ -328,8 +345,17 @@
 		]);
 		const liveSummary = running[0].closest('summary')!;
 		await expect(liveSummary).not.toHaveTextContent('pnpm build');
+		const collapsedLeft = liveSummary.querySelector('[role="img"]')!.getBoundingClientRect().left;
 		await userEvent.click(liveSummary);
-		await expect(within(liveSummary.closest('details')!).getByText('pnpm build')).toBeVisible();
+		const group = liveSummary.closest('details')!;
+		await expect(liveSummary.querySelector('[role="img"]')).toBeNull();
+		await expect(liveSummary).toHaveAccessibleName('Collapse tool calls');
+		const list = liveSummary.nextElementSibling!.getBoundingClientRect();
+		await expect(list.left).toBe(collapsedLeft);
+		await expect(liveSummary.getBoundingClientRect().left).toBeGreaterThanOrEqual(list.left);
+		const command = within(group).getByText('pnpm build');
+		await expect(command).toBeVisible();
+		await expect(command.closest('summary')!.querySelector('[data-live]')).toBeVisible();
 		await userEvent.click(liveSummary);
 		await userEvent.click(summary);
 		await expect(summary.parentElement).toHaveAttribute('open');

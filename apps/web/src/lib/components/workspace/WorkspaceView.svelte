@@ -1,3 +1,13 @@
+<script module lang="ts">
+	export type WorkspaceFrame = {
+		side: number;
+		changes: number;
+		open: boolean;
+		/** The sheet beside the conversation folded to its tab row, if one is. */
+		fold?: 'side' | 'dock' | null;
+	};
+</script>
+
 <script lang="ts">
 	import { restoreDiff, type Area, type Arrangement } from './diff-tabs.ts';
 	import { archiveAndNavigate } from './afar.svelte.ts';
@@ -110,8 +120,9 @@
 	type Props = {
 		/** The workspace as it is now: it comes live, over the page's one connection. */
 		workspace: WorkspaceLive;
+		frame: { current: WorkspaceFrame };
 	};
-	let { workspace }: Props = $props();
+	let { workspace, frame }: Props = $props();
 	// (never another's: the page makes a new view for each workspace)
 	// svelte-ignore state_referenced_locally
 	const id = workspace.id;
@@ -215,13 +226,6 @@
 	};
 	const arrangement = persisted<Arrangement>(`geordi:arrangement:${id}`, {});
 	const saved = $derived(restoreDiff(arrangement.current));
-	const frame = persisted<{
-		side: number;
-		changes: number;
-		open: boolean;
-		/** The sheet beside the conversation folded to its tab row, if one is. */
-		fold?: 'side' | 'dock' | null;
-	}>('geordi:frame', { side: 0.28, changes: 0.45, open: true, fold: null });
 	/** How the Changes tab shows its files: a preference of this browser, like the frame. */
 	const changesView = persisted<'list' | 'tree'>('geordi:changes-view', 'list');
 	/** What is folded shut in the Changes tab, remembered for each workspace. */

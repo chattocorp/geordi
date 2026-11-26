@@ -21,7 +21,6 @@
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import AgentText from '@geordi/ui/AgentText.svelte';
-	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
 	import ToolGroup from '@geordi/ui/ToolGroup.svelte';
 	import ProgressIcon from '@geordi/ui/ProgressIcon.svelte';
 	import Spinner from '@geordi/ui/Spinner.svelte';
@@ -430,19 +429,17 @@
 								{:else}
 									<div class="mt-auto pt-4"><UserMessage text={firstMessage} /></div>
 									<AgentMessage agent="claude">
-										{#if step >= 7}
-											<TurnActivity
-												summary={`${calls.length} tool calls`}
-												expanded={activityOpen}
-												ontoggle={() => {
-													activityOpen = !activityOpen;
-													schedule();
-												}}
-											/>
-										{/if}
-										{#if calls.length && (step < 7 || activityOpen)}<ToolGroup
+										{#if calls.length}<ToolGroup
 												tools={calls}
 												live={running}
+												bind:open={
+													() => activityOpen,
+													(open) => {
+														if (activityOpen === open) return;
+														activityOpen = open;
+														schedule();
+													}
+												}
 											/>{/if}
 										{#if step === 1 && running}<p
 												class="flex h-7 items-center gap-2 text-xs text-muted"
