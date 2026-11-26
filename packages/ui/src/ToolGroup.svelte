@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Disclosure from './Disclosure.svelte';
-	import { iconOf, sortOf } from './tools.ts';
+	import { iconOf, titleOf } from './tools.ts';
 	import type { ToolEntry } from './tools.ts';
 	import type { ComponentProps, Snippet } from 'svelte';
 	import ToolCall from './ToolCall.svelte';
@@ -27,6 +27,8 @@
 		reveal
 	}: Props = $props();
 
+	const groupId = $props.id();
+
 	/** The tool that is running right now, if one is: the only one worth watching. */
 	const active = $derived(live ? tools.findLast((tool) => tool.output === null) : undefined);
 
@@ -45,7 +47,7 @@
 	class="relative py-1 first:pt-0"
 	summaryClass={open
 		? 'absolute left-1 z-1 mt-1.5 size-7 text-muted hover:bg-hover hover:text-ink [&>span]:mx-auto'
-		: 'min-h-7 text-sm text-muted hover:text-ink'}
+		: 'min-h-7 text-sm text-muted'}
 >
 	{#snippet heading()}
 		{#if open}
@@ -53,22 +55,35 @@
 		{:else}
 			<span class="sr-only">Tool calls</span>
 			<span class="flex flex-wrap items-center gap-y-1 pe-1.5">
-				{#each tools as tool (tool.id)}
+				{#each tools as tool, i (tool.id)}
 					{@const activity = activityOf(tool)}
 					{@const status = tool.isError ? 'failed' : activity}
-					{@const label = sortOf(tool) + (status ? ', ' + status : '')}
+					{@const title = titleOf(tool, cwd)
+						.map((part) => part.text)
+						.join('')}
+					{@const label = title + (status ? ', ' + status : '')}
 					<span
 						role="img"
 						aria-label={label}
-						title={label}
+						style:anchor-name="--{groupId}-{i}"
 						data-live={activity ? true : undefined}
 						class={[
-							'tool-tile relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
+							'tool-tile group/tile relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
 							activity && 'edge-live',
-							tool.isError && 'text-danger'
+							tool.isError ? 'text-danger hover:bg-hover' : 'hover:text-ink'
 						]}
 					>
 						<span class={['size-3.5 -translate-x-px', iconOf(tool)]}></span>
+						<span
+							role="tooltip"
+							style:position-anchor="--{groupId}-{i}"
+							style:position-area="top span-right"
+							style:position-try-fallbacks="flip-inline, flip-block, flip-block flip-inline"
+							class="pointer-events-none fixed z-10 my-1.5 hidden max-w-xs card-float px-2.5 py-1.5 text-xs text-ink group-hover/tile:block"
+						>
+							<span class="line-clamp-2 wrap-anywhere">{title}</span>
+							{#if status}<span class="text-muted">{status}</span>{/if}
+						</span>
 					</span>
 				{/each}
 				{#if cursor}<span class="inline-flex not-first:ms-3.5">{@render cursor()}</span>{/if}

@@ -329,10 +329,10 @@
 			second.left
 		);
 		await expect(firstRow.map((icon) => icon.getAttribute('aria-label'))).toEqual([
-			'shell',
-			'Read',
-			'shell, failed',
-			'shell'
+			'shell git status',
+			'Read src/changes.ts',
+			'shell pnpm test, failed',
+			'shell pnpm build'
 		]);
 		await expect(firstRow.filter((icon) => icon.classList.contains('text-danger'))).toEqual([
 			firstRow[2]
@@ -340,12 +340,12 @@
 		await expect(summary.querySelector('[aria-hidden="true"]')).toBeNull();
 		const running = canvasElement.querySelectorAll('summary [role="img"][data-live]');
 		await expect(Array.from(running, (icon) => icon.getAttribute('aria-label'))).toEqual([
-			'shell, running',
-			'shell, running in the background'
+			'shell pnpm build, running',
+			'shell git status, running in the background'
 		]);
 		await expect(getComputedStyle(running[0], '::before').paddingTop).toBe('1.5px');
 		const liveSummary = running[0].closest('summary')!;
-		await expect(liveSummary).not.toHaveTextContent('pnpm build');
+		await expect(running[0].querySelector('[role=tooltip]')).not.toBeVisible();
 		const collapsedLeft = liveSummary.querySelector('[role="img"]')!.getBoundingClientRect().left;
 		await userEvent.click(liveSummary);
 		const group = liveSummary.closest('details')!;
