@@ -845,7 +845,7 @@
 		content: none;
 	}
 	:where(a) {
-		@apply decoration-accent underline-offset-2;
+		@apply wrap-anywhere decoration-accent underline-offset-2;
 	}
 
 	/* A file named in code (see markdown.ts): opens its diff or source; a directory opens in the file manager. */
