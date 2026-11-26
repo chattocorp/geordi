@@ -12,4 +12,4 @@ Completed in FDR-001. Verified two consecutive changes to one file in the worksp
 
 The reply footer identifies single-file edits by name. The numbered review tab shows a total and lets you collapse each text diff independently. Verified the three-turn conversation and keyboard file toggles in the running forge.
 
-Turn reviews save full text context within the existing patch size limit. The same viewer used for workspace diffs expands the saved lines. Browser and daemon tests cover expansion and the compact patch fallback.
+Turn reviews keep compact patches in the event log and expand unchanged lines from retained Git blobs (ADR-015). Older compact patches use their recorded object IDs. Tests cover expansion, missing objects, worktree removal and Git garbage collection after purge.

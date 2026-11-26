@@ -188,6 +188,7 @@ export type WorkspacesEvent =
 			stream: 'purges';
 			data: {
 				workspaces: {
+					repoId?: string;
 					id: string;
 					title: string;
 					born: number;

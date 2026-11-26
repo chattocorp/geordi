@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { ToolDiff } from '@geordi/protocol';
+	import type { ToolDiff, TurnText } from '@geordi/protocol';
 	import { onMount } from 'svelte';
 	import { describeChange, diffInput, patchFiles } from '#lib/patch.ts';
+	import TurnFile from './workspace/TurnFile.svelte';
 	import DiffSection from '@geordi/ui/DiffSection.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 
@@ -11,8 +12,9 @@
 		/** The session's worktree, so paths inside it are shown relative to it. */
 		cwd?: string;
 		collapsible?: boolean;
+		load?: (path: string) => Promise<TurnText | null>;
 	};
-	let { diff, cwd, collapsible = false }: Props = $props();
+	let { diff, cwd, collapsible = false, load }: Props = $props();
 
 	// Load the browser viewer once. If it fails to load, keep the file summaries.
 	let parser = $state.raw<typeof import('@pierre/diffs').parsePatchFiles>();
@@ -27,20 +29,30 @@
 
 <!-- One file's change after another; each named, unless it is the only one (the row names it). -->
 <div class="space-y-2">
-	{#if diff.tooLarge}
+	{#if diff.tooLarge && (!load || !files.some((file) => file.blobs))}
 		<p class="text-muted">This change is too large to show here.</p>
 	{/if}
 	{#each files as file, i (i)}
-		{#if file.diff}
+		{@const historical =
+			load &&
+			!diff.fullContext &&
+			(file.blobs
+				? (file.added || file.removed) && file.blobs.old !== file.blobs.new
+				: file.diff?.prevObjectId && file.diff.newObjectId)}
+		{#if file.diff || historical}
 			{@const patch = file.diff}
 			{#snippet comparison()}
-				<DiffView path={file.path} {...diffInput(patch, diff.fullContext)} />
+				{#if historical}
+					<TurnFile {file} {load} />
+				{:else if patch}
+					<DiffView path={file.path} {...diffInput(patch, diff.fullContext)} />
+				{/if}
 			{/snippet}
 			{#if collapsible}
 				<DiffSection
 					path={file.path}
-					added={patch.hunks.reduce((n, h) => n + h.additionLines, 0)}
-					removed={patch.hunks.reduce((n, h) => n + h.deletionLines, 0)}
+					added={file.added ?? patch?.hunks.reduce((n, h) => n + h.additionLines, 0) ?? null}
+					removed={file.removed ?? patch?.hunks.reduce((n, h) => n + h.deletionLines, 0) ?? null}
 				>
 					{@render comparison()}
 				</DiffSection>

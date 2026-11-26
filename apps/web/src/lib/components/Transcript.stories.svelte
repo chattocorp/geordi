@@ -407,12 +407,21 @@
 >
 	<PatchView
 		collapsible
+		load={async () => {
+			const prefix = Array.from(
+				{ length: 24 },
+				(_, i) => `export const section${i + 1} = ${i + 1};\n`
+			).join('');
+			return {
+				old: prefix + 'export const sections = 24;\n',
+				new: prefix + 'export const sections = 25;\n'
+			};
+		}}
 		diff={{
-			fullContext: true,
 			files: [{ operation: 'modify', path: 'sections.ts' }],
 			patch:
-				'diff --git a/sections.ts b/sections.ts\n--- a/sections.ts\n+++ b/sections.ts\n@@ -1,25 +1,25 @@\n' +
-				Array.from({ length: 24 }, (_, i) => ` export const section${i + 1} = ${i + 1};\n`).join(
+				'diff --git a/sections.ts b/sections.ts\nindex abc1234..def5678 100644\n--- a/sections.ts\n+++ b/sections.ts\n@@ -22,4 +22,4 @@\n' +
+				Array.from({ length: 3 }, (_, i) => ` export const section${i + 22} = ${i + 22};\n`).join(
 					''
 				) +
 				'-export const sections = 24;\n+export const sections = 25;\n'

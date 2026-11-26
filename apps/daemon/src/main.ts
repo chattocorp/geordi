@@ -1,3 +1,4 @@
+import { releaseTurnRefs, turnFile } from './turn-blobs.ts';
 import { projectPath } from './projects.ts';
 import { claimDaemon } from './daemon-owner.ts';
 import { prepareSessionsDirectory } from './session-process.ts';
@@ -531,6 +532,13 @@ async function stopSessions(path: string) {
 }
 
 async function readRequest(request: DaemonRequest, signal?: AbortSignal) {
+	if (request.kind === 'turnFile')
+		return hasCheckout(request.repoPath) ? turnFile(request.repoPath, request.blobs) : null;
+	if (request.kind === 'releaseTurnRefs') {
+		if (hasCheckout(request.repoPath))
+			await releaseTurnRefs(request.repoPath, request.workspaceIds);
+		return null;
+	}
 	if (request.kind === 'terminalActivity') return hasTerminalActivity(request.workspaceId);
 	if (request.kind === 'scrollback') return scrollbackOf(request.terminalId);
 	if (request.kind === 'findFiles') {

@@ -20,6 +20,8 @@
 	};
 	const stopBackground = fn<(id: string) => Promise<void>>().mockResolvedValue(undefined);
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
+	const commitUrl =
+		'https://github.com/example/project/commit/34ee81598bcbb58e4551acbc9414e6d3ad4ca241';
 	const reply =
 		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
 	const queued = 'Please add a screenshot to [the review](https://example.com/review).';
@@ -193,6 +195,27 @@
 			agent="codex"
 			onremove={() => {}}
 			onanswer={() => {}}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Long commit link"
+	asChild
+	play={async ({ canvas }) => {
+		const link = await canvas.findByRole('link', { name: commitUrl });
+		expect(link).toHaveAttribute('href', commitUrl);
+		const bubble = link.closest('.message')!.getBoundingClientRect();
+		expect(link.getClientRects().length).toBeGreaterThan(1);
+		for (const line of link.getClientRects()) {
+			expect(line.right).toBeLessThanOrEqual(bubble.right);
+		}
+	}}
+>
+	<div class="flex h-64 max-w-sm flex-col sheet overflow-hidden">
+		<MessageView
+			blocks={[{ kind: 'user', text: `Are you sure? The failing commit is ${commitUrl}` }]}
+			agent="codex"
 		/>
 	</div>
 </Story>

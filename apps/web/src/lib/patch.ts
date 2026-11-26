@@ -1,5 +1,5 @@
 import type { FileDiffMetadata, ParsedPatch } from '@pierre/diffs';
-import type { ToolDiff } from '@geordi/protocol';
+import type { TurnDiff } from '@geordi/protocol';
 import { displayPath } from '@geordi/ui/tools';
 
 /** One file a tool call changed, as shown: its diff if the patch has one that can be drawn. */
@@ -10,6 +10,9 @@ export type PatchFile = {
 	operation: string;
 	binary: boolean;
 	diff?: FileDiffMetadata;
+	blobs?: TurnDiff['files'][number]['blobs'];
+	added?: number;
+	removed?: number;
 };
 
 /**
@@ -21,7 +24,7 @@ export type PatchFile = {
  * is listed without a diff.
  */
 export function patchFiles(
-	{ files, patch }: ToolDiff,
+	{ files, patch }: Pick<TurnDiff, 'files' | 'patch'>,
 	cwd: string | undefined,
 	parse: (patch: string) => ParsedPatch[]
 ): PatchFile[] {
@@ -40,6 +43,7 @@ export function patchFiles(
 		const [diff] = index < 0 ? [] : parsed.splice(index, 1);
 		return {
 			path: displayPath(file.path, cwd),
+			...(file.blobs && { blobs: file.blobs, added: file.added, removed: file.removed }),
 			...(file.oldPath &&
 				file.oldPath !== file.path && { oldPath: displayPath(file.oldPath, cwd) }),
 			operation: file.operation,

@@ -297,6 +297,7 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		admit: daemonAdmission(store(), () => workspaces().hasRunningTurn()),
 		onHello: (_daemonId, running, runningTerminals, ended) => {
 			workspaces().reconcile(running);
+			void releasePurgedTurnRefs();
 			for (const id of workspaces().unplaced())
 				prepareWorktree(id).catch((cause) => console.warn(`[worktree] ${cause?.message ?? cause}`));
 			terminals().reconcile(runningTerminals, ended);
@@ -324,6 +325,27 @@ export const hub: () => ReturnType<typeof createHub> = lazy(() =>
 		}
 	})
 );
+
+/** Replay purge tombstones on reconnect, including purges made while the daemon was offline. */
+export async function releasePurgedTurnRefs() {
+	const purged = new Map<string, string[]>();
+	for (const event of store().readStream('purges')) {
+		if (event.type !== 'workspace.purged') continue;
+		for (const { id, repoId } of event.data.workspaces) {
+			if (!repoId) continue;
+			const ids = purged.get(repoId) ?? [];
+			ids.push(id);
+			purged.set(repoId, ids);
+		}
+	}
+	for (const repo of repos().list()) {
+		const ids = purged.get(repo.id);
+		if (ids)
+			await hub()
+				.request({ kind: 'releaseTurnRefs', repoPath: repo.path, workspaceIds: ids })
+				.catch(() => {});
+	}
+}
 
 /** The usage limits of the agents' subscriptions, as their sessions last said (`createLimits`). */
 export const limits = lazy(() => createLimits());

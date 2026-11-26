@@ -12,6 +12,7 @@ Archiving a workspace keeps its conversation, so the event log only ever grows, 
 - In **Archive**, right-click a workspace and choose **Delete permanently…**, or select **Delete all** next to the search. While a search is entered, that button reads **Delete N** and deletes only the workspaces listed.
 - A dialog asks first. It names the one workspace, or says how many there are, and says that this can't be undone and that Git branches are kept.
 - A workspace is deleted together with the agents it started and those working alongside it in its worktree. If one of them isn't archived (it was restored, say), nothing is deleted and the dialog says which one stands in the way.
+- Permanent deletion releases the Git objects held for those turn reviews. Other workspaces keep their own versions. A restored backup can still show its compact patches after Git reclaims an object.
 - Images sent in those conversations are deleted with them. Their files go too, unless another image has the same bytes.
 - Afterwards, the archive says how many workspaces were deleted and how much smaller Geordi's log got. Until the next deletion, the copy of the data from before it (below) takes about the old size.
 - Everything else is as it was:
@@ -61,5 +62,5 @@ Archiving a workspace keeps its conversation, so the event log only ever grows, 
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-012
+- **ADRs:** ADR-001, ADR-012, ADR-015
 - **FDRs:** FDR-001, FDR-002, FDR-012

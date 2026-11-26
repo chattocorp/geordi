@@ -17,7 +17,7 @@ import type { Sound } from './sounds.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 43;
+export const PROTOCOL_VERSION = 44;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
@@ -565,6 +565,8 @@ export type DaemonRequest =
 	/** Current contents of a worktree-relative file, including files with no changes. */
 	| ({ kind: 'source'; path: string } & WorktreeRef)
 	/** Both versions of one of those files. */
+	| { kind: 'turnFile'; repoPath: string; blobs: TurnBlobs }
+	| { kind: 'releaseTurnRefs'; repoPath: string; workspaceIds: string[] }
 	| ({ kind: 'diff'; path: string } & WorktreeRef)
 	/** Which of these worktree-relative paths are files in the worktree, and which directories. */
 	| ({ kind: 'paths'; paths: string[] } & WorktreeRef)
@@ -636,6 +638,8 @@ export type DaemonResults = {
 	repoIcon: RepoIcon | null;
 	/** `start`: the branch work starts from unless another is named. */
 	branches: { start: string | null; branches: string[] };
+	turnFile: TurnText | null;
+	releaseTurnRefs: null;
 	diff: FileVersions;
 	source: FileContent | null;
 	paths: { files: string[]; folders: string[] };
@@ -850,7 +854,13 @@ export type Compaction = {
 };
 
 /** The net worktree diff for a turn, with repository-relative paths. */
-export type TurnDiff = ToolDiff & { added: number; removed: number };
+export type TurnText = { old: string | null; new: string | null };
+export type TurnBlobs = { old: string | null; new: string | null };
+export type TurnDiff = Omit<ToolDiff, 'files'> & {
+	added: number;
+	removed: number;
+	files: (ToolDiff['files'][number] & { blobs?: TurnBlobs; added?: number; removed?: number })[];
+};
 
 /** The tokens one turn used, as ACP's (unstable) `Usage` reports them. */
 export type TurnUsage = {
