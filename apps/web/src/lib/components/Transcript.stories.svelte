@@ -321,6 +321,11 @@
 			firstRow[2]
 		]);
 		await expect(summary.querySelector('[aria-hidden="true"]')).toBeNull();
+		const running = canvasElement.querySelectorAll('summary [role="img"][data-live]');
+		await expect(Array.from(running, (icon) => icon.getAttribute('aria-label'))).toEqual([
+			'shell, running',
+			'shell, running in the background'
+		]);
 		await userEvent.click(summary);
 		await expect(summary.parentElement).toHaveAttribute('open');
 		await userEvent.click(summary);
