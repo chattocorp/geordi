@@ -1086,7 +1086,7 @@
 	asChild
 	play={async ({ canvas }) => {
 		const cursor = await canvas.findByRole('img', { name: 'Agent working' });
-		const tools = canvas.getAllByRole('img', { name: 'shell' });
+		const tools = canvas.getAllByRole('img', { name: 'shell git status' });
 		const lastTool = tools[tools.length - 1];
 		await expect(
 			cursor.getBoundingClientRect().left - lastTool.getBoundingClientRect().right

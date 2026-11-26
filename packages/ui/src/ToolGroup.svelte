@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Disclosure from './Disclosure.svelte';
-	import { iconOf, sortOf } from './tools.ts';
+	import { iconOf, titleOf } from './tools.ts';
 	import type { ToolEntry } from './tools.ts';
 	import type { ComponentProps, Snippet } from 'svelte';
 	import ToolCall from './ToolCall.svelte';
@@ -45,7 +45,7 @@
 	class="relative py-1 first:pt-0"
 	summaryClass={open
 		? 'absolute left-1 z-1 mt-1.5 size-7 text-muted hover:bg-hover hover:text-ink [&>span]:mx-auto'
-		: 'min-h-7 text-sm text-muted hover:text-ink'}
+		: 'min-h-7 text-sm text-muted'}
 >
 	{#snippet heading()}
 		{#if open}
@@ -56,16 +56,18 @@
 				{#each tools as tool (tool.id)}
 					{@const activity = activityOf(tool)}
 					{@const status = tool.isError ? 'failed' : activity}
-					{@const label = sortOf(tool) + (status ? ', ' + status : '')}
+					{@const title = titleOf(tool, cwd)
+						.map((part) => part.text)
+						.join('')}
+					{@const label = title + (status ? ', ' + status : '')}
 					<span
 						role="img"
 						aria-label={label}
-						title={label}
 						data-live={activity ? true : undefined}
 						class={[
 							'tool-tile relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
 							activity && 'edge-live',
-							tool.isError && 'text-danger'
+							tool.isError ? 'text-danger hover:bg-hover' : 'hover:text-ink'
 						]}
 					>
 						<span class={['size-3.5 -translate-x-px', iconOf(tool)]}></span>
