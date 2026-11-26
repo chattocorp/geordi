@@ -27,9 +27,13 @@ export async function installApp(
 	const temporary = mkdtempSync(join(dirname(installed), '.geordi-install-'));
 	const replacement = join(temporary, 'Geordi.app');
 	const backup = join(temporary, 'previous.app');
+	// A workspace install runs below Geordi in the process tree. macOS pgrep skips
+	// its ancestors unless asked to include them, even for a detached installer.
+	const executable = join(installed, 'Contents/MacOS/Geordi');
+	const pattern = executable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	const running = () => {
 		try {
-			run('pgrep', ['-f', `${installed}/Contents/MacOS/Geordi`]);
+			run('pgrep', ['-af', `^${pattern}([[:space:]]|$)`]);
 			return true;
 		} catch (error) {
 			if (error.status === 1) return false;

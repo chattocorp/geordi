@@ -42,7 +42,10 @@ test('copies and signs before quitting, then replaces and opens the app', () =>
 		await installApp(packaged, installed, (cmd, args) => {
 			calls.push(cmd);
 			if (cmd === 'ditto') cpSync(args[0], args[1], { recursive: true });
-			if (cmd === 'pgrep' && !running) stopped();
+			if (cmd === 'pgrep') {
+				assert.equal(args[0], '-af');
+				if (!running) stopped();
+			}
 			if (cmd === 'osascript') {
 				assert.equal(readFileSync(join(installed, 'version'), 'utf8'), 'old');
 				running = false;
