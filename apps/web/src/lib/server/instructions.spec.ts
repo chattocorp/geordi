@@ -14,12 +14,12 @@ describe('instructionsFor', () => {
 		expect(text).toContain('`configuration_reference`');
 		expect(text).toContain('`$GEORDI_PORT`');
 		expect(text).toContain('`name_workspace`');
-		expect(text).not.toContain('started by the agent');
+		expect(text).not.toContain('reports to the agent');
 	});
 
 	it('tells an agent that an agent started who it works for', () => {
 		const text = instructionsFor({ ...own, parent: { title: 'Speed up the tests' } });
-		expect(text).toContain('started by the agent of another workspace ("Speed up the tests")');
+		expect(text).toContain('reports to the agent of another workspace ("Speed up the tests")');
 		// started without a name, it is to find one itself; with one, it keeps it
 		expect(text).toContain('`name_workspace`');
 		const named = instructionsFor({ ...own, parent: { title: 'x' }, named: true });

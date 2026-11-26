@@ -126,7 +126,7 @@
 			{current}
 			{onpoint}
 			icon={parentHref && !fold && !waiting ? undefined : statusIcon}
-			hint={parentTitle ? `Started by the agent in "${parentTitle}"` : undefined}
+			hint={parentTitle ? `Reports to "${parentTitle}"` : undefined}
 			fold={leaving ? undefined : fold}
 			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
 		/>

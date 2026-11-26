@@ -145,8 +145,8 @@ describe('archiving', () => {
 		expect(workspaces.get(lead).locked).toBe(false);
 	});
 
-	it('keeps reviewers with their worktrees across an A → B → A delegation chain', async () => {
-		const { workspaces, repos, store, archive, lead, start, removed, closed } = setup();
+	it('archives the whole tree across repositories, reviewers with their worktrees (FDR-016)', async () => {
+		const { workspaces, repos, store, archive, lead, start, finish, removed, closed } = setup();
 		const local = start(lead, 'own', 'Local work');
 		const other = repos.register(repositoryPath());
 		const { id: child } = workspaces.agents.start(local, {
@@ -169,25 +169,20 @@ describe('archiving', () => {
 			worktree: 'shared',
 			prompt: 'Review compatibility'
 		});
+		const family = [local, child, reviewer, back, backReviewer];
+		await expect(archive(lead, false)).rejects.toEqual(refusal(/Stop the agent/));
+		while ([lead, ...family].some((id) => workspaces.get(id).status === 'running'))
+			for (const id of [lead, ...family]) finish(id);
 		await archive(lead, false);
-		expect(closed).toEqual([local, lead]);
-		expect(removed).toEqual([local, lead]);
-		for (const id of [child, reviewer, back, backReviewer]) {
-			expect(workspaces.get(id)).toMatchObject({ archivedAt: null, status: 'running' });
-		}
-
-		workspaces.record(child, { kind: 'turn.completed' });
-		await expect(archive(child, false)).rejects.toEqual(refusal(/Stop the agent/));
-		workspaces.record(reviewer, { kind: 'turn.completed' });
-		await archive(child, false);
-		expect(closed.slice(-2)).toEqual([reviewer, child]);
+		const order = (id: string) => closed.indexOf(id);
+		for (const id of [lead, ...family]) expect(order(id)).toBeGreaterThanOrEqual(0);
+		expect(order(reviewer)).toBeLessThan(order(child));
+		expect(order(backReviewer)).toBeLessThan(order(back));
+		expect(order(back)).toBeLessThan(order(child));
+		expect(order(child)).toBeLessThan(order(local));
+		expect(removed).not.toContain(reviewer);
 		const replay = createWorkspaces(store, repos, () => true);
-		expect(replay.get(back)).toMatchObject({ archivedAt: null, status: 'running' });
-		expect(replay.get(backReviewer)).toMatchObject({
-			archivedAt: null,
-			status: 'running',
-			worktreeId: back
-		});
+		for (const id of [lead, ...family]) expect(replay.get(id).archivedAt).not.toBeNull();
 	});
 
 	it('tears down only what a person archives: an agent archiving leaves that to the person', async () => {

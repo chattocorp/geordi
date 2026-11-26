@@ -1,7 +1,7 @@
 import { questionLabel } from '#lib/question-label.ts';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
-import { isInactive } from '#lib/family.ts';
+import { isInactive, lineOf } from '#lib/family.ts';
 import { createAgentAccess, isExternal } from './agent-access.ts';
 import { createPreferences } from './preferences.ts';
 import { createImages } from './images.ts';
@@ -60,6 +60,8 @@ export type AgentReport = {
 	parentQuestions?: { id: string; questions: Question[] }[];
 	/** Other direct children with a decision for the caller of wait_for_agent. */
 	childrenAsking?: string[];
+	/** A person moved it away from the caller while it waited for it: no longer its to supervise (FDR-016). */
+	movedAway?: true;
 	id: string;
 	parentId: string | null;
 	agent: Agent;
@@ -690,7 +692,10 @@ export function createWorkspaces(
 		return workspace;
 	}
 
-	/** Who may supervise a workspace: the workspace or external client that started it. */
+	/**
+	 * Who may supervise a workspace: its parent (FDR-016), or the external client that
+	 * started it, while no person has moved it.
+	 */
 	const starterOf = (workspace: Workspace) => workspace.parentId ?? workspace.startedBy;
 
 	/** The workspaces a workspace's agent (or an external client) started that are still in use. */
@@ -718,7 +723,7 @@ export function createWorkspaces(
 	function findControlled(callerId: string, id: string): Workspace {
 		if (isProject(callerId)) return findFor(callerId, id);
 		const workspace = descendantsOf(callerId).find((candidate) => candidate.id === id);
-		if (!workspace) error(404, `You have not started an agent with ID ${id}`);
+		if (!workspace) error(404, `Agent ${id} is not one of yours to supervise`);
 		return workspace;
 	}
 
@@ -1050,7 +1055,10 @@ export function createWorkspaces(
 				descendantsOf(callerId).some((other) => other.id === id) ||
 				(!external && find(callerId).parentId === id);
 			if (!project && !external && !delegated)
-				error(403, 'You can message only the agents you started and the agent that started you');
+				error(
+					403,
+					'You can message only the agents that report to you and the agent you report to'
+				);
 			if (workspace.archivedAt) error(409, 'Workspace is archived');
 			refuseHeld(id);
 			if (!project && interrupt && workspace.status === 'running' && !delegated)
@@ -1220,12 +1228,16 @@ export function createWorkspaces(
 		/** The workspaces in use that this one's agent started itself, oldest first. */
 		children: (id: string): WorkspaceSummary[] => childrenOf(id).map(summarise),
 
-		/** Workspaces to archive with this one, with each owner before its dependents. */
+		/**
+		 * Workspaces to archive with this one, with each owner before its dependents: its
+		 * whole subtree, in every repository (FDR-016). What a project started in a repository
+		 * carries on without it (FDR-012).
+		 */
 		descendants(id: string): string[] {
 			const { repoId } = find(id);
 			const dependents = new Map<string, string[]>();
 			for (const workspace of projection.get().values()) {
-				if (workspace.archivedAt || workspace.repoId !== repoId) continue;
+				if (workspace.archivedAt || (workspace.repoId === null) !== (repoId === null)) continue;
 				// A reviewer sent to a different worktree stays with that worktree's owner.
 				const owners = [workspace.worktreeId];
 				if (repoId !== null && workspace.parentId) {
@@ -1522,10 +1534,13 @@ export function createWorkspaces(
 		retitle,
 
 		/**
-		 * Moves a workspace in the list: right above `before`, or to the end where that is
-		 * `null`. There is one list: listed by repository, each keeps its order there.
+		 * Moves a workspace in the outline (FDR-016): right above `before`, or to the end where
+		 * that is `null`; and, with `parentId`, under that workspace, or to the top level where
+		 * that is `null`. Its new parent supervises it from now on: the old one, if it waits
+		 * for it, learns it was moved away, and what the workspace had asked it goes to the
+		 * person. Nobody is told otherwise. Only a person moves workspaces.
 		 */
-		move(id: string, before: string | null, actor: string | null = null) {
+		move(id: string, before: string | null, parentId?: string | null, actor: string | null = null) {
 			const workspace = find(id);
 			if (workspace.archivedAt) error(409, 'This workspace is archived');
 			if (before !== null) {
@@ -1533,10 +1548,43 @@ export function createWorkspaces(
 				if (other.archivedAt) error(400, 'That workspace is archived');
 			}
 			if (before === id) return;
+			const reparents = parentId !== undefined && parentId !== workspace.parentId;
+			if (reparents && parentId !== null) {
+				const parent = find(parentId);
+				if (parent.archivedAt) error(400, 'That workspace is archived');
+				if (workspace.repoId === null || parent.repoId === null)
+					error(400, 'Projects can’t be nested');
+				if (workspace.worktreeId !== id || parent.worktreeId !== parentId)
+					error(400, 'An agent working in another workspace moves with that workspace');
+				if (lineOf(projection.get(), parentId).includes(workspace))
+					error(400, 'A workspace can’t be moved under itself');
+				const beyond = [workspace, ...descendantsOf(id)].find(
+					(each) => !reaches(parentId, each.repoId)
+				);
+				if (beyond) error(403, `“${parent.title}” can’t reach the repository of “${beyond.title}”`);
+			}
+			const oldParent = workspace.parentId;
+			const forwarded: GeordiEvent[] = reparents
+				? routedQuestions(workspace, 'parent').map(({ id: question }) => ({
+						type: 'workspace.questionForwarded',
+						stream: `workspace:${id}`,
+						data: { id, question }
+					}))
+				: [];
 			store.append(
-				{ type: 'workspace.moved', stream: `workspace:${id}`, data: { id, before } },
+				[
+					...forwarded,
+					{
+						type: 'workspace.moved',
+						stream: `workspace:${id}`,
+						data: { id, before, ...(reparents && { parentId }) }
+					}
+				],
 				{ actor }
 			);
+			if (!reparents || !oldParent) return;
+			for (const wait of waiting.get(id) ?? [])
+				if (wait.callerId === oldParent) wait.finish({ ...report(find(id)), movedAway: true });
 		},
 
 		/**
@@ -1583,7 +1631,7 @@ export function createWorkspaces(
 			if (workspace.archivedAt) return;
 			if (workspace.locked) error(409, `“${workspace.title}” is locked. Unlock it to archive it.`);
 			if (workspace.status === 'running') error(409, 'Stop the agent before archiving');
-			// Children in another repository can keep running after their parent is archived.
+			// What a project started in a repository keeps running after it is archived (FDR-012).
 			const requests = childrenOf(id).flatMap((child) =>
 				routedQuestions(child, 'parent').map(({ id: question }): GeordiEvent => ({
 					type: 'workspace.questionForwarded',

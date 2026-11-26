@@ -153,6 +153,18 @@
 		harnesses: null
 	};
 
+	/** A tree with a workspace of another repository in it (FDR-016): listed with its root. */
+	const acrossRepos: Navigation = {
+		...nav,
+		workspaces: [
+			...nav.workspaces,
+			workspace('abroad', 'Teach the sample parser the new syntax', {
+				repoId: 'sample',
+				parentId: 'failing'
+			})
+		]
+	};
+
 	/** Projects (FDR-012) above the repositories; what one started is listed with its repository. */
 	const withProjects: Navigation = {
 		...nav,
@@ -465,6 +477,84 @@
 </Story>
 
 <Story
+	name="A tree across repositories"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [geordi] = canvas.getAllByRole('list');
+		// under its parent, in its parent's repository, with its own repository's picture
+		const row = within(geordi).getByText('Teach the sample parser the new syntax').closest('li')!;
+		await expect(row.previousElementSibling).toHaveTextContent(
+			'Guard shared worktrees from update and continue'
+		);
+		await expect(row.querySelector('img[src="/repos/sample/icon"]')).not.toBeNull();
+		await expect(row.querySelector('.icon-\\[lucide--git-branch\\]')).toBeNull();
+	}}
+>
+	{@render frame(acrossRepos, '/workspaces/abroad')}
+</Story>
+
+<Story
+	name="Nest under another workspace"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const row = (title: string) => canvas.getByText(title).closest('li')!;
+		const dragged = row('Try out the new parser');
+		const target = row('Update the daemon protocol');
+		const middle = () => {
+			const rect = target.getBoundingClientRect();
+			return rect.top + rect.height / 2;
+		};
+		await fireEvent.dragStart(dragged);
+		// onto its middle: under it, lit up, with no line
+		await fireEvent.dragOver(target, { clientY: middle() });
+		await expect(target.firstElementChild).toHaveClass('bg-hover');
+		await expect(canvasElement.querySelectorAll('.row-drop-after, .row-drop-before')).toHaveLength(
+			0
+		);
+		// above it: at the top of another repository's list, where it can't go
+		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
+		await expect(target).not.toHaveClass('row-drop-before');
+		await expect(target.firstElementChild).not.toHaveClass('bg-hover');
+		await fireEvent.dragEnd(dragged);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Drop at the end of a list"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const group = canvas.getByRole('group', { name: 'geordi' });
+		const [list] = within(group).getAllByRole('list');
+		const rows = () => [...list.querySelectorAll(':scope > li')];
+		const last = rows().at(-1)!;
+		const below = () => last.getBoundingClientRect().bottom + 4;
+		const line = () => list.querySelector(':scope > li[aria-hidden="true"].row-drop-before');
+
+		// a nested workspace, below the last tree: last at the top, a line at full width
+		const nested = canvas.getByText('Check every token in dark mode').closest('li')!;
+		await fireEvent.dragStart(nested);
+		await fireEvent.dragOver(group, { clientY: below() });
+		await waitFor(() => expect(line()).not.toBeNull());
+		await fireEvent.dragLeave(group, { relatedTarget: document.body });
+		await expect(line()).toBeNull();
+		await fireEvent.dragEnd(nested);
+
+		// the last one already stays where it is
+		await fireEvent.dragStart(last);
+		await fireEvent.dragOver(group, { clientY: below() });
+		await expect(line()).toBeNull();
+		await fireEvent.dragEnd(last);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
 	name="Focus a repository"
 	asChild
 	play={async ({ canvasElement }) => {
@@ -495,7 +585,7 @@
 		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',
-			'Started by the agent in "Ship the protocol bump everywhere"'
+			'Reports to "Ship the protocol bump everywhere"'
 		);
 	}}
 >

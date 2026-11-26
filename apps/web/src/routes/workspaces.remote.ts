@@ -380,10 +380,17 @@ export const answerQuestion = command(
 	({ workspaceId, question, answers }) => workspaces().answer(workspaceId, question, answers)
 );
 
-/** The person moved a workspace in the sidebar: above `before`, or to the end. */
+/**
+ * The person moved a workspace in the sidebar: above `before`, or to the end; with
+ * `parentId`, under that workspace, or to the top level where that is `null` (FDR-016).
+ */
 export const moveWorkspace = command(
-	v.object({ workspaceId: v.string(), before: v.nullable(v.string()) }),
-	({ workspaceId, before }) => workspaces().move(workspaceId, before)
+	v.object({
+		workspaceId: v.string(),
+		before: v.nullable(v.string()),
+		parentId: v.optional(v.nullable(v.string()))
+	}),
+	({ workspaceId, before, parentId }) => workspaces().move(workspaceId, before, parentId)
 );
 
 export const lockWorkspace = command(

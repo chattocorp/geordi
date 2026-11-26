@@ -413,7 +413,7 @@ describe('the agent API as an MCP server', () => {
 		expect(clientTools.send_message.description).toContain(
 			'only your own direct or indirect descendants'
 		);
-		expect(repoTools.send_message.description).toContain('or to the agent that started you');
+		expect(repoTools.send_message.description).toContain('or to the agent you report to');
 		for (const name of ['send_message', 'stop_agent', 'archive_agent'])
 			expect(projectTools[name].description).toContain(
 				'any agent in a repository or in your project'
@@ -487,7 +487,9 @@ describe('the agent API as an MCP server', () => {
 		expect(await call('list_agents')).toEqual([]);
 
 		// not its own, and not itself
-		expect((await call('archive_agent', { workspace_id: caller })).error).toMatch(/not started/);
+		expect((await call('archive_agent', { workspace_id: caller })).error).toMatch(
+			/not one of yours/
+		);
 	});
 
 	it('reports problems as tool errors the agent can read', async () => {
@@ -631,13 +633,13 @@ describe('installation-wide workspace access', () => {
 
 		expect(
 			(await call('send_message', { workspace_id: peer, message: 'Which version?' })).error
-		).toMatch(/only the agents you started/);
+		).toMatch(/only the agents that report to you/);
 		expect(workspaces.get(peer).status).toBe('idle');
 		expect((await call('send_message', { workspace_id: caller, message: 'Me' })).error).toMatch(
-			/only the agents you started/
+			/only the agents that report to you/
 		);
 		expect((await call('start_agent', { workspace: peer, prompt: 'Review' })).error).toMatch(
-			/not started/
+			/not one of yours/
 		);
 		expect((await call('stop_agent', { workspace_id: peer })).error).toBeTruthy();
 		expect((await call('archive_agent', { workspace_id: peer })).error).toBeTruthy();
@@ -666,7 +668,7 @@ describe('installation-wide workspace access', () => {
 		const fromChild = callAs(child.id);
 		expect(
 			(await fromChild('send_message', { workspace_id: sibling.id, message: 'Hi' })).error
-		).toMatch(/only the agents you started/);
+		).toMatch(/only the agents that report to you/);
 		await fromChild('send_message', { workspace_id: caller, message: 'Which approach?' });
 		expect(workspaces.get(caller).childSenders?.[child.id]).toBe(workspaces.get(child.id).title);
 		expect(workspaces.get(caller).transcript.at(-1)).toMatchObject({
@@ -683,7 +685,7 @@ describe('installation-wide workspace access', () => {
 		const fromGrandchild = callAs(grandchild.id);
 		expect(
 			(await fromGrandchild('send_message', { workspace_id: caller, message: 'Hi' })).error
-		).toMatch(/only the agents you started/);
+		).toMatch(/only the agents that report to you/);
 	});
 
 	it('starts a child from the target repository base in its own worktree', async () => {
