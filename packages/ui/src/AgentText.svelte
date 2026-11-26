@@ -2,13 +2,19 @@
 	import type { Snippet } from 'svelte';
 	import MessageCopy from './MessageCopy.svelte';
 
-	let { text, children, footer }: { text: string; children?: Snippet; footer?: Snippet } = $props();
+	let {
+		text,
+		children,
+		cursor,
+		footer
+	}: { text: string; children?: Snippet; cursor?: Snippet; footer?: Snippet } = $props();
 </script>
 
 <div class="group/part" class:inline-copy={!footer && !!text}>
 	{#if children}{@render children()}{:else}<div class="prose">
 			<p class="whitespace-pre-wrap">{text}</p>
 		</div>{/if}
+	{#if cursor}{@render cursor()}{/if}
 	{#if footer}
 		<div class="mt-3">{@render footer()}</div>
 	{:else if text}

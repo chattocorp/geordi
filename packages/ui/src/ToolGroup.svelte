@@ -2,12 +2,13 @@
 	import Disclosure from './Disclosure.svelte';
 	import { iconOf, sortOf } from './tools.ts';
 	import type { ToolEntry } from './tools.ts';
-	import type { ComponentProps } from 'svelte';
+	import type { ComponentProps, Snippet } from 'svelte';
 	import ToolCall from './ToolCall.svelte';
 
 	type Props = Pick<ComponentProps<typeof ToolCall>, 'workspace' | 'PatchView'> & {
 		tools: ToolEntry[];
 		open?: boolean;
+		cursor?: Snippet;
 		cwd?: string;
 		/** Whether the agent is at work on this very group: its last tool may still be running. */
 		live?: boolean;
@@ -20,6 +21,7 @@
 		workspace,
 		PatchView,
 		live = false,
+		cursor,
 		open = $bindable(false),
 		backgroundIds = [],
 		reveal
@@ -69,6 +71,7 @@
 						<span class={['size-3.5 -translate-x-px', iconOf(tool)]}></span>
 					</span>
 				{/each}
+				{#if cursor}<span class="ms-2.5 inline-flex">{@render cursor()}</span>{/if}
 			</span>
 		{/if}
 	{/snippet}
@@ -94,6 +97,7 @@
 		{/each}
 	</div>
 </Disclosure>
+{#if open && cursor}{@render cursor()}{/if}
 
 <style>
 	.tool-tile {
