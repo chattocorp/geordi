@@ -325,7 +325,9 @@
 		const firstRow = Array.from(summary.querySelectorAll('[role="img"]'));
 		const [first, second] = firstRow.map((tile) => tile.getBoundingClientRect());
 		await expect(second.left).toBeLessThan(first.right);
-		await expect(second.left).toBeGreaterThan(first.left);
+		await expect(firstRow[0].firstElementChild!.getBoundingClientRect().right).toBeLessThanOrEqual(
+			second.left
+		);
 		await expect(firstRow.map((icon) => icon.getAttribute('aria-label'))).toEqual([
 			'shell',
 			'Read',
