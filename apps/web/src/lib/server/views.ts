@@ -292,41 +292,12 @@ export const usageLimits = () =>
 		also: (changed) => limits().subscribe(changed)
 	}) satisfies View<unknown>;
 
-/** Only the known bumps for packages this workspace contributes notes to (FDR-007). */
-const mergeVersions = (id: string) =>
-	({
-		read: () => {
-			const plan = watchers().state(workspaces().ref(id).worktreeId)?.release;
-			const packages = plan?.packages ?? [];
-			const versions = packages.flatMap((pkg) =>
-				pkg.nextVersion &&
-				pkg.nextVersion !== pkg.version &&
-				!pkg.problems.length &&
-				pkg.notes.some((note) => note.added)
-					? [
-							{
-								path: pkg.path,
-								name: packages.length > 1 ? pkg.name : null,
-								version: pkg.nextVersion
-							}
-						]
-					: []
-			);
-			return { id, versions };
-		},
-		affects: () => false,
-		also: (changed) => watchers().watch(workspaces().ref(id).worktreeId, changed)
-	}) satisfies View<unknown>;
-
-export type MergeVersions = ReturnType<ReturnType<typeof mergeVersions>['read']>;
-
 /** The views by the names browsers ask for them by. Each takes a key (an ID), or none. */
 export const views = {
 	navigation,
 	workspace,
 	commands,
 	archive,
-	mergeVersions,
 	limits: usageLimits
 };
 
