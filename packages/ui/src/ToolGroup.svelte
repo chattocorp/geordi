@@ -40,34 +40,40 @@
 <Disclosure
 	bind:open
 	collapsedChevron={false}
-	class="py-1 first:pt-0"
-	summaryClass="min-h-7 text-sm text-muted hover:text-ink"
+	class="relative py-1 first:pt-0"
+	summaryClass={open
+		? 'absolute left-0 mt-1.5 size-7 text-muted hover:bg-hover hover:text-ink [&>span]:mx-auto'
+		: 'min-h-7 text-sm text-muted hover:text-ink'}
 >
 	{#snippet heading()}
-		<span class="sr-only">Tool calls</span>
-		<span class="flex flex-wrap items-center gap-1">
-			{#each tools as tool (tool.id)}
-				{@const activity = activityOf(tool)}
-				{@const status = tool.isError ? 'failed' : activity}
-				{@const label = sortOf(tool) + (status ? ', ' + status : '')}
-				<span
-					role="img"
-					aria-label={label}
-					title={label}
-					data-live={activity ? true : undefined}
-					class={[
-						'grid size-6 shrink-0 place-items-center rounded-control border border-current/25 motion-safe:transition-opacity motion-safe:starting:opacity-0',
-						activity && 'edge-live before:p-px',
-						tool.isError && 'text-danger'
-					]}
-				>
-					<span class={['size-3.5', iconOf(tool)]}></span>
-				</span>
-			{/each}
-		</span>
+		{#if open}
+			<span class="sr-only">Collapse tool calls</span>
+		{:else}
+			<span class="sr-only">Tool calls</span>
+			<span class="flex flex-wrap items-center gap-1">
+				{#each tools as tool (tool.id)}
+					{@const activity = activityOf(tool)}
+					{@const status = tool.isError ? 'failed' : activity}
+					{@const label = sortOf(tool) + (status ? ', ' + status : '')}
+					<span
+						role="img"
+						aria-label={label}
+						title={label}
+						data-live={activity ? true : undefined}
+						class={[
+							'grid size-6 shrink-0 place-items-center rounded-control border border-current/25 motion-safe:transition-opacity motion-safe:starting:opacity-0',
+							activity && 'edge-live before:p-px',
+							tool.isError && 'text-danger'
+						]}
+					>
+						<span class={['size-3.5', iconOf(tool)]}></span>
+					</span>
+				{/each}
+			</span>
+		{/if}
 	{/snippet}
 
-	<div class="mt-1.5 divide-y divide-line/70 overflow-hidden card">
+	<div class="ml-8 divide-y divide-line/70 overflow-hidden card">
 		{#each tools as tool (tool.id)}
 			<div
 				{@attach reveal?.id === tool.id
