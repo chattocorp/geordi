@@ -71,7 +71,7 @@
 </Story>
 
 <Story name="Shape and surface" asChild>
-	<div class="grid max-w-4xl gap-6 sm:grid-cols-3">
+	<div class="grid max-w-4xl gap-6 rounded-card bg-frame p-4 sm:grid-cols-3">
 		<div class="card p-5">
 			<p class="heading">card</p>
 			<p class="text-sm text-muted">Holds content. rounded-card.</p>
