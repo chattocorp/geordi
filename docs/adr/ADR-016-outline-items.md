@@ -32,5 +32,7 @@ We considered:
 - An agent's scope gives it a todo list of its own that people can see and edit, without a second store.
 - Code that reads a workspace's `parentId` keeps working; the projection has to keep it in step with every move of an item, including items without workspaces between two that have them.
 - A purge (ADR-012) takes a workspace's item with it, and the items without workspaces under it.
+- Archived workspaces stay in the outline only as records inside trees still in use; archived trees leave it. Otherwise every workspace ever archived would be an item, in every window, on every change.
+- Existing installations need nothing done: replaying their events gives every workspace the parent it had. Going back to an earlier version is safe too: it ignores `item.*` events, and a workspace moved under an item without a workspace is listed at the top there.
 - Grouping the sidebar by repository no longer fits a tree whose items need not belong to any repository; it is dropped for now (FDR-017).
 - Items are written by people and by agents at once. Each edit replaces the fields it changes, and the last one wins; there is no merging of concurrent text edits.

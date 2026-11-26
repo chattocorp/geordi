@@ -118,6 +118,19 @@ describe('outlineRows', () => {
 		]);
 	});
 
+	it('never hides a workspace in use under one that is done', () => {
+		const rows = outlineRows(
+			[
+				item('gone', null, true, true),
+				item('carries-on', 'gone', false, true),
+				item('old', 'gone')
+			],
+			[{ id: 'carries-on', repoId: 'geordi' }],
+			{ activeOnly: true }
+		);
+		expect(ids(rows)).toEqual(['gone', 'carries-on']);
+	});
+
 	it('shows a repository’s workspaces, what is above them and what is under them', () => {
 		expect(shown({ focus: 'sample' })).toEqual(['elsewhere']);
 		expect(shown({ focus: 'geordi' })).toEqual([

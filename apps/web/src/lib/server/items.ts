@@ -52,8 +52,14 @@ export type Outline = { items: Map<string, Item>; order: string[] };
 
 export const emptyOutline = (): Outline => ({ items: new Map(), order: [] });
 
-/** Puts `id` right above `before` in the order, or last where that is `null` (or gone). */
+/**
+ * Puts `id` right above `before` in the order, or last where that is `null`. Where `before`
+ * is gone, a new item goes last and one already there stays where it is, as workspaces
+ * always have.
+ */
 function place(outline: Outline, id: string, before: string | null) {
+	const there = outline.order.includes(id);
+	if (before !== null && !outline.order.includes(before) && there) return;
 	const order = outline.order.filter((other) => other !== id);
 	const at = before === null ? -1 : order.indexOf(before);
 	order.splice(at === -1 ? order.length : at, 0, id);
@@ -155,4 +161,66 @@ export function remove(outline: Outline, ids: string[]) {
 	const gone = new Set(ids);
 	for (const id of gone) outline.items.delete(id);
 	outline.order = outline.order.filter((id) => !gone.has(id));
+}
+
+/** What the outline needs to know of the workspace attached to an item. */
+export type Attached = { title: string; worktreeId: string; archivedAt: string | null };
+
+/**
+ * The outline as people see it (FDR-017), top to bottom: each item with the item it is
+ * under, its text (a workspace's name), and whether it is done (a workspace: archived).
+ *
+ * An archived workspace's item stays as a record only within a tree still in use: under an
+ * item without a workspace, or under a workspace in use. An archived tree leaves the
+ * outline with what is under it, as archived workspaces always have (they are in the
+ * archive); a workspace in use there is listed at the top. An agent working in another
+ * workspace's directory is no item of its own (`ownerOf` says whose it is), and what it
+ * started is under that workspace.
+ */
+export function outlineView(
+	outline: Outline,
+	attached: (id: string) => Attached | undefined,
+	ownerOf: (id: string) => string | undefined
+) {
+	const { items, order } = outline;
+	const archived = (item: Item) => item.workspace && !!attached(item.id)?.archivedAt;
+	const above = (item: Item): Item[] => {
+		const line: Item[] = [];
+		const seen = new Set([item.id]);
+		let parent = item.parentId ? items.get(item.parentId) : undefined;
+		while (parent && !seen.has(parent.id)) {
+			seen.add(parent.id);
+			line.push(parent);
+			parent = parent.parentId ? items.get(parent.parentId) : undefined;
+		}
+		return line;
+	};
+	const away = new Map<string, boolean>();
+	/** An archived workspace's item with nothing in use above it: an archived tree's top. */
+	const archivedTop = (item: Item) => {
+		let known = away.get(item.id);
+		if (known === undefined) {
+			known = archived(item) && above(item).every(archived);
+			away.set(item.id, known);
+		}
+		return known;
+	};
+	return order.flatMap((id) => {
+		const item = items.get(id)!;
+		const workspace = item.workspace ? attached(id) : undefined;
+		if (item.workspace && (!workspace || workspace.worktreeId !== id)) return [];
+		const gone = archivedTop(item) || above(item).some(archivedTop);
+		if (gone && (!workspace || workspace.archivedAt)) return [];
+		const parentId = gone ? null : item.parentId && (ownerOf(item.parentId) ?? item.parentId);
+		return [
+			{
+				id,
+				parentId: parentId || null,
+				text: workspace?.title ?? item.text,
+				note: item.note,
+				done: workspace ? !!workspace.archivedAt : item.done,
+				workspace: !!workspace
+			}
+		];
+	});
 }

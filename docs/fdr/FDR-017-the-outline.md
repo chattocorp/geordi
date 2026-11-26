@@ -29,7 +29,8 @@ Stage 1 (items, editing, workspaces on items) is in place; a workspace's scope a
 
 - Starting a workspace attaches it to an item: a new one, or one written down earlier, with no workspaces under it. The item's text is offered as its first message, and the workspace is named after it, as named by the person.
 - A workspace's supervisor is the workspace of the nearest item above its own that has one. Items without a workspace pass authority through (FDR-016). An item at the top, or under items without workspaces only, reports to the person.
-- Archiving a workspace ticks its item off. The item stays, as a record that links to the archived conversation.
+- Archiving a workspace ticks its item off. Within a tree still in use (under an item without a workspace, or under a workspace in use), the item stays, as a record that links to the archived conversation. An archived tree leaves the outline with what is under it, as archived workspaces always have; it is in the Archive. A workspace still in use under an archived one is listed at the top.
+- Work in use is never hidden: a workspace in use, and what is above it, shows even with "Show only what is active" and under items that are done.
 - The workspace's repository shows as the item's icon. The sidebar is no longer grouped by repository; the repository filter stays.
 
 ### A workspace's scope (planned: stages 2 and 3)

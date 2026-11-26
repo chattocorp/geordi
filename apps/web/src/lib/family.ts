@@ -224,7 +224,9 @@ type Shown = { id: string; repoId: string | null; inactive?: boolean };
  * many rows are under it. Leaves out, with what is under them: with `activeOnly`, what is
  * done and the inactive workspaces; with a `focus`, everything but that repository's
  * workspaces, what is above them and what is under them; and what is `folded` away. The
- * item on screen (`viewed`) and the one being edited (`editing`) stay, with what is above them. `project` marks a project's item
+ * item on screen (`viewed`), the one being edited (`editing`) and every workspace in use that
+ * is not inactive stay, with what is above them: work going on is never hidden, also not
+ * under an item that is done (a parent archived before archiving took its whole tree). `project` marks a project's item
  * (FDR-012), which nothing is put under or above.
  */
 export function outlineRows<T extends OutlineEntry>(
@@ -252,11 +254,20 @@ export function outlineRows<T extends OutlineEntry>(
 	type Entry = (typeof entries)[number];
 	const entryById = new Map(entries.map((entry) => [entry.id, entry]));
 	const lineOfEntry = (id: string | null) => lineOf(entryById, id);
-	const kept = new Set([...lineOfEntry(viewed), ...lineOfEntry(editing)].map(({ id }) => id));
 	const hidden = (entry: Entry) =>
 		activeOnly && (entry.done || (entry.workspace && !!byId.get(entry.id)?.inactive));
+	const lineIds = (ids: (string | null)[]) =>
+		new Set(ids.flatMap((id) => lineOfEntry(id).map((entry) => entry.id)));
+	/** What is on screen or being edited: it stays, whatever else is left out. */
+	const pinned = lineIds([viewed, editing]);
+	/** The workspaces in use and not put aside: never hidden, by anything above them either. */
+	const live = lineIds(
+		entries.filter((entry) => entry.workspace && !entry.done && !hidden(entry)).map(({ id }) => id)
+	);
 
-	let shown = entries.filter((entry) => kept.has(entry.id) || !lineOfEntry(entry.id).some(hidden));
+	let shown = entries.filter(
+		(entry) => pinned.has(entry.id) || live.has(entry.id) || !lineOfEntry(entry.id).some(hidden)
+	);
 	if (focus) {
 		// a repository with nothing to show shows nothing; one that is gone, everything
 		const inRepo = new Set(
@@ -267,7 +278,7 @@ export function outlineRows<T extends OutlineEntry>(
 		if (inRepo.size) {
 			const above = new Set([...inRepo].flatMap((id) => lineOfEntry(id).map((entry) => entry.id)));
 			const under = (entry: Entry) => lineOfEntry(entry.id).some(({ id }) => inRepo.has(id));
-			shown = shown.filter((entry) => above.has(entry.id) || under(entry) || kept.has(entry.id));
+			shown = shown.filter((entry) => above.has(entry.id) || under(entry) || pinned.has(entry.id));
 		}
 	}
 	return unfolded(nested(shown), folded);
