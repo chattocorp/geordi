@@ -15,3 +15,4 @@ A process does not map to one port or one URL. Redesign `.geordi.yml` tasks (FDR
 - `{web}` in a URL is the port named `web`; the task listening there is needed. Up = all ports answer, or started when none.
 - Tasks tab: default tasks first; one row per task (mark, name, URL at the end); a row runs the task (again); terminal and stop on pointing or focus; middle click goes to (or starts and shows) its terminal; pointing highlights what a task needs; quiet dots when stopped, gold play when serving, gold turning arrows when working without ports.
 - The dev web task loads the forge itself, so that all its ports listen.
+- Stop cancels a pending task launch while its command or ports are starting. Tasks that depend on it also stop, and a canceled launch cannot open a URL.

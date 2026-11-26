@@ -714,6 +714,9 @@ async function readRequest(request: DaemonRequest, signal?: AbortSignal) {
 	}
 }
 
+// Terminal preparation can still be queued or checking ports when a close arrives.
+const openingTerminals = new Map<string, symbol>();
+
 async function handle(message: ForgeMessage, removals: Map<string, AbortController>) {
 	switch (message.type) {
 		case 'workspace.ack': {
@@ -750,6 +753,8 @@ async function handle(message: ForgeMessage, removals: Map<string, AbortControll
 
 		case 'terminal.open': {
 			const { terminalId } = message;
+			const opening = Symbol();
+			openingTerminals.set(terminalId, opening);
 			const { output, exit } = relay(terminalId);
 			return inWorktree(worktreePath(worktreesDir, message), async () => {
 				try {
@@ -775,6 +780,7 @@ async function handle(message: ForgeMessage, removals: Map<string, AbortControll
 						(!runningTerminals().includes(terminalId) || terminalId in endedTerminals())
 					)
 						for (const { port } of job.ports) if ((taken = await portTaken(port))) break;
+					if (openingTerminals.get(terminalId) !== opening) return;
 					guard();
 					openTerminal(
 						terminalId,
@@ -798,8 +804,11 @@ async function handle(message: ForgeMessage, removals: Map<string, AbortControll
 						exit
 					);
 				} catch (error) {
+					if (openingTerminals.get(terminalId) !== opening) return;
 					output(`${errorMessage(error)}\r\n`);
 					exit();
+				} finally {
+					if (openingTerminals.get(terminalId) === opening) openingTerminals.delete(terminalId);
 				}
 			});
 		}
@@ -813,6 +822,7 @@ async function handle(message: ForgeMessage, removals: Map<string, AbortControll
 			break;
 
 		case 'terminal.close':
+			openingTerminals.delete(message.terminalId);
 			closeTerminal(message.terminalId);
 			break;
 
