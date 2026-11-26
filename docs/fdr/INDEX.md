@@ -17,3 +17,4 @@
 | [FDR-013](FDR-013-repository-issues-and-pull-requests.md) | Repository issues and pull requests                              | Withdrawn  | 2026-11-20    |
 | [FDR-014](FDR-014-purging-archived-workspaces.md)         | Deleting archived workspaces for good                            | Active     | 2026-11-22    |
 | [FDR-015](FDR-015-locked-workspaces.md)                   | Locked workspaces                                                | Active     | 2026-11-25    |
+| [FDR-016](FDR-016-workspace-outline.md)                   | The workspace outline                                            | Planned    | 2026-11-26    |

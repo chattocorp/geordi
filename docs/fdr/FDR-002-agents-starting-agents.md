@@ -62,7 +62,7 @@ An agent working in a workspace can start further agents, give them tasks, wait 
 ## Related
 
 - **ADRs:** ADR-001, ADR-002, ADR-004, ADR-010
-- **FDRs:** FDR-001, FDR-003
+- **FDRs:** FDR-001, FDR-003, FDR-016 (planned: the sidebar as an outline, with parents the person can change)
 
 ## Open Questions
 
