@@ -33,7 +33,7 @@ import {
 } from './worktree.ts';
 
 /** Files are for reading; beyond this size (in bytes) they are not shown. */
-const MAX_FILE = 1_000_000;
+export const MAX_FILE = 1_000_000;
 /**
  * Never run code the worktree can supply: no diff drivers, and no looking inside submodules
  * (git would run itself in them, under whatever config the agent put there).

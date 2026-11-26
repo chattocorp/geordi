@@ -1152,6 +1152,9 @@ export function createWorkspaces(
 					}))
 				),
 
+		turnDiff(id: string, number: number) {
+			return transcriptOf(find(id)).filter((item) => item.kind === 'turn')[number - 1]?.diff;
+		},
 		followTranscript,
 		measure,
 		suggest,
@@ -1626,7 +1629,8 @@ export function createWorkspaces(
 					type: 'workspace.purged',
 					stream: 'purges',
 					data: {
-						workspaces: [...family.values()].map(({ id, title, parentId }) => ({
+						workspaces: [...family.values()].map(({ id, title, parentId, repoId }) => ({
+							...(repoId && { repoId }),
 							...(parentId && { parentId }),
 							id,
 							title,

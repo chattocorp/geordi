@@ -21,6 +21,7 @@ import {
 	jobs,
 	repos,
 	prepareWorktree,
+	releasePurgedTurnRefs,
 	standings,
 	terminals,
 	updateWorkspace as update,
@@ -172,7 +173,11 @@ export const restoreWorkspace = command(v.string(), async (id) => {
  * Deletes archived workspaces for good, with the agents they started (ADR-012, FDR-014).
  * Says how many went, and how many bytes the event log got smaller by.
  */
-export const purgeWorkspaces = command(v.array(v.string()), (ids) => workspaces().purge(ids));
+export const purgeWorkspaces = command(v.array(v.string()), (ids) => {
+	const result = workspaces().purge(ids);
+	void releasePurgedTurnRefs();
+	return result;
+});
 
 /** Check for unfinished work without changing the workspace. */
 export const previewArchive = command(v.string(), concernsAboutArchiving);
@@ -442,6 +447,39 @@ export const getDiff = query(
 			return await hub().request({ kind: 'diff', path, ...workspaces().ref(workspaceId) });
 		} catch (error) {
 			return { unavailable: `Could not load the file: ${message(error)}` };
+		}
+	}
+);
+
+/** The browser names a saved turn and file. Only the forge chooses which Git objects to read. */
+export const getTurnFile = query(
+	v.object({
+		workspaceId: v.string(),
+		turn: v.pipe(v.number(), v.integer(), v.minValue(1)),
+		path: v.string()
+	}),
+	async ({ workspaceId, turn, path }) => {
+		const diff = workspaces().turnDiff(workspaceId, turn);
+		const file = diff?.files.find((file) => file.path === path);
+		if (!diff || !file || file.fileType === 'binary') return null;
+		let blobs = file.blobs;
+		if (!blobs && diff.patch && !diff.fullContext) {
+			const { parsePatchFiles } = await import('@pierre/diffs');
+			const patch = parsePatchFiles(diff.patch)
+				.flatMap((p) => p.files)
+				.find((f) => f.name === path);
+			if (!patch?.prevObjectId || !patch.newObjectId) return null;
+			blobs = {
+				old: /^0+$/.test(patch.prevObjectId) ? null : patch.prevObjectId,
+				new: /^0+$/.test(patch.newObjectId) ? null : patch.newObjectId
+			};
+		}
+		if (!blobs) return null;
+		try {
+			const { repoPath } = workspaces().ref(workspaceId);
+			return await hub().request({ kind: 'turnFile', repoPath, blobs });
+		} catch {
+			return null;
 		}
 	}
 );

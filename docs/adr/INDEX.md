@@ -16,3 +16,4 @@
 | [ADR-012](ADR-012-purging-archived-workspaces.md)                | Purging archived workspaces from the event log                       | 2026-11-20 |
 | [ADR-013](ADR-013-hosted-forge-with-runner-daemons.md)           | A hosted forge with runner daemons                                   | 2026-11-23 |
 | [ADR-014](ADR-014-watching-files-off-the-main-thread.md)         | The daemon watches files in a thread of its own, once per repository | 2026-11-23 |
+| [ADR-015](ADR-015-turn-review-blobs.md)                          | Keep turn review context in Git                                      | 2026-11-26 |

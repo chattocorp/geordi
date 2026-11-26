@@ -1,14 +1,24 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs';
+import {
+	closeSync,
+	existsSync,
+	openSync,
+	copyFileSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	statSync,
+	utimesSync
+} from 'node:fs';
 import { join } from 'node:path';
 import { parseFileChanges, SAFE_DIFF_OPTIONS } from './changes.ts';
 import { gitEnv, type Worktree } from './worktree.ts';
-import type { TurnDiff } from '@geordi/protocol';
+import type { TurnBlobs, TurnDiff } from '@geordi/protocol';
 
 const MAX_PATCH = 256 * 1024;
 
 /** Called in the detached host. Capture each boundary before the CLI can receive its next prompt. */
-export function startTurnDiff(worktree: Worktree, sessionDir: string) {
+export function startTurnDiff(worktree: Worktree, sessionDir: string, workspaceId: string) {
 	const dir = mkdtempSync(join(sessionDir, 'turn-'));
 	const index = join(dir, 'index');
 	const objects = join(dir, 'objects');
@@ -61,15 +71,15 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 		return run(['write-tree']).trim();
 	}
 
-	/** An oversized patch can be retried with less context. Other Git errors propagate. */
-	function readPatch(diff: string[], context: number) {
+	/** A patch above the event limit leaves the summary and Git versions available. */
+	function readPatch(diff: string[]) {
 		try {
 			return run(
 				[
 					'-c',
 					'diff.suppressBlankEmpty=false',
 					...diff,
-					`--unified=${context}`,
+					'--unified=3',
 					'--no-color',
 					'--src-prefix=a/',
 					'--dst-prefix=b/'
@@ -82,6 +92,46 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 		}
 	}
 
+	// Only promote the selected blobs and their flat tree out of the temporary object store.
+	// Git supplies committed objects through the alternate, so they need no transfer.
+	function retain(ids: Set<string>) {
+		if (!ids.size) return;
+		const tree = run(
+			['mktree'],
+			[...ids].map((id) => `100644 blob ${id}\t${id}\n`).join('')
+		).trim();
+		const local = [...ids, tree].filter((id) =>
+			existsSync(join(objects, id.slice(0, 2), id.slice(2)))
+		);
+		const shared = gitEnv(worktree);
+		if (local.length) {
+			const prefix = join(dir, 'retain');
+			const pack = run(['pack-objects', prefix], local.join('\n') + '\n').trim();
+			const fd = openSync(`${prefix}-${pack}.pack`, 'r');
+			try {
+				execFileSync('git', ['unpack-objects', '-q'], {
+					cwd: worktree.path,
+					env: shared,
+					stdio: [fd, 'pipe', 'pipe'],
+					timeout: 30_000
+				});
+			} finally {
+				closeSync(fd);
+			}
+		}
+		execFileSync(
+			'git',
+			[
+				'-c',
+				'core.hooksPath=' + dir,
+				'update-ref',
+				`refs/geordi/turns/${workspaceId}/${tree}`,
+				tree
+			],
+			{ cwd: worktree.path, env: shared, timeout: 10_000 }
+		);
+	}
+
 	try {
 		mkdirSync(objects);
 		const before = tree();
@@ -90,25 +140,50 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 				const after = tree();
 				if (before === after) return;
 				const diff = ['diff', '-M', ...SAFE_DIFF_OPTIONS, before, after];
-				const names = run([...diff, '--name-status', '-z']).split('\0');
+				const raw = run([...diff, '--raw', '--no-abbrev', '-z']).split('\0');
+				const names: string[] = [];
+				const versions = new Map<string, TurnBlobs>();
+				for (let i = 0; i < raw.length - 1;) {
+					const [, , old, current, status] = raw[i++].split(' ');
+					let path = raw[i++];
+					names.push(status, path);
+					if (status.startsWith('R')) {
+						path = raw[i++];
+						names.push(path);
+					}
+					versions.set(path, {
+						old: /^0+$/.test(old) ? null : old,
+						new: /^0+$/.test(current) ? null : current
+					});
+				}
+				names.push('');
 				const stats = run([...diff, '--numstat', '-z']).split('\0');
 				const changes = parseFileChanges(names, stats);
 				const operations = { added: 'add', deleted: 'delete', renamed: 'move', modified: 'modify' };
-				const files = changes.map((file) => ({
+				const files: TurnDiff['files'] = changes.map((file) => ({
 					path: file.path,
 					operation: operations[file.status],
 					...(file.from && { oldPath: file.from }),
-					...(file.added === null && { fileType: 'binary' })
+					...(file.added === null
+						? { fileType: 'binary' }
+						: { added: file.added, removed: file.removed ?? 0, blobs: versions.get(file.path) })
 				}));
 				const added = changes.reduce((total, file) => total + (file.added ?? 0), 0);
 				const removed = changes.reduce((total, file) => total + (file.removed ?? 0), 0);
 				if (!files.length) return;
 				const summary = { files, added, removed };
-				// Each context line costs at least one byte, so MAX_PATCH lines
-				// cover both sides of any text change that fits in the saved patch.
-				const full = readPatch(diff, MAX_PATCH);
-				if (full !== undefined) return { ...summary, patch: full, fullContext: true };
-				const compact = readPatch(diff, 3);
+				const ids = new Set<string>();
+				for (const { blobs } of files) {
+					if (blobs?.old) ids.add(blobs.old);
+					if (blobs?.new) ids.add(blobs.new);
+				}
+				// Keep the offline patch even if the repository cannot retain new objects.
+				try {
+					retain(ids);
+				} catch (error) {
+					console.warn('Could not retain turn blobs', error);
+				}
+				const compact = readPatch(diff);
 				return compact === undefined
 					? { ...summary, tooLarge: true }
 					: { ...summary, patch: compact };

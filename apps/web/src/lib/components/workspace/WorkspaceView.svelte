@@ -91,6 +91,7 @@
 	import Changes from '@geordi/ui/Changes.svelte';
 	import CombinedDiffFile from './CombinedDiffFile.svelte';
 	import DiffSection from '@geordi/ui/DiffSection.svelte';
+	import { getTurnFile } from '../../../routes/workspaces.remote';
 	import PatchView from '../PatchView.svelte';
 
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
@@ -150,7 +151,7 @@
 	const PR = 'pr';
 	const COMBINED = 'combined-diff';
 	const TURN = 'turn-changes';
-	let selectedTurn = $state.raw<TurnChanges>();
+	let selectedTurn = $state.raw<TurnChanges & { workspaceId: string }>();
 	const CHANGES = 'changes';
 	/** The repository's links and jobs, and how they are: in the dock, where their output is. */
 	const RUN = 'run';
@@ -698,8 +699,8 @@
 		untrack(() => showTab(CHAT));
 		focusChat = true;
 	});
-	function openTurn(changes: TurnChanges) {
-		selectedTurn = changes;
+	function openTurn(changes: TurnChanges, workspaceId = id) {
+		selectedTurn = { ...changes, workspaceId };
 		showTab(TURN);
 	}
 	let diffSelection = $state(0);
@@ -1222,19 +1223,27 @@
 			{/if}
 		</div>
 	{:else if tab === TURN && selectedTurn}
+		{@const turn = selectedTurn}
 		<div class="scroller px-3 pb-4">
-			{#key selectedTurn}
+			{#key turn}
 				<header
 					class="flex items-center gap-3 px-2 py-3"
 					title="Worktree changes during this turn, including concurrent edits"
 				>
 					<h2 class="text-base heading">
-						{selectedTurn.diff.files.length}
-						{selectedTurn.diff.files.length === 1 ? 'file' : 'files'} changed
+						{turn.diff.files.length}
+						{turn.diff.files.length === 1 ? 'file' : 'files'} changed
 					</h2>
-					<DiffStat added={selectedTurn.diff.added} removed={selectedTurn.diff.removed} />
+					<DiffStat added={turn.diff.added} removed={turn.diff.removed} />
 				</header>
-				<PatchView diff={selectedTurn.diff} collapsible />
+				<PatchView
+					diff={turn.diff}
+					collapsible
+					load={offline
+						? undefined
+						: async (path) =>
+								getTurnFile({ workspaceId: turn.workspaceId, turn: turn.number, path })}
+				/>
 			{/key}
 		</div>
 	{:else if tab === RUN}
@@ -1351,7 +1360,7 @@
 		<Conversation
 			workspace={aideOf(tab)!}
 			questionTarget={questionTarget?.owner === aideOf(tab)!.id ? questionTarget : undefined}
-			onopenturn={openTurn}
+			onopenturn={(changes) => openTurn(changes, aideOf(tab)!.id)}
 			waiting={waiting(aideOf(tab)!)}
 			onopensubagent={(child) => showTab(reviewerTab(aideOf(tab)!.id, child))}
 			senders={{ ...workspace.senders, [workspace.id]: workspace.title }}
