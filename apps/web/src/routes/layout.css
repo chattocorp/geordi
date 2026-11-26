@@ -91,6 +91,8 @@
 	--tint-4-ink: #94461b;
 	--tint-5: #e3ecd6;
 	--tint-5-ink: #45612a;
+	--edge-light: rgb(255 255 255 / 0.8);
+	--edge-shade: rgb(20 20 40 / 0.13);
 	--shadow: 0 1px 2px rgb(20 20 40 / 0.04), 0 4px 16px rgb(20 20 40 / 0.06);
 	--shadow-lg: 0 2px 6px rgb(20 20 40 / 0.05), 0 16px 40px rgb(20 20 40 / 0.1);
 	/* A picture raised like a card: shadows that follow its shape (`picture-raised`). */
@@ -136,6 +138,8 @@
 	--tint-4-ink: #f3bd9a;
 	--tint-5: #344428;
 	--tint-5-ink: #bcd79c;
+	--edge-light: rgb(255 255 255 / 0.15);
+	--edge-shade: rgb(0 0 0 / 0.32);
 	--shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 4px 16px rgb(0 0 0 / 0.18);
 	--shadow-lg: 0 2px 6px rgb(0 0 0 / 0.2), 0 16px 40px rgb(0 0 0 / 0.3);
 	--picture-lift: drop-shadow(0 -0.5px 0 rgb(255 255 255 / 0.2))
@@ -374,6 +378,10 @@
 	--color-hover: color-mix(in oklab, var(--ink) 9%, transparent);
 	--color-faint: color-mix(in oklab, var(--muted) 60%, transparent);
 
+	/* Outside edges stay visible when pane contents paint up to the corners. */
+	--shadow-edge: -1px -1px 0 var(--edge-light), 1px 1px 0 var(--edge-shade);
+	--shadow-card: var(--shadow-edge), var(--shadow);
+	--shadow-card-float: var(--shadow-edge), var(--shadow-lg);
 	--shadow-soft: var(--shadow);
 	--shadow-float: var(--shadow-lg);
 }
@@ -384,11 +392,11 @@
  */
 
 /*
- * What is lifted off the sheet it lies on: the lightest surface, a soft shadow and a faint
- * ring. Cards, inputs and small floating controls are all this, in different shapes.
+ * What is lifted off the sheet it lies on: the lightest surface, a soft shadow and an edge
+ * lit from the upper left. Cards, inputs and small floating controls are all this, in different shapes.
  */
 @utility raised {
-	@apply bg-surface shadow-soft ring-1 ring-line/60;
+	@apply bg-surface shadow-card;
 }
 /* A surface that holds content. `card-float` lifts it (composers, anything primary). */
 @utility card {
@@ -396,7 +404,7 @@
 }
 @utility card-float {
 	@apply rounded-card raised;
-	@apply shadow-float;
+	@apply shadow-card-float;
 }
 
 /* A text input. */
@@ -428,7 +436,7 @@
  */
 @utility sheet {
 	--pane: var(--bg);
-	@apply overflow-hidden rounded-card bg-bg shadow-soft ring-1 ring-line;
+	@apply overflow-hidden rounded-card bg-bg shadow-card;
 }
 /*
  * A sheet for what is beside the one that is read (the sidebar, a workspace's changes and
@@ -436,7 +444,7 @@
  */
 @utility sheet-quiet {
 	--pane: var(--sidebar);
-	@apply overflow-hidden rounded-card bg-sidebar ring-1 ring-line/30;
+	@apply overflow-hidden rounded-card bg-sidebar shadow-edge;
 }
 
 @utility dialog-actions {
