@@ -1,5 +1,6 @@
 import { CHECKOUT_TIMEOUT, git, quietGit } from './git.ts';
-import { BRANCH_NAME, NO_WORKTREE, type WorktreeRef } from '@geordi/protocol';
+import { BRANCH_NAME, NO_WORKTREE, type PullRequest, type WorktreeRef } from '@geordi/protocol';
+import { devNull } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import {
 	closeSync,
@@ -200,6 +201,68 @@ export async function fetchUpstream(repoPath: string): Promise<string | null> {
 	}
 }
 
+/** Keep the archived tip under the worktree ID so Restore also survives a lost archive reply. */
+export const archivedBranches = 'refs/geordi/archived/';
+
+/** Capture the checked-out ref before releasing the worktree. A linked HEAD is untrusted. */
+export async function branchBeforeCleanup(repoPath: string, worktree: Worktree) {
+	if (!lstatSync(join(worktree.adminDir, 'HEAD')).isFile()) return null;
+	const branch = branchOf(worktree);
+	if (!branch) return null;
+	const tip = await quietGit(repoPath, 'rev-parse', '--verify', branchRef(branch));
+	return tip ? { branch, tip } : null;
+}
+
+export async function cleanMergedBranch(
+	repoPath: string,
+	previous: { branch: string; tip: string } | null,
+	{ base, pull, archiveId }: { base?: string; pull?: PullRequest | null; archiveId?: string }
+) {
+	if (!previous) return;
+	const { branch, tip } = previous;
+	// Cleanup is best effort. Unknown ancestry or a concurrent ref change leaves the branch.
+	try {
+		const ref = branchRef(branch);
+		const start = await startOf(repoPath);
+		const target = pull?.base
+			? 'refs/remotes/origin/' + branchRef(pull.base).slice('refs/heads/'.length)
+			: base
+				? await branchOn(repoPath, base)
+				: start;
+		if (
+			!target ||
+			branch === base ||
+			branch === pull?.base ||
+			start === `refs/remotes/origin/${branch}`
+		)
+			return;
+		const targetRef = (await git(repoPath, ['rev-parse', '--symbolic-full-name', target])).trim();
+		if (!targetRef.startsWith('refs/') || ref === targetRef) return;
+		const merged = (await git(repoPath, ['rev-parse', '--verify', targetRef])).trim();
+		if (pull?.state !== 'merged' || pull.mergedHead !== tip)
+			await git(repoPath, ['--no-replace-objects', 'merge-base', '--is-ancestor', tip, merged]);
+		const info = await git(repoPath, [
+			'for-each-ref',
+			'--format=%(refname)%09%(worktreepath)%09%(symref)',
+			ref
+		]);
+		if (!info.split('\n').includes(ref + '\t\t')) return;
+		const commands = [`verify ${targetRef} ${merged}`, `delete ${ref} ${tip}`];
+		if (archiveId && !/^[a-zA-Z0-9-]+$/.test(archiveId)) return;
+		if (archiveId) commands.push(`create ${archivedBranches}${archiveId}/${branch} ${tip}`);
+		await git(
+			repoPath,
+			['-c', 'core.hooksPath=' + devNull, 'update-ref', '--no-deref', '--stdin'],
+			{
+				input: commands.join('\n') + '\n'
+			}
+		);
+		await quietGit(repoPath, 'config', '--local', '--remove-section', 'branch.' + branch);
+	} catch {
+		// The worktree has already been removed or switched. It is safe to leave the branch.
+	}
+}
+
 /**
  * Ensures the workspace's worktree exists, creating it on first use: on a new branch off
  * `base` (a branch name), or off where work in the repository starts (`startOf`). Paths are
@@ -209,17 +272,23 @@ export async function fetchUpstream(repoPath: string): Promise<string | null> {
 export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireBranch = false) {
 	const { repoPath, base, branch } = ref;
 	const described = await describe(baseDir, ref);
-	const worktree = branch && branchRef(branch) ? { ...described, branch } : described;
-
-	const missing = !existsSync(worktree.path);
+	const missing = !existsSync(described.path);
+	const prefix = archivedBranches + ref.worktreeId + '/';
+	const archived = missing
+		? (await git(repoPath, ['for-each-ref', '--count=1', '--format=%(refname)', prefix])).trim()
+		: '';
+	const name = archived.startsWith(prefix) ? archived.slice(prefix.length) : branch;
+	const worktree = name && branchRef(name) ? { ...described, branch: name } : described;
 	// A branch without its worktree: the worktree was removed behind our back (or the
 	// workspace archived and brought back). The branch has all that was committed, so the
 	// worktree comes back from it; what wasn't committed is gone with the directory.
-	const restored =
-		missing &&
-		(await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(worktree.branch))) !==
-			null;
-	if (missing && requireBranch && !restored)
+	const localTip = missing
+		? await quietGit(repoPath, 'rev-parse', '--verify', '--quiet', branchRef(worktree.branch))
+		: null;
+	const restored = localTip !== null;
+	if (archived && localTip && localTip !== (await git(repoPath, ['rev-parse', archived])).trim())
+		throw new Error(`The local branch ${worktree.branch} now points to a different commit.`);
+	if (missing && requireBranch && !restored && !archived)
 		throw new Error(`The local branch ${worktree.branch} is missing.`);
 	if (missing) {
 		mkdirSync(dirname(worktree.path), { recursive: true });
@@ -230,7 +299,7 @@ export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireB
 				timeout: CHECKOUT_TIMEOUT
 			});
 		else {
-			const start = base ? await branchOn(repoPath, base) : await startOf(repoPath);
+			const start = archived || (base ? await branchOn(repoPath, base) : await startOf(repoPath));
 			if (!start) throw new Error(`There is no branch ${base} to start from.`);
 			// `--no-track`: the new branch is its own, not a local name for the upstream's main
 			// one (which is where a plain `git push` would otherwise try to send it)
@@ -241,7 +310,8 @@ export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireB
 			);
 		}
 	}
-	const created = missing && !restored;
+	if (archived) await git(repoPath, ['update-ref', '--no-deref', '-d', archived]);
+	const created = missing && !restored && !archived;
 	verifyLinks(worktree);
 	ensureContext(worktree.path);
 
@@ -252,7 +322,7 @@ export async function ensureWorktree(baseDir: string, ref: WorktreeRef, requireB
 	for (const dir of writableRoots) mkdirSync(dir, { recursive: true });
 	writableRoots.push(worktree.adminDir);
 
-	return { ...worktree, writableRoots, created, restored };
+	return { ...worktree, writableRoots, created, restored: restored || !!archived };
 }
 
 /** The agent's scratch folder in a worktree, for notes and temporary files. */
@@ -274,8 +344,7 @@ const lexists = (path: string) => lstatSync(path, { throwIfNoEntry: false }) !==
 
 /**
  * Moves a worktree to a new branch off where work in the repository starts (`startOf`):
- * for carrying on in a workspace whose work has landed. The branch it was on stays as it
- * is. Returns the new branch.
+ * for carrying on in a workspace whose work has landed. Returns the new branch.
  *
  * Without running git inside the worktree, whose own Git metadata is the agent's to write:
  * the branch is made in the repository, the worktree's files and index are set to it from
@@ -286,9 +355,12 @@ const lexists = (path: string) => lstatSync(path, { throwIfNoEntry: false }) !==
 export async function continueOn(
 	worktree: Worktree,
 	repoPath: string,
-	requireIdle = () => {}
+	requireIdle = () => {},
+	base?: string,
+	pull?: PullRequest | null
 ): Promise<string> {
 	verifyLinks(worktree);
+	const previous = await branchBeforeCleanup(repoPath, worktree);
 	// named after the worktree, like its first branch, and numbered
 	const stem = `geordi/${basename(worktree.path)}`;
 	let branch = '';
@@ -325,6 +397,7 @@ export async function continueOn(
 		closeSync(fd);
 	}
 	renameSync(fresh, head);
+	await cleanMergedBranch(repoPath, previous, { base, pull });
 	return branch;
 }
 

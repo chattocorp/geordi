@@ -43,10 +43,10 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - Cmd/Ctrl+Option/Alt+/ focuses an existing shell in its pane. If there is no shell, or a terminal already has keyboard focus, the shortcut opens and focuses a new shell in the dock.
 - **Terminals** are shells in the workspace's directory. "+" in the dock opens one. None runs until asked for, there is a tab for every running shell and none for any other, and closing a terminal's tab ends its shell. Terminals keep running while the page is closed and while the forge restarts, and show their recent output when the page is opened again.
 - A worktree that was removed outside Geordi (tidied away while it wasn't running, say) doesn't break its workspace: the workspace says so where it says how it stands ("Worktree removed"), with "Restore" as the next step. Restoring, or simply the next message to its agent, brings the worktree back from the workspace's branch, with everything that was committed. What wasn't committed is gone, and the workspace says that too. If the branch is gone as well, the worktree starts afresh.
-- A workspace whose pull request was merged (or closed) can carry on with new work instead of being archived: **Continue** fetches, and moves its worktree to a new branch off the upstream's main branch as it stands then. The conversation stays as it is, with a line saying what happened, and its agent is told with the next message that it is on a new branch and should look at the files afresh. The branch it was on is kept. Uncommitted changes come along onto the new branch (an agent may have begun new work after the merge); if they don't fit onto it, nothing moves and the workspace says so. Not while an agent is at work in that worktree.
-- A workspace can be archived when it is done with. That stops its terminal processes and Geordi tasks, closes its terminals, removes its worktree and takes it out of the lists; its branch and its conversation are kept. The archive includes children in the same repository and agents in their shared worktrees (FDR-002). Children in other repositories continue working. If an affected agent is busy, you can select **Stop and archive**. Geordi waits for the affected agents to stop before it archives any workspace. An archive requested by an agent fails if an affected agent is busy. The archive dialog appears only when an affected workspace has a running agent, uncommitted changes, unmerged commits, or an unmerged pull request. It names the workspace and explains what needs attention. Agents archiving the workspaces they started are never asked, and never lose uncommitted work: for them, archiving stops there.
+- A workspace whose pull request was merged (or closed) can carry on with new work instead of being archived: **Continue** fetches, and moves its worktree to a new branch off the upstream's main branch as it stands then. The conversation stays as it is, with a line saying what happened, and its agent is told with the next message that it is on a new branch and should look at the files afresh. Geordi removes the old local branch if all its commits have merged into its target. Uncommitted changes come along onto the new branch (an agent may have begun new work after the merge); if they don't fit onto it, nothing moves and the workspace says so. Not while an agent is at work in that worktree.
+- A workspace can be archived when it is done with. That stops its terminal processes and Geordi tasks, closes its terminals, removes its worktree and takes it out of the lists; its conversation and any local branch with unmerged work are kept. The archive includes children in the same repository and agents in their shared worktrees (FDR-002). Children in other repositories continue working. If an affected agent is busy, you can select **Stop and archive**. Geordi waits for the affected agents to stop before it archives any workspace. An archive requested by an agent fails if an affected agent is busy. The archive dialog appears only when an affected workspace has a running agent, uncommitted changes, unmerged commits, or an unmerged pull request. It names the workspace and explains what needs attention. Agents archiving the workspaces they started are never asked, and never lose uncommitted work: for them, archiving stops there.
 - Removing a repository from Settings archives its workspaces and deletes their worktree folders, including when the registered checkout is missing (FDR-005).
-- Open **Archive** in the sidebar to find a conversation by title or repository. Open it to read it, then select **Restore** to return it to active work and send another message. Workspaces in the archive can also be deleted for good (FDR-014). Restoration applies to the selected conversation and reuses its shared worktree or checks out its retained branch.
+- Open **Archive** in the sidebar to find a conversation by title or repository. Open it to read it, then select **Restore** to return it to active work and send another message. Workspaces in the archive can also be deleted for good (FDR-014). Restoration applies to the selected conversation and reuses its shared worktree or checks out its retained branch. If Archive removed the merged branch, Restore recreates it at its archived commit.
 - The window arrangement and pane sizes are remembered per browser.
 
 ## Design Decisions
@@ -99,11 +99,11 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 **Why:** A shell is the user's own process in a directory agents write to (ADR-003). It should exist only when someone wants it.
 **Tradeoff:** After a daemon restart the terminals are gone, tabs and all, and have to be opened again.
 
-### 9. Archiving keeps the branch and the conversation
+### 9. Keep unmerged work when cleaning up branches
 
-**Decision:** Archiving removes the worktree and hides the workspace, and nothing else.
-**Why:** The worktree is the part that costs disk space and clutters; the branch may still be wanted, and the conversation is the record of what was done.
-**Tradeoff:** Branches accumulate until someone deletes them.
+**Decision:** Archive and Continue clean up the old local branch when its tip is in the target history or matches the head of a confirmed merged pull request.
+**Why:** Finished workspaces can release their branch names while commits made after a merge remain accessible.
+**Tradeoff:** If Geordi cannot confirm the merge, it keeps the branch.
 
 ### 10. Changes and terminals are live, not recorded
 
@@ -140,4 +140,3 @@ A workspace takes the title its agent's session goes by (ACP `session_info_updat
 ## Open Questions
 
 - Preview windows.
-- Deleting the branch when archiving a workspace.
