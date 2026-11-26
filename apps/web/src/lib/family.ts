@@ -1,9 +1,7 @@
 /**
- * Workspaces as the sidebar lists them (FDR-016): an outline, in which each workspace comes
- * right after the one it reports to. Grouped, each tree is listed in its root's repository.
+ * The outline as the sidebar shows it (FDR-016, FDR-017): items, each right after the one it
+ * is under, some of them workspaces. `workspace` is a listed row's item (or workspace).
  */
-/** `repoId` is `null` for a project (FDR-012): projects are listed together, as if theirs were one. */
-type Member = { id: string; repoId: string | null; parentId: string | null };
 
 export type Listed<T> = {
 	workspace: T;
@@ -43,75 +41,26 @@ export function isInactive<
 }
 
 /**
- * The active workspaces, where `hideInactive`; otherwise all of them. The workspace on
- * screen (`viewed`) stays, in its place: with the workspaces that started it.
+ * The tree, top to bottom, in the order given: each item right after its parent, where that
+ * is listed; else at the top.
  */
-export function withoutInactive<
-	T extends { id: string; parentId: string | null; inactive?: boolean }
->(workspaces: T[], hideInactive: boolean, viewed: string | null = null) {
-	if (!hideInactive) return workspaces;
-	const kept = new Set(lineOf(new Map(workspaces.map((w) => [w.id, w])), viewed));
-	return workspaces.filter((w) => kept.has(w) || !w.inactive);
-}
-
-/**
- * The trees by the repository of their roots (FDR-016), in the order given, each workspace
- * right after its parent: also where it is in another repository. Not under a project, nor
- * a project under a repository's: what a project started is listed in its own repository.
- */
-export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
-	return nested(
-		all,
-		(child, parent) => (child.repoId === null) === (parent.repoId === null),
-		(root) => root.repoId
+export function nested<T extends { id: string; parentId: string | null }>(all: T[]): Listed<T>[] {
+	const byId = new Map(all.map((item) => [item.id, item]));
+	const childrenOf = Map.groupBy(all, (item) =>
+		item.parentId && byId.has(item.parentId) ? item.parentId : null
 	);
-}
-
-/** All workspaces as one list, in the order given, each right after its parent. */
-export function asOneList<T extends Member>(all: T[]): Listed<T>[] {
-	return (
-		nested(
-			all,
-			() => true,
-			() => null
-		).get(null) ?? []
-	);
-}
-
-/**
- * The trees, by `groupOf` their roots: each workspace right after its parent where that
- * is listed and `joins` lets it sit under it; else it is a root.
- */
-function nested<T extends Member>(
-	all: T[],
-	joins: (child: T, parent: T) => boolean,
-	groupOf: (root: T) => string | null
-): Map<string | null, Listed<T>[]> {
-	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
-	const parentOf = (workspace: T) => {
-		const parent = byId.get(workspace.parentId ?? '');
-		return parent && joins(workspace, parent) ? parent : null;
-	};
-	const childrenOf = Map.groupBy(all, (workspace) => parentOf(workspace)?.id ?? null);
-
-	const groups = new Map<string | null, Listed<T>[]>();
+	const listed: Listed<T>[] = [];
 	const visited = new Set<string>();
-	const list = (workspace: T, depth: number, listed: Listed<T>[]) => {
-		if (visited.has(workspace.id)) return; // a cycle: list it once
-		visited.add(workspace.id);
-		listed.push({ workspace, parent: byId.get(workspace.parentId ?? '') ?? null, depth });
-		for (const child of childrenOf.get(workspace.id) ?? []) list(child, depth + 1, listed);
+	const list = (item: T, depth: number) => {
+		if (visited.has(item.id)) return; // a cycle: list it once
+		visited.add(item.id);
+		listed.push({ workspace: item, parent: byId.get(item.parentId ?? '') ?? null, depth });
+		for (const child of childrenOf.get(item.id) ?? []) list(child, depth + 1);
 	};
-	const root = (workspace: T) => {
-		const group = groupOf(workspace);
-		const listed = groups.get(group) ?? [];
-		groups.set(group, listed);
-		list(workspace, 0, listed);
-	};
-	for (const workspace of childrenOf.get(null) ?? []) root(workspace);
+	for (const item of childrenOf.get(null) ?? []) list(item, 0);
 	// a loop has no root: list its members at the top, rather than not at all
-	for (const workspace of all) root(workspace);
-	return groups;
+	for (const item of all) list(item, 0);
+	return listed;
 }
 
 /**
@@ -156,43 +105,6 @@ export function unfolded<T extends { id: string }>(
 	return shown;
 }
 
-/**
- * The workspaces the sidebar shows, top to bottom: by repository (in `repoIds`' order),
- * or, not `grouped`, as one list of those in `repoIds` and the projects; leaving out what
- * is folded away. What the previous and next workspace are.
- */
-export function inSidebarOrder<T extends Member>(
-	all: T[],
-	repoIds: readonly string[],
-	folded: readonly string[],
-	{ includeProjects = false, grouped = true } = {}
-): T[] {
-	if (!grouped)
-		return unfolded(asOneList(shownUngrouped(all, repoIds)), folded).map(
-			({ workspace }) => workspace
-		);
-	const listed = byRepository(all);
-	const groups = includeProjects ? [null, ...repoIds] : repoIds;
-	return groups
-		.filter((repoId) => !folded.includes(repoId ?? 'projects'))
-		.flatMap((repoId) => unfolded(listed.get(repoId) ?? [], folded))
-		.map(({ workspace }) => workspace);
-}
-
-/** What the sidebar lists as one list: the workspaces in `repoIds`, and the projects. */
-export function shownUngrouped<T extends Member>(all: T[], repoIds: readonly string[]): T[] {
-	return all.filter(({ repoId }) => repoId === null || repoIds.includes(repoId));
-}
-
-/**
- * The repositories the sidebar lists: only `focus`, when that is one of them; else all.
- * A focus on a repository that is gone (or has nothing to show) shows everything again.
- */
-export function inFocus<T extends { id: string }>(repos: T[], focus: string | null): T[] {
-	const focused = repos.filter(({ id }) => id === focus);
-	return focused.length > 0 ? focused : repos;
-}
-
 /** The workspace `step` places from `current` in `order`, round at the ends; from outside it, the first or last. */
 export function stepThrough<T extends { id: string }>(
 	order: T[],
@@ -221,13 +133,13 @@ export type DropZone = 'above' | 'onto' | 'below';
 type Line = { id: string | null; edge: DropZone };
 
 /**
- * Where a dragged workspace would go, dropped on the row at `over` (FDR-016), or below the
- * last one (`over` past the end: last at the top level): under `parentId`, right above
- * `before` (`null`: after the last of its new siblings); `line` is what shows it. `reparents` whether that changes its parent. Nothing where it would stay
- * where it is, or may not go: under itself, under or over a project, or at the top of
- * this list unless `topLevel` (its repository's list, or the one list).
+ * Where a dragged item would go, dropped on the row at `over` (FDR-016, FDR-017), or below
+ * the last one (`over` past the end: last at the top level): under `parentId`, right above
+ * `before` (`null`: after the last of its new siblings); `line` is what shows it.
+ * `reparents` whether that changes its parent. Nothing where it would stay where it is, or
+ * may not go: under itself, under or over a `project`, or at the top unless `topLevel`.
  */
-export function dropTarget<T extends Member>(
+export function dropTarget<T extends { id: string; parentId: string | null; project?: boolean }>(
 	rows: Listed<T>[],
 	dragged: T,
 	over: number,
@@ -286,9 +198,77 @@ export function dropTarget<T extends Member>(
 
 	if (place.parentId === null && !topLevel) return undefined;
 	const parent = rows.find(({ workspace }) => workspace.id === place.parentId)?.workspace;
-	if (parent && (parent.repoId === null || dragged.repoId === null)) return undefined;
+	if (parent && (parent.project || dragged.project)) return undefined;
 	const reparents = from === -1 || place.parentId !== parentAt(from);
 	if (!reparents && (place.before === dragged.id || place.before === nextSibling(from)))
 		return undefined;
 	return { ...place, reparents };
+}
+
+/** An item of the outline (FDR-017), as the navigation view sends it. */
+export type OutlineEntry = {
+	id: string;
+	parentId: string | null;
+	text: string;
+	note: string;
+	done: boolean;
+	/** Whether a workspace is attached: the one with this item's ID. */
+	workspace: boolean;
+};
+
+/** What the outline needs to know of a workspace in use, to show it or leave it out. */
+type Shown = { id: string; repoId: string | null; inactive?: boolean };
+
+/**
+ * The rows the outline shows, top to bottom (FDR-017), each with how deep it is and how
+ * many rows are under it. Leaves out, with what is under them: with `activeOnly`, what is
+ * done and the inactive workspaces; with a `focus`, everything but that repository's
+ * workspaces, what is above them and what is under them; and what is `folded` away. The
+ * item on screen (`viewed`) and the one being edited (`editing`) stay, with what is above them. `project` marks a project's item
+ * (FDR-012), which nothing is put under or above.
+ */
+export function outlineRows<T extends OutlineEntry>(
+	items: T[],
+	workspaces: Shown[],
+	{
+		activeOnly = false,
+		focus = null,
+		folded = [],
+		viewed = null,
+		editing = null
+	}: {
+		activeOnly?: boolean;
+		focus?: string | null;
+		folded?: readonly string[];
+		viewed?: string | null;
+		editing?: string | null;
+	} = {}
+): (Listed<T & { project: boolean }> & { under: number })[] {
+	const byId = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+	const entries = items.map((item) => ({
+		...item,
+		project: item.workspace && byId.get(item.id)?.repoId === null
+	}));
+	type Entry = (typeof entries)[number];
+	const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+	const lineOfEntry = (id: string | null) => lineOf(entryById, id);
+	const kept = new Set([...lineOfEntry(viewed), ...lineOfEntry(editing)].map(({ id }) => id));
+	const hidden = (entry: Entry) =>
+		activeOnly && (entry.done || (entry.workspace && !!byId.get(entry.id)?.inactive));
+
+	let shown = entries.filter((entry) => kept.has(entry.id) || !lineOfEntry(entry.id).some(hidden));
+	if (focus) {
+		// a repository with nothing to show shows nothing; one that is gone, everything
+		const inRepo = new Set(
+			entries
+				.filter((entry) => entry.workspace && byId.get(entry.id)?.repoId === focus)
+				.map(({ id }) => id)
+		);
+		if (inRepo.size) {
+			const above = new Set([...inRepo].flatMap((id) => lineOfEntry(id).map((entry) => entry.id)));
+			const under = (entry: Entry) => lineOfEntry(entry.id).some(({ id }) => inRepo.has(id));
+			shown = shown.filter((entry) => above.has(entry.id) || under(entry) || kept.has(entry.id));
+		}
+	}
+	return unfolded(nested(shown), folded);
 }

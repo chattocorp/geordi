@@ -64,7 +64,6 @@ const everywhere = (at: Partial<Everywhere> = {}): Everywhere =>
 			anyUnread: false,
 			sidebarOpen: true,
 			wide: true,
-			grouped: true,
 			activeOnly: true,
 			focus: null,
 			theme: 'system',

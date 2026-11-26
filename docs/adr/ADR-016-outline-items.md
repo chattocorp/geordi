@@ -16,12 +16,13 @@ We considered:
 
 ## Decision
 
-- **The outline is a tree of items, in a domain of its own** (`items.ts`), event-sourced like every other (ADR-001). An item has a line of text, an optional note, a parent item, a place among its siblings, whether it is done, and at most one workspace attached.
-- **A workspace is always attached to exactly one item.** Its place in the outline is its item's place. The item's text is the workspace's name: renaming either renames both, one value kept on the item.
-- **Authority is derived from the tree of items.** A workspace's parent is the workspace of the nearest item above its own that has one. Items without a workspace in between pass authority through. Everything that asks for a parent today (messaging, reports, questions, archiving, inactivity) asks the items domain instead of a field on the workspace.
+- **The outline is a tree of items, with events of its own** (`item.*`, `items.ts`), event-sourced like every other (ADR-001). An item has a line of text, an optional note, a parent item, a place among its siblings, whether it is done, and at most one workspace attached.
+- **A workspace is always attached to exactly one item, with the workspace's ID.** Its place in the outline is its item's place. The item's text is the workspace's name: renaming either renames both. The one value stays on the workspace, where agents and people already name it.
+- **The outline is kept by the workspaces' projection**, beside the workspaces, because who supervises whom is derived from it at every event. `items.ts` holds the tree's pure rules; the commands that change it live with the workspaces' (moving an item can hand workspaces to another supervisor, with what that involves).
+- **Authority is derived from the tree of items.** A workspace's parent is the workspace of the nearest item above its own that has one. Items without a workspace in between pass authority through. The workspace's `parentId` is no longer recorded but derived: the projection sets it from the outline whenever an item moves, so everything that asks for a parent (messaging, reports, questions, archiving, inactivity) gets the outline's answer unchanged.
 - **A workspace's scope** is the subtree of its item, down to, but not into, the next items that have workspaces. Its agent may read and change the items in its scope, and nothing else in the outline.
-- **The workspaces domain keeps the conversation, the agent and the worktree**, and no longer holds a place in a tree. Creating a workspace creates or names its item, in the same append.
-- **Old events are translated on replay** (as in `legacy.ts`): each workspace gets an item where it was created, under its parent's item, and `workspace.moved` becomes a move of that item.
+- **A workspace's item comes with it:** `workspace.created` makes it (at the top, or under its starter's item), or attaches the workspace to an item written down earlier, whose ID it takes. A workspace's item moves with `workspace.moved`; items without workspaces have `item.moved`.
+- **Nothing old needs translating:** replaying `workspace.created` and `workspace.moved` gives every existing workspace its item, under its parent's, where people moved it.
 - **Edits are recorded when they are made, not as they are typed:** an item's text is appended when a line is left or Enter is pressed, so typing doesn't fill the log.
 
 ## Consequences
@@ -29,7 +30,7 @@ We considered:
 - Folders, todos and work to be done later are the same thing as work under way, with or without a workspace. Starting an agent on a todo is attaching a workspace to it, and delegating (`start_agent`) creates an item in the caller's scope and attaches the new workspace to it.
 - The chain of command keeps working as FDR-016 defined it, now with items between workspaces that don't count.
 - An agent's scope gives it a todo list of its own that people can see and edit, without a second store.
-- Anything that walked `parentId` on workspaces must go through the items domain: the sidebar's listing, the agent API, archiving and inactivity. This is the bulk of the change.
-- Workspaces created before this decision have items only by translation on replay. A purge (ADR-012) must take their items with them.
+- Code that reads a workspace's `parentId` keeps working; the projection has to keep it in step with every move of an item, including items without workspaces between two that have them.
+- A purge (ADR-012) takes a workspace's item with it, and the items without workspaces under it.
 - Grouping the sidebar by repository no longer fits a tree whose items need not belong to any repository; it is dropped for now (FDR-017).
 - Items are written by people and by agents at once. Each edit replaces the fields it changes, and the last one wins; there is no merging of concurrent text edits.

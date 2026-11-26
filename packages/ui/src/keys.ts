@@ -47,13 +47,7 @@ export const shortcuts = {
 	activeOnly: {
 		code: 'KeyA',
 		shift: true,
-		label: 'Show only active workspaces, or inactive ones too',
-		group: 'General'
-	},
-	groupByRepo: {
-		code: 'KeyG',
-		shift: true,
-		label: 'Group workspaces by repository, or show them as one list',
+		label: 'Show only what is active, or done items and inactive workspaces too',
 		group: 'General'
 	},
 	toggleSidebar: { code: 'KeyB', label: 'Toggle the sidebar', group: 'General' },

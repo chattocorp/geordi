@@ -18,11 +18,9 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 - An agent working in another workspace's worktree (shown as a conversation tab there, FDR-002) is not a row of its own and is never moved on its own: it goes where its workspace goes.
 - Projects (FDR-012) stay at the top level and can't be nested or have workspaces nested under them.
 
-### Grouped by repository, and not
+### One outline
 
-- Grouped, each top-level workspace is listed under the heading of its repository, with its whole subtree, even where a workspace in it belongs to another repository. Such a row is marked with its own repository.
-- A top-level workspace can't be dragged into another repository's group, because its repository decides its group. Anything nested can be moved under any workspace in any group.
-- Ungrouped, the top-level workspaces are one list, each with its subtree.
+- The outline is one list of trees, with no repository headings (FDR-017). Each workspace shows its repository's picture.
 
 ### Who supervises whom
 
@@ -65,11 +63,11 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 **Why:** The move is the person's act. If the new lead should act on it, the person says so in the same breath. Telling agents unasked would start turns, and spend tokens, for nothing.
 **Tradeoff:** A new parent may not know it has a child until it looks, or until it is told.
 
-### 4. A tree belongs to its root's repository
+### 4. A tree is read as one
 
-**Decision:** Grouped by repository, a subtree is listed in its top-level workspace's repository, whatever repositories its workspaces are in.
-**Why:** A tree is one piece of work, and is read as one. Splitting it across repository headings, as the sidebar used to, tears a lead away from its children.
-**Tradeoff:** A repository's heading doesn't show all of that repository's workspaces. Workspaces from elsewhere are marked, but a workspace of this repository nested in another's tree is listed there.
+**Decision:** A tree is listed whole, whatever repositories its workspaces are in. Since FDR-017, there are no repository headings at all.
+**Why:** A tree is one piece of work. Splitting it across repository headings, as the sidebar used to, tears a lead away from its children.
+**Tradeoff:** To see one repository's work, the person filters by it.
 
 ### 5. Archiving takes the subtree, all or nothing
 
@@ -90,7 +88,7 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 ## Related
 
 - **ADRs:** ADR-001, ADR-004, ADR-016
-- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015, FDR-017 (planned: the outline of items it grows into)
+- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015, FDR-017, FDR-018
 
 ## Open Questions
 

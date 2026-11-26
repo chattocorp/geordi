@@ -14,7 +14,6 @@ export type Everywhere = {
 	sidebarOpen: boolean;
 	/** Whether the window is wide enough to show the sidebar. */
 	wide: boolean;
-	grouped: boolean;
 	/** Whether the sidebar shows only the active workspaces, leaving out the inactive ones. */
 	activeOnly: boolean;
 	/** The repository the sidebar shows alone, if any. */
@@ -30,7 +29,6 @@ export type Everywhere = {
 	openSettings(section?: Section): void;
 	toggleSidebar(): void;
 	filterRepositories(): void;
-	toggleGrouped(): void;
 	toggleActiveOnly(): void;
 	setFocus(repo: string | null): void;
 	setTheme(theme: Theme): void;
@@ -137,16 +135,10 @@ export function globalCommands(at: Everywhere): Command[] {
 			run: at.filterRepositories
 		},
 		{
-			id: 'group-by-repo',
-			label: at.grouped ? 'List workspaces as one' : 'Group workspaces by repository',
-			group: sidebar,
-			icon: at.grouped ? 'icon-[lucide--list]' : 'icon-[lucide--list-tree]',
-			shortcut: 'groupByRepo',
-			run: at.toggleGrouped
-		},
-		{
 			id: 'active-only',
-			label: at.activeOnly ? 'Show inactive workspaces too' : 'Show only active workspaces',
+			label: at.activeOnly
+				? 'Show done items and inactive workspaces too'
+				: 'Show only what is active',
 			group: sidebar,
 			icon: 'icon-[lucide--activity]',
 			shortcut: 'activeOnly',

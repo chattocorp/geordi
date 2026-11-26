@@ -1350,6 +1350,111 @@ describe('moving in the outline (FDR-016)', () => {
 	});
 });
 
+describe('the outline of items (FDR-017)', () => {
+	const tree = (workspaces: ReturnType<typeof setup>['workspaces']) => {
+		const { items, order } = workspaces.outline();
+		return order.map((id) => [
+			items.get(id)!.text || workspaces.get(id).title,
+			items.get(id)!.parentId
+		]);
+	};
+
+	it('keeps items, with what is in them, across a restart', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-items-')), 'events.db');
+		const { workspaces } = setup({ database });
+		const release = workspaces.addItem({ parentId: null, before: null, text: 'Release 0.9' });
+		const notes = workspaces.addItem({ parentId: release, before: null, text: 'Notes\nfor it' });
+		const first = workspaces.addItem({ parentId: release, before: notes, text: 'Bump it' });
+		workspaces.editItem(notes, { text: 'Write the notes', note: 'In German too' });
+		workspaces.completeItem(first, true);
+		const replayed = setup({ database }).workspaces.outline();
+		expect([...replayed.order]).toEqual([release, first, notes]);
+		expect(replayed.items.get(notes)).toMatchObject({
+			text: 'Write the notes',
+			note: 'In German too',
+			parentId: release,
+			done: false
+		});
+		expect(replayed.items.get(first)?.done).toBe(true);
+
+		workspaces.removeItem(release);
+		expect(workspaces.outline().items.size).toBe(0);
+	});
+
+	it('gives every workspace an item, under its parent’s', () => {
+		const { workspaces, create } = setup();
+		const lead = create('Lead');
+		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
+		expect(workspaces.outline().items.get(child)).toMatchObject({
+			parentId: lead,
+			workspace: true
+		});
+		expect(tree(workspaces)).toEqual([
+			['Help', lead],
+			['Lead', null]
+		]);
+	});
+
+	it('lets items between workspaces pass authority through', async () => {
+		const { workspaces, create } = setup();
+		const lead = create('Lead');
+		const { agents } = workspaces;
+		const child = agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
+		const folder = workspaces.addItem({ parentId: lead, before: null, text: 'Tests' });
+		workspaces.move(child, null, folder);
+		expect(workspaces.get(child).parentId).toBe(lead);
+		agents.send(lead, child, 'Still yours');
+
+		const waiting = agents.wait(lead, child, 30000);
+		workspaces.move(folder, null, null);
+		expect(workspaces.get(child).parentId).toBeNull();
+		expect(await waiting).toMatchObject({ movedAway: true });
+		expect(() => agents.send(lead, child, 'Mine?')).toThrow();
+		expect(() => workspaces.move(folder, null, child)).toThrow(refusal(/under itself/));
+		expect(() => workspaces.removeItem(folder)).toThrow(refusal(/archived, not removed/));
+	});
+
+	it('starts a workspace on an item written down earlier', () => {
+		const { workspaces, repo, create } = setup();
+		const lead = create('Lead');
+		const todo = workspaces.addItem({
+			parentId: lead,
+			before: null,
+			text: 'Check the error paths'
+		});
+		const id = workspaces.create({
+			repoId: repo.id,
+			agent: 'claude',
+			prompt: 'Look at every error path',
+			itemId: todo
+		});
+		expect(id).toBe(todo);
+		expect(workspaces.get(id)).toMatchObject({
+			title: 'Check the error paths',
+			manuallyNamed: true,
+			parentId: lead
+		});
+		expect(() =>
+			workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Again', itemId: todo })
+		).toThrow(refusal(/has a workspace already/));
+		// the item's text is the workspace's name
+		workspaces.editItem(id, { text: 'Check every error path' });
+		expect(workspaces.get(id).title).toBe('Check every error path');
+		expect(() => workspaces.completeItem(id, true)).toThrow(refusal(/Archive/));
+	});
+
+	it('takes a workspace’s items along when it is purged', () => {
+		const { workspaces, create } = setup();
+		const id = create('Done soon');
+		const todo = workspaces.addItem({ parentId: id, before: null, text: 'A detail' });
+		workspaces.record(id, { kind: 'turn.completed' });
+		workspaces.archive(id);
+		workspaces.purge([id]);
+		expect(workspaces.outline().items.has(id)).toBe(false);
+		expect(workspaces.outline().items.has(todo)).toBe(false);
+	});
+});
+
 describe('archiving', () => {
 	it('takes a workspace out of the lists and keeps its conversation', () => {
 		const { store, repos, workspaces, repo, create, dispatch } = setup();

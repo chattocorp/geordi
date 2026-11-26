@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-	byRepository,
 	dropTarget,
-	inFocus,
-	asOneList,
-	inSidebarOrder,
+	nested,
 	nextUnread,
+	outlineRows,
 	stepThrough,
 	unfolded,
 	isInactive,
-	withoutInactive,
 	withAides
 } from './family.ts';
 
@@ -47,82 +44,98 @@ describe('isInactive', () => {
 	});
 });
 
-describe('withoutInactive', () => {
-	const all = [
-		{ id: 'active', parentId: null },
-		{ id: 'inactive', parentId: null, inactive: true },
-		{ id: 'child', parentId: 'inactive', inactive: true },
-		{ id: 'grandchild', parentId: 'child', inactive: true },
-		{ id: 'helper', parentId: 'active' }
-	];
-
-	it('leaves out the inactive workspaces, where asked to', () => {
-		expect(withoutInactive(all, false)).toBe(all);
-		expect(withoutInactive(all, true).map(({ id }) => id)).toEqual(['active', 'helper']);
+describe('nested', () => {
+	it('puts each item right after its parent, however deep, in the order given', () => {
+		const rows = nested([
+			workspace('grandchild', 'one', 'child'),
+			workspace('other', 'one'),
+			workspace('child', 'one', 'parent'),
+			workspace('sibling', 'two', 'parent'),
+			workspace('parent', 'one')
+		]);
+		expect(ids(rows)).toEqual(['other', 'parent', 'child', 'grandchild', 'sibling']);
+		expect(rows[2].parent?.id).toBe('parent');
+		expect(rows[0].parent).toBeNull();
+		expect(rows.map(({ depth }) => depth)).toEqual([0, 0, 1, 2, 1]);
 	});
 
-	it('keeps the workspace on screen, in its place with those that started it', () => {
-		expect(withoutInactive(all, true, 'inactive').map(({ id }) => id)).toEqual([
-			'active',
-			'inactive',
-			'helper'
-		]);
-		expect(withoutInactive(all, true, 'grandchild').map(({ id }) => id)).toEqual([
-			'active',
-			'inactive',
-			'child',
-			'grandchild',
-			'helper'
+	it('lists one whose parent is gone at the top, and a loop rather than losing it', () => {
+		expect(ids(nested([workspace('orphan', 'one', 'gone')]))).toEqual(['orphan']);
+		expect(ids(nested([workspace('a', 'one', 'b'), workspace('b', 'one', 'a')]))?.sort()).toEqual([
+			'a',
+			'b'
 		]);
 	});
 });
 
-describe('byRepository', () => {
-	it('lists workspaces by repository, in the order given', () => {
-		const repos = byRepository([
-			workspace('a', 'one'),
-			workspace('b', 'two'),
-			workspace('c', 'one')
+describe('outlineRows', () => {
+	const item = (id: string, parentId: string | null = null, done = false, workspace = false) => ({
+		id,
+		parentId,
+		text: id,
+		note: '',
+		done,
+		workspace
+	});
+	const items = [
+		item('release'),
+		item('bump', 'release', false, true),
+		item('detail', 'bump'),
+		item('ticked', 'bump', true),
+		item('quiet', 'release', false, true),
+		item('under-quiet', 'quiet'),
+		item('elsewhere', null, false, true)
+	];
+	const workspaces = [
+		{ id: 'bump', repoId: 'geordi' },
+		{ id: 'quiet', repoId: 'geordi', inactive: true },
+		{ id: 'elsewhere', repoId: 'sample' }
+	];
+	const shown = (options: Parameters<typeof outlineRows>[2]) =>
+		ids(outlineRows(items, workspaces, options));
+
+	it('shows every item, each under its parent', () => {
+		expect(shown({})).toEqual([
+			'release',
+			'bump',
+			'detail',
+			'ticked',
+			'quiet',
+			'under-quiet',
+			'elsewhere'
 		]);
-		expect([...repos.keys()]).toEqual(['one', 'two']);
-		expect(ids(repos.get('one'))).toEqual(['a', 'c']);
 	});
 
-	it('puts a workspace right after the one whose agent started it, however deep', () => {
-		const repos = byRepository([
-			workspace('grandchild', 'one', 'child'),
-			workspace('other', 'one'),
-			workspace('child', 'one', 'parent'),
-			workspace('sibling', 'one', 'parent'),
-			workspace('parent', 'one')
+	it('leaves out what is done and inactive, with what is under it, unless it is on screen', () => {
+		expect(shown({ activeOnly: true })).toEqual(['release', 'bump', 'detail', 'elsewhere']);
+		expect(shown({ activeOnly: true, viewed: 'under-quiet' })).toEqual([
+			'release',
+			'bump',
+			'detail',
+			'quiet',
+			'under-quiet',
+			'elsewhere'
 		]);
-		expect(ids(repos.get('one'))).toEqual(['other', 'parent', 'child', 'grandchild', 'sibling']);
-		expect(repos.get('one')?.[2].parent?.id).toBe('parent');
-		expect(repos.get('one')?.[0].parent).toBeNull();
-		expect(repos.get('one')?.map(({ depth }) => depth)).toEqual([0, 0, 1, 2, 1]);
 	});
 
-	it('lists a tree in its root’s repository, children from elsewhere too (FDR-016)', () => {
-		const repos = byRepository([
-			workspace('parent', 'one'),
-			workspace('abroad', 'two', 'parent'),
-			workspace('orphan', 'two', 'archived')
+	it('shows a repository’s workspaces, what is above them and what is under them', () => {
+		expect(shown({ focus: 'sample' })).toEqual(['elsewhere']);
+		expect(shown({ focus: 'geordi' })).toEqual([
+			'release',
+			'bump',
+			'detail',
+			'ticked',
+			'quiet',
+			'under-quiet'
 		]);
-		expect(ids(repos.get('one'))).toEqual(['parent', 'abroad']);
-		expect(repos.get('one')?.[1].parent?.id).toBe('parent');
-		expect(ids(repos.get('two'))).toEqual(['orphan']);
-		expect(repos.get('two')?.[0].parent).toBeNull();
+		// a repository with nothing shows everything
+		expect(shown({ focus: 'gone' })).toHaveLength(items.length);
 	});
 
-	it('keeps projects and repositories apart', () => {
-		const repos = byRepository([workspace('p', null), workspace('started', 'one', 'p')]);
-		expect(ids(repos.get(null))).toEqual(['p']);
-		expect(ids(repos.get('one'))).toEqual(['started']);
-	});
-
-	it('lists a loop rather than losing it', () => {
-		const repos = byRepository([workspace('a', 'one', 'b'), workspace('b', 'one', 'a')]);
-		expect(ids(repos.get('one'))?.sort()).toEqual(['a', 'b']);
+	it('folds, and marks projects', () => {
+		expect(shown({ folded: ['bump'] })).not.toContain('detail');
+		const rows = outlineRows([item('p', null, false, true)], [{ id: 'p', repoId: null }]);
+		expect(rows[0].workspace.project).toBe(true);
 	});
 });
 
@@ -143,13 +156,13 @@ describe('withAides', () => {
 });
 
 describe('unfolded', () => {
-	const rows = byRepository([
+	const rows = nested([
 		workspace('parent', 'one'),
 		workspace('child', 'one', 'parent'),
 		workspace('grandchild', 'one', 'child'),
 		workspace('sibling', 'one', 'parent'),
 		workspace('other', 'one')
-	]).get('one')!;
+	]);
 
 	it('counts what is under each row', () => {
 		expect(unfolded(rows, []).map(({ under }) => under)).toEqual([3, 1, 0, 0, 0]);
@@ -175,7 +188,7 @@ describe('dropTarget', () => {
 		workspace('third', 'one', 'parent'),
 		workspace('other', 'one')
 	];
-	const rows = byRepository(all).get('one')!;
+	const rows = nested(all);
 	const at = (index: number) => all.find(({ id }) => id === rows[index].workspace.id)!;
 	const place = (from: number, over: number, zone: 'above' | 'onto' | 'below', top = true) => {
 		const target = dropTarget(rows, at(from), over, zone, top);
@@ -230,8 +243,8 @@ describe('dropTarget', () => {
 	});
 
 	it('keeps projects out of the tree', () => {
-		const project = workspace('p', null);
-		const list = asOneList([project, workspace('a', 'one')]);
+		const project = { ...workspace('p', null), project: true };
+		const list = nested([project, workspace('a', 'one')]);
 		expect(dropTarget(list, all[0], 0, 'onto', true)).toBeUndefined();
 		expect(dropTarget(list, project, 1, 'onto', true)).toBeUndefined();
 		expect(dropTarget(list, project, 1, 'below', true)?.parentId).toBeNull();
@@ -243,61 +256,6 @@ describe('dropTarget', () => {
 			parentId: 'other',
 			reparents: true
 		});
-	});
-});
-
-describe('inSidebarOrder', () => {
-	const all = [
-		workspace('a', 'one'),
-		workspace('b', 'two'),
-		workspace('child', 'one', 'a'),
-		workspace('c', 'one')
-	];
-
-	it('lists by repository, each started one after its parent', () => {
-		expect(inSidebarOrder(all, ['two', 'one'], []).map(({ id }) => id)).toEqual([
-			'b',
-			'a',
-			'child',
-			'c'
-		]);
-	});
-
-	it('leaves out what is folded away', () => {
-		expect(inSidebarOrder(all, ['one', 'two'], ['a']).map(({ id }) => id)).toEqual(['a', 'c', 'b']);
-		expect(inSidebarOrder(all, ['one', 'two'], ['one']).map(({ id }) => id)).toEqual(['b']);
-	});
-
-	it('lists as one, in the order given, when not grouped', () => {
-		const order = (folded: string[]) =>
-			inSidebarOrder(all, ['one', 'two'], folded, { grouped: false }).map(({ id }) => id);
-		expect(order([])).toEqual(['a', 'child', 'b', 'c']);
-		expect(order(['a'])).toEqual(['a', 'b', 'c']);
-		expect(order(['one'])).toEqual(['a', 'child', 'b', 'c']);
-	});
-});
-
-describe('asOneList', () => {
-	it('keeps a started one under its parent, from another repository too', () => {
-		const all = [workspace('p', null), workspace('a', 'one'), workspace('child', 'one', 'p')];
-		expect(asOneList(all).map(({ workspace, depth }) => [workspace.id, depth])).toEqual([
-			['p', 0],
-			['child', 1],
-			['a', 0]
-		]);
-	});
-});
-
-describe('inFocus', () => {
-	const repos = [{ id: 'one' }, { id: 'two' }];
-
-	it('keeps only the repository in focus', () => {
-		expect(inFocus(repos, 'two')).toEqual([{ id: 'two' }]);
-	});
-
-	it('shows all without a focus, or with one on a repository not listed', () => {
-		expect(inFocus(repos, null)).toEqual(repos);
-		expect(inFocus(repos, 'gone')).toEqual(repos);
 	});
 });
 

@@ -18,6 +18,32 @@ export type View<T> = {
 };
 
 /**
+ * The outline (FDR-017), top to bottom: each item with the item it is under. A workspace's
+ * item has its name as its text, is done once it is archived, and is what is under it is
+ * under it: an agent working in another workspace's directory is no item of its own, and
+ * what it started is under that workspace.
+ */
+function outlineItems(ownerOf: Map<string, string>) {
+	const { items, order } = workspaces().outline();
+	return order.flatMap((id) => {
+		const item = items.get(id)!;
+		const workspace = item.workspace ? workspaces().brief(id) : undefined;
+		if (item.workspace && (!workspace || workspace.worktreeId !== id)) return [];
+		const parentId = item.parentId && (ownerOf.get(item.parentId) ?? item.parentId);
+		return [
+			{
+				id,
+				parentId: parentId || null,
+				text: workspace?.title ?? item.text,
+				note: item.note,
+				done: workspace ? !!workspace.archivedAt : item.done,
+				workspace: !!workspace
+			}
+		];
+	});
+}
+
+/**
  * Everything that every page needs. What the sidebar shows: repositories, and the
  * workspaces that stand for themselves (newest first). An agent working in another
  * workspace's directory is part of that one: it makes it `working`, and what it started
@@ -96,6 +122,7 @@ export const navigation = () =>
 						};
 					}),
 				workspaces: listed,
+				items: outlineItems(ownerOf),
 				access: workspaces().access.list(),
 				preferences: workspaces().preferences.get(),
 				/**

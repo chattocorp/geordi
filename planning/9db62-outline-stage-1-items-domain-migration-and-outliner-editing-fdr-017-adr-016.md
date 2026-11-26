@@ -1,7 +1,7 @@
 ---
 data:
   priority: normal
-  status: todo
+  status: in_progress
   tags:
     - sidebar
     - outline
@@ -36,3 +36,14 @@ Stage 1 of FDR-017 (`docs/fdr/FDR-017-the-outline.md`), on the decision in ADR-0
 - Stage 2: a workspace's scope (its tab, agent tools, checklist in its instructions).
 - Stage 3: delegation onto items, the path as a brief, agents' plans as items.
 - A full-width outline page.
+
+## Progress (2026-11-26)
+
+Implemented on `geordi/outline-items`, not yet committed:
+
+- Item ID = workspace ID; the outline lives in the workspaces' projection, and a workspace's `parentId` is derived from it (so no translation of old events, and no changes to callers). `item.*` events for items without workspaces.
+- Ticking off is Cmd/Ctrl-Enter, not Space (the line is always editable, so Space types). "Show only what is active" also hides done items; the line being edited stays.
+- Starting a workspace on an item: from its menu, via `/?item=`; only on items with no workspaces under them (staffing a folder that already has work under it is for later).
+- Tried in the dev app: keyboard editing, starting a workspace on an item, forge restart.
+
+Known limits: the navigation view sends every archived workspace's item (done) to every window; may want trimming for large installations.

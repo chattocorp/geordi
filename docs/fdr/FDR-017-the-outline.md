@@ -1,13 +1,13 @@
 # FDR-017: The outline
 
-**Status:** Planned
+**Status:** Active
 **Last reviewed:** 2026-11-26
 
 ## Overview
 
 The outline is Geordi's main artifact: one tree of items in which the person plans, groups and follows their work. An item is a line of text. It can stand on its own (a heading, a folder, a todo) or have a workspace attached, which makes it a piece of work with an agent. Items under a workspace's item are that workspace's own: its todos, which the person and its agent keep together. It extends FDR-016: the outline is still the chain of command, but it is no longer made of workspaces only.
 
-When stage 1 ships, this replaces FDR-016's account of how workspaces sit in the outline; who supervises whom stays as FDR-016 decided.
+Stage 1 (items, editing, workspaces on items) is in place; a workspace's scope and delegation onto items (stages 2 and 3) are planned. It replaces FDR-016's grouping by repository; who supervises whom stays as FDR-016 decided.
 
 ## Behavior
 
@@ -19,19 +19,20 @@ When stage 1 ships, this replaces FDR-016's account of how workspaces sit in the
 
 ### Editing
 
-- The outline is edited like any outliner: Enter starts a new item below, Tab and Shift-Tab indent and outdent, Alt with the arrows moves an item, Space ticks off the selected one, Backspace on an empty item removes it. Rows can also be dragged (FDR-016).
+- The outline is edited like any outliner: Enter starts a new item below, Tab and Shift-Tab indent and outdent, Alt with the arrows moves an item, Cmd-Enter (Ctrl-Enter) ticks it off, Backspace on an empty item removes it, Escape takes back what was typed. Up and down go from row to row. Rows can also be dragged (FDR-016). The New item button starts one at the top.
+- The menu of an item offers starting a workspace on it, adding an item under it, ticking it off, and removing it (with what is under it, where none of it has a workspace). The menu of a workspace offers adding an item under it.
 - An item's text is saved when you leave the line or press Enter.
-- Done items can be hidden.
+- "Show only what is active" leaves out what is done and the inactive workspaces, with what is under them. The line being edited stays until it is left, ticked off or not.
 - Stage 1 edits the outline in the sidebar, which is the outline. A full-width page for it may follow (see Open Questions).
 
 ### Workspaces in the outline
 
-- Starting a workspace attaches it to an item: a new one, or one written down earlier. The item's text is its first message.
+- Starting a workspace attaches it to an item: a new one, or one written down earlier, with no workspaces under it. The item's text is offered as its first message, and the workspace is named after it, as named by the person.
 - A workspace's supervisor is the workspace of the nearest item above its own that has one. Items without a workspace pass authority through (FDR-016). An item at the top, or under items without workspaces only, reports to the person.
 - Archiving a workspace ticks its item off. The item stays, as a record that links to the archived conversation.
 - The workspace's repository shows as the item's icon. The sidebar is no longer grouped by repository; the repository filter stays.
 
-### A workspace's scope
+### A workspace's scope (planned: stages 2 and 3)
 
 - A workspace's scope is everything under its item, down to the next items that have workspaces of their own: those are its child agents, with scopes of their own.
 - A workspace shows its scope in a tab of its own, editable there as in the outline.
@@ -81,7 +82,7 @@ When stage 1 ships, this replaces FDR-016's account of how workspaces sit in the
 ## Related
 
 - **ADRs:** ADR-001, ADR-004, ADR-016
-- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-016
+- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-016, FDR-018
 
 ## Open Questions
 
