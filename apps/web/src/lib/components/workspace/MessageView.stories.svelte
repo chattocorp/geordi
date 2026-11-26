@@ -1081,7 +1081,18 @@
 	</div>
 </Story>
 
-<Story name="Live tool cursor" asChild>
+<Story
+	name="Live tool cursor"
+	asChild
+	play={async ({ canvas }) => {
+		const cursor = await canvas.findByRole('img', { name: 'Agent working' });
+		const tools = canvas.getAllByRole('img', { name: 'shell' });
+		const lastTool = tools[tools.length - 1];
+		await expect(
+			cursor.getBoundingClientRect().left - lastTool.getBoundingClientRect().right
+		).toBeGreaterThanOrEqual(8);
+	}}
+>
 	<div class="flex h-48 max-w-3xl flex-col sheet overflow-hidden">
 		<MessageView
 			agent="codex"

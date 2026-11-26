@@ -71,7 +71,7 @@
 						<span class={['size-3.5 -translate-x-px', iconOf(tool)]}></span>
 					</span>
 				{/each}
-				{#if cursor}<span class="ms-2.5 inline-flex">{@render cursor()}</span>{/if}
+				{#if cursor}<span class="inline-flex not-first:ms-3.5">{@render cursor()}</span>{/if}
 			</span>
 		{/if}
 	{/snippet}
