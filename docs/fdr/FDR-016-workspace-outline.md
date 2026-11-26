@@ -1,21 +1,19 @@
 # FDR-016: The workspace outline
 
-**Status:** Planned
+**Status:** Active
 **Last reviewed:** 2026-11-26
 
 ## Overview
 
 The sidebar is an outline of the person's workspaces, and the outline is the chain of command. A workspace's parent is the one it reports to now, not necessarily the one that started it. An agent starting a child makes itself that child's first parent. From then on, the person can move any workspace anywhere in the outline, which hands it to another lead, or to themselves. One tree tells the person both how the work is arranged and who supervises whom.
 
-When this ships, it replaces the parts of FDR-002 that bind a child to whoever started it for its whole life: its decisions 3 and 4, and how archiving follows children.
-
 ## Behavior
 
 ### The outline
 
 - Every workspace sits at the top level or under another workspace, in an order the person chooses.
-- A workspace an agent starts sits under that agent's workspace, as its last child, until the person moves it.
-- The person moves a workspace by dragging its row: before or after another row, or onto a row to put it under that workspace. Its children, and their children, move with it.
+- A workspace an agent starts sits under that agent's workspace, newest first among its siblings, until the person moves it.
+- The person moves a workspace by dragging its row: onto the upper or lower part of another row to put it above or below that one, beside it, or onto its middle to put it under that workspace, as its last child. Dropped below a row with children, it becomes the first of them. Its children, and their children, move with it.
 - A subtree can be folded and unfolded. What is folded is a preference of this browser, not part of the outline.
 - An agent working in another workspace's worktree (shown as a conversation tab there, FDR-002) is not a row of its own and is never moved on its own: it goes where its workspace goes.
 - Projects (FDR-012) stay at the top level and can't be nested or have workspaces nested under them.
@@ -28,8 +26,9 @@ When this ships, it replaces the parts of FDR-002 that bind a child to whoever s
 
 ### Who supervises whom
 
-- An agent can message, stop and archive only its current children and their descendants. It reports to, asks and messages only its current parent. Who started a workspace stays on record and is shown with it, but grants nothing.
+- An agent can message, stop and archive only its current children and their descendants. It reports to, asks and messages only its current parent. Who started a workspace stays in its history, but grants nothing.
 - Moving a workspace to the top level means it reports to the person: its questions come to them, and no agent supervises it.
+- A workspace an MCP client outside Geordi started (FDR-002) is supervised by that client until a person moves it under another workspace or to the top level; from then on, by its place in the outline only.
 - A workspace can't be moved under one of its own descendants.
 - A workspace can be moved under another only if that workspace's agent can reach the moved workspace's repository.
 
@@ -96,5 +95,5 @@ When this ships, it replaces the parts of FDR-002 that bind a child to whoever s
 ## Open Questions
 
 - Outliner keys: Tab and Shift-Tab to nest and unnest, Alt with the arrows to move a row.
-- An MCP client outside Geordi supervises what it started (FDR-002), wherever that sits in the outline. Should moving such a workspace end that supervision?
 - Should a lead ever be able to hand a child to a peer itself?
+- A row can't yet be dropped at the very end of a list's top level, after a tree with children: it can go above the last tree, and that one can then be moved above it.
