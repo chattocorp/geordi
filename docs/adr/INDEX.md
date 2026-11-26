@@ -18,3 +18,4 @@
 | [ADR-014](ADR-014-watching-files-off-the-main-thread.md)         | The daemon watches files in a thread of its own, once per repository | 2026-11-23 |
 | [ADR-015](ADR-015-turn-review-blobs.md)                          | Keep turn review context in Git                                      | 2026-11-26 |
 | [ADR-016](ADR-016-outline-items.md)                              | Items are the outline's primitive; workspaces are attached to them   | 2026-11-26 |
+| [ADR-017](ADR-017-own-git-tooling-for-merging-up.md)             | Our own Git tooling for merging up the outline                       | 2026-11-26 |
