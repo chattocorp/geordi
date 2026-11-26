@@ -16,7 +16,6 @@
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
 	import UserMessage from '@geordi/ui/UserMessage.svelte';
 	import IncomingMessage from '@geordi/ui/IncomingMessage.svelte';
-	import TurnActivity from '@geordi/ui/TurnActivity.svelte';
 	import DiffStat from '@geordi/ui/DiffStat.svelte';
 	import PatchView from '../PatchView.svelte';
 	import { changedFiles } from '#lib/changedFiles.ts';
@@ -98,7 +97,6 @@
 	);
 
 	const workspaceFiles = changedFiles();
-	const expanded = new SvelteSet<number>();
 	const openMessages = new SvelteSet<string>();
 
 	/**
@@ -106,22 +104,6 @@
 	 * write the same file again, and the browser would show what it had for an address before.
 	 */
 	const picturesAt = (at: string) => pictures && `${pictures}?at=${at}`;
-
-	function activitySummary(parts: Part[]) {
-		const messages = parts.filter((part) => part.kind === 'text').length;
-		const plans = parts.filter((part) => part.kind === 'plan').length;
-		const calls = parts.reduce(
-			(sum, part) => sum + (part.kind === 'tools' ? part.tools.length : 0),
-			0
-		);
-		return [
-			messages && `${messages} message${messages === 1 ? '' : 's'}`,
-			plans && `${plans} plan${plans === 1 ? '' : 's'}`,
-			calls && `${calls} tool call${calls === 1 ? '' : 's'}`
-		]
-			.filter(Boolean)
-			.join(' · ');
-	}
 
 	let reveal = $state<{ id: string; done: () => void }>();
 	const backgroundIds = $derived(
@@ -158,7 +140,6 @@
 									: tool.name,
 							open: () => {
 								following = false;
-								expanded.add(index);
 								list?.scrollToIndex(rowForBlock(index));
 								reveal = { id: tool.id, done: () => (reveal = undefined) };
 							}
@@ -174,14 +155,6 @@
 			};
 		})
 	);
-
-	function toggleActivity(index: number) {
-		if (expanded.has(index)) expanded.delete(index);
-		else {
-			following = false;
-			expanded.add(index);
-		}
-	}
 
 	// Some providers announce the reviewer without forwarding its assignment.
 	const assignmentIndex = $derived(
@@ -258,7 +231,6 @@
 		);
 		if (index < 0) return;
 		following = false;
-		expanded.add(index);
 		list.scrollToIndex(rowForBlock(index));
 	});
 
@@ -565,36 +537,19 @@
 							{@const lastText = block.parts.findLastIndex((part) => part.kind === 'text')}
 							{@const live = running && !block.changes && row.index === transcriptBlocks.length - 1}
 							{@const last = block.parts.at(-1)}
-							{@const hiddenCount = live
-								? 0
-								: block.parts.length - (last && last.kind !== 'tools' ? 1 : 0)}
-							{@const hidden = block.parts
-								.slice(0, hiddenCount)
-								.filter((part) => part.kind !== 'subagent')}
-							{@const foldActivity =
-								hidden.length > 0 && !(hidden.length === 1 && hidden[0].kind === 'tools')}
 							<!-- said where the reply ends: beside its last words, else on its own -->
 							{@const ending = live
 								? undefined
 								: { reply: block, latest: row.index === latestReply }}
 							<AgentMessage {agent}>
-								{#if foldActivity}
-									<TurnActivity
-										summary={activitySummary(hidden)}
-										expanded={expanded.has(row.index)}
-										ontoggle={() => toggleActivity(row.index)}
-									/>
-								{/if}
 								{#each block.parts as part, j (j)}
-									{#if !foldActivity || part.kind === 'subagent' || j >= hiddenCount || expanded.has(row.index)}
-										{@render agentPart(
-											part,
-											j !== lastText,
-											live && j === block.parts.length - 1,
-											`${row.index}.${j}`,
-											j === block.parts.length - 1 ? ending : undefined
-										)}
-									{/if}
+									{@render agentPart(
+										part,
+										j !== lastText,
+										live && j === block.parts.length - 1,
+										`${row.index}.${j}`,
+										j === block.parts.length - 1 ? ending : undefined
+									)}
 								{/each}
 								{#if live && last?.kind !== 'text' && last?.kind !== 'tools'}
 									<div class="flex min-h-7 items-center">{@render cursor()}</div>
