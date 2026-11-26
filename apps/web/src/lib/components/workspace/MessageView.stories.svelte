@@ -22,8 +22,8 @@
 	const prompt = 'Can you **summarize the changes** at https://example.com/review?';
 	const commitUrl =
 		'https://github.com/example/project/commit/34ee81598bcbb58e4551acbc9414e6d3ad4ca241';
-	const reply =
-		'The clipboard icon now sits **below each message**. It copies the original text, including line breaks and Markdown.';
+	const progress = 'I’ll check the release notes before publishing.';
+	const reply = 'The release notes include **all changes**.';
 	const queued = 'Please add a screenshot to [the review](https://example.com/review).';
 	const history: Block[] = Array.from({ length: 500 }, (_, index) =>
 		index % 2 === 0
@@ -397,8 +397,9 @@
 			'https://example.com/review'
 		);
 		const user = userEvent.setup();
+		await user.click(canvas.getByRole('button', { name: /Turn activity/ }));
 		const buttons = await canvas.findAllByRole('button', { name: 'Copy message' });
-		for (const [index, text] of [prompt, reply, queued].entries()) {
+		for (const [index, text] of [prompt, progress, reply, queued].entries()) {
 			await user.click(buttons[index]);
 			await expect(await navigator.clipboard.readText()).toBe(text);
 			await expect(buttons[index]).toHaveAccessibleName('Copied');
@@ -409,7 +410,13 @@
 		<MessageView
 			blocks={[
 				{ kind: 'user', text: prompt },
-				{ kind: 'agent', parts: [{ kind: 'text', text: reply }] }
+				{
+					kind: 'agent',
+					parts: [
+						{ kind: 'text', text: progress },
+						{ kind: 'text', text: reply }
+					]
+				}
 			]}
 			queue={[queued]}
 			agent="codex"
