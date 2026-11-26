@@ -6,4 +6,4 @@ data:
 id: fadct
 title: Give cards and workspace sheets directional light
 ---
-Cards and workspace sheets share a fine upper-left highlight and lower-right shade. Verified the workspace story in both themes.
+Cards and workspace sheets use directional edges. Sidebars use a softer highlight, and their top edge stays visible beneath the toggle. Verified in the forge in both themes.

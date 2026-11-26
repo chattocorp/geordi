@@ -6,7 +6,7 @@
 </script>
 
 <div
-	class="fixed top-0 left-0 z-10 hidden h-14 items-center bg-frame pl-5 window-drag md:flex mac:pl-22"
+	class="fixed top-2 left-0 z-10 hidden h-10 items-center bg-frame pl-5 window-drag md:flex mac:pl-22"
 >
 	<Button
 		variant="ghost"

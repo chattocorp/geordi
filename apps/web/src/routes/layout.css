@@ -380,6 +380,9 @@
 
 	/* Outside edges stay visible when pane contents paint up to the corners. */
 	--shadow-edge: -1px -1px 0 var(--edge-light), 1px 1px 0 var(--edge-shade);
+	--shadow-edge-quiet:
+		-1px -1px 0 color-mix(in srgb, var(--edge-light) 40%, transparent),
+		1px 1px 0 color-mix(in srgb, var(--edge-shade) 50%, transparent);
 	--shadow-card: var(--shadow-edge), var(--shadow);
 	--shadow-card-float: var(--shadow-edge), var(--shadow-lg);
 	--shadow-soft: var(--shadow);
@@ -444,7 +447,7 @@
  */
 @utility sheet-quiet {
 	--pane: var(--sidebar);
-	@apply overflow-hidden rounded-card bg-sidebar shadow-edge;
+	@apply overflow-hidden rounded-card bg-sidebar shadow-edge-quiet;
 }
 
 @utility dialog-actions {
