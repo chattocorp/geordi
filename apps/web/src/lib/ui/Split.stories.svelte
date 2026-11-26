@@ -64,7 +64,13 @@
 	</div>
 </Story>
 
-<Story name="Collapsed" asChild>
+<Story
+	name="Collapsed"
+	asChild
+	play={async ({ canvas }) => {
+		await expect(canvas.getByText('B')).not.toBeVisible();
+	}}
+>
 	<div class="flex h-48 card">
 		<Split dir="row" ratio={0.6} collapsed>
 			{#snippet a()}{@render pane('A has all the room')}{/snippet}
