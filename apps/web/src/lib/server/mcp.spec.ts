@@ -487,7 +487,9 @@ describe('the agent API as an MCP server', () => {
 		expect(await call('list_agents')).toEqual([]);
 
 		// not its own, and not itself
-		expect((await call('archive_agent', { workspace_id: caller })).error).toMatch(/not one of yours/);
+		expect((await call('archive_agent', { workspace_id: caller })).error).toMatch(
+			/not one of yours/
+		);
 	});
 
 	it('reports problems as tool errors the agent can read', async () => {
