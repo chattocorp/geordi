@@ -50,7 +50,7 @@
 			<span class="sr-only">Collapse tool calls</span>
 		{:else}
 			<span class="sr-only">Tool calls</span>
-			<span class="flex flex-wrap items-center gap-1">
+			<span class="flex flex-wrap items-center gap-y-1 pe-1">
 				{#each tools as tool (tool.id)}
 					{@const activity = activityOf(tool)}
 					{@const status = tool.isError ? 'failed' : activity}
@@ -61,7 +61,7 @@
 						title={label}
 						data-live={activity ? true : undefined}
 						class={[
-							'grid size-6 shrink-0 place-items-center rounded-control border border-current/25 motion-safe:transition-opacity motion-safe:starting:opacity-0',
+							'relative -me-1 grid size-6 shrink-0 place-items-center rounded-control border border-current/25 bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
 							activity && 'edge-live before:p-px',
 							tool.isError && 'text-danger'
 						]}
