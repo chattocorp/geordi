@@ -42,7 +42,7 @@
 	collapsedChevron={false}
 	class="relative py-1 first:pt-0"
 	summaryClass={open
-		? 'absolute left-0 mt-1.5 size-7 text-muted hover:bg-hover hover:text-ink [&>span]:mx-auto'
+		? 'absolute left-1 z-1 mt-1.5 size-7 text-muted hover:bg-hover hover:text-ink [&>span]:mx-auto'
 		: 'min-h-7 text-sm text-muted hover:text-ink'}
 >
 	{#snippet heading()}
@@ -73,9 +73,10 @@
 		{/if}
 	{/snippet}
 
-	<div class="ml-8 divide-y divide-line/70 overflow-hidden card">
+	<div class="divide-y divide-line/70 overflow-hidden card">
 		{#each tools as tool (tool.id)}
 			<div
+				class="pl-7"
 				{@attach reveal?.id === tool.id
 					? (node) => {
 							const details = node.closest('details');
