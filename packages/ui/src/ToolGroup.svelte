@@ -27,8 +27,6 @@
 		reveal
 	}: Props = $props();
 
-	const groupId = $props.id();
-
 	/** The tool that is running right now, if one is: the only one worth watching. */
 	const active = $derived(live ? tools.findLast((tool) => tool.output === null) : undefined);
 
@@ -55,7 +53,7 @@
 		{:else}
 			<span class="sr-only">Tool calls</span>
 			<span class="flex flex-wrap items-center gap-y-1 pe-1.5">
-				{#each tools as tool, i (tool.id)}
+				{#each tools as tool (tool.id)}
 					{@const activity = activityOf(tool)}
 					{@const status = tool.isError ? 'failed' : activity}
 					{@const title = titleOf(tool, cwd)
@@ -65,25 +63,14 @@
 					<span
 						role="img"
 						aria-label={label}
-						style:anchor-name="--{groupId}-{i}"
 						data-live={activity ? true : undefined}
 						class={[
-							'tool-tile group/tile relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
+							'tool-tile relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
 							activity && 'edge-live',
 							tool.isError ? 'text-danger hover:bg-hover' : 'hover:text-ink'
 						]}
 					>
 						<span class={['size-3.5 -translate-x-px', iconOf(tool)]}></span>
-						<span
-							role="tooltip"
-							style:position-anchor="--{groupId}-{i}"
-							style:position-area="top span-right"
-							style:position-try-fallbacks="flip-inline"
-							class="pointer-events-none fixed z-10 mb-1 hidden max-w-xs card-float px-2.5 py-1 text-xs leading-tight text-ink group-hover/tile:block"
-						>
-							<span class="line-clamp-2 wrap-anywhere">{title}</span>
-							{#if status}<span class="text-muted">{status}</span>{/if}
-						</span>
 					</span>
 				{/each}
 				{#if cursor}<span class="inline-flex not-first:ms-3.5">{@render cursor()}</span>{/if}

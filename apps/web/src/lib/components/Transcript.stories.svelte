@@ -305,7 +305,7 @@
 </Story>
 
 <Story name="Stacked tool calls" asChild>
-	<div class="mt-16 max-w-xs sheet p-3">
+	<div class="max-w-xs sheet p-3">
 		<ToolGroup
 			tools={[0, 1, 0, 0, 0, 0, 2, 2, 0, 0, 0, 2, 0, 3].map((sample, i) => ({
 				...tools[sample],
@@ -345,7 +345,7 @@
 		]);
 		await expect(getComputedStyle(running[0], '::before').paddingTop).toBe('1.5px');
 		const liveSummary = running[0].closest('summary')!;
-		await expect(running[0].querySelector('[role=tooltip]')).not.toBeVisible();
+		await expect(summary.querySelector('[role=tooltip], [title]')).toBeNull();
 		const collapsedLeft = liveSummary.querySelector('[role="img"]')!.getBoundingClientRect().left;
 		await userEvent.click(liveSummary);
 		const group = liveSummary.closest('details')!;
