@@ -305,7 +305,7 @@
 </Story>
 
 <Story name="Stacked tool calls" asChild>
-	<div class="max-w-xs sheet p-3">
+	<div class="mt-16 max-w-xs sheet p-3">
 		<ToolGroup
 			tools={[0, 1, 0, 0, 0, 0, 2, 2, 0, 0, 0, 2, 0, 3].map((sample, i) => ({
 				...tools[sample],

@@ -78,8 +78,8 @@
 							role="tooltip"
 							style:position-anchor="--{groupId}-{i}"
 							style:position-area="top span-right"
-							style:position-try-fallbacks="flip-inline, flip-block, flip-block flip-inline"
-							class="pointer-events-none fixed z-10 my-1.5 hidden max-w-xs card-float px-2.5 py-1.5 text-xs text-ink group-hover/tile:block"
+							style:position-try-fallbacks="flip-inline"
+							class="pointer-events-none fixed z-10 mb-1 hidden max-w-xs card-float px-2.5 py-1 text-xs leading-tight text-ink group-hover/tile:block"
 						>
 							<span class="line-clamp-2 wrap-anywhere">{title}</span>
 							{#if status}<span class="text-muted">{status}</span>{/if}
