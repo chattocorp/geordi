@@ -13,7 +13,7 @@ import {
 import { join } from 'node:path';
 import { parseFileChanges, SAFE_DIFF_OPTIONS } from './changes.ts';
 import { gitEnv, type Worktree } from './worktree.ts';
-import type { TurnBlobs, TurnDiff } from '@geordi/protocol';
+import type { TurnDiff } from '@geordi/protocol';
 
 const MAX_PATCH = 256 * 1024;
 
@@ -141,24 +141,8 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string, workspaceI
 				if (before === after) return;
 				const diff = ['diff', '-M', ...SAFE_DIFF_OPTIONS, before, after];
 				const raw = run([...diff, '--raw', '--no-abbrev', '-z']).split('\0');
-				const names: string[] = [];
-				const versions = new Map<string, TurnBlobs>();
-				for (let i = 0; i < raw.length - 1;) {
-					const [, , old, current, status] = raw[i++].split(' ');
-					let path = raw[i++];
-					names.push(status, path);
-					if (status.startsWith('R')) {
-						path = raw[i++];
-						names.push(path);
-					}
-					versions.set(path, {
-						old: /^0+$/.test(old) ? null : old,
-						new: /^0+$/.test(current) ? null : current
-					});
-				}
-				names.push('');
 				const stats = run([...diff, '--numstat', '-z']).split('\0');
-				const changes = parseFileChanges(names, stats);
+				const changes = parseFileChanges(raw, stats);
 				const operations = { added: 'add', deleted: 'delete', renamed: 'move', modified: 'modify' };
 				const files: TurnDiff['files'] = changes.map((file) => ({
 					path: file.path,
@@ -166,7 +150,7 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string, workspaceI
 					...(file.from && { oldPath: file.from }),
 					...(file.added === null
 						? { fileType: 'binary' }
-						: { added: file.added, removed: file.removed ?? 0, blobs: versions.get(file.path) })
+						: { added: file.added, removed: file.removed ?? 0, blobs: file.blobs })
 				}));
 				const added = changes.reduce((total, file) => total + (file.added ?? 0), 0);
 				const removed = changes.reduce((total, file) => total + (file.removed ?? 0), 0);

@@ -39,7 +39,7 @@ import {
 } from './workspace-projection.ts';
 import { instructionsFor } from './instructions.ts';
 import type { createRepos } from './repos.ts';
-import { pageOf, turnsOf } from './turns.ts';
+import { pageOf, turnBlobIndex, turnsOf } from './turns.ts';
 
 export type {
 	SubagentItem,
@@ -120,6 +120,8 @@ export function createWorkspaces(
 	const imageStore = createImages(store);
 	const projection = createWorkspaceProjection(store);
 	const { transcriptOf } = projection;
+	// All visible files of a review share this lookup, including while its legacy patch parses.
+	let review: { id: string; turn: number; files: ReturnType<typeof turnBlobIndex> } | undefined;
 
 	function find(id: string): Workspace {
 		const workspace = projection.get().get(id);
@@ -1152,8 +1154,14 @@ export function createWorkspaces(
 					}))
 				),
 
-		turnDiff(id: string, number: number) {
-			return transcriptOf(find(id)).filter((item) => item.kind === 'turn')[number - 1]?.diff;
+		async turnBlobs(id: string, turn: number, path: string) {
+			const workspace = find(id);
+			if (review?.id !== id || review.turn !== turn) {
+				const diff = transcriptOf(workspace).filter((item) => item.kind === 'turn')[turn - 1]?.diff;
+				if (!diff) return;
+				review = { id, turn, files: turnBlobIndex(diff) };
+			}
+			return (await review.files).get(path);
 		},
 		followTranscript,
 		measure,
@@ -1642,6 +1650,7 @@ export function createWorkspaces(
 				},
 				{ actor }
 			);
+			if (review && family.has(review.id)) review = undefined;
 			images.release(copy);
 			return { purged: family.size, freed };
 		},

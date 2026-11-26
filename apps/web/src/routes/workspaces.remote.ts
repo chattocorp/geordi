@@ -459,23 +459,9 @@ export const getTurnFile = query(
 		path: v.string()
 	}),
 	async ({ workspaceId, turn, path }) => {
-		const diff = workspaces().turnDiff(workspaceId, turn);
-		const file = diff?.files.find((file) => file.path === path);
-		if (!diff || !file || file.fileType === 'binary') return null;
-		let blobs = file.blobs;
-		if (!blobs && diff.patch && !diff.fullContext) {
-			const { parsePatchFiles } = await import('@pierre/diffs');
-			const patch = parsePatchFiles(diff.patch)
-				.flatMap((p) => p.files)
-				.find((f) => f.name === path);
-			if (!patch?.prevObjectId || !patch.newObjectId) return null;
-			blobs = {
-				old: /^0+$/.test(patch.prevObjectId) ? null : patch.prevObjectId,
-				new: /^0+$/.test(patch.newObjectId) ? null : patch.newObjectId
-			};
-		}
-		if (!blobs) return null;
 		try {
+			const blobs = await workspaces().turnBlobs(workspaceId, turn, path);
+			if (!blobs) return null;
 			const { repoPath } = workspaces().ref(workspaceId);
 			return await hub().request({ kind: 'turnFile', repoPath, blobs });
 		} catch {

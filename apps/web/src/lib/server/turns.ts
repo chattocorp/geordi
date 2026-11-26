@@ -1,3 +1,4 @@
+import type { TurnBlobs, TurnDiff } from '@geordi/protocol';
 import type { TranscriptItem } from './workspace-projection.ts';
 
 type Asked = Extract<TranscriptItem, { kind: 'question' }>;
@@ -86,4 +87,25 @@ export function pageOf(turns: Turn[], before = turns.length) {
 	}
 	const start = end - page.length;
 	return { turns: page, before: start || null };
+}
+
+/** Resolve each file in a saved review once. Older patches carry the IDs in their index lines. */
+export async function turnBlobIndex(diff: TurnDiff) {
+	const files = new Map<string, TurnBlobs>();
+	const legacy = new Set<string>();
+	for (const file of diff.files) {
+		if (file.fileType === 'binary') continue;
+		if (file.blobs) files.set(file.path, file.blobs);
+		else legacy.add(file.path);
+	}
+	if (!legacy.size || !diff.patch || diff.fullContext) return files;
+	const { parsePatchFiles } = await import('@pierre/diffs');
+	for (const patch of parsePatchFiles(diff.patch).flatMap((p) => p.files)) {
+		if (!legacy.delete(patch.name) || !patch.prevObjectId || !patch.newObjectId) continue;
+		files.set(patch.name, {
+			old: /^0+$/.test(patch.prevObjectId) ? null : patch.prevObjectId,
+			new: /^0+$/.test(patch.newObjectId) ? null : patch.newObjectId
+		});
+	}
+	return files;
 }

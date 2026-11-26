@@ -18,7 +18,8 @@ import {
 	type FileContent,
 	type Changes,
 	type FileChange,
-	type FileVersions
+	type FileVersions,
+	type TurnBlobs
 } from '@geordi/protocol';
 import {
 	branchOf,
@@ -142,25 +143,35 @@ const lines = (text: string) => (text ? text.replace(/\n$/, '').split('\n') : []
 
 const STATUS: Record<string, FileChange['status']> = { A: 'added', D: 'deleted', R: 'renamed' };
 
-function fileStates(fields: string[]) {
-	// `--name-status -z`: a status, then the path; a rename has the old path and the new.
-	const states = new Map<string, Pick<FileChange, 'status' | 'from'>>();
-	for (let i = 0; i < fields.length - 1;) {
-		const status = fields[i++];
-		const path = fields[i++];
-		if (status.startsWith('R')) states.set(fields[i++], { status: 'renamed', from: path });
-		else states.set(path, { status: STATUS[status] ?? 'modified' });
-	}
+type FileState = Pick<FileChange, 'status' | 'from'> & { blobs?: TurnBlobs };
 
+function fileStates(fields: string[]) {
+	// --name-status and --raw both end each record with a status and one or two paths.
+	// The raw header also includes the two modes and the before/after object IDs.
+	const states = new Map<string, FileState>();
+	for (let i = 0; i < fields.length - 1;) {
+		let status = fields[i++];
+		let blobs: TurnBlobs | undefined;
+		if (status.startsWith(':')) {
+			const [, , old, current, change] = status.split(' ');
+			status = change;
+			blobs = { old: /^0+$/.test(old) ? null : old, new: /^0+$/.test(current) ? null : current };
+		}
+		const path = fields[i++];
+		const state: FileState = { status: STATUS[status] ?? 'modified', ...(blobs && { blobs }) };
+		if (status.startsWith('R'))
+			states.set(fields[i++], { ...state, status: 'renamed', from: path });
+		else states.set(path, state);
+	}
 	return states;
 }
 
-/** Pair Git's NUL-delimited --name-status and --numstat results, including rename pairs. */
-export function parseFileChanges(names: string[], fields: string[]): FileChange[] {
+/** Pair Git's NUL-delimited file states and line counts, including rename pairs. */
+export function parseFileChanges(names: string[], fields: string[]): (FileChange & FileState)[] {
 	const states = fileStates(names);
 
 	// `--numstat -z`: counts and the path; a rename has no path there, but two after it.
-	const tracked: FileChange[] = [];
+	const tracked: (FileChange & FileState)[] = [];
 	for (let i = 0; i < fields.length - 1;) {
 		const [added, removed, ...rest] = fields[i++].split('\t');
 		let path = rest.join('\t');
