@@ -726,6 +726,8 @@ export type ToolDiff = {
 	files: { operation: string; path: string; oldPath?: string; fileType?: string }[];
 	/** The changes as a git patch, with absolute paths; absent if the agent sent none, or `tooLarge`. */
 	patch?: string;
+	/** Each text hunk includes the entire file on both sides of the change. */
+	fullContext?: boolean;
 	/** The patch was left out: it was larger than the event log keeps. */
 	tooLarge?: boolean;
 };

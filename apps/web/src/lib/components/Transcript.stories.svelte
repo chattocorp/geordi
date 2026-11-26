@@ -390,6 +390,37 @@
 </Story>
 
 <Story
+	name="Expand turn context"
+	loaders={[loadDiffParser]}
+	asChild
+	play={async ({ canvasElement }) => {
+		const root = () => canvasElement.querySelector('diffs-container')?.shadowRoot;
+		const expand = await waitFor(() => {
+			const button = root()?.querySelector<HTMLElement>('[data-expand-button]');
+			expect(button).toBeTruthy();
+			return button!;
+		});
+		expect(root()?.querySelector('code')?.textContent).not.toContain('section12');
+		await userEvent.click(expand);
+		await waitFor(() => expect(root()?.querySelector('code')?.textContent).toContain('section12'));
+	}}
+>
+	<PatchView
+		collapsible
+		diff={{
+			fullContext: true,
+			files: [{ operation: 'modify', path: 'sections.ts' }],
+			patch:
+				'diff --git a/sections.ts b/sections.ts\n--- a/sections.ts\n+++ b/sections.ts\n@@ -1,25 +1,25 @@\n' +
+				Array.from({ length: 24 }, (_, i) => ` export const section${i + 1} = ${i + 1};\n`).join(
+					''
+				) +
+				'-export const sections = 24;\n+export const sections = 25;\n'
+		}}
+	/>
+</Story>
+
+<Story
 	name="Review finding"
 	asChild
 	play={async ({ canvas }) => {
