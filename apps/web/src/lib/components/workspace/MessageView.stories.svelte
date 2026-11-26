@@ -459,7 +459,9 @@
 	play={async ({ canvas }) => {
 		const progress = 'I’ll check the changes.';
 		await waitFor(() => expect(canvas.getByText(progress)).toBeVisible());
+		await expect(canvas.getByRole('img', { name: 'Agent working' })).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: 'Finish turn' }));
+		await expect(canvas.queryByRole('img', { name: 'Agent working' })).toBeNull();
 		const activity = await canvas.findByRole('button', {
 			name: /Turn activity.*1 message.*1 tool call/
 		});
@@ -1076,5 +1078,57 @@
 			onremove={() => {}}
 			onanswer={() => {}}
 		/>
+	</div>
+</Story>
+
+<Story
+	name="Live tool cursor"
+	asChild
+	play={async ({ canvas }) => {
+		const cursor = await canvas.findByRole('img', { name: 'Agent working' });
+		const tools = canvas.getAllByRole('img', { name: 'shell' });
+		const lastTool = tools[tools.length - 1];
+		await expect(
+			cursor.getBoundingClientRect().left - lastTool.getBoundingClientRect().right
+		).toBeGreaterThanOrEqual(8);
+	}}
+>
+	<div class="flex h-48 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="codex"
+			running
+			blocks={[
+				{
+					kind: 'agent',
+					parts: [
+						{ kind: 'text', text: 'I’ll check how the transcript renders tool calls.' },
+						{
+							kind: 'tools',
+							tools: ['1', '2'].map((id) => ({
+								kind: 'tool',
+								id,
+								name: 'shell',
+								input: 'git status',
+								output: 'OK',
+								isError: false,
+								at: ''
+							}))
+						}
+					]
+				}
+			]}
+		/>
+	</div>
+</Story>
+
+<Story
+	name="Waiting for first output"
+	asChild
+	play={async ({ canvas }) => {
+		await expect(await canvas.findByRole('img', { name: 'Agent working' })).toBeVisible();
+	}}
+>
+	<div class="flex h-48 max-w-3xl flex-col sheet overflow-hidden">
+		<MessageView agent="codex" running blocks={[{ kind: 'user', text: 'Check the changes.' }]} />
 	</div>
 </Story>

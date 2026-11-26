@@ -194,8 +194,19 @@
 	const fade = 'transition-opacity pointer-fine:opacity-0 pointer-fine:focus-within:opacity-100';
 	const quietReply = `${fade} pointer-fine:group-hover/reply:opacity-100`;
 
+	const transcriptBlocks = $derived.by((): Block[] => {
+		const last = blocks.at(-1);
+		// Show the agent's line even before its first output arrives.
+		if (
+			running &&
+			!(last?.kind === 'agent' && !last.changes) &&
+			!(last?.kind === 'note' && last.working)
+		)
+			return [...blocks, { kind: 'agent', parts: [] }];
+		return blocks;
+	});
 	const rows = $derived(
-		messageRows(blocks, childSenders, queue, queueSenders, queueImages, queueDetails)
+		messageRows(transcriptBlocks, childSenders, queue, queueSenders, queueImages, queueDetails)
 	);
 	function isIncoming(row?: (typeof rows)[number]) {
 		return (
@@ -399,6 +410,12 @@
 	</div>
 {/snippet}
 
+{#snippet cursor()}
+	<span class="inline-flex align-middle text-muted select-none">
+		<Spinner label="Agent working" />
+	</span>
+{/snippet}
+
 {#snippet agentPart(
 	part: Part,
 	dimmed: boolean,
@@ -413,7 +430,11 @@
 					part.text,
 					ending.latest
 				)}{/if}{/snippet}
-		<AgentText text={part.text} footer={ending ? footer : undefined}>
+		<AgentText
+			cursor={live ? cursor : undefined}
+			text={part.text}
+			footer={ending ? footer : undefined}
+		>
 			<Markdown agentDirectives preserveLineBreaks text={part.text} {dimmed} {pictures} />
 		</AgentText>
 	{:else if part.kind === 'subagent'}
@@ -424,6 +445,7 @@
 			{PatchView}
 			workspace={workspaceFiles}
 			tools={part.tools}
+			cursor={live ? cursor : undefined}
 			{cwd}
 			{live}
 			{reveal}
@@ -541,7 +563,7 @@
 							</p>
 						{:else}
 							{@const lastText = block.parts.findLastIndex((part) => part.kind === 'text')}
-							{@const live = running && !block.changes && row.index === blocks.length - 1}
+							{@const live = running && !block.changes && row.index === transcriptBlocks.length - 1}
 							{@const last = block.parts.at(-1)}
 							{@const hiddenCount = live
 								? 0
@@ -574,6 +596,9 @@
 										)}
 									{/if}
 								{/each}
+								{#if live && last?.kind !== 'text' && last?.kind !== 'tools'}
+									<div class="flex min-h-7 items-center">{@render cursor()}</div>
+								{/if}
 								{#if ending && last?.kind !== 'text'}
 									<div>{@render byline(ending.reply, '', ending.latest)}</div>
 								{/if}

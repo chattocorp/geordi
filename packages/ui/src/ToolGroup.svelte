@@ -2,12 +2,13 @@
 	import Disclosure from './Disclosure.svelte';
 	import { iconOf, sortOf } from './tools.ts';
 	import type { ToolEntry } from './tools.ts';
-	import type { ComponentProps } from 'svelte';
+	import type { ComponentProps, Snippet } from 'svelte';
 	import ToolCall from './ToolCall.svelte';
 
 	type Props = Pick<ComponentProps<typeof ToolCall>, 'workspace' | 'PatchView'> & {
 		tools: ToolEntry[];
 		open?: boolean;
+		cursor?: Snippet;
 		cwd?: string;
 		/** Whether the agent is at work on this very group: its last tool may still be running. */
 		live?: boolean;
@@ -20,6 +21,7 @@
 		workspace,
 		PatchView,
 		live = false,
+		cursor,
 		open = $bindable(false),
 		backgroundIds = [],
 		reveal
@@ -61,14 +63,15 @@
 						title={label}
 						data-live={activity ? true : undefined}
 						class={[
-							'relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control border border-current/25 bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
-							activity && 'edge-live before:p-px',
+							'tool-tile relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
+							activity && 'edge-live',
 							tool.isError && 'text-danger'
 						]}
 					>
 						<span class={['size-3.5 -translate-x-px', iconOf(tool)]}></span>
 					</span>
 				{/each}
+				{#if cursor}<span class="inline-flex not-first:ms-3.5">{@render cursor()}</span>{/if}
 			</span>
 		{/if}
 	{/snippet}
@@ -94,3 +97,16 @@
 		{/each}
 	</div>
 </Disclosure>
+{#if open && cursor}{@render cursor()}{/if}
+
+<style>
+	.tool-tile {
+		--tile-outline: 1.5px;
+		box-shadow: inset 0 0 0 var(--tile-outline) color-mix(in srgb, currentColor 25%, transparent);
+	}
+
+	.tool-tile[data-live]::before {
+		inset: 0;
+		padding: var(--tile-outline);
+	}
+</style>

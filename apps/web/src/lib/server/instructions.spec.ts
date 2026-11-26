@@ -13,6 +13,8 @@ describe('instructionsFor', () => {
 		expect(text).toContain('model and reasoning effort');
 		expect(text).toContain('`configuration_reference`');
 		expect(text).toContain('`$GEORDI_PORT`');
+		expect(text).toContain('do as they ask');
+		expect(text).not.toContain('never a default');
 		expect(text).toContain('`name_workspace`');
 		expect(text).not.toContain('reports to the agent');
 	});

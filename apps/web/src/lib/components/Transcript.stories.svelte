@@ -343,6 +343,7 @@
 			'shell, running',
 			'shell, running in the background'
 		]);
+		await expect(getComputedStyle(running[0], '::before').paddingTop).toBe('1.5px');
 		const liveSummary = running[0].closest('summary')!;
 		await expect(liveSummary).not.toHaveTextContent('pnpm build');
 		const collapsedLeft = liveSummary.querySelector('[role="img"]')!.getBoundingClientRect().left;
