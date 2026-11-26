@@ -127,32 +127,40 @@ export function nextUnread<T extends { id: string }>(
 	return order.slice(at + 1).find(isUnread) ?? order.slice(0, Math.max(0, at)).find(isUnread);
 }
 
-/** Where on a row something is dropped: above it, onto it (under it), or below it. */
-export type DropZone = 'above' | 'onto' | 'below';
-/** What shows where a drop would go: a row, or (`id` `null`) the end of the list. */
-type Line = { id: string | null; edge: DropZone };
+/**
+ * Where something is dropped in the outline: onto a row (under it, last), or into the gap
+ * after a row (`after`: its index; -1 for the gap above the first row) at a `depth`, which
+ * is kept within what that gap allows.
+ */
+export type DropPlace = { onto: number } | { after: number; depth: number };
+
+/** What shows where a drop would go: a line below (or above) a row, in at `depth`, or the row lit up. */
+type Line = { id: string; edge: 'above' | 'below' | 'onto'; depth: number };
 
 /**
- * Where a dragged item would go, dropped on the row at `over` (FDR-016, FDR-017), or below
- * the last one (`over` past the end: last at the top level): under `parentId`, right above
- * `before` (`null`: after the last of its new siblings); `line` is what shows it.
- * `reparents` whether that changes its parent. Nothing where it would stay where it is, or
- * may not go: under itself, under or over a `project`, or at the top unless `topLevel`.
+ * The depths a gap between two rows allows (FDR-017): from that of the row below it (or the
+ * top level, below the last row) to that of the row above it. Where the row below is the
+ * first under the row above, only its depth.
+ */
+export function gapDepths(rows: { depth: number }[], after: number): [number, number] {
+	const low = rows[after + 1]?.depth ?? 0;
+	return [low, after < 0 ? low : Math.max(rows[after].depth, low)];
+}
+
+/**
+ * Where a dragged item would go, dropped at `place` (FDR-016, FDR-017): under `parentId`,
+ * right above `before` (`null`: after the last of its new siblings); `line` is what shows it.
+ * `reparents` whether that changes its parent. Every gap between two rows is one place,
+ * reached from the row above it or the row below it alike, so the line doesn't jump. Nothing
+ * where it would stay where it is, or may not go: under itself, under or over a `project`,
+ * or at the top unless `topLevel`.
  */
 export function dropTarget<T extends { id: string; parentId: string | null; project?: boolean }>(
 	rows: Listed<T>[],
 	dragged: T,
-	over: number,
-	zone: DropZone,
+	place: DropPlace,
 	topLevel: boolean
-):
-	| {
-			parentId: string | null;
-			before: string | null;
-			reparents: boolean;
-			line: Line;
-	  }
-	| undefined {
+): { parentId: string | null; before: string | null; reparents: boolean; line: Line } | undefined {
 	const id = (index: number) => rows[index].workspace.id;
 	/** The row's parent in this list: the nearest row above it that is less deep. */
 	const parentAt = (index: number) => {
@@ -170,39 +178,51 @@ export function dropTarget<T extends { id: string; parentId: string | null; proj
 	};
 
 	const from = rows.findIndex(({ workspace }) => workspace.id === dragged.id);
-	if (from !== -1) {
-		let end = from;
-		while (rows[end + 1]?.depth > rows[from].depth) end++;
-		if (over >= from && over <= end) return undefined;
+	let end = from;
+	while (from !== -1 && rows[end + 1]?.depth > rows[from].depth) end++;
+	/** Whether a row is the dragged one, or under it. */
+	const inside = (index: number) => from !== -1 && index >= from && index <= end;
+
+	let target: { parentId: string | null; before: string | null; line: Line };
+	if ('onto' in place) {
+		if (!rows[place.onto] || inside(place.onto)) return undefined;
+		const { workspace, depth } = rows[place.onto];
+		target = {
+			parentId: workspace.id,
+			before: null,
+			line: { id: workspace.id, edge: 'onto', depth }
+		};
+	} else {
+		const { after } = place;
+		if (after >= rows.length || !rows.length) return undefined;
+		// within what it moves, but not at its end: it can't be put between its own rows
+		if (inside(after) && after !== end) return undefined;
+		const [low, high] = gapDepths(rows, after);
+		const depth = Math.min(high, Math.max(low, place.depth));
+		let parent = -1;
+		for (let above = after; above >= 0 && depth > 0; above--)
+			if (rows[above].depth === depth - 1) {
+				parent = above;
+				break;
+			}
+		if (parent !== -1 && inside(parent)) return undefined;
+		let next = after + 1;
+		while (next < rows.length && rows[next].depth > depth) next++;
+		target = {
+			parentId: parent === -1 ? null : id(parent),
+			before: rows[next]?.depth === depth ? id(next) : null,
+			line:
+				after < 0 ? { id: id(0), edge: 'above', depth } : { id: id(after), edge: 'below', depth }
+		};
 	}
 
-	const target = rows[over]?.workspace;
-	const firstChild = rows[over + 1]?.depth > rows[over]?.depth ? over + 1 : -1;
-	const place: { parentId: string | null; before: string | null; line: Line } = !target
-		? { parentId: null, before: null, line: { id: null, edge: 'below' } }
-		: zone === 'onto'
-			? { parentId: target.id, before: null, line: { id: target.id, edge: zone } }
-			: zone === 'above'
-				? { parentId: parentAt(over), before: target.id, line: { id: target.id, edge: zone } }
-				: firstChild !== -1
-					? {
-							parentId: target.id,
-							before: id(firstChild),
-							line: { id: id(firstChild), edge: 'above' as const }
-						}
-					: {
-							parentId: parentAt(over),
-							before: nextSibling(over),
-							line: { id: target.id, edge: zone }
-						};
-
-	if (place.parentId === null && !topLevel) return undefined;
-	const parent = rows.find(({ workspace }) => workspace.id === place.parentId)?.workspace;
+	if (target.parentId === null && !topLevel) return undefined;
+	const parent = rows.find(({ workspace }) => workspace.id === target.parentId)?.workspace;
 	if (parent && (parent.project || dragged.project)) return undefined;
-	const reparents = from === -1 || place.parentId !== parentAt(from);
-	if (!reparents && (place.before === dragged.id || place.before === nextSibling(from)))
+	const reparents = from === -1 || target.parentId !== parentAt(from);
+	if (!reparents && (target.before === dragged.id || target.before === nextSibling(from)))
 		return undefined;
-	return { ...place, reparents };
+	return { ...target, reparents };
 }
 
 /** An item of the outline (FDR-017), as the navigation view sends it. */

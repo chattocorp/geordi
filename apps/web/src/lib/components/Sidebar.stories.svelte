@@ -442,10 +442,11 @@
 		// a workspace of another repository
 		const target = row('Try out the new parser');
 		await fireEvent.dragStart(first);
+		// the gap above it, shown below the row before it
 		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
-		await expect(target).toHaveClass('row-drop-before');
+		await expect(target.previousElementSibling).toHaveClass('row-drop-after');
 		await fireEvent.dragEnd(first);
-		await expect(canvasElement.querySelectorAll('.row-drop-before')).toHaveLength(0);
+		await expect(canvasElement.querySelectorAll('.row-drop-after')).toHaveLength(0);
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
@@ -487,10 +488,42 @@
 		await expect(canvasElement.querySelectorAll('.row-drop-after, .row-drop-before')).toHaveLength(
 			0
 		);
-		// above it: beside it, at the top, with a line
+		// above it: beside it, with a line in the gap
 		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
-		await expect(target).toHaveClass('row-drop-before');
+		await expect(target.previousElementSibling).toHaveClass('row-drop-after');
 		await expect(target.firstElementChild).not.toHaveClass('bg-hover');
+		await fireEvent.dragEnd(dragged);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="One line for a gap"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const row = (title: string) => canvas.getByText(title).closest('li')!;
+		const dragged = row('Choose a storage engine');
+		const upper = row('Raise light mode text contrast');
+		const lower = row('Check every token in dark mode');
+		const marked = () =>
+			[...canvasElement.querySelectorAll('.row-drop-after, .row-drop-before')].map((each) => [
+				each.getAttribute('data-row'),
+				each.className.includes('after') ? 'after' : 'before',
+				(each as HTMLElement).style.getPropertyValue('--drop-indent')
+			]);
+		await fireEvent.dragStart(dragged);
+		const x = upper.getBoundingClientRect().left + 200;
+		// the bottom of the row above, and the top of the row below: the same gap, one line
+		await fireEvent.dragOver(upper, {
+			clientX: x,
+			clientY: upper.getBoundingClientRect().bottom - 1
+		});
+		const fromAbove = marked();
+		await fireEvent.dragOver(lower, { clientX: x, clientY: lower.getBoundingClientRect().top + 1 });
+		await expect(marked()).toEqual(fromAbove);
+		await expect(fromAbove).toHaveLength(1);
 		await fireEvent.dragEnd(dragged);
 	}}
 >
@@ -505,15 +538,17 @@
 		const [list] = canvas.getAllByRole('list');
 		const group = list;
 		const rows = () => [...list.querySelectorAll(':scope > li')];
-		const last = rows().at(-1)!;
+		const last = rows().at(-1)! as HTMLElement;
 		const below = () => last.getBoundingClientRect().bottom + 4;
-		const line = () => list.querySelector(':scope > li[aria-hidden="true"].row-drop-before');
+		const line = () => list.querySelector(':scope > li.row-drop-after');
 
 		// a nested workspace, below the last tree: last at the top, a line at full width
 		const nested = canvas.getByText('Check every token in dark mode').closest('li')!;
 		await fireEvent.dragStart(nested);
 		await fireEvent.dragOver(group, { clientY: below() });
-		await waitFor(() => expect(line()).not.toBeNull());
+		await waitFor(() => expect(line()).toBe(last));
+		// at the top level: its line goes all the way out
+		await expect(last.style.getPropertyValue('--drop-indent')).toMatch(/\* 0\)$/);
 		await fireEvent.dragLeave(group, { relatedTarget: document.body });
 		await expect(line()).toBeNull();
 		await fireEvent.dragEnd(nested);

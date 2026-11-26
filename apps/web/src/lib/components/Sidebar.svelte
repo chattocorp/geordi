@@ -16,7 +16,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { dropTarget, type DropZone, outlineRows } from '#lib/family.ts';
+	import { dropTarget, type DropPlace, outlineRows } from '#lib/family.ts';
 	import OutlineItemRow from './OutlineItemRow.svelte';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
@@ -254,24 +254,43 @@
 	let dragged = $state<Entry | null>(null);
 	let dropAt = $state<ReturnType<typeof dropTarget<Entry>>>(undefined);
 
-	/** Over a row: on its upper third above it, on its lower third below it, else onto it. */
-	function overRow(event: DragEvent & { currentTarget: HTMLElement }, index: number) {
-		if (!dragged) return;
-		event.preventDefault();
-		const rect = event.currentTarget.getBoundingClientRect();
-		const third = (event.clientY - rect.top) / rect.height;
-		const zone: DropZone = third < 1 / 3 ? 'above' : third > 2 / 3 ? 'below' : 'onto';
-		dropAt = dropTarget(rows, dragged, index, zone, true);
-		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
+	/**
+	 * How deep the pointer is in the list: one level for each indent from its left edge.
+	 * Where a gap between rows allows more than one depth, this picks it.
+	 */
+	function depthAt(event: DragEvent) {
+		const left = list?.getBoundingClientRect().left ?? 0;
+		const indent = INDENT * parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25;
+		return Math.floor((event.clientX - left) / indent);
 	}
 
-	/** Below the last row (in the space under it): last at the top of the outline. */
-	function overEnd(event: DragEvent & { currentTarget: HTMLElement }) {
-		if (!dragged || (event.target instanceof Element && event.target.closest('li'))) return;
-		const last = event.currentTarget.querySelector(':scope > li:last-child');
-		if (!last || event.clientY < last.getBoundingClientRect().bottom) return;
+	/**
+	 * Over the list: the row at the pointer's height, whether or not the pointer is over the
+	 * row itself (rows are indented; moving left, to go up a level, leaves them). A row's upper
+	 * quarter is the gap above it, its lower quarter the gap below it, and the rest is the row
+	 * itself (under it); below the last row is the gap after it. The gap between two rows is
+	 * one place, from either side.
+	 */
+	function overList(event: DragEvent & { currentTarget: HTMLElement }) {
+		if (!dragged) return;
+		const shown = [...event.currentTarget.querySelectorAll<HTMLElement>(':scope > li[data-row]')];
+		if (!shown.length) return;
+		const y = event.clientY;
+		const index = shown.findIndex((li) => y < li.getBoundingClientRect().bottom);
+		let place: DropPlace;
+		if (index === -1) place = { after: rows.length - 1, depth: depthAt(event) };
+		else {
+			const rect = shown[index].getBoundingClientRect();
+			const at = (y - rect.top) / rect.height;
+			place =
+				at < 1 / 4
+					? { after: index - 1, depth: depthAt(event) }
+					: at > 3 / 4
+						? { after: index, depth: depthAt(event) }
+						: { onto: index };
+		}
 		event.preventDefault();
-		dropAt = dropTarget(rows, dragged, rows.length, 'below', true);
+		dropAt = dropTarget(rows, dragged, place, true);
 		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
 	}
 
@@ -560,7 +579,7 @@
 				<ul
 					class="space-y-px pb-4"
 					bind:this={list}
-					ondragover={overEnd}
+					ondragover={overList}
 					ondrop={drop}
 					ondragleave={(event) => {
 						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
@@ -570,10 +589,6 @@
 					{#each rows as { workspace: entry, parent, depth, under }, index (entry.id)}
 						{@render row(entry, parent, depth, under, index)}
 					{/each}
-					<!-- where an item dropped below the last row would go: last at the top, a line at its full width -->
-					{#if dropAt && dropAt.line.id === null}
-						<li aria-hidden="true" class="row-drop-before"></li>
-					{/if}
 				</ul>
 				{#if rows.length === 0 && nav.items.length > 0}
 					<p class="px-2 py-1 text-sm text-muted">Everything is done or put aside.</p>
@@ -620,6 +635,9 @@
 	<li
 		data-row={entry.id}
 		style:margin-inline-start="calc(var(--spacing) * {INDENT * depth})"
+		style:--drop-indent={dropping && dropAt
+			? `calc(var(--spacing) * ${INDENT * (dropAt.line.depth - depth)})`
+			: undefined}
 		class={[dropping === 'above' && 'row-drop-before', dropping === 'below' && 'row-drop-after']}
 		transition:slide={motion()}
 		{@attach contextMenu(() =>
@@ -649,8 +667,6 @@
 				return;
 			foreground.ask(workspace.id);
 		}}
-		ondragover={(event) => overRow(event, index)}
-		ondrop={drop}
 	>
 		{#if workspace}
 			<WorkspaceRow
