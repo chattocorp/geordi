@@ -204,6 +204,14 @@ describe('dropTarget', () => {
 		expect(place(1, 5, 'below')).toEqual([null, null, true]);
 	});
 
+	it('puts it last at the top level, dropped below the list', () => {
+		expect(place(2, 6, 'below')).toEqual([null, null, true]);
+		expect(place(0, 6, 'below')).toEqual([null, null, false]);
+		expect(dropTarget(rows, at(2), 6, 'below', true)?.line).toEqual({ id: null, edge: 'below' });
+		expect(place(5, 6, 'below')).toBeUndefined(); // last already
+		expect(place(2, 6, 'below', false)).toBeUndefined();
+	});
+
 	it('keeps it at the top of its own repository’s list only', () => {
 		expect(place(1, 5, 'above', false)).toBeUndefined();
 		expect(place(1, 3, 'onto', false)).toEqual(['sibling', null, true]);

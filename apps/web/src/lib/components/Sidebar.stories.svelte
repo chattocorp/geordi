@@ -524,6 +524,37 @@
 </Story>
 
 <Story
+	name="Drop at the end of a list"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const group = canvas.getByRole('group', { name: 'geordi' });
+		const [list] = within(group).getAllByRole('list');
+		const rows = () => [...list.querySelectorAll(':scope > li')];
+		const last = rows().at(-1)!;
+		const below = () => last.getBoundingClientRect().bottom + 4;
+		const line = () => list.querySelector(':scope > li[aria-hidden="true"].row-drop-before');
+
+		// a nested workspace, below the last tree: last at the top, a line at full width
+		const nested = canvas.getByText('Check every token in dark mode').closest('li')!;
+		await fireEvent.dragStart(nested);
+		await fireEvent.dragOver(group, { clientY: below() });
+		await waitFor(() => expect(line()).not.toBeNull());
+		await fireEvent.dragLeave(group, { relatedTarget: document.body });
+		await expect(line()).toBeNull();
+		await fireEvent.dragEnd(nested);
+
+		// the last one already stays where it is
+		await fireEvent.dragStart(last);
+		await fireEvent.dragOver(group, { clientY: below() });
+		await expect(line()).toBeNull();
+		await fireEvent.dragEnd(last);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
 	name="Focus a repository"
 	asChild
 	play={async ({ canvasElement }) => {

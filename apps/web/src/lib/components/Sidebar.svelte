@@ -254,7 +254,19 @@
 	 * What is under it goes along. Under another workspace, that one supervises it.
 	 */
 	let dragged = $state<Item | null>(null);
-	let dropAt = $state<ReturnType<typeof dropTarget<Item>>>(undefined);
+	/** Where it would go, and in which list (`listKey`): the end of a list is in none of its rows. */
+	let dropAt = $state<
+		(NonNullable<ReturnType<typeof dropTarget<Item>>> & { list: string }) | undefined
+	>(undefined);
+	/** A list's name among the lists: its group's (`undefined`: the one list). */
+	const listKey = (groupId: string | null | undefined) =>
+		groupId === undefined ? 'one-list' : (groupId ?? PROJECTS);
+	/** Where in the list of `groupId` it would go, dropped on the row at `index` (past the end: below the last). */
+	function dropIn(rows: Row[], index: number, zone: DropZone, groupId: string | null | undefined) {
+		const topLevel = groupId === undefined || dragged!.repoId === groupId;
+		const target = dropTarget(rows, dragged!, index, zone, topLevel);
+		dropAt = target && { ...target, list: listKey(groupId) };
+	}
 
 	/**
 	 * Over a row of the list of `groupId` (`undefined`: the one list): on its upper third
@@ -272,8 +284,27 @@
 		const rect = event.currentTarget.getBoundingClientRect();
 		const third = (event.clientY - rect.top) / rect.height;
 		const zone: DropZone = third < 1 / 3 ? 'above' : third > 2 / 3 ? 'below' : 'onto';
-		const topLevel = groupId === undefined || dragged.repoId === groupId;
-		dropAt = dropTarget(rows, dragged, index, zone, topLevel);
+		dropIn(rows, index, zone, groupId);
+		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
+	}
+
+	/**
+	 * Below the last row of a list (in the space under it): last at the top of that list,
+	 * after every tree in it. Over a row, the row says where.
+	 */
+	function overEnd(
+		event: DragEvent & { currentTarget: HTMLElement },
+		rows: Row[],
+		groupId: string | null | undefined
+	) {
+		if (!dragged || (event.target instanceof Element && event.target.closest('li'))) return;
+		const list = event.currentTarget.matches('ul')
+			? event.currentTarget
+			: event.currentTarget.querySelector('ul');
+		const last = list?.querySelector(':scope > li:last-child');
+		if (!last || event.clientY < last.getBoundingClientRect().bottom) return;
+		event.preventDefault();
+		dropIn(rows, rows.length, 'below', groupId);
 		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
 	}
 
@@ -455,6 +486,8 @@
 				{@const rows = unfolded(oneList, folded.current)}
 				<ul
 					class="space-y-px pb-4"
+					ondragover={(event) => overEnd(event, rows, undefined)}
+					ondrop={drop}
 					ondragleave={(event) => {
 						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
 							dropAt = undefined;
@@ -463,6 +496,7 @@
 					{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
 						{@render row(workspace, parent, depth, under, rows, index, undefined)}
 					{/each}
+					{@render endLine(undefined)}
 				</ul>
 				{#if activeOnly && anyInactive && rows.length === 0}
 					<p class="px-2 py-1 text-sm text-muted">All workspaces are inactive.</p>
@@ -485,11 +519,19 @@
 							last && repoDropBefore === null && 'row-drop-after'
 						]}
 						transition:slide={motion()}
-						ondragover={(event) => repo.id !== null && overRepo(event, repo.id)}
-						ondrop={dropRepo}
+						ondragover={(event) => {
+							if (repo.id !== null) overRepo(event, repo.id);
+							if (!isFolded) overEnd(event, rows, repo.id);
+						}}
+						ondrop={(event) => {
+							dropRepo(event);
+							if (dragged) drop(event);
+						}}
 						ondragleave={(event) => {
-							if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+							if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
 								repoDropBefore = undefined;
+								dropAt = undefined;
+							}
 						}}
 					>
 						<!--
@@ -563,6 +605,7 @@
 								{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
 									{@render row(workspace, parent, depth, under, rows, index, repo.id)}
 								{/each}
+								{@render endLine(repo.id)}
 							</ul>
 						{/if}
 						{#if index < groups.length - 1}
@@ -610,7 +653,7 @@
 	{@const leaving = beingArchived.has(workspace.id)}
 	<!-- in a tree of another repository's (FDR-016): its own repository's picture says so -->
 	{@const foreign = groupId !== undefined && workspace.repoId !== groupId}
-	{@const dropping = dropAt?.line.id === workspace.id ? dropAt.line.edge : null}
+	{@const dropping = dropAt && dropAt.line.id === workspace.id ? dropAt.line.edge : null}
 	{#snippet repoIcon()}<RepoIcon
 			id={workspace.repoId!}
 			name={repoNames.get(workspace.repoId!) ?? ''}
@@ -683,6 +726,13 @@
 			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
 		/>
 	</li>
+{/snippet}
+
+<!-- where a workspace dropped below a list's last row would go: last at its top, a line at its full width -->
+{#snippet endLine(groupId: string | null | undefined)}
+	{#if dropAt && dropAt.line.id === null && dropAt.list === listKey(groupId)}
+		<li aria-hidden="true" class="row-drop-before"></li>
+	{/if}
 {/snippet}
 
 {#snippet link(href: string, icon: string, label: string, current: boolean)}

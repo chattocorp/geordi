@@ -217,11 +217,13 @@ export function nextUnread<T extends { id: string }>(
 
 /** Where on a row something is dropped: above it, onto it (under it), or below it. */
 export type DropZone = 'above' | 'onto' | 'below';
+/** What shows where a drop would go: a row, or (`id` `null`) the end of the list. */
+type Line = { id: string | null; edge: DropZone };
 
 /**
- * Where a dragged workspace would go, dropped on the row at `over` (FDR-016): under
- * `parentId`, right above `before` (`null`: after the last of its new siblings); `line` is
- * what shows it. `reparents` whether that changes its parent. Nothing where it would stay
+ * Where a dragged workspace would go, dropped on the row at `over` (FDR-016), or below the
+ * last one (`over` past the end: last at the top level): under `parentId`, right above
+ * `before` (`null`: after the last of its new siblings); `line` is what shows it. `reparents` whether that changes its parent. Nothing where it would stay
  * where it is, or may not go: under itself, under or over a project, or at the top of
  * this list unless `topLevel` (its repository's list, or the one list).
  */
@@ -236,7 +238,7 @@ export function dropTarget<T extends Member>(
 			parentId: string | null;
 			before: string | null;
 			reparents: boolean;
-			line: { id: string; edge: DropZone };
+			line: Line;
 	  }
 	| undefined {
 	const id = (index: number) => rows[index].workspace.id;
@@ -262,10 +264,11 @@ export function dropTarget<T extends Member>(
 		if (over >= from && over <= end) return undefined;
 	}
 
-	const target = rows[over].workspace;
-	const firstChild = rows[over + 1]?.depth > rows[over].depth ? over + 1 : -1;
-	const place =
-		zone === 'onto'
+	const target = rows[over]?.workspace;
+	const firstChild = rows[over + 1]?.depth > rows[over]?.depth ? over + 1 : -1;
+	const place: { parentId: string | null; before: string | null; line: Line } = !target
+		? { parentId: null, before: null, line: { id: null, edge: 'below' } }
+		: zone === 'onto'
 			? { parentId: target.id, before: null, line: { id: target.id, edge: zone } }
 			: zone === 'above'
 				? { parentId: parentAt(over), before: target.id, line: { id: target.id, edge: zone } }
