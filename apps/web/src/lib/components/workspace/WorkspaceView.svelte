@@ -555,11 +555,7 @@
 	}
 
 	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
-	function arrange(
-		next: Partial<Record<Area, Layout>>,
-		diffPath = saved.diffPath,
-		record = remember
-	) {
+	function arrange(next: Partial<Record<Area, Layout>>, diffPath = saved.diffPath) {
 		const after = { ...layouts, ...next };
 		const remaining = Object.values(after).flatMap(tabsOf);
 		if (!remaining.includes(DRAFT)) drafting = false;
@@ -602,7 +598,7 @@
 			if (tabsOf(layouts[folded]).every((tab) => tabs.has(tab)))
 				frame.current = { ...frame.current, fold: null };
 		}
-		record(after, diffPath);
+		remember(after, diffPath);
 		arrangement.current = { ...after, diffPath: remaining.includes('diff') ? diffPath : undefined };
 	}
 
@@ -686,10 +682,10 @@
 		aideOf(tab)?.status !== 'running';
 
 	/** Focus the tab where it is, or open it next to the conversation. */
-	const showTab = (tab: string, diffPath = saved.diffPath, record = remember) => {
+	const showTab = (tab: string, diffPath = saved.diffPath) => {
 		const area = areaOf(tab) ?? 'main';
 		if (area !== 'main' && !frame.current.open) toggleSide();
-		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath, record);
+		arrange({ [area]: open(layouts[area], tab, chatGroup) }, diffPath);
 	};
 	// Double-clicked in the sidebar: the conversation comes to the front, ready to write in.
 	let focusChat = $state(false);
@@ -773,23 +769,6 @@
 
 	const askingAgent = $derived([workspace, ...workspace.aides].find((agent) => agent.asking));
 	let questionTarget = $state<{ owner: string; id: string; done(): void }>();
-
-	// A version link already navigated here. Select the tab in that history entry
-	// once the release plan arrives, wherever the person placed the tab.
-	$effect(() => {
-		if (page.params.id !== id || !page.url.searchParams.has('changeset')) return;
-		if (!project && !workspace.archivedAt && (!git || git.releasePending)) return;
-		untrack(() => {
-			const url = new URL(page.url.href);
-			url.searchParams.delete('changeset');
-			// eslint-disable-next-line svelte/no-navigation-without-resolve -- this is the current resolved URL with one query parameter removed
-			const consume = (state: App.PageState) => replaceState(url, state);
-			if (!git?.release) return consume(page.state);
-			showTab(CHANGESET, saved.diffPath, (after, diffPath) =>
-				consume({ ...page.state, windows: windowsOf(after, diffPath) })
-			);
-		});
-	});
 
 	// Consume the link once so the same question can be opened again after switching tabs.
 	$effect(() => {

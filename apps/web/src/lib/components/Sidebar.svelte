@@ -8,7 +8,7 @@
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
 	import RowLabel from '@geordi/ui/RowLabel.svelte';
-	import SidebarWorkspaceRow from './SidebarWorkspaceRow.svelte';
+	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import {
 		actFromAfar,
 		archiveAndNavigate,
@@ -640,8 +640,7 @@
 		ondragover={(event) => overRow(event, rows, index)}
 		ondrop={(event) => drop(event, workspace.repoId)}
 	>
-		<SidebarWorkspaceRow
-			workspaceId={workspace.repoId && workspace.branch ? workspace.id : undefined}
+		<WorkspaceRow
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}

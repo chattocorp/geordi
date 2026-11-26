@@ -45,7 +45,6 @@
 		"./ToolCall.svelte": "./src/ToolCall.svelte",
 		"./ToolGroup.svelte": "./src/ToolGroup.svelte",
 		"./TurnActivity.svelte": "./src/TurnActivity.svelte",
-		"./ValueBadge.svelte": "./src/ValueBadge.svelte",
 		"./UserMessage.svelte": "./src/UserMessage.svelte",
 		"./WorkspaceActions.svelte": "./src/WorkspaceActions.svelte",
 		"./WorkspaceRow.svelte": "./src/WorkspaceRow.svelte",
