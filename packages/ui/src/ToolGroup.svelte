@@ -61,8 +61,8 @@
 						title={label}
 						data-live={activity ? true : undefined}
 						class={[
-							'relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control border border-current/25 bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
-							activity && 'edge-live before:p-px',
+							'tool-tile relative -me-1.5 grid size-6 shrink-0 place-items-center rounded-control bg-pane motion-safe:transition-opacity motion-safe:starting:opacity-0',
+							activity && 'edge-live',
 							tool.isError && 'text-danger'
 						]}
 					>
@@ -94,3 +94,15 @@
 		{/each}
 	</div>
 </Disclosure>
+
+<style>
+	.tool-tile {
+		--tile-outline: 1.5px;
+		box-shadow: inset 0 0 0 var(--tile-outline) color-mix(in srgb, currentColor 25%, transparent);
+	}
+
+	.tool-tile[data-live]::before {
+		inset: 0;
+		padding: var(--tile-outline);
+	}
+</style>
