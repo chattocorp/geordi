@@ -30,22 +30,6 @@
 
 	/** Whether one of its tools still runs in the background, after the agent went on. */
 	const background = $derived(tools.some((tool) => backgroundIds.includes(tool.id)));
-
-	/** What was used, each kind once, with how often: all there is to say once it is over. */
-	const used = $derived(
-		Object.values(
-			tools.reduce<Record<string, { name: string; icon: string; count: number; failed: boolean }>>(
-				(kinds, tool) => {
-					const name = sortOf(tool);
-					const kind = (kinds[name] ??= { name, icon: iconOf(tool), count: 0, failed: false });
-					kind.count++;
-					kind.failed ||= tool.isError;
-					return kinds;
-				},
-				{}
-			)
-		)
-	);
 </script>
 
 <!--
@@ -55,22 +39,25 @@
 -->
 <!-- with room on both sides: it stands between what was said before and after -->
 <!-- first in a reply, its row is centred on the avatar beside it -->
-<Disclosure class="py-1 first:pt-0" summaryClass="h-7 text-sm text-muted hover:text-ink">
+<Disclosure class="py-1 first:pt-0" summaryClass="min-h-7 text-sm text-muted hover:text-ink">
 	{#snippet heading()}
 		{#if active}
 			<span class={['size-3.5 shrink-0', iconOf(active)]}></span>
 			<ToolTitle parts={titleOf(active, cwd)} />
 			<ProgressIcon label="Running" />
 		{:else}
-			<!-- named, so that a row of small icons says what it is -->
-			<span class="text-xs">Tools</span>
-			{#each used as { name, icon, count, failed } (name)}
-				<span class={['flex items-center gap-1', failed && 'text-danger']} title={name}>
-					<span class={['size-3.5 shrink-0', icon]}></span>
-					{#if count > 1}<span class="text-xs">{count}</span>{/if}
-					<span class="sr-only">{name}{failed ? ', with failures' : ''}</span>
-				</span>
-			{/each}
+			<span class="sr-only">Tool calls</span>
+			<span class="flex flex-wrap items-center gap-2">
+				{#each tools as tool (tool.id)}
+					{@const label = sortOf(tool) + (tool.isError ? ', failed' : '')}
+					<span
+						role="img"
+						aria-label={label}
+						title={label}
+						class={['size-3.5 shrink-0', iconOf(tool), tool.isError && 'text-danger']}
+					></span>
+				{/each}
+			</span>
 			{#if background}<ProgressIcon label="Running in the background" />{/if}
 		{/if}
 	{/snippet}

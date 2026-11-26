@@ -305,7 +305,23 @@
 </Story>
 
 <!-- As recorded before Geordi kept what agents say of a tool call: its name and input. -->
-<Story name="Tool calls" asChild>
+<Story
+	name="Tool calls"
+	asChild
+	play={async ({ canvasElement }) => {
+		const summary = canvasElement.querySelector('summary')!;
+		const firstRow = Array.from(summary.querySelectorAll('[role="img"]'));
+		await expect(firstRow.map((icon) => icon.getAttribute('aria-label'))).toEqual([
+			'shell',
+			'Read',
+			'shell, failed',
+			'shell'
+		]);
+		await expect(firstRow.filter((icon) => icon.classList.contains('text-danger'))).toEqual([
+			firstRow[2]
+		]);
+	}}
+>
 	<div class="max-w-2xl space-y-6">
 		<!-- over: what was used; a click shows the calls -->
 		<ToolGroup {workspace} {PatchView} {tools} cwd="/work" />
@@ -326,8 +342,8 @@
 	play={async ({ canvas }) => {
 		openSource.mockClear();
 		openDiff.mockClear();
-		const [group] = canvas.getAllByText('Tools');
-		await userEvent.click(group);
+		const [group] = canvas.getAllByText('Tool calls');
+		await userEvent.click(group.closest('summary')!);
 		await userEvent.click(canvas.getAllByText('(40 - 59)')[0]);
 		await userEvent.click(canvas.getAllByRole('button', { name: 'src/changes.ts:40' })[0]);
 		await expect(openSource).toHaveBeenCalledWith('src/changes.ts', 40);
@@ -351,7 +367,7 @@
 	loaders={[loadDiffParser]}
 	asChild
 	play={async ({ canvas, canvasElement }) => {
-		await userEvent.click(canvas.getByText('Tools'));
+		await userEvent.click(canvas.getByText('Tool calls').closest('summary')!);
 		for (const call of canvasElement.querySelectorAll('details details > summary'))
 			await userEvent.click(call);
 		await expect(await canvas.findByText('Moved old.txt to new.txt')).toBeVisible();
