@@ -433,7 +433,7 @@
 		await expect(canvas.getByText('The checks passed.')).toBeVisible();
 		await userEvent.click(activity);
 		await expect(canvas.getByText(progress)).toBeVisible();
-		await expect(canvas.getByText('Tools')).toBeVisible();
+		await expect(canvas.getByText('Tool calls').closest('summary')).toBeVisible();
 		await userEvent.keyboard('{Enter}');
 		await expect(canvas.queryByText(progress)).toBeNull();
 	}}
@@ -670,7 +670,7 @@
 			canvas.getByText('The daemon restores both reviewers after reconnect.')
 		).toBeVisible();
 		await userEvent.click(canvas.getByRole('button', { name: /Turn activity/ }));
-		await expect(canvas.getByText('Tools')).toBeVisible();
+		await expect(canvas.getByText('Tool calls').closest('summary')).toBeVisible();
 	}}
 >
 	<div class="flex h-96 max-w-3xl flex-col sheet overflow-hidden">
