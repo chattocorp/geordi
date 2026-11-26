@@ -1021,12 +1021,13 @@ it('captures net changes across a commit without staging files or including earl
 			execFileSync('git', ['-C', wt.path, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
 				encoding: 'utf8'
 			});
-		write('existing', 'before\n');
+		const context = 'unchanged line\n'.repeat(12);
+		write('existing', context + 'before\n');
 		write('untouched', 'already dirty\n');
 		write('.gitignore', 'ignored\n');
 		git('add', 'existing');
 		const finish = startTurnDiff(wt, base);
-		write('existing', 'after\n');
+		write('existing', context + 'after\n');
 		git('add', 'existing');
 		git('commit', '-qm', 'change');
 		write('added', 'one\ntwo\n');
@@ -1037,9 +1038,16 @@ it('captures net changes across a commit without staging files or including earl
 			added: 3,
 			removed: 1
 		});
-		expect(diff?.patch).toContain('-before\n+after');
+		expect(diff?.fullContext).toBe(true);
+		expect(diff?.patch).toContain(' unchanged line\n'.repeat(12) + '-before\n+after');
 		expect(git('diff', '--cached', '--name-only')).toBe('');
 		expect(startTurnDiff(wt, base)()).toBeUndefined();
+		write('existing', 'unchanged line\n'.repeat(30000));
+		const smallEdit = startTurnDiff(wt, base);
+		write('existing', 'unchanged line\n'.repeat(30000) + 'last line\n');
+		const partial = smallEdit();
+		expect(partial?.patch).toContain('+last line');
+		expect(partial?.fullContext).toBeUndefined();
 		const large = startTurnDiff(wt, base);
 		write('large', 'lots of text\n'.repeat(30000));
 		expect(large()).toMatchObject({ files: [{ path: 'large' }], added: 30000, tooLarge: true });

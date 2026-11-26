@@ -83,21 +83,24 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 				const added = changes.reduce((total, file) => total + (file.added ?? 0), 0);
 				const removed = changes.reduce((total, file) => total + (file.removed ?? 0), 0);
 				if (!files.length) return;
-				try {
-					return {
-						files,
-						added,
-						removed,
-						patch: run(
-							[...diff, '--patch', '--src-prefix=a/', '--dst-prefix=b/'],
+				// Each context line costs at least one byte. This many lines therefore
+				// covers every file whose patch can fit in the saved turn.
+				const patchArgs = [...diff, '--patch', '--no-color', '--src-prefix=a/', '--dst-prefix=b/'];
+				for (const fullContext of [true, false]) {
+					try {
+						const context = fullContext ? MAX_PATCH : 3;
+						const patch = run(
+							['-c', 'diff.suppressBlankEmpty=false', ...patchArgs, `--unified=${context}`],
 							undefined,
 							MAX_PATCH
-						)
-					};
-				} catch (error) {
-					if (!(error instanceof Error && 'code' in error && error.code === 'ENOBUFS')) throw error;
-					return { files, added, removed, tooLarge: true };
+						);
+						return { files, added, removed, patch, ...(fullContext && { fullContext }) };
+					} catch (error) {
+						if (!(error instanceof Error && 'code' in error && error.code === 'ENOBUFS'))
+							throw error;
+					}
 				}
+				return { files, added, removed, tooLarge: true };
 			} finally {
 				rmSync(dir, { recursive: true, force: true });
 			}
