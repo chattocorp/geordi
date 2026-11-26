@@ -419,6 +419,33 @@
 	</div>
 </Story>
 
+<Story name="Finished tool calls" asChild>
+	<div class="flex h-48 max-w-xl flex-col sheet overflow-hidden">
+		<MessageView
+			agent="codex"
+			blocks={[
+				{
+					kind: 'agent',
+					parts: [
+						{
+							kind: 'tools',
+							tools: ['git status', 'pnpm check', 'pnpm lint', 'pnpm test'].map((input) => ({
+								kind: 'tool',
+								id: input,
+								name: 'shell',
+								input,
+								output: 'OK',
+								at: '',
+								isError: false
+							}))
+						}
+					]
+				}
+			]}
+		/>
+	</div>
+</Story>
+
 <Story
 	name="Inspect a finished turn"
 	asChild
@@ -669,8 +696,11 @@
 		await expect(
 			canvas.getByText('The daemon restores both reviewers after reconnect.')
 		).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: /Turn activity/ }));
-		await expect(canvas.getByText('Tool calls').closest('summary')).toBeVisible();
+		await expect(canvas.queryByRole('button', { name: /Turn activity/ })).toBeNull();
+		const tools = canvas.getByText('Tool calls').closest('summary')!;
+		await userEvent.click(tools);
+		await expect(canvas.getByText('session.ts')).toBeVisible();
+		await userEvent.click(tools);
 	}}
 >
 	<div class="flex h-96 max-w-3xl flex-col sheet overflow-hidden">
@@ -808,10 +838,7 @@
 		await userEvent.click(stop);
 		await expect(stopBackground).toHaveBeenCalledWith('stop-tests');
 		await userEvent.click(testTask);
-		await expect(await canvas.findByRole('button', { name: /Turn activity/ })).toHaveAttribute(
-			'aria-expanded',
-			'true'
-		);
+		await expect(canvas.queryByRole('button', { name: /Turn activity/ })).toBeNull();
 		await waitFor(() =>
 			expect(testTask.ownerDocument.activeElement?.closest('details')).toHaveAttribute('open')
 		);

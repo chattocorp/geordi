@@ -549,12 +549,14 @@
 							{@const hidden = block.parts
 								.slice(0, hiddenCount)
 								.filter((part) => part.kind !== 'subagent')}
+							{@const foldActivity =
+								hidden.length > 0 && !(hidden.length === 1 && hidden[0].kind === 'tools')}
 							<!-- said where the reply ends: beside its last words, else on its own -->
 							{@const ending = live
 								? undefined
 								: { reply: block, latest: row.index === latestReply }}
 							<AgentMessage {agent}>
-								{#if hidden.length}
+								{#if foldActivity}
 									<TurnActivity
 										summary={activitySummary(hidden)}
 										expanded={expanded.has(row.index)}
@@ -562,7 +564,7 @@
 									/>
 								{/if}
 								{#each block.parts as part, j (j)}
-									{#if part.kind === 'subagent' || j >= hiddenCount || expanded.has(row.index)}
+									{#if !foldActivity || part.kind === 'subagent' || j >= hiddenCount || expanded.has(row.index)}
 										{@render agentPart(
 											part,
 											j !== lastText,

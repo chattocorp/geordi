@@ -7,6 +7,7 @@
 
 	type Props = Pick<ComponentProps<typeof ToolCall>, 'workspace' | 'PatchView'> & {
 		tools: ToolEntry[];
+		open?: boolean;
 		cwd?: string;
 		/** Whether the agent is at work on this very group: its last tool may still be running. */
 		live?: boolean;
@@ -19,6 +20,7 @@
 		workspace,
 		PatchView,
 		live = false,
+		open = $bindable(false),
 		backgroundIds = [],
 		reveal
 	}: Props = $props();
@@ -36,6 +38,7 @@
 <!-- with room on both sides: it stands between what was said before and after -->
 <!-- first in a reply, its row is centred on the avatar beside it -->
 <Disclosure
+	bind:open
 	collapsedChevron={false}
 	class="py-1 first:pt-0"
 	summaryClass="min-h-7 text-sm text-muted hover:text-ink"
