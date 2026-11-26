@@ -47,15 +47,20 @@
 			<ProgressIcon label="Running" />
 		{:else}
 			<span class="sr-only">Tool calls</span>
-			<span class="flex flex-wrap items-center gap-2">
+			<span class="flex flex-wrap items-center gap-1">
 				{#each tools as tool (tool.id)}
 					{@const label = sortOf(tool) + (tool.isError ? ', failed' : '')}
 					<span
 						role="img"
 						aria-label={label}
 						title={label}
-						class={['size-3.5 shrink-0', iconOf(tool), tool.isError && 'text-danger']}
-					></span>
+						class={[
+							'grid size-6 shrink-0 place-items-center rounded-control border border-current/25',
+							tool.isError && 'text-danger'
+						]}
+					>
+						<span class={['size-3.5', iconOf(tool)]}></span>
+					</span>
 				{/each}
 			</span>
 			{#if background}<ProgressIcon label="Running in the background" />{/if}
