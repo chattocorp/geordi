@@ -1,10 +1,9 @@
 <script lang="ts">
 	import Disclosure from './Disclosure.svelte';
-	import { iconOf, sortOf, titleOf } from './tools.ts';
+	import { iconOf, sortOf } from './tools.ts';
 	import type { ToolEntry } from './tools.ts';
 	import type { ComponentProps } from 'svelte';
 	import ToolCall from './ToolCall.svelte';
-	import ToolTitle from './ToolTitle.svelte';
 
 	type Props = Pick<ComponentProps<typeof ToolCall>, 'workspace' | 'PatchView'> & {
 		tools: ToolEntry[];
@@ -34,11 +33,6 @@
 	}
 </script>
 
-<!--
-	What an agent did between two things it said: a quiet line, since it is rarely what one
-	came to read. While a tool runs, the line shows that tool. Afterwards it sums up what was
-	used; a click shows each call, with its input and output.
--->
 <!-- with room on both sides: it stands between what was said before and after -->
 <!-- first in a reply, its row is centred on the avatar beside it -->
 <Disclosure
@@ -68,7 +62,6 @@
 				</span>
 			{/each}
 		</span>
-		{#if active}<ToolTitle parts={titleOf(active, cwd)} />{/if}
 	{/snippet}
 
 	<div class="mt-1.5 divide-y divide-line/70 overflow-hidden card">

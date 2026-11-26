@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import Markdown from './Markdown.svelte';
-	import { expect, fn, userEvent, waitFor } from 'storybook/test';
+	import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 	import { setChangedFiles } from '#lib/changedFiles.ts';
 	import PatchView from './PatchView.svelte';
 	import AgentMessage from '@geordi/ui/AgentMessage.svelte';
@@ -326,6 +326,11 @@
 			'shell, running',
 			'shell, running in the background'
 		]);
+		const liveSummary = running[0].closest('summary')!;
+		await expect(liveSummary).not.toHaveTextContent('pnpm build');
+		await userEvent.click(liveSummary);
+		await expect(within(liveSummary.closest('details')!).getByText('pnpm build')).toBeVisible();
+		await userEvent.click(liveSummary);
 		await userEvent.click(summary);
 		await expect(summary.parentElement).toHaveAttribute('open');
 		await userEvent.click(summary);
