@@ -328,8 +328,17 @@
 		]);
 		const liveSummary = running[0].closest('summary')!;
 		await expect(liveSummary).not.toHaveTextContent('pnpm build');
+		const collapsedLeft = liveSummary.querySelector('[role="img"]')!.getBoundingClientRect().left;
 		await userEvent.click(liveSummary);
-		await expect(within(liveSummary.closest('details')!).getByText('pnpm build')).toBeVisible();
+		const group = liveSummary.closest('details')!;
+		await expect(liveSummary.querySelector('[role="img"]')).toBeNull();
+		await expect(liveSummary).toHaveAccessibleName('Collapse tool calls');
+		const list = liveSummary.nextElementSibling!.getBoundingClientRect();
+		await expect(list.left).toBe(collapsedLeft);
+		await expect(liveSummary.getBoundingClientRect().left).toBeGreaterThanOrEqual(list.left);
+		const command = within(group).getByText('pnpm build');
+		await expect(command).toBeVisible();
+		await expect(command.closest('summary')!.querySelector('[data-live]')).toBeVisible();
 		await userEvent.click(liveSummary);
 		await userEvent.click(summary);
 		await expect(summary.parentElement).toHaveAttribute('open');

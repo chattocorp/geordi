@@ -4,7 +4,6 @@
 	import type { ChangedFiles, ToolEntry } from './tools.ts';
 	import Disclosure from './Disclosure.svelte';
 	import { filesOf, iconOf, relativeTo, titleOf } from './tools.ts';
-	import ProgressIcon from './ProgressIcon.svelte';
 	import ToolTitle from './ToolTitle.svelte';
 
 	type Props = Omit<ToolEntry, 'id'> & {
@@ -52,16 +51,18 @@
 <Disclosure bind:open summaryClass="px-3.5 py-2 text-sm hover:bg-hover">
 	{#snippet heading()}
 		<span
+			data-live={running || undefined}
 			class={[
 				'grid size-6 shrink-0 place-items-center rounded-control',
+				running && 'edge-live before:p-px',
 				isError ? 'tone-danger' : 'bg-sunken text-muted'
 			]}
 		>
 			<span class={['size-3.5', iconOf(tool)]}></span>
 		</span>
 		<ToolTitle {parts} class="flex-1" />
-		{#if pending}
-			<ProgressIcon label="Running" />
+		{#if running}
+			<span class="sr-only">Running</span>
 		{:else if isError}
 			<span class="sr-only">Failed</span>
 		{/if}
