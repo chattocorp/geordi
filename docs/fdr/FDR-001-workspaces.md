@@ -14,7 +14,7 @@ A workspace is a piece of work: one conversation with one agent, in a Git worktr
 - A workspace has exactly one conversation. To work on something else, or to have a second agent, start another workspace (or let the agent start one: FDR-002).
 - Geordi saves each prompt before sending it. While a saved prompt waits for an offline daemon, the conversation shows **Waiting for daemon**. Delivery resumes when it reconnects.
 - During a turn, the conversation shows progress as it happens. When the turn ends, the final reply or failure stays visible. Open **Turn activity** to inspect earlier messages and tool calls in order.
-- At the end of a turn that changed files, the reply footer shows the filename for a single edit or the number of changed files, plus the lines added and removed. Select it to open the numbered turn tab. When the full context fits in the saved turn, you can expand unchanged lines just as you can in a workspace diff. Each text diff opens expanded and can be folded from its file header. The diff compares the worktree at the start and end of the turn, so it includes shell edits and commits. Edits made at the same time by another agent or a person in the same worktree are included. The saved diff stays available after later edits or archiving. For large patches, the summary keeps the counts and file list.
+- At the end of a turn that changed files, the reply footer shows the filename for a single edit or the number of changed files, plus the lines added and removed. Select it to open the numbered turn tab. You can expand unchanged lines from the file versions kept in Git, including after archiving. Older turns can expand when Git still has the versions named in the saved patch. Offline, the review shows the saved patch or file summary. Each text diff opens expanded and can be folded from its file header. The diff compares the worktree at the start and end of the turn, so it includes shell edits and commits. Edits made at the same time by another agent or a person in the same worktree are included. The saved diff stays available after later edits or archiving. For large patches, the summary keeps the counts and file list.
 - An agent’s plan updates in place as its steps change. If the agent continues the plan in a later exchange, the card moves into that reply. The current step stands out. When all steps are complete, the plan folds into a summary that can be reopened. Agents can also share a written plan or withdraw a plan.
 - While the agent is working, Enter steers it: the message reaches the agent in the middle of its turn, which goes on, and is the next thing it reads (ADR-010). Stop stops the turn, and with it what was said and not read yet. Cmd/Ctrl+Enter queues the message instead: it waits and goes out when the agent has finished its turn. Queued messages are shown under the conversation and can be taken back. After a turn that failed or was stopped, they stay put until the person says something.
 - An agent can start something in the background and come to rest; when it has finished, the agent takes up work again by itself, and the workspace shows as working.
@@ -134,7 +134,7 @@ A workspace takes the title its agent's session goes by (ACP `session_info_updat
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010, ADR-012, ADR-013
+- **ADRs:** ADR-001, ADR-002, ADR-003, ADR-006, ADR-009, ADR-010, ADR-012, ADR-013, ADR-015
 - **FDRs:** FDR-002, FDR-003, FDR-014
 
 ## Open Questions

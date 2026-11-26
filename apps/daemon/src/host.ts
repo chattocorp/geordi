@@ -188,7 +188,7 @@ function emit(event: HostEvent) {
 		open = true;
 		if (options.worktree)
 			safely('could not capture turn start', () => {
-				finishDiff = startTurnDiff(options.worktree!, dir);
+				finishDiff = startTurnDiff(options.worktree!, dir, options.sessionId);
 			});
 	} else if (event.kind === 'turn.completed' || event.kind === 'turn.failed') {
 		if (!open) return;

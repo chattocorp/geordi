@@ -68,6 +68,33 @@ describe('workspaces', () => {
 		expect(workspaces.unplaced()).toEqual([]);
 	});
 
+	it('reads one archived transcript for concurrent file requests and forgets a purged workspace', async () => {
+		const { workspaces, store, create } = setup();
+		const id = create('Review');
+		const blobs = { old: '1234567', new: '2345678' };
+		workspaces.record(id, {
+			kind: 'turn.completed',
+			diff: {
+				added: 2,
+				removed: 2,
+				files: [
+					{ path: 'a', operation: 'modify', blobs },
+					{ path: 'b', operation: 'modify' }
+				],
+				patch:
+					'diff --git a/b b/b\nindex abcd123..efab456 100644\n--- a/b\n+++ b/b\n@@ -1 +1 @@\n-old\n+new\n'
+			}
+		});
+		workspaces.archive(id);
+		const reads = vi.spyOn(store, 'readStream');
+		expect(
+			await Promise.all(['a', 'b', 'unlisted'].map((path) => workspaces.turnBlobs(id, 1, path)))
+		).toEqual([blobs, { old: 'abcd123', new: 'efab456' }, undefined]);
+		expect(reads.mock.calls.filter(([stream]) => stream === `workspace:${id}`)).toHaveLength(1);
+		workspaces.purge([id]);
+		await expect(workspaces.turnBlobs(id, 1, 'a')).rejects.toThrow();
+	});
+
 	it('replays an older worktree without assigning it a new parent directory', () => {
 		const { repo, store, repos, dispatch } = setup();
 		store.append({

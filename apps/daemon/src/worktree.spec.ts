@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { changes, readText, status, uncommittedFiles, versions } from './changes.ts';
+import { turnFile, releaseTurnRefs } from './turn-blobs.ts';
 import { startTurnDiff } from './turn-diff.ts';
 import { archiveWorktree, hasCheckout, removeWorktree } from './remove.ts';
 import {
@@ -1001,7 +1002,7 @@ it('sees an edit of the same size in the same second as the index', async () => 
 		utimesSync(file, second, second);
 		execFileSync('git', ['-C', wt.path, 'add', 'example']);
 		utimesSync(join(wt.adminDir, 'index'), second, second);
-		const finish = startTurnDiff(wt, base);
+		const finish = startTurnDiff(wt, base, '12345678');
 		writeFileSync(file, 'during\n');
 		utimesSync(file, second, second);
 		expect(finish()?.patch).toContain('-before\n+during');
@@ -1026,7 +1027,7 @@ it('captures net changes across a commit without staging files or including earl
 		write('untouched', 'already dirty\n');
 		write('.gitignore', 'ignored\n');
 		git('add', 'existing');
-		const finish = startTurnDiff(wt, base);
+		const finish = startTurnDiff(wt, base, '12345678');
 		write('existing', context + 'after\n');
 		git('add', 'existing');
 		git('commit', '-qm', 'change');
@@ -1038,19 +1039,59 @@ it('captures net changes across a commit without staging files or including earl
 			added: 3,
 			removed: 1
 		});
-		expect(diff?.fullContext).toBe(true);
-		expect(diff?.patch).toContain(' unchanged line\n'.repeat(12) + '-before\n+after');
+		expect(diff?.fullContext).toBeUndefined();
+		expect(diff?.patch).toContain(' unchanged line\n'.repeat(3) + '-before\n+after');
+		expect(diff?.patch).toContain('@@ -10,4 +10,4 @@');
 		expect(git('diff', '--cached', '--name-only')).toBe('');
-		expect(startTurnDiff(wt, base)()).toBeUndefined();
+		expect(startTurnDiff(wt, base, '12345678')()).toBeUndefined();
 		write('existing', 'unchanged line\n'.repeat(30000));
-		const smallEdit = startTurnDiff(wt, base);
+		const smallEdit = startTurnDiff(wt, base, '12345678');
 		write('existing', 'unchanged line\n'.repeat(30000) + 'last line\n');
 		const partial = smallEdit();
 		expect(partial?.patch).toContain('+last line');
 		expect(partial?.fullContext).toBeUndefined();
-		const large = startTurnDiff(wt, base);
+		const large = startTurnDiff(wt, base, '12345678');
 		write('large', 'lots of text\n'.repeat(30000));
 		expect(large()).toMatchObject({ files: [{ path: 'large' }], added: 30000, tooLarge: true });
+	} finally {
+		rmSync(base, { recursive: true, force: true });
+		rmSync(repoPath, { recursive: true, force: true });
+	}
+});
+
+it('keeps historical text in Git through worktree removal and garbage collection until purge', async () => {
+	const repoPath = repo();
+	const base = mkdtempSync(join(tmpdir(), 'geordi-turn-'));
+	const git = (...args: string[]) =>
+		execFileSync('git', ['-C', repoPath, ...args], { encoding: 'utf8' }).trim();
+	try {
+		const wt = await ensureWorktree(base, { repoPath, worktreeId: '12345678' });
+		const file = join(wt.path, 'dirty.txt');
+		writeFileSync(file, 'never committed before\n');
+		writeFileSync(join(wt.path, 'unrelated'), 'private unrelated content');
+		const finish = startTurnDiff(wt, base, '12345678');
+		const other = startTurnDiff(wt, base, '87654321');
+		writeFileSync(file, 'never committed after\n');
+		const blobs = finish()!.files[0].blobs!;
+		expect(other()!.files[0].blobs).toEqual(blobs);
+		rmSync(wt.path, { recursive: true, force: true });
+		git('gc', '--prune=now');
+		const expected = { old: 'never committed before\n', new: 'never committed after\n' };
+		expect(await turnFile(repoPath, blobs)).toEqual(expected);
+		expect(
+			await turnFile(repoPath, { old: blobs.old!.slice(0, 7), new: blobs.new!.slice(0, 7) })
+		).toEqual(expected);
+		const refs = git('for-each-ref', '--format=%(refname)', 'refs/geordi/turns/').split('\n');
+		expect(refs).toHaveLength(2);
+		expect(git('ls-tree', '--name-only', refs[0]).split('\n').sort()).toEqual(
+			[blobs.old, blobs.new].sort()
+		);
+		await releaseTurnRefs(repoPath, ['12345678']);
+		git('gc', '--prune=now');
+		expect(await turnFile(repoPath, blobs)).toEqual(expected);
+		await releaseTurnRefs(repoPath, ['87654321']);
+		git('gc', '--prune=now');
+		expect(await turnFile(repoPath, blobs)).toBeNull();
 	} finally {
 		rmSync(base, { recursive: true, force: true });
 		rmSync(repoPath, { recursive: true, force: true });
