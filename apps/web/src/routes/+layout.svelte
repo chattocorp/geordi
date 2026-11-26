@@ -9,6 +9,7 @@
 	import { page } from '$app/state';
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import Logo from '#lib/components/Logo.svelte';
+	import SidebarToggle from '#lib/components/SidebarToggle.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { initRibbonPosition, openSettings, sections } from '#lib/components/settings.svelte.ts';
 	import CommandPalette from '#lib/ui/CommandPalette.svelte';
@@ -24,7 +25,7 @@
 		stepThrough,
 		withoutInactive
 	} from '#lib/family.ts';
-	import { hint, pressed } from '@geordi/ui/keys';
+	import { pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '@geordi/ui/persisted';
 	import { archiving } from '#lib/components/workspace/archive.svelte.ts';
@@ -97,7 +98,6 @@
 	// Leave room for the conversation and its tools in smaller windows.
 	const maxWidth = $derived(Math.max(240, Math.min(720, (innerWidth.current ?? 1320) - 600)));
 	const clampWidth = (width: number) => Math.round(Math.min(maxWidth, Math.max(240, width)));
-	const toggleHint = `Toggle the sidebar (${hint('toggleSidebar')})`;
 	/** What the sidebar has folded away: also what the previous and next workspace skip. */
 	const folded = persisted<string[]>('geordi:folded', []);
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
@@ -232,14 +232,9 @@
 	}}
 />
 
-{#snippet toggle(icon: string)}
-	<Button variant="ghost" {icon} label={toggleHint} onclick={toggleSidebar} />
-{/snippet}
-
-<!-- With the sidebar hidden, its part of the title bar is where every page's bar starts. -->
+<!-- Reserve the toggle's place in the page header when the sidebar is hidden. -->
 {#snippet lead()}
-	<div class="hidden items-center gap-1 md:flex mac:pl-17">
-		{@render toggle('icon-[lucide--panel-left-open]')}
+	<div class="hidden shrink-0 items-center pl-8 md:flex mac:pl-25">
 		<ConnectionIndicator {lost} />
 	</div>
 {/snippet}
@@ -252,6 +247,7 @@
 {/snippet}
 
 <div class="flex min-h-dvh">
+	<SidebarToggle open={sidebar.current.open} onclick={toggleSidebar} />
 	{#if sidebar.current.open || visibleSidebar.current > 0}
 		{@const width = clampWidth(sidebar.current.width)}
 		<aside
@@ -260,16 +256,8 @@
 			style:margin-left="{(visibleSidebar.current - 1) * width}px"
 			inert={!sidebar.current.open}
 		>
-			<!--
-				The sidebar's part of the title bar. On macOS the window's buttons are on its left, so
-				the logo makes way and the toggle moves up beside them.
-			-->
-			<div class="flex h-14 shrink-0 items-center gap-1 pr-2 pl-4 window-drag mac:pl-22">
+			<div class="flex h-14 shrink-0 items-center pl-16 window-drag">
 				<span class="contents desktop:hidden">{@render logo()}</span>
-				<span class="flex-1 desktop:order-2"></span>
-				<span class="flex desktop:order-1">
-					{@render toggle('icon-[lucide--panel-left-close]')}
-				</span>
 			</div>
 
 			<!-- a sheet like the ones beside it: what there is to work on, and the settings below -->
