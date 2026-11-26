@@ -304,6 +304,18 @@
 	</div>
 </Story>
 
+<Story name="Stacked tool calls" asChild>
+	<div class="max-w-xs sheet p-3">
+		<ToolGroup
+			tools={[0, 1, 0, 0, 0, 0, 2, 2, 0, 0, 0, 2, 0, 3].map((sample, i) => ({
+				...tools[sample],
+				id: String(i)
+			}))}
+			live
+		/>
+	</div>
+</Story>
+
 <!-- As recorded before Geordi kept what agents say of a tool call: its name and input. -->
 <Story
 	name="Tool calls"
@@ -311,6 +323,11 @@
 	play={async ({ canvasElement }) => {
 		const summary = canvasElement.querySelector('summary')!;
 		const firstRow = Array.from(summary.querySelectorAll('[role="img"]'));
+		const [first, second] = firstRow.map((tile) => tile.getBoundingClientRect());
+		await expect(second.left).toBeLessThan(first.right);
+		await expect(firstRow[0].firstElementChild!.getBoundingClientRect().right).toBeLessThanOrEqual(
+			second.left
+		);
 		await expect(firstRow.map((icon) => icon.getAttribute('aria-label'))).toEqual([
 			'shell',
 			'Read',
