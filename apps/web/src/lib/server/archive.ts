@@ -16,8 +16,8 @@ type Parts = {
 };
 
 /**
- * Archives a workspace with its same-repository children and agents sharing their worktrees.
- * Children working in other repositories continue there. Each affected workspace
+ * Archives a workspace with its whole subtree, in every repository (FDR-016), and agents
+ * sharing their worktrees. Each affected workspace
  * has its shells ended, its worktree removed (unless a workspace that stays still works in
  * it) and is taken out of the lists. Branches and conversations stay.
  *

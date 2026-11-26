@@ -1,13 +1,13 @@
 /**
- * Workspaces as the sidebar lists them (FDR-002): by repository, as a plain list in which
- * a workspace started by an agent comes right after the one whose agent started it.
+ * Workspaces as the sidebar lists them (FDR-016): an outline, in which each workspace comes
+ * right after the one it reports to. Grouped, each tree is listed in its root's repository.
  */
 /** `repoId` is `null` for a project (FDR-012): projects are listed together, as if theirs were one. */
 type Member = { id: string; repoId: string | null; parentId: string | null };
 
 export type Listed<T> = {
 	workspace: T;
-	/** The workspace whose agent started this one, if it is still around. */
+	/** The workspace this one reports to, if it is listed: above it, or elsewhere (a project). */
 	parent: T | null;
 	/** How many listed ancestors it has: 0 for one that stands at the top. */
 	depth: number;
@@ -54,44 +54,63 @@ export function withoutInactive<
 	return workspaces.filter((w) => kept.has(w) || !w.inactive);
 }
 
-/** Keeps the order given, but puts each workspace right after the one that started it. */
+/**
+ * The trees by the repository of their roots (FDR-016), in the order given, each workspace
+ * right after its parent: also where it is in another repository. Not under a project, nor
+ * a project under a repository's: what a project started is listed in its own repository.
+ */
 export function byRepository<T extends Member>(all: T[]): Map<string | null, Listed<T>[]> {
-	return nested(all, (workspace) => workspace.repoId);
+	return nested(
+		all,
+		(child, parent) => (child.repoId === null) === (parent.repoId === null),
+		(root) => root.repoId
+	);
+}
+
+/** All workspaces as one list, in the order given, each right after its parent. */
+export function asOneList<T extends Member>(all: T[]): Listed<T>[] {
+	return (
+		nested(
+			all,
+			() => true,
+			() => null
+		).get(null) ?? []
+	);
 }
 
 /**
- * All workspaces as one list, in the order given, each right after the one that started
- * it: also where that is in another repository, or a project.
+ * The trees, by `groupOf` their roots: each workspace right after its parent where that
+ * is listed and `joins` lets it sit under it; else it is a root.
  */
-export function asOneList<T extends Member>(all: T[]): Listed<T>[] {
-	return nested(all, () => null).get(null) ?? [];
-}
-
-/** The workspaces by `groupOf`, each right after the one that started it, where that is in its group. */
 function nested<T extends Member>(
 	all: T[],
-	groupOf: (workspace: T) => string | null
+	joins: (child: T, parent: T) => boolean,
+	groupOf: (root: T) => string | null
 ): Map<string | null, Listed<T>[]> {
 	const byId = new Map(all.map((workspace) => [workspace.id, workspace]));
-	const parentOf = (workspace: T) => byId.get(workspace.parentId ?? '') ?? null;
-	// a workspace follows its parent only where the parent is listed: in the same group
-	const follows = (workspace: T) => {
-		const parent = parentOf(workspace);
-		return !!parent && groupOf(parent) === groupOf(workspace);
+	const parentOf = (workspace: T) => {
+		const parent = byId.get(workspace.parentId ?? '');
+		return parent && joins(workspace, parent) ? parent : null;
 	};
+	const childrenOf = Map.groupBy(all, (workspace) => parentOf(workspace)?.id ?? null);
 
 	const groups = new Map<string | null, Listed<T>[]>();
 	const visited = new Set<string>();
-	const list = (workspace: T, depth: number) => {
+	const list = (workspace: T, depth: number, listed: Listed<T>[]) => {
 		if (visited.has(workspace.id)) return; // a cycle: list it once
 		visited.add(workspace.id);
-		const listed = groups.get(groupOf(workspace)) ?? [];
-		groups.set(groupOf(workspace), listed);
-		listed.push({ workspace, parent: parentOf(workspace), depth });
-		for (const child of all)
-			if (child.parentId === workspace.id && follows(child)) list(child, depth + 1);
+		listed.push({ workspace, parent: byId.get(workspace.parentId ?? '') ?? null, depth });
+		for (const child of childrenOf.get(workspace.id) ?? []) list(child, depth + 1, listed);
 	};
-	for (const workspace of all) if (!follows(workspace)) list(workspace, 0);
+	const root = (workspace: T) => {
+		const group = groupOf(workspace);
+		const listed = groups.get(group) ?? [];
+		groups.set(group, listed);
+		list(workspace, 0, listed);
+	};
+	for (const workspace of childrenOf.get(null) ?? []) root(workspace);
+	// a loop has no root: list its members at the top, rather than not at all
+	for (const workspace of all) root(workspace);
 	return groups;
 }
 
@@ -196,36 +215,77 @@ export function nextUnread<T extends { id: string }>(
 	return order.slice(at + 1).find(isUnread) ?? order.slice(0, Math.max(0, at)).find(isUnread);
 }
 
-/**
- * Where the row at `from` would go, dropped onto the row at `over` (on its upper half, or
- * not): among its siblings only, so that it keeps its parent. `before` is the sibling it
- * would go right above, `null` for after the last of them, where `after` is the row the
- * line shows below. Nothing where it would stay where it is, or the row is not among
- * its siblings' (their parent, or another family).
- */
-export function dropTarget<T extends { id: string }>(
-	rows: Listed<T>[],
-	from: number,
-	over: number,
-	upper: boolean
-): { before: string | null; after: string } | undefined {
-	const { depth } = rows[from];
-	// the siblings and theirs: everything under the parent, or the whole list
-	let start = from;
-	while (start > 0 && rows[start - 1].depth >= depth) start--;
-	let end = from;
-	while (end < rows.length - 1 && rows[end + 1].depth >= depth) end++;
-	if (over < start || over > end) return undefined;
+/** Where on a row something is dropped: above it, onto it (under it), or below it. */
+export type DropZone = 'above' | 'onto' | 'below';
 
-	const siblingFrom = (at: number) => {
-		for (let index = at; index <= end; index++) if (rows[index].depth === depth) return index;
-		return -1;
+/**
+ * Where a dragged workspace would go, dropped on the row at `over` (FDR-016): under
+ * `parentId`, right above `before` (`null`: after the last of its new siblings); `line` is
+ * what shows it. `reparents` whether that changes its parent. Nothing where it would stay
+ * where it is, or may not go: under itself, under or over a project, or at the top of
+ * this list unless `topLevel` (its repository's list, or the one list).
+ */
+export function dropTarget<T extends Member>(
+	rows: Listed<T>[],
+	dragged: T,
+	over: number,
+	zone: DropZone,
+	topLevel: boolean
+):
+	| {
+			parentId: string | null;
+			before: string | null;
+			reparents: boolean;
+			line: { id: string; edge: DropZone };
+	  }
+	| undefined {
+	const id = (index: number) => rows[index].workspace.id;
+	/** The row's parent in this list: the nearest row above it that is less deep. */
+	const parentAt = (index: number) => {
+		for (let above = index - 1; above >= 0; above--)
+			if (rows[above].depth < rows[index].depth) return id(above);
+		return null;
 	};
-	const next = siblingFrom(upper ? over : over + 1);
-	const before = next === -1 ? null : rows[next].workspace.id;
-	const after = siblingFrom(from + 1);
-	const stays =
-		before === rows[from].workspace.id ||
-		before === (after === -1 ? null : rows[after].workspace.id);
-	return stays ? undefined : { before, after: rows[end].workspace.id };
+	/** The next row with the same parent, if any. */
+	const nextSibling = (index: number) => {
+		for (let below = index + 1; below < rows.length; below++) {
+			if (rows[below].depth < rows[index].depth) return null;
+			if (rows[below].depth === rows[index].depth) return id(below);
+		}
+		return null;
+	};
+
+	const from = rows.findIndex(({ workspace }) => workspace.id === dragged.id);
+	if (from !== -1) {
+		let end = from;
+		while (rows[end + 1]?.depth > rows[from].depth) end++;
+		if (over >= from && over <= end) return undefined;
+	}
+
+	const target = rows[over].workspace;
+	const firstChild = rows[over + 1]?.depth > rows[over].depth ? over + 1 : -1;
+	const place =
+		zone === 'onto'
+			? { parentId: target.id, before: null, line: { id: target.id, edge: zone } }
+			: zone === 'above'
+				? { parentId: parentAt(over), before: target.id, line: { id: target.id, edge: zone } }
+				: firstChild !== -1
+					? {
+							parentId: target.id,
+							before: id(firstChild),
+							line: { id: id(firstChild), edge: 'above' as const }
+						}
+					: {
+							parentId: parentAt(over),
+							before: nextSibling(over),
+							line: { id: target.id, edge: zone }
+						};
+
+	if (place.parentId === null && !topLevel) return undefined;
+	const parent = rows.find(({ workspace }) => workspace.id === place.parentId)?.workspace;
+	if (parent && (parent.repoId === null || dragged.repoId === null)) return undefined;
+	const reparents = from === -1 || place.parentId !== parentAt(from);
+	if (!reparents && (place.before === dragged.id || place.before === nextSibling(from)))
+		return undefined;
+	return { ...place, reparents };
 }

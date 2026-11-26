@@ -95,7 +95,7 @@ const reportGuide =
 const controlledTarget = (kind: CallerKind) =>
 	kind === 'project'
 		? 'any agent in a repository or in your project'
-		: 'an agent you started directly or through another agent';
+		: 'an agent that reports to you, directly or through another agent';
 
 const MAX_WAIT_SECONDS = 45;
 
@@ -218,7 +218,7 @@ const tools = {
 	},
 	wait_for_agent: {
 		description:
-			'Wait for a visible workspace to finish its current turn and return its agent report. For its pull request and checks, call workspace_status. A direct child returns early with parentQuestions when it needs your decision. If another direct child needs a decision, childrenAsking gives its workspace ID. Use list_agents to read the requests, then answer_question or forward_question. An idle report can include an error.',
+			'Wait for a visible workspace to finish its current turn and return its agent report. For its pull request and checks, call workspace_status. A direct child returns early with parentQuestions when it needs your decision. If another direct child needs a decision, childrenAsking gives its workspace ID. Use list_agents to read the requests, then answer_question or forward_question. An idle report can include an error. movedAway means a person moved it under another workspace or to the top level: it is no longer yours to supervise.',
 		input: v.strictObject({
 			workspace_id: workspaceId,
 			timeout_seconds: v.pipe(
@@ -306,7 +306,7 @@ const tools = {
 						? controlledTarget(kind)
 						: kind === 'external'
 							? 'another unarchived agent in a repository you can access'
-							: 'an unarchived agent you started (directly or through another agent), or to the agent that started you'
+							: 'an unarchived agent that reports to you (directly or through another agent), or to the agent you report to'
 				}. An idle agent starts a turn, processing any previously queued messages first. Within a delegation, a running agent receives the message during its current turn. Set interrupt to false to queue it for the next turn. Providers without live steering queue it automatically.`,
 				kind === 'external'
 					? 'You may steer only your own direct or indirect descendants. Messages to other running agents are queued.'

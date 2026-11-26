@@ -102,16 +102,27 @@ describe('byRepository', () => {
 		expect(repos.get('one')?.map(({ depth }) => depth)).toEqual([0, 0, 1, 2, 1]);
 	});
 
-	it('lists a workspace whose parent is elsewhere, or gone, on its own', () => {
+	it('lists a tree in its root’s repository, children from elsewhere too (FDR-016)', () => {
 		const repos = byRepository([
 			workspace('parent', 'one'),
 			workspace('abroad', 'two', 'parent'),
 			workspace('orphan', 'two', 'archived')
 		]);
-		expect(ids(repos.get('two'))).toEqual(['abroad', 'orphan']);
-		expect(repos.get('two')?.[0].parent?.id).toBe('parent');
-		expect(repos.get('two')?.[1].parent).toBeNull();
-		expect(repos.get('two')?.map(({ depth }) => depth)).toEqual([0, 0]);
+		expect(ids(repos.get('one'))).toEqual(['parent', 'abroad']);
+		expect(repos.get('one')?.[1].parent?.id).toBe('parent');
+		expect(ids(repos.get('two'))).toEqual(['orphan']);
+		expect(repos.get('two')?.[0].parent).toBeNull();
+	});
+
+	it('keeps projects and repositories apart', () => {
+		const repos = byRepository([workspace('p', null), workspace('started', 'one', 'p')]);
+		expect(ids(repos.get(null))).toEqual(['p']);
+		expect(ids(repos.get('one'))).toEqual(['started']);
+	});
+
+	it('lists a loop rather than losing it', () => {
+		const repos = byRepository([workspace('a', 'one', 'b'), workspace('b', 'one', 'a')]);
+		expect(ids(repos.get('one'))?.sort()).toEqual(['a', 'b']);
 	});
 });
 
@@ -156,38 +167,74 @@ describe('unfolded', () => {
 
 describe('dropTarget', () => {
 	// 0 parent, 1 child, 2 grandchild, 3 sibling, 4 third, 5 other
-	const rows = byRepository([
+	const all = [
 		workspace('parent', 'one'),
 		workspace('child', 'one', 'parent'),
 		workspace('grandchild', 'one', 'child'),
 		workspace('sibling', 'one', 'parent'),
 		workspace('third', 'one', 'parent'),
 		workspace('other', 'one')
-	]).get('one')!;
+	];
+	const rows = byRepository(all).get('one')!;
+	const at = (index: number) => all.find(({ id }) => id === rows[index].workspace.id)!;
+	const place = (from: number, over: number, zone: 'above' | 'onto' | 'below', top = true) => {
+		const target = dropTarget(rows, at(from), over, zone, top);
+		return target && [target.parentId, target.before, target.reparents];
+	};
 
-	it('moves a child among its siblings, past their own children', () => {
-		expect(dropTarget(rows, 1, 3, false)).toEqual({ before: 'third', after: 'third' });
-		expect(dropTarget(rows, 1, 4, false)).toEqual({ before: null, after: 'third' });
-		expect(dropTarget(rows, 4, 2, false)).toEqual({ before: 'sibling', after: 'third' });
-		expect(dropTarget(rows, 4, 1, true)).toEqual({ before: 'child', after: 'third' });
+	it('moves a workspace among its siblings', () => {
+		expect(place(1, 3, 'below')).toEqual(['parent', 'third', false]);
+		expect(place(1, 4, 'below')).toEqual(['parent', null, false]);
+		expect(place(4, 1, 'above')).toEqual(['parent', 'child', false]);
 	});
 
-	it('never changes the parent', () => {
-		expect(dropTarget(rows, 1, 0, false)).toBeUndefined();
-		expect(dropTarget(rows, 1, 5, true)).toBeUndefined();
-		expect(dropTarget(rows, 2, 3, true)).toBeUndefined();
+	it('nests it under the row it is dropped onto, as the last child', () => {
+		expect(place(5, 3, 'onto')).toEqual(['sibling', null, true]);
+		expect(place(4, 1, 'onto')).toEqual(['child', null, true]);
+	});
+
+	it('puts it first under a row with children, dropped below it', () => {
+		expect(place(5, 0, 'below')).toEqual(['parent', 'child', true]);
+		expect(dropTarget(rows, at(5), 0, 'below', true)?.line).toEqual({ id: 'child', edge: 'above' });
+	});
+
+	it('moves it up a level, or to the top', () => {
+		expect(place(2, 3, 'above')).toEqual(['parent', 'sibling', true]);
+		expect(place(1, 5, 'above')).toEqual([null, 'other', true]);
+		expect(place(1, 5, 'below')).toEqual([null, null, true]);
+	});
+
+	it('keeps it at the top of its own repository’s list only', () => {
+		expect(place(1, 5, 'above', false)).toBeUndefined();
+		expect(place(1, 3, 'onto', false)).toEqual(['sibling', null, true]);
+	});
+
+	it('never puts it under itself', () => {
+		expect(place(1, 1, 'onto')).toBeUndefined();
+		expect(place(1, 2, 'onto')).toBeUndefined();
+		expect(place(0, 4, 'above')).toBeUndefined();
 	});
 
 	it('says nothing where the row would stay', () => {
-		expect(dropTarget(rows, 1, 1, true)).toBeUndefined();
-		expect(dropTarget(rows, 1, 2, false)).toBeUndefined();
-		expect(dropTarget(rows, 1, 3, true)).toBeUndefined();
+		expect(place(1, 3, 'above')).toBeUndefined();
+		expect(place(4, 3, 'below')).toBeUndefined();
+		expect(place(4, 0, 'onto')).toBeUndefined();
 	});
 
-	it('moves a workspace at the top with its family', () => {
-		expect(dropTarget(rows, 0, 5, false)).toEqual({ before: null, after: 'other' });
-		expect(dropTarget(rows, 5, 3, false)).toBeUndefined();
-		expect(dropTarget(rows, 5, 0, true)).toEqual({ before: 'parent', after: 'other' });
+	it('keeps projects out of the tree', () => {
+		const project = workspace('p', null);
+		const list = asOneList([project, workspace('a', 'one')]);
+		expect(dropTarget(list, all[0], 0, 'onto', true)).toBeUndefined();
+		expect(dropTarget(list, project, 1, 'onto', true)).toBeUndefined();
+		expect(dropTarget(list, project, 1, 'below', true)?.parentId).toBeNull();
+	});
+
+	it('takes a workspace from another list', () => {
+		const stranger = workspace('stranger', 'two');
+		expect(dropTarget(rows, stranger, 5, 'onto', false)).toMatchObject({
+			parentId: 'other',
+			reparents: true
+		});
 	});
 });
 

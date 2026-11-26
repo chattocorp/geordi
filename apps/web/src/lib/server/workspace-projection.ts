@@ -120,12 +120,15 @@ export type WorkspacesEvent =
 	| { type: 'workspace.based'; stream: WorkspaceStream; data: { id: string; base?: string } }
 	/**
 	 * A person moved the workspace in the sidebar: right above `before`, or to the end of
-	 * the list where that is `null`. Workspaces are otherwise listed newest first.
+	 * the list where that is `null`. Workspaces are otherwise listed newest first. With
+	 * `parentId`, it was moved under that workspace, or to the top level where that is `null`
+	 * (FDR-016): that one supervises it from now on, and no external client does. Without
+	 * it (and in events from before FDR-016), its parent stays.
 	 */
 	| {
 			type: 'workspace.moved';
 			stream: WorkspaceStream;
-			data: { id: string; before: string | null };
+			data: { id: string; before: string | null; parentId?: string | null };
 	  }
 	/** The workspace is done with: out of the lists, its worktree gone, its history kept. */
 	| { type: 'workspace.archived'; stream: WorkspaceStream; data: { id: string } }
@@ -370,9 +373,15 @@ export type Workspace = {
 	usage: ContextUsage | null;
 	/** What its agent suggests the person say next; `null` if nothing. */
 	suggestion: string | null;
-	/** The workspace whose agent started this one; `null` if a person did. */
+	/**
+	 * The workspace that supervises this one (FDR-016): the one whose agent started it, until
+	 * a person moves it; `null` for one at the top level.
+	 */
 	parentId: string | null;
-	/** The external client (its grant) that started it, if one did: it may supervise it. */
+	/**
+	 * The external client (its grant) that started it, if one did and no person has moved it
+	 * since: it may supervise it.
+	 */
 	startedBy: string | null;
 	/** The workspace whose worktree this one works in: its own ID, unless it shares another's. */
 	worktreeId: string;
@@ -470,6 +479,12 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	const attachedImages = new Map<string, Set<string>>();
 	// Sender attribution on a later replay must reflect who existed at the time.
 	const born = new Map<string, { seq: number; parentId?: string; purgedTitle?: string }>();
+	// Where people moved workspaces (FDR-016), for whose child a sender was at the time.
+	const parents = new Map<string, { seq: number; parentId: string | null }[]>();
+	function parentAt(id: string, seq: number) {
+		const moved = parents.get(id)?.findLast((each) => each.seq <= seq);
+		return moved ? moved.parentId : born.get(id)?.parentId;
+	}
 
 	// Archived transcripts replay one stream. Keep the settings used by each sender's
 	// turns so a message can still resolve them at its original event sequence.
@@ -531,7 +546,14 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		}
 
 		if (event.type === 'workspace.moved') {
-			move(workspaces, event.data.id, event.data.before);
+			const { id, before, parentId } = event.data;
+			const moved = workspaces.get(id);
+			if (moved && parentId !== undefined) {
+				moved.parentId = parentId;
+				moved.startedBy = null;
+				(parents.get(id) ?? parents.set(id, []).get(id)!).push({ seq, parentId });
+			}
+			move(workspaces, id, before);
 			return;
 		}
 		// not something that happened in it: it leaves its place in the lists alone
@@ -574,7 +596,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		const byAgent = (sender: string | null): sender is string =>
 			!!sender && (isExternal(sender) || (born.get(sender)?.seq ?? Infinity) <= seq);
 		const rememberChild = (sender: string | null, name?: string) => {
-			if (sender && born.get(sender)?.parentId === id) {
+			if (sender && parentAt(sender, seq) === id) {
 				(workspace.childSenders ??= {})[sender] =
 					name ??
 					workspaces.get(sender)?.title ??

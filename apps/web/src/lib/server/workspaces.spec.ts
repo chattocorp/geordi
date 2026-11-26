@@ -1281,6 +1281,75 @@ describe('moving', () => {
 	});
 });
 
+describe('moving in the outline (FDR-016)', () => {
+	function family(options?: Parameters<typeof setup>[0]) {
+		const context = setup(options);
+		const [lead, peer] = [context.create('Lead'), context.create('Peer')];
+		const { agents } = context.workspaces;
+		const child = agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
+		return { ...context, agents, lead, peer, child };
+	}
+
+	it('hands a workspace to its new parent, across a restart', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-outline-')), 'events.db');
+		const { workspaces, agents, lead, peer, child } = family({ database });
+		workspaces.move(child, null, peer);
+		expect(workspaces.get(child).parentId).toBe(peer);
+		expect(() => agents.send(lead, child, 'Still mine?')).toThrow();
+		expect(() => agents.stop(lead, child)).toThrow();
+		agents.send(peer, child, 'Yours now');
+		expect(setup({ database }).workspaces.get(child).parentId).toBe(peer);
+
+		workspaces.move(child, null, null);
+		expect(workspaces.get(child).parentId).toBeNull();
+		expect(() => agents.send(peer, child, 'And now?')).toThrow();
+	});
+
+	it('moves a subtree with its root, and refuses loops', () => {
+		const { workspaces, agents, lead, peer, child } = family();
+		const grandchild = agents.start(child, { worktree: 'own', prompt: 'Deeper' }).id;
+		expect(() => workspaces.move(lead, null, grandchild)).toThrow(refusal(/under itself/));
+		expect(() => workspaces.move(child, null, child)).toThrow(refusal(/under itself/));
+		workspaces.move(lead, null, peer);
+		expect(workspaces.get(grandchild).parentId).toBe(child);
+		expect(workspaces.descendants(peer).sort()).toEqual([lead, child, grandchild].sort());
+	});
+
+	it('ends the old parent’s wait and gives its open questions to the person', async () => {
+		const { workspaces, agents, lead, peer, child } = family();
+		const waiting = agents.wait(lead, child, 30000);
+		workspaces.move(child, null, peer);
+		expect(await waiting).toMatchObject({ movedAway: true, parentId: peer });
+
+		workspaces.move(child, null, lead);
+		const questions = [{ question: 'Which?', options: [], multiSelect: false }];
+		workspaces.record(child, { kind: 'question', id: 'q', questions });
+		expect(await agents.wait(lead, child, 30000)).toHaveProperty('parentQuestions');
+		workspaces.move(child, null, null);
+		expect(workspaces.get(child).asking).toBe(true);
+	});
+
+	it('archives the whole subtree, in every repository', () => {
+		const { workspaces, repos, agents, lead } = family();
+		const path = mkdtempSync(join(tmpdir(), 'geordi-repo-'));
+		execFileSync('git', ['init', '-q', path]);
+		const elsewhere = repos.register(path);
+		const away = agents.start(lead, {
+			worktree: 'own',
+			prompt: 'Over there',
+			repository: elsewhere.id
+		}).id;
+		expect(workspaces.descendants(lead)).toContain(away);
+	});
+
+	it('keeps projects out of the tree', () => {
+		const { workspaces, lead } = family();
+		const project = workspaces.create({ repoId: null, agent: 'claude', prompt: 'Plan' });
+		expect(() => workspaces.move(project, null, lead)).toThrow(refusal(/Projects/));
+		expect(() => workspaces.move(lead, null, project)).toThrow(refusal(/Projects/));
+	});
+});
+
 describe('archiving', () => {
 	it('takes a workspace out of the lists and keeps its conversation', () => {
 		const { store, repos, workspaces, repo, create, dispatch } = setup();

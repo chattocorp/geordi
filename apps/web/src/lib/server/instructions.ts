@@ -8,7 +8,7 @@ import { CONFIG_FILE } from '@geordi/protocol';
 export function instructionsFor(workspace: {
 	/** Whether it is a project (FDR-012): no repository, there to orchestrate. */
 	project?: boolean;
-	/** The workspace whose agent started this one, if one did. */
+	/** The workspace this one reports to (FDR-016), if any. */
 	parent: { title: string } | null;
 	/** Whether it works in another workspace's directory rather than in one of its own. */
 	sharesWorktree: boolean;
@@ -30,7 +30,7 @@ export function instructionsFor(workspace: {
 		'For notes, plans, scratch files, downloads and anything else temporary, use the `.context` folder at the top of the worktree: Git ignores it, so nothing in it is committed, and it is gone when the workspace is archived. Don’t scatter such files elsewhere in the worktree or in `/tmp`.',
 
 		parent
-			? `This workspace was started by the agent of another workspace ("${parent.title}"), which gave you your task and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
+			? `This workspace reports to the agent of another workspace ("${parent.title}"), which gives you your tasks and reads your reply when you are done. End with what it needs to know. A person can read along, and may write to you too.`
 			: 'The person you work for sees your replies, your changes as a diff against where the branch started (if you move it onto another branch, say so with `set_base`), and the state of the branch’s pull request.',
 
 		parent ? ASKING_PARENT : ASKING,
@@ -57,9 +57,9 @@ export function instructionsFor(workspace: {
 
 const ASKING =
 	'When you need a decision from the person before you can continue, use your blocking question tool and wait for their answer.';
-/** An agent started by another asks that one: the person may not be watching, and its parent waits for it. */
+/** An agent that reports to another asks that one: the person may not be watching, and its parent waits for it. */
 const ASKING_PARENT =
-	'Use your blocking question tool to ask the agent that started you for a decision. It receives the form and can answer or pass it to the person. Ask once and wait for the answer in the tool.';
+	'Use your blocking question tool to ask the agent you report to for a decision. It receives the form and can answer or pass it to the person. Ask once and wait for the answer in the tool.';
 /** Delegating well: a sub-agent defaults to the caller's model, which fits few tasks exactly. */
 const CHILD_QUESTIONS =
 	'When a child needs a decision, read its parentQuestions in list_agents and answer with answer_question. For decisions that need the person’s judgment or permission, use forward_question with the original ID. Geordi delivers the answer to the child, so leave the request and answer out of chat.';

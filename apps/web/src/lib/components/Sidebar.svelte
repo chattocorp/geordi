@@ -21,6 +21,7 @@
 		asOneList,
 		byRepository,
 		dropTarget,
+		type DropZone,
 		inFocus,
 		shownUngrouped,
 		unfolded
@@ -73,7 +74,7 @@
 
 	type Item = Navigation['workspaces'][number];
 
-	/** The workspaces by repository, each agent-started one after the one that started it. */
+	/** The trees by their roots' repositories, each workspace right after its parent (FDR-016). */
 	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
 	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
@@ -248,40 +249,46 @@
 	type Row = { workspace: Item; parent: Item | null; depth: number };
 
 	/**
-	 * The workspace being dragged to another place among its siblings, and where it would
-	 * go: above that workspace, `null` for below the last of them (`dropAfter`, the row the
-	 * line shows under), `undefined` for nowhere new. What its agent started goes along; its
-	 * parent stays the same.
+	 * The workspace being dragged to another place in the outline (FDR-016), and where it
+	 * would go, if anywhere new: above a row, onto it (under that workspace) or below it.
+	 * What is under it goes along. Under another workspace, that one supervises it.
 	 */
 	let dragged = $state<Item | null>(null);
-	let dropBefore = $state<string | null | undefined>(undefined);
-	let dropAfter = $state<string | null>(null);
-	/** Whether the one being dragged may be dropped among `repoId`'s: in one list, anywhere. */
-	const droppable = (repoId: string | null) =>
-		!!dragged && (!grouped.current || dragged.repoId === repoId);
+	let dropAt = $state<ReturnType<typeof dropTarget<Item>>>(undefined);
 
-	function overRow(event: DragEvent & { currentTarget: HTMLElement }, rows: Row[], index: number) {
-		const from = dragged ? rows.findIndex((row) => row.workspace.id === dragged!.id) : -1;
-		if (from === -1) return;
+	/**
+	 * Over a row of the list of `groupId` (`undefined`: the one list): on its upper third
+	 * above it, on its lower third below it, else onto it. At the top of a repository's list
+	 * only what is of that repository.
+	 */
+	function overRow(
+		event: DragEvent & { currentTarget: HTMLElement },
+		rows: Row[],
+		index: number,
+		groupId: string | null | undefined
+	) {
+		if (!dragged) return;
 		event.preventDefault();
 		const rect = event.currentTarget.getBoundingClientRect();
-		const target = dropTarget(rows, from, index, event.clientY < rect.top + rect.height / 2);
-		if (event.dataTransfer) event.dataTransfer.dropEffect = target ? 'move' : 'none';
-		dropBefore = target?.before;
-		dropAfter = target?.after ?? null;
+		const third = (event.clientY - rect.top) / rect.height;
+		const zone: DropZone = third < 1 / 3 ? 'above' : third > 2 / 3 ? 'below' : 'onto';
+		const topLevel = groupId === undefined || dragged.repoId === groupId;
+		dropAt = dropTarget(rows, dragged, index, zone, topLevel);
+		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
 	}
 
-	function drop(event: DragEvent, repoId: string | null) {
+	function drop(event: DragEvent) {
 		event.preventDefault();
-		if (dragged && droppable(repoId) && dropBefore !== undefined)
-			void moveWorkspace({ workspaceId: dragged.id, before: dropBefore });
+		if (dragged && dropAt) {
+			const { before, parentId, reparents } = dropAt;
+			void moveWorkspace({ workspaceId: dragged.id, before, ...(reparents && { parentId }) });
+		}
 		endDrag();
 	}
 
 	function endDrag() {
 		dragged = null;
-		dropBefore = undefined;
-		dropAfter = null;
+		dropAt = undefined;
 	}
 
 	/**
@@ -450,11 +457,11 @@
 					class="space-y-px pb-4"
 					ondragleave={(event) => {
 						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-							dropBefore = undefined;
+							dropAt = undefined;
 					}}
 				>
 					{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-						{@render row(workspace, parent, depth, under, rows, index)}
+						{@render row(workspace, parent, depth, under, rows, index, undefined)}
 					{/each}
 				</ul>
 				{#if activeOnly && anyInactive && rows.length === 0}
@@ -550,11 +557,11 @@
 								class="space-y-px"
 								ondragleave={(event) => {
 									if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-										dropBefore = undefined;
+										dropAt = undefined;
 								}}
 							>
 								{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-									{@render row(workspace, parent, depth, under, rows, index)}
+									{@render row(workspace, parent, depth, under, rows, index, repo.id)}
 								{/each}
 							</ul>
 						{/if}
@@ -593,26 +600,27 @@
 	depth: number,
 	under: number,
 	rows: Row[],
-	index: number
+	index: number,
+	groupId: string | null | undefined
 )}
 	{@const isFolded = under > 0 && folded.current.includes(workspace.id)}
 	{@const current = path === `/workspaces/${workspace.id}`}
 	{@const busy = working(workspace)}
 	{@const asking = isFolded ? asker(workspace) : workspace.outcome === 'asking' && workspace}
 	{@const leaving = beingArchived.has(workspace.id)}
+	<!-- in a tree of another repository's (FDR-016): its own repository's picture says so -->
+	{@const foreign = groupId !== undefined && workspace.repoId !== groupId}
+	{@const dropping = dropAt?.line.id === workspace.id ? dropAt.line.edge : null}
 	{#snippet repoIcon()}<RepoIcon
 			id={workspace.repoId!}
 			name={repoNames.get(workspace.repoId!) ?? ''}
 			small
 		/>{/snippet}
-	<!-- one started by an agent sits a little in from the one that started it -->
-	<!-- where a workspace being dragged would go: a line above this one, or below the last -->
+	<!-- one sits a little in from the one it reports to -->
+	<!-- where a workspace being dragged would go: a line above or below this one, or onto it, lit up -->
 	<li
 		style:margin-inline-start="calc(var(--spacing) * {(grouped.current ? 3 : INDENT) * depth})"
-		class={[
-			dropBefore === workspace.id && 'row-drop-before',
-			dropBefore === null && dropAfter === workspace.id && 'row-drop-after'
-		]}
+		class={[dropping === 'above' && 'row-drop-before', dropping === 'below' && 'row-drop-after']}
 		transition:slide={motion()}
 		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
 		draggable={!leaving}
@@ -637,26 +645,26 @@
 				return;
 			foreground.ask(workspace.id);
 		}}
-		ondragover={(event) => overRow(event, rows, index)}
-		ondrop={(event) => drop(event, workspace.repoId)}
+		ondragover={(event) => overRow(event, rows, index, groupId)}
+		ondrop={drop}
 	>
 		<SidebarWorkspaceRow
 			workspaceId={workspace.repoId && workspace.branch ? workspace.id : undefined}
 			title={workspace.title}
 			href={resolve('/workspaces/[id]', { id: workspace.id })}
 			parentTitle={parent?.title}
-			parentHref={grouped.current && workspace.parentId
+			parentHref={grouped.current && workspace.parentId && !foreign
 				? resolve('/workspaces/[id]', { id: workspace.parentId })
 				: undefined}
 			icon={workspace.repoId === null
 				? 'icon-[lucide--folder-kanban]'
-				: grouped.current
+				: grouped.current && !foreign
 					? undefined
 					: repoIcon}
 			{current}
 			{leaving}
 			dragging={dragged?.id === workspace.id}
-			highlighted={pointedAt === workspace.id}
+			highlighted={pointedAt === workspace.id || dropping === 'onto'}
 			unread={unread.has(workspace.id)}
 			asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
 			waiting={workspace.waiting}
