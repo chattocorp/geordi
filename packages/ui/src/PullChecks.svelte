@@ -87,7 +87,7 @@
 		>
 			{#each summary.parts as part (part.tone)}<span
 					class={[
-						'transition-all duration-500 ease-out motion-reduce:transition-none',
+						'transition-[flex-grow] duration-500 ease-out motion-reduce:transition-none',
 						bar[part.tone]
 					]}
 					style:flex-grow={part.size}

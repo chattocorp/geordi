@@ -172,7 +172,22 @@
 	)}
 </Story>
 
-<Story name="Draft, checks running" asChild>
+<Story
+	name="Draft, checks running"
+	asChild
+	play={async ({ canvas, canvasElement }) => {
+		const bar = canvas.getByRole('img', { name: 'Running' });
+		const segment = bar.firstElementChild!;
+		await expect(getComputedStyle(segment).visibility).toBe('visible');
+		// Workspace tabs hide their mounted panels with inherited visibility.
+		canvasElement.classList.add('invisible');
+		try {
+			await expect(getComputedStyle(segment).visibility).toBe('hidden');
+		} finally {
+			canvasElement.classList.remove('invisible');
+		}
+	}}
+>
 	{@render pane(
 		withPull({
 			draft: true,
