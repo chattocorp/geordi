@@ -1,11 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseFileChanges } from './changes.ts';
+import { parseFileChanges, SAFE_DIFF_OPTIONS } from './changes.ts';
 import { gitEnv, type Worktree } from './worktree.ts';
 import type { TurnDiff } from '@geordi/protocol';
 
-const SAFE = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
 const MAX_PATCH = 256 * 1024;
 
 /** Called in the detached host. Capture each boundary before the CLI can receive its next prompt. */
@@ -53,13 +52,34 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 		// second; so the copy is as old as the index (in whole seconds: never newer).
 		const at = Math.floor(statSync(original).mtimeMs / 1000);
 		utimesSync(index, at, at);
-		const tracked = run(['diff-files', '--name-only', '-z', ...SAFE]);
+		const tracked = run(['diff-files', '--name-only', '-z', ...SAFE_DIFF_OPTIONS]);
 		const untracked = run(['ls-files', '--others', '--exclude-standard', '-z']);
 		// Embedded repositories are listed as directories. Never descend into them.
 		const paths = (tracked + untracked).split('\0').filter((path) => path && !path.endsWith('/'));
 		if (paths.length)
 			run(['update-index', '--add', '--remove', '-z', '--stdin'], paths.join('\0') + '\0');
 		return run(['write-tree']).trim();
+	}
+
+	/** An oversized patch can be retried with less context. Other Git errors propagate. */
+	function readPatch(diff: string[], context: number) {
+		try {
+			return run(
+				[
+					'-c',
+					'diff.suppressBlankEmpty=false',
+					...diff,
+					`--unified=${context}`,
+					'--no-color',
+					'--src-prefix=a/',
+					'--dst-prefix=b/'
+				],
+				undefined,
+				MAX_PATCH
+			);
+		} catch (error) {
+			if (!(error instanceof Error && 'code' in error && error.code === 'ENOBUFS')) throw error;
+		}
 	}
 
 	try {
@@ -69,7 +89,7 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 			try {
 				const after = tree();
 				if (before === after) return;
-				const diff = ['diff', '-M', ...SAFE, before, after];
+				const diff = ['diff', '-M', ...SAFE_DIFF_OPTIONS, before, after];
 				const names = run([...diff, '--name-status', '-z']).split('\0');
 				const stats = run([...diff, '--numstat', '-z']).split('\0');
 				const changes = parseFileChanges(names, stats);
@@ -83,24 +103,15 @@ export function startTurnDiff(worktree: Worktree, sessionDir: string) {
 				const added = changes.reduce((total, file) => total + (file.added ?? 0), 0);
 				const removed = changes.reduce((total, file) => total + (file.removed ?? 0), 0);
 				if (!files.length) return;
-				// Each context line costs at least one byte. This many lines therefore
-				// covers every file whose patch can fit in the saved turn.
-				const patchArgs = [...diff, '--patch', '--no-color', '--src-prefix=a/', '--dst-prefix=b/'];
-				for (const fullContext of [true, false]) {
-					try {
-						const context = fullContext ? MAX_PATCH : 3;
-						const patch = run(
-							['-c', 'diff.suppressBlankEmpty=false', ...patchArgs, `--unified=${context}`],
-							undefined,
-							MAX_PATCH
-						);
-						return { files, added, removed, patch, ...(fullContext && { fullContext }) };
-					} catch (error) {
-						if (!(error instanceof Error && 'code' in error && error.code === 'ENOBUFS'))
-							throw error;
-					}
-				}
-				return { files, added, removed, tooLarge: true };
+				const summary = { files, added, removed };
+				// Each context line costs at least one byte, so MAX_PATCH lines
+				// cover both sides of any text change that fits in the saved patch.
+				const full = readPatch(diff, MAX_PATCH);
+				if (full !== undefined) return { ...summary, patch: full, fullContext: true };
+				const compact = readPatch(diff, 3);
+				return compact === undefined
+					? { ...summary, tooLarge: true }
+					: { ...summary, patch: compact };
 			} finally {
 				rmSync(dir, { recursive: true, force: true });
 			}

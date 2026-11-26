@@ -38,7 +38,7 @@ const MAX_FILE = 1_000_000;
  * Never run code the worktree can supply: no diff drivers, and no looking inside submodules
  * (git would run itself in them, under whatever config the agent put there).
  */
-const SAFE = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
+export const SAFE_DIFF_OPTIONS = ['--no-ext-diff', '--no-textconv', '--ignore-submodules=all'];
 
 /** Where a workspace's changes are measured from: its repository, and the branch it started from. */
 export type Origin = {
@@ -187,7 +187,9 @@ export async function changes(worktree: Worktree, origin: Origin): Promise<FileC
 
 async function trackedChanges(worktree: Worktree, base: string, options: string[]) {
 	const diff = async (format: string) =>
-		(await gitIn(worktree, 'diff', format, '-z', ...SAFE, base, ...options)).split('\0');
+		(await gitIn(worktree, 'diff', format, '-z', ...SAFE_DIFF_OPTIONS, base, ...options)).split(
+			'\0'
+		);
 	const [names, fields] = await Promise.all([diff('--name-status'), diff('--numstat')]);
 	return parseFileChanges(names, fields);
 }
@@ -253,7 +255,7 @@ export async function uncommittedFiles(worktree: Worktree): Promise<string[]> {
 async function modifiedFiles(worktree: Worktree) {
 	// Compare the index and working files separately. A file can match HEAD on disk
 	// while the index holds a staged edit that removing the worktree would lose.
-	const args = ['diff', '--name-only', '--no-renames', '-z', ...SAFE];
+	const args = ['diff', '--name-only', '--no-renames', '-z', ...SAFE_DIFF_OPTIONS];
 	const [staged, unstaged] = await Promise.all([
 		gitIn(worktree, ...args, '--cached', headOf(worktree)),
 		gitIn(worktree, ...args)
@@ -396,7 +398,7 @@ export async function versions(
 		return missing;
 	const { fork } = await comparison(worktree, origin);
 	const diff = (...args: string[]) =>
-		gitIn(worktree, 'diff', '--name-status', '-z', '-M', ...SAFE, fork, ...args);
+		gitIn(worktree, 'diff', '--name-status', '-z', '-M', ...SAFE_DIFF_OPTIONS, fork, ...args);
 	const state = fileStates((await diff('--', path)).split('\0')).get(path);
 	let beforePath = path;
 	if (state?.status === 'added' || state?.status === 'deleted') {

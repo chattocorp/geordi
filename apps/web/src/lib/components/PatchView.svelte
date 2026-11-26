@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ToolDiff } from '@geordi/protocol';
-	import { describeChange, patchFiles, type PatchFile } from '#lib/patch.ts';
+	import { onMount } from 'svelte';
+	import { describeChange, diffInput, patchFiles } from '#lib/patch.ts';
 	import DiffSection from '@geordi/ui/DiffSection.svelte';
 	import DiffView from '@geordi/ui/DiffView.svelte';
 
@@ -13,23 +14,15 @@
 	};
 	let { diff, cwd, collapsible = false }: Props = $props();
 
-	/** `null` until the parser is loaded (with the viewer, on first use). */
-	let files = $state.raw<PatchFile[] | null>(null);
-	$effect(() => {
-		const [given, root] = [diff, cwd];
-		let stale = false;
-		import('@pierre/diffs').then(
-			({ parsePatchFiles }) => {
-				if (!stale) files = patchFiles(given, root, parsePatchFiles);
-			},
-			() => {
-				if (!stale) files = patchFiles({ ...given, patch: undefined }, root, () => []);
-			}
+	// Load the browser viewer once. If it fails to load, keep the file summaries.
+	let parser = $state.raw<typeof import('@pierre/diffs').parsePatchFiles>();
+	onMount(async () => {
+		parser = await import('@pierre/diffs').then(
+			(module) => module.parsePatchFiles,
+			() => () => []
 		);
-		return () => {
-			stale = true;
-		};
 	});
+	const files = $derived(parser ? patchFiles(diff, cwd, parser) : []);
 </script>
 
 <!-- One file's change after another; each named, unless it is the only one (the row names it). -->
@@ -37,36 +30,30 @@
 	{#if diff.tooLarge}
 		<p class="text-muted">This change is too large to show here.</p>
 	{/if}
-	{#each files ?? [] as file, i (i)}
-		{#snippet comparison(patch: NonNullable<PatchFile['diff']>)}
-			{#if diff.fullContext}
-				<DiffView
-					path={file.path}
-					old={file.operation === 'add' ? null : patch.deletionLines.join('')}
-					new={file.operation === 'delete' ? null : patch.additionLines.join('')}
-				/>
-			{:else}
-				<DiffView path={file.path} {patch} />
-			{/if}
-		{/snippet}
-		{#if file.diff && collapsible}
+	{#each files as file, i (i)}
+		{#if file.diff}
 			{@const patch = file.diff}
-			<DiffSection
-				path={file.path}
-				added={patch.hunks.reduce((n, h) => n + h.additionLines, 0)}
-				removed={patch.hunks.reduce((n, h) => n + h.deletionLines, 0)}
-			>
-				{@render comparison(patch)}
-			</DiffSection>
-		{:else if file.diff}
-			<div>
-				{#if (files?.length ?? 0) > 1}
-					<p class="mb-1 truncate code-dense text-muted">{file.path}</p>
-				{/if}
-				<div class="overflow-hidden rounded-control">
-					{@render comparison(file.diff)}
+			{#snippet comparison()}
+				<DiffView path={file.path} {...diffInput(patch, diff.fullContext)} />
+			{/snippet}
+			{#if collapsible}
+				<DiffSection
+					path={file.path}
+					added={patch.hunks.reduce((n, h) => n + h.additionLines, 0)}
+					removed={patch.hunks.reduce((n, h) => n + h.deletionLines, 0)}
+				>
+					{@render comparison()}
+				</DiffSection>
+			{:else}
+				<div>
+					{#if files.length > 1}
+						<p class="mb-1 truncate code-dense text-muted">{file.path}</p>
+					{/if}
+					<div class="overflow-hidden rounded-control">
+						{@render comparison()}
+					</div>
 				</div>
-			</div>
+			{/if}
 		{:else}
 			<p class="truncate code-dense text-muted">{describeChange(file)}</p>
 		{/if}

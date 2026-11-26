@@ -58,6 +58,15 @@ export function patchFiles(
 	return shown;
 }
 
+/** Use the same file inputs as a workspace diff when Git saved all context. */
+export function diffInput(patch: FileDiffMetadata, fullContext = false) {
+	if (!fullContext) return { patch };
+	return {
+		old: patch.type === 'new' ? null : patch.deletionLines.join(''),
+		new: patch.type === 'deleted' ? null : patch.additionLines.join('')
+	};
+}
+
 /** What happened to a file whose change can't be drawn, in words. */
 export function describeChange({ operation, path, oldPath, binary }: PatchFile): string {
 	const what = binary ? ' (not a text file)' : '';

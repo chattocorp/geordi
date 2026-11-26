@@ -1,6 +1,6 @@
 import { parsePatchFiles } from '@pierre/diffs';
 import { describe, expect, it } from 'vitest';
-import { describeChange, patchFiles } from './patch.ts';
+import { describeChange, diffInput, patchFiles } from './patch.ts';
 
 const cwd = '/work';
 const modify = `diff --git /work/notes.txt /work/notes.txt\n--- /work/notes.txt\n+++ /work/notes.txt\n@@ -1 +1 @@\n-one\n+two\n`;
@@ -45,6 +45,14 @@ describe('patchFiles', () => {
 			'notes.txt'
 		);
 	});
+});
+
+it('reconstructs whole files only from full context, preserving blank lines and the final newline', () => {
+	const patch =
+		'diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n first\n \n-old\n+new\n\\ No newline at end of file\n';
+	const [file] = parsePatchFiles(patch)[0].files;
+	expect(diffInput(file, true)).toEqual({ old: 'first\n\nold\n', new: 'first\n\nnew' });
+	expect(diffInput(file)).toEqual({ patch: file });
 });
 
 it('says in words what happened to a file it cannot draw', () => {
