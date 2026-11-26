@@ -320,6 +320,11 @@
 		await expect(firstRow.filter((icon) => icon.classList.contains('text-danger'))).toEqual([
 			firstRow[2]
 		]);
+		await expect(summary.querySelector('[aria-hidden="true"]')).toBeNull();
+		await userEvent.click(summary);
+		await expect(summary.parentElement).toHaveAttribute('open');
+		await userEvent.click(summary);
+		await expect(summary.parentElement).not.toHaveAttribute('open');
 	}}
 >
 	<div class="max-w-2xl space-y-6">

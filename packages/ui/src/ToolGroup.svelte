@@ -39,7 +39,11 @@
 -->
 <!-- with room on both sides: it stands between what was said before and after -->
 <!-- first in a reply, its row is centred on the avatar beside it -->
-<Disclosure class="py-1 first:pt-0" summaryClass="min-h-7 text-sm text-muted hover:text-ink">
+<Disclosure
+	collapsedChevron={!!active}
+	class="py-1 first:pt-0"
+	summaryClass="min-h-7 text-sm text-muted hover:text-ink"
+>
 	{#snippet heading()}
 		{#if active}
 			<span class={['size-3.5 shrink-0', iconOf(active)]}></span>
