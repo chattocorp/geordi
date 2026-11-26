@@ -14,7 +14,7 @@ const task = (name: string, fields: Partial<Task>): Task => ({
 	...fields
 });
 
-function setup(tasks: Task[]) {
+function setup(tasks: Task[], before?: (request: DaemonRequest) => Promise<void> | undefined) {
 	const ref = (worktreeId: string) => ({ worktreeId, repoPath: '/repo' });
 	const started: string[] = [];
 	const terminals = createTerminals(
@@ -37,6 +37,7 @@ function setup(tasks: Task[]) {
 	const checked: number[] = [];
 	const state = { reachable: true };
 	async function ask(request: DaemonRequest) {
+		await before?.(request);
 		if (request.kind === 'config') return config;
 		if (request.kind === 'jobPort') return null;
 		if (request.kind === 'portReady') {
@@ -111,5 +112,53 @@ it('runs no command other than the one the person saw', async () => {
 	expect(await jobs.run('w', ['gone'], {})).toEqual([
 		{ name: 'gone', problem: 'There is no task "gone" any more' }
 	]);
+	expect(started).toEqual([]);
+});
+
+it.each(['jobPort', 'portReady'])('stops a launch during %s', async (kind) => {
+	const checking = Promise.withResolvers<void>();
+	const resume = Promise.withResolvers<void>();
+	const { jobs, started } = setup(
+		[
+			task('web', { command: 'web', ports: [{ name: 'http', port: 21100 }] }),
+			task('preview', { command: 'preview', needs: ['web'], href: 'http://localhost:21100/' })
+		],
+		(request) => {
+			if (request.kind !== kind) return;
+			checking.resolve();
+			return resume.promise;
+		}
+	);
+	const seen = { web: 'web', preview: 'preview' };
+	const launch = jobs.run('w', ['preview'], seen);
+	await checking.promise;
+	await jobs.stop('w', 'web');
+	expect(await launch).toEqual([{ name: 'preview', stopped: true }]);
+	expect((await jobs.list('w')).tasks.every((task) => !task.running)).toBe(true);
+	resume.resolve();
+	expect(await jobs.run('w', ['preview'], seen)).toEqual([
+		{ name: 'preview', href: 'http://localhost:21100/' }
+	]);
+	expect(started).toEqual(kind === 'jobPort' ? ['web', 'preview'] : ['web', 'web', 'preview']);
+});
+
+it('can still stop a prerequisite after canceling the task waiting for it', async () => {
+	const checking = Promise.withResolvers<void>();
+	const resume = Promise.withResolvers<void>();
+	const { jobs, started } = setup(
+		[task('web', { command: 'web' }), task('preview', { needs: ['web'], command: 'preview' })],
+		(request) => {
+			if (request.kind !== 'jobPort') return;
+			checking.resolve();
+			return resume.promise;
+		}
+	);
+	const launch = jobs.run('w', ['preview'], { web: 'web', preview: 'preview' });
+	await checking.promise;
+	await jobs.stop('w', 'preview');
+	expect(await launch).toEqual([{ name: 'preview', stopped: true }]);
+	await jobs.stop('w', 'web');
+	resume.resolve();
+	await jobs.list('w');
 	expect(started).toEqual([]);
 });
