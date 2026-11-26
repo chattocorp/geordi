@@ -17,3 +17,4 @@
 | [ADR-013](ADR-013-hosted-forge-with-runner-daemons.md)           | A hosted forge with runner daemons                                   | 2026-11-23 |
 | [ADR-014](ADR-014-watching-files-off-the-main-thread.md)         | The daemon watches files in a thread of its own, once per repository | 2026-11-23 |
 | [ADR-015](ADR-015-turn-review-blobs.md)                          | Keep turn review context in Git                                      | 2026-11-26 |
+| [ADR-016](ADR-016-outline-items.md)                              | Items are the outline's primitive; workspaces are attached to them   | 2026-11-26 |

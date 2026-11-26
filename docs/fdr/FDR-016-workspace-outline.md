@@ -89,8 +89,8 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-004
-- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015
+- **ADRs:** ADR-001, ADR-004, ADR-016
+- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015, FDR-017 (planned: the outline of items it grows into)
 
 ## Open Questions
 
