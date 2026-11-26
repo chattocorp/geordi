@@ -1,5 +1,30 @@
 # Geordi Changelog
 
+## 0.9.0-alpha.1
+
+### Features
+
+- Your workspace agent can list, run and stop tasks from the Tasks tab through MCP. ([#535](https://github.com/chattocorp/geordi/pull/535))
+- Compact cross-agent message headings show the sending agent’s icon, model, and reasoning effort, even when a report is folded. ([#528](https://github.com/chattocorp/geordi/pull/528))
+- Added an experimental setting, Settings → Providers → **Identify Geordi to Claude Code**. Turned on, your Claude Code sessions identify Geordi as their client. ([#526](https://github.com/chattocorp/geordi/pull/526))
+- Choose from six palettes in Settings → General. Each has a workspace preview and works in System, Light, or Dark mode. ([#531](https://github.com/chattocorp/geordi/pull/531))
+
+### Fixes
+
+- Sending a reply while scrolling through conversation history now brings you back to the latest message. ([#527](https://github.com/chattocorp/geordi/pull/527))
+- Settings warns when a repository checkout is missing. Remove the repository in one step to delete its Geordi worktrees and keep its conversations in Archive. If removal fails, queued work and agent reports resume. If the daemon disconnects during teardown, it keeps the worktree for your retry. ([#525](https://github.com/chattocorp/geordi/pull/525))
+
+### Smaller changes
+
+- The left sidebar button stays in place when you show or hide the sidebar. ([#534](https://github.com/chattocorp/geordi/pull/534))
+- Cards and workspace panes are easier to tell apart in dark mode. ([#531](https://github.com/chattocorp/geordi/pull/531))
+- Your sidebar shows just the version for single-package repositories. Multi-package repositories keep their package labels. ([#529](https://github.com/chattocorp/geordi/pull/529))
+- Background tasks no longer show a dot grid beside workspace names in your sidebar. ([#530](https://github.com/chattocorp/geordi/pull/530))
+- Both sidebars now slide smoothly when you open or close them. If you prefer reduced motion, they switch immediately. ([#532](https://github.com/chattocorp/geordi/pull/532))
+- Messages from other agents now sit on calm cards beside the conversation, in line with the rest of the interface. ([#524](https://github.com/chattocorp/geordi/pull/524))
+- The sidebar Merge icon and pill now match the gray ribbon action while optional checks run. ([#522](https://github.com/chattocorp/geordi/pull/522))
+- Separators reach both edges of the sheet to mark task groups, Changes sections, and repository groups in the sidebar, with a darker line on light surfaces and a faint line on dark surfaces. Folded group names have a little more contrast. ([#533](https://github.com/chattocorp/geordi/pull/533))
+
 ## 0.9.0-alpha.0
 
 ### Features

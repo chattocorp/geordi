@@ -1,6 +1,6 @@
 # Sweet package configuration: Geordi is released as one product.
 name: Geordi
-version: 0.9.0-alpha.0
+version: 0.9.0-alpha.1
 prerelease: alpha
 version-files:
   - path: apps/cli/package.json
