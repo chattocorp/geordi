@@ -30,9 +30,45 @@ describe('fuzzyFilter', () => {
 
 	it('puts the best match first', () => {
 		expect(find('luna')).toEqual(['GPT-6-Luna']);
-		expect(find('sol')).toEqual(['GPT-6.1-Sol', 'GPT-6-Sol']);
+		expect(find('sol')).toEqual(['GPT-6-Sol', 'GPT-6.1-Sol']);
 		expect(find('db')).toEqual(['Daybreak Blue']);
 		expect(find('zzz')).toEqual([]);
+	});
+
+	it('puts the whole name first, then names that begin with it, then the rest', () => {
+		const titles = [
+			'Update Geordi blog post for 0.8',
+			'Plan Geordi documentation',
+			'Geordi intro blog post',
+			'Geordi'
+		];
+		expect(fuzzyFilter('geord', titles, (t) => t).map(({ item }) => item)).toEqual([
+			'Geordi',
+			'Geordi intro blog post',
+			'Plan Geordi documentation',
+			'Update Geordi blog post for 0.8'
+		]);
+	});
+
+	it('leaves out scattered letters when a word was found whole', () => {
+		const items = [
+			{ name: 'Generate art for all 19 modules', detail: 'Space Rage' },
+			{ name: 'Remove the changes to task groups', detail: 'Geordi › Folding' },
+			{ name: 'Geordi workspace setup', detail: '' }
+		];
+		const found = fuzzyFilter(
+			'geord',
+			items,
+			(i) => i.name,
+			(i) => i.detail
+		);
+		// the second is found by its detail, though its name has the letters too
+		expect(found.map(({ item }) => item.name)).toEqual([
+			'Geordi workspace setup',
+			'Remove the changes to task groups'
+		]);
+		// with nothing better, the scattered ones are what there is
+		expect(fuzzyFilter('gafm', items, (i) => i.name)).toHaveLength(1);
 	});
 
 	it('also finds things by another name, after those found by their own', () => {
