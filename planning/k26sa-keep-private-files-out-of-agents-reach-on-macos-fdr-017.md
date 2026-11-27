@@ -14,6 +14,17 @@ Agents trigger macOS privacy prompts ("Geordi would like to access files on a re
 - Nested sandboxes fail: `sandbox_apply: Operation not permitted`. Codex in "auto" mode (`agent`) sandboxes its own commands, so it would break under ours.
 - The installed app is signed ad hoc, so TCC forgets answers on every update (`Failed to match existing code requirement`). Separate fix.
 
+## Live tests (2026-11-27)
+
+Agent CLIs run directly under `sandbox-exec` with a profile denying `~/Downloads` and `/Volumes/T7`; prompt runs `ls ~/Downloads; echo hello > probe.txt`. Codex on gpt-6.2-sol medium, Claude Code on Sonnet medium.
+
+| Agent | Own sandbox | Result |
+|---|---|---|
+| Codex | `danger-full-access` | Works; `ls ~/Downloads` → Operation not permitted |
+| Codex | `workspace-write` (Geordi "auto") | Every command fails: `sandbox_apply: Operation not permitted` |
+| Claude Code | off (Geordi's default) | Works; Downloads denied |
+| Claude Code | `sandbox.enabled` | Every Bash command fails (exit 71) |
+
 ## Plan
 
 - Start the agent CLI in `apps/daemon/src/host.ts` under `/usr/bin/sandbox-exec` with a generated profile on macOS: `(allow default)`, deny `file-read*`/`file-write*` on `/Volumes`, `~/Desktop`, `~/Documents`, `~/Downloads`, `~/Library/Mobile Documents`, and the Photos, Mail, Messages, Contacts and Calendar data; then re-allow the repository checkout, its worktrees and `writableRoots` (later rules win).
