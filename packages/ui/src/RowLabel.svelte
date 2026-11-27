@@ -9,6 +9,8 @@
 	 * sign), and folded, the title is followed by how many rows it holds. The cell is as wide
 	 * as the cells of the rows under it, so that their signs line up. A label that only folds
 	 * (no link of its own) is a group's heading: muted beside the rows under it, its count fainter.
+	 * A long title is cut short, or wraps (`wrap`): what is beside it then stays level with its
+	 * first line.
 	 */
 	let {
 		title,
@@ -20,6 +22,7 @@
 		fold,
 		children,
 		chevron = true,
+		wrap = false,
 		class: extraClass
 	}: {
 		title: string;
@@ -35,13 +38,16 @@
 		children?: Snippet;
 		/** Whether it folds from its sign; else the caller folds it from elsewhere (the outline, from beside it), and it only says how many are folded away. */
 		chevron?: boolean;
+		/** Whether a long title wraps, as a line of the outline does; else it is cut short. */
+		wrap?: boolean;
 		class?: string;
 	} = $props();
 
 	/** A heading's sign takes its colour; a row's sign is muted beside its title. */
 	const heading = $derived(!!fold && !href);
 	const labelClass = $derived([
-		'flex min-w-0 flex-1 items-center gap-1 px-1',
+		'flex min-w-0 flex-1 gap-1 px-1',
+		wrap ? 'items-start' : 'items-center',
 		heading && 'text-muted hover:text-ink',
 		extraClass
 	]);
@@ -86,7 +92,7 @@
 			{#if fold && chevron}{@render chevronSign(!signed)}{/if}
 		</span>
 	{/if}
-	<span class="min-w-0 truncate">{title}</span>
+	<span class={['min-w-0', wrap ? 'break-words' : 'truncate']}>{title}</span>
 	{#if fold?.folded}
 		<span
 			aria-hidden="true"
@@ -116,7 +122,10 @@
 		<!-- the link goes to it; its sign, become a chevron, folds what is under it -->
 		<button
 			type="button"
-			class="absolute top-1/2 left-1 size-6 -translate-y-1/2 rounded-control"
+			class={[
+				'absolute left-1 size-6 rounded-control',
+				wrap ? 'top-1' : 'top-1/2 -translate-y-1/2'
+			]}
 			aria-label={toggleLabel}
 			aria-expanded={!fold.folded}
 			title={toggleLabel}
