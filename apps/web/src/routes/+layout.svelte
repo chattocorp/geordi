@@ -9,12 +9,13 @@
 	import { page } from '$app/state';
 	import ConnectionIndicator from '#lib/components/ConnectionIndicator.svelte';
 	import Logo from '#lib/components/Logo.svelte';
+	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import SidebarToggle from '#lib/components/SidebarToggle.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import { initRibbonPosition, openSettings, sections } from '#lib/components/settings.svelte.ts';
 	import CommandPalette from '#lib/ui/CommandPalette.svelte';
 	import { runShortcut } from '#lib/commands.ts';
-	import { globalCommands } from '#lib/components/commands.ts';
+	import { globalCommands, moveTargets } from '#lib/components/commands.ts';
 	import AddRepository from '#lib/components/AddRepository.svelte';
 	import { theme } from '#lib/theme.svelte.ts';
 	import { daemon } from '#lib/daemon.svelte.ts';
@@ -35,6 +36,7 @@
 	import type { Navigation } from '#lib/server/views.ts';
 	import { setWorkspaceLinks, workspaceLinks } from '#lib/workspace-links.ts';
 	import type { LayoutProps } from './$types';
+	import { moveItem } from './workspaces.remote';
 
 	let { children, data }: LayoutProps = $props();
 
@@ -153,6 +155,18 @@
 				.map(({ id }) => id)
 		);
 	});
+	// Where to move the workspace on screen: under any item of the outline (FDR-019).
+	let moving = $state(false);
+	const moveList = $derived(
+		moving
+			? moveTargets(nav.current, viewed, (parentId) => {
+					if (!viewed) return;
+					// where it went shows
+					if (parentId) folded.current = folded.current.filter((id) => id !== parentId);
+					void moveItem({ itemId: viewed, before: null, parentId });
+				})
+			: []
+	);
 	const commandList = $derived(
 		globalCommands({
 			nav: nav.current,
@@ -166,6 +180,7 @@
 			theme: theme.current,
 			sections,
 			newWorkspace,
+			moveWorkspace: () => (moving = true),
 			open: (id) => void goto(resolve('/workspaces/[id]', { id })),
 			step: stepWorkspace,
 			addRepository: () => adding?.start(),
@@ -237,6 +252,11 @@
 	<div class="hidden shrink-0 items-center pl-8 md:flex mac:pl-25">
 		<ConnectionIndicator {lost} />
 	</div>
+{/snippet}
+
+<!-- a workspace's sign in a palette: its repository's picture, as in the outline -->
+{#snippet repoPicture(repo: { id: string; name: string })}
+	<RepoIcon id={repo.id} name={repo.name} small />
 {/snippet}
 
 {#snippet logo()}
@@ -313,6 +333,14 @@
 	label="Go to a workspace, or do something"
 	placeholder="Workspaces and commands…"
 	items={commandList}
+	picture={repoPicture}
+/>
+<CommandPalette
+	bind:open={moving}
+	label="Move this workspace under an item"
+	placeholder="Move under…"
+	items={moveList}
+	picture={repoPicture}
 />
 <AddRepository
 	bind:this={adding}

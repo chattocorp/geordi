@@ -37,6 +37,14 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 - Work in use is never hidden: a workspace in use, and what is above it, shows even with "Show only what is active" and under items that are done.
 - The workspace's repository shows as the item's icon. The sidebar is no longer grouped by repository; the repository filter stays.
 
+### The Inbox
+
+- A workspace the person starts on no item (from New workspace) lands in the Inbox: a heading that comes first in the outline, with the newest first under it. It is there to be filed: dragged, or moved with the keys, to where it belongs. What an agent starts is under that agent, and what is started on an item stays on it, as ever.
+- The Inbox shows only while something in it does. It can be folded and zoomed into, and things can be dropped onto it or written under it, but it can't be renamed, ticked off, moved or removed, and nothing goes above it.
+- What is in it reports to the person, as at the top. A workspace archived there leaves the outline, as one at the top does.
+- Workspaces from before the Inbox stay where they were.
+- In a workspace, Cmd-Shift-M (Ctrl-Shift-M) asks where to move it: a list of the outline's items to search, with the way down to each beside it, and the top of the outline. It goes under the one chosen, as its last, and that item unfolds. The same is in the command palette ("Move this workspace under…").
+
 ### A workspace's scope
 
 - A workspace's scope is everything under its item, down to the next items that have workspaces of their own: those are its child agents, with scopes of their own. An agent working in another workspace's directory shares that workspace's scope.
@@ -125,6 +133,12 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 **Decision:** Zooming narrows the outline where it is, the sidebar or the Plan window, and is remembered in the browser. It is a step in the history (shallow routing, as showing a window is), with no URL and no page of its own.
 **Why:** An outline is worked on in one place; zooming is how one keeps a long one manageable there, as in any outliner. A page would be a second outline to keep in step with the first.
 **Tradeoff:** A zoomed view can't be linked to or opened in another tab; Back steps through zooms before it leaves the page; and the sidebar stays narrow while zoomed. A full-width page may still come (see Open Questions).
+
+### 10. The Inbox is a place, not an item
+
+**Decision:** The Inbox is a fixed place at the top of the outline (`INBOX`): what is in it has it as its parent, and the outline lists it as an entry. A workspace's `workspace.created` says that it lands there (`inbox`). It has no events of its own.
+**Why:** As a parent like any other, everything the outline can do works on it unchanged: folding, dragging in and out, the keys, zooming. Not being an item, it can't be edited, moved or removed, with nothing to guard. A flag on the event, rather than a rule about workspaces at the top, leaves outlines from before it as they were.
+**Tradeoff:** A parent that is no item: code that walks up the outline must take a missing parent for the top, as it did already for items that are gone.
 
 ## Related
 

@@ -10,6 +10,8 @@
  * derived from it (`workspaceAbove`).
  */
 
+import { INBOX } from '#lib/family.ts';
+
 type ItemStream = `item:${string}`;
 
 export type ItemEvent =
@@ -176,6 +178,10 @@ export type Attached = { title: string; worktreeId: string; archivedAt: string |
  * archive); a workspace in use there is listed at the top. An agent working in another
  * workspace's directory is no item of its own (`ownerOf` says whose it is), and what it
  * started is under that workspace.
+ *
+ * The Inbox comes first: a place, not an item (`INBOX`), listed as an entry so that what is
+ * in it has something to be under. Nothing is above what is in it, so an archived workspace
+ * leaves it, as it leaves the top.
  */
 export function outlineView(
 	outline: Outline,
@@ -205,7 +211,15 @@ export function outlineView(
 		}
 		return known;
 	};
-	return order.flatMap((id) => {
+	const inbox = {
+		id: INBOX,
+		parentId: null,
+		text: 'Inbox',
+		note: '',
+		done: false,
+		workspace: false
+	};
+	const listed = order.flatMap((id) => {
 		const item = items.get(id)!;
 		const workspace = item.workspace ? attached(id) : undefined;
 		if (item.workspace && (!workspace || workspace.worktreeId !== id)) return [];
@@ -223,6 +237,7 @@ export function outlineView(
 			}
 		];
 	});
+	return [inbox, ...listed];
 }
 
 /** An entry of a workspace's scope (FDR-019): its own item, or a child workspace's. */

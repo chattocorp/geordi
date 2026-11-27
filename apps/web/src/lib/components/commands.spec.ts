@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { runShortcut, type Command } from '#lib/commands.ts';
-import { globalCommands, type Everywhere } from './commands.ts';
+import { globalCommands, moveTargets, type Everywhere } from './commands.ts';
 import { workspaceCommands, type WorkspaceSource } from './workspace/commands.ts';
 import type { Navigation } from '#lib/server/views.ts';
 
@@ -177,4 +177,45 @@ it('runs a task or stops it, and opens one that is only a URL', () => {
 	]);
 	tasks[2].run();
 	expect(runTask).toHaveBeenCalledWith('docs');
+});
+
+it('offers every place a workspace can be moved to, but where it is and under itself', () => {
+	const entry = (id: string, parentId: string | null, workspace = false) => ({
+		id,
+		parentId,
+		text: id,
+		note: '',
+		done: false,
+		workspace
+	});
+	const outline = {
+		...nav,
+		items: [
+			entry('inbox', null),
+			entry('new', 'inbox', true),
+			entry('todo', 'new'),
+			entry('release', null),
+			entry('old', 'release', true),
+			entry('archived', 'release', true)
+		]
+	} as unknown as Navigation;
+	const move = vi.fn();
+	const targets = moveTargets(outline, 'new', move);
+	expect(targets.map(({ label, detail }) => [label, detail])).toEqual([
+		['The top of the outline', undefined],
+		['release', undefined],
+		['old', 'release']
+	]);
+	targets[2].run();
+	expect(move).toHaveBeenCalledWith('old');
+	// from the top, there is the Inbox to go back to, and no top to go to
+	expect(moveTargets(outline, 'release', move).map(({ label }) => label)).toEqual([
+		'inbox',
+		'new',
+		'todo'
+	]);
+	expect(globalCommands(everywhere({ viewed: 'new' })).map(({ id }) => id)).toContain(
+		'move-workspace'
+	);
+	expect(globalCommands(everywhere()).map(({ id }) => id)).not.toContain('move-workspace');
 });

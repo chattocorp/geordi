@@ -1391,8 +1391,37 @@ describe('the outline of items (FDR-019)', () => {
 		});
 		expect(tree(workspaces)).toEqual([
 			['Help', lead],
-			['Lead', null]
+			['Lead', 'inbox']
 		]);
+	});
+
+	it('puts a workspace the person starts in the Inbox, until they file it', () => {
+		const database = join(mkdtempSync(join(tmpdir(), 'geordi-inbox-')), 'events.db');
+		const { workspaces, create } = setup({ database });
+		const arrived = create('Arrived');
+		const heading = workspaces.addItem({ parentId: null, before: null, text: 'Release 0.9' });
+		const planned = workspaces.addItem({ parentId: heading, before: null, text: 'Planned' });
+		const onItem = workspaces.create({
+			repoId: workspaces.get(arrived).repoId,
+			agent: 'claude',
+			prompt: '',
+			itemId: planned
+		});
+		const parentOf = (id: string) => workspaces.outline().items.get(id)?.parentId;
+		expect(parentOf(arrived)).toBe('inbox');
+		expect(parentOf(onItem)).toBe(heading);
+		// it reports to the person there, and a todo can be written beside it
+		expect(workspaces.get(arrived).parentId).toBeNull();
+		const todo = workspaces.addItem({ parentId: 'inbox', before: null, text: 'Later' });
+		expect(parentOf(todo)).toBe('inbox');
+		// the Inbox is a place, not an item: it can't be changed, moved or started on
+		expect(() => workspaces.editItem('inbox', { text: 'Outbox' })).toThrow(refusal(/not found/));
+		expect(() => workspaces.move('inbox', null, heading)).toThrow(refusal(/not found/));
+
+		workspaces.move(arrived, null, heading);
+		expect(parentOf(arrived)).toBe(heading);
+		workspaces.move(arrived, null, 'inbox');
+		expect(setup({ database }).workspaces.outline().items.get(arrived)?.parentId).toBe('inbox');
 	});
 
 	it('lets items between workspaces pass authority through', async () => {

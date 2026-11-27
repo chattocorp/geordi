@@ -30,7 +30,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide } from 'svelte/transition';
-	import { dropTarget, type DropPlace } from '#lib/family.ts';
+	import { dropTarget, INBOX, type DropPlace } from '#lib/family.ts';
 	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import OutlineItemRow from './OutlineItemRow.svelte';
 	import {
@@ -211,7 +211,7 @@
 	function focusRow(id: string | null, at: 'start' | 'end' = 'end') {
 		if (!id) return;
 		const row = list?.querySelector(`[data-row="${CSS.escape(id)}"]`);
-		const target = row?.querySelector<HTMLElement>('textarea, a[href]');
+		const target = row?.querySelector<HTMLElement>('textarea, a[href], [data-row-focus]');
 		target?.focus();
 		if (target instanceof HTMLTextAreaElement) {
 			const edge = at === 'start' ? 0 : target.value.length;
@@ -284,7 +284,8 @@
 		} else if (event.altKey && event.key === 'ArrowUp') {
 			event.preventDefault();
 			const above = siblingIndex(index, -1);
-			if (above !== -1) await moveKeeping(entry, idAt(above));
+			// the Inbox comes first: nothing goes above it
+			if (above !== -1 && idAt(above) !== INBOX) await moveKeeping(entry, idAt(above));
 		} else if (event.altKey && event.key === 'ArrowDown') {
 			event.preventDefault();
 			const below = siblingIndex(index, 1);
@@ -447,7 +448,8 @@
 		{@const dropping = dropAt && dropAt.line.id === entry.id ? dropAt.line.edge : null}
 		<!-- an archived workspace's item: a done line, which stays where it is -->
 		{@const archived = entry.workspace && !live(entry.id)}
-		{@const canDrag = !archived && (!entry.workspace || draggable(entry.id))}
+		{@const inbox = entry.id === INBOX}
+		{@const canDrag = !inbox && !archived && (!entry.workspace || draggable(entry.id))}
 		<!-- one sits a little in from the item it is under; a drop shows as a line above or below it, or lights it up -->
 		<!-- up and down go from row to row: the keys of what is focused in it, a link or a line -->
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -511,7 +513,24 @@
 					></span>
 				</button>
 			{/if}
-			{#if entry.workspace && !archived}
+			{#if inbox}
+				<!-- the Inbox (FDR-019): a heading for what is in it, which stays as it is -->
+				<button
+					type="button"
+					data-row-focus
+					class={['item w-full gap-1 px-1 text-base', dropping === 'onto' && 'bg-hover text-ink']}
+					aria-expanded={!fold?.folded}
+					onclick={fold?.toggle}
+				>
+					<span class="grid size-6 shrink-0 place-items-center">
+						<span aria-hidden="true" class="icon-[lucide--inbox] size-4"></span>
+					</span>
+					<span class="flex-1 py-1 text-left font-medium">{entry.text}</span>
+					{#if fold?.folded}
+						<span aria-hidden="true" class="py-1 pl-1 text-faint tabular-nums">{fold.count}</span>
+					{/if}
+				</button>
+			{:else if entry.workspace && !archived}
 				{@render workspace({
 					entry,
 					parent,

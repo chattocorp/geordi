@@ -2,6 +2,7 @@ import type { Command } from '#lib/commands.ts';
 import type { Navigation } from '#lib/server/views.ts';
 import type { Section } from '#lib/components/settings.svelte.ts';
 import type { Theme } from '#lib/theme.svelte.ts';
+import { INBOX, lineOf, nested } from '#lib/family.ts';
 
 /** Where Geordi stands, and what it can be asked to do, from anywhere. */
 export type Everywhere = {
@@ -22,6 +23,8 @@ export type Everywhere = {
 	sections: readonly { id: Section; label: string; icon: string }[];
 
 	newWorkspace(choosing?: boolean): void;
+	/** Asks where to move the workspace on screen. */
+	moveWorkspace(): void;
 	open(workspace: string): void;
 	step(to: 1 | -1 | 'unread'): void;
 	addRepository(): void;
@@ -56,6 +59,19 @@ export function globalCommands(at: Everywhere): Command[] {
 			shortcut: 'newWorkspaceIn',
 			run: () => at.newWorkspace(true)
 		},
+		// a workspace in the outline: not a project, which nothing is put under or above
+		...(at.nav?.workspaces.some(({ id, repoId }) => id === at.viewed && repoId !== null)
+			? [
+					{
+						id: 'move-workspace',
+						label: 'Move this workspace under…',
+						group: general,
+						icon: 'icon-[lucide--corner-down-right]',
+						shortcut: 'moveWorkspace' as const,
+						run: at.moveWorkspace
+					}
+				]
+			: []),
 		{
 			id: 'previous-workspace',
 			label: 'Previous workspace',
@@ -115,6 +131,10 @@ export function globalCommands(at: Everywhere): Command[] {
 			label: workspace.title,
 			group: 'Workspaces',
 			icon: workspace.repoId ? 'icon-[lucide--git-branch]' : 'icon-[lucide--folder-kanban]',
+			// its repository's picture, as in the outline
+			...(workspace.repoId && {
+				repo: { id: workspace.repoId, name: repoName.get(workspace.repoId) ?? '' }
+			}),
 			detail: current ? [where, 'current'].filter(Boolean).join(' · ') : where,
 			keywords: workspace.branch ?? undefined,
 			run: () => (current ? undefined : at.open(workspace.id))
@@ -213,4 +233,57 @@ export function globalCommands(at: Everywhere): Command[] {
 				run: () => at.setTheme(theme)
 			});
 	return commands;
+}
+
+/**
+ * Where an item of the outline (a workspace's, say) can be moved (FDR-019): under any other
+ * item, as its last, in the order the outline has them; and to the top. Not where it is
+ * already, under itself, under a project, or under the record of an archived workspace.
+ */
+export function moveTargets(
+	nav: Navigation | undefined,
+	id: string | null,
+	move: (parentId: string | null) => void
+): Command[] {
+	const items = nav?.items ?? [];
+	const byId = new Map(items.map((item) => [item.id, item]));
+	const moved = id ? byId.get(id) : undefined;
+	if (!moved) return [];
+	const workspaces = new Map(nav?.workspaces.map((workspace) => [workspace.id, workspace]));
+	const repoName = new Map(nav?.repos.map((repo) => [repo.id, repo.name]));
+	const group = 'Move under';
+	const top: Command = {
+		id: 'move:top',
+		label: 'The top of the outline',
+		group,
+		icon: 'icon-[lucide--list-tree]',
+		run: () => move(null)
+	};
+	const under = nested(items).flatMap(({ workspace: item }): Command[] => {
+		const above = lineOf(byId, item.parentId).reverse();
+		const workspace = workspaces.get(item.id);
+		if (item.id === moved.parentId || item.id === id || above.some((each) => each.id === id))
+			return [];
+		if (item.workspace && (!workspace || workspace.repoId === null)) return [];
+		return [
+			{
+				id: `move:${item.id}`,
+				label: item.text || 'Untitled',
+				group,
+				icon:
+					item.id === INBOX
+						? 'icon-[lucide--inbox]'
+						: item.workspace
+							? 'icon-[lucide--git-branch]'
+							: 'icon-[lucide--circle]',
+				// a workspace's sign is its repository's picture, as in the outline
+				...(workspace?.repoId && {
+					repo: { id: workspace.repoId, name: repoName.get(workspace.repoId) ?? '' }
+				}),
+				detail: above.map((each) => each.text || 'Untitled').join(' › ') || undefined,
+				run: () => move(item.id)
+			}
+		];
+	});
+	return [...(moved.parentId === null ? [] : [top]), ...under];
 }

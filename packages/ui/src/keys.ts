@@ -83,7 +83,13 @@ export const shortcuts = {
 		group: 'Workspace'
 	},
 	queue: { key: 'Enter', label: 'Queue a message for when the agent is done', group: 'Workspace' },
-	model: { code: 'KeyM', shift: true, label: 'Choose the model', group: 'Workspace' },
+	moveWorkspace: {
+		code: 'KeyM',
+		shift: true,
+		label: 'Move this workspace under another item of the outline',
+		group: 'Workspace'
+	},
+	model: { code: 'KeyL', shift: true, label: 'Choose the model', group: 'Workspace' },
 	effort: { code: 'KeyE', shift: true, label: 'Choose the effort', group: 'Workspace' },
 	branch: {
 		code: 'KeyB',
