@@ -254,7 +254,13 @@
 		const text = input.value;
 		const save = () => (text !== entry.text ? editItem({ itemId: entry.id, text }) : undefined);
 		const mod = event.metaKey || event.ctrlKey;
-		if (event.key === 'Enter' && mod) {
+		if (event.key === 'Enter' && event.altKey && !mod && !event.shiftKey) {
+			event.preventDefault();
+			// nothing written, nothing to start
+			if (!text.trim()) return;
+			await save();
+			startOn(entry);
+		} else if (event.key === 'Enter' && mod) {
 			event.preventDefault();
 			await save();
 			await tickOff(entry);
@@ -286,6 +292,7 @@
 		} else if (
 			event.key === 'Backspace' &&
 			text === '' &&
+			!entry.note &&
 			rows[index + 1]?.depth !== rows[index].depth + 1
 		) {
 			event.preventDefault();
@@ -327,27 +334,48 @@
 		return field.clientHeight - padding > parseFloat(style.lineHeight) * 1.5;
 	}
 
+	/** The items' rows, by item: to go into the note of one. */
+	const itemRows: Record<string, OutlineItemRow | undefined> = $state({});
+
+	/** Opens the start page for an item: what it says is there to be sent, or added to first. */
+	const startOn = (entry: Entry) =>
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve()d, with a query
+		void goto(`${resolve('/')}?item=${encodeURIComponent(entry.id)}`);
+
 	/** What can be done with an item without a workspace. */
 	function itemMenu(entry: Entry, index: number): MenuItem[] {
 		return [
 			{
 				label: 'Start a workspace on it',
 				icon: 'icon-[lucide--play]',
-				// the start page, with the item to start it on
-				// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve()d, with a query
-				onselect: () => void goto(`${resolve('/')}?item=${encodeURIComponent(entry.id)}`)
+				keys: ['alt', 'enter'],
+				onselect: () => startOn(entry)
 			},
 			{
 				label: 'Add an item under it',
 				icon: 'icon-[lucide--list-plus]',
 				onselect: () => addUnder(index)
 			},
+			{
+				label: entry.note ? 'Edit its note' : 'Add a note',
+				icon: 'icon-[lucide--text]',
+				keys: ['shift', 'enter'],
+				onselect: () => void itemRows[entry.id]?.editNote()
+			},
 			...(canZoom(entry)
-				? [{ label: 'Zoom in', icon: 'icon-[lucide--zoom-in]', onselect: () => zoomIn(entry) }]
+				? [
+						{
+							label: 'Zoom in',
+							icon: 'icon-[lucide--zoom-in]',
+							keys: ['cmd', '.'],
+							onselect: () => zoomIn(entry)
+						}
+					]
 				: []),
 			{
 				label: entry.done ? 'Mark as not done' : 'Mark as done',
 				icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
+				keys: ['cmd', 'enter'],
 				onselect: () => tickOff(entry)
 			},
 			'separator',
@@ -498,14 +526,17 @@
 				})}
 			{:else}
 				<OutlineItemRow
+					bind:this={itemRows[entry.id]}
 					id={entry.id}
 					text={entry.text}
+					note={archived ? undefined : entry.note}
 					done={entry.done}
 					href={archived ? resolve('/workspaces/[id]', { id: entry.id }) : undefined}
 					dragging={dragged?.id === entry.id}
 					highlighted={dropping === 'onto'}
 					{fold}
 					onsave={(text) => editItem({ itemId: entry.id, text })}
+					onnote={(note) => editItem({ itemId: entry.id, note })}
 					ontoggle={() => tickOff(entry)}
 					onkeydown={(event) => itemKeys(event, index)}
 				/>

@@ -78,20 +78,33 @@ type Scope = {
 
 /** How many of its items an agent is shown each turn; the rest it reads with `list_items`. */
 const SHOWN_ITEMS = 40;
+/** How much of an item's note, in characters. */
+const SHOWN_NOTE = 500;
 
 /**
  * Where the agent's work is in the person's outline, and what is written under it there
  * (FDR-019): a checklist it keeps, which the person may add to, to steer it.
  */
+/** An item's note under its line, as the person wrote it: a long one in part (list_items has all of it). */
+function noteLines(note: string, indent: string): string {
+	const shown =
+		note.length > SHOWN_NOTE ? `${note.slice(0, SHOWN_NOTE)}… (more: list_items)` : note;
+	return shown
+		.split('\n')
+		.map((line) => `${indent}${line}`)
+		.join('\n');
+}
+
 export function outlineBrief({ workspace, path, items }: Scope): string {
 	const where = path.length
 		? `In the person's outline, your workspace "${workspace}" is part of ${path.map((each) => JSON.stringify(each)).join(' › ')}.`
 		: `Your workspace "${workspace}" is in the person's outline.`;
 	const lines = items.slice(0, SHOWN_ITEMS).map((item) => {
 		const indent = '  '.repeat(item.depth);
-		return 'agent' in item
-			? `${indent}- Agent "${item.agent}"${item.done ? ' (archived)' : ''}: ${item.itemsDone} of ${item.itemsTotal} of its own items done`
-			: `${indent}- [${item.done ? 'x' : ' '}] ${item.text || '(empty)'} (item ${item.id})`;
+		if ('agent' in item)
+			return `${indent}- Agent "${item.agent}"${item.done ? ' (archived)' : ''}: ${item.itemsDone} of ${item.itemsTotal} of its own items done`;
+		const line = `${indent}- [${item.done ? 'x' : ' '}] ${item.text || '(empty)'} (item ${item.id})`;
+		return item.note ? `${line}\n${noteLines(item.note, `${indent}  `)}` : line;
 	});
 	if (items.length > SHOWN_ITEMS)
 		lines.push(`- … and ${items.length - SHOWN_ITEMS} more (list_items)`);

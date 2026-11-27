@@ -26,8 +26,8 @@
 		id: string,
 		text: string,
 		parentId: string | null,
-		{ done = false, attached = false } = {}
-	) => ({ id, parentId, text, note: '', done, workspace: attached });
+		{ done = false, attached = false, note = '' } = {}
+	) => ({ id, parentId, text, note, done, workspace: attached });
 
 	const base: Navigation = {
 		repos: [
@@ -62,7 +62,9 @@
 		items: [
 			item('lead', 'Release 0.9', null, { attached: true }),
 			item('notes', 'Write the release notes', 'lead', { done: true }),
-			item('try', 'Try it in the dev app', 'lead'),
+			item('try', 'Try it in the dev app', 'lead', {
+				note: 'Start a turn, restart the forge and the daemon during it, and see that it goes on.'
+			}),
 			item('restart', 'With a forge restart', 'try'),
 			item('child', 'Bump the protocol', 'lead', { attached: true }),
 			item('childs-own', 'Its own step', 'child'),

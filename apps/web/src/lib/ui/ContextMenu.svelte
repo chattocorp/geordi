@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Keys from '@geordi/ui/Keys.svelte';
 	import { contextMenus, type MenuItem, type MenuTone } from './menu.svelte.ts';
 
 	const tones: Record<MenuTone, string> = {
@@ -82,6 +83,7 @@
 			>
 				{#if item.icon}<span class={['size-4 shrink-0', item.icon]}></span>{/if}
 				{item.label}
+				{#if item.keys}<span class="ml-auto pl-6"><Keys keys={item.keys} /></span>{/if}
 			</button>
 		{/if}
 	{/each}

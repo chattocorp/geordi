@@ -171,7 +171,16 @@
 							icon: 'icon-[lucide--list-plus]',
 							onselect: add
 						},
-						...(zoom ? [{ label: 'Zoom in', icon: 'icon-[lucide--zoom-in]', onselect: zoom }] : [])
+						...(zoom
+							? [
+									{
+										label: 'Zoom in',
+										icon: 'icon-[lucide--zoom-in]',
+										keys: ['cmd', '.'],
+										onselect: zoom
+									}
+								]
+							: [])
 					]),
 			// a project has no branch to copy or carry on from
 			...(project

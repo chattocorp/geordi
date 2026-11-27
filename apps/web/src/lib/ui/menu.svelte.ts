@@ -14,6 +14,8 @@ export type MenuItem =
 			 */
 			tone?: MenuTone;
 			disabled?: boolean;
+			/** The keys that do the same, shown beside it: as `Keys` takes them (`['alt', 'enter']`). */
+			keys?: string[];
 			onselect(): void;
 	  }
 	| 'separator';
