@@ -1,7 +1,7 @@
 import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { isInactive, withAides } from '#lib/family.ts';
-import { hub, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
+import { hub, jobs, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
 
@@ -221,6 +221,7 @@ export const workspace = (id: string) => {
 				})),
 				// a project has no worktree to watch (FDR-012)
 				git: workspace.repoId === null ? null : watchers().state(workspace.worktreeId),
+				startingJobs: jobs().starting(id),
 				terminals: terminals().running(id),
 				// the jobs among them that are over: their terminals are still there to be read
 				finished: terminals().finished(id)
@@ -233,6 +234,9 @@ export const workspace = (id: string) => {
 			const stopSession = hub().followSession(relevant);
 			const stopUsage = workspaces().followUsage(relevant);
 			notify = changed;
+			const stopJobs = jobs().subscribe((source) => {
+				if (source === id) changed();
+			});
 			const unsubscribe = terminals().subscribe(changed);
 			return () => {
 				for (const follower of transcripts.values()) follower.close();
@@ -242,6 +246,7 @@ export const workspace = (id: string) => {
 				notify = undefined;
 				unwatch?.();
 				unwatch = undefined;
+				stopJobs();
 				unsubscribe();
 			};
 		}

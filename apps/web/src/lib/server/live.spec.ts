@@ -11,6 +11,7 @@ import { applyWorkspaceUpdate } from '../workspace-update.ts';
 
 vi.mock('./app.ts', () => ({
 	workspaces: vi.fn(),
+	jobs: () => ({ subscribe: () => () => {}, starting: () => [] }),
 	hub: () => ({
 		background: () => [],
 		sessionModel: () => undefined,

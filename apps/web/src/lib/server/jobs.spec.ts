@@ -87,6 +87,37 @@ it('shares prerequisites, waits for all their ports, and opens the first link', 
 	expect(started).toEqual(['web', 'worker']); // what runs is reused
 });
 
+it('publishes dependency readiness before the requested task is up', async () => {
+	const gates = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+	const checking = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+	const { jobs } = setup(
+		[
+			task('db', { command: 'db', ports: [{ name: 'db', port: 21100 }] }),
+			task('web', { command: 'web', needs: ['db'], ports: [{ name: 'web', port: 21101 }] })
+		],
+		(request) => {
+			if (request.kind !== 'portReady') return;
+			const index = request.port - 21100;
+			checking[index].resolve();
+			return gates[index].promise;
+		}
+	);
+	let starting: string[] = [];
+	const unsubscribe = jobs.subscribe((id) => {
+		starting = jobs.starting(id);
+	});
+	const run = jobs.run('w', ['web'], { db: 'db', web: 'web' });
+	await checking[0].promise;
+	expect(starting.sort()).toEqual(['db', 'web']);
+	gates[0].resolve();
+	await checking[1].promise;
+	expect(starting).toEqual(['web']);
+	gates[1].resolve();
+	await run;
+	expect(starting).toEqual([]);
+	unsubscribe();
+});
+
 it('opens the URL of a task that runs, and of one that needs nothing at once', async () => {
 	const { jobs, started } = setup([
 		task('storybook', {

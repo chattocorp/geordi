@@ -46,7 +46,13 @@ export function createJobs(
 	});
 
 	/** Stop also wakes launches waiting for prerequisites, port checks, or a URL. */
-	const launches = new Set<{ workspaceId: string; stop: (name: string) => void }>();
+	const launches = new Set<{
+		workspaceId: string;
+		starting: Set<string>;
+		stop: (name: string) => void;
+	}>();
+	const listeners = new Set<(workspaceId: string) => void>();
+	const changed = (workspaceId: string) => listeners.forEach((listener) => listener(workspaceId));
 
 	/** The workspace's configuration as the daemon reads it now. */
 	async function configOf(workspaceId: string): Promise<RepoConfig> {
@@ -83,6 +89,21 @@ export function createJobs(
 	}
 
 	return {
+		starting(workspaceId: string) {
+			return [
+				...new Set(
+					[...launches]
+						.filter((launch) => launch.workspaceId === workspaceId)
+						.flatMap((launch) => [...launch.starting])
+				)
+			];
+		},
+
+		subscribe(listener: (workspaceId: string) => void) {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+
 		async list(workspaceId: string) {
 			const { tasks, problem } = await configOf(workspaceId);
 			return {
@@ -108,7 +129,9 @@ export function createJobs(
 			const pending = new Map<string, Promise<Outcome>>();
 			const waits = new Map<string, ReturnType<typeof Promise.withResolvers<Outcome>>>();
 			const stopped = new Set<string>();
+			const starting = new Set<string>();
 			const launchRequest = {
+				starting,
 				workspaceId,
 				stop(name: string) {
 					stopped.add(name);
@@ -122,11 +145,18 @@ export function createJobs(
 				function launch(name: string): Promise<Outcome> {
 					const running = pending.get(name);
 					if (running) return running;
+					if (!terminals.isRunning(terminalOf(workspaceId, name))) {
+						starting.add(name);
+						changed(workspaceId);
+					}
 					const wait = Promise.withResolvers<Outcome>();
 					waits.set(name, wait);
 					const result = Promise.race([wait.promise, execute(name)]).catch((cause) => ({
 						problem: problemOf(cause, `Could not run ${name}`)
 					}));
+					void result.then(() => {
+						if (starting.delete(name)) changed(workspaceId);
+					});
 					pending.set(name, result);
 					return result;
 				}
