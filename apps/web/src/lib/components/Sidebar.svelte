@@ -71,6 +71,16 @@
 	const workspaceById = $derived(new Map(nav?.workspaces.map((each) => [each.id, each])));
 	/** The item whose line has the cursor: it stays, ticked off or not, until it is left. */
 	let editing = $state<string | null>(null);
+	/**
+	 * Items ticked off in this window: they stay, crossed out, rather than disappear at once
+	 * from a list of only what is active. Until the page is opened again.
+	 */
+	let ticked = $state<string[]>([]);
+	/** Ticks an item off, or not. */
+	function tickOff(entry: { id: string; done: boolean }, done = !entry.done) {
+		ticked = done ? [...ticked, entry.id] : ticked.filter((id) => id !== entry.id);
+		return completeItem({ itemId: entry.id, done });
+	}
 	const viewed = $derived(path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
 	/** The rows shown, top to bottom. */
 	const rows = $derived(
@@ -80,7 +90,8 @@
 					focus: focus.current,
 					folded: folded.current,
 					viewed,
-					editing
+					editing,
+					keep: ticked
 				})
 			: []
 	);
@@ -376,7 +387,7 @@
 		if (event.key === 'Enter' && mod) {
 			event.preventDefault();
 			await save();
-			await completeItem({ itemId: entry.id, done: !entry.done });
+			await tickOff(entry);
 		} else if (event.key === 'Enter') {
 			event.preventDefault();
 			await save();
@@ -444,7 +455,7 @@
 			{
 				label: entry.done ? 'Mark as not done' : 'Mark as done',
 				icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
-				onselect: () => completeItem({ itemId: entry.id, done: !entry.done })
+				onselect: () => tickOff(entry)
 			},
 			'separator',
 			{
@@ -474,7 +485,8 @@
 					);
 				}
 			},
-			{ root: list }
+			// a pixel's leeway: rows of fractional height can leave the end a hair out of reach
+			{ root: list, rootMargin: '1px' }
 		);
 		observer.observe(top);
 		observer.observe(bottom);
@@ -557,13 +569,6 @@
 			<div class="tools">
 				<Button
 					variant="ghost"
-					icon="icon-[lucide--list-plus]"
-					label="New item"
-					title="New item"
-					onclick={() => newItem(null, rows.find((row) => row.depth === 0)?.workspace.id ?? null)}
-				/>
-				<Button
-					variant="ghost"
 					icon="icon-[lucide--activity]"
 					label="Show only what is active"
 					title={`Show only what is active: no done items, no inactive workspaces (${hint('activeOnly')})`}
@@ -589,6 +594,19 @@
 					{#each rows as { workspace: entry, parent, depth, under }, index (entry.id)}
 						{@render row(entry, parent, depth, under, index)}
 					{/each}
+					<!-- the outline's last line: where something new is written (FDR-017) -->
+					<li>
+						<button
+							type="button"
+							class="item w-full gap-1 px-1 text-base text-faint"
+							onclick={() => newItem(null, null)}
+						>
+							<span class="grid size-6 shrink-0 place-items-center">
+								<span class="icon-[lucide--plus] size-4"></span>
+							</span>
+							<span class="py-1">New item</span>
+						</button>
+					</li>
 				</ul>
 				{#if rows.length === 0 && nav.items.length > 0}
 					<p class="px-2 py-1 text-sm text-muted">Everything is done or put aside.</p>
@@ -695,6 +713,7 @@
 					: undefined}
 				onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
 				onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
+				onadd={leaving || workspace.repoId === null ? undefined : () => newItem(workspace.id, null)}
 			/>
 		{:else}
 			<OutlineItemRow
@@ -708,7 +727,8 @@
 					? { count: under, folded: isFolded, toggle: () => toggleFolded(entry.id) }
 					: undefined}
 				onsave={(text) => editItem({ itemId: entry.id, text })}
-				ontoggle={() => completeItem({ itemId: entry.id, done: !entry.done })}
+				ontoggle={() => tickOff(entry)}
+				onadd={archived ? undefined : () => newItem(entry.id, null)}
 				onkeydown={(event) => itemKeys(event, index)}
 				onfocus={() => (editing = entry.id)}
 				onblur={() => {

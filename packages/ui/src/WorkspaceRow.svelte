@@ -29,7 +29,8 @@
 		actions = [],
 		fold,
 		onpoint,
-		onaction
+		onaction,
+		onadd
 	}: {
 		title: string;
 		href?: string;
@@ -56,6 +57,8 @@
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
 		onaction?: (action: WorkspaceAction) => void;
+		/** Adds an item under it, in an outline (FDR-017): offered while the row is hovered or focused. */
+		onadd?: () => void;
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
@@ -131,6 +134,18 @@
 			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
 		/>
 	</div>
+	{#if onadd}
+		<!-- only while the row is pointed at, or focus is in it: it takes no room from the title otherwise -->
+		<button
+			type="button"
+			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"
+			aria-label={`Add an item under ${title}`}
+			title="Add an item under it"
+			onclick={onadd}
+		>
+			<span class="icon-[lucide--plus] size-4"></span>
+		</button>
+	{/if}
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span data-row-actions class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if typeof asking === 'string' || (asking && href)}

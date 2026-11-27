@@ -17,7 +17,8 @@
 		ontoggle,
 		onkeydown,
 		onfocus,
-		onblur
+		onblur,
+		onadd
 	}: {
 		id: string;
 		text: string;
@@ -32,6 +33,8 @@
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLInputElement }) => void;
 		onfocus?: () => void;
 		onblur?: () => void;
+		/** Adds an item under it: offered while the row is hovered or focused. */
+		onadd?: () => void;
 	} = $props();
 
 	const toggleLabel = $derived(done ? `Mark “${text}” as not done` : `Mark “${text}” as done`);
@@ -106,6 +109,17 @@
 			}}
 			{onkeydown}
 		/>
+	{/if}
+	{#if onadd}
+		<button
+			type="button"
+			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"
+			aria-label={`Add an item under ${text || 'this item'}`}
+			title="Add an item under it"
+			onclick={onadd}
+		>
+			<span class="icon-[lucide--plus] size-4"></span>
+		</button>
 	{/if}
 	{#if fold?.folded}
 		<span aria-hidden="true" class="shrink-0 pl-1 text-faint tabular-nums">{fold.count}</span>

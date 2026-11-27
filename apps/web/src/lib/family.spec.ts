@@ -119,6 +119,16 @@ describe('outlineRows', () => {
 		]);
 	});
 
+	it('keeps what was ticked off a moment ago, crossed out, among what is active', () => {
+		expect(shown({ activeOnly: true, keep: ['ticked'] })).toEqual([
+			'release',
+			'bump',
+			'detail',
+			'ticked',
+			'elsewhere'
+		]);
+	});
+
 	it('never hides a workspace in use under one that is done', () => {
 		const rows = outlineRows(
 			[

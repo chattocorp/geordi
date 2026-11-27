@@ -257,13 +257,16 @@ export function outlineRows<T extends OutlineEntry>(
 		focus = null,
 		folded = [],
 		viewed = null,
-		editing = null
+		editing = null,
+		keep = []
 	}: {
 		activeOnly?: boolean;
 		focus?: string | null;
 		folded?: readonly string[];
 		viewed?: string | null;
 		editing?: string | null;
+		/** Items to show even where they would be left out: those ticked off a moment ago. */
+		keep?: readonly string[];
 	} = {}
 ): (Listed<T & { project: boolean }> & { under: number })[] {
 	const byId = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
@@ -279,7 +282,7 @@ export function outlineRows<T extends OutlineEntry>(
 	const lineIds = (ids: (string | null)[]) =>
 		new Set(ids.flatMap((id) => lineOfEntry(id).map((entry) => entry.id)));
 	/** What is on screen or being edited: it stays, whatever else is left out. */
-	const pinned = lineIds([viewed, editing]);
+	const pinned = lineIds([viewed, editing, ...keep]);
 	/** The workspaces in use and not put aside: never hidden, by anything above them either. */
 	const live = lineIds(
 		entries.filter((entry) => entry.workspace && !entry.done && !hidden(entry)).map(({ id }) => id)

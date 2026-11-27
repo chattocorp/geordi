@@ -301,7 +301,12 @@
 		const idle = canvas.getByRole('link', { name: /Check every token/ });
 		idle.focus();
 		const cleanRow = within(idle.closest('li')!);
-		await expect(cleanRow.queryByRole('button')).toBeNull();
+		// nothing to do on it but add an item under it, which shows when pointed at
+		await expect(
+			cleanRow
+				.queryAllByRole('button')
+				.filter((button) => !button.getAttribute('aria-label')?.startsWith('Add an item'))
+		).toEqual([]);
 		await expect(cleanRow.queryByRole('img')).toBeNull();
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
 			const pill = canvas.getByText(label, { selector: 'button' });
@@ -537,7 +542,7 @@
 		const canvas = within(canvasElement);
 		const [list] = canvas.getAllByRole('list');
 		const group = list;
-		const rows = () => [...list.querySelectorAll(':scope > li')];
+		const rows = () => [...list.querySelectorAll(':scope > li[data-row]')];
 		const last = rows().at(-1)! as HTMLElement;
 		const below = () => last.getBoundingClientRect().bottom + 4;
 		const line = () => list.querySelector(':scope > li.row-drop-after');
@@ -627,6 +632,28 @@
 		await waitFor(() =>
 			expect(canvas.queryByRole('textbox', { name: 'Write the release notes' })).toBeNull()
 		);
+	}}
+>
+	{@render frame(withPlainItems(nav), '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Adding items"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// the outline's last line is where something new is written
+		const [list] = canvas.getAllByRole('list');
+		const last = [...list.querySelectorAll(':scope > li')].at(-1)!;
+		await expect(
+			within(last as HTMLElement).getByRole('button', { name: 'New item' })
+		).toBeVisible();
+		// every row offers to add an item under it, when pointed at
+		// shown only while a row is pointed at: no room taken from titles otherwise
+		const addUnder = (title: string) =>
+			canvasElement.querySelector(`button[aria-label="Add an item under ${title}"]`);
+		await expect(addUnder('Release 0.9')).not.toBeVisible();
+		await expect(addUnder('Raise light mode text contrast')).not.toBeNull();
 	}}
 >
 	{@render frame(withPlainItems(nav), '/workspaces/ready')}
