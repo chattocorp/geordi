@@ -224,3 +224,59 @@ export function outlineView(
 		];
 	});
 }
+
+/** An entry of a workspace's scope (FDR-017): its own item, or a child workspace's. */
+export type ScopeEntry = Item & {
+	/** How deep under the workspace: 0 for what is right under it. */
+	depth: number;
+};
+
+/**
+ * A workspace's scope (FDR-017), in outline order: the items under its item, down to the
+ * next items with workspaces of their own, which are listed (as its child agents) but not
+ * gone into.
+ */
+export function scopeOf(outline: Outline, id: string): ScopeEntry[] {
+	const childrenOf = Map.groupBy(
+		outline.order.map((each) => outline.items.get(each)!),
+		(item) => item.parentId
+	);
+	const entries: ScopeEntry[] = [];
+	const walk = (parent: string, depth: number) => {
+		for (const item of childrenOf.get(parent) ?? []) {
+			entries.push({ ...item, depth });
+			if (!item.workspace) walk(item.id, depth + 1);
+		}
+	};
+	walk(id, 0);
+	return entries;
+}
+
+/** Whether an item is in a workspace's scope: under its item, with no other workspace between. */
+export function inScope(outline: Outline, workspace: string, id: string): boolean {
+	const seen = new Set<string>();
+	let parent = outline.items.get(id)?.parentId;
+	while (parent && !seen.has(parent)) {
+		if (parent === workspace) return true;
+		seen.add(parent);
+		const item = outline.items.get(parent);
+		if (!item || item.workspace) return false;
+		parent = item.parentId;
+	}
+	return false;
+}
+
+/** The items above one, from the top down. */
+export function pathOf(outline: Outline, id: string): Item[] {
+	const line: Item[] = [];
+	const seen = new Set<string>([id]);
+	let parent = outline.items.get(id)?.parentId;
+	while (parent && !seen.has(parent)) {
+		seen.add(parent);
+		const item = outline.items.get(parent);
+		if (!item) break;
+		line.unshift(item);
+		parent = item.parentId;
+	}
+	return line;
+}

@@ -5,6 +5,9 @@ import { isInactive } from '#lib/family.ts';
 import {
 	descendantsOf as descendantsOfItem,
 	frontierOf,
+	inScope,
+	pathOf,
+	scopeOf,
 	workspaceAbove,
 	type Item
 } from './items.ts';
@@ -414,7 +417,8 @@ export function createWorkspaces(
 				sharesWorktree: workspace.worktreeId !== workspace.id,
 				named: workspace.named,
 				manuallyNamed: workspace.manuallyNamed,
-				mayDelegate: depthOf(workspace) < limits.depth
+				mayDelegate: depthOf(workspace) < limits.depth,
+				outline: workspace.repoId === null ? undefined : scopeView(find(workspace.worktreeId))
 			}),
 			...(attachments.length && { images: attachments }),
 			deliveryId,
@@ -724,6 +728,211 @@ export function createWorkspaces(
 		return parentId;
 	}
 
+	/**
+	 * Writes a new item, without a workspace: under `parentId` (or at the top), right
+	 * above `before` (or last among its siblings). Returns its ID.
+	 */
+	function addItem(
+		{ parentId, before, text }: { parentId: string | null; before: string | null; text: string },
+		actor: string | null = null
+	): string {
+		if (parentId !== null) refuseParent(parentId);
+		if (before !== null) itemOf(before);
+		const id = randomUUID();
+		store.append(
+			{
+				type: 'item.created',
+				stream: `item:${id}`,
+				data: { id, parentId, before, text: cleanItemText(text) }
+			},
+			{ actor }
+		);
+		return id;
+	}
+
+	/** Changes an item's text or note. A workspace's item is renamed with its workspace. */
+	function editItem(
+		id: string,
+		{ text, note }: { text?: string; note?: string },
+		actor: string | null = null
+	) {
+		const item = itemOf(id);
+		if (item.workspace) {
+			if (text !== undefined) rename(id, text);
+			return;
+		}
+		const changes = {
+			...(text !== undefined && cleanItemText(text) !== item.text && { text: cleanItemText(text) }),
+			...(note !== undefined && note !== item.note && { note })
+		};
+		if (!Object.keys(changes).length) return;
+		store.append(
+			{ type: 'item.edited', stream: `item:${id}`, data: { id, ...changes } },
+			{ actor }
+		);
+	}
+
+	/** Ticks an item off, or not. A workspace's item is done when the workspace is archived. */
+	function completeItem(id: string, done: boolean, actor: string | null = null) {
+		const item = itemOf(id);
+		if (item.workspace) error(409, 'Archive the workspace to tick it off');
+		if (item.done === done) return;
+		const type = done ? 'item.completed' : 'item.reopened';
+		store.append({ type, stream: `item:${id}`, data: { id } }, { actor });
+	}
+
+	/** Removes an item, with everything under it, where none of it has a workspace. */
+	function removeItem(id: string, actor: string | null = null) {
+		const item = itemOf(id);
+		if (
+			item.workspace ||
+			descendantsOfItem(projection.outline(), id).some((each) => each.workspace)
+		)
+			error(409, 'Workspaces are archived, not removed');
+		store.append({ type: 'item.deleted', stream: `item:${id}`, data: { id } }, { actor });
+	}
+
+	/**
+	 * The workspace whose scope a caller works in (FDR-017): its own; for an agent working in
+	 * another workspace's directory, that one's. An external client has none.
+	 */
+	function scopeHolder(callerId: string): Workspace {
+		if (isExternal(callerId)) error(403, 'Only an agent in a workspace has items of its own');
+		const caller = find(callerId);
+		return find(caller.worktreeId);
+	}
+
+	/** An item in a workspace's scope; any other doesn't exist for its agent. */
+	function ownItem(holder: Workspace, id: string): Item {
+		const item = projection.outline().items.get(id);
+		if (!item || item.workspace || !inScope(projection.outline(), holder.id, id))
+			error(404, `There is no item ${id} under your workspace`);
+		return item;
+	}
+
+	/**
+	 * Where in a workspace's scope something goes: under its workspace, or under one of its
+	 * items (`under`); right above `before`, which must be under that same one, or last.
+	 * Without `under`, `before` says where.
+	 */
+	function placeInScope(holder: Workspace, under?: string, before?: string) {
+		const sibling = before === undefined ? undefined : ownItem(holder, before);
+		const parentId = under ?? sibling?.parentId ?? holder.id;
+		if (parentId !== holder.id) ownItem(holder, parentId);
+		if (sibling && sibling.parentId !== parentId)
+			error(400, `Item ${before} is not under the item you put this under`);
+		return { parentId, before: before ?? null };
+	}
+
+	/** A workspace's scope as its agent reads it (FDR-017). */
+	function scopeView(holder: Workspace) {
+		const outline = projection.outline();
+		const nameOf = (item: Item) =>
+			item.workspace ? (projection.get().get(item.id)?.title ?? '') : item.text;
+		return {
+			workspace: holder.title,
+			path: pathOf(outline, holder.id).map(nameOf),
+			items: scopeOf(outline, holder.id).map((entry) => {
+				if (!entry.workspace)
+					return {
+						id: entry.id,
+						// what it is under: `null` right under the workspace
+						parentId: entry.parentId === holder.id ? null : entry.parentId,
+						text: entry.text,
+						done: entry.done,
+						depth: entry.depth,
+						...(entry.note && { note: entry.note })
+					};
+				const own = scopeOf(outline, entry.id).filter((each) => !each.workspace);
+				const workspace = projection.get().get(entry.id);
+				return {
+					id: entry.id,
+					parentId: entry.parentId === holder.id ? null : entry.parentId,
+					agent: workspace?.title ?? '',
+					done: !!workspace?.archivedAt,
+					depth: entry.depth,
+					itemsDone: own.filter((each) => each.done).length,
+					itemsTotal: own.length
+				};
+			})
+		};
+	}
+
+	/**
+	 * Moves an item in the outline (FDR-016, FDR-017), with everything under it: right above
+	 * `before`, or to the end where that is `null`; and, with `parentId`, under that item,
+	 * or to the top level where that is `null`. The workspaces that move with it report to
+	 * the workspace of the nearest item above them from now on: an old supervisor that waits
+	 * for one learns it was moved away, and what one had asked it goes to the person.
+	 * Nobody is told otherwise. A person moves any item; an agent, only items within its scope
+	 * (`agents.moveItem`).
+	 */
+	function moveItem(
+		id: string,
+		before: string | null,
+		parentId?: string | null,
+		actor: string | null = null
+	) {
+		const outline = projection.outline();
+		const item = itemOf(id);
+		if (item.workspace && find(id).archivedAt) error(409, 'This workspace is archived');
+		if (before !== null) {
+			const other = itemOf(before);
+			if (other.workspace && find(before).archivedAt) error(400, 'That workspace is archived');
+		}
+		if (before === id) return;
+		const reparents = parentId !== undefined && parentId !== item.parentId;
+		const moving = frontierOf(outline, id).map(find);
+		let above = moving[0]?.parentId ?? null;
+		if (reparents) {
+			above = parentId === null ? null : refuseParent(parentId);
+			if (parentId !== null) {
+				if (parentId === id || descendantsOfItem(outline, id).some((each) => each.id === parentId))
+					error(400, 'Nothing can be moved under itself');
+				if (moving.some((workspace) => workspace.repoId === null))
+					error(400, 'Projects can’t be nested');
+			}
+			if (item.workspace && find(id).worktreeId !== id)
+				error(400, 'An agent working in another workspace moves with that workspace');
+			const supervisor = above && find(above);
+			const beyond =
+				supervisor &&
+				moving
+					.filter((workspace) => !workspace.archivedAt)
+					.flatMap((workspace) => [workspace, ...descendantsOf(workspace.id)])
+					.find((each) => !reaches(supervisor.id, each.repoId));
+			if (supervisor && beyond)
+				error(403, `“${supervisor.title}” can’t reach the repository of “${beyond.title}”`);
+		}
+		// who supervised them until now: the append changes it
+		const handed = moving
+			.filter((workspace) => reparents && workspace.parentId !== above)
+			.map((workspace) => ({ workspace, from: workspace.parentId }));
+		const forwarded: GeordiEvent[] = handed.flatMap(({ workspace }) =>
+			routedQuestions(workspace, 'parent').map(({ id: question }) => ({
+				type: 'workspace.questionForwarded' as const,
+				stream: `workspace:${workspace.id}` as const,
+				data: { id: workspace.id, question }
+			}))
+		);
+		const moved: GeordiEvent = item.workspace
+			? {
+					type: 'workspace.moved',
+					stream: `workspace:${id}`,
+					data: { id, before, ...(reparents && { parentId }) }
+				}
+			: {
+					type: 'item.moved',
+					stream: `item:${id}`,
+					data: { id, before, parentId: reparents ? parentId! : item.parentId }
+				};
+		store.append([...forwarded, moved], { actor });
+		for (const { workspace, from } of handed)
+			for (const wait of waiting.get(workspace.id) ?? [])
+				if (from && wait.callerId === from)
+					wait.finish({ ...report(find(workspace.id)), movedAway: true });
+	}
+
 	/** One line of text, as an item has it. */
 	const cleanItemText = (text: string) =>
 		text
@@ -996,6 +1205,59 @@ export function createWorkspaces(
 		 * Names the caller's own workspace, so that people can tell it from the others. A few
 		 * times at most: a name that keeps changing is no name.
 		 */
+		/**
+		 * The caller's scope in the outline (FDR-017): the items under its workspace, with the
+		 * workspaces under it as lines of their own, and the path of items above it.
+		 */
+		items(callerId: string) {
+			const holder = scopeHolder(callerId);
+			return scopeView(holder);
+		},
+
+		/**
+		 * Writes an item in the caller's scope: under its workspace, or under one of its items,
+		 * right above `before` (one of its siblings there), or last.
+		 */
+		addItem(
+			callerId: string,
+			{ text, under, before }: { text: string; under?: string; before?: string }
+		) {
+			const holder = scopeHolder(callerId);
+			const place = placeInScope(holder, under, before);
+			const id = addItem({ ...place, text }, callerId);
+			return { id };
+		},
+
+		/**
+		 * Moves an item in the caller's scope, with what is under it: under its workspace, or
+		 * under another of its items, right above `before`, or last there. Its scope holds no
+		 * workspaces, so this hands nobody to anyone (FDR-016).
+		 */
+		moveItem(callerId: string, id: string, { under, before }: { under?: string; before?: string }) {
+			const holder = scopeHolder(callerId);
+			ownItem(holder, id);
+			const place = placeInScope(holder, under, before);
+			moveItem(id, place.before, place.parentId, callerId);
+			const item = itemOf(id);
+			return { id, parentId: item.parentId === holder.id ? null : item.parentId };
+		},
+
+		/** Changes an item in the caller's scope: its text, or whether it is done. */
+		updateItem(callerId: string, id: string, { text, done }: { text?: string; done?: boolean }) {
+			const holder = scopeHolder(callerId);
+			ownItem(holder, id);
+			if (text !== undefined) editItem(id, { text }, callerId);
+			if (done !== undefined) completeItem(id, done, callerId);
+			const item = itemOf(id);
+			return { id, text: item.text, done: item.done };
+		},
+
+		/** Removes an item in the caller's scope, with what is under it. */
+		removeItem(callerId: string, id: string) {
+			ownItem(scopeHolder(callerId), id);
+			removeItem(id, callerId);
+		},
+
 		name(callerId: string, title: string) {
 			if (find(callerId).manuallyNamed) error(409, 'The person chose this workspace name.');
 			const mine = store
@@ -1606,77 +1868,7 @@ export function createWorkspaces(
 		rename,
 		retitle,
 
-		/**
-		 * Moves an item in the outline (FDR-016, FDR-017), with everything under it: right above
-		 * `before`, or to the end where that is `null`; and, with `parentId`, under that item,
-		 * or to the top level where that is `null`. The workspaces that move with it report to
-		 * the workspace of the nearest item above them from now on: an old supervisor that waits
-		 * for one learns it was moved away, and what one had asked it goes to the person.
-		 * Nobody is told otherwise. Only a person moves items.
-		 */
-		move(id: string, before: string | null, parentId?: string | null, actor: string | null = null) {
-			const outline = projection.outline();
-			const item = itemOf(id);
-			if (item.workspace && find(id).archivedAt) error(409, 'This workspace is archived');
-			if (before !== null) {
-				const other = itemOf(before);
-				if (other.workspace && find(before).archivedAt) error(400, 'That workspace is archived');
-			}
-			if (before === id) return;
-			const reparents = parentId !== undefined && parentId !== item.parentId;
-			const moving = frontierOf(outline, id).map(find);
-			let above = moving[0]?.parentId ?? null;
-			if (reparents) {
-				above = parentId === null ? null : refuseParent(parentId);
-				if (parentId !== null) {
-					if (
-						parentId === id ||
-						descendantsOfItem(outline, id).some((each) => each.id === parentId)
-					)
-						error(400, 'Nothing can be moved under itself');
-					if (moving.some((workspace) => workspace.repoId === null))
-						error(400, 'Projects can’t be nested');
-				}
-				if (item.workspace && find(id).worktreeId !== id)
-					error(400, 'An agent working in another workspace moves with that workspace');
-				const supervisor = above && find(above);
-				const beyond =
-					supervisor &&
-					moving
-						.filter((workspace) => !workspace.archivedAt)
-						.flatMap((workspace) => [workspace, ...descendantsOf(workspace.id)])
-						.find((each) => !reaches(supervisor.id, each.repoId));
-				if (supervisor && beyond)
-					error(403, `“${supervisor.title}” can’t reach the repository of “${beyond.title}”`);
-			}
-			// who supervised them until now: the append changes it
-			const handed = moving
-				.filter((workspace) => reparents && workspace.parentId !== above)
-				.map((workspace) => ({ workspace, from: workspace.parentId }));
-			const forwarded: GeordiEvent[] = handed.flatMap(({ workspace }) =>
-				routedQuestions(workspace, 'parent').map(({ id: question }) => ({
-					type: 'workspace.questionForwarded' as const,
-					stream: `workspace:${workspace.id}` as const,
-					data: { id: workspace.id, question }
-				}))
-			);
-			const moved: GeordiEvent = item.workspace
-				? {
-						type: 'workspace.moved',
-						stream: `workspace:${id}`,
-						data: { id, before, ...(reparents && { parentId }) }
-					}
-				: {
-						type: 'item.moved',
-						stream: `item:${id}`,
-						data: { id, before, parentId: reparents ? parentId! : item.parentId }
-					};
-			store.append([...forwarded, moved], { actor });
-			for (const { workspace, from } of handed)
-				for (const wait of waiting.get(workspace.id) ?? [])
-					if (from && wait.callerId === from)
-						wait.finish({ ...report(find(workspace.id)), movedAway: true });
-		},
+		move: moveItem,
 
 		/** The outline (FDR-017): its items in order, and where the workspaces are among them. */
 		outline: () => projection.outline(),
@@ -1692,70 +1884,10 @@ export function createWorkspaces(
 			);
 		},
 
-		/**
-		 * Writes a new item, without a workspace: under `parentId` (or at the top), right
-		 * above `before` (or last among its siblings). Returns its ID.
-		 */
-		addItem(
-			{ parentId, before, text }: { parentId: string | null; before: string | null; text: string },
-			actor: string | null = null
-		): string {
-			if (parentId !== null) refuseParent(parentId);
-			if (before !== null) itemOf(before);
-			const id = randomUUID();
-			store.append(
-				{
-					type: 'item.created',
-					stream: `item:${id}`,
-					data: { id, parentId, before, text: cleanItemText(text) }
-				},
-				{ actor }
-			);
-			return id;
-		},
-
-		/** Changes an item's text or note. A workspace's item is renamed with its workspace. */
-		editItem(
-			id: string,
-			{ text, note }: { text?: string; note?: string },
-			actor: string | null = null
-		) {
-			const item = itemOf(id);
-			if (item.workspace) {
-				if (text !== undefined) rename(id, text);
-				return;
-			}
-			const changes = {
-				...(text !== undefined &&
-					cleanItemText(text) !== item.text && { text: cleanItemText(text) }),
-				...(note !== undefined && note !== item.note && { note })
-			};
-			if (!Object.keys(changes).length) return;
-			store.append(
-				{ type: 'item.edited', stream: `item:${id}`, data: { id, ...changes } },
-				{ actor }
-			);
-		},
-
-		/** Ticks an item off, or not. A workspace's item is done when the workspace is archived. */
-		completeItem(id: string, done: boolean, actor: string | null = null) {
-			const item = itemOf(id);
-			if (item.workspace) error(409, 'Archive the workspace to tick it off');
-			if (item.done === done) return;
-			const type = done ? 'item.completed' : 'item.reopened';
-			store.append({ type, stream: `item:${id}`, data: { id } }, { actor });
-		},
-
-		/** Removes an item, with everything under it, where none of it has a workspace. */
-		removeItem(id: string, actor: string | null = null) {
-			const item = itemOf(id);
-			if (
-				item.workspace ||
-				descendantsOfItem(projection.outline(), id).some((each) => each.workspace)
-			)
-				error(409, 'Workspaces are archived, not removed');
-			store.append({ type: 'item.deleted', stream: `item:${id}`, data: { id } }, { actor });
-		},
+		addItem,
+		editItem,
+		completeItem,
+		removeItem,
 
 		/**
 		 * Marks the workspace inactive (put aside for later), or active again, with those that

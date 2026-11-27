@@ -194,6 +194,71 @@ const tools = {
 			}
 		) => agents.start(caller, input, agents.harnesses())
 	},
+	list_items: {
+		description:
+			"Read the items under your workspace in the person's outline: a checklist you keep, which the person may add to. Each has an id, its parentId (null: right under your workspace), its text, whether it is done, and how deep it is (0: right under your workspace). Agents working under yours are listed as lines of their own, with how many of their own items are done; their items are theirs. path names the items above your workspace.",
+		input: v.strictObject({}),
+		run: (agents: Agents, caller: string) => agents.items(caller)
+	},
+	add_item: {
+		description:
+			'Write an item under your workspace in the outline: something still to be done here, for the person to follow. It goes right under your workspace, or under one of your items (under); last there, or right above one of the items there (before). Keep items few and meaningful; they are not your scratch plan. Returns its id.',
+		input: v.strictObject({
+			text: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
+			under: v.pipe(
+				v.optional(v.string()),
+				v.description('The id of one of your items to put it under.')
+			),
+			before: v.pipe(
+				v.optional(v.string()),
+				v.description('The id of one of your items to put it right above, under the same item.')
+			)
+		}),
+		run: (
+			agents: Agents,
+			caller: string,
+			input: { text: string; under?: string; before?: string }
+		) => agents.addItem(caller, input)
+	},
+	move_item: {
+		description:
+			'Move one of the items under your workspace, with what is under it: right under your workspace (omit under), or under another of your items (under); last there, or right above one of the items there (before). Use it to keep your items in order, or to group them under a heading you add. Returns where it is now.',
+		input: v.strictObject({
+			id: v.pipe(v.string(), v.description('The item’s id, as list_items gives it.')),
+			under: v.pipe(
+				v.optional(v.string()),
+				v.description('The id of one of your items to move it under.')
+			),
+			before: v.pipe(
+				v.optional(v.string()),
+				v.description('The id of one of your items to move it right above, under the same item.')
+			)
+		}),
+		run: (agents: Agents, caller: string, input: { id: string; under?: string; before?: string }) =>
+			agents.moveItem(caller, input.id, { under: input.under, before: input.before })
+	},
+	update_item: {
+		description:
+			'Change one of the items under your workspace: tick it off when it is done (done: true), the person’s too, or change its text.',
+		input: v.strictObject({
+			id: v.pipe(v.string(), v.description('The item’s id, as list_items gives it.')),
+			text: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(500))),
+			done: v.optional(v.boolean())
+		}),
+		run: (agents: Agents, caller: string, input: { id: string; text?: string; done?: boolean }) =>
+			agents.updateItem(caller, input.id, { text: input.text, done: input.done })
+	},
+	remove_item: {
+		description:
+			'Remove one of the items under your workspace, with what is under it: one that turned out not to be needed. Tick off what is done instead of removing it.',
+		input: v.strictObject({
+			id: v.pipe(v.string(), v.description('The item’s id, as list_items gives it.'))
+		}),
+		run: (agents: Agents, caller: string, input: { id: string }) => {
+			agents.removeItem(caller, input.id);
+			return { removed: input.id };
+		}
+	},
 	name_workspace: {
 		description: `Give your workspace a short name (a few words, no quotes or full stop) when you know what the work is. Rename it only if the task changes. You may name it up to ${MAX_NAMES} times. A name chosen by the person takes precedence. Returns the saved title.`,
 		input: v.strictObject({ title: v.pipe(v.string(), v.minLength(1), v.maxLength(80)) }),
@@ -532,7 +597,13 @@ const workspaceTools = new Set([
 	...repositoryTools,
 	'answer_question',
 	'forward_question',
-	'name_workspace'
+	'name_workspace',
+	// its items in the outline (FDR-017)
+	'list_items',
+	'add_item',
+	'update_item',
+	'move_item',
+	'remove_item'
 ]);
 const available = (kind: CallerKind, name: string) =>
 	kind === 'external'

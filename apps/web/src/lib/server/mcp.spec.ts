@@ -352,6 +352,11 @@ describe('the agent API as an MCP server', () => {
 		};
 		expect(tools.map((tool) => tool.name)).toEqual([
 			'start_agent',
+			'list_items',
+			'add_item',
+			'move_item',
+			'update_item',
+			'remove_item',
 			'name_workspace',
 			'set_base',
 			'wait_for_agent',
@@ -470,6 +475,62 @@ describe('the agent API as an MCP server', () => {
 		expect(workspaces.forwardedQuestions(caller)).toMatchObject([
 			{ workspaceId: child.id, id: 'second' }
 		]);
+	});
+
+	it('lets an agent keep the items under its workspace, and only those (FDR-017)', async () => {
+		const { workspaces, caller, call, callAs } = setup();
+		const release = workspaces.addItem({ parentId: null, before: null, text: 'Release 0.9' });
+		workspaces.move(caller, null, release);
+		const todo = workspaces.addItem({ parentId: caller, before: null, text: 'Write the notes' });
+		const child = await call('start_agent', { prompt: 'Build', worktree: 'own' });
+
+		const added = await call('add_item', { text: 'Check the links' });
+		await call('add_item', { text: 'In German too', under: todo });
+		expect(await call('update_item', { id: todo, done: true })).toMatchObject({ done: true });
+		expect(await call('list_items')).toMatchObject({
+			path: ['Release 0.9'],
+			items: [
+				{ agent: 'Build', depth: 0, itemsDone: 0, itemsTotal: 0 },
+				{ id: todo, text: 'Write the notes', done: true, depth: 0 },
+				{ text: 'In German too', done: false, depth: 1 },
+				{ id: added.id, text: 'Check the links', depth: 0 }
+			]
+		});
+		// not what is above it, nor what is its child's
+		expect((await call('update_item', { id: release, done: true })).error).toMatch(/no item/);
+		const theirs = await callAs(child.id)('add_item', { text: 'Mine' });
+		expect((await call('remove_item', { id: theirs.id })).error).toMatch(/no item/);
+		expect(await call('remove_item', { id: added.id })).toEqual({ removed: added.id });
+	});
+
+	it('lets an agent put its items in order, within its scope only (FDR-017)', async () => {
+		const { workspaces, caller, call } = setup();
+		const above = workspaces.addItem({ parentId: null, before: null, text: 'Elsewhere' });
+		const first = (await call('add_item', { text: 'First' })).id;
+		const third = (await call('add_item', { text: 'Third' })).id;
+		const second = (await call('add_item', { text: 'Second', before: third })).id;
+		const heading = (await call('add_item', { text: 'Tests', before: first })).id;
+		expect(await call('move_item', { id: third, under: heading })).toEqual({
+			id: third,
+			parentId: heading
+		});
+		const { items } = await call('list_items');
+		expect(
+			items.map(({ text, parentId }: { text: string; parentId: string | null }) => [text, parentId])
+		).toEqual([
+			['Tests', null],
+			['Third', heading],
+			['First', null],
+			['Second', null]
+		]);
+		void second;
+		// never out of its scope, nor under itself
+		expect((await call('move_item', { id: first, under: above })).error).toMatch(/no item/);
+		expect((await call('move_item', { id: heading, under: third })).error).toMatch(/under itself/);
+		expect((await call('add_item', { text: 'x', under: heading, before: first })).error).toMatch(
+			/not under the item/
+		);
+		expect(workspaces.outline().items.get(caller)?.workspace).toBe(true);
 	});
 
 	it('lets an agent archive the agents it started, and no others', async () => {

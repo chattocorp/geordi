@@ -1,13 +1,13 @@
 # FDR-017: The outline
 
 **Status:** Active
-**Last reviewed:** 2026-11-26
+**Last reviewed:** 2026-11-27
 
 ## Overview
 
 The outline is Geordi's main artifact: one tree of items in which the person plans, groups and follows their work. An item is a line of text. It can stand on its own (a heading, a folder, a todo) or have a workspace attached, which makes it a piece of work with an agent. Items under a workspace's item are that workspace's own: its todos, which the person and its agent keep together. It extends FDR-016: the outline is still the chain of command, but it is no longer made of workspaces only.
 
-Stage 1 (items, editing, workspaces on items) is in place; a workspace's scope and delegation onto items (stages 2 and 3) are planned. It replaces FDR-016's grouping by repository; who supervises whom stays as FDR-016 decided.
+Stages 1 and 2 (items, editing, workspaces on items; a workspace's scope, kept by its agent) are in place; delegation onto items (stage 3) is planned. It replaces FDR-016's grouping by repository; who supervises whom stays as FDR-016 decided.
 
 ## Behavior
 
@@ -34,14 +34,18 @@ Stage 1 (items, editing, workspaces on items) is in place; a workspace's scope a
 - Work in use is never hidden: a workspace in use, and what is above it, shows even with "Show only what is active" and under items that are done.
 - The workspace's repository shows as the item's icon. The sidebar is no longer grouped by repository; the repository filter stays.
 
-### A workspace's scope (planned: stages 2 and 3)
+### A workspace's scope
 
-- A workspace's scope is everything under its item, down to the next items that have workspaces of their own: those are its child agents, with scopes of their own.
-- A workspace shows its scope in a tab of its own, editable there as in the outline.
-- Its agent sees its scope with every turn, as a checklist, together with the path of items above its own ("you work on _Bump the protocol_, part of _Release 0.9_"). Its child agents' scopes it sees only as a summary ("2 of 3 done").
-- Its agent can add, edit, tick off and reorder the items in its scope, and nothing else in the outline.
-- When an agent delegates, the new workspace's item is created in its scope. The person can start an agent on any todo the same way.
-- Where an agent keeps a plan of its own (Claude Code's and Codex's todo lists), it is kept as items in its scope, so its progress shows without it doing anything more.
+- A workspace's scope is everything under its item, down to the next items that have workspaces of their own: those are its child agents, with scopes of their own. An agent working in another workspace's directory shares that workspace's scope.
+- Its agent sees its scope at the start of every turn, as a checklist, together with the path of items above its own ("you work on _Bump the protocol_, part of _Release 0.9_"). Its child agents it sees as lines of their own, with how many of their items are done ("2 of 3 done"), not their items.
+- Its agent can read, add, change (the text, ticked off or not), move and remove the items in its scope, at any depth, and nothing else in the outline. It ticks off what it has done, the person's items too, adds what it finds still to do, and may put its items in order or group them under a heading. Its scope holds no workspaces of its own, so its moves never hand anyone to another supervisor.
+- The person can write an item under a workspace to steer its agent without a message: it sees the item at its next turn.
+- The items are the same for everyone: the person edits what the agent wrote, and the other way round.
+
+### Later (stage 3)
+
+- When an agent delegates, the new workspace's item is created in its scope, and the person can start an agent on any todo the same way.
+- Agents keep their own todo lists (Claude Code's plans) to themselves: they change too often to belong in the outline. What goes there is written on purpose.
 
 ## Design Decisions
 
@@ -77,7 +81,7 @@ Stage 1 (items, editing, workspaces on items) is in place; a workspace's scope a
 
 ### 6. Staged
 
-**Decision:** Stage 1: items, outliner editing and workspaces attached to items. Stage 2: scopes (the workspace's tab, the agent's tools and checklist). Stage 3: delegation onto items, the path as a brief, agents' plans as items.
+**Decision:** Stage 1: items, outliner editing and workspaces attached to items. Stage 2: scopes (the agent's checklist and tools; the sidebar shows them, with no tab of their own). Stage 3: delegation onto items.
 **Why:** Each stage is useful by itself, and stage 1 is the change underneath that the others need.
 **Tradeoff:** For a while the outline is only a better sidebar.
 

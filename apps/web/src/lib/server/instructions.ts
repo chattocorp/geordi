@@ -17,6 +17,8 @@ export function instructionsFor(workspace: {
 	manuallyNamed?: boolean;
 	/** Whether it may start agents itself: not when it is nested as deep as agents may go. */
 	mayDelegate: boolean;
+	/** Its scope in the person's outline (FDR-017), where it has one. */
+	outline?: Scope;
 }): string {
 	const { parent } = workspace;
 	if (workspace.project) return projectInstructions(workspace.manuallyNamed);
@@ -34,6 +36,8 @@ export function instructionsFor(workspace: {
 			: 'The person you work for sees your replies, your changes as a diff against where the branch started (if you move it onto another branch, say so with `set_base`), and the state of the branch’s pull request.',
 
 		parent ? ASKING_PARENT : ASKING,
+
+		workspace.outline ? outlineBrief(workspace.outline) : '',
 
 		PICTURES,
 
@@ -53,6 +57,51 @@ export function instructionsFor(workspace: {
 	]
 		.filter(Boolean)
 		.join('\n\n');
+}
+
+/** A workspace's scope in the outline, as its agent reads it (`scopeView` in `workspaces.ts`). */
+type Scope = {
+	workspace: string;
+	path: string[];
+	items: (
+		| { id: string; text: string; done: boolean; depth: number; note?: string }
+		| {
+				id: string;
+				agent: string;
+				done: boolean;
+				depth: number;
+				itemsDone: number;
+				itemsTotal: number;
+		  }
+	)[];
+};
+
+/** How many of its items an agent is shown each turn; the rest it reads with `list_items`. */
+const SHOWN_ITEMS = 40;
+
+/**
+ * Where the agent's work is in the person's outline, and what is written under it there
+ * (FDR-017): a checklist it keeps, which the person may add to, to steer it.
+ */
+export function outlineBrief({ workspace, path, items }: Scope): string {
+	const where = path.length
+		? `In the person's outline, your workspace "${workspace}" is part of ${path.map((each) => JSON.stringify(each)).join(' › ')}.`
+		: `Your workspace "${workspace}" is in the person's outline.`;
+	const lines = items.slice(0, SHOWN_ITEMS).map((item) => {
+		const indent = '  '.repeat(item.depth);
+		return 'agent' in item
+			? `${indent}- Agent "${item.agent}"${item.done ? ' (archived)' : ''}: ${item.itemsDone} of ${item.itemsTotal} of its own items done`
+			: `${indent}- [${item.done ? 'x' : ' '}] ${item.text || '(empty)'} (item ${item.id})`;
+	});
+	if (items.length > SHOWN_ITEMS)
+		lines.push(`- … and ${items.length - SHOWN_ITEMS} more (list_items)`);
+	return [
+		where,
+		lines.length
+			? `Under it, what is to be done here:\n${lines.join('\n')}`
+			: 'Nothing is written under it yet.',
+		'These items are yours to keep: tick off what you have done (the person’s too), and add what you find still to do, with the `geordi` MCP server’s `update_item` and `add_item` (`list_items` reads them, `move_item` puts them in order, `remove_item` removes one). Keep them few and meaningful: they are for the person to follow, not your scratch plan. The person may write items here to steer you; they say what to do, as a message would.'
+	].join('\n\n');
 }
 
 const ASKING =
