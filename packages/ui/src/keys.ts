@@ -47,7 +47,7 @@ export const shortcuts = {
 	activeOnly: {
 		code: 'KeyA',
 		shift: true,
-		label: 'Show only what is active, or done items and inactive workspaces too',
+		label: 'Show only what is active, or archived and inactive workspaces too',
 		group: 'General'
 	},
 	toggleSidebar: { code: 'KeyB', label: 'Toggle the sidebar', group: 'General' },

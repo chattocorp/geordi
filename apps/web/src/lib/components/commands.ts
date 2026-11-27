@@ -137,7 +137,7 @@ export function globalCommands(at: Everywhere): Command[] {
 		{
 			id: 'active-only',
 			label: at.activeOnly
-				? 'Show done items and inactive workspaces too'
+				? 'Show archived and inactive workspaces too'
 				: 'Show only what is active',
 			group: sidebar,
 			icon: 'icon-[lucide--activity]',

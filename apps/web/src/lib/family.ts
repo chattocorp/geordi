@@ -256,17 +256,12 @@ export function outlineRows<T extends OutlineEntry>(
 		activeOnly = false,
 		focus = null,
 		folded = [],
-		viewed = null,
-		editing = null,
-		keep = []
+		viewed = null
 	}: {
 		activeOnly?: boolean;
 		focus?: string | null;
 		folded?: readonly string[];
 		viewed?: string | null;
-		editing?: string | null;
-		/** Items to show even where they would be left out: those ticked off a moment ago. */
-		keep?: readonly string[];
 	} = {}
 ): (Listed<T & { project: boolean }> & { under: number })[] {
 	const byId = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
@@ -277,12 +272,13 @@ export function outlineRows<T extends OutlineEntry>(
 	type Entry = (typeof entries)[number];
 	const entryById = new Map(entries.map((entry) => [entry.id, entry]));
 	const lineOfEntry = (id: string | null) => lineOf(entryById, id);
+	// items ticked off stay, crossed out; workspaces archived or put aside go
 	const hidden = (entry: Entry) =>
-		activeOnly && (entry.done || (entry.workspace && !!byId.get(entry.id)?.inactive));
+		activeOnly && entry.workspace && (entry.done || !!byId.get(entry.id)?.inactive);
 	const lineIds = (ids: (string | null)[]) =>
 		new Set(ids.flatMap((id) => lineOfEntry(id).map((entry) => entry.id)));
-	/** What is on screen or being edited: it stays, whatever else is left out. */
-	const pinned = lineIds([viewed, editing, ...keep]);
+	/** What is on screen: it stays, whatever else is left out. */
+	const pinned = lineIds([viewed]);
 	/** The workspaces in use and not put aside: never hidden, by anything above them either. */
 	const live = lineIds(
 		entries.filter((entry) => entry.workspace && !entry.done && !hidden(entry)).map(({ id }) => id)

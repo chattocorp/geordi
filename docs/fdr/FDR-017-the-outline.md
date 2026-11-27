@@ -23,7 +23,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 - The outline's last line, "New item", starts one at the end of it. Every row, item or workspace, offers a "+" while it is pointed at, which starts an item under it, as its last.
 - The menu of an item offers starting a workspace on it, adding an item under it, ticking it off, and removing it (with what is under it, where none of it has a workspace). The menu of a workspace offers adding an item under it.
 - An item's text is saved when you leave the line or press Enter.
-- "Show only what is active" leaves out what is done and the inactive workspaces, with what is under them. What is ticked off in a window stays there, crossed out, until the page is opened again, so that it doesn't vanish from under the pointer; the line being edited stays until it is left.
+- An item ticked off stays where it is, crossed out. "Show only what is active" leaves out archived and inactive workspaces, with what is under them, but never items: ticking one off is not putting it away.
 - Stage 1 edits the outline in the sidebar, which is the outline. A full-width page for it may follow (see Open Questions).
 
 ### Workspaces in the outline

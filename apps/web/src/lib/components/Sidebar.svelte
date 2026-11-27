@@ -69,18 +69,9 @@
 	const repoNames = $derived(new Map(nav?.repos.map((repo) => [repo.id, repo.name])));
 	/** The workspaces in use, by ID: what the outline's items with workspaces show. */
 	const workspaceById = $derived(new Map(nav?.workspaces.map((each) => [each.id, each])));
-	/** The item whose line has the cursor: it stays, ticked off or not, until it is left. */
-	let editing = $state<string | null>(null);
-	/**
-	 * Items ticked off in this window: they stay, crossed out, rather than disappear at once
-	 * from a list of only what is active. Until the page is opened again.
-	 */
-	let ticked = $state<string[]>([]);
-	/** Ticks an item off, or not. */
-	function tickOff(entry: { id: string; done: boolean }, done = !entry.done) {
-		ticked = done ? [...ticked, entry.id] : ticked.filter((id) => id !== entry.id);
-		return completeItem({ itemId: entry.id, done });
-	}
+	/** Ticks an item off, or not: it stays where it is, crossed out. */
+	const tickOff = (entry: { id: string; done: boolean }) =>
+		completeItem({ itemId: entry.id, done: !entry.done });
 	const viewed = $derived(path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
 	/** The rows shown, top to bottom. */
 	const rows = $derived(
@@ -89,9 +80,7 @@
 					activeOnly,
 					focus: focus.current,
 					folded: folded.current,
-					viewed,
-					editing,
-					keep: ticked
+					viewed
 				})
 			: []
 	);
@@ -571,7 +560,7 @@
 					variant="ghost"
 					icon="icon-[lucide--activity]"
 					label="Show only what is active"
-					title={`Show only what is active: no done items, no inactive workspaces (${hint('activeOnly')})`}
+					title={`Show only what is active: no archived or inactive workspaces (${hint('activeOnly')})`}
 					aria-pressed={activeOnly}
 					onclick={() => (activeOnly = !activeOnly)}
 				/>
@@ -650,6 +639,8 @@
 		/>{/snippet}
 	<!-- one sits a little in from the item it is under -->
 	<!-- where an item being dragged would go: a line above or below this one, or onto it, lit up -->
+	<!-- up and down go from row to row: the keys of what is focused in it, a link or a line -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<li
 		data-row={entry.id}
 		style:margin-inline-start="calc(var(--spacing) * {INDENT * depth})"
@@ -730,10 +721,6 @@
 				ontoggle={() => tickOff(entry)}
 				onadd={archived ? undefined : () => newItem(entry.id, null)}
 				onkeydown={(event) => itemKeys(event, index)}
-				onfocus={() => (editing = entry.id)}
-				onblur={() => {
-					if (editing === entry.id) editing = null;
-				}}
 			/>
 		{/if}
 	</li>

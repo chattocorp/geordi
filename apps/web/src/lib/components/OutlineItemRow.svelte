@@ -16,8 +16,6 @@
 		onsave,
 		ontoggle,
 		onkeydown,
-		onfocus,
-		onblur,
 		onadd
 	}: {
 		id: string;
@@ -31,8 +29,6 @@
 		onsave?: (text: string) => void;
 		ontoggle?: () => void;
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLInputElement }) => void;
-		onfocus?: () => void;
-		onblur?: () => void;
 		/** Adds an item under it: offered while the row is hovered or focused. */
 		onadd?: () => void;
 	} = $props();
@@ -102,10 +98,8 @@
 			aria-label={text || 'New item'}
 			data-item-input={id}
 			draggable="false"
-			{onfocus}
 			onblur={(event) => {
 				if (event.currentTarget.value !== text) onsave?.(event.currentTarget.value);
-				onblur?.();
 			}}
 			{onkeydown}
 		/>

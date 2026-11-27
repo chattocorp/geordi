@@ -619,10 +619,8 @@
 		await expect(releaseRow.compareDocumentPosition(failingRow)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);
-		// what is done shows only with what is not active
-		await expect(canvas.queryByRole('textbox', { name: 'Tag the release' })).toBeNull();
-		await fireEvent.click(canvas.getByRole('button', { name: 'Show only what is active' }));
-		const tagged = await canvas.findByRole('textbox', { name: 'Tag the release' });
+		// what is ticked off stays, crossed out, also among only what is active
+		const tagged = canvas.getByRole('textbox', { name: 'Tag the release' });
 		await expect(tagged).toHaveClass('line-through');
 		await expect(
 			canvas.getByRole('button', { name: 'Mark “Tag the release” as not done' })

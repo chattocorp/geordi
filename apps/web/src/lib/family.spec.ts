@@ -107,24 +107,22 @@ describe('outlineRows', () => {
 		]);
 	});
 
-	it('leaves out what is done and inactive, with what is under it, unless it is on screen', () => {
-		expect(shown({ activeOnly: true })).toEqual(['release', 'bump', 'detail', 'elsewhere']);
-		expect(shown({ activeOnly: true, viewed: 'under-quiet' })).toEqual([
-			'release',
-			'bump',
-			'detail',
-			'quiet',
-			'under-quiet',
-			'elsewhere'
-		]);
-	});
-
-	it('keeps what was ticked off a moment ago, crossed out, among what is active', () => {
-		expect(shown({ activeOnly: true, keep: ['ticked'] })).toEqual([
+	it('leaves out inactive workspaces, with what is under them, unless on screen; never ticked items', () => {
+		// what is ticked off stays, crossed out
+		expect(shown({ activeOnly: true })).toEqual([
 			'release',
 			'bump',
 			'detail',
 			'ticked',
+			'elsewhere'
+		]);
+		expect(shown({ activeOnly: true, viewed: 'under-quiet' })).toEqual([
+			'release',
+			'bump',
+			'detail',
+			'ticked',
+			'quiet',
+			'under-quiet',
 			'elsewhere'
 		]);
 	});
