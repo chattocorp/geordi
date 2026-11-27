@@ -574,6 +574,14 @@
 	@apply underline decoration-accent/60 underline-offset-2 hover:decoration-accent;
 }
 
+/* A row a click would zoom into (Cmd held, in the outline): the cursor says so, over all of it but its own buttons. */
+@utility zoomable {
+	cursor: zoom-in;
+	& :where(*:not(button, button *)) {
+		cursor: zoom-in;
+	}
+}
+
 /* An aside you can act on, in running text: muted, ink on hover, no background. */
 @utility quiet-action {
 	@apply inline-flex items-center gap-1.5 rounded-control text-muted hover:text-ink;
@@ -955,6 +963,26 @@
 @keyframes edge-turn {
 	to {
 		--edge-turn: 360deg;
+	}
+}
+
+/*
+ * A line drawn through text from its start, on every line it wraps onto at once: an item
+ * ticked off in the outline (FDR-019), just then. Drawn at once where motion is reduced.
+ */
+@utility strike-draw {
+	/* the colour of text that is done, the text itself unseen: only the line shows */
+	color: transparent;
+	background: linear-gradient(var(--color-faint), var(--color-faint)) 0 58% / 0% 1px no-repeat;
+	box-decoration-break: clone;
+	animation: strike-draw 320ms ease-out forwards;
+	@media (prefers-reduced-motion: reduce) {
+		animation-duration: 0s;
+	}
+}
+@keyframes strike-draw {
+	to {
+		background-size: 100% 1px;
 	}
 }
 

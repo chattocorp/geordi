@@ -20,6 +20,7 @@
 		fold,
 		onpoint,
 		children,
+		chevron = true,
 		class: extraClass
 	}: {
 		title: string;
@@ -34,6 +35,8 @@
 		onpoint?: (pointed: boolean) => void;
 		/** What follows the title (and the count): what it still says when folded. */
 		children?: Snippet;
+		/** Whether it folds from its sign; else the caller folds it from elsewhere (the outline, from beside it), and it only says how many are folded away. */
+		chevron?: boolean;
 		class?: string;
 	} = $props();
 
@@ -55,7 +58,7 @@
 	const toggleLabel = $derived(`${fold?.folded ? 'Expand' : 'Collapse'} ${title}`);
 </script>
 
-{#snippet chevron(always: boolean)}
+{#snippet chevronSign(always: boolean)}
 	<span
 		aria-hidden="true"
 		class={[
@@ -71,7 +74,10 @@
 		<span class={['grid size-6 shrink-0 place-items-center', !heading && 'text-muted']}>
 			{#if icon || (picture && !pictureFailed)}
 				<span
-					class={['col-start-1 row-start-1 grid place-items-center', fold && 'reveal:opacity-0']}
+					class={[
+						'col-start-1 row-start-1 grid place-items-center',
+						fold && chevron && 'reveal:opacity-0'
+					]}
 				>
 					{#if icon}{@render icon()}{:else if picture}<PictureIcon
 							src={picture}
@@ -79,7 +85,7 @@
 						/>{/if}
 				</span>
 			{/if}
-			{#if fold}{@render chevron(!signed)}{/if}
+			{#if fold && chevron}{@render chevronSign(!signed)}{/if}
 		</span>
 	{/if}
 	<span class="min-w-0 truncate">{title}</span>
@@ -112,7 +118,7 @@
 	>
 		{@render label()}
 	</a>
-	{#if fold}
+	{#if fold && chevron}
 		<!-- the link goes to it; its sign, become a chevron, folds what is under it -->
 		<button
 			type="button"

@@ -13,10 +13,6 @@
 		dragging: boolean;
 		/** Lit up: a drop would put the dragged item under it. */
 		target: boolean;
-		/** Adds an item under it, and puts the cursor there. */
-		add: () => void;
-		/** Zooms into it, where it can be. */
-		zoom?: () => void;
 	};
 </script>
 
@@ -56,6 +52,7 @@
 		pointedAt = null,
 		home = 'Outline',
 		trail = [],
+		back,
 		onzoom,
 		zoomable = () => true
 	}: {
@@ -75,6 +72,11 @@
 		home?: string;
 		/** The way down to the item zoomed into, itself last; empty while not zoomed. */
 		trail?: { id: string; text: string }[];
+		/**
+		 * What the back arrow of a zoomed outline does: go back to where it was zoomed into
+		 * before (`text` names it); where that isn't known, it goes one level up.
+		 */
+		back?: { text: string; go: () => void };
 		/** Zooms into an item (FDR-019), or out to the top (`null`); no zooming without it. */
 		onzoom?: (id: string | null) => void;
 		/** Whether an entry can be zoomed into. */
@@ -94,6 +96,10 @@
 		onzoom(to);
 		void tick().then(() => focusRow(from));
 	}
+	/** Whether Cmd (Ctrl elsewhere) is held: a click on a row then zooms into it, and the cursor says so. */
+	let zoomKey = $state(false);
+	const isZoomKey = (event: KeyboardEvent | MouseEvent) =>
+		/Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey : event.ctrlKey;
 	/** Zooms one level out. */
 	const zoomUp = () => zoomOut(trail.at(-2)?.id ?? null);
 	const canZoom = (entry: Entry) => !!onzoom && zoomable(entry);
@@ -117,7 +123,10 @@
 	 * Where a gap between rows allows more than one depth, this picks it.
 	 */
 	function depthAt(event: DragEvent) {
-		const left = list?.getBoundingClientRect().left ?? 0;
+		// from where rows begin: after the gutter their folds sit in
+		const left =
+			(list?.getBoundingClientRect().left ?? 0) +
+			parseFloat(list ? getComputedStyle(list).paddingLeft : '0');
 		const indent = INDENT * parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25;
 		return Math.floor((event.clientX - left) / indent);
 	}
@@ -201,10 +210,16 @@
 		focusing = null;
 		void tick().then(() => focusRow(pending.id));
 	});
-	function focusRow(id: string | null) {
+	/** Puts the cursor in a row: in its line, at its `start` or (by default) its end. */
+	function focusRow(id: string | null, at: 'start' | 'end' = 'end') {
 		if (!id) return;
 		const row = list?.querySelector(`[data-row="${CSS.escape(id)}"]`);
-		row?.querySelector<HTMLElement>('input, a[href]')?.focus();
+		const target = row?.querySelector<HTMLElement>('textarea, a[href]');
+		target?.focus();
+		if (target instanceof HTMLTextAreaElement) {
+			const edge = at === 'start' ? 0 : target.value.length;
+			target.setSelectionRange(edge, edge);
+		}
 	}
 	const unfold = (id: string) => (folded.current = folded.current.filter((other) => other !== id));
 	const toggleFolded = (id: string) =>
@@ -234,7 +249,7 @@
 
 	/** What the keys do in an item's line, as in any outliner. */
 	async function itemKeys(
-		event: KeyboardEvent & { currentTarget: HTMLInputElement },
+		event: KeyboardEvent & { currentTarget: HTMLTextAreaElement },
 		index: number
 	) {
 		const entry = rows[index].workspace;
@@ -297,8 +312,22 @@
 		if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
 		const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
 		if (!step || !rows[index + step]) return;
+		// in a line that wraps, up and down go through it first: on from its start or its end
+		const field = event.target;
+		if (field instanceof HTMLTextAreaElement && wraps(field)) {
+			const edge = step === -1 ? 0 : field.value.length;
+			if (field.selectionStart !== edge || field.selectionEnd !== edge) return;
+		}
 		event.preventDefault();
-		focusRow(idAt(index + step));
+		// into a line from above, at its start; from below, at its end: on through it from there
+		focusRow(idAt(index + step), step === 1 ? 'start' : 'end');
+	}
+
+	/** Whether a line's text takes more than one line on screen. */
+	function wraps(field: HTMLTextAreaElement) {
+		const style = getComputedStyle(field);
+		const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+		return field.clientHeight - padding > parseFloat(style.lineHeight) * 1.5;
 	}
 
 	/** What can be done with an item without a workspace. */
@@ -344,26 +373,38 @@
 	const MOTION = 200;
 </script>
 
+<!-- whether Cmd (Ctrl) is held, for the cursor; let go when the window is left, too -->
+<svelte:window
+	onkeydown={(event) => (zoomKey = isZoomKey(event))}
+	onkeyup={(event) => (zoomKey = isZoomKey(event))}
+	onblur={() => (zoomKey = false)}
+/>
+
 {#if trail.length}
 	{@const zoomed = trail.at(-1)!}
 	{@const up = trail.at(-2)}
+	{@const to = back ?? {
+		text: up ? up.text || 'Untitled' : home,
+		go: () => zoomOut(up?.id ?? null)
+	}}
 	{@const path = [home, ...trail.map((crumb) => crumb.text || 'Untitled')].join(' › ')}
 	<!-- zoomed into an item: it is the first row, what is under it is under it, and its sign leads back up -->
-	<div class="item gap-1 px-1 text-base text-ink" title={path}>
+	<div class="ml-5 item gap-1 px-1 text-base text-ink" title={path}>
 		<button
 			type="button"
-			class="grid size-6 shrink-0 place-items-center rounded-control text-muted hover:text-ink"
-			aria-label={`Zoom out to ${up ? up.text || 'Untitled' : home}`}
-			title={`Zoom out to ${up ? up.text || 'Untitled' : home}`}
-			onclick={() => zoomOut(up?.id ?? null)}
+			class="mt-1 grid size-6 shrink-0 place-items-center self-start rounded-control text-muted hover:text-ink"
+			aria-label={`Back to ${to.text}`}
+			title={`Back to ${to.text}`}
+			onclick={to.go}
 		>
 			<span aria-hidden="true" class="icon-[lucide--arrow-left] size-4"></span>
 		</button>
-		<h2 class="min-w-0 flex-1 truncate py-1 font-semibold">{zoomed.text || 'Untitled'}</h2>
+		<h2 class="min-w-0 flex-1 py-1 font-semibold break-words">{zoomed.text || 'Untitled'}</h2>
 	</div>
 {/if}
+<!-- a gutter at the left, where a row's fold sits beside its sign, as in Workflowy -->
 <ul
-	class="space-y-px pb-4"
+	class="space-y-px pb-4 pl-5"
 	style:margin-inline-start={trail.length ? `calc(var(--spacing) * ${INDENT})` : undefined}
 	bind:this={list}
 	ondragover={overList}
@@ -391,7 +432,12 @@
 			style:--drop-indent={dropping && dropAt
 				? `calc(var(--spacing) * ${INDENT * (dropAt.line.depth - depth)})`
 				: undefined}
-			class={[dropping === 'above' && 'row-drop-before', dropping === 'below' && 'row-drop-after']}
+			class={[
+				'group/row relative',
+				zoomKey && !(entry.workspace && !live(entry.id)) && canZoom(entry) && 'zoomable',
+				dropping === 'above' && 'row-drop-before',
+				dropping === 'below' && 'row-drop-after'
+			]}
 			transition:slide={motion()}
 			{@attach contextMenu(() =>
 				!canDrag
@@ -411,7 +457,38 @@
 				if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 			}}
 			ondragend={endDrag}
+			onclickcapture={(event) => {
+				// Cmd-click (Ctrl-click elsewhere: on a Mac that is the menu) zooms into it, as in
+				// Workflowy; not on what the row has to click besides (its sign, its fold)
+				if (!isZoomKey(event) || !canZoom(entry) || archived) return;
+				if (event.target instanceof Element && event.target.closest('button')) return;
+				event.preventDefault();
+				event.stopPropagation();
+				zoomIn(entry);
+			}}
 		>
+			<!-- in the gutter beside its sign, as in Workflowy: what folds what is under it, shown while it is pointed at, or folded -->
+			{#if fold}
+				<button
+					type="button"
+					class={[
+						'absolute top-1 right-full grid h-6 w-5 place-items-center rounded-control text-faint hover:text-ink focus-visible:opacity-100',
+						!fold.folded && 'opacity-0 group-hover/row:opacity-100'
+					]}
+					aria-label={`${fold.folded ? 'Expand' : 'Collapse'} ${entry.text || 'item'}`}
+					aria-expanded={!fold.folded}
+					title={`${fold.folded ? 'Expand' : 'Collapse'} ${entry.text || 'item'}`}
+					onclick={fold.toggle}
+				>
+					<span
+						aria-hidden="true"
+						class={[
+							'icon-[lucide--chevron-right] size-4 transition-transform motion-reduce:transition-none',
+							!fold.folded && 'rotate-90'
+						]}
+					></span>
+				</button>
+			{/if}
 			{#if entry.workspace && !archived}
 				{@render workspace({
 					entry,
@@ -420,9 +497,7 @@
 					fold,
 					isFolded,
 					dragging: dragged?.id === entry.id,
-					target: dropping === 'onto',
-					add: () => newItem(entry.id, null),
-					zoom: canZoom(entry) ? () => zoomIn(entry) : undefined
+					target: dropping === 'onto'
 				})}
 			{:else}
 				<OutlineItemRow
@@ -435,9 +510,6 @@
 					{fold}
 					onsave={(text) => editItem({ itemId: entry.id, text })}
 					ontoggle={() => tickOff(entry)}
-					onadd={archived ? undefined : () => newItem(entry.id, null)}
-					onremove={archived ? undefined : () => removeItem({ itemId: entry.id })}
-					onzoom={!archived && canZoom(entry) ? () => zoomIn(entry) : undefined}
 					onkeydown={(event) => itemKeys(event, index)}
 				/>
 			{/if}

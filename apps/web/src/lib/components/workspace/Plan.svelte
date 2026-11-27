@@ -35,6 +35,13 @@
 		return line.some((item) => item.workspace) ? [] : line;
 	});
 	const root = $derived(trail.at(-1)?.id ?? workspaceId);
+	/** Back to where it was zoomed into before, where that is known. */
+	const back = $derived.by(() => {
+		const from = zoom.from;
+		if (from === undefined) return undefined;
+		const text = from === null ? 'Plan' : nav.items.find(({ id }) => id === from)?.text;
+		return { text: text || 'Untitled', go: zoom.back };
+	});
 	const rows = $derived(
 		outlineRows(scopeItems(nav.items, root), nav.workspaces, { folded: folded.current })
 	);
@@ -53,6 +60,7 @@
 			{folded}
 			{root}
 			{trail}
+			{back}
 			home="Plan"
 			onzoom={(id) => (zoom.current = id)}
 			zoomable={(entry) => !entry.workspace}

@@ -46,7 +46,7 @@
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
-		zoom: { current: string | null };
+		zoom: { current: string | null; from?: string | null; back?: () => void };
 		activeOnly?: boolean;
 		repositoryPickerOpen?: boolean;
 		lost?: boolean;
@@ -72,6 +72,13 @@
 	);
 	/** The way down to the item zoomed into; empty while not zoomed, or when it is gone. */
 	const trail = $derived(nav ? zoomTrail(nav.items, zoom.current) : []);
+	/** Back to where it was zoomed into before, where that is known. */
+	const back = $derived.by(() => {
+		const from = zoom.from;
+		if (from === undefined || !zoom.back) return undefined;
+		const text = from === null ? 'Outline' : nav?.items.find(({ id }) => id === from)?.text;
+		return { text: text || 'Untitled', go: zoom.back };
+	});
 
 	/**
 	 * A workspace counts as working, for archiving, while anything its agent started is. Not
@@ -328,6 +335,7 @@
 					{folded}
 					{pointedAt}
 					{trail}
+					{back}
 					root={trail.at(-1)?.id ?? null}
 					onzoom={(id) => (zoom.current = id)}
 					live={(id) => workspaceById.has(id)}
@@ -363,16 +371,7 @@
 	</nav>
 </div>
 
-{#snippet workspaceRow({
-	entry,
-	parent,
-	fold,
-	isFolded,
-	dragging,
-	target,
-	add,
-	zoom
-}: WorkspaceRowProps)}
+{#snippet workspaceRow({ entry, parent, fold, isFolded, dragging, target }: WorkspaceRowProps)}
 	{@const workspace = workspaceById.get(entry.id)!}
 	{@const current = path === `/workspaces/${entry.id}`}
 	{@const busy = working(workspace)}
@@ -424,10 +423,9 @@
 			standing={workspace.standing}
 			actions={workspace.actions}
 			{fold}
+			foldAside
 			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
 			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
-			onadd={leaving || workspace.repoId === null ? undefined : add}
-			onzoom={leaving || workspace.repoId === null ? undefined : zoom}
 		/>
 	</div>
 {/snippet}

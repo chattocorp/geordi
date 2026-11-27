@@ -76,11 +76,11 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByDisplayValue('Try it in the dev app')).toBeVisible();
+		await expect(canvas.getByRole('textbox', { name: 'Try it in the dev app' })).toBeVisible();
 		// a child agent is a row that leads to it; its own items are its own
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toBeVisible();
-		await expect(canvas.queryByDisplayValue('Its own step')).toBeNull();
-		await expect(canvas.queryByDisplayValue('Not in this plan')).toBeNull();
+		await expect(canvas.queryByRole('textbox', { name: 'Its own step' })).toBeNull();
+		await expect(canvas.queryByRole('textbox', { name: 'Not in this plan' })).toBeNull();
 	}}
 >
 	<div class="h-96 w-80 sheet">
