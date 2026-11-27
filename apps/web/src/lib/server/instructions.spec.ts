@@ -45,6 +45,9 @@ describe('instructionsFor', () => {
 		expect(text).toContain('- [x] Update the daemon (item a)\n  - [ ] In the tests too (item b)');
 		expect(text).toContain('- Agent "Review": 1 of 2 of its own items done');
 		expect(text).toContain('`update_item`');
+		// the plan is written there before any work that changes something
+		expect(text).toContain('write your plan here first');
+		expect(text).toContain('instead of a todo list of your own');
 		expect(instructionsFor(own)).not.toContain('`update_item`');
 	});
 

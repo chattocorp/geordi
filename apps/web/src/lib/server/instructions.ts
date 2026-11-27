@@ -100,7 +100,7 @@ export function outlineBrief({ workspace, path, items }: Scope): string {
 		lines.length
 			? `Under it, what is to be done here:\n${lines.join('\n')}`
 			: 'Nothing is written under it yet.',
-		'These items are yours to keep: tick off what you have done (the person’s too), and add what you find still to do, with the `geordi` MCP server’s `update_item` and `add_item` (`list_items` reads them, `move_item` puts them in order, `remove_item` removes one). Keep them few and meaningful: they are for the person to follow, not your scratch plan. The person may write items here to steer you; they say what to do, as a message would. To hand one of them to another agent, start it on the item (`start_agent` with item): what is under it becomes that agent’s.'
+		'These items are your plan, which the person follows. Before you start any work that changes something, write your plan here first: a few lines (2 to 7), each a step the person would recognise, with `add_item` of the `geordi` MCP server. Only a question, or a change of a line or two, needs none. Use them instead of a todo list of your own. Tick each off with `update_item` as soon as it is done (the person’s items too), and add what you find still to do. The person may write items here to steer you; they say what to do, as a message would. `list_items` reads them, `move_item` puts them in order, `remove_item` removes one. To hand one of them to another agent, start it on the item (`start_agent` with item): what is under it becomes that agent’s.'
 	].join('\n\n');
 }
 
