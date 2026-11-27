@@ -28,11 +28,13 @@ Agent CLIs run directly under `sandbox-exec` with a profile denying `~/Downloads
 ## Plan
 
 - Start the agent CLI in `apps/daemon/src/host.ts` under `/usr/bin/sandbox-exec` with a generated profile on macOS: `(allow default)`, deny `file-read*`/`file-write*` on `/Volumes`, `~/Desktop`, `~/Documents`, `~/Downloads`, `~/Library/Mobile Documents`, and the Photos, Mail, Messages, Contacts and Calendar data; then re-allow the repository checkout, its worktrees and `writableRoots` (later rules win).
-- Settle the open question on agents with their own sandbox (Codex auto mode, Claude Code sandbox) with live tests first.
+- Add a permission mode `full-access-sandboxed` ("Full Permissions (Sandboxed)"), the new default; rename the label of `full-access` to "Full Permissions". Stored `full-access` stays unrestricted. Auto Mode is never sandboxed (decided 2026-11-27).
+- Each agent's adapter maps the new mode to its full-access setting; the host adds the sandbox.
 
 ## Acceptance criteria
 
 - An agent running `ls /Volumes/<drive>` or `ls ~/Downloads` gets "Operation not permitted" and no macOS prompt appears.
 - A repository in `~/Documents` or on an external drive still works for its agents.
-- Claude Code, Codex and OpenCode turns work in both permission modes (live session tests).
+- Claude Code, Codex and OpenCode turns work in all three permission modes (live session tests).
+- The picker shows the three modes; new workspaces default to the sandboxed one.
 - Not on macOS: unchanged.
