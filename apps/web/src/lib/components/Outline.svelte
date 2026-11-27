@@ -49,7 +49,6 @@
 		workspace,
 		workspaceMenu,
 		draggable = () => true,
-		pointedAt = null,
 		home = 'Outline',
 		trail = [],
 		back,
@@ -66,8 +65,6 @@
 		workspaceMenu?: (entry: Entry, actions: { add: () => void; zoom?: () => void }) => MenuItem[];
 		/** Whether a workspace's row can be picked up (not one on its way out, say). */
 		draggable?: (id: string) => boolean;
-		/** An item lit up from elsewhere (a workspace's parent, pointed at). */
-		pointedAt?: string | null;
 		/** What the top of this outline is called: where zooming out of the last level goes. */
 		home?: string;
 		/** The way down to the item zoomed into, itself last; empty while not zoomed. */
@@ -506,7 +503,7 @@
 					done={entry.done}
 					href={archived ? resolve('/workspaces/[id]', { id: entry.id }) : undefined}
 					dragging={dragged?.id === entry.id}
-					highlighted={pointedAt === entry.id || dropping === 'onto'}
+					highlighted={dropping === 'onto'}
 					{fold}
 					onsave={(text) => editItem({ itemId: entry.id, text })}
 					ontoggle={() => tickOff(entry)}

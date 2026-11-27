@@ -18,7 +18,6 @@
 		current = false,
 		hint,
 		fold,
-		onpoint,
 		children,
 		chevron = true,
 		class: extraClass
@@ -32,7 +31,6 @@
 		hint?: string;
 		/** `unread`: something folded away is unread, which the count then shows. */
 		fold?: { folded: boolean; count: number; unread?: boolean; toggle(): void };
-		onpoint?: (pointed: boolean) => void;
 		/** What follows the title (and the count): what it still says when folded. */
 		children?: Snippet;
 		/** Whether it folds from its sign; else the caller folds it from elsewhere (the outline, from beside it), and it only says how many are folded away. */
@@ -111,10 +109,6 @@
 		draggable="false"
 		aria-current={current ? 'page' : undefined}
 		title={hint}
-		onpointerenter={() => onpoint?.(true)}
-		onpointerleave={() => onpoint?.(false)}
-		onfocus={() => onpoint?.(true)}
-		onblur={() => onpoint?.(false)}
 	>
 		{@render label()}
 	</a>

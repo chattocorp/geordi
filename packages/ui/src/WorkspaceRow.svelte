@@ -28,7 +28,6 @@
 		standing = null,
 		actions = [],
 		fold,
-		onpoint,
 		onaction,
 		foldAside = false
 	}: {
@@ -55,7 +54,6 @@
 		standing?: WorkspaceStanding | null;
 		actions?: WorkspaceAction[];
 		fold?: { count: number; folded: boolean; toggle(): void };
-		onpoint?: (pointed: boolean) => void;
 		onaction?: (action: WorkspaceAction) => void;
 		/** Whether what is under it folds from beside it (the outline's fold, FDR-019), not from its sign. */
 		foldAside?: boolean;
@@ -114,10 +112,6 @@
 			aria-label={label}
 			title={label}
 			draggable="false"
-			onpointerenter={() => onpoint?.(true)}
-			onpointerleave={() => onpoint?.(false)}
-			onfocus={() => onpoint?.(true)}
-			onblur={() => onpoint?.(false)}
 		>
 			<span class="icon-[lucide--link] size-4"></span>
 		</a>
@@ -127,7 +121,6 @@
 			{title}
 			{href}
 			{current}
-			{onpoint}
 			icon={parentHref && !fold && !waiting ? undefined : statusIcon}
 			hint={parentTitle ? `Reports to "${parentTitle}"` : undefined}
 			fold={leaving ? undefined : fold}
