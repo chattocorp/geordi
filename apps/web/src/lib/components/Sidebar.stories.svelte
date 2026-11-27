@@ -13,6 +13,7 @@
 		beforeEach() {
 			filters.activeOnly = true;
 			focus.current = null;
+			zoom.current = null;
 			folded.current = [];
 			arrived.current = false;
 			loaded.current = false;
@@ -25,6 +26,8 @@
 	const folded = $state({ current: [] as string[] });
 	/** The repository shown alone: in the app, remembered in the browser too. */
 	const focus = $state({ current: null as string | null });
+	/** The item zoomed into: in the app, remembered in the browser too. */
+	const zoom = $state({ current: null as string | null });
 
 	const filters = $state({ activeOnly: true });
 	/** Whether a workspace has come along since the story began. */
@@ -239,6 +242,7 @@
 			{path}
 			{folded}
 			{focus}
+			{zoom}
 			bind:activeOnly={filters.activeOnly}
 			{lost}
 		/>
@@ -301,11 +305,13 @@
 		const idle = canvas.getByRole('link', { name: /Check every token/ });
 		idle.focus();
 		const cleanRow = within(idle.closest('li')!);
-		// nothing to do on it but add an item under it, which shows when pointed at
+		// nothing to do on it but add an item under it or zoom into it, which show when pointed at
 		await expect(
 			cleanRow
 				.queryAllByRole('button')
-				.filter((button) => !button.getAttribute('aria-label')?.startsWith('Add an item'))
+				.filter(
+					(button) => !/^(Add an item|Zoom into)/.test(button.getAttribute('aria-label') ?? '')
+				)
 		).toEqual([]);
 		await expect(cleanRow.queryByRole('img')).toBeNull();
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
@@ -631,11 +637,39 @@
 		await expect(offered('Add an item under Tag the release')).toBeNull();
 		await expect(offered('Remove Write the release notes')).toBeNull();
 		await expect(offered('Add an item under Write the release notes')).not.toBeNull();
+		// every row can be zoomed into from a button too, a workspace's as well
+		await expect(offered('Zoom into Release 0.9')).not.toBeNull();
+		await expect(
+			offered('Zoom into Guard shared worktrees from update and continue')
+		).not.toBeNull();
 		// it folds what is under it
 		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse Release 0.9' }));
 		await waitFor(() =>
 			expect(canvas.queryByRole('textbox', { name: 'Write the release notes' })).toBeNull()
 		);
+	}}
+>
+	{@render frame(withPlainItems(nav), '/workspaces/ready')}
+</Story>
+
+<Story
+	name="Zoom into an item"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Cmd-. on a row zooms into it: its branch is all there is, under it as a heading
+		await fireEvent.keyDown(canvas.getByRole('textbox', { name: 'Release 0.9' }), {
+			key: '.',
+			code: 'Period',
+			metaKey: true
+		});
+		await expect(await canvas.findByRole('heading', { name: 'Release 0.9' })).toBeVisible();
+		await expect(canvas.getByRole('textbox', { name: 'Write the release notes' })).toBeVisible();
+		await waitFor(() => expect(canvas.queryByText('Choose a storage engine')).toBeNull());
+		// its sign leads back up
+		await fireEvent.click(canvas.getByRole('button', { name: 'Zoom out to Outline' }));
+		await waitFor(() => expect(canvas.getByText('Choose a storage engine')).toBeVisible());
+		await expect(canvas.queryByRole('heading', { name: 'Release 0.9' })).toBeNull();
 	}}
 >
 	{@render frame(withPlainItems(nav), '/workspaces/ready')}

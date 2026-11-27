@@ -9,8 +9,9 @@
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import Outline, { type WorkspaceRowProps } from '#lib/components/Outline.svelte';
-	import { outlineRows, scopeItems } from '#lib/family.ts';
+	import { outlineRows, scopeItems, zoomTrail } from '#lib/family.ts';
 	import { unread } from '#lib/notifications.svelte.ts';
+	import { zoomInHistory } from '#lib/zoom.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
 
 	let { workspaceId, nav }: { workspaceId: string; nav: Navigation } = $props();
@@ -19,20 +20,44 @@
 	const folded = persisted<string[]>('geordi:plan-folded', []);
 	const workspaceById = $derived(new Map(nav.workspaces.map((each) => [each.id, each])));
 	const repoNames = $derived(new Map(nav.repos.map((repo) => [repo.id, repo.name])));
+	/** The item of its scope zoomed into, if any: a preference of this browser, per workspace. */
+	// svelte-ignore state_referenced_locally
+	const zoom = zoomInHistory(
+		`plan:${workspaceId}`,
+		persisted<string | null>(`geordi:plan-zoom:${workspaceId}`, null)
+	);
+	/**
+	 * The way down to it from the workspace: only within its scope, so only through items
+	 * without workspaces; empty while not zoomed, or when it is gone or out of the scope.
+	 */
+	const trail = $derived.by(() => {
+		const line = zoomTrail(nav.items, zoom.current, workspaceId);
+		return line.some((item) => item.workspace) ? [] : line;
+	});
+	const root = $derived(trail.at(-1)?.id ?? workspaceId);
 	const rows = $derived(
-		outlineRows(scopeItems(nav.items, workspaceId), nav.workspaces, { folded: folded.current })
+		outlineRows(scopeItems(nav.items, root), nav.workspaces, { folded: folded.current })
 	);
 </script>
 
 <div class="scroller h-full">
 	<div class="mx-auto w-full max-w-3xl p-2">
-		{#if rows.length === 0}
+		{#if rows.length === 0 && !trail.length}
 			<p class="px-2 pt-1 pb-2 text-sm text-muted">
 				Write down what is to be done here. The agent sees it at its next turn, and ticks off what
 				it has done.
 			</p>
 		{/if}
-		<Outline {rows} {folded} root={workspaceId} live={(id) => workspaceById.has(id)}>
+		<Outline
+			{rows}
+			{folded}
+			{root}
+			{trail}
+			home="Plan"
+			onzoom={(id) => (zoom.current = id)}
+			zoomable={(entry) => !entry.workspace}
+			live={(id) => workspaceById.has(id)}
+		>
 			{#snippet workspace(row)}{@render child(row)}{/snippet}
 		</Outline>
 	</div>

@@ -15,6 +15,8 @@
 		target: boolean;
 		/** Adds an item under it, and puts the cursor there. */
 		add: () => void;
+		/** Zooms into it, where it can be. */
+		zoom?: () => void;
 	};
 </script>
 
@@ -51,7 +53,11 @@
 		workspace,
 		workspaceMenu,
 		draggable = () => true,
-		pointedAt = null
+		pointedAt = null,
+		home = 'Outline',
+		trail = [],
+		onzoom,
+		zoomable = () => true
 	}: {
 		rows: Row[];
 		folded: { current: string[] };
@@ -59,12 +65,38 @@
 		/** Whether a workspace's item has its workspace in use; else it is an archived one's record. */
 		live: (id: string) => boolean;
 		workspace: Snippet<[WorkspaceRowProps]>;
-		workspaceMenu?: (entry: Entry, add: () => void) => MenuItem[];
+		/** What a workspace's menu offers; `zoom` where it can be zoomed into. */
+		workspaceMenu?: (entry: Entry, actions: { add: () => void; zoom?: () => void }) => MenuItem[];
 		/** Whether a workspace's row can be picked up (not one on its way out, say). */
 		draggable?: (id: string) => boolean;
 		/** An item lit up from elsewhere (a workspace's parent, pointed at). */
 		pointedAt?: string | null;
+		/** What the top of this outline is called: where zooming out of the last level goes. */
+		home?: string;
+		/** The way down to the item zoomed into, itself last; empty while not zoomed. */
+		trail?: { id: string; text: string }[];
+		/** Zooms into an item (FDR-019), or out to the top (`null`); no zooming without it. */
+		onzoom?: (id: string | null) => void;
+		/** Whether an entry can be zoomed into. */
+		zoomable?: (entry: Entry) => boolean;
 	} = $props();
+
+	/** Zooms into a row's item, and puts the cursor on the first row under it. */
+	function zoomIn(entry: Entry) {
+		if (!onzoom || !zoomable(entry)) return;
+		onzoom(entry.id);
+		void tick().then(() => focusRow(rows[0]?.workspace.id ?? null));
+	}
+	/** Zooms out to `to` (the top, where `null`), and puts the cursor on where it was. */
+	function zoomOut(to: string | null) {
+		const from = trail.at(-1)?.id ?? null;
+		if (!onzoom || !from) return;
+		onzoom(to);
+		void tick().then(() => focusRow(from));
+	}
+	/** Zooms one level out. */
+	const zoomUp = () => zoomOut(trail.at(-2)?.id ?? null);
+	const canZoom = (entry: Entry) => !!onzoom && zoomable(entry);
 
 	/** Ticks an item off, or not: it stays where it is, crossed out. */
 	const tickOff = (entry: { id: string; done: boolean }) =>
@@ -255,6 +287,13 @@
 
 	/** Up and down go from row to row, workspaces and items alike. */
 	function rowKeys(event: KeyboardEvent, index: number) {
+		// zooming: Cmd-. (Ctrl-. elsewhere) into the row, with Shift out of where it is
+		if ((event.metaKey || event.ctrlKey) && !event.altKey && event.code === 'Period') {
+			event.preventDefault();
+			if (event.shiftKey) zoomUp();
+			else zoomIn(rows[index].workspace);
+			return;
+		}
 		if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
 		const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
 		if (!step || !rows[index + step]) return;
@@ -277,6 +316,9 @@
 				icon: 'icon-[lucide--list-plus]',
 				onselect: () => addUnder(index)
 			},
+			...(canZoom(entry)
+				? [{ label: 'Zoom in', icon: 'icon-[lucide--zoom-in]', onselect: () => zoomIn(entry) }]
+				: []),
 			{
 				label: entry.done ? 'Mark as not done' : 'Mark as done',
 				icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
@@ -302,8 +344,27 @@
 	const MOTION = 200;
 </script>
 
+{#if trail.length}
+	{@const zoomed = trail.at(-1)!}
+	{@const up = trail.at(-2)}
+	{@const path = [home, ...trail.map((crumb) => crumb.text || 'Untitled')].join(' › ')}
+	<!-- zoomed into an item: it is the first row, what is under it is under it, and its sign leads back up -->
+	<div class="item gap-1 px-1 text-base text-ink" title={path}>
+		<button
+			type="button"
+			class="grid size-6 shrink-0 place-items-center rounded-control text-muted hover:text-ink"
+			aria-label={`Zoom out to ${up ? up.text || 'Untitled' : home}`}
+			title={`Zoom out to ${up ? up.text || 'Untitled' : home}`}
+			onclick={() => zoomOut(up?.id ?? null)}
+		>
+			<span aria-hidden="true" class="icon-[lucide--arrow-left] size-4"></span>
+		</button>
+		<h2 class="min-w-0 flex-1 truncate py-1 font-semibold">{zoomed.text || 'Untitled'}</h2>
+	</div>
+{/if}
 <ul
 	class="space-y-px pb-4"
+	style:margin-inline-start={trail.length ? `calc(var(--spacing) * ${INDENT})` : undefined}
 	bind:this={list}
 	ondragover={overList}
 	ondrop={drop}
@@ -336,7 +397,10 @@
 				!canDrag
 					? []
 					: entry.workspace
-						? (workspaceMenu?.(entry, () => addUnder(index)) ?? [])
+						? (workspaceMenu?.(entry, {
+								add: () => addUnder(index),
+								zoom: canZoom(entry) ? () => zoomIn(entry) : undefined
+							}) ?? [])
 						: itemMenu(entry, index)
 			)}
 			draggable={canDrag}
@@ -357,7 +421,8 @@
 					isFolded,
 					dragging: dragged?.id === entry.id,
 					target: dropping === 'onto',
-					add: () => newItem(entry.id, null)
+					add: () => newItem(entry.id, null),
+					zoom: canZoom(entry) ? () => zoomIn(entry) : undefined
 				})}
 			{:else}
 				<OutlineItemRow
@@ -372,6 +437,7 @@
 					ontoggle={() => tickOff(entry)}
 					onadd={archived ? undefined : () => newItem(entry.id, null)}
 					onremove={archived ? undefined : () => removeItem({ itemId: entry.id })}
+					onzoom={!archived && canZoom(entry) ? () => zoomIn(entry) : undefined}
 					onkeydown={(event) => itemKeys(event, index)}
 				/>
 			{/if}

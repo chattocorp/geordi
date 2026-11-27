@@ -17,7 +17,8 @@
 		ontoggle,
 		onkeydown,
 		onadd,
-		onremove
+		onremove,
+		onzoom
 	}: {
 		id: string;
 		text: string;
@@ -34,6 +35,8 @@
 		onadd?: () => void;
 		/** Removes it: offered instead of adding, while a done item is hovered or focused. */
 		onremove?: () => void;
+		/** Zooms the outline into it: offered while the row is hovered or focused. */
+		onzoom?: () => void;
 	} = $props();
 
 	const toggleLabel = $derived(done ? `Mark “${text}” as not done` : `Mark “${text}” as done`);
@@ -106,6 +109,17 @@
 			}}
 			{onkeydown}
 		/>
+	{/if}
+	{#if onzoom}
+		<button
+			type="button"
+			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"
+			aria-label={`Zoom into ${text || 'this item'}`}
+			title="Zoom in"
+			onclick={onzoom}
+		>
+			<span class="icon-[lucide--zoom-in] size-4"></span>
+		</button>
 	{/if}
 	{#if done && onremove}
 		<button

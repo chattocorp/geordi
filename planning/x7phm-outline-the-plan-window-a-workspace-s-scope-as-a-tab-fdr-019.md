@@ -1,7 +1,7 @@
 ---
 data:
   priority: normal
-  status: in_progress
+  status: done
   tags:
     - outline
   type: feature
@@ -16,3 +16,7 @@ A workspace window (`plan`) showing the workspace's scope (FDR-019): its items, 
 - Child workspaces show as rows that lead to them; their own items are not shown.
 - Works small (side/dock) and wide (main area).
 - One outline editor shared with the sidebar; no second implementation.
+
+## Outcome (2026-11-27)
+
+Shipped in PR #563: `Outline.svelte` shared by sidebar and `Plan.svelte`, `scopeItems` in `family.ts`. A child agent's row was checked in Storybook only, not with a live agent.

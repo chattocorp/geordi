@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, within } from 'storybook/test';
+	import { expect, fireEvent, waitFor, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { Navigation } from '#lib/server/views.ts';
 	import Plan from './Plan.svelte';
@@ -102,5 +102,39 @@
 			workspaceId="child"
 			nav={{ ...nav, items: [item('child', 'x', null, { attached: true })] }}
 		/>
+	</div>
+</Story>
+
+<Story
+	name="Zoomed into a step"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await fireEvent.keyDown(canvas.getByRole('textbox', { name: 'Try it in the dev app' }), {
+			key: '.',
+			code: 'Period',
+			ctrlKey: true
+		});
+		await expect(
+			await canvas.findByRole('heading', { name: 'Try it in the dev app' })
+		).toBeVisible();
+		await expect(canvas.getByRole('textbox', { name: 'With a forge restart' })).toBeVisible();
+		await waitFor(() =>
+			expect(canvas.queryByRole('link', { name: /Bump the protocol/ })).toBeNull()
+		);
+		// Cmd-Shift-. goes back up, to the plan
+		await fireEvent.keyDown(canvas.getByRole('textbox', { name: 'With a forge restart' }), {
+			key: '>',
+			code: 'Period',
+			ctrlKey: true,
+			shiftKey: true
+		});
+		await waitFor(() =>
+			expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toBeVisible()
+		);
+	}}
+>
+	<div class="h-96 w-80 sheet">
+		<Plan workspaceId="lead" {nav} />
 	</div>
 </Story>
