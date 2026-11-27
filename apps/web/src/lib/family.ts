@@ -350,3 +350,16 @@ export function zoomTrail<T extends OutlineEntry>(
 	const below = line.findIndex(({ id }) => id === root);
 	return below === -1 ? [] : line.slice(below + 1);
 }
+
+/**
+ * The workspaces new to the outline since `known` was all of them, which start folded: all
+ * but one started on an item that has items under it already, which stay in sight.
+ */
+export function arrivals(
+	known: ReadonlySet<string>,
+	workspaces: readonly { id: string }[],
+	items: readonly { parentId: string | null }[]
+): string[] {
+	const parents = new Set(items.map(({ parentId }) => parentId));
+	return workspaces.flatMap(({ id }) => (known.has(id) || parents.has(id) ? [] : [id]));
+}

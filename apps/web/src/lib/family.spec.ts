@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	arrivals,
 	dropTarget,
 	gapDepths,
 	nested,
@@ -401,5 +402,13 @@ describe('zooming', () => {
 		expect(zoomTrail(items, 'elsewhere', 'lead')).toEqual([]);
 		expect(zoomTrail(items, 'gone')).toEqual([]);
 		expect(zoomTrail(items, null)).toEqual([]);
+	});
+});
+
+describe('arrivals', () => {
+	it('names the workspaces that are new, but not one with items under it', () => {
+		const workspaces = [{ id: 'old' }, { id: 'new' }, { id: 'started-on-item' }];
+		const items = [{ parentId: null }, { parentId: 'old' }, { parentId: 'started-on-item' }];
+		expect(arrivals(new Set(['old']), workspaces, items)).toEqual(['new']);
 	});
 });

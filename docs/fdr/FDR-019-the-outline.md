@@ -60,6 +60,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 - In the sidebar, any item can be zoomed into, a workspace's too: then all of what is under it shows, its child agents' items included. In the Plan window, only items of its scope: a child agent's items are its own.
 - The previous and next workspace keys go through what the sidebar shows, zoomed in or not.
 - Zooming in or out is a step in the page's history: Back zooms out again, Forward back in, in the sidebar and the Plan window alike. Going to another page keeps the zoom.
+- A workspace new to the outline starts folded: when its agent writes its plan under it, only the arrow beside it appears (one started on an item that has items under it stays as it was). Writing an item under it yourself unfolds it.
 - Where it is zoomed into is a preference of this browser, as what is folded: for the sidebar, and for each workspace's Plan window. Where that item is gone, the whole outline shows again.
 
 ### Agents starting agents on items

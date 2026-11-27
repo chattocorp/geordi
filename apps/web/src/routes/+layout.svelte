@@ -18,7 +18,7 @@
 	import AddRepository from '#lib/components/AddRepository.svelte';
 	import { theme } from '#lib/theme.svelte.ts';
 	import { daemon } from '#lib/daemon.svelte.ts';
-	import { nextUnread, outlineRows, stepThrough, zoomedInto } from '#lib/family.ts';
+	import { arrivals, nextUnread, outlineRows, stepThrough, zoomedInto } from '#lib/family.ts';
 	import { zoomInHistory } from '#lib/zoom.svelte.ts';
 	import { pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
@@ -95,6 +95,16 @@
 	const clampWidth = (width: number) => Math.round(Math.min(maxWidth, Math.max(240, width)));
 	/** What the sidebar has folded away: also what the previous and next workspace skip. */
 	const folded = persisted<string[]>('geordi:folded', []);
+	// A workspace new to the outline starts folded: what its agent then plans under it shows
+	// as an arrow beside it, not as rows that push the rest down.
+	let known: Set<string> | undefined;
+	$effect(() => {
+		const all = nav.current?.workspaces;
+		if (!all) return;
+		const added = known ? arrivals(known, all, nav.current!.items) : [];
+		known = new Set(all.map(({ id }) => id));
+		if (added.length) untrack(() => (folded.current = [...new Set([...folded.current, ...added])]));
+	});
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
 	/** The item the sidebar is zoomed into, if any: also all the previous and next workspace go to. */
