@@ -625,6 +625,12 @@
 		await expect(
 			canvas.getByRole('button', { name: 'Mark “Tag the release” as not done' })
 		).toHaveAttribute('aria-pressed', 'true');
+		// it can be removed from its row; what is not done is added to instead
+		const offered = (label: string) => canvasElement.querySelector(`button[aria-label="${label}"]`);
+		await expect(offered('Remove Tag the release')).not.toBeNull();
+		await expect(offered('Add an item under Tag the release')).toBeNull();
+		await expect(offered('Remove Write the release notes')).toBeNull();
+		await expect(offered('Add an item under Write the release notes')).not.toBeNull();
 		// it folds what is under it
 		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse Release 0.9' }));
 		await waitFor(() =>

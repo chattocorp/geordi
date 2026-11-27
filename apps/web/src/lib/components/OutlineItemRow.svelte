@@ -16,7 +16,8 @@
 		onsave,
 		ontoggle,
 		onkeydown,
-		onadd
+		onadd,
+		onremove
 	}: {
 		id: string;
 		text: string;
@@ -31,6 +32,8 @@
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLInputElement }) => void;
 		/** Adds an item under it: offered while the row is hovered or focused. */
 		onadd?: () => void;
+		/** Removes it: offered instead of adding, while a done item is hovered or focused. */
+		onremove?: () => void;
 	} = $props();
 
 	const toggleLabel = $derived(done ? `Mark “${text}” as not done` : `Mark “${text}” as done`);
@@ -104,7 +107,17 @@
 			{onkeydown}
 		/>
 	{/if}
-	{#if onadd}
+	{#if done && onremove}
+		<button
+			type="button"
+			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"
+			aria-label={`Remove ${text || 'this item'}`}
+			title="Remove it"
+			onclick={onremove}
+		>
+			<span class="icon-[lucide--x] size-4"></span>
+		</button>
+	{:else if onadd}
 		<button
 			type="button"
 			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"

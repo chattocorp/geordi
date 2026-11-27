@@ -371,6 +371,7 @@
 					onsave={(text) => editItem({ itemId: entry.id, text })}
 					ontoggle={() => tickOff(entry)}
 					onadd={archived ? undefined : () => newItem(entry.id, null)}
+					onremove={archived ? undefined : () => removeItem({ itemId: entry.id })}
 					onkeydown={(event) => itemKeys(event, index)}
 				/>
 			{/if}

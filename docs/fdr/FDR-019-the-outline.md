@@ -20,7 +20,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 ### Editing
 
 - The outline is edited like any outliner: Enter starts a new item below, Tab and Shift-Tab indent and outdent, Alt with the arrows moves an item, Cmd-Enter (Ctrl-Enter) ticks it off, Backspace on an empty item removes it, Escape takes back what was typed. Up and down go from row to row. Rows can also be dragged (FDR-016).
-- The outline's last line, "New item", starts one at the end of it. Every row, item or workspace, offers a "+" while it is pointed at, which starts an item under it, as its last.
+- The outline's last line, "New item", starts one at the end of it. Every row, item or workspace, offers a "+" while it is pointed at, which starts an item under it, as its last. An item that is done offers an "×" instead, which removes it (with what is under it).
 - The menu of an item offers starting a workspace on it, adding an item under it, ticking it off, and removing it (with what is under it, where none of it has a workspace). The menu of a workspace offers adding an item under it.
 - An item's text is saved when you leave the line or press Enter.
 - An item ticked off stays where it is, crossed out. "Show only what is active" leaves out archived and inactive workspaces, with what is under them, but never items: ticking one off is not putting it away.
