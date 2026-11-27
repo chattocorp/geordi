@@ -414,10 +414,11 @@
 	}}
 	{@const path = [home, ...trail.map((crumb) => crumb.text || 'Untitled')].join(' › ')}
 	<!-- zoomed into an item: it is the first row, what is under it is under it, and its sign leads back up -->
-	<div class="ml-5 item gap-1 px-1 text-base text-ink" title={path}>
+	<!-- its arrow sits in the gutter, where the rows' folds are; its title above their signs -->
+	<div class="item gap-1.5 pr-1 text-base text-ink" title={path}>
 		<button
 			type="button"
-			class="mt-1 grid size-6 shrink-0 place-items-center self-start rounded-control text-muted hover:text-ink"
+			class="mt-1 grid h-6 w-5 shrink-0 place-items-center self-start rounded-control text-muted hover:text-ink"
 			aria-label={`Back to ${to.text}`}
 			title={`Back to ${to.text}`}
 			onclick={to.go}
@@ -430,7 +431,6 @@
 <!-- a gutter at the left, where a row's fold sits beside its sign, as in Workflowy -->
 <ul
 	class="space-y-px pb-4 pl-5"
-	style:margin-inline-start={trail.length ? `calc(var(--spacing) * ${INDENT})` : undefined}
 	bind:this={list}
 	ondragover={overList}
 	ondrop={drop}
