@@ -73,11 +73,14 @@ const everywhere = (at: Partial<Everywhere> = {}): Everywhere =>
 		{ get: (target, name) => (name in target ? target[name as keyof Everywhere] : vi.fn()) }
 	);
 
-it('lists workspaces in the order given, without the one on screen', () => {
-	const listed = globalCommands(everywhere({ viewed: 'old', recency: ['new', 'old'] }))
+it('lists workspaces in the order given, the one on screen last, as current', () => {
+	const listed = globalCommands(everywhere({ viewed: 'new', recency: ['new', 'old'] }))
 		.filter((command) => command.group === 'Workspaces')
 		.map((command) => [command.label, command.detail]);
-	expect(listed).toEqual([['New', 'Beta']]);
+	expect(listed).toEqual([
+		['Old', expect.any(String)],
+		['New', 'Beta · current']
+	]);
 	expect(
 		globalCommands(everywhere({ recency: ['new', 'old'] }))
 			.filter((command) => command.group === 'Workspaces')
