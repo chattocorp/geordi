@@ -71,7 +71,7 @@
 		draggable?: (id: string) => boolean;
 		/** An item lit up from elsewhere (a workspace's parent, pointed at). */
 		pointedAt?: string | null;
-		/** What the top of this outline is called, at the start of the way down to a zoom. */
+		/** What the top of this outline is called: where zooming out of the last level goes. */
 		home?: string;
 		/** The way down to the item zoomed into, itself last; empty while not zoomed. */
 		trail?: { id: string; text: string }[];
@@ -346,29 +346,25 @@
 
 {#if trail.length}
 	{@const zoomed = trail.at(-1)!}
-	<!-- zoomed into an item: the way back up, and the item as the heading of what is under it -->
-	<nav aria-label="Zoomed into" class="flex min-w-0 items-center gap-1 px-1 text-xs text-muted">
-		<button type="button" class="shrink-0 hover:text-ink" onclick={() => zoomOut(null)}>
-			{home}
+	{@const up = trail.at(-2)}
+	{@const path = [home, ...trail.map((crumb) => crumb.text || 'Untitled')].join(' › ')}
+	<!-- zoomed into an item: it is the first row, what is under it is under it, and its sign leads back up -->
+	<div class="item gap-1 px-1 text-base text-ink" title={path}>
+		<button
+			type="button"
+			class="grid size-6 shrink-0 place-items-center rounded-control text-muted hover:text-ink"
+			aria-label={`Zoom out to ${up ? up.text || 'Untitled' : home}`}
+			title={`Zoom out to ${up ? up.text || 'Untitled' : home}`}
+			onclick={() => zoomOut(up?.id ?? null)}
+		>
+			<span aria-hidden="true" class="icon-[lucide--arrow-left] size-4"></span>
 		</button>
-		{#each trail.slice(0, -1) as crumb (crumb.id)}
-			<span aria-hidden="true" class="icon-[lucide--chevron-right] size-3 shrink-0 text-faint"
-			></span>
-			<button
-				type="button"
-				class="min-w-0 truncate hover:text-ink"
-				onclick={() => zoomOut(crumb.id)}
-			>
-				{crumb.text || 'Untitled'}
-			</button>
-		{/each}
-	</nav>
-	<h2 class="truncate px-1 pt-1 pb-2 text-base font-semibold text-ink" title={zoomed.text}>
-		{zoomed.text || 'Untitled'}
-	</h2>
+		<h2 class="min-w-0 flex-1 truncate py-1 font-semibold">{zoomed.text || 'Untitled'}</h2>
+	</div>
 {/if}
 <ul
 	class="space-y-px pb-4"
+	style:margin-inline-start={trail.length ? `calc(var(--spacing) * ${INDENT})` : undefined}
 	bind:this={list}
 	ondragover={overList}
 	ondrop={drop}

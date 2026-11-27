@@ -51,7 +51,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 
 ### Zooming
 
-- Any item can be zoomed into, in the sidebar and in the Plan window: with the magnifying glass its row offers while it is pointed at, from its menu ("Zoom in"), or with Cmd-. (Ctrl-.) on its row. Its branch is then all the outline shows, under it as a heading, with the way back up above it ("Outline › Release 0.9"); each step on that way zooms out to it. Cmd-Shift-. zooms out one level.
+- Any item can be zoomed into, in the sidebar and in the Plan window: with the magnifying glass its row offers while it is pointed at, from its menu ("Zoom in"), or with Cmd-. (Ctrl-.) on its row. Its branch is then all the outline shows, under the item itself as the first row, with a back arrow in place of its sign that zooms out one level (the whole way down is in its tooltip). Cmd-Shift-. zooms out one level too.
 - Zoomed in, the outline is edited as ever: "New item" and Enter write under the item zoomed into.
 - In the sidebar, any item can be zoomed into, a workspace's too: then all of what is under it shows, its child agents' items included. In the Plan window, only items of its scope: a child agent's items are its own.
 - The previous and next workspace keys go through what the sidebar shows, zoomed in or not.

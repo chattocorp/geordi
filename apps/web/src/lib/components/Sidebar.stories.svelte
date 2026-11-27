@@ -666,12 +666,8 @@
 		await expect(await canvas.findByRole('heading', { name: 'Release 0.9' })).toBeVisible();
 		await expect(canvas.getByRole('textbox', { name: 'Write the release notes' })).toBeVisible();
 		await waitFor(() => expect(canvas.queryByText('Choose a storage engine')).toBeNull());
-		// the way back up
-		await fireEvent.click(
-			within(canvas.getByRole('navigation', { name: 'Zoomed into' })).getByRole('button', {
-				name: 'Outline'
-			})
-		);
+		// its sign leads back up
+		await fireEvent.click(canvas.getByRole('button', { name: 'Zoom out to Outline' }));
 		await waitFor(() => expect(canvas.getByText('Choose a storage engine')).toBeVisible());
 		await expect(canvas.queryByRole('heading', { name: 'Release 0.9' })).toBeNull();
 	}}
