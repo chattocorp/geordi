@@ -633,32 +633,27 @@ export function createWorkspaces(
 		const named = item && item.text.slice(0, 80).trim();
 		const title = named || promptTitle(prompt) || UNTITLED;
 		store.append(
-			[
-				{
-					type: 'workspace.created',
-					stream: `workspace:${id}`,
-					data: {
-						id,
-						title,
-						...(repoId !== null && { repoId }),
-						...(repoId !== null && !rest.worktreeId && { worktreeParent: repoId }),
-						...rest,
-						...(item && { parentId: workspaceAbove(projection.outline(), item.id) ?? undefined }),
-						...(Object.keys(chosen).length > 0 && { settings: chosen })
-					}
-				},
-				...(named
-					? [
-							{
-								type: 'workspace.titled' as const,
-								stream: `workspace:${id}` as const,
-								data: { id, title: named }
-							}
-						]
-					: [])
-			],
-			{ actor: named ? 'person' : actor }
+			{
+				type: 'workspace.created',
+				stream: `workspace:${id}`,
+				data: {
+					id,
+					title,
+					...(repoId !== null && { repoId }),
+					...(repoId !== null && !rest.worktreeId && { worktreeParent: repoId }),
+					...rest,
+					...(item && { parentId: workspaceAbove(projection.outline(), item.id) ?? undefined }),
+					...(Object.keys(chosen).length > 0 && { settings: chosen })
+				}
+			},
+			{ actor }
 		);
+		// its item's text is its name, chosen on purpose: by the person, or by the agent that started it there
+		if (named)
+			store.append(
+				{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: named } },
+				{ actor: actor ?? 'person' }
+			);
 		// whoever starts it may name it; otherwise its agent does (`titleFromAgent`, `name_workspace`)
 		if (given && actor) retitle(id, given, actor);
 		// started with nothing to do, it waits to be told: its first turn is its first message
@@ -1287,10 +1282,19 @@ export function createWorkspaces(
 				model,
 				effort,
 				prompt,
-				title
+				title,
+				item,
+				under
 			}: {
 				repository?: string;
 				worktree: WorktreeMode;
+				/**
+				 * One of the caller's items to start it on (FDR-017): the item becomes the new
+				 * workspace, named after it, and what is under it the new agent's items.
+				 */
+				item?: string;
+				/** One of the caller's items to put the new workspace under, rather than under the caller. */
+				under?: string;
 				/** The branch a new worktree starts from, and is compared with; the repository's base if absent. */
 				base?: string;
 				/** An existing workspace where the caller may start an agent alongside its agent. */
@@ -1306,6 +1310,16 @@ export function createWorkspaces(
 			const external = isExternal(callerId);
 			const caller = external ? null : find(callerId);
 			if (caller) refuseHeld(caller.id);
+			// where in the caller's scope it goes (FDR-017): only for a workspace's own agent
+			if (item !== undefined || under !== undefined) {
+				if (!caller || caller.worktreeId !== caller.id)
+					error(400, 'Only the agent of a workspace of its own can start one on its items');
+				if (item !== undefined && under !== undefined)
+					error(400, 'Start it on an item, or put it under one: not both');
+				if (alongside !== undefined || worktree === 'shared')
+					error(400, 'An agent on an item has a worktree of its own');
+				ownItem(caller, (item ?? under)!);
+			}
 			if (caller && depthOf(caller) + 1 > limits.depth)
 				error(403, `Agents can only be nested ${limits.depth} deep`);
 			ensureCapacity(callerId);
@@ -1372,7 +1386,11 @@ export function createWorkspaces(
 				{ model, effort },
 				offered?.find((harness) => harness.agent === kind)
 			);
-			const id = create({ ...where, agent: kind, settings, prompt, title }, callerId);
+			const id = create(
+				{ ...where, agent: kind, settings, prompt, title, ...(item && { itemId: item }) },
+				callerId
+			);
+			if (under !== undefined) moveItem(id, null, under, callerId);
 			return report(find(id));
 		},
 

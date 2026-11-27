@@ -533,6 +533,45 @@ describe('the agent API as an MCP server', () => {
 		expect(workspaces.outline().items.get(caller)?.workspace).toBe(true);
 	});
 
+	it('lets an agent start agents on its items, or file them under one (FDR-017)', async () => {
+		const { workspaces, caller, call, callAs } = setup();
+		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
+		const auth = (await call('add_item', { text: 'Add auth' })).id;
+		await call('add_item', { text: 'Login form', under: auth });
+		await call('add_item', { text: 'Sessions', under: auth });
+
+		const child = await call('start_agent', { prompt: 'Do it', worktree: 'own', item: auth });
+		expect(child).toMatchObject({ id: auth, title: 'Add auth', parentId: caller });
+		// named by the agent that started it there, not by the person
+		expect(workspaces.get(auth).named).toBe(true);
+		expect(workspaces.get(auth).manuallyNamed).toBeFalsy();
+		// its sub-items are the new agent's checklist; the lead sees it as an agent
+		const theirs = await callAs(auth)('list_items');
+		expect(theirs.items.map(({ text }: { text: string }) => text)).toEqual([
+			'Login form',
+			'Sessions'
+		]);
+		expect((await call('list_items')).items).toEqual([
+			expect.objectContaining({ id: auth, agent: 'Add auth', itemsDone: 0, itemsTotal: 2 })
+		]);
+
+		const tests = (await call('add_item', { text: 'Tests' })).id;
+		const filed = await call('start_agent', {
+			prompt: 'Unit tests',
+			worktree: 'own',
+			under: tests
+		});
+		expect(workspaces.outline().items.get(filed.id)?.parentId).toBe(tests);
+		expect(workspaces.get(filed.id).parentId).toBe(caller);
+
+		const refusal = async (input: Record<string, unknown>) =>
+			(await call('start_agent', { prompt: 'x', worktree: 'own', ...input })).error;
+		expect(await refusal({ item: tests, under: tests })).toMatch(/not both/);
+		expect(await refusal({ item: tests })).toMatch(/no agents under it|no workspaces under it/);
+		expect(await refusal({ item: 'elsewhere' })).toMatch(/no item/);
+		expect(await refusal({ item: auth })).toMatch(/no item/);
+	});
+
 	it('lets an agent archive the agents it started, and no others', async () => {
 		const { workspaces, archived, caller, call } = setup();
 		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });

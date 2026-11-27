@@ -135,7 +135,19 @@ const startInput = v.strictObject({
 	repository: v.optional(repositoryId),
 	worktree: worktreeMode,
 	base,
-	workspace: v.optional(workspaceId)
+	workspace: v.optional(workspaceId),
+	item: v.pipe(
+		v.optional(v.string()),
+		v.description(
+			'The id of one of the items under your workspace to start it on: the item becomes its workspace, named after it, and the items under it become the new agent’s own checklist. The item must have no agents under it yet.'
+		)
+	),
+	under: v.pipe(
+		v.optional(v.string()),
+		v.description(
+			'The id of one of the items under your workspace to put the new workspace under (a heading grouping its work), instead of right under yours.'
+		)
+	)
 });
 
 // Advertise the useful inputs for this caller. Keep parsing older calls with the full
@@ -153,7 +165,7 @@ function startCatalogInput(kind: CallerKind) {
 
 const startLocation = {
 	repository:
-		'The default, worktree "own", creates a new branch from the repository’s base, or from base if you pass one (your own branch, to build on what you committed; then merge its branch to bring the work back). Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". Pass workspace instead to start a reviewer in your own worktree or in that of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode.',
+		'The default, worktree "own", creates a new branch from the repository’s base, or from base if you pass one (your own branch, to build on what you committed; then merge its branch to bring the work back). Use "shared" to work in your directory, including uncommitted files. To work in another repository, pass its ID from list_repositories and use "own". Pass workspace instead to start a reviewer in your own worktree or in that of an agent you started directly or indirectly. This shares its files and branch regardless of worktree mode. To hand one of the items under your workspace to the new agent, pass it as item; to file the new workspace under one of your items, pass under.',
 	project:
 		'Pass repository to start on a new branch from the repository base, or from base if you pass one. Pass workspace to share that workspace’s directory and branch, regardless of worktree mode. With worktree "shared" and no workspace, the agent joins your project folder. The shared forms ignore repository.',
 	external:
@@ -191,6 +203,8 @@ const tools = {
 				model?: string;
 				effort?: string;
 				title?: string;
+				item?: string;
+				under?: string;
 			}
 		) => agents.start(caller, input, agents.harnesses())
 	},

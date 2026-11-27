@@ -7,7 +7,7 @@
 
 The outline is Geordi's main artifact: one tree of items in which the person plans, groups and follows their work. An item is a line of text. It can stand on its own (a heading, a folder, a todo) or have a workspace attached, which makes it a piece of work with an agent. Items under a workspace's item are that workspace's own: its todos, which the person and its agent keep together. It extends FDR-016: the outline is still the chain of command, but it is no longer made of workspaces only.
 
-Stages 1 and 2 (items, editing, workspaces on items; a workspace's scope, kept by its agent) are in place; delegation onto items (stage 3) is planned. It replaces FDR-016's grouping by repository; who supervises whom stays as FDR-016 decided.
+Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by its agent; agents starting agents on their items) are in place. It replaces FDR-016's grouping by repository; who supervises whom stays as FDR-016 decided.
 
 ## Behavior
 
@@ -42,10 +42,18 @@ Stages 1 and 2 (items, editing, workspaces on items; a workspace's scope, kept b
 - The person can write an item under a workspace to steer its agent without a message: it sees the item at its next turn.
 - The items are the same for everyone: the person edits what the agent wrote, and the other way round.
 
-### Later (stage 3)
+### Agents starting agents on items
 
-- When an agent delegates, the new workspace's item is created in its scope, and the person can start an agent on any todo the same way.
+- An agent starts another on one of its items (`start_agent` with `item`), as the person does from an item's menu: the item becomes the new workspace, named after it, and the items under it become the new agent's checklist. The starting agent sees it from then on as a child agent with its progress. As for the person, only an item with no agents under it.
+- An agent can file a new workspace under one of its items instead (`under`): a heading grouping several agents' work. It still reports to the agent that started it.
+- Repository, agent, model and effort are chosen as with any `start_agent`; an item holds no settings of its own.
 - Agents keep their own todo lists (Claude Code's plans) to themselves: they change too often to belong in the outline. What goes there is written on purpose.
+
+### 7. Starting on an item turns it into the workspace
+
+**Decision:** Starting an agent on an item attaches the workspace to that item, for agents as for people; putting a workspace under an item is a separate choice, for grouping.
+**Why:** One piece of work is one row. A todo with the work under it would be two rows for one thing, and a todo someone must remember to tick off when the work is done. The items under it becoming the new agent's checklist is the handing over.
+**Tradeoff:** The item leaves the starting agent's own checklist: from then on someone else does it, and the starter sees it as an agent.
 
 ## Design Decisions
 
@@ -81,7 +89,7 @@ Stages 1 and 2 (items, editing, workspaces on items; a workspace's scope, kept b
 
 ### 6. Staged
 
-**Decision:** Stage 1: items, outliner editing and workspaces attached to items. Stage 2: scopes (the agent's checklist and tools; the sidebar shows them, with no tab of their own). Stage 3: delegation onto items.
+**Decision:** Stage 1: items, outliner editing and workspaces attached to items. Stage 2: scopes (the agent's checklist and tools; the sidebar shows them, with no tab of their own). Stage 3: agents starting agents on their items.
 **Why:** Each stage is useful by itself, and stage 1 is the change underneath that the others need.
 **Tradeoff:** For a while the outline is only a better sidebar.
 
