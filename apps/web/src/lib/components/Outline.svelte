@@ -492,14 +492,11 @@
 				zoomIn(entry);
 			}}
 		>
-			<!-- in the gutter beside its sign, as in Workflowy: what folds what is under it, shown while it is pointed at, or folded -->
+			<!-- in the gutter beside its sign, as in Workflowy: what folds what is under it -->
 			{#if fold}
 				<button
 					type="button"
-					class={[
-						'absolute top-1 right-full grid h-6 w-5 place-items-center rounded-control text-faint hover:text-ink focus-visible:opacity-100',
-						!fold.folded && 'opacity-0 group-hover/row:opacity-100'
-					]}
+					class="absolute top-1 right-full grid h-6 w-5 place-items-center rounded-control text-faint hover:text-ink"
 					aria-label={`${fold.folded ? 'Expand' : 'Collapse'} ${entry.text || 'item'}`}
 					aria-expanded={!fold.folded}
 					title={`${fold.folded ? 'Expand' : 'Collapse'} ${entry.text || 'item'}`}
