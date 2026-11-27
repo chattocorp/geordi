@@ -191,3 +191,50 @@ it('tells the forge of a worktree restored from a branch a cut-short attempt lef
 	expect(emit).toHaveBeenCalledWith({ kind: 'worktree', path: '/worktree', branch: 'geordi/w' });
 	expect(prepared).toHaveBeenCalledOnce();
 });
+
+it.each([
+	['resolves', undefined, 'resolved'],
+	['leaves unresolved where the daemon restricts the agent', 'workspace-write', undefined]
+] as const)(
+	'%s the permission mode of a workspace that never chose one',
+	async (_, sandbox, expected) => {
+		vi.stubEnv('GEORDI_CODEX_SANDBOX', sandbox);
+		const begin = vi.fn();
+		const { startMessage } = turnStarts({
+			worktreesDir: '/trees',
+			projectsDir: '/projects',
+			sessions: new Map(),
+			setups: new Map(),
+			apiUrl: '',
+			prepared: vi.fn(),
+			emitFor: () => vi.fn(),
+			begin,
+			configFor: async () => ({ env: {} })
+		});
+		vi.mocked(hasWorktree).mockReturnValue(true);
+		vi.mocked(ensureWorktree).mockImplementation(async () => ({
+			path: '/worktree',
+			adminDir: '',
+			commonDir: '',
+			writableRoots: [],
+			branch: 'main',
+			created: false,
+			restored: false
+		}));
+		await startMessage({
+			type: 'agent.message',
+			agent: 'codex',
+			settings: {},
+			repoPath: '/repo',
+			worktreeId: 'tree',
+			workspaceId: 'w',
+			apiToken: '',
+			resumeId: null,
+			prompt: 'go'
+		});
+		const mode = begin.mock.calls[0][1].options.settings.permissionMode;
+		if (expected === 'resolved') expect(['sandboxed', 'full-access']).toContain(mode);
+		else expect(mode).toBeUndefined();
+		vi.unstubAllEnvs();
+	}
+);

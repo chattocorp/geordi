@@ -31,7 +31,7 @@ import { ToolDiffs } from './diffs.ts';
 import { Compactions } from './compactions.ts';
 import { promptSuggestion } from './suggestions.ts';
 import { limitsIn } from './limits.ts';
-import { API_SERVER, type SessionOptions } from './adapter.ts';
+import { API_SERVER, restrictedByDaemon, type SessionOptions } from './adapter.ts';
 
 const ACP_MODES = {
 	// Sandboxed is full access inside Geordi's own sandbox (`sandbox.ts`), which the host adds.
@@ -327,17 +327,10 @@ export function connectAgent(
 		const selected = options.settings.permissionMode;
 		// An old installation may have restricted this session at the daemon level.
 		// Require an explicit workspace choice before replacing that policy.
-		if (selected === undefined) {
-			const claudeMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE;
-			const restricted =
-				provider === 'codex'
-					? process.env.GEORDI_CODEX_SANDBOX === 'workspace-write'
-					: claudeMode && claudeMode !== ACP_MODES.claude['full-access'];
-			if (restricted)
-				throw new Error(
-					'Choose a permission mode in this workspace to replace the daemon permission setting.'
-				);
-		}
+		if (selected === undefined && restrictedByDaemon(provider))
+			throw new Error(
+				'Choose a permission mode in this workspace to replace the daemon permission setting.'
+			);
 		const mode = ACP_MODES[provider][selected ?? 'full-access'];
 		if (typeof mode !== 'string') throw new Error('Unknown workspace permission mode: ' + selected);
 		const setup = {

@@ -37,6 +37,16 @@ export type SessionOptions = {
 };
 
 export const API_TOKEN_ENV = 'GEORDI_API_TOKEN';
+
+/**
+ * Whether an old installation restricted agents at the daemon level, which a workspace that
+ * never chose a permission mode must not quietly replace.
+ */
+export function restrictedByDaemon(agent: Agent): boolean {
+	if (agent === 'codex') return process.env.GEORDI_CODEX_SANDBOX === 'workspace-write';
+	const claudeMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE;
+	return agent === 'claude' && !!claudeMode && claudeMode !== 'bypassPermissions';
+}
 /** The name agents know the API's MCP server by. */
 export const API_SERVER = 'geordi';
 

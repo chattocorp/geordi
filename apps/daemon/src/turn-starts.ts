@@ -15,6 +15,7 @@ import {
 import { projectPath, ensureProject } from './projects.ts';
 import type { Meta } from './host.ts';
 import { canSandbox, NO_SANDBOX } from './sandbox.ts';
+import { restrictedByDaemon } from './agents/adapter.ts';
 import type { Session, Said } from './session.ts';
 
 type Message = Extract<ForgeMessage, { type: 'agent.message' }>;
@@ -48,10 +49,10 @@ export function turnStarts({
 		const { workspaceId, worktreeId, agent } = message;
 		// The mode decided here, once: a workspace that never chose is sandboxed where this
 		// computer can (FDR-017), and a running session is compared with what it would be now.
-		const settings = {
-			...message.settings,
-			permissionMode: permissionModeOf(message.settings, canSandbox())
-		};
+		// Not where the daemon restricts the agent: the session refuses to replace that.
+		const settings = restrictedByDaemon(agent)
+			? message.settings
+			: { ...message.settings, permissionMode: permissionModeOf(message.settings, canSandbox()) };
 		const emit = emitFor(workspaceId);
 		const said: Said = {
 			prompt: message.prompt,
