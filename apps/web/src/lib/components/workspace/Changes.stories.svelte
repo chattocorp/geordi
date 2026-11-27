@@ -306,7 +306,7 @@
 		await expect(await canvas.findByRole('button', { name: /INDEX\.md/ })).toBeVisible();
 		await userEvent.click(nested);
 		await expect(nested).toHaveAttribute('aria-expanded', 'false');
-		await waitFor(() => expect(canvas.queryByRole('button', { name: /INDEX\.md/ })).toBeNull());
+		await expect(canvas.queryByRole('button', { name: /INDEX\.md/ })).toBeNull();
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a list' }));
 		await expect(await canvas.findByRole('button', { name: /GLOSSARY\.md/ })).toBeVisible();
 	}}
@@ -355,14 +355,12 @@
 		await expect(forge).toHaveAttribute('aria-expanded', 'false');
 		// folded, it says how much changed in it, all its files together
 		await expect(forge.parentElement!).toHaveTextContent(/\+16\s*−4/);
-		await waitFor(() =>
-			expect(canvas.queryByRole('button', { name: /\+page\.svelte/ })).toBeNull()
-		);
+		await expect(canvas.queryByRole('button', { name: /\+page\.svelte/ })).toBeNull();
 		// the tree is drawn within each section
 		await userEvent.click(canvas.getByRole('radio', { name: 'As a tree' }));
 		await expect(canvas.getByRole('button', { name: 'docs/adr' })).toBeVisible();
 		await userEvent.click(forge);
-		await waitFor(() => expect(canvas.getByRole('button', { name: 'apps/web/src' })).toBeVisible());
+		await expect(canvas.getByRole('button', { name: 'apps/web/src' })).toBeVisible();
 	}}
 >
 	<div class="w-80 sheet-quiet">
@@ -461,7 +459,7 @@
 		await expect(docs).toHaveAttribute('aria-expanded', 'false');
 		await expect(canvas.queryByRole('button', { name: /ADR-012/ })).toBeNull();
 		await userEvent.click(docs);
-		await waitFor(() => expect(canvas.getByRole('button', { name: /ADR-012/ })).toBeVisible());
+		await expect(canvas.getByRole('button', { name: /ADR-012/ })).toBeVisible();
 	}}
 />
 

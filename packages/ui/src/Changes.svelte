@@ -6,8 +6,7 @@
 	import FittedPath from './FittedPath.svelte';
 	import RowLabel from './RowLabel.svelte';
 	import type { Attachment } from 'svelte/attachments';
-	import { flushSync, type Snippet } from 'svelte';
-	import { foldSlide } from './fold.ts';
+	import type { Snippet } from 'svelte';
 	import { fileTree, treeRows, type TreeRow } from './tree.ts';
 	import { bySection, type Section } from './sections.ts';
 	import type { Changes, RepoSection } from '@geordi/protocol';
@@ -59,22 +58,14 @@
 	const listed = $derived(!gone && !git?.unavailable && files.length > 0);
 	type File = (typeof files)[number];
 	const folded = $derived(new Set(folds.dirs));
-	// Only a disclosure animates rows. Live updates, pagination and view changes are immediate.
-	let toggling = false;
-	const slideRow = (node: HTMLElement) => foldSlide(node, toggling);
 	/** Folds `key` of `kind` shut, or opens it. */
-	const toggle = (kind: keyof Folds, key: string) => {
-		toggling = true;
-		flushSync(() => {
-			folds = {
-				...folds,
-				[kind]: folds[kind].includes(key)
-					? folds[kind].filter((other) => other !== key)
-					: [...folds[kind], key]
-			};
+	const toggle = (kind: keyof Folds, key: string) =>
+		(folds = {
+			...folds,
+			[kind]: folds[kind].includes(key)
+				? folds[kind].filter((other) => other !== key)
+				: [...folds[kind], key]
 		});
-		toggling = false;
-	};
 
 	/** The lines added and removed in these files, together; a binary file has none to count. */
 	const linesOf = (entries: File[]) => ({
@@ -224,7 +215,7 @@
 			     cell for its sign, the chevron of what folds or the letter of a file -->
 			<ul class="grouped-rows px-2">
 				{#each rows.slice(0, drawn) as row (row.key)}
-					<li transition:slideRow data-group-start={row.kind === 'section' || undefined}>
+					<li data-group-start={row.kind === 'section' || undefined}>
 						{#if row.kind === 'section'}
 							<div class="group item h-8 pr-2">
 								<RowLabel
