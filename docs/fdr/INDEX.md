@@ -19,4 +19,4 @@
 | [FDR-015](FDR-015-locked-workspaces.md)                   | Locked workspaces                                                | Active     | 2026-11-25    |
 | [FDR-016](FDR-016-workspace-outline.md)                   | The workspace outline                                            | Active     | 2026-11-26    |
 | [FDR-017](FDR-017-the-outline.md)                         | The outline                                                      | Active     | 2026-11-26    |
-| [FDR-018](FDR-018-merging-up.md)                          | Merging up the outline                                           | Planned    | 2026-11-26    |
+| [FDR-018](FDR-018-merging-up.md)                          | Merging up the outline (deferred)                                | Planned    | 2026-11-27    |

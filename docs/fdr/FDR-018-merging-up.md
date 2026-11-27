@@ -1,7 +1,9 @@
 # FDR-018: Merging up the outline
 
-**Status:** Planned
-**Last reviewed:** 2026-11-26
+**Status:** Planned (deferred)
+**Last reviewed:** 2026-11-27
+
+> **Deferred (2026-11-27).** Set aside to keep Geordi simple: on top of the outline, it asks people to follow Git and the outline at once. Workspaces stay independent work with pull requests of their own; a lead that wants a child to build on its branch names it (`base`, FDR-002). A complete implementation (merging up, the parent waiting for its children, and moving a workspace's work along when it is moved) is kept on the branch `geordi/merging-up`, for when real use asks for it.
 
 ## Overview
 
