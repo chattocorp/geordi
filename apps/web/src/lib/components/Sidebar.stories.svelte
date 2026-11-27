@@ -489,14 +489,14 @@
 		await fireEvent.dragStart(dragged);
 		// onto its middle: under it, lit up, with no line
 		await fireEvent.dragOver(target, { clientY: middle() });
-		await expect(target.firstElementChild).toHaveClass('bg-hover');
+		await expect(target.querySelector('.item')).toHaveClass('bg-hover');
 		await expect(canvasElement.querySelectorAll('.row-drop-after, .row-drop-before')).toHaveLength(
 			0
 		);
 		// above it: beside it, with a line in the gap
 		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
 		await expect(target.previousElementSibling).toHaveClass('row-drop-after');
-		await expect(target.firstElementChild).not.toHaveClass('bg-hover');
+		await expect(target.querySelector('.item')).not.toHaveClass('bg-hover');
 		await fireEvent.dragEnd(dragged);
 	}}
 >

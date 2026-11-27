@@ -100,6 +100,7 @@
 	import Markdown from '#lib/components/Markdown.svelte';
 	import PullRequestPane from '@geordi/ui/PullRequestPane.svelte';
 	import Changes from '@geordi/ui/Changes.svelte';
+	import Plan from './Plan.svelte';
 	import CombinedDiffFile from './CombinedDiffFile.svelte';
 	import DiffSection from '@geordi/ui/DiffSection.svelte';
 	import { getTurnFile } from '../../../routes/workspaces.remote';
@@ -165,6 +166,8 @@
 	const TURN = 'turn-changes';
 	let selectedTurn = $state.raw<TurnChanges & { workspaceId: string }>();
 	const CHANGES = 'changes';
+	/** The workspace's scope in the outline: its plan (FDR-019). */
+	const PLAN = 'plan';
 	/** The repository's links and jobs, and how they are: in the dock, where their output is. */
 	const RUN = 'run';
 	const CHANGESET = 'changeset';
@@ -256,6 +259,7 @@
 		if (tab === TURN) return !!selectedTurn;
 		if (tab === PR) return !!pull;
 		if (tab === CHANGESET) return !!workspace.git?.release;
+		if (tab === PLAN) return !project;
 		if (tab === RUN) return runnable;
 		if (tab === DRAFT) return drafting;
 		if (tab.startsWith('subagent:')) return reviewers.has(tab);
@@ -294,7 +298,7 @@
 		const beside = groupsOf(main).find((group) => group.tabs.includes(CHAT))?.id;
 		for (const aide of workspace.aides)
 			if (!placed.includes(`agent:${aide.id}`)) main = add(main, `agent:${aide.id}`, beside);
-		for (const tab of [CHANGES, PR, CHANGESET])
+		for (const tab of [CHANGES, PLAN, PR, CHANGESET])
 			if (exists(tab) && !placed.includes(tab)) side = add(side, tab);
 		if (exists(RUN) && !placed.includes(RUN)) dock = add(dock, RUN);
 		for (const name of workspace.terminals) {
@@ -678,7 +682,7 @@
 	}
 	/** Where a window belongs beside the main area, if it does. */
 	const homeOf = (tab: string): Area | undefined =>
-		tab === CHANGES || tab === PR || tab === CHANGESET
+		tab === CHANGES || tab === PLAN || tab === PR || tab === CHANGESET
 			? 'side'
 			: tab === RUN || terminalOf(tab)
 				? 'dock'
@@ -697,6 +701,7 @@
 	const closable = (tab: string) =>
 		tab !== CHAT &&
 		tab !== CHANGES &&
+		tab !== PLAN &&
 		tab !== PR &&
 		tab !== CHANGESET &&
 		tab !== RUN &&
@@ -1057,6 +1062,7 @@
 				: (
 						[
 							[CHANGES, 'Changes', 'icon-[lucide--file-diff]'],
+							[PLAN, 'Plan', 'icon-[lucide--list-checks]'],
 							[COMBINED, 'Combined diff', 'icon-[lucide--files]'],
 							[PR, `Pull request #${pull?.number}`, 'icon-[lucide--git-pull-request]'],
 							[CHANGESET, 'Changeset', 'icon-[lucide--package]'],
@@ -1129,6 +1135,9 @@
 				removed={files.reduce((sum, file) => sum + (file.removed ?? 0), 0)}
 			/>
 		{/if}
+	{:else if tab === PLAN}
+		<span class="icon-[lucide--list-checks] size-3.5 shrink-0"></span>
+		<span class="truncate">Plan</span>
 	{:else if tab === PR && pull}
 		<PullRequestTab {pull} />
 	{:else if tab === CHANGESET}
@@ -1295,6 +1304,12 @@
 				}
 			/>
 		{/snippet}
+	{:else if tab === PLAN}
+		{#if everything.current}
+			<Plan workspaceId={id} nav={everything.current} />
+		{:else}
+			<Loading label="Loading the plan…" />
+		{/if}
 	{:else if tab === PR && pull}
 		<PullRequestPane {pull}>
 			{#snippet description(text: string)}<Markdown {text} />{/snippet}

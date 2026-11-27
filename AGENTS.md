@@ -271,7 +271,7 @@ it, perhaps you.
   pure functions); only the main area can be split, the two beside it are one row of tabs
   each (`splits={false}`). Windows are tabs named after what they show: `chat` (pinned to
   the main area), `agent:<id>` (an agent working alongside), `draft` (a conversation not
-  begun yet), `changes`, `changeset`, `diff` (one tab titled with the selected filename) and `terminal:<name>`. All but `chat`
+  begun yet), `changes`, `plan` (the workspace's scope in the outline, FDR-019), `changeset`, `diff` (one tab titled with the selected filename) and `terminal:<name>`. All but `chat`
   can be dragged to any area, and into another order (`Panes` props `accepts`/`onreceive`,
   shared drag state in `drag.svelte.ts`). Which windows exist follows from the workspace's
   state; only their arrangement is a per-browser preference (`persisted`), not an event.

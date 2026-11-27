@@ -16,28 +16,14 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { dropTarget, type DropPlace, outlineRows } from '#lib/family.ts';
-	import OutlineItemRow from './OutlineItemRow.svelte';
-	import { goto } from '$app/navigation';
-	import { tick } from 'svelte';
+	import { outlineRows } from '#lib/family.ts';
+	import Outline, { type WorkspaceRowProps } from './Outline.svelte';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { contextMenu, type MenuItem, type MenuTone } from '#lib/ui/menu.svelte.ts';
-	import { cubicOut } from 'svelte/easing';
-	import { prefersReducedMotion } from 'svelte/motion';
-	import { slide } from 'svelte/transition';
+	import type { MenuItem, MenuTone } from '#lib/ui/menu.svelte.ts';
 	import { foreground } from '#lib/foreground.svelte.ts';
-	import {
-		addItem,
-		completeItem,
-		editItem,
-		lockWorkspace,
-		moveItem,
-		removeItem,
-		renameWorkspace,
-		stopAgent
-	} from '../../routes/workspaces.remote';
+	import { lockWorkspace, renameWorkspace, stopAgent } from '../../routes/workspaces.remote';
 
 	/**
 	 * The sidebar is the outline (FDR-019): every item, workspaces among them, and the
@@ -69,9 +55,6 @@
 	const repoNames = $derived(new Map(nav?.repos.map((repo) => [repo.id, repo.name])));
 	/** The workspaces in use, by ID: what the outline's items with workspaces show. */
 	const workspaceById = $derived(new Map(nav?.workspaces.map((each) => [each.id, each])));
-	/** Ticks an item off, or not: it stays where it is, crossed out. */
-	const tickOff = (entry: { id: string; done: boolean }) =>
-		completeItem({ itemId: entry.id, done: !entry.done });
 	const viewed = $derived(path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
 	/** The rows shown, top to bottom. */
 	const rows = $derived(
@@ -84,18 +67,7 @@
 				})
 			: []
 	);
-	type Row = (typeof rows)[number];
-	type Entry = Row['workspace'];
 
-	/**
-	 * Repositories and workspaces slide in and out whenever they come or go: by a filter (the
-	 * focus, only the active ones) or on their own. Not when the list first arrives: it is drawn in
-	 * `{#if nav}`, and a transition is local, so it plays only when its own block changes.
-	 */
-	const motion = () => ({
-		duration: prefersReducedMotion.current ? 0 : MOTION,
-		easing: cubicOut
-	});
 	/**
 	 * A workspace counts as working, for archiving, while anything its agent started is. Not
 	 * a project's: what it started in a repository carries on without it.
@@ -143,7 +115,7 @@
 	}
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
-	function workspaceMenu(workspace: Item): MenuItem[] {
+	function workspaceMenu(workspace: Item, add: () => void): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
 		const project = workspace.repoId === null;
@@ -184,11 +156,7 @@
 						{
 							label: 'Add an item under it',
 							icon: 'icon-[lucide--list-plus]',
-							onselect: () => {
-								const index = rows.findIndex((row) => row.workspace.id === workspace.id);
-								const child = rows[index + 1]?.depth > rows[index]?.depth;
-								return newItem(workspace.id, child ? idAt(index + 1) : null);
-							}
+							onselect: add
 						}
 					]),
 			// a project has no branch to copy or carry on from
@@ -245,222 +213,6 @@
 		];
 	}
 
-	/**
-	 * The item being dragged to another place in the outline (FDR-016, FDR-019), and where it
-	 * would go, if anywhere new: above a row, onto it (under that item) or below it, or below
-	 * the last row. What is under it goes along; the workspaces among that report to the
-	 * workspace of the nearest item above them.
-	 */
-	let dragged = $state<Entry | null>(null);
-	let dropAt = $state<ReturnType<typeof dropTarget<Entry>>>(undefined);
-
-	/**
-	 * How deep the pointer is in the list: one level for each indent from its left edge.
-	 * Where a gap between rows allows more than one depth, this picks it.
-	 */
-	function depthAt(event: DragEvent) {
-		const left = list?.getBoundingClientRect().left ?? 0;
-		const indent = INDENT * parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25;
-		return Math.floor((event.clientX - left) / indent);
-	}
-
-	/**
-	 * Over the list: the row at the pointer's height, whether or not the pointer is over the
-	 * row itself (rows are indented; moving left, to go up a level, leaves them). A row's upper
-	 * quarter is the gap above it, its lower quarter the gap below it, and the rest is the row
-	 * itself (under it); below the last row is the gap after it. The gap between two rows is
-	 * one place, from either side.
-	 */
-	function overList(event: DragEvent & { currentTarget: HTMLElement }) {
-		if (!dragged) return;
-		const shown = [...event.currentTarget.querySelectorAll<HTMLElement>(':scope > li[data-row]')];
-		if (!shown.length) return;
-		const y = event.clientY;
-		const index = shown.findIndex((li) => y < li.getBoundingClientRect().bottom);
-		let place: DropPlace;
-		if (index === -1) place = { after: rows.length - 1, depth: depthAt(event) };
-		else {
-			const rect = shown[index].getBoundingClientRect();
-			const at = (y - rect.top) / rect.height;
-			place =
-				at < 1 / 4
-					? { after: index - 1, depth: depthAt(event) }
-					: at > 3 / 4
-						? { after: index, depth: depthAt(event) }
-						: { onto: index };
-		}
-		event.preventDefault();
-		dropAt = dropTarget(rows, dragged, place, true);
-		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
-	}
-
-	function drop(event: DragEvent) {
-		event.preventDefault();
-		if (dragged && dropAt) {
-			const { before, parentId, reparents } = dropAt;
-			void moveItem({ itemId: dragged.id, before, ...(reparents && { parentId }) });
-		}
-		endDrag();
-	}
-
-	function endDrag() {
-		dragged = null;
-		dropAt = undefined;
-	}
-
-	// --- Editing the outline, as in any outliner (FDR-019) ---------------------------------
-
-	/** The row a row is under, among those shown: the nearest one above it that is less deep. */
-	function parentIndex(index: number) {
-		for (let above = index - 1; above >= 0; above--)
-			if (rows[above].depth < rows[index].depth) return above;
-		return -1;
-	}
-	/** The next (`step` 1) or previous (-1) row with the same parent, if any. */
-	function siblingIndex(index: number, step: 1 | -1) {
-		for (let at = index + step; at >= 0 && at < rows.length; at += step) {
-			if (rows[at].depth < rows[index].depth) return -1;
-			if (rows[at].depth === rows[index].depth) return at;
-		}
-		return -1;
-	}
-	const idAt = (index: number) => (index === -1 ? null : rows[index].workspace.id);
-
-	/** The list of rows, for finding what to focus in it. */
-	let list = $state<HTMLElement>();
-	/** A row to focus once the outline shows it as `ready` says: once a change has come back. */
-	let focusing = $state<{ id: string; ready: (index: number) => boolean } | null>(null);
-	$effect(() => {
-		const pending = focusing;
-		if (!pending) return;
-		const index = rows.findIndex((row) => row.workspace.id === pending.id);
-		if (index === -1 || !pending.ready(index)) return;
-		focusing = null;
-		void tick().then(() => focusRow(pending.id));
-	});
-	function focusRow(id: string | null) {
-		if (!id) return;
-		const row = list?.querySelector(`[data-row="${CSS.escape(id)}"]`);
-		row?.querySelector<HTMLElement>('input, a[href]')?.focus();
-	}
-	const unfold = (id: string) => (folded.current = folded.current.filter((other) => other !== id));
-
-	/** Writes a new, empty item and puts the cursor in it. */
-	async function newItem(parentId: string | null, before: string | null) {
-		if (parentId) unfold(parentId);
-		const id = await addItem({ parentId, before, text: '' });
-		focusing = { id, ready: () => true };
-	}
-
-	/** Moves the item, and keeps the cursor in it once it is where it was moved. */
-	async function moveKeeping(entry: Entry, before: string | null, parentId?: string | null) {
-		await moveItem({ itemId: entry.id, before, ...(parentId !== undefined && { parentId }) });
-		focusing = {
-			id: entry.id,
-			ready: (index) =>
-				idAt(parentIndex(index)) === (parentId === undefined ? entry.parentId : parentId) &&
-				idAt(siblingIndex(index, 1)) === before
-		};
-	}
-
-	/** What the keys do in an item's line, as in any outliner. */
-	async function itemKeys(
-		event: KeyboardEvent & { currentTarget: HTMLInputElement },
-		index: number
-	) {
-		const entry = rows[index].workspace;
-		const input = event.currentTarget;
-		const text = input.value;
-		const save = () => (text !== entry.text ? editItem({ itemId: entry.id, text }) : undefined);
-		const mod = event.metaKey || event.ctrlKey;
-		if (event.key === 'Enter' && mod) {
-			event.preventDefault();
-			await save();
-			await tickOff(entry);
-		} else if (event.key === 'Enter') {
-			event.preventDefault();
-			await save();
-			await newItem(idAt(parentIndex(index)), idAt(siblingIndex(index, 1)));
-		} else if (event.key === 'Tab' && !event.shiftKey) {
-			event.preventDefault();
-			const above = siblingIndex(index, -1);
-			if (above === -1 || rows[above].workspace.project) return;
-			await save();
-			unfold(idAt(above)!);
-			await moveKeeping(entry, null, idAt(above));
-		} else if (event.key === 'Tab') {
-			event.preventDefault();
-			const parent = parentIndex(index);
-			if (parent === -1) return;
-			await save();
-			await moveKeeping(entry, idAt(siblingIndex(parent, 1)), idAt(parentIndex(parent)));
-		} else if (event.altKey && event.key === 'ArrowUp') {
-			event.preventDefault();
-			const above = siblingIndex(index, -1);
-			if (above !== -1) await moveKeeping(entry, idAt(above));
-		} else if (event.altKey && event.key === 'ArrowDown') {
-			event.preventDefault();
-			const below = siblingIndex(index, 1);
-			if (below !== -1) await moveKeeping(entry, idAt(siblingIndex(below, 1)));
-		} else if (
-			event.key === 'Backspace' &&
-			text === '' &&
-			rows[index + 1]?.depth !== rows[index].depth + 1
-		) {
-			event.preventDefault();
-			focusRow(idAt(index - 1));
-			await removeItem({ itemId: entry.id });
-		} else if (event.key === 'Escape') {
-			input.value = entry.text;
-			input.blur();
-		}
-	}
-
-	/** Up and down go from row to row, workspaces and items alike. */
-	function rowKeys(event: KeyboardEvent, index: number) {
-		if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
-		const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
-		if (!step || !rows[index + step]) return;
-		event.preventDefault();
-		focusRow(idAt(index + step));
-	}
-
-	/** What can be done with an item without a workspace. */
-	function itemMenu(entry: Entry, index: number): MenuItem[] {
-		const firstChild = rows[index + 1]?.depth > rows[index].depth ? idAt(index + 1) : null;
-		return [
-			{
-				label: 'Start a workspace on it',
-				icon: 'icon-[lucide--play]',
-				// the start page, with the item to start it on
-				// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve()d, with a query
-				onselect: () => void goto(`${resolve('/')}?item=${encodeURIComponent(entry.id)}`)
-			},
-			{
-				label: 'Add an item under it',
-				icon: 'icon-[lucide--list-plus]',
-				onselect: () => newItem(entry.id, firstChild)
-			},
-			{
-				label: entry.done ? 'Mark as not done' : 'Mark as done',
-				icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
-				onselect: () => tickOff(entry)
-			},
-			'separator',
-			{
-				label: 'Remove',
-				icon: 'icon-[lucide--trash-2]',
-				tone: 'danger' as const,
-				onselect: () => removeItem({ itemId: entry.id })
-			}
-		];
-	}
-
-	const toggleFolded = (id: string) =>
-		(folded.current = folded.current.includes(id)
-			? folded.current.filter((other) => other !== id)
-			: [...folded.current, id]);
-
 	/** The two markers stay at the ends as groups expand, fold or move. */
 	function watchScrollEdges(list: HTMLElement) {
 		const top = list.firstElementChild!;
@@ -483,14 +235,6 @@
 	}
 
 	const settingsHint = hint('settings');
-	/**
-	 * How far a row sits in from the item it is under: its sign under the title above (a
-	 * row's label padding, its sign, and the gap after it, less where a repository's smaller
-	 * picture sits in its sign's place).
-	 */
-	const INDENT = 6.5;
-	/** How long repositories and workspaces take to slide away or back, in milliseconds. */
-	const MOTION = 200;
 	const inSettings = $derived(path.startsWith('/settings'));
 </script>
 
@@ -570,33 +314,19 @@
 		<div class="scroller -mx-2 scroll-fade px-2" {@attach watchScrollEdges}>
 			<div aria-hidden="true"></div>
 			{#if nav}
-				<ul
-					class="space-y-px pb-4"
-					bind:this={list}
-					ondragover={overList}
-					ondrop={drop}
-					ondragleave={(event) => {
-						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-							dropAt = undefined;
+				<Outline
+					{rows}
+					{folded}
+					{pointedAt}
+					live={(id) => workspaceById.has(id)}
+					draggable={(id) => !beingArchived.has(id)}
+					workspaceMenu={(entry, add) => {
+						const workspace = workspaceById.get(entry.id);
+						return workspace ? workspaceMenu(workspace, add) : [];
 					}}
 				>
-					{#each rows as { workspace: entry, parent, depth, under }, index (entry.id)}
-						{@render row(entry, parent, depth, under, index)}
-					{/each}
-					<!-- the outline's last line: where something new is written (FDR-019) -->
-					<li>
-						<button
-							type="button"
-							class="item w-full gap-1 px-1 text-base text-faint"
-							onclick={() => newItem(null, null)}
-						>
-							<span class="grid size-6 shrink-0 place-items-center">
-								<span class="icon-[lucide--plus] size-4"></span>
-							</span>
-							<span class="py-1">New item</span>
-						</button>
-					</li>
-				</ul>
+					{#snippet workspace(row)}{@render workspaceRow(row)}{/snippet}
+				</Outline>
 				{#if rows.length === 0 && nav.items.length > 0}
 					<p class="px-2 py-1 text-sm text-muted">Everything is done or put aside.</p>
 				{/if}
@@ -621,48 +351,23 @@
 	</nav>
 </div>
 
-{#snippet row(entry: Entry, parent: Entry | null, depth: number, under: number, index: number)}
-	{@const workspace = entry.workspace ? workspaceById.get(entry.id) : undefined}
-	{@const isFolded = under > 0 && folded.current.includes(entry.id)}
+{#snippet workspaceRow({ entry, parent, fold, isFolded, dragging, target, add }: WorkspaceRowProps)}
+	{@const workspace = workspaceById.get(entry.id)!}
 	{@const current = path === `/workspaces/${entry.id}`}
-	{@const busy = workspace ? working(workspace) : false}
-	{@const asking =
-		workspace && (isFolded ? asker(workspace) : workspace.outcome === 'asking' && workspace)}
+	{@const busy = working(workspace)}
+	{@const asking = isFolded ? asker(workspace) : workspace.outcome === 'asking' && workspace}
 	{@const leaving = beingArchived.has(entry.id)}
-	{@const dropping = dropAt && dropAt.line.id === entry.id ? dropAt.line.edge : null}
-	<!-- an archived workspace's item: a done line, which stays where it is -->
-	{@const archived = entry.workspace && !workspace}
 	{#snippet repoIcon()}<RepoIcon
-			id={workspace!.repoId!}
-			name={repoNames.get(workspace!.repoId!) ?? ''}
+			id={workspace.repoId!}
+			name={repoNames.get(workspace.repoId!) ?? ''}
 			small
 		/>{/snippet}
-	<!-- one sits a little in from the item it is under -->
-	<!-- where an item being dragged would go: a line above or below this one, or onto it, lit up -->
-	<!-- up and down go from row to row: the keys of what is focused in it, a link or a line -->
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<li
-		data-row={entry.id}
-		style:margin-inline-start="calc(var(--spacing) * {INDENT * depth})"
-		style:--drop-indent={dropping && dropAt
-			? `calc(var(--spacing) * ${INDENT * (dropAt.line.depth - depth)})`
-			: undefined}
-		class={[dropping === 'above' && 'row-drop-before', dropping === 'below' && 'row-drop-after']}
-		transition:slide={motion()}
-		{@attach contextMenu(() =>
-			leaving || archived ? [] : workspace ? workspaceMenu(workspace) : itemMenu(entry, index)
-		)}
-		draggable={!leaving && !archived}
-		onkeydown={(event) => rowKeys(event, index)}
-		ondragstart={(event) => {
-			dragged = entry;
-			event.dataTransfer?.setData('text/plain', entry.text);
-			if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-		}}
-		ondragend={endDrag}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="contents"
 		onclickcapture={(event) => {
 			// with only active workspaces shown, shift-click marks one inactive: not on what the row has to click besides its link
-			if (!workspace || !activeOnly || !event.shiftKey || leaving) return;
+			if (!activeOnly || !event.shiftKey || leaving) return;
 			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
 				return;
 			event.preventDefault();
@@ -671,59 +376,38 @@
 		}}
 		ondblclick={(event) => {
 			// not on what the row has to click besides its link
-			if (!workspace) return;
 			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
 				return;
 			foreground.ask(workspace.id);
 		}}
 	>
-		{#if workspace}
-			<WorkspaceRow
-				title={workspace.title}
-				href={resolve('/workspaces/[id]', { id: workspace.id })}
-				parentTitle={parent?.text}
-				icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : repoIcon}
-				{current}
-				{leaving}
-				dragging={dragged?.id === workspace.id}
-				highlighted={pointedAt === workspace.id || dropping === 'onto'}
-				unread={unread.has(workspace.id)}
-				asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
-				waiting={workspace.waiting}
-				working={workspace.working || (isFolded && busy)}
-				locked={workspace.locked}
-				inactive={workspace.inactive}
-				progress={pendingPullAction.get(workspace.id) ??
-					(workspace.actions.some((action) => pullActionPending(workspace.id, action))
-						? 'merge-pull'
-						: workspace.activeAction)}
-				standing={workspace.standing}
-				actions={workspace.actions}
-				fold={under > 0
-					? { count: under, folded: isFolded, toggle: () => toggleFolded(workspace.id) }
-					: undefined}
-				onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
-				onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
-				onadd={leaving || workspace.repoId === null ? undefined : () => newItem(workspace.id, null)}
-			/>
-		{:else}
-			<OutlineItemRow
-				id={entry.id}
-				text={entry.text}
-				done={entry.done}
-				href={archived ? resolve('/workspaces/[id]', { id: entry.id }) : undefined}
-				dragging={dragged?.id === entry.id}
-				highlighted={pointedAt === entry.id || dropping === 'onto'}
-				fold={under > 0
-					? { count: under, folded: isFolded, toggle: () => toggleFolded(entry.id) }
-					: undefined}
-				onsave={(text) => editItem({ itemId: entry.id, text })}
-				ontoggle={() => tickOff(entry)}
-				onadd={archived ? undefined : () => newItem(entry.id, null)}
-				onkeydown={(event) => itemKeys(event, index)}
-			/>
-		{/if}
-	</li>
+		<WorkspaceRow
+			title={workspace.title}
+			href={resolve('/workspaces/[id]', { id: workspace.id })}
+			parentTitle={parent?.text}
+			icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : repoIcon}
+			{current}
+			{leaving}
+			{dragging}
+			highlighted={pointedAt === workspace.id || target}
+			unread={unread.has(workspace.id)}
+			asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
+			waiting={workspace.waiting}
+			working={workspace.working || (isFolded && busy)}
+			locked={workspace.locked}
+			inactive={workspace.inactive}
+			progress={pendingPullAction.get(workspace.id) ??
+				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
+					? 'merge-pull'
+					: workspace.activeAction)}
+			standing={workspace.standing}
+			actions={workspace.actions}
+			{fold}
+			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
+			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
+			onadd={leaving || workspace.repoId === null ? undefined : add}
+		/>
+	</div>
 {/snippet}
 
 {#snippet link(href: string, icon: string, label: string, current: boolean)}

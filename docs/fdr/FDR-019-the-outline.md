@@ -24,7 +24,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 - The menu of an item offers starting a workspace on it, adding an item under it, ticking it off, and removing it (with what is under it, where none of it has a workspace). The menu of a workspace offers adding an item under it.
 - An item's text is saved when you leave the line or press Enter.
 - An item ticked off stays where it is, crossed out. "Show only what is active" leaves out archived and inactive workspaces, with what is under them, but never items: ticking one off is not putting it away.
-- Stage 1 edits the outline in the sidebar, which is the outline. A full-width page for it may follow (see Open Questions).
+- The sidebar is the whole outline; a workspace's Plan window is its scope.
 
 ### Workspaces in the outline
 
@@ -43,18 +43,18 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 - The person can write an item under a workspace to steer its agent without a message: it sees the item at its next turn.
 - The items are the same for everyone: the person edits what the agent wrote, and the other way round.
 
+### The Plan window
+
+- A workspace has a Plan window: its scope, edited as in the sidebar, with the same keys and dragging. Its child agents are rows that lead to them; what is under them is theirs, and not shown. "New item" writes one under the workspace.
+- It opens beside the conversation, like the Changes. Dragged into the main area, it is a full-width outline, kept to a readable width.
+- With nothing planned yet, it says what the items are for.
+
 ### Agents starting agents on items
 
 - An agent starts another on one of its items (`start_agent` with `item`), as the person does from an item's menu: the item becomes the new workspace, named after it, and the items under it become the new agent's checklist. The starting agent sees it from then on as a child agent with its progress. As for the person, only an item with no agents under it.
 - An agent can file a new workspace under one of its items instead (`under`): a heading grouping several agents' work. It still reports to the agent that started it.
 - Repository, agent, model and effort are chosen as with any `start_agent`; an item holds no settings of its own.
 - Agents keep their own todo lists (Claude Code's plans) to themselves: they change too often to belong in the outline. What goes there is written on purpose.
-
-### 7. Starting on an item turns it into the workspace
-
-**Decision:** Starting an agent on an item attaches the workspace to that item, for agents as for people; putting a workspace under an item is a separate choice, for grouping.
-**Why:** One piece of work is one row. A todo with the work under it would be two rows for one thing, and a todo someone must remember to tick off when the work is done. The items under it becoming the new agent's checklist is the handing over.
-**Tradeoff:** The item leaves the starting agent's own checklist: from then on someone else does it, and the starter sees it as an agent.
 
 ## Design Decisions
 
@@ -90,9 +90,21 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 
 ### 6. Staged
 
-**Decision:** Stage 1: items, outliner editing and workspaces attached to items. Stage 2: scopes (the agent's checklist and tools; the sidebar shows them, with no tab of their own). Stage 3: agents starting agents on their items.
+**Decision:** Stage 1: items, outliner editing and workspaces attached to items. Stage 2: scopes (the agent's checklist and tools; the sidebar shows them). Stage 3: agents starting agents on their items. Then the Plan window, a scope as a window of its own.
 **Why:** Each stage is useful by itself, and stage 1 is the change underneath that the others need.
 **Tradeoff:** For a while the outline is only a better sidebar.
+
+### 7. Starting on an item turns it into the workspace
+
+**Decision:** Starting an agent on an item attaches the workspace to that item, for agents as for people; putting a workspace under an item is a separate choice, for grouping.
+**Why:** One piece of work is one row. A todo with the work under it would be two rows for one thing, and a todo someone must remember to tick off when the work is done. The items under it becoming the new agent's checklist is the handing over.
+**Tradeoff:** The item leaves the starting agent's own checklist: from then on someone else does it, and the starter sees it as an agent.
+
+### 8. The Plan window is a window, not a page
+
+**Decision:** A workspace's scope is a window of the workspace, beside the conversation or in the main area, and shares the sidebar's outline editor.
+**Why:** The plan belongs with the work: it is read while the agent works, next to what it says. A window can be as narrow or as wide as the person makes it, so one thing serves both, and one editor means one set of keys to learn.
+**Tradeoff:** The workspace's items show twice, in the sidebar and in its window. Both are the same items, and edits show in both.
 
 ## Related
 
@@ -101,6 +113,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 
 ## Open Questions
 
-- A full-width outline page, perhaps as the home page instead of New workspace, once editing in the sidebar shows whether it is too narrow.
+- A full-width page for the whole outline, perhaps as the home page instead of New workspace; and zooming into any item's branch (planning `dfxvp`), which may be the same thing.
+- A quick filter for the outline (planning `93zrh`) and a shortcut for a new item (planning `2n7x9`).
 - A better way to see work by repository than the old grouping.
 - Whether items need more than done or not done (due dates, someone assigned).
