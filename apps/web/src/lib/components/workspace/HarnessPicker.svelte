@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import {
+		DEFAULT_PERMISSION_MODE,
 		MODEL_SETTING,
 		type Agent,
 		type AgentSettings,
@@ -57,7 +58,7 @@
 			resolvedModel,
 			efforts,
 			effort,
-			permissionMode: wanted.permissionMode ?? 'full-access'
+			permissionMode: wanted.permissionMode ?? DEFAULT_PERMISSION_MODE
 		};
 	}
 </script>
@@ -202,7 +203,8 @@
 	label="Permission mode"
 	options={[
 		{ value: 'auto', label: harness.agent === 'opencode' ? 'Configured permissions' : 'Auto Mode' },
-		{ value: 'full-access', label: 'Full Access' }
+		{ value: 'sandboxed', label: 'Full Permissions (Sandboxed)' },
+		{ value: 'full-access', label: 'Full Permissions' }
 	] satisfies SelectOption<PermissionMode>[]}
 	bind:value={() => permissionMode, (value) => set(harness.agent, { permissionMode: value })}
 >
@@ -211,7 +213,11 @@
 			aria-hidden="true"
 			class={[
 				'size-4 shrink-0',
-				option.value === 'auto' ? 'icon-[lucide--radar]' : 'icon-[lucide--key-round]'
+				{
+					auto: 'icon-[lucide--radar]',
+					sandboxed: 'icon-[lucide--shield-check]',
+					'full-access': 'icon-[lucide--key-round]'
+				}[option.value]
 			]}
 		></span>
 	{/snippet}

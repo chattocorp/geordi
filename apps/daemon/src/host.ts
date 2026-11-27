@@ -47,6 +47,7 @@ import type {
 import { agentProgram, programCommand, programVariable } from './agents/program.ts';
 import { connectOpenCode } from './agents/opencode.ts';
 import { connectAgent } from './agents/acp.ts';
+import { sandboxed } from './sandbox.ts';
 import { API_SERVER, API_TOKEN_ENV, type SessionOptions } from './agents/adapter.ts';
 
 /** What the host writes down: the agent's events, and what it says that is live (`AgentLive`). */
@@ -155,7 +156,9 @@ const asNode = process.versions.electron
 const starting: ReturnType<typeof programCommand> = entry
 	? { file: process.execPath, args: [...asNode, entry], options: {} }
 	: programCommand(program ?? cmd, ['acp']);
-const child = spawn(starting.file, starting.args, {
+// In its sandbox, if the workspace asks for one (FDR-017): everything the CLI runs is in it too.
+const command = sandboxed(starting.file, starting.args, options);
+const child = spawn(command.file, command.args, {
 	cwd: options.cwd,
 	env: entry && process.versions.electron ? { ...env, ELECTRON_RUN_AS_NODE: '1' } : env,
 	stdio: ['pipe', 'pipe', err],

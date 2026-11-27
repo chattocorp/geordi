@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,6 +13,8 @@ const prompts = {
 	subagents:
 		'Use two native subagents in parallel. Ask the first to run pwd and reply DAEMON_READY and the second to run pwd and reply UI_READY. Wait for both, then summarize.',
 	inspect: 'Reply with exactly READY.',
+	sandbox:
+		'Run this as one shell command: `ls ~/Downloads >/dev/null; echo written > probe-out`. Then reply with its standard error, exactly as printed, or NONE if there was none.',
 	commands: 'Reply with exactly READY.',
 	ask: 'Use your native blocking question tool to ask exactly one question: which token should you return? Offer Alpha and Beta. Wait for the answer, then reply with only the chosen token, exactly once.',
 	steer:
@@ -23,8 +25,8 @@ const prompts = {
 assert(
 	(['codex', 'claude'].includes(agent) || (agent === 'opencode' && scenario === 'inspect')) &&
 		Object.hasOwn(prompts, scenario) &&
-		['auto', 'full-access'].includes(permissionMode),
-	'Usage: acp:probe <codex|claude|opencode> [inspect|steer|background|ask|subagents|commands] [auto|full-access]'
+		['auto', 'sandboxed', 'full-access'].includes(permissionMode),
+	'Usage: acp:probe <codex|claude|opencode> [inspect|sandbox|steer|background|ask|subagents|commands] [auto|sandboxed|full-access]'
 );
 
 const root = mkdtempSync(join(tmpdir(), 'geordi-acp-'));
@@ -118,7 +120,11 @@ try {
 					...(scenario === 'commands' &&
 						(agent === 'claude'
 							? { model: 'haiku' }
-							: { model: process.env.PROBE_CODEX_MODEL, effort: 'low' }))
+							: { model: process.env.PROBE_CODEX_MODEL, effort: 'low' })),
+					...(scenario === 'sandbox' &&
+						(agent === 'claude'
+							? { model: 'sonnet', effort: 'medium' }
+							: { model: process.env.PROBE_CODEX_MODEL, effort: 'medium' }))
 				},
 				writableRoots: [],
 				api: null
@@ -237,6 +243,14 @@ try {
 			}
 			assert(reports.some((text) => text.includes('DAEMON_READY')));
 			assert(reports.some((text) => text.includes('UI_READY')));
+			break;
+		}
+		case 'sandbox': {
+			// FDR-017: the agent works, and is kept out of Downloads only in its sandbox
+			assert.equal(readFileSync(join(cwd, 'probe-out'), 'utf8'), 'written\n');
+			const kept = permissionMode === 'sandboxed' && process.platform === 'darwin';
+			assert.equal(/Operation not permitted/.test(reply(foreground)), kept, reply(foreground));
+			console.log(reply(foreground));
 			break;
 		}
 		case 'inspect': {

@@ -334,6 +334,7 @@ describe('a session', () => {
 
 	it.each([
 		['auto', 'deny'],
+		['sandboxed', 'allow'],
 		['full-access', 'allow']
 	] as const)(
 		'resumes OpenCode with the chosen model and %s permissions',
@@ -405,8 +406,10 @@ describe('a session', () => {
 
 	it.each([
 		['claude', 'auto', 'auto'],
+		['claude', 'sandboxed', 'bypassPermissions'],
 		['claude', 'full-access', 'bypassPermissions'],
 		['codex', 'auto', 'agent'],
+		['codex', 'sandboxed', 'agent-full-access'],
 		['codex', 'full-access', 'agent-full-access']
 	] as const)('sets %s to %s on resume', async (agent, permissionMode, mode) => {
 		const launch = meta();

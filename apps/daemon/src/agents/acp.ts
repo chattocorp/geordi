@@ -13,14 +13,15 @@ import {
 	StateUpdate,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import type {
-	Agent,
-	AgentCommand,
-	BackgroundTask,
-	ContextUsage,
-	MessageImage,
-	PermissionMode,
-	TurnUsage
+import {
+	permissionModeOf,
+	type Agent,
+	type AgentCommand,
+	type BackgroundTask,
+	type ContextUsage,
+	type MessageImage,
+	type PermissionMode,
+	type TurnUsage
 } from '@geordi/protocol';
 import type { HostEvent } from '../host.ts';
 import { BackgroundTasks } from './background-tasks.ts';
@@ -34,8 +35,9 @@ import { limitsIn } from './limits.ts';
 import { API_SERVER, type SessionOptions } from './adapter.ts';
 
 const ACP_MODES = {
-	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
-	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
+	// Sandboxed is full access inside Geordi's own sandbox (`sandbox.ts`), which the host adds.
+	claude: { auto: 'auto', sandboxed: 'bypassPermissions', 'full-access': 'bypassPermissions' },
+	codex: { auto: 'agent', sandboxed: 'agent-full-access', 'full-access': 'agent-full-access' }
 } satisfies Record<Exclude<Agent, 'opencode'>, Record<PermissionMode, string>>;
 
 /**
@@ -334,10 +336,10 @@ export function connectAgent(
 					: claudeMode && claudeMode !== ACP_MODES.claude['full-access'];
 			if (restricted)
 				throw new Error(
-					'Choose Auto Mode or Full Access in this workspace to replace the daemon permission setting.'
+					'Choose a permission mode in this workspace to replace the daemon permission setting.'
 				);
 		}
-		const mode = ACP_MODES[provider][selected ?? 'full-access'];
+		const mode = ACP_MODES[provider][permissionModeOf(options.settings)];
 		if (typeof mode !== 'string') throw new Error('Unknown workspace permission mode: ' + selected);
 		const setup = {
 			cwd: options.cwd,

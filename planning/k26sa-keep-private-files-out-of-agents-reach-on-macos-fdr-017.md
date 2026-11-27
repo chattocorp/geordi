@@ -1,40 +1,28 @@
 ---
 data:
   priority: normal
-  status: todo
+  status: done
   type: feature
 id: k26sa
 title: Keep private files out of agents' reach on macOS (FDR-017)
 ---
 Agents trigger macOS privacy prompts ("Geordi would like to access files on a removable volume") by probing places macOS guards. Traced on 2026-11-26/27: `adb devices` and Android SDK probing by agents. See FDR-017.
 
-## Findings so far
+## Findings
 
-- A `sandbox-exec` deny rule makes access fail with EPERM **without** any `tccd` request, so no prompt (tested 2026-11-27).
-- Nested sandboxes fail: `sandbox_apply: Operation not permitted`. Codex in "auto" mode (`agent`) sandboxes its own commands, so it would break under ours.
+- A `sandbox-exec` deny rule makes access fail with EPERM **without** any `tccd` request, so no prompt.
+- Nested sandboxes fail: `sandbox_apply: Operation not permitted`. So Auto Mode (Codex `workspace-write`, Claude Code's own sandbox) is never sandboxed by Geordi.
 - The installed app is signed ad hoc, so TCC forgets answers on every update (`Failed to match existing code requirement`). Separate fix.
 
-## Live tests (2026-11-27)
+## Outcome (2026-11-27)
 
-Agent CLIs run directly under `sandbox-exec` with a profile denying `~/Downloads` and `/Volumes/T7`; prompt runs `ls ~/Downloads; echo hello > probe.txt`. Codex on gpt-6.2-sol medium, Claude Code on Sonnet medium.
+- Permission mode `sandboxed` ("Full Permissions (Sandboxed)"), the default, also for workspaces that never chose. `full-access` is labelled "Full Permissions" and stays unrestricted. Protocol version 45.
+- `apps/daemon/src/sandbox.ts`: the host starts the agent CLI under `/usr/bin/sandbox-exec` on macOS. `(allow default)`, deny `/Volumes` and the guarded home folders, re-allow cwd, the session dir, `writableRoots`, the worktree and the main checkout. Paths are passed as `-D` parameters.
+- Tests: `sandbox.spec.ts` (runs the real sandbox on macOS), session tests for the new mode, and an `acp:probe <agent> sandbox sandboxed` scenario.
+- Live: `acp:probe` passed for Claude Code (Sonnet medium) and Codex (gpt-6.2-sol medium): Downloads → "Operation not permitted", writes in the workspace work. Electron-as-Node and headless Chromium (Playwright) start inside the sandbox.
+- Not tested live: OpenCode (same code path as full access plus the sandbox), Auto and Full Permissions modes against real CLIs (unchanged paths; running them would really read Downloads and might prompt).
 
-| Agent | Own sandbox | Result |
-|---|---|---|
-| Codex | `danger-full-access` | Works; `ls ~/Downloads` → Operation not permitted |
-| Codex | `workspace-write` (Geordi "auto") | Every command fails: `sandbox_apply: Operation not permitted` |
-| Claude Code | off (Geordi's default) | Works; Downloads denied |
-| Claude Code | `sandbox.enabled` | Every Bash command fails (exit 71) |
+## Known limits
 
-## Plan
-
-- Start the agent CLI in `apps/daemon/src/host.ts` under `/usr/bin/sandbox-exec` with a generated profile on macOS: `(allow default)`, deny `file-read*`/`file-write*` on `/Volumes`, `~/Desktop`, `~/Documents`, `~/Downloads`, `~/Library/Mobile Documents`, and the Photos, Mail, Messages, Contacts and Calendar data; then re-allow the repository checkout, its worktrees and `writableRoots` (later rules win).
-- Add a permission mode `full-access-sandboxed` ("Full Permissions (Sandboxed)"), the new default; rename the label of `full-access` to "Full Permissions". Stored `full-access` stays unrestricted. Auto Mode is never sandboxed (decided 2026-11-27).
-- Each agent's adapter maps the new mode to its full-access setting; the host adds the sandbox.
-
-## Acceptance criteria
-
-- An agent running `ls /Volumes/<drive>` or `ls ~/Downloads` gets "Operation not permitted" and no macOS prompt appears.
-- A repository in `~/Documents` or on an external drive still works for its agents.
-- Claude Code, Codex and OpenCode turns work in all three permission modes (live session tests).
-- The picker shows the three modes; new workspaces default to the sandboxed one.
-- Not on macOS: unchanged.
+- Claude Code with its own `sandbox.enabled` in the person's settings can't run Bash in the sandboxed mode.
+- Other tools that sandbox themselves (iOS Simulator, some Electron apps) may fail in the sandboxed mode; pick Full Permissions for such work.

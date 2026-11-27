@@ -17,15 +17,24 @@ import type { Sound } from './sounds.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 44;
+export const PROTOCOL_VERSION = 45;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
 export const AGENTS = ['claude', 'codex', 'opencode'] as const;
 export type Agent = (typeof AGENTS)[number];
 
-export const PERMISSION_MODES = ['auto', 'full-access'] as const;
+/**
+ * How much an agent may do (FDR-017): what its own sandbox and checks allow (`auto`),
+ * anything but reach the places macOS guards with privacy prompts (`sandboxed`), or
+ * anything at all (`full-access`).
+ */
+export const PERMISSION_MODES = ['auto', 'sandboxed', 'full-access'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
+/** The mode of a workspace that has not chosen one. */
+export const DEFAULT_PERMISSION_MODE: PermissionMode = 'sandboxed';
+export const permissionModeOf = (settings: AgentSettings): PermissionMode =>
+	settings.permissionMode ?? DEFAULT_PERMISSION_MODE;
 
 /** The settings a workspace sends with each turn. */
 export type AgentSettings = {

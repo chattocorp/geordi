@@ -5,7 +5,7 @@
 | [FDR-001](FDR-001-workspaces.md)                          | Workspaces                                                       | Active     | 2026-11-26    |
 | [FDR-002](FDR-002-agents-starting-agents.md)              | Agents starting and supervising agents                           | Active     | 2026-11-25    |
 | [FDR-003](FDR-003-workspace-actions.md)                   | Workspace actions                                                | Active     | 2026-11-22    |
-| [FDR-004](FDR-004-model-and-effort.md)                    | Choosing the agent, its model and its effort                     | Active     | 2026-11-22    |
+| [FDR-004](FDR-004-model-and-effort.md)                    | Choosing the agent, its model and its effort                     | Active     | 2026-11-27    |
 | [FDR-005](FDR-005-settings.md)                            | Settings                                                         | Active     | 2026-11-25    |
 | [FDR-006](FDR-006-repository-configuration-and-run.md)    | Repository configuration: tasks, ports, setup and teardown       | Active     | 2026-11-25    |
 | [FDR-007](FDR-007-changesets.md)                          | Changesets: what a workspace means for the next releases         | Active     | 2026-11-25    |
@@ -18,4 +18,4 @@
 | [FDR-014](FDR-014-purging-archived-workspaces.md)         | Deleting archived workspaces for good                            | Active     | 2026-11-22    |
 | [FDR-015](FDR-015-locked-workspaces.md)                   | Locked workspaces                                                | Active     | 2026-11-25    |
 | [FDR-016](FDR-016-workspace-outline.md)                   | The workspace outline                                            | Active     | 2026-11-26    |
-| [FDR-017](FDR-017-private-files-out-of-agents-reach.md)   | Private files out of agents' reach                               | Planned    | 2026-11-27    |
+| [FDR-017](FDR-017-private-files-out-of-agents-reach.md)   | Private files out of agents' reach                               | Active     | 2026-11-27    |

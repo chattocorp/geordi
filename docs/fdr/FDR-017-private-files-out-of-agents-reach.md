@@ -1,6 +1,6 @@
 # FDR-017: Private files out of agents' reach
 
-**Status:** Planned
+**Status:** Active
 **Last reviewed:** 2026-11-27
 
 ## Overview
@@ -13,7 +13,7 @@ Agents look around a computer freely: they list folders, probe for tools, and ru
   - **Auto Mode:** the agent's own sandbox and checks decide, as before.
   - **Full Permissions (Sandboxed)**, the default: the agent may do anything, except reach the places listed below.
   - **Full Permissions:** the agent may do anything at all. Choose it for work that needs a drive or Downloads, such as testing on a phone attached by USB.
-- Workspaces started before this mode existed with full access keep **Full Permissions**. Their next turns behave as before.
+- A workspace that chose Full Access before keeps it, as **Full Permissions**. One that never chose gets the default.
 - In **Full Permissions (Sandboxed)** on macOS, an agent and everything it runs can't read or write external drives, mounted volumes, your Desktop, Documents and Downloads, iCloud Drive, or the libraries of Photos, Mail, Messages, Contacts and Calendar.
 - An attempt fails with a normal "Operation not permitted". The agent sees the error and carries on. No macOS prompt appears.
 - The repository an agent works on is always reachable, wherever it lives, even on an external drive or in Documents. So are its worktrees and the folders Geordi gives the agent to write to.
