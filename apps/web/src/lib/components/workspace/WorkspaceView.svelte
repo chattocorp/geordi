@@ -1537,7 +1537,9 @@
 					<Button
 						variant="ghost"
 						size="sm"
-						icon={folded ? 'icon-[lucide--chevron-right]' : 'icon-[lucide--chevron-down]'}
+						icon="icon-[lucide--chevron-right] transition-transform duration-180 ease-out motion-reduce:transition-none"
+						class="aria-expanded:*:rotate-90"
+						aria-expanded={!folded}
 						label={folded ? 'Unfold' : 'Fold'}
 						onclick={() => toggleFold(area)}
 					/>

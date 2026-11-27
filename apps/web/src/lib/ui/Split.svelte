@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { tick, untrack, type Snippet } from 'svelte';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { sidebarMotion } from './sidebar-motion.ts';
 
 	type Props = {
@@ -53,6 +54,37 @@
 	const extent = $derived(dir === 'row' ? 'width' : 'height');
 
 	let root: HTMLElement;
+	let first: HTMLElement;
+	let second: HTMLElement;
+	let previousFold = untrack(() => fold);
+	let animations: Animation[] = [];
+
+	// Measure both layouts so a folded panel ends at the natural size of its own tab bar.
+	$effect.pre(() => {
+		if (previousFold === fold) return;
+		previousFold = fold;
+		const panes = [first, second];
+		const axis = extent;
+		const start = panes.map((pane) => pane.getBoundingClientRect()[axis]);
+		animations.forEach((animation) => animation.cancel());
+		if (prefersReducedMotion.current) return;
+		let current = true;
+		void tick().then(() => {
+			if (!current) return;
+			const end = panes.map((pane) => pane.getBoundingClientRect()[axis]);
+			const frame = (size: number) => ({
+				flex: `0 0 ${size}px`,
+				[axis === 'height' ? 'minHeight' : 'minWidth']: '0',
+				overflow: 'clip'
+			});
+			animations = panes.map((pane, i) =>
+				pane.animate([frame(start[i]), frame(end[i])], { duration: 180, easing: 'ease-out' })
+			);
+		});
+		return () => {
+			current = false;
+		};
+	});
 
 	function drag(event: PointerEvent & { currentTarget: HTMLElement }) {
 		const handle = event.currentTarget;
@@ -83,6 +115,7 @@
 <div bind:this={root} class={['flex min-h-0 min-w-0 flex-1', dir === 'column' && 'flex-col']}>
 	<!-- a share below 1 would leave room unused once `b` is hidden -->
 	<div
+		bind:this={first}
 		class="flex min-h-0 min-w-0 flex-col"
 		style:flex={visible.current === 0 ? '1 1 0' : flexOf('a', 1 - bShare)}
 		style:min-width={dir === 'row' && fold !== 'a' ? `${min[0]}px` : undefined}
@@ -109,6 +142,7 @@
 		]}
 	></div>
 	<div
+		bind:this={second}
 		inert={collapsed}
 		class={[
 			'min-h-0 min-w-0 flex-col',
