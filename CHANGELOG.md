@@ -1,5 +1,45 @@
 # Geordi Changelog
 
+## 0.9.0-alpha.2
+
+### Highlights
+
+- Organise your workspaces as an outline, and hand work to another lead by dragging it there. ([#545](https://github.com/chattocorp/geordi/pull/545))
+
+### Features
+
+- You can expand unchanged lines in a turn review when the full context fits in the saved diff. ([#538](https://github.com/chattocorp/geordi/pull/538))
+- You can now arrange your workspaces as an outline: drag one onto another to nest it there, whatever repository it is in. The workspace you put it under becomes the one it reports to, and grouped by repository, each tree stays together under its top workspace’s repository. Archiving a workspace archives everything under it. ([#545](https://github.com/chattocorp/geordi/pull/545))
+- A Braille cursor follows the last line of your agent’s reply while it works and disappears when the turn ends. ([#552](https://github.com/chattocorp/geordi/pull/552))
+
+### Fixes
+
+- When you ask an agent to start something on a particular port, or to run a command as it is, it now does so instead of insisting on one of the workspace’s own ports. ([#553](https://github.com/chattocorp/geordi/pull/553))
+- You can stop a task while it is starting, even before its ports are ready. ([#555](https://github.com/chattocorp/geordi/pull/555))
+- When you reinstall Geordi from a workspace on macOS, the running app now quits before replacement so the Add repository folder picker keeps working. ([#544](https://github.com/chattocorp/geordi/pull/544))
+- Your hidden right sidebar now stays hidden when you switch workspaces. ([#549](https://github.com/chattocorp/geordi/pull/549))
+- The checks bar disappears immediately when you switch away from the pull request tab. ([#539](https://github.com/chattocorp/geordi/pull/539))
+- Each dependency in the Tasks panel now shows as ready when its own ports answer. ([#559](https://github.com/chattocorp/geordi/pull/559))
+- Long links now wrap inside your conversation pane, so you can read the full URL. ([#541](https://github.com/chattocorp/geordi/pull/541))
+- You can read earlier agent messages in place after you steer the agent or the turn ends. ([#557](https://github.com/chattocorp/geordi/pull/557))
+
+### Performance
+
+- You can expand context in older turn reviews when Git still has the files. New reviews keep their context in Git and save a compact patch in your event log. ([#540](https://github.com/chattocorp/geordi/pull/540))
+
+### Smaller changes
+
+- Tool call icons in collapsed groups have a slightly thicker outline. ([#551](https://github.com/chattocorp/geordi/pull/551))
+- Hover over a tool icon to highlight just that invocation. ([#556](https://github.com/chattocorp/geordi/pull/556))
+- The activity dots have more space after the last tool icon in your conversation. ([#554](https://github.com/chattocorp/geordi/pull/554))
+- The copy button now sits beside the last words of a mid-turn message. ([#550](https://github.com/chattocorp/geordi/pull/550))
+- Collapsed tool groups show one outlined square icon per call, in order. New icons fade in, and a moving border marks running calls. Failed calls appear in red. Click anywhere on the row to see the command, even while it runs. ([#542](https://github.com/chattocorp/geordi/pull/542))
+- Tool icons overlap slightly in a collapsed row so you can see more calls at a glance. ([#548](https://github.com/chattocorp/geordi/pull/548))
+- The sidebar no longer shows the next version on every workspace row. You still find it in the workspace’s Changeset tab. ([#543](https://github.com/chattocorp/geordi/pull/543))
+- The startup animation is livelier: a silver sheen sweeps across the mark as it fades in, and its slats glow gold one after the other while Geordi starts. ([#547](https://github.com/chattocorp/geordi/pull/547))
+- Cards and workspace panes now catch the light along their upper-left edges, with a softer highlight on sidebars. ([#536](https://github.com/chattocorp/geordi/pull/536))
+- When a finished turn has one group of tool calls to inspect, click the icons to see the calls directly. The expanded list marks running calls with the same moving border as the collapsed icons. The list opens in place, with its collapse control inside. ([#546](https://github.com/chattocorp/geordi/pull/546))
+
 ## 0.9.0-alpha.1
 
 ### Features
