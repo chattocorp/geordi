@@ -3,9 +3,8 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { WorkspaceStanding } from '@geordi/ui/actions';
 	import type { Navigation } from '#lib/server/views.ts';
-	import { withoutInactive } from '#lib/family.ts';
+	import type { OutlineEntry } from '#lib/family.ts';
 	import ContextMenu from '#lib/ui/ContextMenu.svelte';
-	import { unread } from '#lib/notifications.svelte.ts';
 	import Sidebar from './Sidebar.svelte';
 
 	const { Story } = defineMeta({
@@ -15,7 +14,6 @@
 			filters.activeOnly = true;
 			focus.current = null;
 			folded.current = [];
-			grouped.current = true;
 			arrived.current = false;
 			loaded.current = false;
 		}
@@ -27,8 +25,6 @@
 	const folded = $state({ current: [] as string[] });
 	/** The repository shown alone: in the app, remembered in the browser too. */
 	const focus = $state({ current: null as string | null });
-	/** Whether workspaces are grouped by repository: in the app, remembered in the browser too. */
-	const grouped = $state({ current: true });
 
 	const filters = $state({ activeOnly: true });
 	/** Whether a workspace has come along since the story began. */
@@ -150,8 +146,55 @@
 		access: [],
 		preferences: { identifyClaude: false },
 		activeAgents: [],
-		harnesses: null
+		harnesses: null,
+		items: []
 	};
+
+	/**
+	 * The outline the navigation view would send (FDR-019): an item for each workspace, under
+	 * its parent's (or where `under` puts it), and the `extra` items without workspaces.
+	 */
+	function withItems(
+		nav: Navigation,
+		extra: OutlineEntry[] = [],
+		under: Record<string, string> = {}
+	): Navigation {
+		if (nav.items.length) return nav;
+		return {
+			...nav,
+			items: [
+				...extra,
+				...nav.workspaces.map((each) => ({
+					id: each.id,
+					parentId: under[each.id] ?? each.parentId,
+					text: each.title,
+					note: '',
+					done: false,
+					workspace: true
+				}))
+			]
+		};
+	}
+	const item = (id: string, text: string, parentId: string | null = null, done = false) => ({
+		id,
+		parentId,
+		text,
+		note: '',
+		done,
+		workspace: false
+	});
+
+	/** Workspaces under items without one: a release, with its todos, one of them done. */
+	const withPlainItems = (base: Navigation) =>
+		withItems(
+			base,
+			[
+				item('release', 'Release 0.9'),
+				item('notes', 'Write the release notes', 'release'),
+				item('tagged', 'Tag the release', 'release', true)
+			],
+			{ failing: 'release' }
+		);
 
 	/** A tree with a workspace of another repository in it (FDR-016): listed with its root. */
 	const acrossRepos: Navigation = {
@@ -192,16 +235,10 @@
 	<!-- as the layout holds it: in the frame, as tall as the window -->
 	<div class="flex h-dvh max-h-full w-64 bg-frame p-2">
 		<Sidebar
-			visibleWorkspaces={withoutInactive(
-				nav?.workspaces ?? [],
-				filters.activeOnly,
-				path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null
-			)}
-			{nav}
+			nav={nav && withItems(nav)}
 			{path}
 			{folded}
 			{focus}
-			{grouped}
 			bind:activeOnly={filters.activeOnly}
 			{lost}
 		/>
@@ -217,10 +254,6 @@
 			'aria-current',
 			'page'
 		);
-		const main = canvas.getByRole('navigation', { name: 'Main' });
-		const separators = () => main.querySelectorAll('.group-separator');
-		await expect(separators()).toHaveLength(1);
-		await expect(separators()[0].getBoundingClientRect().width).toBe(main.clientWidth);
 		// a repository without workspaces has no place here
 		await expect(canvas.queryByText('no-workspaces')).toBeNull();
 		await expect(canvas.queryByText('Reconnecting')).toBeNull();
@@ -268,7 +301,12 @@
 		const idle = canvas.getByRole('link', { name: /Check every token/ });
 		idle.focus();
 		const cleanRow = within(idle.closest('li')!);
-		await expect(cleanRow.queryByRole('button')).toBeNull();
+		// nothing to do on it but add an item under it, which shows when pointed at
+		await expect(
+			cleanRow
+				.queryAllByRole('button')
+				.filter((button) => !button.getAttribute('aria-label')?.startsWith('Add an item'))
+		).toEqual([]);
 		await expect(cleanRow.queryByRole('img')).toBeNull();
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
 			const pill = canvas.getByText(label, { selector: 'button' });
@@ -297,7 +335,7 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const activeOnly = canvas.getByRole('button', { name: 'Show only active workspaces' });
+		const activeOnly = canvas.getByRole('button', { name: 'Show only what is active' });
 		await expect(activeOnly).toHaveAttribute('aria-pressed', 'true');
 		await waitFor(() => expect(canvas.getByText('Choose a storage engine')).toBeVisible());
 		await waitFor(() =>
@@ -307,7 +345,7 @@
 		await expect(canvas.queryByText('Review the daemon')).toBeNull();
 		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
 		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
-		await expect(canvas.getByText('All workspaces are inactive.')).toBeVisible();
+		await expect(canvas.getByText('Everything is done or put aside.')).toBeVisible();
 		await fireEvent.click(activeOnly);
 		await expect(activeOnly).toHaveAttribute('aria-pressed', 'false');
 		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
@@ -372,30 +410,6 @@
 	</div>
 </Story>
 
-<Story
-	name="As one list"
-	asChild
-	play={async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await fireEvent.click(canvas.getByRole('button', { name: 'Show workspaces as one list' }));
-		await expect(grouped.current).toBe(false);
-		// no repository names above them: each has its repository's picture instead
-		await waitFor(() => expect(canvas.queryByText('Projects')).toBeNull());
-		const main = within(canvas.getByRole('navigation', { name: 'Main' }));
-		// the titles, without the links to parents beside them
-		const titles = main
-			.getAllByRole('link')
-			.map((link) => link.textContent?.trim())
-			.filter(Boolean);
-		// what a project's agent started stays under it, though it is in a repository
-		await expect(titles.indexOf('Bump the protocol in the daemon')).toBe(
-			titles.indexOf('Ship the protocol bump everywhere') + 1
-		);
-	}}
->
-	{@render frame(withProjects, '/workspaces/ready')}
-</Story>
-
 <Story name="On the archive" asChild>
 	{@render frame(nav, '/archive')}
 </Story>
@@ -424,53 +438,20 @@
 </Story>
 
 <Story
-	name="Reorder within a repository"
+	name="Reorder"
 	asChild
 	play={async ({ canvasElement }) => {
-		const [sourceList, otherList] = within(canvasElement).getAllByRole('list');
-		const sourceRows = within(sourceList).getAllByRole('listitem');
-		const first = sourceRows[0];
-		const last = sourceRows[sourceRows.length - 1];
-		const overLast = () =>
-			fireEvent.dragOver(last, { clientY: last.getBoundingClientRect().bottom - 1 });
-		const markers = () => canvasElement.querySelectorAll('.row-drop-after, .row-drop-before');
-
-		await fireEvent.dragStart(first);
-		await overLast();
-		await expect(markers()).toHaveLength(1);
-		await expect(last).toHaveClass('row-drop-after');
-
-		await fireEvent.dragLeave(sourceList, { relatedTarget: otherList });
-		await expect(markers()).toHaveLength(0);
-		await fireEvent.dragOver(within(otherList).getAllByRole('listitem')[0]);
-		await expect(markers()).toHaveLength(0);
-
-		await overLast();
-		await expect(last).toHaveClass('row-drop-after');
-		await fireEvent.dragEnd(first);
-		await expect(markers()).toHaveLength(0);
-	}}
->
-	{@render frame(nav, '/workspaces/ready')}
-</Story>
-
-<Story
-	name="Reorder in one list"
-	asChild
-	play={async ({ canvasElement }) => {
-		grouped.current = false;
 		const canvas = within(canvasElement);
-		// the groups slide away
-		await waitFor(() => expect(canvas.getAllByText('Choose a storage engine')).toHaveLength(1));
 		const row = (title: string) => canvas.getByText(title).closest('li')!;
 		const first = row('Choose a storage engine');
 		// a workspace of another repository
 		const target = row('Try out the new parser');
 		await fireEvent.dragStart(first);
+		// the gap above it, shown below the row before it
 		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
-		await expect(target).toHaveClass('row-drop-before');
+		await expect(target.previousElementSibling).toHaveClass('row-drop-after');
 		await fireEvent.dragEnd(first);
-		await expect(canvasElement.querySelectorAll('.row-drop-before')).toHaveLength(0);
+		await expect(canvasElement.querySelectorAll('.row-drop-after')).toHaveLength(0);
 	}}
 >
 	{@render frame(nav, '/workspaces/ready')}
@@ -481,9 +462,8 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const [geordi] = canvas.getAllByRole('list');
-		// under its parent, in its parent's repository, with its own repository's picture
-		const row = within(geordi).getByText('Teach the sample parser the new syntax').closest('li')!;
+		// under its parent, with its own repository's picture
+		const row = canvas.getByText('Teach the sample parser the new syntax').closest('li')!;
 		await expect(row.previousElementSibling).toHaveTextContent(
 			'Guard shared worktrees from update and continue'
 		);
@@ -513,10 +493,42 @@
 		await expect(canvasElement.querySelectorAll('.row-drop-after, .row-drop-before')).toHaveLength(
 			0
 		);
-		// above it: at the top of another repository's list, where it can't go
+		// above it: beside it, with a line in the gap
 		await fireEvent.dragOver(target, { clientY: target.getBoundingClientRect().top + 1 });
-		await expect(target).not.toHaveClass('row-drop-before');
+		await expect(target.previousElementSibling).toHaveClass('row-drop-after');
 		await expect(target.firstElementChild).not.toHaveClass('bg-hover');
+		await fireEvent.dragEnd(dragged);
+	}}
+>
+	{@render frame(nav, '/workspaces/ready')}
+</Story>
+
+<Story
+	name="One line for a gap"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const row = (title: string) => canvas.getByText(title).closest('li')!;
+		const dragged = row('Choose a storage engine');
+		const upper = row('Raise light mode text contrast');
+		const lower = row('Check every token in dark mode');
+		const marked = () =>
+			[...canvasElement.querySelectorAll('.row-drop-after, .row-drop-before')].map((each) => [
+				each.getAttribute('data-row'),
+				each.className.includes('after') ? 'after' : 'before',
+				(each as HTMLElement).style.getPropertyValue('--drop-indent')
+			]);
+		await fireEvent.dragStart(dragged);
+		const x = upper.getBoundingClientRect().left + 200;
+		// the bottom of the row above, and the top of the row below: the same gap, one line
+		await fireEvent.dragOver(upper, {
+			clientX: x,
+			clientY: upper.getBoundingClientRect().bottom - 1
+		});
+		const fromAbove = marked();
+		await fireEvent.dragOver(lower, { clientX: x, clientY: lower.getBoundingClientRect().top + 1 });
+		await expect(marked()).toEqual(fromAbove);
+		await expect(fromAbove).toHaveLength(1);
 		await fireEvent.dragEnd(dragged);
 	}}
 >
@@ -528,18 +540,20 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const group = canvas.getByRole('group', { name: 'geordi' });
-		const [list] = within(group).getAllByRole('list');
-		const rows = () => [...list.querySelectorAll(':scope > li')];
-		const last = rows().at(-1)!;
+		const [list] = canvas.getAllByRole('list');
+		const group = list;
+		const rows = () => [...list.querySelectorAll(':scope > li[data-row]')];
+		const last = rows().at(-1)! as HTMLElement;
 		const below = () => last.getBoundingClientRect().bottom + 4;
-		const line = () => list.querySelector(':scope > li[aria-hidden="true"].row-drop-before');
+		const line = () => list.querySelector(':scope > li.row-drop-after');
 
 		// a nested workspace, below the last tree: last at the top, a line at full width
 		const nested = canvas.getByText('Check every token in dark mode').closest('li')!;
 		await fireEvent.dragStart(nested);
 		await fireEvent.dragOver(group, { clientY: below() });
-		await waitFor(() => expect(line()).not.toBeNull());
+		await waitFor(() => expect(line()).toBe(last));
+		// at the top level: its line goes all the way out
+		await expect(last.style.getPropertyValue('--drop-indent')).toMatch(/\* 0\)$/);
 		await fireEvent.dragLeave(group, { relatedTarget: document.body });
 		await expect(line()).toBeNull();
 		await fireEvent.dragEnd(nested);
@@ -559,9 +573,8 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// shown on hover only, where it is not in the accessibility tree
-		const only = canvasElement.querySelector('[aria-label="Show only sample-project"]');
-		await fireEvent.click(only!);
+		await fireEvent.click(canvas.getByRole('button', { name: 'Repository: All repositories' }));
+		await fireEvent.click(await canvas.findByRole('option', { name: 'sample-project' }));
 		// the others slide away
 		await waitFor(() => expect(canvas.queryByText('Raise light mode text contrast')).toBeNull());
 		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
@@ -578,10 +591,6 @@
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText('Projects')).toBeVisible();
-		await expect(
-			canvas.getByRole('link', { name: 'Open parent workspace: Ship the protocol bump everywhere' })
-		).toHaveAttribute('href', '/workspaces/project');
 		await expect(canvas.queryByRole('link', { name: 'New project' })).toBeNull();
 		await expect(canvas.getByRole('link', { name: /Bump the protocol/ })).toHaveAttribute(
 			'title',
@@ -593,37 +602,59 @@
 </Story>
 
 <Story
-	name="Fold a repository from its name"
+	name="Items without workspaces"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const repo = canvas.getByRole('button', { name: 'sample-project' });
-		await fireEvent.click(within(repo).getByText('sample-project'));
-		await expect(repo).toBeVisible();
-		await expect(within(repo).getByText('2')).toBeVisible();
-		await expect(canvas.queryByText('Try out the new parser')).toBeNull();
-		await expect(repo).toHaveAttribute('aria-expanded', 'false');
-		await fireEvent.click(repo);
-		await waitFor(() => expect(canvas.getByText('Try out the new parser')).toBeVisible());
+		const release = canvas.getByRole('textbox', { name: 'Release 0.9' });
+		await expect(release).toHaveValue('Release 0.9');
+		const row = (text: string) =>
+			canvas.getByText(text, { selector: 'a span, a' }).closest('li')! as HTMLElement;
+		// a workspace under an item without one sits in from it
+		const releaseRow = release.closest('li')!;
+		const failingRow = row('Guard shared worktrees from update and continue');
+		await expect(failingRow.getBoundingClientRect().left).toBeGreaterThan(
+			releaseRow.getBoundingClientRect().left
+		);
+		await expect(releaseRow.compareDocumentPosition(failingRow)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING
+		);
+		// what is ticked off stays, crossed out, also among only what is active
+		const tagged = canvas.getByRole('textbox', { name: 'Tag the release' });
+		await expect(tagged).toHaveClass('line-through');
+		await expect(
+			canvas.getByRole('button', { name: 'Mark “Tag the release” as not done' })
+		).toHaveAttribute('aria-pressed', 'true');
+		// it folds what is under it
+		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse Release 0.9' }));
+		await waitFor(() =>
+			expect(canvas.queryByRole('textbox', { name: 'Write the release notes' })).toBeNull()
+		);
 	}}
 >
-	{@render frame(nav, '/workspaces/plain')}
+	{@render frame(withPlainItems(nav), '/workspaces/ready')}
 </Story>
 
 <Story
-	name="A folded repository with unread work"
+	name="Adding items"
 	asChild
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const repo = canvas.getByRole('button', { name: 'sample-project' });
-		unread.add('long');
-		await fireEvent.click(repo);
-		await waitFor(() => expect(within(repo).getByText('2')).toHaveClass('text-ink'));
-		unread.delete('long');
-		await waitFor(() => expect(within(repo).getByText('2')).not.toHaveClass('text-ink'));
+		// the outline's last line is where something new is written
+		const [list] = canvas.getAllByRole('list');
+		const last = [...list.querySelectorAll(':scope > li')].at(-1)!;
+		await expect(
+			within(last as HTMLElement).getByRole('button', { name: 'New item' })
+		).toBeVisible();
+		// every row offers to add an item under it, when pointed at
+		// shown only while a row is pointed at: no room taken from titles otherwise
+		const addUnder = (title: string) =>
+			canvasElement.querySelector(`button[aria-label="Add an item under ${title}"]`);
+		await expect(addUnder('Release 0.9')).not.toBeVisible();
+		await expect(addUnder('Raise light mode text contrast')).not.toBeNull();
 	}}
 >
-	{@render frame(nav, '/workspaces/ready')}
+	{@render frame(withPlainItems(nav), '/workspaces/ready')}
 </Story>
 
 <Story

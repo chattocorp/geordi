@@ -18,13 +18,7 @@
 	import AddRepository from '#lib/components/AddRepository.svelte';
 	import { theme } from '#lib/theme.svelte.ts';
 	import { daemon } from '#lib/daemon.svelte.ts';
-	import {
-		inFocus,
-		inSidebarOrder,
-		nextUnread,
-		stepThrough,
-		withoutInactive
-	} from '#lib/family.ts';
+	import { nextUnread, outlineRows, stepThrough } from '#lib/family.ts';
 	import { pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '@geordi/ui/persisted';
@@ -102,27 +96,22 @@
 	const folded = persisted<string[]>('geordi:folded', []);
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
-	/** Whether the sidebar groups workspaces by repository, or lists them as one. */
-	const grouped = persisted('geordi:grouped', true);
 
 	/** Whether the sidebar shows only the active workspaces, leaving out the inactive ones. */
 	const activeOnly = persisted('geordi:active-only', true);
-	const visibleWorkspaces = $derived(
-		withoutInactive(nav.current?.workspaces ?? [], activeOnly.current, viewed)
-	);
 
 	/** Goes to the workspace above (-1) or below (1) the one on screen, as the sidebar lists them. */
 	function stepWorkspace(step: 1 | -1 | 'unread') {
 		const all = nav.current;
 		if (!all) return;
-		const order = inSidebarOrder(
-			visibleWorkspaces,
-			inFocus(
-				all.repos.filter((repo) => repo.workspaceCount > 0),
-				focus.current
-			).map(({ id }) => id),
-			folded.current,
-			{ includeProjects: step === 'unread', grouped: grouped.current }
+		// the workspaces, as the outline shows them (FDR-019)
+		const order = outlineRows(all.items, all.workspaces, {
+			activeOnly: activeOnly.current,
+			focus: focus.current,
+			folded: folded.current,
+			viewed
+		}).flatMap(({ workspace: entry }) =>
+			entry.workspace && !entry.done && (step === 'unread' || !entry.project) ? [entry] : []
 		);
 		const to =
 			step === 'unread' ? nextUnread(order, viewed, unread) : stepThrough(order, viewed, step);
@@ -159,7 +148,6 @@
 			anyUnread: unread.size > 0,
 			sidebarOpen: sidebar.current.open,
 			wide: (innerWidth.current ?? 0) >= 768,
-			grouped: grouped.current,
 			activeOnly: activeOnly.current,
 			focus: focus.current,
 			theme: theme.current,
@@ -175,7 +163,6 @@
 				if (!sidebar.current.open) toggleSidebar();
 				repositoryPickerOpen = true;
 			},
-			toggleGrouped: () => (grouped.current = !grouped.current),
 			toggleActiveOnly: () => (activeOnly.current = !activeOnly.current),
 			setFocus: (repo) => {
 				focus.current = repo;
@@ -265,11 +252,9 @@
 				<Sidebar
 					{lost}
 					nav={nav.current}
-					{visibleWorkspaces}
 					path={page.url.pathname}
 					{folded}
 					{focus}
-					{grouped}
 					bind:activeOnly={() => activeOnly.current, (value) => (activeOnly.current = value)}
 					bind:repositoryPickerOpen
 				/>

@@ -7,7 +7,6 @@
 	import ConnectionIndicator from './ConnectionIndicator.svelte';
 	import RepoIcon from '#lib/components/RepoIcon.svelte';
 	import { settingsPath } from '#lib/components/settings.svelte.ts';
-	import RowLabel from '@geordi/ui/RowLabel.svelte';
 	import WorkspaceRow from '@geordi/ui/WorkspaceRow.svelte';
 	import {
 		actFromAfar,
@@ -17,15 +16,10 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import {
-		asOneList,
-		byRepository,
-		dropTarget,
-		type DropZone,
-		inFocus,
-		shownUngrouped,
-		unfolded
-	} from '#lib/family.ts';
+	import { dropTarget, type DropPlace, outlineRows } from '#lib/family.ts';
+	import OutlineItemRow from './OutlineItemRow.svelte';
+	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
 	import type { Navigation } from '#lib/server/views.ts';
@@ -35,38 +29,35 @@
 	import { slide } from 'svelte/transition';
 	import { foreground } from '#lib/foreground.svelte.ts';
 	import {
+		addItem,
+		completeItem,
+		editItem,
 		lockWorkspace,
-		moveWorkspace,
+		moveItem,
+		removeItem,
 		renameWorkspace,
 		stopAgent
 	} from '../../routes/workspaces.remote';
-	import { moveRepo } from '../../routes/repos.remote';
 
 	/**
-	 * The sidebar groups workspaces by repository and keeps navigation links below the list. `nav` is what there is, once known; `path` is the
-	 * page on screen, which is marked. `folded` is what is folded away: the workspaces of a
-	 * repository under its name, and those its agents started under a workspace. `focus` is
-	 * the repository shown alone, if any; `grouped` whether workspaces are listed under their
-	 * repositories, or as one list, each with its repository's picture. `visibleWorkspaces` are those shown, `activeOnly` whether
-	 * they leave out the inactive ones.
+	 * The sidebar is the outline (FDR-019): every item, workspaces among them, and the
+	 * navigation links below it. `nav` is what there is, once known; `path` is the page on
+	 * screen, which is marked. `folded` is what is folded away under items; `focus` the
+	 * repository shown alone, if any; `activeOnly` whether what is done or inactive is left out.
 	 */
 	let {
 		nav,
-		visibleWorkspaces = nav?.workspaces ?? [],
 		path,
 		folded,
 		focus,
-		grouped,
 		activeOnly = $bindable(true),
 		repositoryPickerOpen = $bindable(false),
 		lost = false
 	}: {
 		nav: Navigation | undefined;
-		visibleWorkspaces?: Navigation['workspaces'];
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
-		grouped: { current: boolean };
 		activeOnly?: boolean;
 		repositoryPickerOpen?: boolean;
 		lost?: boolean;
@@ -74,33 +65,27 @@
 
 	type Item = Navigation['workspaces'][number];
 
-	/** The trees by their roots' repositories, each workspace right after its parent (FDR-016). */
-	const listed = $derived(byRepository(visibleWorkspaces));
 	const withWorkspaces = $derived(nav?.repos.filter((repo) => repo.workspaceCount > 0) ?? []);
-	const sidebarRepos = $derived(inFocus(withWorkspaces, focus.current));
 	const repoNames = $derived(new Map(nav?.repos.map((repo) => [repo.id, repo.name])));
-	/**
-	 * What the sidebar groups workspaces under: projects first (FDR-012: workspaces in no
-	 * repository, `id` `null`), where there are any, then the repositories that have some.
-	 * Focusing a repository leaves the projects, which are in none.
-	 */
-	const groups = $derived([
-		...(listed.get(null)?.length ? [{ id: null, name: 'Projects' }] : []),
-		...sidebarRepos.filter((repo) => listed.has(repo.id))
-	]);
-	/** All of them as one list, where they are not grouped: the projects, and the repositories shown. */
-	const oneList = $derived(
-		asOneList(
-			shownUngrouped(
-				visibleWorkspaces,
-				sidebarRepos.map(({ id }) => id)
-			)
-		)
+	/** The workspaces in use, by ID: what the outline's items with workspaces show. */
+	const workspaceById = $derived(new Map(nav?.workspaces.map((each) => [each.id, each])));
+	/** Ticks an item off, or not: it stays where it is, crossed out. */
+	const tickOff = (entry: { id: string; done: boolean }) =>
+		completeItem({ itemId: entry.id, done: !entry.done });
+	const viewed = $derived(path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
+	/** The rows shown, top to bottom. */
+	const rows = $derived(
+		nav
+			? outlineRows(nav.items, nav.workspaces, {
+					activeOnly,
+					focus: focus.current,
+					folded: folded.current,
+					viewed
+				})
+			: []
 	);
-	/** What stands for the projects among the folded: no repository has it as its ID. */
-	const PROJECTS = 'projects';
-	/** Whether anything is inactive: what an empty list, with inactive workspaces hidden, is down to. */
-	const anyInactive = $derived(nav?.workspaces.some((workspace) => workspace.inactive) ?? false);
+	type Row = (typeof rows)[number];
+	type Entry = Row['workspace'];
 
 	/**
 	 * Repositories and workspaces slide in and out whenever they come or go: by a filter (the
@@ -192,6 +177,20 @@
 				icon: 'icon-[lucide--hash]',
 				onselect: () => navigator.clipboard.writeText(workspace.id)
 			},
+			// its own todos (FDR-019)
+			...(project
+				? []
+				: [
+						{
+							label: 'Add an item under it',
+							icon: 'icon-[lucide--list-plus]',
+							onselect: () => {
+								const index = rows.findIndex((row) => row.workspace.id === workspace.id);
+								const child = rows[index + 1]?.depth > rows[index]?.depth;
+								return newItem(workspace.id, child ? idAt(index + 1) : null);
+							}
+						}
+					]),
 			// a project has no branch to copy or carry on from
 			...(project
 				? []
@@ -246,65 +245,52 @@
 		];
 	}
 
-	type Row = { workspace: Item; parent: Item | null; depth: number };
+	/**
+	 * The item being dragged to another place in the outline (FDR-016, FDR-019), and where it
+	 * would go, if anywhere new: above a row, onto it (under that item) or below it, or below
+	 * the last row. What is under it goes along; the workspaces among that report to the
+	 * workspace of the nearest item above them.
+	 */
+	let dragged = $state<Entry | null>(null);
+	let dropAt = $state<ReturnType<typeof dropTarget<Entry>>>(undefined);
 
 	/**
-	 * The workspace being dragged to another place in the outline (FDR-016), and where it
-	 * would go, if anywhere new: above a row, onto it (under that workspace) or below it.
-	 * What is under it goes along. Under another workspace, that one supervises it.
+	 * How deep the pointer is in the list: one level for each indent from its left edge.
+	 * Where a gap between rows allows more than one depth, this picks it.
 	 */
-	let dragged = $state<Item | null>(null);
-	/** Where it would go, and in which list (`listKey`): the end of a list is in none of its rows. */
-	let dropAt = $state<
-		(NonNullable<ReturnType<typeof dropTarget<Item>>> & { list: string }) | undefined
-	>(undefined);
-	/** A list's name among the lists: its group's (`undefined`: the one list). */
-	const listKey = (groupId: string | null | undefined) =>
-		groupId === undefined ? 'one-list' : (groupId ?? PROJECTS);
-	/** Where in the list of `groupId` it would go, dropped on the row at `index` (past the end: below the last). */
-	function dropIn(rows: Row[], index: number, zone: DropZone, groupId: string | null | undefined) {
-		const topLevel = groupId === undefined || dragged!.repoId === groupId;
-		const target = dropTarget(rows, dragged!, index, zone, topLevel);
-		dropAt = target && { ...target, list: listKey(groupId) };
+	function depthAt(event: DragEvent) {
+		const left = list?.getBoundingClientRect().left ?? 0;
+		const indent = INDENT * parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25;
+		return Math.floor((event.clientX - left) / indent);
 	}
 
 	/**
-	 * Over a row of the list of `groupId` (`undefined`: the one list): on its upper third
-	 * above it, on its lower third below it, else onto it. At the top of a repository's list
-	 * only what is of that repository.
+	 * Over the list: the row at the pointer's height, whether or not the pointer is over the
+	 * row itself (rows are indented; moving left, to go up a level, leaves them). A row's upper
+	 * quarter is the gap above it, its lower quarter the gap below it, and the rest is the row
+	 * itself (under it); below the last row is the gap after it. The gap between two rows is
+	 * one place, from either side.
 	 */
-	function overRow(
-		event: DragEvent & { currentTarget: HTMLElement },
-		rows: Row[],
-		index: number,
-		groupId: string | null | undefined
-	) {
+	function overList(event: DragEvent & { currentTarget: HTMLElement }) {
 		if (!dragged) return;
+		const shown = [...event.currentTarget.querySelectorAll<HTMLElement>(':scope > li[data-row]')];
+		if (!shown.length) return;
+		const y = event.clientY;
+		const index = shown.findIndex((li) => y < li.getBoundingClientRect().bottom);
+		let place: DropPlace;
+		if (index === -1) place = { after: rows.length - 1, depth: depthAt(event) };
+		else {
+			const rect = shown[index].getBoundingClientRect();
+			const at = (y - rect.top) / rect.height;
+			place =
+				at < 1 / 4
+					? { after: index - 1, depth: depthAt(event) }
+					: at > 3 / 4
+						? { after: index, depth: depthAt(event) }
+						: { onto: index };
+		}
 		event.preventDefault();
-		const rect = event.currentTarget.getBoundingClientRect();
-		const third = (event.clientY - rect.top) / rect.height;
-		const zone: DropZone = third < 1 / 3 ? 'above' : third > 2 / 3 ? 'below' : 'onto';
-		dropIn(rows, index, zone, groupId);
-		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
-	}
-
-	/**
-	 * Below the last row of a list (in the space under it): last at the top of that list,
-	 * after every tree in it. Over a row, the row says where.
-	 */
-	function overEnd(
-		event: DragEvent & { currentTarget: HTMLElement },
-		rows: Row[],
-		groupId: string | null | undefined
-	) {
-		if (!dragged || (event.target instanceof Element && event.target.closest('li'))) return;
-		const list = event.currentTarget.matches('ul')
-			? event.currentTarget
-			: event.currentTarget.querySelector('ul');
-		const last = list?.querySelector(':scope > li:last-child');
-		if (!last || event.clientY < last.getBoundingClientRect().bottom) return;
-		event.preventDefault();
-		dropIn(rows, rows.length, 'below', groupId);
+		dropAt = dropTarget(rows, dragged, place, true);
 		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
 	}
 
@@ -312,7 +298,7 @@
 		event.preventDefault();
 		if (dragged && dropAt) {
 			const { before, parentId, reparents } = dropAt;
-			void moveWorkspace({ workspaceId: dragged.id, before, ...(reparents && { parentId }) });
+			void moveItem({ itemId: dragged.id, before, ...(reparents && { parentId }) });
 		}
 		endDrag();
 	}
@@ -322,39 +308,152 @@
 		dropAt = undefined;
 	}
 
-	/**
-	 * The repository being dragged to another place among them, and where it would go: above
-	 * that one, `null` for the end, `undefined` for nowhere new. The projects stay on top.
-	 */
-	let draggedRepo = $state<string | null>(null);
-	let repoDropBefore = $state<string | null | undefined>(undefined);
-	/** The repositories shown, in their order: what one is dragged among. */
-	const shownRepos = $derived(groups.flatMap((group) => (group.id === null ? [] : [group.id])));
+	// --- Editing the outline, as in any outliner (FDR-019) ---------------------------------
 
-	/** Over a repository: above it on its upper half, else above the one after it. */
-	function overRepo(event: DragEvent & { currentTarget: HTMLElement }, id: string) {
-		if (!draggedRepo) return;
-		event.preventDefault();
-		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-		const rect = event.currentTarget.getBoundingClientRect();
-		const upper = event.clientY < rect.top + rect.height / 2;
-		const before = shownRepos[shownRepos.indexOf(id) + (upper ? 0 : 1)] ?? null;
-		// where it is already: above itself, or above the one after it
-		const after = shownRepos[shownRepos.indexOf(draggedRepo) + 1] ?? null;
-		repoDropBefore = before === draggedRepo || before === after ? undefined : before;
+	/** The row a row is under, among those shown: the nearest one above it that is less deep. */
+	function parentIndex(index: number) {
+		for (let above = index - 1; above >= 0; above--)
+			if (rows[above].depth < rows[index].depth) return above;
+		return -1;
+	}
+	/** The next (`step` 1) or previous (-1) row with the same parent, if any. */
+	function siblingIndex(index: number, step: 1 | -1) {
+		for (let at = index + step; at >= 0 && at < rows.length; at += step) {
+			if (rows[at].depth < rows[index].depth) return -1;
+			if (rows[at].depth === rows[index].depth) return at;
+		}
+		return -1;
+	}
+	const idAt = (index: number) => (index === -1 ? null : rows[index].workspace.id);
+
+	/** The list of rows, for finding what to focus in it. */
+	let list = $state<HTMLElement>();
+	/** A row to focus once the outline shows it as `ready` says: once a change has come back. */
+	let focusing = $state<{ id: string; ready: (index: number) => boolean } | null>(null);
+	$effect(() => {
+		const pending = focusing;
+		if (!pending) return;
+		const index = rows.findIndex((row) => row.workspace.id === pending.id);
+		if (index === -1 || !pending.ready(index)) return;
+		focusing = null;
+		void tick().then(() => focusRow(pending.id));
+	});
+	function focusRow(id: string | null) {
+		if (!id) return;
+		const row = list?.querySelector(`[data-row="${CSS.escape(id)}"]`);
+		row?.querySelector<HTMLElement>('input, a[href]')?.focus();
+	}
+	const unfold = (id: string) => (folded.current = folded.current.filter((other) => other !== id));
+
+	/** Writes a new, empty item and puts the cursor in it. */
+	async function newItem(parentId: string | null, before: string | null) {
+		if (parentId) unfold(parentId);
+		const id = await addItem({ parentId, before, text: '' });
+		focusing = { id, ready: () => true };
 	}
 
-	function dropRepo(event: DragEvent) {
-		if (!draggedRepo) return;
-		event.preventDefault();
-		if (repoDropBefore !== undefined)
-			void moveRepo({ repoId: draggedRepo, before: repoDropBefore });
-		endRepoDrag();
+	/** Moves the item, and keeps the cursor in it once it is where it was moved. */
+	async function moveKeeping(entry: Entry, before: string | null, parentId?: string | null) {
+		await moveItem({ itemId: entry.id, before, ...(parentId !== undefined && { parentId }) });
+		focusing = {
+			id: entry.id,
+			ready: (index) =>
+				idAt(parentIndex(index)) === (parentId === undefined ? entry.parentId : parentId) &&
+				idAt(siblingIndex(index, 1)) === before
+		};
 	}
 
-	function endRepoDrag() {
-		draggedRepo = null;
-		repoDropBefore = undefined;
+	/** What the keys do in an item's line, as in any outliner. */
+	async function itemKeys(
+		event: KeyboardEvent & { currentTarget: HTMLInputElement },
+		index: number
+	) {
+		const entry = rows[index].workspace;
+		const input = event.currentTarget;
+		const text = input.value;
+		const save = () => (text !== entry.text ? editItem({ itemId: entry.id, text }) : undefined);
+		const mod = event.metaKey || event.ctrlKey;
+		if (event.key === 'Enter' && mod) {
+			event.preventDefault();
+			await save();
+			await tickOff(entry);
+		} else if (event.key === 'Enter') {
+			event.preventDefault();
+			await save();
+			await newItem(idAt(parentIndex(index)), idAt(siblingIndex(index, 1)));
+		} else if (event.key === 'Tab' && !event.shiftKey) {
+			event.preventDefault();
+			const above = siblingIndex(index, -1);
+			if (above === -1 || rows[above].workspace.project) return;
+			await save();
+			unfold(idAt(above)!);
+			await moveKeeping(entry, null, idAt(above));
+		} else if (event.key === 'Tab') {
+			event.preventDefault();
+			const parent = parentIndex(index);
+			if (parent === -1) return;
+			await save();
+			await moveKeeping(entry, idAt(siblingIndex(parent, 1)), idAt(parentIndex(parent)));
+		} else if (event.altKey && event.key === 'ArrowUp') {
+			event.preventDefault();
+			const above = siblingIndex(index, -1);
+			if (above !== -1) await moveKeeping(entry, idAt(above));
+		} else if (event.altKey && event.key === 'ArrowDown') {
+			event.preventDefault();
+			const below = siblingIndex(index, 1);
+			if (below !== -1) await moveKeeping(entry, idAt(siblingIndex(below, 1)));
+		} else if (
+			event.key === 'Backspace' &&
+			text === '' &&
+			rows[index + 1]?.depth !== rows[index].depth + 1
+		) {
+			event.preventDefault();
+			focusRow(idAt(index - 1));
+			await removeItem({ itemId: entry.id });
+		} else if (event.key === 'Escape') {
+			input.value = entry.text;
+			input.blur();
+		}
+	}
+
+	/** Up and down go from row to row, workspaces and items alike. */
+	function rowKeys(event: KeyboardEvent, index: number) {
+		if (event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+		const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
+		if (!step || !rows[index + step]) return;
+		event.preventDefault();
+		focusRow(idAt(index + step));
+	}
+
+	/** What can be done with an item without a workspace. */
+	function itemMenu(entry: Entry, index: number): MenuItem[] {
+		const firstChild = rows[index + 1]?.depth > rows[index].depth ? idAt(index + 1) : null;
+		return [
+			{
+				label: 'Start a workspace on it',
+				icon: 'icon-[lucide--play]',
+				// the start page, with the item to start it on
+				// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve()d, with a query
+				onselect: () => void goto(`${resolve('/')}?item=${encodeURIComponent(entry.id)}`)
+			},
+			{
+				label: 'Add an item under it',
+				icon: 'icon-[lucide--list-plus]',
+				onselect: () => newItem(entry.id, firstChild)
+			},
+			{
+				label: entry.done ? 'Mark as not done' : 'Mark as done',
+				icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
+				onselect: () => tickOff(entry)
+			},
+			'separator',
+			{
+				label: 'Remove',
+				icon: 'icon-[lucide--trash-2]',
+				tone: 'danger' as const,
+				onselect: () => removeItem({ itemId: entry.id })
+			}
+		];
 	}
 
 	const toggleFolded = (id: string) =>
@@ -375,7 +474,8 @@
 					);
 				}
 			},
-			{ root: list }
+			// a pixel's leeway: rows of fractional height can leave the end a hair out of reach
+			{ root: list, rootMargin: '1px' }
 		);
 		observer.observe(top);
 		observer.observe(bottom);
@@ -383,11 +483,10 @@
 	}
 
 	const settingsHint = hint('settings');
-	const focusHint = hint('focusRepo');
 	/**
-	 * How far a workspace sits in from the one that started it, in one list: its picture under
-	 * the title above (a row's label padding, its icon, and the gap after it, less where the
-	 * smaller picture sits in its icon's place).
+	 * How far a row sits in from the item it is under: its sign under the title above (a
+	 * row's label padding, its sign, and the gap after it, less where a repository's smaller
+	 * picture sits in its sign's place).
 	 */
 	const INDENT = 6.5;
 	/** How long repositories and workspaces take to slide away or back, in milliseconds. */
@@ -459,162 +558,47 @@
 			<div class="tools">
 				<Button
 					variant="ghost"
-					icon="icon-[lucide--list]"
-					label="Show workspaces as one list"
-					title={`Show workspaces as one list (${hint('groupByRepo')})`}
-					aria-pressed={!grouped.current}
-					onclick={() => (grouped.current = !grouped.current)}
-				/>
-				<Button
-					variant="ghost"
 					icon="icon-[lucide--activity]"
-					label="Show only active workspaces"
-					title={`Show only active workspaces (${hint('activeOnly')})`}
+					label="Show only what is active"
+					title={`Show only what is active: no archived or inactive workspaces (${hint('activeOnly')})`}
 					aria-pressed={activeOnly}
 					onclick={() => (activeOnly = !activeOnly)}
 				/>
 			</div>
 		</div>
 
-		<!--
-			Each repository keeps its own space below it, rather than space between them: what
-			slides away takes its space along, and nothing is left to jump when it is gone.
-		-->
 		<div class="scroller -mx-2 scroll-fade px-2" {@attach watchScrollEdges}>
 			<div aria-hidden="true"></div>
-			{#if nav && !grouped.current}
-				{@const rows = unfolded(oneList, folded.current)}
+			{#if nav}
 				<ul
 					class="space-y-px pb-4"
-					ondragover={(event) => overEnd(event, rows, undefined)}
+					bind:this={list}
+					ondragover={overList}
 					ondrop={drop}
 					ondragleave={(event) => {
 						if (!event.currentTarget.contains(event.relatedTarget as Node | null))
 							dropAt = undefined;
 					}}
 				>
-					{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-						{@render row(workspace, parent, depth, under, rows, index, undefined)}
+					{#each rows as { workspace: entry, parent, depth, under }, index (entry.id)}
+						{@render row(entry, parent, depth, under, index)}
 					{/each}
-					{@render endLine(undefined)}
-				</ul>
-				{#if activeOnly && anyInactive && rows.length === 0}
-					<p class="px-2 py-1 text-sm text-muted">All workspaces are inactive.</p>
-				{/if}
-			{:else if nav}
-				{#each groups as repo, index (repo.id ?? PROJECTS)}
-					{@const all = listed.get(repo.id) ?? []}
-					{@const rows = unfolded(all, folded.current)}
-					{@const isFolded = folded.current.includes(repo.id ?? PROJECTS)}
-					{@const focused = focus.current === repo.id}
-					{@const last = repo.id !== null && repo.id === shownRepos.at(-1)}
-					<!-- where a repository being dragged would go: a line above this one, or below the last -->
-					<div
-						role="group"
-						aria-label={repo.name}
-						class={[
-							'relative pb-row-group',
-							repo.id !== null && draggedRepo === repo.id && 'opacity-60',
-							repo.id !== null && repoDropBefore === repo.id && 'row-drop-before',
-							last && repoDropBefore === null && 'row-drop-after'
-						]}
-						transition:slide={motion()}
-						ondragover={(event) => {
-							if (repo.id !== null) overRepo(event, repo.id);
-							if (!isFolded) overEnd(event, rows, repo.id);
-						}}
-						ondrop={(event) => {
-							dropRepo(event);
-							if (dragged) drop(event);
-						}}
-						ondragleave={(event) => {
-							if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-								repoDropBefore = undefined;
-								dropAt = undefined;
-							}
-						}}
-					>
-						<!--
-				A label for what is under it: its picture, its name (quiet, by its colour: the
-				workspaces are what is read here), and the way to start something in it. What is
-				under it lines up with it: icon under picture, title under name. A repository is
-				dragged by it, with the pointer only.
-			-->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class="group relative flex h-7 items-center pr-1.5"
-							draggable={repo.id !== null && shownRepos.length > 1}
-							ondragstart={(event) => {
-								draggedRepo = repo.id;
-								event.dataTransfer?.setData('text/plain', repo.name);
-								if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-							}}
-							ondragend={endRepoDrag}
+					<!-- the outline's last line: where something new is written (FDR-019) -->
+					<li>
+						<button
+							type="button"
+							class="item w-full gap-1 px-1 text-base text-faint"
+							onclick={() => newItem(null, null)}
 						>
-							<RowLabel
-								title={repo.name}
-								fold={{
-									folded: isFolded,
-									count: all.length,
-									unread: isFolded && all.some(({ workspace }) => unread.has(workspace.id)),
-									toggle: () => toggleFolded(repo.id ?? PROJECTS)
-								}}
-								class="h-6 rounded-control text-sm font-semibold"
-							>
-								{#snippet icon()}
-									{#if repo.id !== null}<RepoIcon id={repo.id} name={repo.name} />{:else}<span
-											class="icon-[lucide--folders] size-5"
-										></span>{/if}
-								{/snippet}
-							</RowLabel>
-							{#if repo.id !== null}
-								<Button
-									variant="ghost"
-									size="sm"
-									icon="icon-[lucide--search]"
-									class="invisible reveal:visible"
-									label={focused ? 'Show all repositories' : `Show only ${repo.name}`}
-									title={focused
-										? `Show all repositories (${focusHint})`
-										: `Show only ${repo.name} (${focusHint})`}
-									aria-pressed={focused}
-									onclick={() => (focus.current = focused ? null : repo.id)}
-								/>
-							{/if}
-							<!-- no new projects (FDR-012): only repositories start something new -->
-							{#if repo.id !== null}
-								{@const newLabel = `New workspace in ${repo.name}`}
-								<Button
-									variant="ghost"
-									size="sm"
-									href={`${resolve('/')}?repo=${repo.id}`}
-									icon="icon-[lucide--plus]"
-									class="invisible reveal:visible"
-									label={newLabel}
-								/>
-							{/if}
-						</div>
-						{#if !isFolded}
-							<ul
-								class="space-y-px"
-								ondragleave={(event) => {
-									if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-										dropAt = undefined;
-								}}
-							>
-								{#each rows as { workspace, parent, depth, under }, index (workspace.id)}
-									{@render row(workspace, parent, depth, under, rows, index, repo.id)}
-								{/each}
-								{@render endLine(repo.id)}
-							</ul>
-						{/if}
-						{#if index < groups.length - 1}
-							<span aria-hidden="true" class="group-separator bottom-2"></span>
-						{/if}
-					</div>
-				{/each}
-				{#if activeOnly && anyInactive && groups.length === 0}
-					<p class="px-2 py-1 text-sm text-muted">All workspaces are inactive.</p>
+							<span class="grid size-6 shrink-0 place-items-center">
+								<span class="icon-[lucide--plus] size-4"></span>
+							</span>
+							<span class="py-1">New item</span>
+						</button>
+					</li>
+				</ul>
+				{#if rows.length === 0 && nav.items.length > 0}
+					<p class="px-2 py-1 text-sm text-muted">Everything is done or put aside.</p>
 				{/if}
 			{/if}
 			<div aria-hidden="true"></div>
@@ -637,45 +621,48 @@
 	</nav>
 </div>
 
-{#snippet row(
-	workspace: Item,
-	parent: Item | null,
-	depth: number,
-	under: number,
-	rows: Row[],
-	index: number,
-	groupId: string | null | undefined
-)}
-	{@const isFolded = under > 0 && folded.current.includes(workspace.id)}
-	{@const current = path === `/workspaces/${workspace.id}`}
-	{@const busy = working(workspace)}
-	{@const asking = isFolded ? asker(workspace) : workspace.outcome === 'asking' && workspace}
-	{@const leaving = beingArchived.has(workspace.id)}
-	<!-- in a tree of another repository's (FDR-016): its own repository's picture says so -->
-	{@const foreign = groupId !== undefined && workspace.repoId !== groupId}
-	{@const dropping = dropAt && dropAt.line.id === workspace.id ? dropAt.line.edge : null}
+{#snippet row(entry: Entry, parent: Entry | null, depth: number, under: number, index: number)}
+	{@const workspace = entry.workspace ? workspaceById.get(entry.id) : undefined}
+	{@const isFolded = under > 0 && folded.current.includes(entry.id)}
+	{@const current = path === `/workspaces/${entry.id}`}
+	{@const busy = workspace ? working(workspace) : false}
+	{@const asking =
+		workspace && (isFolded ? asker(workspace) : workspace.outcome === 'asking' && workspace)}
+	{@const leaving = beingArchived.has(entry.id)}
+	{@const dropping = dropAt && dropAt.line.id === entry.id ? dropAt.line.edge : null}
+	<!-- an archived workspace's item: a done line, which stays where it is -->
+	{@const archived = entry.workspace && !workspace}
 	{#snippet repoIcon()}<RepoIcon
-			id={workspace.repoId!}
-			name={repoNames.get(workspace.repoId!) ?? ''}
+			id={workspace!.repoId!}
+			name={repoNames.get(workspace!.repoId!) ?? ''}
 			small
 		/>{/snippet}
-	<!-- one sits a little in from the one it reports to -->
-	<!-- where a workspace being dragged would go: a line above or below this one, or onto it, lit up -->
+	<!-- one sits a little in from the item it is under -->
+	<!-- where an item being dragged would go: a line above or below this one, or onto it, lit up -->
+	<!-- up and down go from row to row: the keys of what is focused in it, a link or a line -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<li
-		style:margin-inline-start="calc(var(--spacing) * {(grouped.current ? 3 : INDENT) * depth})"
+		data-row={entry.id}
+		style:margin-inline-start="calc(var(--spacing) * {INDENT * depth})"
+		style:--drop-indent={dropping && dropAt
+			? `calc(var(--spacing) * ${INDENT * (dropAt.line.depth - depth)})`
+			: undefined}
 		class={[dropping === 'above' && 'row-drop-before', dropping === 'below' && 'row-drop-after']}
 		transition:slide={motion()}
-		{@attach contextMenu(() => (leaving ? [] : workspaceMenu(workspace)))}
-		draggable={!leaving}
+		{@attach contextMenu(() =>
+			leaving || archived ? [] : workspace ? workspaceMenu(workspace) : itemMenu(entry, index)
+		)}
+		draggable={!leaving && !archived}
+		onkeydown={(event) => rowKeys(event, index)}
 		ondragstart={(event) => {
-			dragged = workspace;
-			event.dataTransfer?.setData('text/plain', workspace.title);
+			dragged = entry;
+			event.dataTransfer?.setData('text/plain', entry.text);
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 		}}
 		ondragend={endDrag}
 		onclickcapture={(event) => {
 			// with only active workspaces shown, shift-click marks one inactive: not on what the row has to click besides its link
-			if (!activeOnly || !event.shiftKey || leaving) return;
+			if (!workspace || !activeOnly || !event.shiftKey || leaving) return;
 			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
 				return;
 			event.preventDefault();
@@ -684,55 +671,59 @@
 		}}
 		ondblclick={(event) => {
 			// not on what the row has to click besides its link
+			if (!workspace) return;
 			if (event.target instanceof Element && event.target.closest('button, [data-row-actions] a'))
 				return;
 			foreground.ask(workspace.id);
 		}}
-		ondragover={(event) => overRow(event, rows, index, groupId)}
-		ondrop={drop}
 	>
-		<WorkspaceRow
-			title={workspace.title}
-			href={resolve('/workspaces/[id]', { id: workspace.id })}
-			parentTitle={parent?.title}
-			parentHref={grouped.current && workspace.parentId && !foreign
-				? resolve('/workspaces/[id]', { id: workspace.parentId })
-				: undefined}
-			icon={workspace.repoId === null
-				? 'icon-[lucide--folder-kanban]'
-				: grouped.current && !foreign
-					? undefined
-					: repoIcon}
-			{current}
-			{leaving}
-			dragging={dragged?.id === workspace.id}
-			highlighted={pointedAt === workspace.id || dropping === 'onto'}
-			unread={unread.has(workspace.id)}
-			asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
-			waiting={workspace.waiting}
-			working={workspace.working || (isFolded && busy)}
-			locked={workspace.locked}
-			inactive={workspace.inactive}
-			progress={pendingPullAction.get(workspace.id) ??
-				(workspace.actions.some((action) => pullActionPending(workspace.id, action))
-					? 'merge-pull'
-					: workspace.activeAction)}
-			standing={workspace.standing}
-			actions={workspace.actions}
-			fold={under > 0
-				? { count: under, folded: isFolded, toggle: () => toggleFolded(workspace.id) }
-				: undefined}
-			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
-			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
-		/>
+		{#if workspace}
+			<WorkspaceRow
+				title={workspace.title}
+				href={resolve('/workspaces/[id]', { id: workspace.id })}
+				parentTitle={parent?.text}
+				icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : repoIcon}
+				{current}
+				{leaving}
+				dragging={dragged?.id === workspace.id}
+				highlighted={pointedAt === workspace.id || dropping === 'onto'}
+				unread={unread.has(workspace.id)}
+				asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
+				waiting={workspace.waiting}
+				working={workspace.working || (isFolded && busy)}
+				locked={workspace.locked}
+				inactive={workspace.inactive}
+				progress={pendingPullAction.get(workspace.id) ??
+					(workspace.actions.some((action) => pullActionPending(workspace.id, action))
+						? 'merge-pull'
+						: workspace.activeAction)}
+				standing={workspace.standing}
+				actions={workspace.actions}
+				fold={under > 0
+					? { count: under, folded: isFolded, toggle: () => toggleFolded(workspace.id) }
+					: undefined}
+				onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
+				onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
+				onadd={leaving || workspace.repoId === null ? undefined : () => newItem(workspace.id, null)}
+			/>
+		{:else}
+			<OutlineItemRow
+				id={entry.id}
+				text={entry.text}
+				done={entry.done}
+				href={archived ? resolve('/workspaces/[id]', { id: entry.id }) : undefined}
+				dragging={dragged?.id === entry.id}
+				highlighted={pointedAt === entry.id || dropping === 'onto'}
+				fold={under > 0
+					? { count: under, folded: isFolded, toggle: () => toggleFolded(entry.id) }
+					: undefined}
+				onsave={(text) => editItem({ itemId: entry.id, text })}
+				ontoggle={() => tickOff(entry)}
+				onadd={archived ? undefined : () => newItem(entry.id, null)}
+				onkeydown={(event) => itemKeys(event, index)}
+			/>
+		{/if}
 	</li>
-{/snippet}
-
-<!-- where a workspace dropped below a list's last row would go: last at its top, a line at its full width -->
-{#snippet endLine(groupId: string | null | undefined)}
-	{#if dropAt && dropAt.line.id === null && dropAt.list === listKey(groupId)}
-		<li aria-hidden="true" class="row-drop-before"></li>
-	{/if}
 {/snippet}
 
 {#snippet link(href: string, icon: string, label: string, current: boolean)}

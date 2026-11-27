@@ -22,11 +22,22 @@
 		if (asked) remembered.current = asked;
 	});
 	const preferred = $derived(asked ?? remembered.current ?? undefined);
+	// an item of the outline to start it on (FDR-019), while it has no workspace yet
+	const item = $derived.by(() => {
+		const id = page.url.searchParams.get('item');
+		const found = nav?.items.find((each) => each.id === id && !each.workspace);
+		return found && { id: found.id, text: found.text };
+	});
 </script>
 
 <Page title="New workspace" wide>
 	{#snippet description()}
-		Tell an agent what to do. It gets its own branch to do it on.
+		{#if item}
+			Start a workspace on “{item.text || 'an item'}”: it is named after it, and works where it is
+			in the outline.
+		{:else}
+			Tell an agent what to do. It gets its own branch to do it on.
+		{/if}
 	{/snippet}
 
 	{#if !nav}
@@ -37,6 +48,7 @@
 					repos={nav.repos}
 					{preferred}
 					{issue}
+					{item}
 					focused
 					onpick={(id) => (remembered.current = id)}
 				/>{/key}

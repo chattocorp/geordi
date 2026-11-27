@@ -13,16 +13,14 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 
 - Every workspace sits at the top level or under another workspace, in an order the person chooses.
 - A workspace an agent starts sits under that agent's workspace, newest first among its siblings, until the person moves it.
-- The person moves a workspace by dragging its row: onto the upper or lower part of another row to put it above or below that one, beside it, or onto its middle to put it under that workspace, as its last child. Dropped below a row with children, it becomes the first of them; dropped below the last row of a list, the last at its top level. Its children, and their children, move with it.
+- The person moves a workspace by dragging its row: onto the middle of another row to put it under that one, as its last child, or into the gap between two rows (or below the last). A gap is one place, whether reached from the row above or below it, and shows one line. Where a gap allows more than one level (below the last row under something), the pointer's horizontal position picks it, as in any outliner: further left is further out, and the line's indent shows the level. Its children, and their children, move with it.
 - A subtree can be folded and unfolded. What is folded is a preference of this browser, not part of the outline.
 - An agent working in another workspace's worktree (shown as a conversation tab there, FDR-002) is not a row of its own and is never moved on its own: it goes where its workspace goes.
 - Projects (FDR-012) stay at the top level and can't be nested or have workspaces nested under them.
 
-### Grouped by repository, and not
+### One outline
 
-- Grouped, each top-level workspace is listed under the heading of its repository, with its whole subtree, even where a workspace in it belongs to another repository. Such a row is marked with its own repository.
-- A top-level workspace can't be dragged into another repository's group, because its repository decides its group. Anything nested can be moved under any workspace in any group.
-- Ungrouped, the top-level workspaces are one list, each with its subtree.
+- The outline is one list of trees, with no repository headings (FDR-019). Each workspace shows its repository's picture.
 
 ### Who supervises whom
 
@@ -65,11 +63,11 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 **Why:** The move is the person's act. If the new lead should act on it, the person says so in the same breath. Telling agents unasked would start turns, and spend tokens, for nothing.
 **Tradeoff:** A new parent may not know it has a child until it looks, or until it is told.
 
-### 4. A tree belongs to its root's repository
+### 4. A tree is read as one
 
-**Decision:** Grouped by repository, a subtree is listed in its top-level workspace's repository, whatever repositories its workspaces are in.
-**Why:** A tree is one piece of work, and is read as one. Splitting it across repository headings, as the sidebar used to, tears a lead away from its children.
-**Tradeoff:** A repository's heading doesn't show all of that repository's workspaces. Workspaces from elsewhere are marked, but a workspace of this repository nested in another's tree is listed there.
+**Decision:** A tree is listed whole, whatever repositories its workspaces are in. Since FDR-019, there are no repository headings at all.
+**Why:** A tree is one piece of work. Splitting it across repository headings, as the sidebar used to, tears a lead away from its children.
+**Tradeoff:** To see one repository's work, the person filters by it.
 
 ### 5. Archiving takes the subtree, all or nothing
 
@@ -89,8 +87,8 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 
 ## Related
 
-- **ADRs:** ADR-001, ADR-004
-- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015
+- **ADRs:** ADR-001, ADR-004, ADR-016
+- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015, FDR-019, FDR-018
 
 ## Open Questions
 

@@ -1,6 +1,7 @@
 import { actionsFor, PUBLISHING, standingOf } from '@geordi/ui/actions';
 import { outcome } from '#lib/attention.ts';
 import { isInactive, withAides } from '#lib/family.ts';
+import { outlineView } from './items.ts';
 import { hub, jobs, limits, repos, standings, terminals, watchers, workspaces } from './app.ts';
 import type { GeordiEvent } from './events/index.ts';
 import { UNTITLED, type TranscriptFollower, type Workspace } from './workspaces.ts';
@@ -96,6 +97,11 @@ export const navigation = () =>
 						};
 					}),
 				workspaces: listed,
+				items: outlineView(
+					workspaces().outline(),
+					(id) => workspaces().brief(id),
+					(id) => ownerOf.get(id)
+				),
 				access: workspaces().access.list(),
 				preferences: workspaces().preferences.get(),
 				/**

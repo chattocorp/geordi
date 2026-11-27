@@ -20,6 +20,17 @@ import type {
 import type { TurnEnd } from '../attention.ts';
 import type { EventStore, GeordiEvent } from './events/index.ts';
 import { createUpcaster, type CurrentEvent } from './legacy.ts';
+import {
+	applyItem,
+	attach,
+	emptyOutline,
+	frontierOf,
+	move as moveItem,
+	remove as removeItems,
+	descendantsOf,
+	workspaceAbove,
+	type ItemEvent
+} from './items.ts';
 
 /*
  * The workspaces as the event log has them (ADR-001): their events, their state, and the
@@ -546,14 +557,8 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		}
 
 		if (event.type === 'workspace.moved') {
-			const { id, before, parentId } = event.data;
-			const moved = workspaces.get(id);
-			if (moved && parentId !== undefined) {
-				moved.parentId = parentId;
-				moved.startedBy = null;
-				(parents.get(id) ?? parents.set(id, []).get(id)!).push({ seq, parentId });
-			}
-			move(workspaces, id, before);
+			// where it is in the outline, and so whom it reports to, is the outline's (`place`)
+			move(workspaces, event.data.id, event.data.before);
 			return;
 		}
 		// not something that happened in it: it leaves its place in the lists alone
@@ -925,6 +930,57 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		for (const [other, workspace] of entries) workspaces.set(other, workspace);
 	}
 
+	/**
+	 * The outline (FDR-019, ADR-016): where each workspace is, among the items, and so whom
+	 * it reports to. Only the projection's own replay changes it, never a transcript's.
+	 */
+	const outline = emptyOutline();
+	/**
+	 * Sets the parent of each of `ids` to what the outline says now; where a person's
+	 * move (`moved`) changed it, the external client that started it no longer supervises it.
+	 */
+	function derive(workspaces: Map<string, Workspace>, ids: string[], seq: number, moved: boolean) {
+		for (const id of ids) {
+			const workspace = workspaces.get(id);
+			if (!workspace) continue;
+			const parentId = workspaceAbove(outline, id);
+			if (parentId === workspace.parentId) continue;
+			workspace.parentId = parentId;
+			if (!moved) continue;
+			workspace.startedBy = null;
+			(parents.get(id) ?? parents.set(id, []).get(id)!).push({ seq, parentId });
+		}
+	}
+	/** What the outline makes of an event: the items' own, and where workspaces come and move. */
+	function place(workspaces: Map<string, Workspace>, event: CurrentEvent | ItemEvent, seq: number) {
+		if (event.type === 'workspace.created') {
+			attach(outline, event.data.id, event.data.parentId ?? null);
+			derive(workspaces, [event.data.id], seq, false);
+		} else if (event.type === 'workspace.moved') {
+			const { id, before, parentId } = event.data;
+			moveItem(outline, id, before, parentId);
+			if (parentId !== undefined) derive(workspaces, [id], seq, true);
+		} else if (event.type === 'workspace.purged') {
+			const purged = event.data.workspaces.map(({ id }) => id);
+			const gone = purged.flatMap((id) => [
+				id,
+				...descendantsOf(outline, id)
+					.filter((item) => !item.workspace)
+					.map((item) => item.id)
+			]);
+			removeItems(outline, gone);
+			// what stays of a tree whose item went is at the top
+			for (const item of outline.items.values())
+				if (item.parentId && !outline.items.has(item.parentId)) item.parentId = null;
+		} else if (event.type.startsWith('item.')) {
+			const itemEvent = event as ItemEvent;
+			const affected =
+				itemEvent.type === 'item.moved' ? frontierOf(outline, itemEvent.data.id) : [];
+			applyItem(outline, itemEvent);
+			derive(workspaces, affected, seq, true);
+		}
+	}
+
 	// Mutates in place (O(1) per event during replay); readers get copies. Events from
 	// before a workspace had exactly one conversation are translated first (see legacy.ts).
 	const upcast = createUpcaster();
@@ -940,6 +996,10 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 		'workspaces',
 		() => new Map<string, Workspace>(),
 		(workspaces, event) => {
+			if (event.type.startsWith('item.')) {
+				place(workspaces, event as ItemEvent, event.seq);
+				return workspaces;
+			}
 			for (const current of upcast(event)) {
 				if (current.type === 'workspace.created') {
 					born.set(current.data.id, { seq: event.seq, parentId: current.data.parentId });
@@ -957,10 +1017,11 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 					attachedImages.set(id, attached);
 				}
 				apply(workspaces, current, event.at, event.actor, event.seq);
+				place(workspaces, current, event.seq);
 			}
 			return workspaces;
 		},
-		['workspace', 'session']
+		['workspace', 'session', 'item']
 	);
 
 	// Reuse the normal reducer for a private reconstruction. Session mappings were learned
@@ -993,6 +1054,8 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 
 	return {
 		get: projection.get,
+		/** The outline: items, and where the workspaces are among them (FDR-019). */
+		outline: () => outline,
 		/** A workspace's transcript; an archived one's is read again from the log. */
 		transcriptOf,
 		/** Only release image IDs when every workspace that used them goes. */

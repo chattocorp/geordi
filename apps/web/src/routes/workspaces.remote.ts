@@ -79,9 +79,11 @@ export const createWorkspace = form(
 		 * A workspace to start this in instead, as another conversation in it, with an agent
 		 * working in its directory (FDR-002).
 		 */
-		alongside: v.optional(v.string())
+		alongside: v.optional(v.string()),
+		/** An item written down earlier to start it on (FDR-019). */
+		itemId: v.optional(v.string())
 	}),
-	({ model, effort, permissionMode, alongside, repoId, base, ...data }) => {
+	({ model, effort, permissionMode, alongside, repoId, base, itemId, ...data }) => {
 		const offered = hub().harnesses();
 		if (offered && !offered.some((h) => h.agent === data.agent))
 			error(409, `Provider ${data.agent} is unavailable`);
@@ -92,7 +94,13 @@ export const createWorkspace = form(
 			const owner = workspaces().summary(id).worktreeId;
 			redirect(303, `/workspaces/${owner}?agent=${id}`);
 		}
-		const id = workspaces().create({ ...data, repoId, settings, ...(base && { base }) });
+		const id = workspaces().create({
+			...data,
+			repoId,
+			settings,
+			...(base && { base }),
+			...(itemId && { itemId })
+		});
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
 		if (!data.prompt && !data.images.length)
@@ -381,16 +389,45 @@ export const answerQuestion = command(
 );
 
 /**
- * The person moved a workspace in the sidebar: above `before`, or to the end; with
- * `parentId`, under that workspace, or to the top level where that is `null` (FDR-016).
+ * The person moved an item in the outline, with what is under it (FDR-016, FDR-019): above
+ * `before`, or to the end; with `parentId`, under that item, or to the top where that is `null`.
  */
-export const moveWorkspace = command(
+export const moveItem = command(
 	v.object({
-		workspaceId: v.string(),
+		itemId: v.string(),
 		before: v.nullable(v.string()),
 		parentId: v.optional(v.nullable(v.string()))
 	}),
-	({ workspaceId, before, parentId }) => workspaces().move(workspaceId, before, parentId)
+	({ itemId, before, parentId }) => workspaces().move(itemId, before, parentId)
+);
+
+/** The person wrote a new item (FDR-019). Returns its ID. */
+export const addItem = command(
+	v.object({
+		parentId: v.nullable(v.string()),
+		before: v.nullable(v.string()),
+		text: v.pipe(v.string(), v.maxLength(2000))
+	}),
+	(item) => workspaces().addItem(item)
+);
+
+/** The person changed an item's text (a workspace's: its name) or note. */
+export const editItem = command(
+	v.object({
+		itemId: v.string(),
+		text: v.optional(v.pipe(v.string(), v.maxLength(2000))),
+		note: v.optional(v.pipe(v.string(), v.maxLength(20_000)))
+	}),
+	({ itemId, ...changes }) => workspaces().editItem(itemId, changes)
+);
+
+export const completeItem = command(
+	v.object({ itemId: v.string(), done: v.boolean() }),
+	({ itemId, done }) => workspaces().completeItem(itemId, done)
+);
+
+export const removeItem = command(v.object({ itemId: v.string() }), ({ itemId }) =>
+	workspaces().removeItem(itemId)
 );
 
 export const lockWorkspace = command(

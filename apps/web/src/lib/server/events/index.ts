@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { GEORDI_DATA_DIR } from '$app/env/private';
 import type { LegacyEvent } from '../legacy.ts';
 import { lazy } from '../lazy.ts';
+import type { ItemEvent } from '../items.ts';
 import type { RepoEvent } from '../repos.ts';
 import type { WorkspacesEvent } from '../workspace-projection.ts';
 import { lockDataDirectory } from './lock.ts';
@@ -19,6 +20,7 @@ export type GeordiEvent =
 	| DaemonEvent
 	| RepoEvent
 	| WorkspacesEvent
+	| ItemEvent
 	| LegacyEvent
 	| ImageEvent
 	| AccessEvent
