@@ -18,7 +18,8 @@
 	import AddRepository from '#lib/components/AddRepository.svelte';
 	import { theme } from '#lib/theme.svelte.ts';
 	import { daemon } from '#lib/daemon.svelte.ts';
-	import { nextUnread, outlineRows, stepThrough } from '#lib/family.ts';
+	import { nextUnread, outlineRows, stepThrough, zoomedInto } from '#lib/family.ts';
+	import { zoomInHistory } from '#lib/zoom.svelte.ts';
 	import { pressed } from '@geordi/ui/keys';
 	import { ask, badge, isLooking, seen, unread, watch } from '#lib/notifications.svelte.ts';
 	import { persisted } from '@geordi/ui/persisted';
@@ -96,6 +97,8 @@
 	const folded = persisted<string[]>('geordi:folded', []);
 	/** The repository the sidebar shows alone, if any: also all the previous and next workspace go to. */
 	const focus = persisted<string | null>('geordi:focus', null);
+	/** The item the sidebar is zoomed into, if any: also all the previous and next workspace go to. */
+	const zoom = zoomInHistory('sidebar', persisted<string | null>('geordi:zoom', null));
 
 	/** Whether the sidebar shows only the active workspaces, leaving out the inactive ones. */
 	const activeOnly = persisted('geordi:active-only', true);
@@ -105,7 +108,7 @@
 		const all = nav.current;
 		if (!all) return;
 		// the workspaces, as the outline shows them (FDR-019)
-		const order = outlineRows(all.items, all.workspaces, {
+		const order = outlineRows(zoomedInto(all.items, zoom.current), all.workspaces, {
 			activeOnly: activeOnly.current,
 			focus: focus.current,
 			folded: folded.current,
@@ -254,6 +257,7 @@
 					nav={nav.current}
 					path={page.url.pathname}
 					{folded}
+					{zoom}
 					{focus}
 					bind:activeOnly={() => activeOnly.current, (value) => (activeOnly.current = value)}
 					bind:repositoryPickerOpen

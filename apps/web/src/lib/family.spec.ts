@@ -9,6 +9,8 @@ import {
 	unfolded,
 	isInactive,
 	scopeItems,
+	zoomedInto,
+	zoomTrail,
 	withAides
 } from './family.ts';
 
@@ -359,5 +361,45 @@ describe('scopeItems', () => {
 	it('gives a child agent a scope of its own', () => {
 		expect(scopeItems(items, 'child').map(({ id }) => id)).toEqual(['childs-own']);
 		expect(scopeItems(items, 'elsewhere')).toEqual([]);
+	});
+});
+
+describe('zooming', () => {
+	const item = (id: string, parentId: string | null, workspace = false) => ({
+		id,
+		parentId,
+		text: id,
+		note: '',
+		done: false,
+		workspace
+	});
+	const items = [
+		item('release', null),
+		item('lead', 'release', true),
+		item('step', 'lead'),
+		item('detail', 'step'),
+		item('child', 'step', true),
+		item('elsewhere', null)
+	];
+	const ids = (list: { id: string }[]) => list.map(({ id }) => id);
+
+	it('shows everything under the item zoomed into, workspaces and all', () => {
+		expect(ids(zoomedInto(items, 'lead'))).toEqual(['step', 'detail', 'child']);
+		expect(ids(zoomedInto(items, 'detail'))).toEqual([]);
+	});
+
+	it('shows everything when not zoomed, or zoomed into what is gone', () => {
+		expect(zoomedInto(items, null)).toBe(items);
+		expect(zoomedInto(items, 'gone')).toBe(items);
+	});
+
+	it('leads down to it from the top, or from below a root', () => {
+		expect(ids(zoomTrail(items, 'step'))).toEqual(['release', 'lead', 'step']);
+		expect(ids(zoomTrail(items, 'detail', 'lead'))).toEqual(['step', 'detail']);
+		expect(zoomTrail(items, 'lead', 'lead')).toEqual([]);
+		// not under the root, or gone: nothing to lead down
+		expect(zoomTrail(items, 'elsewhere', 'lead')).toEqual([]);
+		expect(zoomTrail(items, 'gone')).toEqual([]);
+		expect(zoomTrail(items, null)).toEqual([]);
 	});
 });

@@ -49,6 +49,15 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 - It opens beside the conversation, like the Changes. Dragged into the main area, it is a full-width outline, kept to a readable width.
 - With nothing planned yet, it says what the items are for.
 
+### Zooming
+
+- Any item can be zoomed into, in the sidebar and in the Plan window: with the magnifying glass its row offers while it is pointed at, from its menu ("Zoom in"), or with Cmd-. (Ctrl-.) on its row. Its branch is then all the outline shows, under it as a heading, with the way back up above it ("Outline › Release 0.9"); each step on that way zooms out to it. Cmd-Shift-. zooms out one level.
+- Zoomed in, the outline is edited as ever: "New item" and Enter write under the item zoomed into.
+- In the sidebar, any item can be zoomed into, a workspace's too: then all of what is under it shows, its child agents' items included. In the Plan window, only items of its scope: a child agent's items are its own.
+- The previous and next workspace keys go through what the sidebar shows, zoomed in or not.
+- Zooming in or out is a step in the page's history: Back zooms out again, Forward back in, in the sidebar and the Plan window alike. Going to another page keeps the zoom.
+- Where it is zoomed into is a preference of this browser, as what is folded: for the sidebar, and for each workspace's Plan window. Where that item is gone, the whole outline shows again.
+
 ### Agents starting agents on items
 
 - An agent starts another on one of its items (`start_agent` with `item`), as the person does from an item's menu: the item becomes the new workspace, named after it, and the items under it become the new agent's checklist. The starting agent sees it from then on as a child agent with its progress. As for the person, only an item with no agents under it.
@@ -106,6 +115,12 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 **Why:** The plan belongs with the work: it is read while the agent works, next to what it says. A window can be as narrow or as wide as the person makes it, so one thing serves both, and one editor means one set of keys to learn.
 **Tradeoff:** The workspace's items show twice, in the sidebar and in its window. Both are the same items, and edits show in both.
 
+### 9. Zooming is a view, not a page
+
+**Decision:** Zooming narrows the outline where it is, the sidebar or the Plan window, and is remembered in the browser. It is a step in the history (shallow routing, as showing a window is), with no URL and no page of its own.
+**Why:** An outline is worked on in one place; zooming is how one keeps a long one manageable there, as in any outliner. A page would be a second outline to keep in step with the first.
+**Tradeoff:** A zoomed view can't be linked to or opened in another tab; Back steps through zooms before it leaves the page; and the sidebar stays narrow while zoomed. A full-width page may still come (see Open Questions).
+
 ## Related
 
 - **ADRs:** ADR-001, ADR-004, ADR-016
@@ -113,7 +128,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 
 ## Open Questions
 
-- A full-width page for the whole outline, perhaps as the home page instead of New workspace; and zooming into any item's branch (planning `dfxvp`), which may be the same thing.
+- A full-width page for the whole outline, perhaps as the home page instead of New workspace.
 - A quick filter for the outline (planning `93zrh`) and a shortcut for a new item (planning `2n7x9`).
 - A better way to see work by repository than the old grouping.
 - Whether items need more than done or not done (due dates, someone assigned).

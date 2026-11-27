@@ -16,7 +16,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { outlineRows } from '#lib/family.ts';
+	import { outlineRows, zoomedInto, zoomTrail } from '#lib/family.ts';
 	import Outline, { type WorkspaceRowProps } from './Outline.svelte';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
@@ -29,13 +29,15 @@
 	 * The sidebar is the outline (FDR-019): every item, workspaces among them, and the
 	 * navigation links below it. `nav` is what there is, once known; `path` is the page on
 	 * screen, which is marked. `folded` is what is folded away under items; `focus` the
-	 * repository shown alone, if any; `activeOnly` whether what is done or inactive is left out.
+	 * repository shown alone, if any; `zoom` the item zoomed into, if any (its branch is all
+	 * that shows); `activeOnly` whether what is done or inactive is left out.
 	 */
 	let {
 		nav,
 		path,
 		folded,
 		focus,
+		zoom,
 		activeOnly = $bindable(true),
 		repositoryPickerOpen = $bindable(false),
 		lost = false
@@ -44,6 +46,7 @@
 		path: string;
 		folded: { current: string[] };
 		focus: { current: string | null };
+		zoom: { current: string | null };
 		activeOnly?: boolean;
 		repositoryPickerOpen?: boolean;
 		lost?: boolean;
@@ -59,7 +62,7 @@
 	/** The rows shown, top to bottom. */
 	const rows = $derived(
 		nav
-			? outlineRows(nav.items, nav.workspaces, {
+			? outlineRows(zoomedInto(nav.items, zoom.current), nav.workspaces, {
 					activeOnly,
 					focus: focus.current,
 					folded: folded.current,
@@ -67,6 +70,8 @@
 				})
 			: []
 	);
+	/** The way down to the item zoomed into; empty while not zoomed, or when it is gone. */
+	const trail = $derived(nav ? zoomTrail(nav.items, zoom.current) : []);
 
 	/**
 	 * A workspace counts as working, for archiving, while anything its agent started is. Not
@@ -115,7 +120,10 @@
 	}
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
-	function workspaceMenu(workspace: Item, add: () => void): MenuItem[] {
+	function workspaceMenu(
+		workspace: Item,
+		{ add, zoom }: { add: () => void; zoom?: () => void }
+	): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
 		const project = workspace.repoId === null;
@@ -157,7 +165,8 @@
 							label: 'Add an item under it',
 							icon: 'icon-[lucide--list-plus]',
 							onselect: add
-						}
+						},
+						...(zoom ? [{ label: 'Zoom in', icon: 'icon-[lucide--zoom-in]', onselect: zoom }] : [])
 					]),
 			// a project has no branch to copy or carry on from
 			...(project
@@ -318,16 +327,19 @@
 					{rows}
 					{folded}
 					{pointedAt}
+					{trail}
+					root={trail.at(-1)?.id ?? null}
+					onzoom={(id) => (zoom.current = id)}
 					live={(id) => workspaceById.has(id)}
 					draggable={(id) => !beingArchived.has(id)}
-					workspaceMenu={(entry, add) => {
+					workspaceMenu={(entry, actions) => {
 						const workspace = workspaceById.get(entry.id);
-						return workspace ? workspaceMenu(workspace, add) : [];
+						return workspace ? workspaceMenu(workspace, actions) : [];
 					}}
 				>
 					{#snippet workspace(row)}{@render workspaceRow(row)}{/snippet}
 				</Outline>
-				{#if rows.length === 0 && nav.items.length > 0}
+				{#if rows.length === 0 && nav.items.length > 0 && !trail.length}
 					<p class="px-2 py-1 text-sm text-muted">Everything is done or put aside.</p>
 				{/if}
 			{/if}
@@ -351,7 +363,16 @@
 	</nav>
 </div>
 
-{#snippet workspaceRow({ entry, parent, fold, isFolded, dragging, target, add }: WorkspaceRowProps)}
+{#snippet workspaceRow({
+	entry,
+	parent,
+	fold,
+	isFolded,
+	dragging,
+	target,
+	add,
+	zoom
+}: WorkspaceRowProps)}
 	{@const workspace = workspaceById.get(entry.id)!}
 	{@const current = path === `/workspaces/${entry.id}`}
 	{@const busy = working(workspace)}
@@ -406,6 +427,7 @@
 			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
 			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
 			onadd={leaving || workspace.repoId === null ? undefined : add}
+			onzoom={leaving || workspace.repoId === null ? undefined : zoom}
 		/>
 	</div>
 {/snippet}

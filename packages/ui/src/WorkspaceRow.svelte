@@ -30,7 +30,8 @@
 		fold,
 		onpoint,
 		onaction,
-		onadd
+		onadd,
+		onzoom
 	}: {
 		title: string;
 		href?: string;
@@ -59,6 +60,8 @@
 		onaction?: (action: WorkspaceAction) => void;
 		/** Adds an item under it, in an outline (FDR-019): offered while the row is hovered or focused. */
 		onadd?: () => void;
+		/** Zooms the outline into it (FDR-019): offered while the row is hovered or focused. */
+		onzoom?: () => void;
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
@@ -134,6 +137,17 @@
 			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
 		/>
 	</div>
+	{#if onzoom}
+		<button
+			type="button"
+			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"
+			aria-label={`Zoom into ${title}`}
+			title="Zoom in"
+			onclick={onzoom}
+		>
+			<span class="icon-[lucide--zoom-in] size-4"></span>
+		</button>
+	{/if}
 	{#if onadd}
 		<!-- only while the row is pointed at, or focus is in it: it takes no room from the title otherwise -->
 		<button

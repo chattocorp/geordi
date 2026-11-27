@@ -323,3 +323,30 @@ export function scopeItems<T extends OutlineEntry>(items: T[], root: string): T[
 		return false;
 	});
 }
+
+/**
+ * What shows zoomed into an item (FDR-019): everything under it, at any depth. Where the
+ * item is gone (removed, or out of sight), the whole of `items`.
+ */
+export function zoomedInto<T extends OutlineEntry>(items: T[], zoom: string | null): T[] {
+	if (!zoom || !items.some(({ id }) => id === zoom)) return items;
+	const byId = new Map(items.map((item) => [item.id, item]));
+	return items.filter((item) => lineOf(byId, item.parentId).some(({ id }) => id === zoom));
+}
+
+/**
+ * The way down to the item zoomed into, for a breadcrumb: the items from just below `root`
+ * (the top of the outline where `null`) to it, itself last. Empty where it is not under
+ * `root`, or gone.
+ */
+export function zoomTrail<T extends OutlineEntry>(
+	items: T[],
+	zoom: string | null,
+	root: string | null = null
+): T[] {
+	if (!zoom || zoom === root) return [];
+	const line = lineOf(new Map(items.map((item) => [item.id, item])), zoom).reverse();
+	if (!root) return line;
+	const below = line.findIndex(({ id }) => id === root);
+	return below === -1 ? [] : line.slice(below + 1);
+}
