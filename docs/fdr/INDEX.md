@@ -18,3 +18,4 @@
 | [FDR-014](FDR-014-purging-archived-workspaces.md)         | Deleting archived workspaces for good                            | Active     | 2026-11-22    |
 | [FDR-015](FDR-015-locked-workspaces.md)                   | Locked workspaces                                                | Active     | 2026-11-25    |
 | [FDR-016](FDR-016-workspace-outline.md)                   | The workspace outline                                            | Active     | 2026-11-26    |
+| [FDR-017](FDR-017-private-files-out-of-agents-reach.md)   | Private files out of agents' reach                               | Planned    | 2026-11-27    |
