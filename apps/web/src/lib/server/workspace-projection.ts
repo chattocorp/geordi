@@ -931,7 +931,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	}
 
 	/**
-	 * The outline (FDR-017, ADR-016): where each workspace is, among the items, and so whom
+	 * The outline (FDR-019, ADR-016): where each workspace is, among the items, and so whom
 	 * it reports to. Only the projection's own replay changes it, never a transcript's.
 	 */
 	const outline = emptyOutline();
@@ -1054,7 +1054,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 
 	return {
 		get: projection.get,
-		/** The outline: items, and where the workspaces are among them (FDR-017). */
+		/** The outline: items, and where the workspaces are among them (FDR-019). */
 		outline: () => outline,
 		/** A workspace's transcript; an archived one's is read again from the log. */
 		transcriptOf,

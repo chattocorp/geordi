@@ -1,6 +1,7 @@
 <script lang="ts" module>
 	import {
 		MODEL_SETTING,
+		defaultPermissionMode,
 		type Agent,
 		type AgentSettings,
 		type PermissionMode,
@@ -50,6 +51,7 @@
 			: undefined;
 		const efforts = model?.efforts ?? resolvedModel?.efforts ?? harness?.efforts ?? [];
 		const effort = efforts.find((effort) => effort === wanted.effort);
+		const permissionModes = harness?.permissionModes ?? [];
 		return {
 			harness,
 			model,
@@ -57,7 +59,10 @@
 			resolvedModel,
 			efforts,
 			effort,
-			permissionMode: wanted.permissionMode ?? 'full-access'
+			permissionModes,
+			// What was chosen stays chosen where the agent's computer can't run it so (FDR-017):
+			// its turns are refused, rather than run with more permissions than were chosen.
+			permissionMode: wanted.permissionMode ?? defaultPermissionMode(permissionModes)
 		};
 	}
 </script>
@@ -82,9 +87,16 @@
 	};
 	let { harnesses, choice, sessionModel, limits = {}, onchange }: Props = $props();
 
-	const { harness, model, reported, resolvedModel, efforts, effort, permissionMode } = $derived(
-		resolveChoice(harnesses, choice, sessionModel)
-	);
+	const {
+		harness,
+		model,
+		reported,
+		resolvedModel,
+		efforts,
+		effort,
+		permissionModes,
+		permissionMode
+	} = $derived(resolveChoice(harnesses, choice, sessionModel));
 
 	const reportedEffort = $derived(
 		reported?.requested.effort === effort ? reported?.effort : undefined
@@ -200,10 +212,22 @@
 
 <Select
 	label="Permission mode"
-	options={[
-		{ value: 'auto', label: harness.agent === 'opencode' ? 'Configured permissions' : 'Auto Mode' },
-		{ value: 'full-access', label: 'Full Access' }
-	] satisfies SelectOption<PermissionMode>[]}
+	options={(
+		[
+			{
+				value: 'auto',
+				label: harness.agent === 'opencode' ? 'Configured permissions' : 'Auto Mode'
+			},
+			{ value: 'sandboxed', label: 'Full Permissions (Sandboxed)' },
+			{ value: 'full-access', label: 'Full Permissions' }
+		] satisfies SelectOption<PermissionMode>[]
+	)
+		.filter((option) => permissionModes.includes(option.value) || option.value === permissionMode)
+		.map((option) =>
+			permissionModes.includes(option.value)
+				? option
+				: { ...option, label: `${option.label} · unavailable` }
+		)}
 	bind:value={() => permissionMode, (value) => set(harness.agent, { permissionMode: value })}
 >
 	{#snippet icon(option)}
@@ -211,7 +235,11 @@
 			aria-hidden="true"
 			class={[
 				'size-4 shrink-0',
-				option.value === 'auto' ? 'icon-[lucide--radar]' : 'icon-[lucide--key-round]'
+				{
+					auto: 'icon-[lucide--radar]',
+					sandboxed: 'icon-[lucide--shield-check]',
+					'full-access': 'icon-[lucide--key-round]'
+				}[option.value]
 			]}
 		></span>
 	{/snippet}

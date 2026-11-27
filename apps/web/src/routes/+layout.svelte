@@ -104,7 +104,7 @@
 	function stepWorkspace(step: 1 | -1 | 'unread') {
 		const all = nav.current;
 		if (!all) return;
-		// the workspaces, as the outline shows them (FDR-017)
+		// the workspaces, as the outline shows them (FDR-019)
 		const order = outlineRows(all.items, all.workspaces, {
 			activeOnly: activeOnly.current,
 			focus: focus.current,

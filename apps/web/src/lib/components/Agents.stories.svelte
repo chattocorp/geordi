@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { Harness } from '@geordi/protocol';
+	import { PERMISSION_MODES, type Harness } from '@geordi/protocol';
 	import Providers from './Providers.svelte';
 	import AgentAvatar from '@geordi/ui/AgentAvatar.svelte';
 	import HarnessPicker, { type HarnessChoice } from './workspace/HarnessPicker.svelte';
@@ -8,6 +8,7 @@
 	const { Story } = defineMeta({ title: 'Geordi/Agents' });
 
 	const efforts = ['low', 'medium', 'high', 'xhigh', 'max'];
+	const permissionModes = [...PERMISSION_MODES];
 	const harnesses: Harness[] = [
 		{
 			agent: 'claude',
@@ -16,10 +17,11 @@
 				name,
 				efforts
 			})),
-			efforts
+			efforts,
+			permissionModes
 		},
 		// a CLI that says nothing about its models: there is nothing to choose
-		{ agent: 'codex', models: [], efforts: [] },
+		{ agent: 'codex', models: [], efforts: [], permissionModes },
 		{
 			agent: 'opencode',
 			models: [
@@ -30,7 +32,8 @@
 					efforts: ['low', 'medium', 'high', 'xhigh', 'max']
 				}
 			],
-			efforts: []
+			efforts: [],
+			permissionModes
 		}
 	];
 </script>
@@ -57,6 +60,30 @@
 
 <Story name="Picker" asChild>
 	<HarnessPicker {harnesses} {choice} onchange={(next) => (choice = next)} />
+</Story>
+
+<!-- a workspace set to Sandboxed, on a computer that can't sandbox agents: kept, and marked -->
+<Story name="Picker with an unavailable mode" asChild>
+	<HarnessPicker
+		harnesses={harnesses.map((harness) => ({
+			...harness,
+			permissionModes: ['auto', 'full-access']
+		}))}
+		choice={{ agent: 'claude', settings: { claude: { permissionMode: 'sandboxed' } } }}
+		onchange={() => {}}
+	/>
+</Story>
+
+<!-- on a computer that can't sandbox agents (Windows): no Sandboxed mode, Full Permissions by default -->
+<Story name="Picker without a sandbox" asChild>
+	<HarnessPicker
+		harnesses={harnesses.map((harness) => ({
+			...harness,
+			permissionModes: ['auto', 'full-access']
+		}))}
+		choice={{ agent: 'claude', settings: {} }}
+		onchange={() => {}}
+	/>
 </Story>
 
 <!-- each agent's models with what its usage limits leave (open the list to see them) -->

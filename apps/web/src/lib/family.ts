@@ -1,5 +1,5 @@
 /**
- * The outline as the sidebar shows it (FDR-016, FDR-017): items, each right after the one it
+ * The outline as the sidebar shows it (FDR-016, FDR-019): items, each right after the one it
  * is under, some of them workspaces. `workspace` is a listed row's item (or workspace).
  */
 
@@ -138,7 +138,7 @@ export type DropPlace = { onto: number } | { after: number; depth: number };
 type Line = { id: string; edge: 'above' | 'below' | 'onto'; depth: number };
 
 /**
- * The depths a gap between two rows allows (FDR-017): from that of the row below it (or the
+ * The depths a gap between two rows allows (FDR-019): from that of the row below it (or the
  * top level, below the last row) to that of the row above it. Where the row below is the
  * first under the row above, only its depth.
  */
@@ -148,7 +148,7 @@ export function gapDepths(rows: { depth: number }[], after: number): [number, nu
 }
 
 /**
- * Where a dragged item would go, dropped at `place` (FDR-016, FDR-017): under `parentId`,
+ * Where a dragged item would go, dropped at `place` (FDR-016, FDR-019): under `parentId`,
  * right above `before` (`null`: after the last of its new siblings); `line` is what shows it.
  * `reparents` whether that changes its parent. Every gap between two rows is one place,
  * reached from the row above it or the row below it alike, so the line doesn't jump. Nothing
@@ -225,7 +225,7 @@ export function dropTarget<T extends { id: string; parentId: string | null; proj
 	return { ...target, reparents };
 }
 
-/** An item of the outline (FDR-017), as the navigation view sends it. */
+/** An item of the outline (FDR-019), as the navigation view sends it. */
 export type OutlineEntry = {
 	id: string;
 	parentId: string | null;
@@ -240,7 +240,7 @@ export type OutlineEntry = {
 type Shown = { id: string; repoId: string | null; inactive?: boolean };
 
 /**
- * The rows the outline shows, top to bottom (FDR-017), each with how deep it is and how
+ * The rows the outline shows, top to bottom (FDR-019), each with how deep it is and how
  * many rows are under it. Leaves out, with what is under them: with `activeOnly`, what is
  * done and the inactive workspaces; with a `focus`, everything but that repository's
  * workspaces, what is above them and what is under them; and what is `folded` away. The

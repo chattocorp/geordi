@@ -43,12 +43,14 @@ function setup() {
 					{ id: 'opus', name: 'Opus', efforts: ['low', 'medium', 'high'] },
 					{ id: 'haiku', name: 'Haiku', efforts: ['low'] }
 				],
-				efforts: ['low', 'medium', 'high']
+				efforts: ['low', 'medium', 'high'],
+				permissionModes: ['auto', 'sandboxed', 'full-access']
 			},
 			{
 				agent: 'codex',
 				models: [{ id: 'gpt-5', name: 'GPT-5', efforts: ['minimal', 'high'] }],
-				efforts: ['high']
+				efforts: ['high'],
+				permissionModes: ['auto', 'sandboxed', 'full-access']
 			}
 		]
 	};
@@ -477,7 +479,7 @@ describe('the agent API as an MCP server', () => {
 		]);
 	});
 
-	it('lets an agent keep the items under its workspace, and only those (FDR-017)', async () => {
+	it('lets an agent keep the items under its workspace, and only those (FDR-019)', async () => {
 		const { workspaces, caller, call, callAs } = setup();
 		const release = workspaces.addItem({ parentId: null, before: null, text: 'Release 0.9' });
 		workspaces.move(caller, null, release);
@@ -503,7 +505,7 @@ describe('the agent API as an MCP server', () => {
 		expect(await call('remove_item', { id: added.id })).toEqual({ removed: added.id });
 	});
 
-	it('lets an agent put its items in order, within its scope only (FDR-017)', async () => {
+	it('lets an agent put its items in order, within its scope only (FDR-019)', async () => {
 		const { workspaces, caller, call } = setup();
 		const above = workspaces.addItem({ parentId: null, before: null, text: 'Elsewhere' });
 		const first = (await call('add_item', { text: 'First' })).id;
@@ -533,7 +535,7 @@ describe('the agent API as an MCP server', () => {
 		expect(workspaces.outline().items.get(caller)?.workspace).toBe(true);
 	});
 
-	it('lets an agent start agents on its items, or file them under one (FDR-017)', async () => {
+	it('lets an agent start agents on its items, or file them under one (FDR-019)', async () => {
 		const { workspaces, caller, call, callAs } = setup();
 		workspaces.record(caller, { kind: 'worktree', path: '/wt', branch: 'geordi/lead' });
 		const auth = (await call('add_item', { text: 'Add auth' })).id;

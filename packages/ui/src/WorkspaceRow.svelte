@@ -57,7 +57,7 @@
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
 		onaction?: (action: WorkspaceAction) => void;
-		/** Adds an item under it, in an outline (FDR-017): offered while the row is hovered or focused. */
+		/** Adds an item under it, in an outline (FDR-019): offered while the row is hovered or focused. */
 		onadd?: () => void;
 	} = $props();
 

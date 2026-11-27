@@ -22,7 +22,7 @@
 		if (asked) remembered.current = asked;
 	});
 	const preferred = $derived(asked ?? remembered.current ?? undefined);
-	// an item of the outline to start it on (FDR-017), while it has no workspace yet
+	// an item of the outline to start it on (FDR-019), while it has no workspace yet
 	const item = $derived.by(() => {
 		const id = page.url.searchParams.get('item');
 		const found = nav?.items.find((each) => each.id === id && !each.workspace);

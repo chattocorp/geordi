@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * A row of the outline that is an item without a workspace (FDR-017): its text is what is
+	 * A row of the outline that is an item without a workspace (FDR-019): its text is what is
 	 * read and edited, in place, like a line in any outliner. Its sign ticks it off, or, where
 	 * items are folded under it, folds them. An archived workspace's item (`href`) is a done
 	 * line that leads to its conversation, and is not edited here.

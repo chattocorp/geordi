@@ -7,9 +7,9 @@ data:
     - outline
   type: feature
 id: 9db62
-title: 'Outline stage 1: items domain, migration and outliner editing (FDR-017, ADR-016)'
+title: 'Outline stage 1: items domain, migration and outliner editing (FDR-019, ADR-016)'
 ---
-Stage 1 of FDR-017 (`docs/fdr/FDR-017-the-outline.md`), on the decision in ADR-016 (`docs/adr/ADR-016-outline-items.md`): the outline becomes a tree of items, and workspaces are attached to items. Builds on FDR-016 (`02ehk`).
+Stage 1 of FDR-019 (`docs/fdr/FDR-019-the-outline.md`), on the decision in ADR-016 (`docs/adr/ADR-016-outline-items.md`): the outline becomes a tree of items, and workspaces are attached to items. Builds on FDR-016 (`02ehk`).
 
 ## Scope
 
@@ -21,7 +21,7 @@ Stage 1 of FDR-017 (`docs/fdr/FDR-017-the-outline.md`), on the decision in ADR-0
 - **Sidebar = outline editor:** items without workspaces as rows; Enter for a new item, Tab / Shift-Tab, Alt-arrows, Space to tick off, Backspace on an empty item to remove it; text saved on Enter or blur. Dragging as in FDR-016. One component, so a full-width page can reuse it later.
 - **Starting a workspace on an item:** from an item without a workspace; its text becomes the first message.
 - **Grouping by repository is dropped:** a workspace's repository shows as its icon; the repository filter stays.
-- **Docs:** FDR-017 Active for stage 1; FDR-016 and AGENTS.md updated; release notes.
+- **Docs:** FDR-019 Active for stage 1; FDR-016 and AGENTS.md updated; release notes.
 
 ## Acceptance
 

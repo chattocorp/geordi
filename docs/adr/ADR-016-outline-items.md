@@ -6,7 +6,7 @@
 
 Since FDR-016, the sidebar is an outline of workspaces, and the outline is the chain of command: a workspace's parent is the workspace that supervises it, kept on the workspace itself (`parentId`, moved with `workspace.moved`).
 
-We want the outline to become Geordi's main artifact (FDR-017): something people write in, with entries that are not work being done yet. They are folders that group work, todos inside a piece of work, and plans to start an agent on later. None of these is a workspace: they have no agent, no repository and no worktree. Making them workspaces with fields left empty is what projects did (FDR-012, deprecated, planning `nzqqn`), and every piece of code that assumes a repository had to learn to leave them out.
+We want the outline to become Geordi's main artifact (FDR-019): something people write in, with entries that are not work being done yet. They are folders that group work, todos inside a piece of work, and plans to start an agent on later. None of these is a workspace: they have no agent, no repository and no worktree. Making them workspaces with fields left empty is what projects did (FDR-012, deprecated, planning `nzqqn`), and every piece of code that assumes a repository had to learn to leave them out.
 
 We considered:
 
@@ -34,5 +34,5 @@ We considered:
 - A purge (ADR-012) takes a workspace's item with it, and the items without workspaces under it.
 - Archived workspaces stay in the outline only as records inside trees still in use; archived trees leave it. Otherwise every workspace ever archived would be an item, in every window, on every change.
 - Existing installations need nothing done: replaying their events gives every workspace the parent it had. Going back to an earlier version is safe too: it ignores `item.*` events, and a workspace moved under an item without a workspace is listed at the top there.
-- Grouping the sidebar by repository no longer fits a tree whose items need not belong to any repository; it is dropped for now (FDR-017).
+- Grouping the sidebar by repository no longer fits a tree whose items need not belong to any repository; it is dropped for now (FDR-019).
 - Items are written by people and by agents at once. Each edit replaces the fields it changes, and the last one wins; there is no merging of concurrent text edits.

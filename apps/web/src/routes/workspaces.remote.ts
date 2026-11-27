@@ -80,7 +80,7 @@ export const createWorkspace = form(
 		 * working in its directory (FDR-002).
 		 */
 		alongside: v.optional(v.string()),
-		/** An item written down earlier to start it on (FDR-017). */
+		/** An item written down earlier to start it on (FDR-019). */
 		itemId: v.optional(v.string())
 	}),
 	({ model, effort, permissionMode, alongside, repoId, base, itemId, ...data }) => {
@@ -389,7 +389,7 @@ export const answerQuestion = command(
 );
 
 /**
- * The person moved an item in the outline, with what is under it (FDR-016, FDR-017): above
+ * The person moved an item in the outline, with what is under it (FDR-016, FDR-019): above
  * `before`, or to the end; with `parentId`, under that item, or to the top where that is `null`.
  */
 export const moveItem = command(
@@ -401,7 +401,7 @@ export const moveItem = command(
 	({ itemId, before, parentId }) => workspaces().move(itemId, before, parentId)
 );
 
-/** The person wrote a new item (FDR-017). Returns its ID. */
+/** The person wrote a new item (FDR-019). Returns its ID. */
 export const addItem = command(
 	v.object({
 		parentId: v.nullable(v.string()),

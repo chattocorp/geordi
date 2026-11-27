@@ -16,6 +16,8 @@ export type SessionOptions = {
 	 * let a sandboxed agent run code outside its sandbox.
 	 */
 	writableRoots: string[];
+	/** The repository's own checkout, which a sandboxed agent may reach wherever it is (FDR-017). */
+	repoPath?: string;
 	/** The CLI's own ID of the conversation so far; `null` if this is its beginning. */
 	resumeId: string | null;
 	/** Which model to run, and how hard it should think; the CLI decides what is absent. */
@@ -35,10 +37,20 @@ export type SessionOptions = {
 };
 
 export const API_TOKEN_ENV = 'GEORDI_API_TOKEN';
+
+/**
+ * Whether an old installation restricted agents at the daemon level, which a workspace that
+ * never chose a permission mode must not quietly replace.
+ */
+export function restrictedByDaemon(agent: Agent): boolean {
+	if (agent === 'codex') return process.env.GEORDI_CODEX_SANDBOX === 'workspace-write';
+	const claudeMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE;
+	return agent === 'claude' && !!claudeMode && claudeMode !== 'bypassPermissions';
+}
 /** The name agents know the API's MCP server by. */
 export const API_SERVER = 'geordi';
 
-type Offer = Omit<Harness, 'agent'>;
+type Offer = Omit<Harness, 'agent' | 'permissionModes'>;
 export type AgentAdapter = { offers(): Offer | Promise<Offer> };
 
 /** Tool output can be huge (whole files); keep the event log lean. */

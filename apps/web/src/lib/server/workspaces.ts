@@ -605,7 +605,7 @@ export function createWorkspaces(
 			worktreeId?: string;
 			base?: string;
 			title?: string;
-			/** An item written down earlier to start it on (FDR-017): it is named after it, and works there. */
+			/** An item written down earlier to start it on (FDR-019): it is named after it, and works there. */
 			itemId?: string;
 		},
 		actor: string | null = null
@@ -629,7 +629,7 @@ export function createWorkspaces(
 				error(400, 'A workspace on an item works in a repository');
 		}
 		const id = item?.id ?? randomUUID();
-		// named after its item, as the person wrote it: their name for it (FDR-017)
+		// named after its item, as the person wrote it: their name for it (FDR-019)
 		const named = item && item.text.slice(0, 80).trim();
 		const title = named || promptTitle(prompt) || UNTITLED;
 		store.append(
@@ -685,7 +685,7 @@ export function createWorkspaces(
 			record(id, { kind: 'turn.failed', error: 'Stopped' });
 	}
 
-	/** A person names the workspace, and so its item (FDR-017). */
+	/** A person names the workspace, and so its item (FDR-019). */
 	function rename(id: string, title: string) {
 		const workspace = find(id);
 		const clean = title.trim();
@@ -698,7 +698,7 @@ export function createWorkspaces(
 		);
 	}
 
-	// --- The outline (FDR-017) -------------------------------------------------------------
+	// --- The outline (FDR-019) -------------------------------------------------------------
 
 	/** An item of the outline. Any other doesn't exist. */
 	function itemOf(id: string): Item {
@@ -788,7 +788,7 @@ export function createWorkspaces(
 	}
 
 	/**
-	 * The workspace whose scope a caller works in (FDR-017): its own; for an agent working in
+	 * The workspace whose scope a caller works in (FDR-019): its own; for an agent working in
 	 * another workspace's directory, that one's. An external client has none.
 	 */
 	function scopeHolder(callerId: string): Workspace {
@@ -819,7 +819,7 @@ export function createWorkspaces(
 		return { parentId, before: before ?? null };
 	}
 
-	/** A workspace's scope as its agent reads it (FDR-017). */
+	/** A workspace's scope as its agent reads it (FDR-019). */
 	function scopeView(holder: Workspace) {
 		const outline = projection.outline();
 		const nameOf = (item: Item) =>
@@ -854,7 +854,7 @@ export function createWorkspaces(
 	}
 
 	/**
-	 * Moves an item in the outline (FDR-016, FDR-017), with everything under it: right above
+	 * Moves an item in the outline (FDR-016, FDR-019), with everything under it: right above
 	 * `before`, or to the end where that is `null`; and, with `parentId`, under that item,
 	 * or to the top level where that is `null`. The workspaces that move with it report to
 	 * the workspace of the nearest item above them from now on: an old supervisor that waits
@@ -1201,7 +1201,7 @@ export function createWorkspaces(
 		 * times at most: a name that keeps changing is no name.
 		 */
 		/**
-		 * The caller's scope in the outline (FDR-017): the items under its workspace, with the
+		 * The caller's scope in the outline (FDR-019): the items under its workspace, with the
 		 * workspaces under it as lines of their own, and the path of items above it.
 		 */
 		items(callerId: string) {
@@ -1289,7 +1289,7 @@ export function createWorkspaces(
 				repository?: string;
 				worktree: WorktreeMode;
 				/**
-				 * One of the caller's items to start it on (FDR-017): the item becomes the new
+				 * One of the caller's items to start it on (FDR-019): the item becomes the new
 				 * workspace, named after it, and what is under it the new agent's items.
 				 */
 				item?: string;
@@ -1310,7 +1310,7 @@ export function createWorkspaces(
 			const external = isExternal(callerId);
 			const caller = external ? null : find(callerId);
 			if (caller) refuseHeld(caller.id);
-			// where in the caller's scope it goes (FDR-017): only for a workspace's own agent
+			// where in the caller's scope it goes (FDR-019): only for a workspace's own agent
 			if (item !== undefined || under !== undefined) {
 				if (!caller || caller.worktreeId !== caller.id)
 					error(400, 'Only the agent of a workspace of its own can start one on its items');
@@ -1888,7 +1888,7 @@ export function createWorkspaces(
 
 		move: moveItem,
 
-		/** The outline (FDR-017): its items in order, and where the workspaces are among them. */
+		/** The outline (FDR-019): its items in order, and where the workspaces are among them. */
 		outline: () => projection.outline(),
 		/** What the outline shows of a workspace, archived or not: cheaply, for every item. */
 		brief(id: string) {
@@ -2002,7 +2002,7 @@ export function createWorkspaces(
 			const { freed, copy } = store.purge(
 				[
 					...[...family.keys()].flatMap((id) => projection.streamsOf(id)),
-					// its item, and the items under it that have no workspace (FDR-017)
+					// its item, and the items under it that have no workspace (FDR-019)
 					...[...family.keys()].flatMap((id) => [
 						`item:${id}`,
 						...descendantsOfItem(projection.outline(), id)

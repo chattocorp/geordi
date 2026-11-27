@@ -28,7 +28,7 @@ describe('instructionsFor', () => {
 		expect(named).not.toContain('`name_workspace`');
 	});
 
-	it('shows an agent the items under its workspace, to keep (FDR-017)', () => {
+	it('shows an agent the items under its workspace, to keep (FDR-019)', () => {
 		const text = instructionsFor({
 			...own,
 			outline: {

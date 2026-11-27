@@ -20,7 +20,7 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 
 ### One outline
 
-- The outline is one list of trees, with no repository headings (FDR-017). Each workspace shows its repository's picture.
+- The outline is one list of trees, with no repository headings (FDR-019). Each workspace shows its repository's picture.
 
 ### Who supervises whom
 
@@ -65,7 +65,7 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 
 ### 4. A tree is read as one
 
-**Decision:** A tree is listed whole, whatever repositories its workspaces are in. Since FDR-017, there are no repository headings at all.
+**Decision:** A tree is listed whole, whatever repositories its workspaces are in. Since FDR-019, there are no repository headings at all.
 **Why:** A tree is one piece of work. Splitting it across repository headings, as the sidebar used to, tears a lead away from its children.
 **Tradeoff:** To see one repository's work, the person filters by it.
 
@@ -88,7 +88,7 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 ## Related
 
 - **ADRs:** ADR-001, ADR-004, ADR-016
-- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015, FDR-017, FDR-018
+- **FDRs:** FDR-001, FDR-002, FDR-012, FDR-015, FDR-019, FDR-018
 
 ## Open Questions
 

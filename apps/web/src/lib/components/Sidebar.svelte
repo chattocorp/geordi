@@ -40,7 +40,7 @@
 	} from '../../routes/workspaces.remote';
 
 	/**
-	 * The sidebar is the outline (FDR-017): every item, workspaces among them, and the
+	 * The sidebar is the outline (FDR-019): every item, workspaces among them, and the
 	 * navigation links below it. `nav` is what there is, once known; `path` is the page on
 	 * screen, which is marked. `folded` is what is folded away under items; `focus` the
 	 * repository shown alone, if any; `activeOnly` whether what is done or inactive is left out.
@@ -177,7 +177,7 @@
 				icon: 'icon-[lucide--hash]',
 				onselect: () => navigator.clipboard.writeText(workspace.id)
 			},
-			// its own todos (FDR-017)
+			// its own todos (FDR-019)
 			...(project
 				? []
 				: [
@@ -246,7 +246,7 @@
 	}
 
 	/**
-	 * The item being dragged to another place in the outline (FDR-016, FDR-017), and where it
+	 * The item being dragged to another place in the outline (FDR-016, FDR-019), and where it
 	 * would go, if anywhere new: above a row, onto it (under that item) or below it, or below
 	 * the last row. What is under it goes along; the workspaces among that report to the
 	 * workspace of the nearest item above them.
@@ -308,7 +308,7 @@
 		dropAt = undefined;
 	}
 
-	// --- Editing the outline, as in any outliner (FDR-017) ---------------------------------
+	// --- Editing the outline, as in any outliner (FDR-019) ---------------------------------
 
 	/** The row a row is under, among those shown: the nearest one above it that is less deep. */
 	function parentIndex(index: number) {
@@ -583,7 +583,7 @@
 					{#each rows as { workspace: entry, parent, depth, under }, index (entry.id)}
 						{@render row(entry, parent, depth, under, index)}
 					{/each}
-					<!-- the outline's last line: where something new is written (FDR-017) -->
+					<!-- the outline's last line: where something new is written (FDR-019) -->
 					<li>
 						<button
 							type="button"

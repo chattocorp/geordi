@@ -1350,7 +1350,7 @@ describe('moving in the outline (FDR-016)', () => {
 	});
 });
 
-describe('the outline of items (FDR-017)', () => {
+describe('the outline of items (FDR-019)', () => {
 	const tree = (workspaces: ReturnType<typeof setup>['workspaces']) => {
 		const { items, order } = workspaces.outline();
 		return order.map((id) => [

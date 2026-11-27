@@ -1,5 +1,5 @@
 /**
- * The outline (FDR-017, ADR-016): a tree of items, each a line of text, some with a
+ * The outline (FDR-019, ADR-016): a tree of items, each a line of text, some with a
  * workspace attached. A workspace's item has the workspace's ID, and its text is the
  * workspace's name: kept on the workspace, where agents and people rename it. Items
  * without a workspace have their own events, below; a workspace's item moves with
@@ -74,7 +74,7 @@ export function descendantsOf(outline: Outline, id: string): Item[] {
 
 /**
  * The workspace a workspace (or any item) reports to: the one of the nearest item above it
- * that has one (FDR-017). Items without a workspace pass authority through.
+ * that has one (FDR-019). Items without a workspace pass authority through.
  */
 export function workspaceAbove(outline: Outline, id: string): string | null {
 	const seen = new Set<string>();
@@ -167,7 +167,7 @@ export function remove(outline: Outline, ids: string[]) {
 export type Attached = { title: string; worktreeId: string; archivedAt: string | null };
 
 /**
- * The outline as people see it (FDR-017), top to bottom: each item with the item it is
+ * The outline as people see it (FDR-019), top to bottom: each item with the item it is
  * under, its text (a workspace's name), and whether it is done (a workspace: archived).
  *
  * An archived workspace's item stays as a record only within a tree still in use: under an
@@ -225,14 +225,14 @@ export function outlineView(
 	});
 }
 
-/** An entry of a workspace's scope (FDR-017): its own item, or a child workspace's. */
+/** An entry of a workspace's scope (FDR-019): its own item, or a child workspace's. */
 export type ScopeEntry = Item & {
 	/** How deep under the workspace: 0 for what is right under it. */
 	depth: number;
 };
 
 /**
- * A workspace's scope (FDR-017), in outline order: the items under its item, down to the
+ * A workspace's scope (FDR-019), in outline order: the items under its item, down to the
  * next items with workspaces of their own, which are listed (as its child agents) but not
  * gone into.
  */

@@ -7,7 +7,7 @@
 
 ## Overview
 
-Work in the outline (FDR-017) merges up, as an outline is completed from its leaves: a workspace under another workspace of the same repository builds on its parent's branch and is merged into it when done, and only the workspace at the top of a tree is merged into the repository's main line. The outline then shows what still has to land, and where, before a piece of work is finished.
+Work in the outline (FDR-019) merges up, as an outline is completed from its leaves: a workspace under another workspace of the same repository builds on its parent's branch and is merged into it when done, and only the workspace at the top of a tree is merged into the repository's main line. The outline then shows what still has to land, and where, before a piece of work is finished.
 
 When this ships, it changes FDR-001's decision that a worktree's base never follows the branches of the workspaces above it.
 
@@ -25,7 +25,7 @@ When this ships, it changes FDR-001's decision that a worktree's base never foll
 - A merge without conflicts is made by Geordi, in the parent's worktree, while nobody works there. One with conflicts goes to the parent's agent, which is the one integrating.
 - A child needs no pull request. It may have one, against its parent's branch; merged there, it counts as merged up like any other.
 - A child counts as merged up when its work is in its parent's branch, however it got there: by the action, by an agent, by a person in a terminal, or by a pull request.
-- A merged-up child is done: its item is ticked off when its workspace is archived, as any other (FDR-017).
+- A merged-up child is done: its item is ticked off when its workspace is archived, as any other (FDR-019).
 
 ### What still has to land
 
@@ -82,7 +82,7 @@ When this ships, it changes FDR-001's decision that a worktree's base never foll
 ## Related
 
 - **ADRs:** ADR-002, ADR-006, ADR-016, ADR-017
-- **FDRs:** FDR-001, FDR-002, FDR-003, FDR-016, FDR-017
+- **FDRs:** FDR-001, FDR-002, FDR-003, FDR-016, FDR-019
 
 ## Open Questions
 

@@ -151,7 +151,7 @@
 	};
 
 	/**
-	 * The outline the navigation view would send (FDR-017): an item for each workspace, under
+	 * The outline the navigation view would send (FDR-019): an item for each workspace, under
 	 * its parent's (or where `under` puts it), and the `extra` items without workspaces.
 	 */
 	function withItems(

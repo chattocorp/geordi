@@ -17,7 +17,7 @@ export function instructionsFor(workspace: {
 	manuallyNamed?: boolean;
 	/** Whether it may start agents itself: not when it is nested as deep as agents may go. */
 	mayDelegate: boolean;
-	/** Its scope in the person's outline (FDR-017), where it has one. */
+	/** Its scope in the person's outline (FDR-019), where it has one. */
 	outline?: Scope;
 }): string {
 	const { parent } = workspace;
@@ -81,7 +81,7 @@ const SHOWN_ITEMS = 40;
 
 /**
  * Where the agent's work is in the person's outline, and what is written under it there
- * (FDR-017): a checklist it keeps, which the person may add to, to steer it.
+ * (FDR-019): a checklist it keeps, which the person may add to, to steer it.
  */
 export function outlineBrief({ workspace, path, items }: Scope): string {
 	const where = path.length

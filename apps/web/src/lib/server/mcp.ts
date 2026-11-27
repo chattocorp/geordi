@@ -612,7 +612,7 @@ const workspaceTools = new Set([
 	'answer_question',
 	'forward_question',
 	'name_workspace',
-	// its items in the outline (FDR-017)
+	// its items in the outline (FDR-019)
 	'list_items',
 	'add_item',
 	'update_item',
