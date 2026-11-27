@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { Task } from '@geordi/protocol';
+	import { foldSlide } from './fold.ts';
 	import Button from './Button.svelte';
 	import JobMark, { type JobState } from './JobMark.svelte';
 	import Loading from './Loading.svelte';
@@ -277,7 +278,7 @@
 						</div>
 						<!-- its tasks, under the group's name -->
 						{#if open}
-							<ul aria-label={entry.group} class="mt-px space-y-px pl-4">
+							<ul transition:foldSlide aria-label={entry.group} class="mt-px space-y-px pl-4">
 								{#each entry.tasks as { task, label } (task.name)}
 									{@render taskRow(task, label)}
 								{/each}

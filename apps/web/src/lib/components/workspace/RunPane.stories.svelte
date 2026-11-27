@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { expect, fireEvent, within } from 'storybook/test';
+	import { expect, fireEvent, waitFor, within } from 'storybook/test';
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import type { Task } from '@geordi/protocol';
 	import type { JobState } from '@geordi/ui/JobMark.svelte';
@@ -345,7 +345,9 @@
 		await expect(heading.queryByRole('img', { name: 'Running' })).toBeNull();
 		await userEvent.click(finales);
 		await expect(finales).toHaveAttribute('aria-expanded', 'false');
-		await expect(canvas.queryByRole('button', { name: 'Run Act 2: the duel' })).toBeNull();
+		await waitFor(() =>
+			expect(canvas.queryByRole('button', { name: 'Run Act 2: the duel' })).toBeNull()
+		);
 		await expect(heading.getByRole('img', { name: 'Running' })).toBeVisible();
 		// and says so to whoever hears it, too
 		await expect(finales).toHaveAccessibleName(/Finales.*Running/);
@@ -353,7 +355,9 @@
 		await expect(header).toHaveClass('bg-hover');
 		await expect(getComputedStyle(heading.getByText('Finales')).color).not.toBe(expandedColor);
 		await userEvent.click(finales);
-		await expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).toBeVisible();
+		await waitFor(() =>
+			expect(canvas.getByRole('button', { name: 'Run Act 2: the duel' })).toBeVisible()
+		);
 	}}
 >
 	{@render groupedPane()}
