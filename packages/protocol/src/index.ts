@@ -198,6 +198,8 @@ export type PullRequest = {
 	state: 'open' | 'closed' | 'merged' | 'unknown';
 	draft: boolean;
 	autoMerge?: { enabled: boolean; canEnable: boolean; canDisable: boolean };
+	/** The last commit included in a merged pull request, when the forge reports it. */
+	mergedHead?: string;
 	/** The branch it would merge into. */
 	base: string | null;
 	/** The checks on its latest commit, combined; `null` if there are none. */

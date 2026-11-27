@@ -3,6 +3,7 @@ import { devNull } from 'node:os';
 import { promisify } from 'node:util';
 import type { TurnBlobs } from '@geordi/protocol';
 import { git } from './git.ts';
+import { archivedBranches } from './worktree.ts';
 import { MAX_FILE } from './changes.ts';
 
 const run = promisify(execFile);
@@ -41,10 +42,14 @@ export async function turnFile(repoPath: string, blobs: TurnBlobs) {
 /** Purging a workspace releases only its pins. Archiving removes its worktree but keeps these refs. */
 export async function releaseTurnRefs(repoPath: string, workspaceIds: string[]) {
 	const purged = new Set(workspaceIds);
-	const prefix = 'refs/geordi/turns/';
-	const refs = await git(repoPath, ['for-each-ref', '--format=%(refname)', prefix]);
+	const prefixes = ['refs/geordi/turns/', archivedBranches];
+	const refs = await git(repoPath, ['for-each-ref', '--format=%(refname)', ...prefixes]);
 	for (const ref of refs.trimEnd().split('\n')) {
-		if (ref.startsWith(prefix) && purged.has(ref.slice(prefix.length).split('/')[0]))
+		if (
+			prefixes.some(
+				(prefix) => ref.startsWith(prefix) && purged.has(ref.slice(prefix.length).split('/')[0])
+			)
+		)
 			await git(repoPath, [
 				'-c',
 				'core.hooksPath=' + devNull,

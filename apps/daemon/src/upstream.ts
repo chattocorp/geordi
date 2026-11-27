@@ -264,6 +264,8 @@ export function summarise(thread: Thread, counts?: CheckCounts, items?: PullChec
 			}
 		}),
 		base: thread.branches?.base.ref ?? null,
+		...(thread.state === 'merged' &&
+			thread.branches?.head.sha && { mergedHead: thread.branches.head.sha }),
 		// "no checks" and "nothing known" both mean there is nothing to show
 		checks:
 			checks && (checks.total !== 0 || checks.state !== 'unknown')
@@ -523,9 +525,9 @@ const looking = new Map<string, Promise<Upstream | null>>();
 const lookingKey = (id: string, includeChecks = false) => `${id} ${includeChecks}`;
 
 /** The last known comparison target, including while a fresh lookup is in flight. */
-export function cachedPullBase(id: string, branch: string | null) {
+export function cachedPull(id: string, branch: string | null) {
 	const known = cache.get(id)?.value;
-	return known?.localBranch === branch ? (known?.pull?.base ?? undefined) : undefined;
+	return known?.localBranch === branch ? known?.pull : undefined;
 }
 
 /**

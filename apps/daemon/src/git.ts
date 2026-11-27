@@ -10,20 +10,24 @@ export async function git(
 	{
 		env = process.env,
 		timeout = 10_000,
-		encoding = 'utf8'
-	}: { env?: NodeJS.ProcessEnv; timeout?: number; encoding?: BufferEncoding } = {}
+		encoding = 'utf8',
+		input
+	}: { env?: NodeJS.ProcessEnv; timeout?: number; encoding?: BufferEncoding; input?: string } = {}
 ): Promise<string> {
 	try {
-		return (
-			await run('git', args, {
-				cwd,
-				env,
-				timeout,
-				killSignal: 'SIGKILL',
-				encoding,
-				maxBuffer: 64 * 1024 * 1024
-			})
-		).stdout;
+		const command = run('git', args, {
+			cwd,
+			env,
+			timeout,
+			killSignal: 'SIGKILL',
+			encoding,
+			maxBuffer: 64 * 1024 * 1024
+		});
+		if (input !== undefined) {
+			command.child.stdin?.on('error', () => {}); // an early Git exit is reported below
+			command.child.stdin?.end(input);
+		}
+		return (await command).stdout;
 	} catch (error) {
 		if (
 			error instanceof Error &&
