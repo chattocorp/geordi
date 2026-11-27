@@ -1813,10 +1813,21 @@ export function createWorkspaces(
 
 		/**
 		 * Notes that the workspace's worktree was moved to a new branch, to carry on with new
-		 * work. The daemon did the moving; see `continueWorkspace`.
+		 * work. The daemon did the moving; see `continueWorkspace`. What was ticked off right
+		 * under its item goes (FDR-019): that was the last branch's work, and its pull request
+		 * keeps the record. Only where all of it is done, and none of it is a workspace: a
+		 * workspace's items are its own, never its parent's to clear.
 		 */
 		continued(id: string, branch: string, actor: string | null = null) {
 			const { worktreeId } = find(id);
+			const outline = projection.outline();
+			const finished = [...outline.items.values()].filter(
+				(item) =>
+					item.parentId === worktreeId &&
+					!item.workspace &&
+					item.done &&
+					descendantsOfItem(outline, item.id).every((each) => !each.workspace && each.done)
+			);
 			store.append(
 				{
 					type: 'workspace.continued',
@@ -1825,6 +1836,11 @@ export function createWorkspaces(
 				},
 				{ actor }
 			);
+			for (const { id: itemId } of finished)
+				store.append(
+					{ type: 'item.deleted', stream: `item:${itemId}`, data: { id: itemId } },
+					{ actor }
+				);
 		},
 
 		/**
