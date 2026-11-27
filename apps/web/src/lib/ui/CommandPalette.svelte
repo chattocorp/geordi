@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, type Snippet } from 'svelte';
 	import Keys from '@geordi/ui/Keys.svelte';
 	import { fuzzyFilter, fuzzySegments } from '#lib/fuzzy.ts';
 	import Dialog from './Dialog.svelte';
@@ -16,8 +16,10 @@
 		 */
 		items: Command[];
 		placeholder?: string;
+		/** Draws the picture of an item's repository (`repo`), in place of its icon. */
+		picture?: Snippet<[NonNullable<Command['repo']>]>;
 	};
-	let { open = $bindable(), label, items, placeholder = 'Search' }: Props = $props();
+	let { open = $bindable(), label, items, placeholder = 'Search', picture }: Props = $props();
 
 	const id = $props.id();
 	let search = $state<HTMLInputElement>();
@@ -114,7 +116,11 @@
 					onpointermove={() => select(index)}
 					class={['menu-item', index === active && 'item-picked']}
 				>
-					<span class={['size-4 shrink-0', item.icon ?? 'icon-[lucide--chevron-right]']}></span>
+					{#if picture && item.repo}
+						{@render picture(item.repo)}
+					{:else}
+						<span class={['size-4 shrink-0', item.icon ?? 'icon-[lucide--chevron-right]']}></span>
+					{/if}
 					<span class="min-w-0 flex-1 truncate">
 						{#each fuzzySegments(item.label, indices) as segment, at (at)}
 							{#if segment.hit}<mark class="bg-transparent font-semibold text-accent-ink">

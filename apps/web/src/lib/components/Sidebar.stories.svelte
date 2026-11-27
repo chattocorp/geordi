@@ -731,6 +731,20 @@
 </Story>
 
 <Story
+	name="With an Inbox"
+	asChild
+	play={async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// what the person started and hasn't filed yet is under the Inbox, which comes first
+		const inbox = canvas.getByRole('button', { name: 'Inbox' });
+		await expect(inbox.closest('li')).toBe(canvasElement.querySelector('li[data-row]'));
+		await expect(inbox.closest('li')?.getAttribute('draggable')).toBe('false');
+	}}
+>
+	{@render frame(withItems(nav, [item('inbox', 'Inbox')], { ready: 'inbox' }), '/workspaces/ready')}
+</Story>
+
+<Story
 	name="Rename workspace"
 	asChild
 	play={async ({ canvasElement }) => {

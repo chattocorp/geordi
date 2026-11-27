@@ -1,7 +1,7 @@
 import { questionLabel } from '#lib/question-label.ts';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { problemOf } from '#lib/problem.ts';
-import { isInactive } from '#lib/family.ts';
+import { INBOX, isInactive } from '#lib/family.ts';
 import {
 	descendantsOf as descendantsOfItem,
 	frontierOf,
@@ -643,6 +643,10 @@ export function createWorkspaces(
 					...(repoId !== null && !rest.worktreeId && { worktreeParent: repoId }),
 					...rest,
 					...(item && { parentId: workspaceAbove(projection.outline(), item.id) ?? undefined }),
+					// the person's own, on no item: it lands in the Inbox, for them to file (FDR-019)
+					...(!item && !actor && !rest.parentId && !rest.worktreeId && repoId !== null
+						? { inbox: true as const }
+						: {}),
 					...(Object.keys(chosen).length > 0 && { settings: chosen })
 				}
 			},
@@ -713,6 +717,8 @@ export function createWorkspaces(
 	 * there reports to.
 	 */
 	function refuseParent(parentId: string): string | null {
+		// what is in the Inbox reports to the person
+		if (parentId === INBOX) return null;
 		const parent = itemOf(parentId);
 		if (!parent.workspace) return workspaceAbove(projection.outline(), parentId);
 		const workspace = find(parentId);

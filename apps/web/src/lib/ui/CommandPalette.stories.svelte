@@ -49,3 +49,34 @@
 	<p class="text-sm text-muted">Ran: {done}</p>
 	<CommandPalette bind:open label="Go to or do in this workspace" {items} />
 </Story>
+
+<Story
+	name="With pictures"
+	asChild
+	play={async ({ canvas }) => {
+		await userEvent.click(canvas.getByRole('button', { name: 'Open the palette' }));
+		// an item with a repository shows what the caller draws for it, in place of its icon
+		await waitFor(() => expect(canvas.getAllByTestId('picture')).toHaveLength(1));
+	}}
+>
+	<Button onclick={() => (open = true)}>Open the palette</Button>
+	<CommandPalette
+		bind:open
+		label="Move this workspace under an item"
+		items={[
+			item('Move under', 'Release 0.9', 'icon-[lucide--circle]'),
+			item('Move under', 'Soften the colours', 'icon-[lucide--git-branch]', {
+				repo: { id: 'sample', name: 'sample-site' }
+			})
+		]}
+	>
+		{#snippet picture(repo)}
+			<span
+				data-testid="picture"
+				class="grid size-4 shrink-0 place-items-center rounded-control tone-accent text-xs"
+			>
+				{repo.name[0]}
+			</span>
+		{/snippet}
+	</CommandPalette>
+</Story>

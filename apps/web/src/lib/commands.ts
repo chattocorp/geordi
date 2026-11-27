@@ -13,6 +13,8 @@ export type Command = {
 	group: string;
 	/** An Iconify class. */
 	icon?: string;
+	/** The repository whose picture stands for it, where a palette draws those (`picture`), instead of the icon. */
+	repo?: { id: string; name: string };
 	/** Where it is, or whose: said quietly beside it (a repository, a folder). */
 	detail?: string;
 	/** Other words to find it by, not shown. */

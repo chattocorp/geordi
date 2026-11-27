@@ -217,6 +217,8 @@ export function dropTarget<T extends { id: string; parentId: string | null; proj
 	}
 
 	if (target.parentId === null && !topLevel) return undefined;
+	// the Inbox comes first: nothing goes above it
+	if (target.before === INBOX) return undefined;
 	const parent = rows.find(({ workspace }) => workspace.id === target.parentId)?.workspace;
 	if (parent && (parent.project || dragged.project)) return undefined;
 	const reparents = from === -1 || target.parentId !== parentAt(from);
@@ -224,6 +226,13 @@ export function dropTarget<T extends { id: string; parentId: string | null; proj
 		return undefined;
 	return { ...target, reparents };
 }
+
+/**
+ * The Inbox (FDR-019): where a workspace the person starts lands, until they file it. A
+ * place at the top of the outline, not an item: what is in it has this as its `parentId`,
+ * and it is listed first, as an entry of its own that can't be changed or moved.
+ */
+export const INBOX = 'inbox';
 
 /** An item of the outline (FDR-019), as the navigation view sends it. */
 export type OutlineEntry = {
@@ -300,7 +309,10 @@ export function outlineRows<T extends OutlineEntry>(
 			shown = shown.filter((entry) => above.has(entry.id) || under(entry) || pinned.has(entry.id));
 		}
 	}
-	return unfolded(nested(shown), folded);
+	// the Inbox shows only while something in it does
+	return unfolded(nested(shown), folded).filter(
+		(row) => row.workspace.id !== INBOX || row.under > 0
+	);
 }
 
 /**

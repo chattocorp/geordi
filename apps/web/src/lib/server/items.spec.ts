@@ -37,9 +37,29 @@ describe('the outline as people see it', () => {
 			() => undefined
 		);
 		expect(view.map(({ id, parentId, done }) => [id, parentId, done])).toEqual([
+			['inbox', null, false],
 			['done-child', 'lead', true],
 			['lead', null, false],
 			['carries-on', null, false]
+		]);
+	});
+
+	it('lists the Inbox first, and lets a workspace archived in it go, as at the top', () => {
+		const outline = emptyOutline();
+		attach(outline, 'filed', null);
+		attach(outline, 'arrived', 'inbox');
+		attach(outline, 'archived', 'inbox');
+		attach(outline, 'carries-on', 'archived');
+		const view = outlineView(
+			outline,
+			(id) => ({ title: id, worktreeId: id, archivedAt: id === 'archived' ? 'yesterday' : null }),
+			() => undefined
+		);
+		expect(view.map(({ id, parentId }) => [id, parentId])).toEqual([
+			['inbox', null],
+			['carries-on', null],
+			['arrived', 'inbox'],
+			['filed', null]
 		]);
 	});
 });
