@@ -20,6 +20,7 @@ import {
 	AGENTS,
 	JOB_TERMINAL,
 	TEARDOWN_TIMEOUT_MS,
+	PERMISSION_MODES,
 	PROTOCOL_VERSION,
 	type DaemonMessage,
 	type DaemonRequest,
@@ -31,6 +32,7 @@ import { createNonce, prove, verify } from '@geordi/protocol/auth';
 import { agentProgram } from './agents/program.ts';
 import { adapterFor } from './agents/adapter.ts';
 import { createApprovals } from './approvals.ts';
+import { canSandbox } from './sandbox.ts';
 import {
 	changes,
 	readSource,
@@ -116,7 +118,9 @@ process.once('exit', owner.close);
 const harnesses: Harness[] = await Promise.all(
 	AGENTS.map(async (agent) => {
 		const adapter = await adapterFor(agent);
-		return { agent, ...(await adapter.offers()) };
+		// Sandboxed only where agents can be (FDR-017).
+		const permissionModes = PERMISSION_MODES.filter((mode) => mode !== 'sandboxed' || canSandbox());
+		return { agent, ...(await adapter.offers()), permissionModes };
 	})
 );
 

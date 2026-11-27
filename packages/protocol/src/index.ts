@@ -31,10 +31,14 @@ export type Agent = (typeof AGENTS)[number];
  */
 export const PERMISSION_MODES = ['auto', 'sandboxed', 'full-access'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
-/** The mode of a workspace that has not chosen one. */
-export const DEFAULT_PERMISSION_MODE: PermissionMode = 'sandboxed';
-export const permissionModeOf = (settings: AgentSettings): PermissionMode =>
-	settings.permissionMode ?? DEFAULT_PERMISSION_MODE;
+/**
+ * The mode of a workspace that has not chosen one: sandboxed, where the agent's computer
+ * can sandbox it (`Harness.permissionModes`).
+ */
+export const defaultPermissionMode = (modes: readonly PermissionMode[]): PermissionMode =>
+	modes.includes('sandboxed') ? 'sandboxed' : 'full-access';
+export const permissionModeOf = (settings: AgentSettings, canSandbox: boolean): PermissionMode =>
+	settings.permissionMode ?? (canSandbox ? 'sandboxed' : 'full-access');
 
 /** The settings a workspace sends with each turn. */
 export type AgentSettings = {
@@ -85,6 +89,8 @@ export type Harness = {
 	models: Model[];
 	/** The effort levels to offer while no model is chosen. */
 	efforts: string[];
+	/** The permission modes the agent can run in on its computer: sandboxed only where it can be (FDR-017). */
+	permissionModes: PermissionMode[];
 };
 
 /**

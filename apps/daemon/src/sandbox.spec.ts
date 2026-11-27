@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { SessionOptions } from './agents/adapter.ts';
 import type { PermissionMode } from '@geordi/protocol';
-import { sandboxed, sandboxPaths, sandboxProfile } from './sandbox.ts';
+import { bubblewrap, canSandbox, sandboxed, sandboxPaths, seatbelt } from './sandbox.ts';
 
 const home = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-sandbox-')));
 const repo = join(home, 'Documents', 'repo');
@@ -24,48 +24,89 @@ const options = (permissionMode?: PermissionMode) =>
 		settings: permissionMode ? { permissionMode } : {}
 	}) as unknown as SessionOptions;
 
+const start = (mode: PermissionMode | undefined, platform: NodeJS.Platform, possible: boolean) =>
+	sandboxed('agent', ['acp'], options(mode), platform, home, possible);
+
 describe('sandboxed', () => {
-	it('sandboxes the sandboxed mode on macOS, and a workspace that never chose', () => {
-		for (const mode of ['sandboxed', undefined] as const)
-			expect(sandboxed('agent', ['acp'], options(mode), 'darwin', home).file).toBe(
-				'/usr/bin/sandbox-exec'
-			);
+	it('sandboxes the sandboxed mode, and a workspace that never chose, where it can', () => {
+		for (const mode of ['sandboxed', undefined] as const) {
+			expect(start(mode, 'darwin', true).file).toBe('/usr/bin/sandbox-exec');
+			expect(start(mode, 'linux', true).file).toBe('bwrap');
+		}
 	});
 
-	it('leaves other modes and other systems alone', () => {
+	it('leaves the other modes alone', () => {
 		const plain = { file: 'agent', args: ['acp'] };
-		expect(sandboxed('agent', ['acp'], options('auto'), 'darwin', home)).toEqual(plain);
-		expect(sandboxed('agent', ['acp'], options('full-access'), 'darwin', home)).toEqual(plain);
-		expect(sandboxed('agent', ['acp'], options('sandboxed'), 'linux', home)).toEqual(plain);
+		for (const platform of ['darwin', 'linux'] as const) {
+			expect(start('auto', platform, true)).toEqual(plain);
+			expect(start('full-access', platform, true)).toEqual(plain);
+		}
 	});
 
-	it('passes paths as parameters, never as profile text', () => {
-		const { profile, params } = sandboxProfile({ deny: ['/a"b'], allow: ['/c)d'] });
-		expect(profile).not.toContain('/a"b');
-		expect(profile).not.toContain('/c)d');
-		expect(params).toEqual(['-D', 'DENY0=/a"b', '-D', 'ALLOW0=/c)d']);
+	it('runs a workspace that never chose with full permissions where there is no sandbox', () => {
+		expect(start(undefined, 'win32', false)).toEqual({ file: 'agent', args: ['acp'] });
+	});
+
+	it('never starts the sandboxed mode without its sandbox', () => {
+		expect(() => start('sandboxed', 'win32', false)).toThrow(/can’t sandbox/);
 	});
 
 	it('allows where the agent works, even inside a guarded place', () => {
-		const { deny, allow } = sandboxPaths(options('sandboxed'), home);
+		const { deny, allow } = sandboxPaths(options('sandboxed'), home, 'darwin');
 		expect(deny).toContain(join(home, 'Documents'));
+		expect(deny).toContain('/Volumes');
 		expect(allow).toContain(repo);
 	});
 });
 
-describe.runIf(process.platform === 'darwin')('the sandbox on macOS', () => {
+describe('seatbelt', () => {
+	it('passes paths as parameters, never as profile text', () => {
+		const { args } = seatbelt({ deny: ['/a"b'], allow: ['/c)d'] }, { file: 'x', args: [] });
+		const profile = args[args.indexOf('-p') + 1];
+		expect(profile).not.toContain('/a"b');
+		expect(profile).not.toContain('/c)d');
+		expect(args.slice(0, 4)).toEqual(['-D', 'DENY0=/a"b', '-D', 'ALLOW0=/c)d']);
+	});
+});
+
+describe('bubblewrap', () => {
+	it('covers guarded places that exist, puts back what is allowed inside them, then makes the covers read-only', () => {
+		const paths = sandboxPaths(options('sandboxed'), home, 'linux');
+		const { args } = bubblewrap(paths, { file: 'agent', args: ['acp'] });
+		const documents = join(home, 'Documents');
+		const downloads = join(home, 'Downloads');
+		expect(args).toEqual([
+			'--dev-bind',
+			'/',
+			'/',
+			'--tmpfs',
+			documents,
+			'--tmpfs',
+			downloads,
+			'--bind',
+			repo,
+			repo,
+			'--remount-ro',
+			documents,
+			'--remount-ro',
+			downloads,
+			'--',
+			'agent',
+			'acp'
+		]);
+	});
+});
+
+describe.runIf(canSandbox())(`the sandbox on ${process.platform}`, () => {
 	const run = (command: string, ...args: string[]) => {
-		const { file, args: all } = sandboxed(command, args, options('sandboxed'), 'darwin', home);
+		const { file, args: all } = sandboxed(command, args, options('sandboxed'), undefined, home);
 		return spawnSync(file, all, { encoding: 'utf8' });
 	};
 
-	it('denies guarded places as a plain permission error', () => {
-		for (const path of [join(home, 'Downloads', 'private'), join(home, 'Documents', 'private')]) {
-			const result = run('/bin/cat', path);
-			expect(result.status).not.toBe(0);
-			expect(result.stderr).toContain('Operation not permitted');
-		}
-		expect(run('/bin/ls', '/Volumes').stderr).toContain('Operation not permitted');
+	it('keeps guarded places out of reach', () => {
+		for (const path of [join(home, 'Downloads', 'private'), join(home, 'Documents', 'private')])
+			expect(run('/bin/cat', path).status).not.toBe(0);
+		expect(run('/bin/sh', '-c', `echo x > ${join(home, 'Downloads', 'new')}`).status).not.toBe(0);
 	});
 
 	it('allows the repository, its writes, and everything else', () => {

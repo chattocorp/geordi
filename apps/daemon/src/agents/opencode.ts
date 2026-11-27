@@ -12,7 +12,7 @@ import {
 	type SetSessionConfigOptionResponse,
 	type ContentBlock
 } from '@agentclientprotocol/sdk/unstable';
-import { permissionModeOf, type MessageImage } from '@geordi/protocol';
+import type { MessageImage } from '@geordi/protocol';
 import type { HostEvent } from '../host.ts';
 import { API_SERVER, truncate, type SessionOptions } from './adapter.ts';
 import { sessionQuestions } from './questions.ts';
@@ -54,7 +54,7 @@ export function connectOpenCode(
 	const connection = client({ name: 'Geordi' })
 		.onRequest(methods.client.elicitation.create, questions.request)
 		.onRequest(methods.client.session.requestPermission, ({ params, signal }) => {
-			const kind = permissionModeOf(options.settings) !== 'auto' ? 'allow_once' : 'reject_once';
+			const kind = options.settings.permissionMode === 'auto' ? 'reject_once' : 'allow_once';
 			const choice = params.options.find((o) => o.kind === kind);
 			if (choice && params.sessionId === id && !signal.aborted)
 				return { outcome: { outcome: 'selected', optionId: choice.optionId } };

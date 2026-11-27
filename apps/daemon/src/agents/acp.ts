@@ -13,15 +13,14 @@ import {
 	StateUpdate,
 	SessionUpdate
 } from '@agentclientprotocol/sdk/experimental/v2/unstable';
-import {
-	permissionModeOf,
-	type Agent,
-	type AgentCommand,
-	type BackgroundTask,
-	type ContextUsage,
-	type MessageImage,
-	type PermissionMode,
-	type TurnUsage
+import type {
+	Agent,
+	AgentCommand,
+	BackgroundTask,
+	ContextUsage,
+	MessageImage,
+	PermissionMode,
+	TurnUsage
 } from '@geordi/protocol';
 import type { HostEvent } from '../host.ts';
 import { BackgroundTasks } from './background-tasks.ts';
@@ -339,7 +338,7 @@ export function connectAgent(
 					'Choose a permission mode in this workspace to replace the daemon permission setting.'
 				);
 		}
-		const mode = ACP_MODES[provider][permissionModeOf(options.settings)];
+		const mode = ACP_MODES[provider][selected ?? 'full-access'];
 		if (typeof mode !== 'string') throw new Error('Unknown workspace permission mode: ' + selected);
 		const setup = {
 			cwd: options.cwd,

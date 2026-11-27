@@ -38,7 +38,7 @@ export const API_TOKEN_ENV = 'GEORDI_API_TOKEN';
 /** The name agents know the API's MCP server by. */
 export const API_SERVER = 'geordi';
 
-type Offer = Omit<Harness, 'agent'>;
+type Offer = Omit<Harness, 'agent' | 'permissionModes'>;
 export type AgentAdapter = { offers(): Offer | Promise<Offer> };
 
 /** Tool output can be huge (whole files); keep the event log lean. */

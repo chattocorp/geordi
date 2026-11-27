@@ -9,6 +9,7 @@ import {
 } from './worktree.ts';
 import { projectPath, ensureProject } from './projects.ts';
 import type { Meta } from './host.ts';
+import { canSandbox, NO_SANDBOX } from './sandbox.ts';
 import type { Session, Said } from './session.ts';
 
 type Message = Extract<ForgeMessage, { type: 'agent.message' }>;
@@ -74,6 +75,8 @@ export function turnStarts({
 		try {
 			const prepare = inWorktree(cwd, async () => {
 				checkStop();
+				// Never started without the sandbox it was meant to have (FDR-017).
+				if (settings.permissionMode === 'sandboxed' && !canSandbox()) throw new Error(NO_SANDBOX);
 				let session = sessions.get(workspaceId);
 				// A CLI runs as it was started. Told to run otherwise (with another model, say), it
 				// is started anew, unless it is in the middle of something: then that waits.
