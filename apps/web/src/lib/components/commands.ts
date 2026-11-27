@@ -99,21 +99,27 @@ export function globalCommands(at: Everywhere): Command[] {
 		}
 	];
 
-	// in the order they were in when the palette opened: agents at work don't move them
+	// in the order they were in when the palette opened (agents at work don't move them); the
+	// one on screen last, marked as current: it can be found, though there is nowhere to go
 	const rank = (id: string) => (at.recency.indexOf(id) + 1 || Infinity) as number;
-	const others = (at.nav?.workspaces ?? [])
-		.filter((workspace) => workspace.id !== at.viewed)
-		.sort((a, b) => rank(a.id) - rank(b.id));
-	for (const workspace of others)
+	const all = at.nav?.workspaces ?? [];
+	const workspaces = [
+		...all.filter(({ id }) => id !== at.viewed).sort((a, b) => rank(a.id) - rank(b.id)),
+		...all.filter(({ id }) => id === at.viewed)
+	];
+	for (const workspace of workspaces) {
+		const current = workspace.id === at.viewed;
+		const where = workspace.repoId ? repoName.get(workspace.repoId) : 'Project';
 		commands.push({
 			id: `workspace:${workspace.id}`,
 			label: workspace.title,
 			group: 'Workspaces',
 			icon: workspace.repoId ? 'icon-[lucide--git-branch]' : 'icon-[lucide--folder-kanban]',
-			detail: workspace.repoId ? repoName.get(workspace.repoId) : 'Project',
+			detail: current ? [where, 'current'].filter(Boolean).join(' · ') : where,
 			keywords: workspace.branch ?? undefined,
-			run: () => at.open(workspace.id)
+			run: () => (current ? undefined : at.open(workspace.id))
 		});
+	}
 
 	const sidebar = 'Sidebar';
 	commands.push(
