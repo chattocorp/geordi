@@ -30,8 +30,7 @@
 		fold,
 		onpoint,
 		onaction,
-		onadd,
-		onzoom
+		foldAside = false
 	}: {
 		title: string;
 		href?: string;
@@ -58,10 +57,8 @@
 		fold?: { count: number; folded: boolean; toggle(): void };
 		onpoint?: (pointed: boolean) => void;
 		onaction?: (action: WorkspaceAction) => void;
-		/** Adds an item under it, in an outline (FDR-019): offered while the row is hovered or focused. */
-		onadd?: () => void;
-		/** Zooms the outline into it (FDR-019): offered while the row is hovered or focused. */
-		onzoom?: () => void;
+		/** Whether what is under it folds from beside it (the outline's fold, FDR-019), not from its sign. */
+		foldAside?: boolean;
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
@@ -134,32 +131,10 @@
 			icon={parentHref && !fold && !waiting ? undefined : statusIcon}
 			hint={parentTitle ? `Reports to "${parentTitle}"` : undefined}
 			fold={leaving ? undefined : fold}
+			chevron={!foldAside}
 			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
 		/>
 	</div>
-	{#if onzoom}
-		<button
-			type="button"
-			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"
-			aria-label={`Zoom into ${title}`}
-			title="Zoom in"
-			onclick={onzoom}
-		>
-			<span class="icon-[lucide--zoom-in] size-4"></span>
-		</button>
-	{/if}
-	{#if onadd}
-		<!-- only while the row is pointed at, or focus is in it: it takes no room from the title otherwise -->
-		<button
-			type="button"
-			class="hidden size-6 shrink-0 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink reveal:grid"
-			aria-label={`Add an item under ${title}`}
-			title="Add an item under it"
-			onclick={onadd}
-		>
-			<span class="icon-[lucide--plus] size-4"></span>
-		</button>
-	{/if}
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
 	<span data-row-actions class="grid h-6 min-w-6 shrink-0 place-items-center">
 		{#if typeof asking === 'string' || (asking && href)}

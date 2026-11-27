@@ -194,7 +194,12 @@
 			[
 				item('release', 'Release 0.9'),
 				item('notes', 'Write the release notes', 'release'),
-				item('tagged', 'Tag the release', 'release', true)
+				item('tagged', 'Tag the release', 'release', true),
+				item(
+					'long',
+					'Announce it everywhere: the website, the newsletter, and every channel that people read',
+					'release'
+				)
 			],
 			{ failing: 'release' }
 		);
@@ -631,17 +636,30 @@
 		await expect(
 			canvas.getByRole('button', { name: 'Mark “Tag the release” as not done' })
 		).toHaveAttribute('aria-pressed', 'true');
-		// it can be removed from its row; what is not done is added to instead
+		// as in Workflowy, a row is its sign and its text: nothing is added under it, or removed,
+		// from buttons on it (Enter, Tab, its menu and its keys do that)
 		const offered = (label: string) => canvasElement.querySelector(`button[aria-label="${label}"]`);
-		await expect(offered('Remove Tag the release')).not.toBeNull();
-		await expect(offered('Add an item under Tag the release')).toBeNull();
-		await expect(offered('Remove Write the release notes')).toBeNull();
-		await expect(offered('Add an item under Write the release notes')).not.toBeNull();
-		// every row can be zoomed into from a button too, a workspace's as well
-		await expect(offered('Zoom into Release 0.9')).not.toBeNull();
+		await expect(offered('Remove Tag the release')).toBeNull();
+		await expect(canvasElement.querySelector('button[aria-label^="Add an item under"]')).toBeNull();
+		// what is under it folds from the gutter beside its sign, not from inside the row; it is
+		// zoomed into with Cmd-click, its menu or its keys, with no button for it
+		await expect(canvasElement.querySelector('button[aria-label^="Zoom into"]')).toBeNull();
+		const rowOf = (label: string) => offered(label)?.closest('li');
+		for (const label of ['Collapse Release 0.9']) {
+			const button = offered(label)!;
+			await expect(button).not.toBeNull();
+			await expect(button.getBoundingClientRect().right).toBeLessThanOrEqual(
+				rowOf(label)!.querySelector('.item')!.getBoundingClientRect().left + 1
+			);
+		}
+		// a long line wraps, whole, rather than being cut off; its sign stays by its first line
+		const long = canvas.getByRole('textbox', { name: /^Announce it everywhere/ });
+		await expect(long.clientHeight).toBeGreaterThan(48);
+		await expect(long.scrollWidth).toBeLessThanOrEqual(long.clientWidth);
+		const sign = canvas.getByRole('button', { name: /^Mark “Announce it everywhere/ });
 		await expect(
-			offered('Zoom into Guard shared worktrees from update and continue')
-		).not.toBeNull();
+			Math.abs(sign.getBoundingClientRect().top - long.getBoundingClientRect().top)
+		).toBeLessThan(8);
 		// it folds what is under it
 		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse Release 0.9' }));
 		await waitFor(() =>
@@ -667,9 +685,28 @@
 		await expect(canvas.getByRole('textbox', { name: 'Write the release notes' })).toBeVisible();
 		await waitFor(() => expect(canvas.queryByText('Choose a storage engine')).toBeNull());
 		// its sign leads back up
-		await fireEvent.click(canvas.getByRole('button', { name: 'Zoom out to Outline' }));
+		await fireEvent.click(canvas.getByRole('button', { name: 'Back to Outline' }));
 		await waitFor(() => expect(canvas.getByText('Choose a storage engine')).toBeVisible());
 		await expect(canvas.queryByRole('heading', { name: 'Release 0.9' })).toBeNull();
+		// Cmd-click (Ctrl-click elsewhere) zooms into a row too, a workspace's as well, rather
+		// than opening its link; while Cmd is held, the cursor over a row says so
+		const link = canvas.getByRole('link', { name: /^Guard shared worktrees/ });
+		await fireEvent.keyDown(window, { key: 'Meta', metaKey: true, ctrlKey: true });
+		await waitFor(() => expect(getComputedStyle(link).cursor).toBe('zoom-in'));
+		await fireEvent.keyUp(window, { key: 'Meta' });
+		await waitFor(() => expect(getComputedStyle(link).cursor).not.toBe('zoom-in'));
+		const clicked = new MouseEvent('click', {
+			bubbles: true,
+			cancelable: true,
+			metaKey: true,
+			ctrlKey: true
+		});
+		link.dispatchEvent(clicked);
+		await expect(clicked.defaultPrevented).toBe(true);
+		await expect(
+			await canvas.findByRole('heading', { name: /^Guard shared worktrees/ })
+		).toBeVisible();
+		await fireEvent.click(canvas.getByRole('button', { name: /^Back to/ }));
 	}}
 >
 	{@render frame(withPlainItems(nav), '/workspaces/ready')}
@@ -686,12 +723,8 @@
 		await expect(
 			within(last as HTMLElement).getByRole('button', { name: 'New item' })
 		).toBeVisible();
-		// every row offers to add an item under it, when pointed at
-		// shown only while a row is pointed at: no room taken from titles otherwise
-		const addUnder = (title: string) =>
-			canvasElement.querySelector(`button[aria-label="Add an item under ${title}"]`);
-		await expect(addUnder('Release 0.9')).not.toBeVisible();
-		await expect(addUnder('Raise light mode text contrast')).not.toBeNull();
+		// a row offers nothing to add under it: Enter, Tab and its menu do that
+		await expect(canvasElement.querySelector('button[aria-label^="Add an item under"]')).toBeNull();
 	}}
 >
 	{@render frame(withPlainItems(nav), '/workspaces/ready')}

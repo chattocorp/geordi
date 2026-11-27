@@ -14,7 +14,7 @@ The sidebar is an outline of the person's workspaces, and the outline is the cha
 - Every workspace sits at the top level or under another workspace, in an order the person chooses.
 - A workspace an agent starts sits under that agent's workspace, newest first among its siblings, until the person moves it.
 - The person moves a workspace by dragging its row: onto the middle of another row to put it under that one, as its last child, or into the gap between two rows (or below the last). A gap is one place, whether reached from the row above or below it, and shows one line. Where a gap allows more than one level (below the last row under something), the pointer's horizontal position picks it, as in any outliner: further left is further out, and the line's indent shows the level. Its children, and their children, move with it.
-- A subtree can be folded and unfolded. What is folded is a preference of this browser, not part of the outline.
+- A subtree can be folded and unfolded, from the arrow beside a row's sign (FDR-019). What is folded is a preference of this browser, not part of the outline.
 - An agent working in another workspace's worktree (shown as a conversation tab there, FDR-002) is not a row of its own and is never moved on its own: it goes where its workspace goes.
 - Projects (FDR-012) stay at the top level and can't be nested or have workspaces nested under them.
 

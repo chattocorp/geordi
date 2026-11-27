@@ -20,9 +20,10 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 ### Editing
 
 - The outline is edited like any outliner: Enter starts a new item below, Tab and Shift-Tab indent and outdent, Alt with the arrows moves an item, Cmd-Enter (Ctrl-Enter) ticks it off, Backspace on an empty item removes it, Escape takes back what was typed. Up and down go from row to row. Rows can also be dragged (FDR-016).
-- The outline's last line, "New item", starts one at the end of it. Every row, item or workspace, offers a "+" while it is pointed at, which starts an item under it, as its last. An item that is done offers an "×" instead, which removes it (with what is under it).
+- The outline's last line, "New item", starts one at the end of it. As in Workflowy, a row is its sign and its text, with nothing on it to click besides: to the left of its sign, in the outline's gutter, a row with something under it shows the arrow that folds it, while it is pointed at or folded. Nothing appears on the row itself, so pointing at it moves nothing. Adding under a row, removing it and zooming into it are in its menu and its keys.
 - The menu of an item offers starting a workspace on it, adding an item under it, ticking it off, and removing it (with what is under it, where none of it has a workspace). The menu of a workspace offers adding an item under it.
 - An item's text is saved when you leave the line or press Enter.
+- An item's text is one line, however long: it wraps on screen rather than being cut off, and up and down go through it line by line before going on to the next item. Workspaces' rows stay one line each, with their status beside them. An item's sign is its circle, whether or not something is under it; a workspace's, its repository's picture.
 - An item ticked off stays where it is, crossed out. "Show only what is active" leaves out archived and inactive workspaces, with what is under them, but never items: ticking one off is not putting it away.
 - The sidebar is the whole outline; a workspace's Plan window is its scope.
 
@@ -52,7 +53,7 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 
 ### Zooming
 
-- Any item can be zoomed into, in the sidebar and in the Plan window: with the magnifying glass its row offers while it is pointed at, from its menu ("Zoom in"), or with Cmd-. (Ctrl-.) on its row. Its branch is then all the outline shows, under the item itself as the first row, with a back arrow in place of its sign that zooms out one level (the whole way down is in its tooltip). Cmd-Shift-. zooms out one level too.
+- Any item can be zoomed into, in the sidebar and in the Plan window: with Cmd-click on its row (Ctrl-click elsewhere; a workspace's too, rather than opening it), from its menu ("Zoom in"), or with Cmd-. (Ctrl-.) on its row. Its branch is then all the outline shows, under the item itself as the first row, with a back arrow in place of its sign that goes back to where it was zoomed into before, as Back does (one level up, where that isn't known, as after a reload); the whole way down is in the row's tooltip. Cmd-Shift-. zooms out one level.
 - Zoomed in, the outline is edited as ever: "New item" and Enter write under the item zoomed into.
 - In the sidebar, any item can be zoomed into, a workspace's too: then all of what is under it shows, its child agents' items included. In the Plan window, only items of its scope: a child agent's items are its own.
 - The previous and next workspace keys go through what the sidebar shows, zoomed in or not.

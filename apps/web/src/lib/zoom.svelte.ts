@@ -28,8 +28,26 @@ export function zoomInHistory(key: string, stored: { current: string | null }) {
 			// where it was, for coming back to: the step it is zoomed from says so too
 			if (!(key in (page.state.zoom ?? {})))
 				replaceState('', { ...page.state, zoom: { ...page.state.zoom, [key]: stored.current } });
+			const from = stored.current;
 			stored.current = id;
-			pushState('', { ...page.state, zoom: { ...page.state.zoom, [key]: id } });
+			pushState('', {
+				...page.state,
+				zoom: { ...page.state.zoom, [key]: id },
+				zoomed: { key, from }
+			});
+		},
+		/**
+		 * Where it was zoomed into before this step of the history zoomed it to where it is
+		 * (`null`: not at all), to go back to with `back`; `undefined` where this step is not its
+		 * zoom (another outline zoomed since, or a page opened zoomed in).
+		 */
+		get from(): string | null | undefined {
+			const zoomed = page.state.zoomed;
+			return zoomed?.key === key ? zoomed.from : undefined;
+		},
+		/** Goes back to where it was zoomed into before: a step back in the history. */
+		back() {
+			history.back();
 		}
 	};
 }
