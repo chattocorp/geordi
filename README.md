@@ -32,8 +32,9 @@ A self-hostable code forge and agent orchestrator. Geordi is in early developmen
 - **Planning happens in the conversation.** Ask the agent for a plan and tell it to wait
   for feedback before editing. Geordi can show its checklist as it works. There is no
   separate plan mode.
-- **Two permission modes.** Choose Auto Mode or Full Access. Geordi does not offer a
-  mode that asks you to approve individual tool calls. See [Safety](#safety).
+- **Three permission modes.** Choose Auto Mode, Full Permissions (Sandboxed) or Full
+  Permissions. Geordi does not offer a mode that asks you to approve individual tool
+  calls. See [Safety](#safety).
 - **Use your own browser.** Project previews and external links open in your browser.
   There is no in-app browser.
 
@@ -73,8 +74,12 @@ http://localhost:7717. See [Self-hosting](docs/self-hosting.md).
 > **Geordi has no authentication yet.** Anyone who can reach it can run agents on your
 > machine, so it only listens on 127.0.0.1 and only answers to localhost hostnames.
 
-Agents need to commit, push and use tools like `gh`, so by default they run with **Full
-Access**: no permission prompts and no sandbox. They can do whatever your user can.
+Agents need to commit, push and use tools like `gh`, so by default they run without
+permission prompts. On macOS, and on Linux with bubblewrap installed, the default is
+**Full Permissions (Sandboxed)**: agents can do whatever your user can, except reach
+mounted drives and private folders such as Documents and Downloads. Elsewhere the default
+is **Full Permissions**, with no sandbox. Choose Full Permissions where an agent needs
+those places.
 Choose **Auto Mode** in the composer to restrict them: Claude then decides permissions
 automatically, and Codex runs in its sandbox with automatic review. For OpenCode, choose
 **Configured permissions** to use its permission rules and decline requests that require approval.

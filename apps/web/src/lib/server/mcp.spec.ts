@@ -43,12 +43,14 @@ function setup() {
 					{ id: 'opus', name: 'Opus', efforts: ['low', 'medium', 'high'] },
 					{ id: 'haiku', name: 'Haiku', efforts: ['low'] }
 				],
-				efforts: ['low', 'medium', 'high']
+				efforts: ['low', 'medium', 'high'],
+				permissionModes: ['auto', 'sandboxed', 'full-access']
 			},
 			{
 				agent: 'codex',
 				models: [{ id: 'gpt-5', name: 'GPT-5', efforts: ['minimal', 'high'] }],
-				efforts: ['high']
+				efforts: ['high'],
+				permissionModes: ['auto', 'sandboxed', 'full-access']
 			}
 		]
 	};

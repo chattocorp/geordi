@@ -54,10 +54,7 @@ export function connectOpenCode(
 	const connection = client({ name: 'Geordi' })
 		.onRequest(methods.client.elicitation.create, questions.request)
 		.onRequest(methods.client.session.requestPermission, ({ params, signal }) => {
-			const kind =
-				(options.settings.permissionMode ?? 'full-access') === 'full-access'
-					? 'allow_once'
-					: 'reject_once';
+			const kind = options.settings.permissionMode === 'auto' ? 'reject_once' : 'allow_once';
 			const choice = params.options.find((o) => o.kind === kind);
 			if (choice && params.sessionId === id && !signal.aborted)
 				return { outcome: { outcome: 'selected', optionId: choice.optionId } };

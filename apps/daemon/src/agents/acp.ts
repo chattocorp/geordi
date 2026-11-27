@@ -31,11 +31,12 @@ import { ToolDiffs } from './diffs.ts';
 import { Compactions } from './compactions.ts';
 import { promptSuggestion } from './suggestions.ts';
 import { limitsIn } from './limits.ts';
-import { API_SERVER, type SessionOptions } from './adapter.ts';
+import { API_SERVER, restrictedByDaemon, type SessionOptions } from './adapter.ts';
 
 const ACP_MODES = {
-	claude: { auto: 'auto', 'full-access': 'bypassPermissions' },
-	codex: { auto: 'agent', 'full-access': 'agent-full-access' }
+	// Sandboxed is full access inside Geordi's own sandbox (`sandbox.ts`), which the host adds.
+	claude: { auto: 'auto', sandboxed: 'bypassPermissions', 'full-access': 'bypassPermissions' },
+	codex: { auto: 'agent', sandboxed: 'agent-full-access', 'full-access': 'agent-full-access' }
 } satisfies Record<Exclude<Agent, 'opencode'>, Record<PermissionMode, string>>;
 
 /**
@@ -326,23 +327,22 @@ export function connectAgent(
 		const selected = options.settings.permissionMode;
 		// An old installation may have restricted this session at the daemon level.
 		// Require an explicit workspace choice before replacing that policy.
-		if (selected === undefined) {
-			const claudeMode = process.env.GEORDI_CLAUDE_PERMISSION_MODE;
-			const restricted =
-				provider === 'codex'
-					? process.env.GEORDI_CODEX_SANDBOX === 'workspace-write'
-					: claudeMode && claudeMode !== ACP_MODES.claude['full-access'];
-			if (restricted)
-				throw new Error(
-					'Choose Auto Mode or Full Access in this workspace to replace the daemon permission setting.'
-				);
-		}
+		if (selected === undefined && restrictedByDaemon(provider))
+			throw new Error(
+				'Choose a permission mode in this workspace to replace the daemon permission setting.'
+			);
 		const mode = ACP_MODES[provider][selected ?? 'full-access'];
 		if (typeof mode !== 'string') throw new Error('Unknown workspace permission mode: ' + selected);
 		const setup = {
 			cwd: options.cwd,
 			...(provider === 'codex' &&
 				selected === 'auto' && { additionalDirectories: options.writableRoots }),
+			// Claude Code's own sandbox can't start inside Geordi's (FDR-017): every command
+			// would fail. Geordi's keeps it out of private places instead.
+			...(provider === 'claude' &&
+				selected === 'sandboxed' && {
+					_meta: { claudeCode: { options: { sandbox: { enabled: false } } } }
+				}),
 			mcpServers:
 				provider === 'claude' && options.api && token
 					? [

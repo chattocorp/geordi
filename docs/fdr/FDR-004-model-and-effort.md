@@ -1,7 +1,7 @@
 # FDR-004: Choosing the agent, its model and its effort
 
 **Status:** Active
-**Last reviewed:** 2026-11-20
+**Last reviewed:** 2026-11-27
 
 ## Overview
 
@@ -46,6 +46,6 @@ When starting a workspace, people choose who does the work: which agent (Claude 
 
 ### 5. Two permission modes
 
-**Decision:** Auto Mode uses the provider's automatic review. Full Access, the default, lets the agent work with unrestricted access. For Claude and Codex, Geordi declines requests for human tool approval in both modes. Agents can still ask task questions. For OpenCode, Configured permissions lets the CLI apply its rules and declines approval requests. Full Access accepts one-time requests from the active session. A delegated agent inherits the parent's permission mode across providers.
+**Decision:** Auto Mode uses the provider's automatic review. Full Permissions lets the agent work with unrestricted access. Full Permissions (Sandboxed), the default, is the same, except that the agent can't reach drives and private folders (FDR-017). It's offered, and the default, only where the agent's computer can sandbox it. For Claude and Codex, Geordi declines requests for human tool approval in every mode. Agents can still ask task questions. For OpenCode, Configured permissions lets the CLI apply its rules and declines approval requests. Both Full Permissions modes accept one-time requests from the active session. A delegated agent inherits the parent's permission mode across providers.
 **Why:** A workspace can keep working unattended. The person chooses the access level before the turn begins.
 **Tradeoff:** An action that requires a person to approve it cannot proceed. If the provider cannot apply the chosen mode, the turn fails before the prompt is sent.

@@ -110,11 +110,11 @@
 				<Select label="Effort" value="medium" options={[{ value: 'medium', label: 'Medium' }]} />
 				<Select
 					label="Permission mode"
-					value="full-access"
-					options={[{ value: 'full-access', label: 'Full Access' }]}
+					value="sandboxed"
+					options={[{ value: 'sandboxed', label: 'Full Permissions (Sandboxed)' }]}
 				>
 					{#snippet icon()}
-						<span aria-hidden="true" class="icon-[lucide--key-round] size-4 shrink-0"></span>
+						<span aria-hidden="true" class="icon-[lucide--shield-check] size-4 shrink-0"></span>
 					{/snippet}
 				</Select>
 			{/snippet}
