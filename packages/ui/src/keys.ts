@@ -135,6 +135,28 @@ export function keysOf(id: ShortcutId): string[] {
 	return hint(id).split('+');
 }
 
+/**
+ * Keys that are no shortcut of the list above (an outline row's own, say), named as
+ * `keysOf` names them on a Mac: `alt`, `shift`, `cmd`, `enter`, or the key itself.
+ */
+const elsewhere: Record<string, string> = {
+	alt: 'Alt',
+	shift: 'Shift',
+	cmd: 'Ctrl',
+	enter: 'Enter'
+};
+const symbols: Record<string, string> = { alt: '⌥', shift: '⇧', cmd: '⌘', enter: '↩' };
+
+/** Such keys, one by one, to be drawn as keycaps on this platform. */
+export const capsOf = (keys: string[]): string[] =>
+	isMac() ? keys : keys.map((key) => elsewhere[key] ?? key);
+
+/** Such keys as they are written: `⌥↩`, `Alt+Enter`. */
+export const writtenOf = (keys: string[]): string =>
+	isMac()
+		? keys.map((key) => symbols[key] ?? key).join('')
+		: keys.map((key) => elsewhere[key] ?? key).join('+');
+
 /** The shortcuts by group, in the order they are defined, for listing. */
 export const shortcutGroups = () =>
 	Map.groupBy(

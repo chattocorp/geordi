@@ -28,8 +28,8 @@
 		/** The repository picked to begin with; the first one, unless said otherwise. */
 		preferred?: string;
 		issue?: { title: string; url: string };
-		/** An item of the outline to start it on (FDR-019): what it says is what to do. */
-		item?: { id: string; text: string };
+		/** An item of the outline to start it on (FDR-019): what it and its note say is what to do. */
+		item?: { id: string; text: string; note?: string };
 		label?: string;
 		/** Whether the cursor starts in the text: on the page that is for starting a workspace. */
 		focused?: boolean;
@@ -69,7 +69,12 @@
 						? `issue:${preferred}:${issue.url}`
 						: 'new',
 		() => prompt,
-		() => (item ? item.text : issue ? `${issue.title}\n${issue.url}` : '')
+		() =>
+			item
+				? [item.text, item.note].filter(Boolean).join('\n\n')
+				: issue
+					? `${issue.title}\n${issue.url}`
+					: ''
 	);
 	// (Starting one goes to it, so the form is not reset: the draft is forgotten here.)
 	const form = createWorkspace.enhance(async ({ submit }) => {

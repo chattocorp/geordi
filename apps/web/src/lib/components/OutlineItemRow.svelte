@@ -5,21 +5,29 @@
 	 * sign ticks it off; what is under it folds, and it is zoomed into, from beside that (the
 	 * outline's gutter, as in Workflowy). An archived workspace's
 	 * item (`href`) is a done line that leads to its conversation, and is not edited here.
+	 *
+	 * Under its text, its note, where it has one: more about it than fits a line, smaller and
+	 * quieter, two lines of it until it is edited. Shift-Enter in the line goes to it.
 	 */
+	import { tick } from 'svelte';
+
 	let {
 		id,
 		text,
+		note = '',
 		done = false,
 		href,
 		fold,
 		highlighted = false,
 		dragging = false,
 		onsave,
+		onnote,
 		ontoggle,
 		onkeydown
 	}: {
 		id: string;
 		text: string;
+		note?: string;
 		done?: boolean;
 		href?: string;
 		/** What is folded under it: folded, how many there are is said after its text. */
@@ -28,6 +36,8 @@
 		dragging?: boolean;
 		/** Called with its text when the line is left, where it changed. */
 		onsave?: (text: string) => void;
+		/** Called with its note when the note is left, where it changed. */
+		onnote?: (note: string) => void;
 		ontoggle?: () => void;
 		onkeydown?: (event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) => void;
 	} = $props();
@@ -48,6 +58,36 @@
 		}
 		wasDone = done;
 	});
+
+	/** The note as it shows: as written here, until what was saved comes back. */
+	let written = $derived(note);
+	let noting = $state(false);
+	let line = $state<HTMLTextAreaElement>();
+	let noteField = $state<HTMLTextAreaElement>();
+
+	/** Puts the cursor in its note, at the end: a new one, where it has none. */
+	export async function editNote() {
+		noting = true;
+		await tick();
+		noteField?.focus();
+		noteField?.setSelectionRange(written.length, written.length);
+	}
+
+	function noteKeys(event: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
+		const field = event.currentTarget;
+		const atStart = field.selectionStart === 0 && field.selectionEnd === 0;
+		const back =
+			event.key === 'Escape' ||
+			(event.key === 'Enter' && event.shiftKey) ||
+			(event.key === 'ArrowUp' && atStart && !event.altKey && !event.metaKey && !event.ctrlKey) ||
+			(event.key === 'Backspace' && field.value === '');
+		if (!back) return;
+		// back to its line, and no further: the outline's keys would go on to the row above
+		event.preventDefault();
+		event.stopPropagation();
+		line?.focus();
+	}
+
 	const toggleLabel = $derived(done ? `Mark “${text}” as not done` : `Mark “${text}” as done`);
 </script>
 
@@ -87,32 +127,73 @@
 		<a {href} class="min-w-0 flex-1 py-1 break-words line-through" draggable="false">{text}</a>
 	{:else}
 		<!-- one line of text, as long as it is: it wraps, and grows to fit (`field-sizing`) -->
-		<span class="relative flex min-w-0 flex-1">
-			<textarea
-				rows="1"
-				class={[
-					'field-sizing-content min-w-0 flex-1 resize-none bg-transparent py-1 break-words outline-none placeholder:text-faint',
-					done && !striking && 'line-through'
-				]}
-				value={text}
-				placeholder="Write something"
-				aria-label={text || 'New item'}
-				data-item-input={id}
-				draggable="false"
-				oninput={(event) => {
-					// a line has no breaks: pasted ones become spaces
-					const input = event.currentTarget;
-					if (input.value.includes('\n')) input.value = input.value.replace(/\s*\n\s*/g, ' ');
-				}}
-				onblur={(event) => {
-					if (event.currentTarget.value !== text) onsave?.(event.currentTarget.value);
-				}}
-				{onkeydown}></textarea>
-			{#if striking}
-				<!-- the same text, unseen, wrapping just the same: what the line is drawn through -->
-				<span aria-hidden="true" class="pointer-events-none absolute inset-0 py-1 break-words">
-					<span class="strike-draw">{text}</span>
-				</span>
+		<span class="flex min-w-0 flex-1 flex-col">
+			<span class="relative flex min-w-0 flex-1">
+				<textarea
+					bind:this={line}
+					rows="1"
+					class={[
+						'field-sizing-content min-w-0 flex-1 resize-none bg-transparent py-1 break-words outline-none placeholder:text-faint',
+						done && !striking && 'line-through'
+					]}
+					value={text}
+					placeholder="Write something"
+					aria-label={text || 'New item'}
+					data-item-input={id}
+					draggable="false"
+					oninput={(event) => {
+						// a line has no breaks: pasted ones become spaces
+						const input = event.currentTarget;
+						if (input.value.includes('\n')) input.value = input.value.replace(/\s*\n\s*/g, ' ');
+					}}
+					onblur={(event) => {
+						if (event.currentTarget.value !== text) onsave?.(event.currentTarget.value);
+					}}
+					onkeydown={(event) => {
+						const plain = !event.altKey && !event.metaKey && !event.ctrlKey;
+						if (event.key === 'Enter' && event.shiftKey && plain && onnote) {
+							event.preventDefault();
+							void editNote();
+						} else onkeydown?.(event);
+					}}></textarea>
+				{#if striking}
+					<!-- the same text, unseen, wrapping just the same: what the line is drawn through -->
+					<span aria-hidden="true" class="pointer-events-none absolute inset-0 py-1 break-words">
+						<span class="strike-draw">{text}</span>
+					</span>
+				{/if}
+			</span>
+			{#if noting}
+				<textarea
+					bind:this={noteField}
+					rows="1"
+					class="field-sizing-content resize-none bg-transparent pb-1 text-sm break-words text-muted outline-none placeholder:text-faint"
+					value={written}
+					placeholder="Add a note"
+					aria-label="Note on {text || 'this item'}"
+					draggable="false"
+					onkeydown={noteKeys}
+					onblur={(event) => {
+						noting = false;
+						const value = event.currentTarget.value.trim();
+						if (value === written) return;
+						written = value;
+						onnote?.(value);
+					}}></textarea>
+			{:else if written}
+				<!-- read as text, and edited where it is: a click goes into it -->
+				<button
+					type="button"
+					class={[
+						'line-clamp-2 cursor-text pb-1 text-left text-sm break-words whitespace-pre-line',
+						done ? 'text-faint' : 'text-muted'
+					]}
+					aria-label="Edit the note on {text || 'this item'}"
+					draggable="false"
+					onclick={editNote}
+				>
+					{written}
+				</button>
 			{/if}
 		</span>
 	{/if}

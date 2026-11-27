@@ -36,13 +36,21 @@ describe('instructionsFor', () => {
 				path: ['Release 0.9'],
 				items: [
 					{ id: 'a', text: 'Update the daemon', done: true, depth: 0 },
-					{ id: 'b', text: 'In the tests too', done: false, depth: 1 },
+					{
+						id: 'b',
+						text: 'In the tests too',
+						done: false,
+						depth: 1,
+						note: 'The live ones.\nAll of them.'
+					},
 					{ id: 'c', agent: 'Review', done: false, depth: 0, itemsDone: 1, itemsTotal: 2 }
 				]
 			}
 		});
 		expect(text).toContain('your workspace "Bump the protocol" is part of "Release 0.9"');
 		expect(text).toContain('- [x] Update the daemon (item a)\n  - [ ] In the tests too (item b)');
+		// an item's note under it, as written
+		expect(text).toContain('(item b)\n    The live ones.\n    All of them.\n');
 		expect(text).toContain('- Agent "Review": 1 of 2 of its own items done');
 		expect(text).toContain('`update_item`');
 		// the plan is written there before any work that changes something

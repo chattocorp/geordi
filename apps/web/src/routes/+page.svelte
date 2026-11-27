@@ -21,13 +21,23 @@
 	$effect(() => {
 		if (asked) remembered.current = asked;
 	});
-	const preferred = $derived(asked ?? remembered.current ?? undefined);
 	// an item of the outline to start it on (FDR-019), while it has no workspace yet
-	const item = $derived.by(() => {
+	const found = $derived.by(() => {
 		const id = page.url.searchParams.get('item');
-		const found = nav?.items.find((each) => each.id === id && !each.workspace);
-		return found && { id: found.id, text: found.text };
+		return nav?.items.find((each) => each.id === id && !each.workspace);
 	});
+	const item = $derived(found && { id: found.id, text: found.text, note: found.note });
+	// An item under a workspace begins in that workspace's repository: where it is in the
+	// outline says so, which is no guess.
+	const inherited = $derived.by(() => {
+		const items = new Map(nav?.items.map((each) => [each.id, each]));
+		let above = found?.parentId ? items.get(found.parentId) : undefined;
+		// (no further up than there are items: a loop must not hang the page)
+		for (let steps = items.size; above && !above.workspace && steps > 0; steps--)
+			above = above.parentId ? items.get(above.parentId) : undefined;
+		return nav?.workspaces.find((workspace) => workspace.id === above?.id)?.repoId ?? undefined;
+	});
+	const preferred = $derived(asked ?? inherited ?? remembered.current ?? undefined);
 </script>
 
 <Page title="New workspace" wide>
