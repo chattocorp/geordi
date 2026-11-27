@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect } from 'storybook/test';
+	import { expect, waitFor } from 'storybook/test';
 	import Split from './Split.svelte';
 
 	const { Story } = defineMeta({ title: 'UI/Split', component: Split });
@@ -8,6 +8,7 @@
 
 <script lang="ts">
 	let closed = $state(false);
+	let folded = $state<'a' | 'b' | null>(null);
 	let across = $state(0.6);
 	let saved = $state(0.15);
 	let down = $state(0.5);
@@ -102,6 +103,38 @@
 		<Split dir="column" ratio={0.5} fold="a">
 			{#snippet a()}<div class="pane-bar px-2 text-sm">Folded to its bar</div>{/snippet}
 			{#snippet b()}{@render pane('B has the rest')}{/snippet}
+		</Split>
+	</div>
+</Story>
+
+<Story
+	name="Fold and unfold the panels"
+	asChild
+	play={async ({ canvas, userEvent }) => {
+		for (const name of ['Changes', 'Terminal']) {
+			const button = canvas.getByRole('button', { name });
+			const panel = button.parentElement!;
+			const height = () => panel.getBoundingClientRect().height;
+			const open = height();
+			await userEvent.click(button);
+			await waitFor(() => expect(height()).toBe(button.getBoundingClientRect().height));
+			await userEvent.click(button);
+			await waitFor(() => expect(height()).toBe(open));
+		}
+	}}
+>
+	<div class="flex h-80 card">
+		<Split dir="column" ratio={0.4} fold={folded} min={[120, 120]}>
+			{#snippet a()}
+				<button class="pane-bar px-2" onclick={() => (folded = folded === 'a' ? null : 'a')}>
+					Changes
+				</button>
+			{/snippet}
+			{#snippet b()}
+				<button class="pane-bar px-2" onclick={() => (folded = folded === 'b' ? null : 'b')}>
+					Terminal
+				</button>
+			{/snippet}
 		</Split>
 	</div>
 </Story>
