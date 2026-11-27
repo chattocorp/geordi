@@ -8,6 +8,7 @@ import {
 	stepThrough,
 	unfolded,
 	isInactive,
+	scopeItems,
 	withAides
 } from './family.ts';
 
@@ -330,5 +331,33 @@ describe('nextUnread', () => {
 	it('stays put when no other listed workspace is unread', () => {
 		expect(nextUnread(order, 'a', new Set(['a', 'hidden']))).toBeUndefined();
 		expect(nextUnread(order, null, new Set())).toBeUndefined();
+	});
+});
+
+describe('scopeItems', () => {
+	const item = (id: string, parentId: string | null, workspace = false) => ({
+		id,
+		parentId,
+		text: id,
+		note: '',
+		done: false,
+		workspace
+	});
+	const items = [
+		item('lead', null, true),
+		item('step', 'lead'),
+		item('detail', 'step'),
+		item('child', 'step', true),
+		item('childs-own', 'child'),
+		item('elsewhere', null)
+	];
+
+	it('keeps what is under the workspace, down to its child agents, not into them', () => {
+		expect(scopeItems(items, 'lead').map(({ id }) => id)).toEqual(['step', 'detail', 'child']);
+	});
+
+	it('gives a child agent a scope of its own', () => {
+		expect(scopeItems(items, 'child').map(({ id }) => id)).toEqual(['childs-own']);
+		expect(scopeItems(items, 'elsewhere')).toEqual([]);
 	});
 });

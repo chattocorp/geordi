@@ -302,3 +302,24 @@ export function outlineRows<T extends OutlineEntry>(
 	}
 	return unfolded(nested(shown), folded);
 }
+
+/**
+ * A workspace's scope (FDR-019), from the outline's items: what is under its item, down to
+ * the next items with workspaces of their own, which are in it (its child agents) but not
+ * what is under them.
+ */
+export function scopeItems<T extends OutlineEntry>(items: T[], root: string): T[] {
+	const byId = new Map(items.map((item) => [item.id, item]));
+	return items.filter((item) => {
+		const seen = new Set<string>();
+		let parent = item.parentId;
+		while (parent && !seen.has(parent)) {
+			if (parent === root) return true;
+			seen.add(parent);
+			const above = byId.get(parent);
+			if (!above || above.workspace) return false;
+			parent = above.parentId;
+		}
+		return false;
+	});
+}
