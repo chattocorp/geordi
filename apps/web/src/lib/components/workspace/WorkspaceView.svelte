@@ -356,7 +356,7 @@
 		const terminal = JOB_TERMINAL + job;
 		const ended = workspace.finished[terminal];
 		if (workspace.terminals.includes(terminal) && ended !== undefined) return { ended };
-		if (launching.has(job)) return 'starting';
+		if (workspace.startingJobs.includes(job) || openingLinks.has(job)) return 'starting';
 		return isUp(job) ? 'running' : 'stopped';
 	}
 	const labelOf = (task: string) => tasks.find((other) => other.name === task)?.label ?? task;
@@ -417,8 +417,8 @@
 		then();
 	}
 
-	/** The tasks that were asked for and are on their way up: until they listen on their ports. */
-	const launching = new SvelteMap<string, symbol>();
+	/** Requested links without a command stay busy until their URL answers. */
+	const openingLinks = new SvelteMap<string, symbol>();
 
 	let blocked = $state<{
 		workspaceId: string;
@@ -436,12 +436,12 @@
 
 	async function stop(job: string) {
 		const affected = [job, ...dependentsOf(tasks, job)];
-		const pending = affected.map((name) => [name, launching.get(name)] as const);
+		const pending = affected.map((name) => [name, openingLinks.get(name)] as const);
 		try {
 			await stopJob({ workspaceId: id, job });
 			for (const [name, launch] of pending) {
-				if (launching.get(name) !== launch) continue;
-				launching.delete(name);
+				if (openingLinks.get(name) !== launch) continue;
+				openingLinks.delete(name);
 				showWhenThere.delete(name);
 			}
 		} catch (error) {
@@ -482,9 +482,11 @@
 				if (leads && !('geordiDesktop' in globalThis))
 					tabs.set(name, globalThis.open('about:blank', '_blank'));
 			}
-			const booting = startOrder(tasks, names).filter((name) => !isUp(name));
+			const links = names.filter(
+				(name) => tasks.find((task) => task.name === name)?.command === null
+			);
 			const launch = Symbol();
-			for (const name of booting) launching.set(name, launch);
+			for (const name of links) openingLinks.set(name, launch);
 			mergeProblem = null;
 			try {
 				const results = await runTasks({ workspaceId, tasks: names, seen, confirmation });
@@ -523,7 +525,7 @@
 				showWhenThere.delete(names[0]);
 			} finally {
 				for (const tab of tabs.values()) tab?.close();
-				for (const name of booting) if (launching.get(name) === launch) launching.delete(name);
+				for (const name of links) if (openingLinks.get(name) === launch) openingLinks.delete(name);
 			}
 		});
 	}

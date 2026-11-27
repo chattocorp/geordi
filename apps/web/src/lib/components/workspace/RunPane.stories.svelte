@@ -176,6 +176,10 @@
 		]);
 		// pointing at a task shows what it needs, and what that needs in turn
 		const row = (name: string) => canvas.getByRole('button', { name }).closest('div')!;
+		await expect(within(row('Run Web server')).getByRole('img', { name: 'Running' })).toBeVisible();
+		await expect(
+			within(row('Run Agent daemon')).getByRole('img', { name: 'Starting' })
+		).toBeVisible();
 		await userEvent.hover(row('Open Geordi'));
 		for (const name of ['Run Agent daemon', 'Run Web server'])
 			await expect(row(name)).toHaveClass('bg-hover');
