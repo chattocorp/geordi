@@ -99,8 +99,6 @@
 					.filter((other) => other.parentId === workspace.id)
 					.map(asker)
 					.find((found) => found);
-	/** The parent of the workspace the pointer is on: lit up, to show who it belongs to. */
-	let pointedAt = $state<string | null>(null);
 
 	/** The colour of what to do next, from how the workspace stands: as in its ribbon. */
 	const actionTone = (standing: WorkspaceStanding | null): MenuTone =>
@@ -333,7 +331,6 @@
 				<Outline
 					{rows}
 					{folded}
-					{pointedAt}
 					{trail}
 					{back}
 					root={trail.at(-1)?.id ?? null}
@@ -409,7 +406,7 @@
 			{current}
 			{leaving}
 			{dragging}
-			highlighted={pointedAt === workspace.id || target}
+			highlighted={target}
 			unread={unread.has(workspace.id)}
 			asking={asking ? resolve('/workspaces/[id]', { id: asking.id }) : false}
 			waiting={workspace.waiting}
@@ -424,7 +421,6 @@
 			actions={workspace.actions}
 			{fold}
 			foldAside
-			onpoint={(pointed) => (pointedAt = pointed ? (parent?.id ?? null) : null)}
 			onaction={busy || leaving ? undefined : (action) => actFromAfar(workspace, action)}
 		/>
 	</div>
