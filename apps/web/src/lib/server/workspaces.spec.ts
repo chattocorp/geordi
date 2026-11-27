@@ -1414,6 +1414,37 @@ describe('the outline of items (FDR-019)', () => {
 		expect(() => workspaces.removeItem(folder)).toThrow(refusal(/archived, not removed/));
 	});
 
+	it('clears what was ticked off right under a workspace when it carries on, and nothing else', () => {
+		const { workspaces, create } = setup();
+		const lead = create('Lead');
+		const item = (text: string, parentId = lead, done = false) => {
+			const id = workspaces.addItem({ parentId, before: null, text });
+			if (done) workspaces.completeItem(id, true);
+			return id;
+		};
+		const shipped = item('Shipped', lead, true);
+		item('With its details', shipped, true);
+		const open = item('Still to do');
+		const halfDone = item('Ticked, with something open under it', lead, true);
+		item('Open', halfDone);
+		const doneUnderOpen = item('Done, under what is still to do', open, true);
+		// a child's items are the child's, ticked off or not
+		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
+		const childsDone = item('The child did this', child, true);
+		const holder = item('Ticked, with a workspace under it', lead, true);
+		workspaces.move(
+			workspaces.agents.start(lead, { worktree: 'own', prompt: 'More' }).id,
+			null,
+			holder
+		);
+
+		workspaces.continued(lead, 'geordi/lead-2');
+		const left = new Set(workspaces.outline().items.keys());
+		expect(left.has(shipped)).toBe(false);
+		for (const kept of [open, halfDone, doneUnderOpen, child, childsDone, holder])
+			expect(left.has(kept)).toBe(true);
+	});
+
 	it('starts a workspace on an item written down earlier', () => {
 		const { workspaces, repo, create } = setup();
 		const lead = create('Lead');
