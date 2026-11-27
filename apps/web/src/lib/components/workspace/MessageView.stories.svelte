@@ -42,6 +42,7 @@
 
 <script lang="ts">
 	let working = $state(true);
+	let steered = $state(false);
 	let planFinished = $state(false);
 	let blocks = $state<Block[]>(history);
 	let queue = $state(['Please check the tests.']);
@@ -397,7 +398,6 @@
 			'https://example.com/review'
 		);
 		const user = userEvent.setup();
-		await user.click(canvas.getByRole('button', { name: /Turn activity/ }));
 		const buttons = await canvas.findAllByRole('button', { name: 'Copy message' });
 		for (const [index, text] of [prompt, progress, reply, queued].entries()) {
 			await user.click(buttons[index]);
@@ -460,22 +460,20 @@
 		const progress = 'I’ll check the changes.';
 		await waitFor(() => expect(canvas.getByText(progress)).toBeVisible());
 		await expect(canvas.getByRole('img', { name: 'Agent working' })).toBeVisible();
-		await userEvent.click(canvas.getByRole('button', { name: 'Finish turn' }));
-		await expect(canvas.queryByRole('img', { name: 'Agent working' })).toBeNull();
-		const activity = await canvas.findByRole('button', {
-			name: /Turn activity.*1 message.*1 tool call/
-		});
-		await expect(canvas.queryByText(progress)).toBeNull();
-		await expect(canvas.getByText('The checks passed.')).toBeVisible();
-		await userEvent.click(activity);
+		await userEvent.click(canvas.getByRole('button', { name: 'Steer' }));
+		await waitFor(() => expect(canvas.getByText('Please check the tests too.')).toBeVisible());
 		await expect(canvas.getByText(progress)).toBeVisible();
+		await userEvent.click(canvas.getByRole('button', { name: 'Finish turn' }));
+		await waitFor(() => expect(canvas.getByText('The checks passed.')).toBeVisible());
+		await expect(canvas.queryByRole('img', { name: 'Agent working' })).toBeNull();
+		await expect(canvas.getByText(progress)).toBeVisible();
+		await expect(canvas.getByText('I’ll run the tests too.')).toBeVisible();
 		await expect(canvas.getByText('Tool calls').closest('summary')).toBeVisible();
-		await userEvent.keyboard('{Enter}');
-		await expect(canvas.queryByText(progress)).toBeNull();
 	}}
 >
 	<div class="space-y-3">
-		<Button onclick={() => (working = false)}>Finish turn</Button>
+		<Button onclick={() => (steered = true)}>Steer</Button>
+		<Button onclick={() => (working = false)} disabled={!steered}>Finish turn</Button>
 		<div class="flex h-96 flex-col sheet overflow-hidden">
 			<MessageView
 				blocks={[
@@ -496,10 +494,21 @@
 										at: '2026-11-18T12:00:00Z'
 									}
 								]
-							},
-							{ kind: 'text', text: 'The checks passed.' }
+							}
 						]
-					}
+					},
+					...(steered
+						? ([
+								{ kind: 'user', text: 'Please check the tests too.' },
+								{
+									kind: 'agent',
+									parts: [
+										{ kind: 'text', text: 'I’ll run the tests too.' },
+										...(!working ? [{ kind: 'text', text: 'The checks passed.' } as const] : [])
+									]
+								}
+							] satisfies Block[])
+						: [])
 				]}
 				agent="codex"
 				running={working}
@@ -1086,7 +1095,7 @@
 	asChild
 	play={async ({ canvas }) => {
 		const cursor = await canvas.findByRole('img', { name: 'Agent working' });
-		const tools = canvas.getAllByRole('img', { name: 'shell' });
+		const tools = canvas.getAllByRole('img', { name: 'shell git status' });
 		const lastTool = tools[tools.length - 1];
 		await expect(
 			cursor.getBoundingClientRect().left - lastTool.getBoundingClientRect().right

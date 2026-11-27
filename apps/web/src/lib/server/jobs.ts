@@ -26,13 +26,14 @@ type Task = RepoConfig['tasks'][number];
 export type Outcome = {
 	href?: string;
 	problem?: string;
+	stopped?: true;
 	conflict?: PortConflict & { job: string };
 };
 
 /**
  * Runs and stops the tasks a repository has for a workspace (FDR-006), in the order they
  * need each other. Their commands are terminals, which live in the daemon: this only says
- * which to start when, and keeps nothing.
+ * which to start when, and tracks launches until they settle.
  */
 export function createJobs(
 	terminals: ReturnType<typeof createTerminals>,
@@ -43,6 +44,9 @@ export function createJobs(
 		workspaceId,
 		terminal: JOB_TERMINAL + job
 	});
+
+	/** Stop also wakes launches waiting for prerequisites, port checks, or a URL. */
+	const launches = new Set<{ workspaceId: string; stop: (name: string) => void }>();
 
 	/** The workspace's configuration as the daemon reads it now. */
 	async function configOf(workspaceId: string): Promise<RepoConfig> {
@@ -100,50 +104,79 @@ export function createJobs(
 			names: string[],
 			seen: Record<string, string>,
 			confirmation?: string
-		) {
-			const { tasks } = await configOf(workspaceId);
-			const byName = new Map(tasks.map((task) => [task.name, task]));
+		): Promise<Array<Outcome & { name: string }>> {
 			const pending = new Map<string, Promise<Outcome>>();
-			function launch(name: string): Promise<Outcome> {
-				const running = pending.get(name);
-				if (running) return running;
-				const result = execute(name).catch((cause) => ({
-					problem: problemOf(cause, `Could not run ${name}`)
-				}));
-				pending.set(name, result);
-				return result;
-			}
-			async function execute(name: string): Promise<Outcome> {
-				const task = byName.get(name);
-				if (!task) return { problem: `There is no task "${name}" any more` };
-				const dependencies = await Promise.all(task.needs.map(launch));
-				const failed = dependencies.find((result) => result.problem || result.conflict);
-				if (failed) return failed;
-				if (task.command === null) return {};
-				if (task.command !== seen[name] || !task.approved)
-					return { problem: `Review the command for ${task.label ?? name} and run it again` };
-				const at = terminalOf(workspaceId, name);
-				if (!terminals.isRunning(at)) {
-					const taken = await ask({
-						kind: 'jobPort',
-						...ref(workspaceId),
-						job: name,
-						confirmation
-					});
-					if (taken) return { conflict: { ...taken, job: task.label ?? name } };
-					terminals.start(at, SIZE, { job: name, command: task.command });
+			const waits = new Map<string, ReturnType<typeof Promise.withResolvers<Outcome>>>();
+			const stopped = new Set<string>();
+			const launchRequest = {
+				workspaceId,
+				stop(name: string) {
+					stopped.add(name);
+					waits.get(name)?.resolve({ stopped: true });
 				}
-				await up(workspaceId, task);
-				return {};
-			}
-			return Promise.all(
-				[...new Set(names)].map(async (name) => {
-					const outcome = await launch(name);
+			};
+			launches.add(launchRequest);
+			try {
+				const { tasks } = await configOf(workspaceId);
+				const byName = new Map(tasks.map((task) => [task.name, task]));
+				function launch(name: string): Promise<Outcome> {
+					const running = pending.get(name);
+					if (running) return running;
+					const wait = Promise.withResolvers<Outcome>();
+					waits.set(name, wait);
+					const result = Promise.race([wait.promise, execute(name)]).catch((cause) => ({
+						problem: problemOf(cause, `Could not run ${name}`)
+					}));
+					pending.set(name, result);
+					return result;
+				}
+				async function execute(name: string): Promise<Outcome> {
 					const task = byName.get(name);
-					if (outcome.problem || outcome.conflict || !task?.href) return { name, ...outcome };
-					return { name, ...(await reach(task, task.href)) };
-				})
-			);
+					if (stopped.has(name)) return { stopped: true };
+					if (!task) return { problem: `There is no task "${name}" any more` };
+					const dependencies = await Promise.all(task.needs.map(launch));
+					if (stopped.has(name)) return { stopped: true };
+					const failed = dependencies.find(
+						(result) => result.stopped || result.problem || result.conflict
+					);
+					if (failed) return failed;
+					if (task.command === null) return {};
+					if (task.command !== seen[name] || !task.approved)
+						return { problem: `Review the command for ${task.label ?? name} and run it again` };
+					const at = terminalOf(workspaceId, name);
+					if (!terminals.isRunning(at)) {
+						const taken = await ask({
+							kind: 'jobPort',
+							...ref(workspaceId),
+							job: name,
+							confirmation
+						});
+						if (stopped.has(name)) return { stopped: true };
+						if (taken) return { conflict: { ...taken, job: task.label ?? name } };
+						terminals.start(at, SIZE, { job: name, command: task.command });
+					}
+					await up(workspaceId, task);
+					return {};
+				}
+				const results = await Promise.all(
+					[...new Set(names)].map(async (name) => {
+						const outcome = await launch(name);
+						const task = byName.get(name);
+						if (stopped.has(name) || outcome.stopped) return { name, stopped: true as const };
+						if (outcome.problem || outcome.conflict || !task?.href) return { name, ...outcome };
+						return {
+							name,
+							...(await Promise.race([waits.get(name)!.promise, reach(task, task.href)]))
+						};
+					})
+				);
+				return results.map((result) =>
+					stopped.has(result.name) ? { name: result.name, stopped: true as const } : result
+				);
+			} finally {
+				// A stopped task can still have prerequisites starting independently.
+				void Promise.allSettled(pending.values()).then(() => launches.delete(launchRequest));
+			}
 		},
 
 		/** Runs the setup script again, as `command`: the one the person asking saw. */
@@ -155,8 +188,10 @@ export function createJobs(
 		/** Stops a task, and the tasks that can't go on without it. */
 		async stop(workspaceId: string, name: string) {
 			const { tasks } = await configOf(workspaceId);
-			for (const task of [name, ...dependentsOf(tasks, name)])
+			for (const task of [name, ...dependentsOf(tasks, name)]) {
+				for (const launch of launches) if (launch.workspaceId === workspaceId) launch.stop(task);
 				terminals.close(terminalOf(workspaceId, task));
+			}
 		}
 	};
 }

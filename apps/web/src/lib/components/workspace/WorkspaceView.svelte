@@ -48,6 +48,7 @@
 		CONFIG_FILE,
 		JOB_TERMINAL,
 		SCRIPTS,
+		dependentsOf,
 		startOrder,
 		type PortConflict,
 		type Script
@@ -417,7 +418,7 @@
 	}
 
 	/** The tasks that were asked for and are on their way up: until they listen on their ports. */
-	const launching = new SvelteSet<string>();
+	const launching = new SvelteMap<string, symbol>();
 
 	let blocked = $state<{
 		workspaceId: string;
@@ -433,7 +434,20 @@
 		arrange({ [at]: open(layouts[at], front) });
 	}
 
-	const stop = (job: string) => stopJob({ workspaceId: id, job }).catch(() => {});
+	async function stop(job: string) {
+		const affected = [job, ...dependentsOf(tasks, job)];
+		const pending = affected.map((name) => [name, launching.get(name)] as const);
+		try {
+			await stopJob({ workspaceId: id, job });
+			for (const [name, launch] of pending) {
+				if (launching.get(name) !== launch) continue;
+				launching.delete(name);
+				showWhenThere.delete(name);
+			}
+		} catch (error) {
+			mergeProblem = problemOf(error, 'Could not stop the task');
+		}
+	}
 
 	/** Links that were ready when no tab could be opened for them: offered in the Tasks tab. */
 	const readyLinks = new SvelteMap<string, string>();
@@ -469,12 +483,13 @@
 					tabs.set(name, globalThis.open('about:blank', '_blank'));
 			}
 			const booting = startOrder(tasks, names).filter((name) => !isUp(name));
-			for (const name of booting) launching.add(name);
+			const launch = Symbol();
+			for (const name of booting) launching.set(name, launch);
 			mergeProblem = null;
 			try {
 				const results = await runTasks({ workspaceId, tasks: names, seen, confirmation });
 				// its terminal may be reported after this: it stays asked for, unless it did not start
-				if (results.some((result) => result.problem || result.conflict))
+				if (results.some((result) => result.stopped || result.problem || result.conflict))
 					showWhenThere.delete(names[0]);
 				const problems = new SvelteSet<string>();
 				for (const { name, href, problem } of results) {
@@ -508,7 +523,7 @@
 				showWhenThere.delete(names[0]);
 			} finally {
 				for (const tab of tabs.values()) tab?.close();
-				for (const name of booting) launching.delete(name);
+				for (const name of booting) if (launching.get(name) === launch) launching.delete(name);
 			}
 		});
 	}
