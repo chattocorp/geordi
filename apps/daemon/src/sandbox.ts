@@ -17,12 +17,16 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
-import { permissionModeOf } from '@geordi/protocol';
+import { join, resolve, sep } from 'node:path';
 import type { SessionOptions } from './agents/adapter.ts';
 
 const SANDBOX_EXEC = '/usr/bin/sandbox-exec';
 const BWRAP = 'bwrap';
+/**
+ * The whole system as it is, but with processes of its own: through another process's
+ * `/proc/<pid>/root`, an agent would see the system without the sandbox's covers.
+ */
+const BWRAP_BASE = ['--dev-bind', '/', '/', '--unshare-pid', '--proc', '/proc'];
 
 /** Guarded places, per system: mounted drives, and private folders in the home folder. */
 const GUARDED: Partial<Record<NodeJS.Platform, { mounts: string[]; home: string[] }>> = {
@@ -65,8 +69,7 @@ export function canSandbox(): boolean {
 		process.platform === 'darwin'
 			? existsSync(SANDBOX_EXEC)
 			: process.platform === 'linux' &&
-				spawnSync(BWRAP, ['--dev-bind', '/', '/', 'true'], { stdio: 'ignore', timeout: 5000 })
-					.status === 0;
+				spawnSync(BWRAP, [...BWRAP_BASE, 'true'], { stdio: 'ignore', timeout: 5000 }).status === 0;
 	return available;
 }
 
@@ -90,9 +93,8 @@ export function sandboxPaths(options: SessionOptions, home: string, platform = p
 		options.cwd,
 		options.dir,
 		...options.writableRoots,
-		...(options.worktree
-			? [options.worktree.path, dirname(options.worktree.commonDir), options.worktree.commonDir]
-			: [])
+		...(options.repoPath ? [options.repoPath] : []),
+		...(options.worktree ? [options.worktree.path, options.worktree.commonDir] : [])
 	].map(real);
 	return { deny: [...new Set(deny)], allow: [...new Set(allow)] };
 }
@@ -137,9 +139,7 @@ export function bubblewrap({ deny, allow }: Paths, { file, args }: Command): Com
 	return {
 		file: BWRAP,
 		args: [
-			'--dev-bind',
-			'/',
-			'/',
+			...BWRAP_BASE,
 			...covered.flatMap((path) => ['--tmpfs', path]),
 			...kept.flatMap((path) => ['--bind', path, path]),
 			...covered.flatMap((path) => ['--remount-ro', path]),
@@ -151,21 +151,20 @@ export function bubblewrap({ deny, allow }: Paths, { file, args }: Command): Com
 }
 
 /**
- * The command that starts `file` with `args`: in the sandbox where the session's mode asks
- * for one, otherwise as it is. A workspace that never chose a mode is sandboxed where that
- * is possible. One that chose the sandbox where there is none is refused before it gets
- * here (`turn-starts.ts`); never is it started without.
+ * The command that starts `file` with `args`: in the sandbox if the session's mode is the
+ * sandboxed one, otherwise as it is. The daemon has decided the mode (`turn-starts.ts`):
+ * a session that is to be sandboxed is never started without, and if the sandbox fails to
+ * start, so does its turn.
  */
 export function sandboxed(
 	file: string,
 	args: string[],
 	options: SessionOptions,
 	platform = process.platform,
-	home = process.env.HOME,
-	possible = canSandbox()
+	home = process.env.HOME
 ): Command {
-	if (permissionModeOf(options.settings, possible) !== 'sandboxed') return { file, args };
-	if (!possible || !home) throw new Error(NO_SANDBOX);
+	if (options.settings.permissionMode !== 'sandboxed') return { file, args };
+	if (!home || (platform !== 'darwin' && platform !== 'linux')) throw new Error(NO_SANDBOX);
 	const paths = sandboxPaths(options, home, platform);
 	return (platform === 'darwin' ? seatbelt : bubblewrap)(paths, { file, args });
 }

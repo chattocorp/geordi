@@ -60,11 +60,9 @@
 			efforts,
 			effort,
 			permissionModes,
-			// what was chosen, if this computer can run the agent so (FDR-017)
-			permissionMode:
-				wanted.permissionMode && permissionModes.includes(wanted.permissionMode)
-					? wanted.permissionMode
-					: defaultPermissionMode(permissionModes)
+			// What was chosen stays chosen where the agent's computer can't run it so (FDR-017):
+			// its turns are refused, rather than run with more permissions than were chosen.
+			permissionMode: wanted.permissionMode ?? defaultPermissionMode(permissionModes)
 		};
 	}
 </script>
@@ -223,7 +221,13 @@
 			{ value: 'sandboxed', label: 'Full Permissions (Sandboxed)' },
 			{ value: 'full-access', label: 'Full Permissions' }
 		] satisfies SelectOption<PermissionMode>[]
-	).filter((option) => permissionModes.includes(option.value))}
+	)
+		.filter((option) => permissionModes.includes(option.value) || option.value === permissionMode)
+		.map((option) =>
+			permissionModes.includes(option.value)
+				? option
+				: { ...option, label: `${option.label} · unavailable` }
+		)}
 	bind:value={() => permissionMode, (value) => set(harness.agent, { permissionMode: value })}
 >
 	{#snippet icon(option)}

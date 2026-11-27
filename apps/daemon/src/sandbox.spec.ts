@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { SessionOptions } from './agents/adapter.ts';
-import type { PermissionMode } from '@geordi/protocol';
+import { permissionModeOf, type PermissionMode } from '@geordi/protocol';
 import { bubblewrap, canSandbox, sandboxed, sandboxPaths, seatbelt } from './sandbox.ts';
 
 const home = realpathSync(mkdtempSync(join(tmpdir(), 'geordi-sandbox-')));
@@ -16,46 +16,71 @@ writeFileSync(join(repo, 'README'), 'mine to read');
 writeFileSync(join(home, 'Downloads', 'private'), 'not for agents');
 writeFileSync(join(home, 'Documents', 'private'), 'not for agents');
 
-const options = (permissionMode?: PermissionMode) =>
+const options = (permissionMode?: PermissionMode, more: Partial<SessionOptions> = {}) =>
 	({
 		cwd: repo,
 		dir: join(home, 'session'),
 		writableRoots: [],
-		settings: permissionMode ? { permissionMode } : {}
+		settings: permissionMode ? { permissionMode } : {},
+		...more
 	}) as unknown as SessionOptions;
 
-const start = (mode: PermissionMode | undefined, platform: NodeJS.Platform, possible: boolean) =>
-	sandboxed('agent', ['acp'], options(mode), platform, home, possible);
+const start = (mode: PermissionMode | undefined, platform: NodeJS.Platform) =>
+	sandboxed('agent', ['acp'], options(mode), platform, home);
+
+describe('the permission mode', () => {
+	it('is sandboxed for a workspace that never chose, where the computer can sandbox', () => {
+		expect(permissionModeOf({}, true)).toBe('sandboxed');
+		expect(permissionModeOf({}, false)).toBe('full-access');
+		expect(permissionModeOf({ permissionMode: 'auto' }, true)).toBe('auto');
+	});
+});
 
 describe('sandboxed', () => {
-	it('sandboxes the sandboxed mode, and a workspace that never chose, where it can', () => {
-		for (const mode of ['sandboxed', undefined] as const) {
-			expect(start(mode, 'darwin', true).file).toBe('/usr/bin/sandbox-exec');
-			expect(start(mode, 'linux', true).file).toBe('bwrap');
-		}
+	it('sandboxes the sandboxed mode', () => {
+		expect(start('sandboxed', 'darwin').file).toBe('/usr/bin/sandbox-exec');
+		expect(start('sandboxed', 'linux').file).toBe('bwrap');
 	});
 
 	it('leaves the other modes alone', () => {
 		const plain = { file: 'agent', args: ['acp'] };
-		for (const platform of ['darwin', 'linux'] as const) {
-			expect(start('auto', platform, true)).toEqual(plain);
-			expect(start('full-access', platform, true)).toEqual(plain);
+		for (const platform of ['darwin', 'linux', 'win32'] as const) {
+			expect(start('auto', platform)).toEqual(plain);
+			expect(start('full-access', platform)).toEqual(plain);
 		}
 	});
 
-	it('runs a workspace that never chose with full permissions where there is no sandbox', () => {
-		expect(start(undefined, 'win32', false)).toEqual({ file: 'agent', args: ['acp'] });
-	});
-
 	it('never starts the sandboxed mode without its sandbox', () => {
-		expect(() => start('sandboxed', 'win32', false)).toThrow(/can’t sandbox/);
+		expect(() => start('sandboxed', 'win32')).toThrow(/can’t sandbox/);
 	});
+});
 
+describe.skipIf(process.platform === 'win32')('sandboxPaths', () => {
 	it('allows where the agent works, even inside a guarded place', () => {
 		const { deny, allow } = sandboxPaths(options('sandboxed'), home, 'darwin');
 		expect(deny).toContain(join(home, 'Documents'));
 		expect(deny).toContain('/Volumes');
 		expect(allow).toContain(repo);
+	});
+
+	it('allows the repository and its Git directory, not the folder they are in', () => {
+		const gitDir = join(home, 'Documents', 'project.git');
+		const { allow } = sandboxPaths(
+			options('sandboxed', {
+				repoPath: join(home, 'Documents', 'project'),
+				worktree: {
+					path: repo,
+					branch: 'b',
+					adminDir: join(gitDir, 'worktrees', 'r'),
+					commonDir: gitDir
+				}
+			}),
+			home,
+			'darwin'
+		);
+		expect(allow).toContain(gitDir);
+		expect(allow).toContain(join(home, 'Documents', 'project'));
+		expect(allow).not.toContain(join(home, 'Documents'));
 	});
 });
 
@@ -71,14 +96,19 @@ describe('seatbelt', () => {
 
 describe('bubblewrap', () => {
 	it('covers guarded places that exist, puts back what is allowed inside them, then makes the covers read-only', () => {
-		const paths = sandboxPaths(options('sandboxed'), home, 'linux');
-		const { args } = bubblewrap(paths, { file: 'agent', args: ['acp'] });
 		const documents = join(home, 'Documents');
 		const downloads = join(home, 'Downloads');
-		expect(args).toEqual([
+		const paths = {
+			deny: [documents, downloads, join(home, 'Missing')],
+			allow: [repo, join(home, 'session')]
+		};
+		expect(bubblewrap(paths, { file: 'agent', args: ['acp'] }).args).toEqual([
 			'--dev-bind',
 			'/',
 			'/',
+			'--unshare-pid',
+			'--proc',
+			'/proc',
 			'--tmpfs',
 			documents,
 			'--tmpfs',
@@ -107,6 +137,11 @@ describe.runIf(canSandbox())(`the sandbox on ${process.platform}`, () => {
 		for (const path of [join(home, 'Downloads', 'private'), join(home, 'Documents', 'private')])
 			expect(run('/bin/cat', path).status).not.toBe(0);
 		expect(run('/bin/sh', '-c', `echo x > ${join(home, 'Downloads', 'new')}`).status).not.toBe(0);
+	});
+
+	it.runIf(process.platform === 'linux')('keeps them out of reach through other processes', () => {
+		const through = `/proc/${process.pid}/root${join(home, 'Downloads', 'private')}`;
+		expect(run('/bin/cat', through).status).not.toBe(0);
 	});
 
 	it('allows the repository, its writes, and everything else', () => {

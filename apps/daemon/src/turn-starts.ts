@@ -1,5 +1,10 @@
 import { inWorktree } from './worktree-queue.ts';
-import { sameAgentSettings, type ForgeMessage, type AgentEvent } from '@geordi/protocol';
+import {
+	permissionModeOf,
+	sameAgentSettings,
+	type ForgeMessage,
+	type AgentEvent
+} from '@geordi/protocol';
 import {
 	ensureWorktree,
 	fetchUpstream,
@@ -40,7 +45,13 @@ export function turnStarts({
 }) {
 	const beginning = new Map<string, { cwd: string; heard: Said[]; stop(): void }>();
 	async function startMessage(message: Message) {
-		const { workspaceId, worktreeId, agent, settings } = message;
+		const { workspaceId, worktreeId, agent } = message;
+		// The mode decided here, once: a workspace that never chose is sandboxed where this
+		// computer can (FDR-017), and a running session is compared with what it would be now.
+		const settings = {
+			...message.settings,
+			permissionMode: permissionModeOf(message.settings, canSandbox())
+		};
 		const emit = emitFor(workspaceId);
 		const said: Said = {
 			prompt: message.prompt,
@@ -157,6 +168,7 @@ export function turnStarts({
 					identify: message.identify,
 					cwd: worktree.path,
 					...(!project && { worktree }),
+					...('repoPath' in message && { repoPath: message.repoPath }),
 					writableRoots: project ? [] : worktree.writableRoots,
 					api: { url: apiUrl }
 				};

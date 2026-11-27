@@ -62,6 +62,18 @@
 	<HarnessPicker {harnesses} {choice} onchange={(next) => (choice = next)} />
 </Story>
 
+<!-- a workspace set to Sandboxed, on a computer that can't sandbox agents: kept, and marked -->
+<Story name="Picker with an unavailable mode" asChild>
+	<HarnessPicker
+		harnesses={harnesses.map((harness) => ({
+			...harness,
+			permissionModes: ['auto', 'full-access']
+		}))}
+		choice={{ agent: 'claude', settings: { claude: { permissionMode: 'sandboxed' } } }}
+		onchange={() => {}}
+	/>
+</Story>
+
 <!-- on a computer that can't sandbox agents (Windows): no Sandboxed mode, Full Permissions by default -->
 <Story name="Picker without a sandbox" asChild>
 	<HarnessPicker

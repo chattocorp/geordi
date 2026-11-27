@@ -16,6 +16,8 @@ export type SessionOptions = {
 	 * let a sandboxed agent run code outside its sandbox.
 	 */
 	writableRoots: string[];
+	/** The repository's own checkout, which a sandboxed agent may reach wherever it is (FDR-017). */
+	repoPath?: string;
 	/** The CLI's own ID of the conversation so far; `null` if this is its beginning. */
 	resumeId: string | null;
 	/** Which model to run, and how hard it should think; the CLI decides what is absent. */

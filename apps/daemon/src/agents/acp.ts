@@ -344,6 +344,12 @@ export function connectAgent(
 			cwd: options.cwd,
 			...(provider === 'codex' &&
 				selected === 'auto' && { additionalDirectories: options.writableRoots }),
+			// Claude Code's own sandbox can't start inside Geordi's (FDR-017): every command
+			// would fail. Geordi's keeps it out of private places instead.
+			...(provider === 'claude' &&
+				selected === 'sandboxed' && {
+					_meta: { claudeCode: { options: { sandbox: { enabled: false } } } }
+				}),
 			mcpServers:
 				provider === 'claude' && options.api && token
 					? [

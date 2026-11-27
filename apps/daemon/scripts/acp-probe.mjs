@@ -96,6 +96,12 @@ try {
 			{ mode: 0o700 }
 		);
 	}
+	if (scenario === 'sandbox' && agent === 'claude') {
+		// Claude Code's own sandbox, switched on as a person may have: it can't start inside
+		// Geordi's, which turns it off (FDR-017).
+		mkdirSync(join(cwd, '.claude'));
+		writeFileSync(join(cwd, '.claude', 'settings.json'), '{"sandbox":{"enabled":true}}');
+	}
 	if (scenario === 'commands') {
 		// A skill of the workspace's own, which both agents list among their commands.
 		const skill = join(cwd, agent === 'codex' ? '.agents' : '.claude', 'skills', 'geordi-probe');

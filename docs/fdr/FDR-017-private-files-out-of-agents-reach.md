@@ -15,11 +15,11 @@ Agents look around a computer freely: they list folders, probe for tools, and ru
   - **Full Permissions:** the agent may do anything at all. Choose it for work that needs a drive or Downloads, such as testing on a phone attached by USB.
 - Full Permissions (Sandboxed) is offered only where the agent's computer can sandbox it: on macOS, and on Linux with bubblewrap installed and allowed to run. Elsewhere, Windows among them, the picker leaves it out and Full Permissions is the default.
 - A workspace that chose Full Access before keeps it, as **Full Permissions**. One that never chose gets the default of the computer it runs on.
-- A workspace set to the sandboxed mode never runs without the sandbox: on a computer that can't provide one, its turn fails and says so.
+- A workspace set to the sandboxed mode never runs without the sandbox. On a computer that can't provide one, the picker still shows the mode, marked as unavailable there, and its turns fail and say so. Geordi doesn't quietly switch it to Full Permissions.
 - In **Full Permissions (Sandboxed)** on macOS, an agent and everything it runs can't read or write external drives, mounted volumes, your Desktop, Documents and Downloads, iCloud Drive, or the libraries of Photos, Mail, Messages, Contacts and Calendar.
 - An attempt fails with a normal "Operation not permitted". The agent sees the error and carries on. No macOS prompt appears.
-- On Linux, an agent can't see what is in mounted drives (`/media`, `/mnt`, `/run/media`) or in your Desktop, Documents, Downloads, Music, Pictures and Videos folders: they look empty, and writing there fails.
-- The repository an agent works on is always reachable, wherever it lives, even on an external drive or in Documents. So are its worktrees and the folders Geordi gives the agent to write to.
+- On Linux, an agent can't see what is in mounted drives (`/media`, `/mnt`, `/run/media`) or in your Desktop, Documents, Downloads, Music, Pictures and Videos folders: they look empty, and writing there fails. It also sees only its own processes, so it can't look at the system through theirs.
+- The repository an agent works on is always reachable, wherever it lives, even on an external drive or in Documents. So are its Git directory, its worktrees and the folders Geordi gives the agent to write to. Nothing else next to them is.
 - Everything else works as before: the agent's own configuration, tool caches, `git`, `gh`, package managers, the network.
 - To give an agent a file from a protected place, attach it to your message, or copy it into the worktree.
 - Your own terminals and the tasks you agreed to run are yours, and not restricted.
@@ -40,7 +40,7 @@ Agents look around a computer freely: they list folders, probe for tools, and ru
 
 ### 3. Not in Auto Mode
 
-**Decision:** Auto Mode doesn't use Geordi's sandbox.
+**Decision:** Auto Mode doesn't use Geordi's sandbox. In the sandboxed mode, Geordi switches off Claude Code's own sandbox, should your settings switch it on.
 **Why:** A process in a macOS sandbox can't start another one (on Linux, bubblewrap can nest). Live tests (2026-11-27) showed that Codex in its own sandbox (Geordi's Auto Mode), and Claude Code with its sandbox switched on, can't run any command under Geordi's. Codex and Claude Code with full permissions work, and the protected places fail quietly.
 **Tradeoff:** In Auto Mode, an agent can still cause a prompt, though its own sandbox limits what it does.
 
@@ -70,4 +70,5 @@ Agents look around a computer freely: they list folders, probe for tools, and ru
 ## Open Questions
 
 - **Which list exactly.** The places above are the ones macOS guards today. Network volumes and new privacy categories may need adding. Each one is a single path in the profile.
+- **Folders that don't exist yet, on Linux.** A guarded folder that is missing when the agent starts isn't covered, because covering it would create it. An agent could create it, and see what another program puts there while the agent runs.
 - **sandbox-exec is deprecated.** Apple has deprecated it but still ships it. Chrome, Codex and Claude Code rely on the same mechanism, so it's unlikely to disappear without a replacement.
