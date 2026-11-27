@@ -87,7 +87,8 @@
 	}
 </script>
 
-<!-- the whole row is the item: the link, and what appears beside it on hover -->
+<!-- the whole row is the item: the link, and what appears beside it on hover. A long title
+     wraps, as an item's text does: what is beside it stays level with its first line -->
 <div
 	class={[
 		'group relative item pr-1 text-base',
@@ -108,7 +109,7 @@
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- caller passes a resolved URL -->
 		<a
 			href={parentHref}
-			class="ml-1.5 grid size-5 shrink-0 place-items-center rounded-control text-faint hover:text-ink focus-visible:text-ink"
+			class="mt-1.5 ml-1.5 grid size-5 shrink-0 place-items-center self-start rounded-control text-faint hover:text-ink focus-visible:text-ink"
 			aria-label={label}
 			title={label}
 			draggable="false"
@@ -125,11 +126,12 @@
 			hint={parentTitle ? `Reports to "${parentTitle}"` : undefined}
 			fold={leaving ? undefined : fold}
 			chevron={!foldAside}
+			wrap
 			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
 		/>
 	</div>
 	<!-- A standing gives way to its action on hover or keyboard focus. -->
-	<span data-row-actions class="grid h-6 min-w-6 shrink-0 place-items-center">
+	<span data-row-actions class="mt-1 grid h-6 min-w-6 shrink-0 place-items-center self-start">
 		{#if typeof asking === 'string' || (asking && href)}
 			<QuestionLink workspaceHref={typeof asking === 'string' ? asking : href!} />
 		{:else if asking}

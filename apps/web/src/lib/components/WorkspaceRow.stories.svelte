@@ -100,6 +100,26 @@
 	</div>
 </Story>
 
+<!-- a long title wraps, as an item's text does: its sign, count and standing stay on the first line -->
+<Story name="Long titles" asChild>
+	<div class="w-80 space-y-px sheet-quiet p-2">
+		<WorkspaceRow title="Short title" href="#short" working />
+		<WorkspaceRow
+			title="Look: voxels that remember their faces (dual contouring: true flat faces and sharp edges)"
+			href="#long"
+			fold={{ count: 4, folded: true, toggle: () => {} }}
+			foldAside
+			standing={standingOf(checking)}
+		/>
+		<WorkspaceRow
+			title="Look: stacked plates (layered plan-view outlines extruded with bevels)"
+			href="#child"
+			parentHref="#parent"
+			parentTitle="Short title"
+		/>
+	</div>
+</Story>
+
 <Story name="Inactive" asChild>
 	<div class="w-64 space-y-px sheet-quiet p-2">
 		<WorkspaceRow title="Active" href="#active" />
