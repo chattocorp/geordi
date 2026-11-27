@@ -74,7 +74,7 @@ import type { Meta } from './host.ts';
 import { worktreeSessions } from './worktree-sessions.ts';
 import { update } from './update.ts';
 import {
-	cachedPullBase,
+	cachedPull,
 	checkForge,
 	markReady,
 	mergePull,
@@ -310,7 +310,7 @@ const watches = createWatches(
 function comparisonOrigin(worktree: Worktree, ref: WorktreeRef) {
 	return {
 		...ref,
-		pullBase: cachedPullBase(ref.worktreeId, branchOf(worktree))
+		pullBase: cachedPull(ref.worktreeId, branchOf(worktree))?.base ?? undefined
 	};
 }
 
@@ -569,7 +569,14 @@ async function readRequest(request: DaemonRequest, signal?: AbortSignal) {
 	}
 	if (request.kind === 'removeWorktree') {
 		const { worktreeId } = request;
-		const branch = await archiveWorktree(worktreesDir, request, tearDown, stopSessions, signal);
+		const branch = await archiveWorktree(
+			worktreesDir,
+			request,
+			tearDown,
+			stopSessions,
+			signal,
+			(branch) => cachedPull(worktreeId, branch)
+		);
 		await fileSearch.discard(worktreeId, worktreePath(worktreesDir, request));
 		setups.delete(worktreeId);
 		ports.release(request.worktreeId); // the workspace is gone: its ports are anyone's again
@@ -613,7 +620,13 @@ async function readRequest(request: DaemonRequest, signal?: AbortSignal) {
 		// what is uncommitted comes along, where the new branch has the same files underneath
 		const carried = (await uncommittedFiles(worktree)).length > 0;
 		requireIdle();
-		const branch = await continueOn(worktree, repoPath, requireIdle).catch((error) => {
+		const branch = await continueOn(
+			worktree,
+			repoPath,
+			requireIdle,
+			request.base,
+			cachedPull(worktreeId, branchOf(worktree))
+		).catch((error) => {
 			if (!carried || workingIn(worktree.path)) throw error;
 			throw new Error(
 				'Its uncommitted changes do not fit onto the latest main branch: commit or discard them first',
@@ -687,9 +700,9 @@ async function readRequest(request: DaemonRequest, signal?: AbortSignal) {
 				: readPicture(worktree.path, request.path);
 		case 'upstream': {
 			const branch = branchOf(worktree);
-			const before = cachedPullBase(request.worktreeId, branch);
+			const before = cachedPull(request.worktreeId, branch)?.base;
 			const result = await upstream(worktree, request);
-			if (cachedPullBase(request.worktreeId, branch) !== before)
+			if (cachedPull(request.worktreeId, branch)?.base !== before)
 				watches.targetChanged(request.worktreeId);
 			return result;
 		}

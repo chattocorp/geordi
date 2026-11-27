@@ -19,7 +19,7 @@ type Parts = {
  * Archives a workspace with its whole subtree, in every repository (FDR-016), and agents
  * sharing their worktrees. Each affected workspace
  * has its shells ended, its worktree removed (unless a workspace that stays still works in
- * it) and is taken out of the lists. Branches and conversations stay.
+ * it) and is taken out of the lists. Conversations and unmerged branches stay.
  *
  * Nothing is archived while any of them is locked (FDR-015) or still working, and none of them can be given
  * anything to do while it goes on: removing a worktree means waiting for a daemon, and an

@@ -26,6 +26,9 @@
 			expect(canvas.getByRole('dialog', { name: 'Archive “Review login changes”?' })).toBeVisible()
 		);
 		await expect(canvas.getByText('Uncommitted changes will be discarded.')).toBeVisible();
+		await expect(
+			canvas.getByText('Your conversations and branches with unmerged work are kept.')
+		).toBeVisible();
 		await expect(canvas.getByText('Running processes will be stopped.')).toBeVisible();
 		await expect(answer).not.toHaveBeenCalled();
 		const cancel = canvas.getByRole('button', { name: 'Cancel' });

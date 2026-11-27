@@ -19,7 +19,7 @@
 				<li>{concern}</li>
 			{/each}
 		</ul>
-		<p class="text-sm text-muted">Your conversations and Git branches are kept.</p>
+		<p class="text-sm text-muted">Your conversations and branches with unmerged work are kept.</p>
 		<div class="dialog-actions">
 			<Button variant="soft" disabled={asking?.busy} onclick={() => asking?.answer(false)}>
 				Cancel

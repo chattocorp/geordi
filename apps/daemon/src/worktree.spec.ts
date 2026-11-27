@@ -759,6 +759,60 @@ describe('status', () => {
 		expect((await status(worktree, origin)).files).toHaveLength(2);
 	});
 
+	it.each([true, false])(
+		'archives a renamed branch and restores its tip (merged: %s)',
+		async (merged) => {
+			const { repoPath, base, git } = await workspace();
+			const request = {
+				kind: 'removeWorktree',
+				worktreeId: 'abcdefgh-1',
+				repoPath,
+				force: true,
+				teardown: false
+			} as const;
+			const local = (...args: string[]) =>
+				execFileSync('git', ['-C', repoPath, ...args], { encoding: 'utf8' }).trim();
+			git('branch', '-m', 'feature/topic');
+			git('commit', '--allow-empty', '-qm', 'topic work');
+			const tip = local('rev-parse', 'feature/topic');
+			if (merged) local('merge', '--ff-only', 'feature/topic');
+			const archive = () => archiveWorktree(base, request, vi.fn(), vi.fn());
+			await archive();
+			await archive(); // retry after a lost reply
+			expect(local('branch', '--list', 'feature/topic')).toBe(merged ? '' : 'feature/topic');
+			const again = await ensureWorktree(base, { ...request, branch: 'feature/topic' }, true);
+			expect(branchOf(again)).toBe('feature/topic');
+			expect(git('rev-parse', 'HEAD').toString().trim()).toBe(tip);
+			expect(local('for-each-ref', 'refs/geordi/archived/')).toBe('');
+		}
+	);
+
+	it.each([true, false])(
+		'cleans a squash-merged branch on continue only at its merged tip (extra commit: %s)',
+		async (extra) => {
+			const { repoPath, worktree, git } = await workspace();
+			git('commit', '--allow-empty', '-qm', 'squashed work');
+			const mergedHead = git('rev-parse', 'HEAD').toString().trim();
+			execFileSync('git', ['-C', repoPath, 'update-ref', 'refs/remotes/origin/main', 'HEAD']);
+			if (extra) git('commit', '--allow-empty', '-qm', 'after merge');
+			const pull = {
+				state: 'merged',
+				mergedHead,
+				base: 'main',
+				number: '1',
+				title: 'Work',
+				url: null,
+				draft: false,
+				checks: null,
+				review: null
+			} as const;
+			await continueOn(worktree, repoPath, undefined, undefined, pull);
+			expect(git('branch', '--list', worktree.branch).toString().trim()).toBe(
+				extra ? worktree.branch : ''
+			);
+		}
+	);
+
 	it('removes a clean worktree, keeps its branch, and refuses to discard work unless told to', async () => {
 		const { repoPath, base, worktree, git } = await workspace();
 		writeFileSync(join(worktree.path, 'a.txt'), 'a\n');
@@ -933,6 +987,7 @@ it('carries uncommitted changes onto the new branch, or moves nothing where they
 	writeFileSync(join(worktree.path, 'shared.txt'), 'edited since\n');
 	writeFileSync(join(worktree.path, 'new.txt'), 'new\n');
 	const branch = await continueOn(worktree, repoPath);
+	expect(run(repoPath, 'branch', '--list', worktree.branch)).toBe('');
 	expect(branchOf(worktree)).toBe(branch);
 	expect(readFileSync(join(worktree.path, 'shared.txt'), 'utf8')).toBe('edited since\n');
 	expect(readFileSync(join(worktree.path, 'new.txt'), 'utf8')).toBe('new\n');

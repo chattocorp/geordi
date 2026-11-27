@@ -1,11 +1,18 @@
-import type { DaemonRequest, WorktreeRef } from '@geordi/protocol';
+import type { DaemonRequest, PullRequest, WorktreeRef } from '@geordi/protocol';
 import { randomUUID } from 'node:crypto';
 import { git } from './git.ts';
 import { existsSync, lstatSync, mkdirSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { uncommittedFiles } from './changes.ts';
-import { branchOf, describe, verifyLinks, worktreePath, type Worktree } from './worktree.ts';
+import {
+	cleanMergedBranch,
+	branchBeforeCleanup,
+	describe,
+	verifyLinks,
+	worktreePath,
+	type Worktree
+} from './worktree.ts';
 
 /** Inspect directory entries without following a worktree's agent-writable Git links. */
 function entryExists(path: string) {
@@ -96,7 +103,8 @@ export async function archiveWorktree(
 	request: Extract<DaemonRequest, { kind: 'removeWorktree' }>,
 	tearDown: (tree: Worktree, ref: WorktreeRef) => Promise<void>,
 	stopSessions: (path: string) => Promise<void>,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	pullFor?: (branch: string | null) => PullRequest | null | undefined
 ) {
 	signal?.throwIfAborted();
 	const path = worktreePath(baseDir, request);
@@ -115,14 +123,23 @@ export async function archiveWorktree(
 	signal?.throwIfAborted();
 	if (tree && request.teardown) await tearDown(tree, request);
 	signal?.throwIfAborted();
-	let branch: string | null = null;
+	await stopSessions(path);
+	signal?.throwIfAborted();
+	let previous = null;
 	try {
-		if (tree) branch = branchOf(tree);
+		if (tree) {
+			verifyLinks(tree);
+			previous = await branchBeforeCleanup(request.repoPath, tree);
+		}
 	} catch {
 		// Forced removal can encounter an unreadable HEAD. Keep the forge's last known branch.
 	}
-	await stopSessions(path);
-	signal?.throwIfAborted();
 	await removeWorktree(baseDir, request, request.force, signal);
-	return branch;
+	if (previous && !request.removingRepository)
+		await cleanMergedBranch(request.repoPath, previous, {
+			base: request.base,
+			pull: pullFor?.(previous.branch),
+			archiveId: request.worktreeId
+		});
+	return previous?.branch ?? null;
 }
