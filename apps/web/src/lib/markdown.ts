@@ -267,12 +267,24 @@ export function worktreePath(
 /** Code blocks in these languages are drawn (`diagrams.ts`); until then, or if they cannot be, they stay code. */
 const DIAGRAMS = ['mermaid', 'svg'];
 
-// Code blocks get a copy button; `Markdown.svelte` handles its clicks.
+// A closed fence spans its opening line, body and closing line. Markdown-it also
+// emits fence tokens for unfinished blocks, with the closing line absent from their span.
+function closedFence(token: Token): boolean {
+	const bodyLines = token.content.match(/[^\n]*\n|[^\n]+$/g)?.length ?? 0;
+	return !!token.map && token.map[1] - token.map[0] === bodyLines + 2;
+}
+
 const fence = md.renderer.rules.fence!;
 md.renderer.rules.fence = (tokens, index, options, env, self) => {
-	const lang = tokens[index].info.trim().split(/\s+/, 1)[0];
+	const token = tokens[index];
+	const info = token.info.trim();
+	const lang = info.split(/\s+/, 1)[0];
 	const diagram = DIAGRAMS.includes(lang) ? ` data-diagram="${lang}"` : '';
-	return `<div class="code-block"${diagram}><button type="button" data-copy aria-label="Copy code"></button>${fence(tokens, index, options, env, self)}</div>`;
+	const run =
+		(env as Options).canRun && info === 'sh' && closedFence(token)
+			? '<button type="button" data-run title="Run in a new terminal" aria-label="Run in a new terminal"></button>'
+			: '';
+	return `<div class="code-block"${diagram}>${run}<button type="button" data-copy aria-label="Copy code"></button>${fence(tokens, index, options, env, self)}</div>`;
 };
 
 // Code that names a file the workspace has changed (`file` says which, if any) opens its
@@ -296,6 +308,7 @@ md.renderer.rules.code_inline = (tokens, index, options, env, self) => {
 };
 
 type Options = {
+	canRun?: boolean;
 	agentDirectives?: boolean;
 	documentPath?: string;
 	preserveLineBreaks?: boolean;

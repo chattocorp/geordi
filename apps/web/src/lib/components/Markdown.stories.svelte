@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, waitFor } from 'storybook/test';
+	import { expect, fn, waitFor } from 'storybook/test';
 	import Markdown from './Markdown.svelte';
 	import WorkspaceLinksExample from './WorkspaceLinksExample.svelte';
 	import { tone } from '#lib/ui/tone.ts';
@@ -99,3 +99,12 @@
 		text="The redirect fix is on `geordi/fix-login-redirect`, in #451 (https://github.com/hmans/geordi/pull/451). `main` and #12 stay as they are."
 	/>
 </Story>
+
+<Story
+	name="Runnable shell block"
+	args={{ text: fence('sh', "printf '%s\\n' 'A & B'\npwd"), onrun: fn() }}
+	play={async ({ args, canvas, userEvent }) => {
+		await userEvent.click(canvas.getByRole('button', { name: 'Run in a new terminal' }));
+		await expect(args.onrun).toHaveBeenCalledWith("printf '%s\\n' 'A & B'\npwd\n");
+	}}
+/>

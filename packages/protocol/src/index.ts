@@ -17,7 +17,7 @@ import type { Sound } from './sounds.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 45;
+export const PROTOCOL_VERSION = 46;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
 
@@ -944,6 +944,8 @@ export type ForgeMessage =
 	 */
 	| ({
 			type: 'terminal.open';
+			/** Text from a code block the person chose to run in this shell. */
+			initialCommand?: string;
 			terminalId: string;
 			run?: { job: string; command: string };
 	  } & WorktreeRef &

@@ -34,6 +34,7 @@
 		senders,
 		autofocus = false,
 		onautofocus,
+		onrun,
 		onopenturn,
 		onopensubagent
 	}: {
@@ -41,6 +42,7 @@
 			Pick<WorkspaceUpdate, 'background' | 'suggestion' | 'sessionModel' | 'forwardedQuestions'>;
 		questionTarget?: { id: string; done(): void };
 		waiting?: boolean;
+		onrun?: (command: string) => void;
 		onopenturn?: (changes: TurnChanges) => void;
 		onopensubagent: (id: string) => void;
 		senders?: Record<string, string>;
@@ -131,6 +133,7 @@
 			pictures={resolve('/workspaces/[id]/picture', { id: workspace.id })}
 			{senders}
 			{onopensubagent}
+			{onrun}
 			{onopenturn}
 			childSenders={workspace.childSenders}
 			queueSenders={workspace.sentBy.queue}

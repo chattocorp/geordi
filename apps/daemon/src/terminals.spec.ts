@@ -93,3 +93,37 @@ it('distinguishes an idle shell from foreground and background processes on arch
 		closeTerminal(id);
 	}
 });
+
+it('runs a complete block once and keeps the same interactive shell for typing', async () => {
+	const previousShell = process.env.SHELL;
+	process.env.SHELL = '/no-posix-login-shell';
+	const id = 'workspace:block';
+	let output = '';
+	const options = {
+		cols: 80,
+		rows: 24,
+		env: { GEORDI_PORT: '39001' },
+		initialCommand: 'read marker <<EOF\nport=$GEORDI_PORT\nEOF\nprintf "first:%s\\n" "$marker"\n'
+	};
+	const open = () =>
+		openTerminal(
+			id,
+			tmpdir(),
+			options,
+			() => {},
+			(data) => (output += data),
+			() => {}
+		);
+	open();
+	try {
+		await expect.poll(() => output).toContain('first:port=39001');
+		open();
+		writeTerminal(id, 'echo "again:$marker"\r');
+		await expect.poll(() => output).toContain('again:port=39001');
+		expect(output.match(/first:port=39001/g)).toHaveLength(1);
+	} finally {
+		closeTerminal(id);
+		if (previousShell === undefined) delete process.env.SHELL;
+		else process.env.SHELL = previousShell;
+	}
+});

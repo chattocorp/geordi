@@ -21,3 +21,4 @@
 | [FDR-017](FDR-017-private-files-out-of-agents-reach.md)   | Private files out of agents' reach                               | Active     | 2026-11-27    |
 | [FDR-018](FDR-018-merging-up.md)                          | Merging up the outline (deferred)                                | Planned    | 2026-11-27    |
 | [FDR-019](FDR-019-the-outline.md)                         | The outline                                                      | Active     | 2026-11-27    |
+| [FDR-020](FDR-020-runnable-shell-blocks.md)               | Run shell blocks from agent replies                              | Active     | 2026-11-28    |

@@ -555,11 +555,11 @@ const terminal = {
 
 /** Starts a terminal's shell. Only ever called because a person asked for a terminal. */
 export const startTerminal = command(
-	v.object({ ...terminal, ...size }),
-	({ cols, rows, ...at }) => {
+	v.object({ ...terminal, ...size, initialCommand: v.optional(v.string()) }),
+	({ cols, rows, initialCommand, ...at }) => {
 		// a job's terminal runs a command of the repository's: that takes `startJobs`
 		if (at.terminal.startsWith(JOB_TERMINAL)) error(400, 'That name is for a job');
-		terminals().start(at, { cols, rows });
+		terminals().start(at, { cols, rows, initialCommand });
 	}
 );
 

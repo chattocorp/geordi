@@ -206,3 +206,16 @@ describe('terminals', () => {
 		expect(text()).toContain('No daemon connected');
 	});
 });
+
+it('sends the block only on its first open, even after a reconnect or a shell exit', () => {
+	const { terminals, sent } = setup();
+	const initialCommand = 'echo hello\npwd\n';
+	terminals.start(at, { ...size, initialCommand });
+	terminals.reconcile(['w:t']);
+	terminals.start(at, { ...size, initialCommand });
+	terminals.exit('w:t');
+	terminals.input(at, '\r');
+	expect(sent).toHaveLength(2);
+	expect(sent[0]).toMatchObject({ type: 'terminal.open', initialCommand });
+	expect(sent[1]).not.toHaveProperty('initialCommand');
+});

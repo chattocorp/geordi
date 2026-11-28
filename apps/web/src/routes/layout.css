@@ -903,7 +903,8 @@
 	.code-block {
 		@apply relative;
 	}
-	[data-copy] {
+	[data-copy],
+	[data-run] {
 		@apply absolute top-2 right-2 grid size-7 place-items-center rounded-control raised text-muted opacity-0 hover:text-ink focus-visible:opacity-100;
 
 		&::before {
@@ -914,7 +915,13 @@
 			@apply icon-[lucide--check] text-ok;
 		}
 	}
-	.code-block:hover [data-copy] {
+	[data-run] {
+		@apply right-10;
+		&::before {
+			@apply icon-[lucide--play];
+		}
+	}
+	.code-block:hover :is([data-copy], [data-run]) {
 		@apply opacity-100;
 	}
 }

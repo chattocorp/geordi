@@ -1,5 +1,8 @@
 import { execFile } from 'node:child_process';
-import { basename } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { spawn, type IPty } from '@lydell/node-pty';
 import type { DaemonResults, TerminalSize } from '@geordi/protocol';
@@ -54,11 +57,13 @@ export function openTerminal(
 	{
 		cols,
 		rows,
+		initialCommand,
 		command,
 		closeOnSuccess = false,
 		env = {},
 		onEnded
 	}: TerminalSize & {
+		initialCommand?: string;
 		command?: string;
 		closeOnSuccess?: boolean;
 		/** On top of our own environment. */ env?: Record<string, string>;
@@ -76,7 +81,8 @@ export function openTerminal(
 		running.pty.kill();
 	}
 
-	const shell = process.env.SHELL || '/bin/sh';
+	// A block tagged sh uses sh syntax even when the person's login shell is fish.
+	const shell = initialCommand === undefined ? process.env.SHELL || '/bin/sh' : '/bin/sh';
 	// The command and the shell reach the script as arguments: nothing in them is parsed twice.
 	// `printf` makes the escapes into a new line and dim text. Once the command has ended,
 	// the script only waits, without reading: the user's shell may have handed the terminal
@@ -93,13 +99,31 @@ export function openTerminal(
 	const [file, args] = command
 		? ['/bin/sh', ['-c', script, shell, command, closeOnSuccess ? 'close' : 'wait']]
 		: [shell, []];
-	const pty = spawn(file, args, {
-		name: 'xterm-256color',
-		cwd,
-		cols,
-		rows,
-		env: { ...(process.env as Record<string, string>), ...env }
-	});
+	// POSIX sh reads ENV before its first interactive prompt. The file keeps the
+	// block out of the line editor (tabs, here-documents) and out of argv's size limit.
+	let startup: string | undefined;
+	if (initialCommand !== undefined) {
+		guard();
+		startup = join(tmpdir(), `geordi-shell-${randomUUID()}`);
+		// Once opened, the shell can unlink it. A nested shell must not run it again.
+		writeFileSync(startup, 'command -p rm -f "$ENV"\nunset ENV\n' + initialCommand, {
+			flag: 'wx',
+			mode: 0o600
+		});
+	}
+	let pty: IPty;
+	try {
+		pty = spawn(file, args, {
+			name: 'xterm-256color',
+			cwd,
+			cols,
+			rows,
+			env: { ...(process.env as Record<string, string>), ...env, ...(startup && { ENV: startup }) }
+		});
+	} catch (error) {
+		if (startup) rmSync(startup, { force: true });
+		throw error;
+	}
 
 	/** Calls `onEnded` once. */
 	let ended = onEnded;
@@ -149,6 +173,8 @@ export function openTerminal(
 	terminals.set(id, terminal);
 	pty.onData(output);
 	pty.onExit(() => {
+		// The shell may have been killed before it read its startup file.
+		if (startup) rmSync(startup, { force: true });
 		// a restarted shell may already have taken this one's place: then it is not this
 		// terminal that has gone, and nobody is told that it has
 		const current = terminals.get(id) === terminal;

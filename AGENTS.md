@@ -284,7 +284,7 @@ it, perhaps you.
   `#lib/components/Markdown.svelte`. An image in it is shown only if it is a file where the
   agent works: the daemon reads it (`picture.ts`, pictures only) and the forge serves it at
   `/workspaces/[id]/picture`. Never load one from the web: displaying output must not send
-  anything anywhere.
+  anything anywhere. In an agent reply, a closed `sh` fence has a Run button that opens a fresh interactive terminal in the workspace dock (FDR-020).
 - Shared tool versions live in the pnpm catalog (`pnpm-workspace.yaml`); reference them as
   `"catalog:"`.
 - Conventional commits; mention planning item IDs and ADRs where relevant.

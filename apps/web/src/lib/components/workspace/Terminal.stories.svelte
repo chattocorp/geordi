@@ -22,7 +22,7 @@
 	}}
 >
 	<div class="flex h-64 flex-col bg-bg">
-		<Terminal workspaceId="story" terminal="new" start={false} autofocus />
+		<Terminal workspaceId="story" terminal="new" autofocus />
 	</div>
 </Story>
 
@@ -45,7 +45,6 @@
 		<Terminal
 			workspaceId="story"
 			terminal="existing"
-			start={false}
 			autofocus={requested}
 			onautofocus={() => (requested = false)}
 		/>
@@ -69,13 +68,13 @@
 	}}
 >
 	<div data-terminal-pane class="flex h-64 flex-col sheet-quiet">
-		<Terminal workspaceId="story" terminal="resized" start={false} />
+		<Terminal workspaceId="story" terminal="resized" />
 	</div>
 </Story>
 
 <Story
 	name="Shell sets and clears its title"
-	args={{ workspaceId: 'story', terminal: 'titled', start: false, ontitle: fn() }}
+	args={{ workspaceId: 'story', terminal: 'titled', ontitle: fn() }}
 	beforeEach={async () => {
 		const { Terminal: Xterm } = await import('@xterm/xterm');
 		const opened = spyOn(Xterm.prototype, 'open');

@@ -15,6 +15,7 @@
 		dimmed = false,
 		preserveLineBreaks = false,
 		pictures,
+		onrun,
 		documentPath
 	}: {
 		text: string;
@@ -22,6 +23,7 @@
 		dimmed?: boolean;
 		preserveLineBreaks?: boolean;
 		pictures?: string;
+		onrun?: (command: string) => void;
 		documentPath?: string;
 	} = $props();
 
@@ -31,6 +33,7 @@
 	let viewing = $state<{ src: string; alt: string } | null>(null);
 	const html = $derived(
 		renderMarkdown(text, {
+			canRun: !!onrun,
 			agentDirectives,
 			preserveLineBreaks,
 			documentPath,
@@ -123,9 +126,12 @@
 			if (folder) return files?.openFolder?.(folder);
 			const file = target.closest<HTMLElement>('[data-file]')?.dataset.file;
 			if (file) return files?.open(file);
-			const button = target.closest<HTMLElement>('[data-copy]');
+			const button = target.closest<HTMLElement>('button[data-copy], button[data-run]');
 			if (!button) return;
-			await navigator.clipboard.writeText(button.nextElementSibling?.textContent ?? '');
+			const code = button.parentElement?.querySelector('pre')?.textContent;
+			if (code == null) return;
+			if (button.hasAttribute('data-run')) return onrun?.(code);
+			await navigator.clipboard.writeText(code);
 			button.dataset.copied = '';
 			setTimeout(() => delete button.dataset.copied, 1500);
 		};

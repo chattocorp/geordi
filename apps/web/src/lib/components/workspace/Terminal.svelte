@@ -2,15 +2,15 @@
 	import '@xterm/xterm/css/xterm.css';
 	import type { ITheme, Terminal } from '@xterm/xterm';
 	import type { Attachment } from 'svelte/attachments';
-	import { startTerminal, terminalInput, terminalResize } from '../../../routes/workspaces.remote';
+	import { terminalInput, terminalResize } from '../../../routes/workspaces.remote';
 	import { followTerminal } from '#lib/live.svelte.ts';
 
 	type Props = {
 		workspaceId: string;
 		/** This terminal's name within the workspace. */
 		terminal: string;
-		/** Whether the user just asked for this terminal: start its shell right away. */
-		start: boolean;
+		/** The open request, if the user just asked for this terminal. */
+		start?: Promise<unknown>;
 		/** Focus the input as soon as it is ready. */
 		autofocus?: boolean;
 		onautofocus?: () => void;
@@ -106,12 +106,12 @@
 				flush();
 			});
 
-			// A shell starts only on request: now, if the user just opened this terminal,
-			// or later on a key press. Either way the forge needs to know our size.
+			// Fit the shell to its tab once its open request has reached the forge.
 			const size = { cols: term.cols, rows: term.rows };
 			// Its output is followed once that is said: a terminal that is about to start is not
 			// one that isn't running, and should not begin by saying so.
-			(start ? startTerminal : terminalResize)({ ...at, ...size })
+			Promise.resolve(start)
+				.then(() => terminalResize({ ...at, ...size }))
 				.catch(() => {})
 				.then(watch);
 			term.onResize(({ cols, rows }) => {
