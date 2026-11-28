@@ -555,7 +555,7 @@
 	let focusTerminal = $state<string>();
 	function newTerminal(initialCommand?: string) {
 		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
-		const name = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 16)}`;
+		const name = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 4)}`;
 		starting.set(
 			name,
 			startTerminal({ workspaceId: id, terminal: name, cols: 80, rows: 24, initialCommand }).catch(

@@ -81,8 +81,7 @@ export function openTerminal(
 		running.pty.kill();
 	}
 
-	// A block tagged sh uses sh syntax even when the person's login shell is fish.
-	const shell = initialCommand === undefined ? process.env.SHELL || '/bin/sh' : '/bin/sh';
+	const shell = process.env.SHELL || '/bin/sh';
 	// The command and the shell reach the script as arguments: nothing in them is parsed twice.
 	// `printf` makes the escapes into a new line and dim text. Once the command has ended,
 	// the script only waits, without reading: the user's shell may have handed the terminal
@@ -98,7 +97,7 @@ export function openTerminal(
 	`;
 	const [file, args] = command
 		? ['/bin/sh', ['-c', script, shell, command, closeOnSuccess ? 'close' : 'wait']]
-		: [shell, []];
+		: [initialCommand === undefined ? shell : '/bin/sh', []];
 	// POSIX sh reads ENV before its first interactive prompt. The file keeps the
 	// block out of the line editor (tabs, here-documents) and out of argv's size limit.
 	let startup: string | undefined;
@@ -106,7 +105,18 @@ export function openTerminal(
 		guard();
 		startup = join(tmpdir(), `geordi-shell-${randomUUID()}`);
 		// Once opened, the shell can unlink it. A nested shell must not run it again.
-		writeFileSync(startup, 'command -p rm -f "$ENV"\nunset ENV\n' + initialCommand, {
+		// Interrupting a foreground job can abandon the rest of an interactive startup
+		// file. Hand over on SIGINT too, while this shell still owns the directory and exports.
+		const quote = (text: string) => "'" + text.replaceAll("'", "'\\''") + "'";
+		const handover = 'exec ' + quote(shell);
+		const script = [
+			'command -p rm -f "$ENV"',
+			'unset ENV',
+			'trap ' + quote(handover) + ' INT',
+			initialCommand,
+			handover
+		].join('\n');
+		writeFileSync(startup, script, {
 			flag: 'wx',
 			mode: 0o600
 		});
@@ -171,6 +181,12 @@ export function openTerminal(
 		}
 	};
 	terminals.set(id, terminal);
+	// Begin the scrollback with literal text before relaying any PTY output. The
+	// terminal needs CRLF to start each line in the first column.
+	if (initialCommand !== undefined) {
+		const block = initialCommand.replaceAll('\n', '\r\n');
+		output(`\x1b[2m${block}\x1b[0m${block.endsWith('\n') ? '' : '\r\n'}`);
+	}
 	pty.onData(output);
 	pty.onExit(() => {
 		// The shell may have been killed before it read its startup file.
