@@ -37,14 +37,13 @@ describe('the outline as people see it', () => {
 			() => undefined
 		);
 		expect(view.map(({ id, parentId, done }) => [id, parentId, done])).toEqual([
-			['inbox', null, false],
 			['done-child', 'lead', true],
 			['lead', null, false],
 			['carries-on', null, false]
 		]);
 	});
 
-	it('lists the Inbox first, and lets a workspace archived in it go, as at the top', () => {
+	it('puts what was in the Inbox at the top, as events from when there was one say', () => {
 		const outline = emptyOutline();
 		attach(outline, 'filed', null);
 		attach(outline, 'arrived', 'inbox');
@@ -56,9 +55,8 @@ describe('the outline as people see it', () => {
 			() => undefined
 		);
 		expect(view.map(({ id, parentId }) => [id, parentId])).toEqual([
-			['inbox', null],
 			['carries-on', null],
-			['arrived', 'inbox'],
+			['arrived', null],
 			['filed', null]
 		]);
 	});
@@ -82,7 +80,7 @@ describe('the outline as people see it', () => {
 			(id) => ({ title: id, worktreeId: id, archivedAt: null }),
 			() => undefined
 		);
-		expect(view.slice(1).map(({ id, todo, done }) => [id, todo, done])).toEqual([
+		expect(view.map(({ id, todo, done }) => [id, todo, done])).toEqual([
 			['lead', false, false],
 			['folder', false, false],
 			['step', true, true],

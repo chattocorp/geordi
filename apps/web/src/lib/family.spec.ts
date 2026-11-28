@@ -100,24 +100,6 @@ describe('outlineRows', () => {
 	const shown = (options: Parameters<typeof outlineRows>[2]) =>
 		ids(outlineRows(items, workspaces, options));
 
-	it('shows the Inbox first, only while something in it shows', () => {
-		const inbox = item('inbox');
-		const arrived = item('arrived', 'inbox', false, true);
-		const rows = (options: Parameters<typeof outlineRows>[2] = {}) =>
-			ids(
-				outlineRows(
-					[inbox, arrived, ...items],
-					[...workspaces, { id: 'arrived', repoId: 'geordi', inactive: true }],
-					options
-				)
-			)?.slice(0, 2);
-		expect(shown({})).not.toContain('inbox');
-		expect(ids(outlineRows([inbox, ...items], workspaces))).not.toContain('inbox');
-		expect(rows()).toEqual(['inbox', 'arrived']);
-		expect(rows({ folded: ['inbox'] })).toEqual(['inbox', 'release']);
-		expect(rows({ activeOnly: true })).toEqual(['release', 'bump']);
-	});
-
 	it('shows every item, each under its parent', () => {
 		expect(shown({})).toEqual([
 			'release',
@@ -243,13 +225,6 @@ describe('dropTarget', () => {
 		const target = dropTarget(rows, at(from), { onto: row }, true);
 		return target && [target.parentId, target.before, target.reparents];
 	};
-
-	it('puts nothing above the Inbox', () => {
-		const inbox = [workspace('inbox', 'one'), workspace('arrived', 'one', 'inbox'), ...all];
-		const listed = nested(inbox);
-		expect(dropTarget(listed, all[5], { after: -1, depth: 0 }, true)).toBeUndefined();
-		expect(dropTarget(listed, all[5], { onto: 0 }, true)?.parentId).toBe('inbox');
-	});
 
 	it('knows the depths each gap allows', () => {
 		expect(gapDepths(rows, -1)).toEqual([0, 0]);

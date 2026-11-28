@@ -11,7 +11,12 @@
  * derived from it (`workspaceAbove`).
  */
 
-import { INBOX } from '#lib/family.ts';
+/**
+ * What the Inbox was (FDR-019): a place at the top that new workspaces landed in, recorded
+ * as a parent. It is gone, and what was put there is at the top.
+ */
+const INBOX = 'inbox';
+const atTop = (parentId: string | null) => (parentId === INBOX ? null : parentId);
 
 type ItemStream = `item:${string}`;
 
@@ -118,7 +123,14 @@ export function attach(outline: Outline, id: string, parentId: string | null) {
 		item.text = '';
 		return;
 	}
-	outline.items.set(id, { id, parentId, text: '', note: '', done: false, workspace: true });
+	outline.items.set(id, {
+		id,
+		parentId: atTop(parentId),
+		text: '',
+		note: '',
+		done: false,
+		workspace: true
+	});
 	outline.order = [id, ...outline.order];
 }
 
@@ -131,7 +143,7 @@ export function move(
 ) {
 	const item = outline.items.get(id);
 	if (!item || id === before) return;
-	if (parentId !== undefined) item.parentId = parentId;
+	if (parentId !== undefined) item.parentId = atTop(parentId);
 	place(outline, id, before);
 }
 
@@ -140,7 +152,14 @@ export function applyItem(outline: Outline, event: ItemEvent) {
 	const { data } = event;
 	if (event.type === 'item.created') {
 		const { id, parentId, before, text } = event.data;
-		outline.items.set(id, { id, parentId, text, note: '', done: false, workspace: false });
+		outline.items.set(id, {
+			id,
+			parentId: atTop(parentId),
+			text,
+			note: '',
+			done: false,
+			workspace: false
+		});
 		place(outline, id, before);
 		return;
 	}
@@ -185,10 +204,6 @@ export type Attached = { title: string; worktreeId: string; archivedAt: string |
  * archive); a workspace in use there is listed at the top. An agent working in another
  * workspace's directory is no item of its own (`ownerOf` says whose it is), and what it
  * started is under that workspace.
- *
- * The Inbox comes first: a place, not an item (`INBOX`), listed as an entry so that what is
- * in it has something to be under. Nothing is above what is in it, so an archived workspace
- * leaves it, as it leaves the top.
  */
 export function outlineView(
 	outline: Outline,
@@ -218,16 +233,7 @@ export function outlineView(
 		}
 		return known;
 	};
-	const inbox = {
-		id: INBOX,
-		parentId: null,
-		text: 'Inbox',
-		note: '',
-		done: false,
-		workspace: false,
-		todo: false
-	};
-	const listed = order.flatMap((id) => {
+	return order.flatMap((id) => {
 		const item = items.get(id)!;
 		const workspace = item.workspace ? attached(id) : undefined;
 		if (item.workspace && (!workspace || workspace.worktreeId !== id)) return [];
@@ -247,7 +253,6 @@ export function outlineView(
 			}
 		];
 	});
-	return [inbox, ...listed];
 }
 
 /** An entry of a workspace's scope (FDR-019): its own item, or a child workspace's. */

@@ -2,7 +2,7 @@ import type { Command } from '#lib/commands.ts';
 import type { Navigation } from '#lib/server/views.ts';
 import type { Section } from '#lib/components/settings.svelte.ts';
 import type { Theme } from '#lib/theme.svelte.ts';
-import { INBOX, lineOf, nested, withoutTodos } from '#lib/family.ts';
+import { lineOf, nested, withoutTodos } from '#lib/family.ts';
 
 /** Where Geordi stands, and what it can be asked to do, from anywhere. */
 export type Everywhere = {
@@ -271,12 +271,7 @@ export function moveTargets(
 				id: `move:${item.id}`,
 				label: item.text || 'Untitled',
 				group,
-				icon:
-					item.id === INBOX
-						? 'icon-[lucide--inbox]'
-						: item.workspace
-							? 'icon-[lucide--git-branch]'
-							: 'icon-[lucide--folder]',
+				icon: item.workspace ? 'icon-[lucide--git-branch]' : 'icon-[lucide--folder]',
 				// a workspace's sign is its repository's picture, as in the outline
 				...(workspace?.repoId && {
 					repo: { id: workspace.repoId, name: repoName.get(workspace.repoId) ?? '' }

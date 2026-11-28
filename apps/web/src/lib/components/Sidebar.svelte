@@ -16,7 +16,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { INBOX, outlineRows, withoutTodos, zoomedInto, zoomTrail } from '#lib/family.ts';
+	import { outlineRows, withoutTodos, zoomedInto, zoomTrail } from '#lib/family.ts';
 	import Outline, { type WorkspaceRowProps } from './Outline.svelte';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
@@ -343,7 +343,7 @@
 				>
 					{#snippet workspace(row)}{@render workspaceRow(row)}{/snippet}
 				</Outline>
-				{#if rows.length === 0 && items.some(({ id }) => id !== INBOX) && !trail.length}
+				{#if rows.length === 0 && items.length > 0 && !trail.length}
 					<p class="px-2 py-1 text-sm text-muted">Everything is done or put aside.</p>
 				{/if}
 			{/if}
