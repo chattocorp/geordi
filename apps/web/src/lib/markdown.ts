@@ -1,4 +1,5 @@
 import { codeComment } from './agent-directives.ts';
+import { runsAsShown } from '@geordi/protocol';
 import MarkdownIt, { type Token } from 'markdown-it';
 import { highlighter, themes } from './highlighter.ts';
 import type { WorkspaceLinks } from './workspace-links.ts';
@@ -281,7 +282,7 @@ md.renderer.rules.fence = (tokens, index, options, env, self) => {
 	const lang = info.split(/\s+/, 1)[0];
 	const diagram = DIAGRAMS.includes(lang) ? ` data-diagram="${lang}"` : '';
 	const run =
-		(env as Options).canRun && info === 'sh' && closedFence(token)
+		(env as Options).canRun && info === 'sh' && closedFence(token) && runsAsShown(token.content)
 			? '<button type="button" data-run title="Run in a new terminal" aria-label="Run in a new terminal"></button>'
 			: '';
 	return `<div class="code-block"${diagram}>${run}<button type="button" data-copy aria-label="Copy code"></button>${fence(tokens, index, options, env, self)}</div>`;

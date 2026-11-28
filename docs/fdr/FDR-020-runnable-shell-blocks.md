@@ -20,6 +20,7 @@ A person can run a command an agent offers in conversation and keep working in t
 1. **An explicit invitation to run.** Agents use one complete `sh` block per runnable example. Requiring the exact tag and a closing fence lets them show shell transcripts and stream partial commands safely.
 2. **A new terminal each time.** Each run keeps its own output and leaves existing shells available. Repeating a run adds another tab.
 3. **Use the shell named by the block, then the person’s own shell.** POSIX commands work even when the person normally uses Fish. Handing over after the block restores their familiar prompt, history and completions.
+4. **Only what can be read is run.** A block holding characters that are not seen or that change what is seen (escape sequences, direction marks, zero-width characters) gets no Run button, and the forge refuses to run it: an agent may have been talked into writing it, and what runs must be what the person read.
 
 ## Related
 
