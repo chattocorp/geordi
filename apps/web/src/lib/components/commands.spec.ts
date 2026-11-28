@@ -186,7 +186,8 @@ it('offers every place a workspace can be moved to, but where it is and under it
 		text: id,
 		note: '',
 		done: false,
-		workspace
+		workspace,
+		todo: false
 	});
 	const outline = {
 		...nav,

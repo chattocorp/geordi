@@ -1,8 +1,8 @@
 <script lang="ts">
 	/**
 	 * A row of the outline that is an item without a workspace (FDR-019): its text is what is
-	 * read and edited, in place, like a line in any outliner, and wraps where it is long. Its
-	 * sign ticks it off; what is under it folds, and it is zoomed into, from beside that (the
+	 * read and edited, in place, like a line in any outliner, and wraps where it is long. A
+	 * todo's sign ticks it off; a folder's (`folder`) says what it is. What is under it folds, and it is zoomed into, from beside that (the
 	 * outline's gutter, as in Workflowy). An archived workspace's
 	 * item (`href`) is a done line that leads to its conversation, and is not edited here.
 	 *
@@ -16,6 +16,8 @@
 		text,
 		note = '',
 		done = false,
+		folder = false,
+		truncate = false,
 		href,
 		fold,
 		highlighted = false,
@@ -29,6 +31,10 @@
 		text: string;
 		note?: string;
 		done?: boolean;
+		/** A folder: what groups workspaces in the sidebar, and is never ticked off. */
+		folder?: boolean;
+		/** Whether a long line is cut short, to one line (the sidebar); else it wraps. */
+		truncate?: boolean;
 		href?: string;
 		/** What is folded under it: folded, how many there are is said after its text. */
 		fold?: { folded: boolean; count: number; toggle(): void };
@@ -88,6 +94,8 @@
 		line?.focus();
 	}
 
+	/** A long line: cut short, or wrapping. */
+	const cut = $derived(truncate ? 'truncate' : 'break-words');
 	const toggleLabel = $derived(done ? `Mark “${text}” as not done` : `Mark “${text}” as done`);
 </script>
 
@@ -103,6 +111,8 @@
 	<span class="mt-1 grid size-6 shrink-0 place-items-center self-start text-muted">
 		{#if href}
 			<span class="icon-[lucide--circle-check] size-4 text-faint"></span>
+		{:else if folder}
+			<span aria-hidden="true" class="icon-[lucide--folder] size-4 text-faint"></span>
 		{:else}
 			<button
 				type="button"
@@ -124,7 +134,7 @@
 	</span>
 	{#if href}
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- callers pass a resolved URL -->
-		<a {href} class="min-w-0 flex-1 py-1 break-words line-through" draggable="false">{text}</a>
+		<a {href} class={['min-w-0 flex-1 py-1 line-through', cut]} draggable="false">{text}</a>
 	{:else}
 		<!-- one line of text, as long as it is: it wraps, and grows to fit (`field-sizing`) -->
 		<span class="flex min-w-0 flex-1 flex-col">
@@ -133,12 +143,13 @@
 					bind:this={line}
 					rows="1"
 					class={[
-						'field-sizing-content min-w-0 flex-1 resize-none bg-transparent py-1 break-words outline-none placeholder:text-faint',
+						'field-sizing-content min-w-0 flex-1 resize-none bg-transparent py-1 outline-none placeholder:text-faint',
+						cut,
 						done && !striking && 'line-through'
 					]}
 					value={text}
 					placeholder="Write something"
-					aria-label={text || 'New item'}
+					aria-label={text || (folder ? 'New folder' : 'New todo')}
 					data-item-input={id}
 					draggable="false"
 					oninput={(event) => {
@@ -147,6 +158,8 @@
 						if (input.value.includes('\n')) input.value = input.value.replace(/\s*\n\s*/g, ' ');
 					}}
 					onblur={(event) => {
+						// a line cut short was scrolled along while typing: back to its start
+						event.currentTarget.scrollLeft = 0;
 						if (event.currentTarget.value !== text) onsave?.(event.currentTarget.value);
 					}}
 					onkeydown={(event) => {

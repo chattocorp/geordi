@@ -100,13 +100,14 @@
 	</div>
 </Story>
 
-<!-- a long title wraps, as an item's text does: its sign, count and standing stay on the first line -->
+<!-- a long title is cut short (the sidebar), or wraps (`wrap`, a Plan window): its sign, count and standing then stay on the first line -->
 <Story name="Long titles" asChild>
 	<div class="w-80 space-y-px sheet-quiet p-2">
 		<WorkspaceRow title="Short title" href="#short" working />
 		<WorkspaceRow
 			title="Look: voxels that remember their faces (dual contouring: true flat faces and sharp edges)"
 			href="#long"
+			wrap
 			fold={{ count: 4, folded: true, toggle: () => {} }}
 			foldAside
 			standing={standingOf(checking)}
@@ -116,6 +117,12 @@
 			href="#child"
 			parentHref="#parent"
 			parentTitle="Short title"
+			wrap
+		/>
+		<WorkspaceRow
+			title="Look: a long title that is cut short, as in the sidebar, where every row is one line"
+			href="#cut"
+			standing={standingOf(checking)}
 		/>
 	</div>
 </Story>

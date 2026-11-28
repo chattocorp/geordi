@@ -62,4 +62,31 @@ describe('the outline as people see it', () => {
 			['filed', null]
 		]);
 	});
+
+	it('says which items are todos: those under a workspace; a folder is never done', () => {
+		const outline = emptyOutline();
+		const write = (id: string, parentId: string | null) =>
+			applyItem(outline, {
+				type: 'item.created',
+				stream: `item:${id}`,
+				data: { id, parentId, before: null, text: id }
+			});
+		write('folder', null);
+		attach(outline, 'lead', 'folder');
+		write('step', 'lead');
+		write('substep', 'step');
+		for (const id of ['folder', 'step'])
+			applyItem(outline, { type: 'item.completed', stream: `item:${id}`, data: { id } });
+		const view = outlineView(
+			outline,
+			(id) => ({ title: id, worktreeId: id, archivedAt: null }),
+			() => undefined
+		);
+		expect(view.slice(1).map(({ id, todo, done }) => [id, todo, done])).toEqual([
+			['lead', false, false],
+			['folder', false, false],
+			['step', true, true],
+			['substep', true, false]
+		]);
+	});
 });

@@ -19,9 +19,9 @@
 <script lang="ts">
 	/**
 	 * The outline editor (FDR-019): rows of items, some with workspaces, edited as in any
-	 * outliner, and dragged to other places. The sidebar shows the whole outline with it; a
-	 * workspace's Plan window its scope (`root`: the item everything here is under, `null` for
-	 * the whole outline). How a workspace's row looks is the caller's (`workspace`).
+	 * outliner, and dragged to other places. The sidebar shows the outline's folders and
+	 * workspaces with it; a workspace's Plan window its scope, where what is written is a todo
+	 * (`todos`; `root`: the item everything here is under, `null` for the whole outline). How a workspace's row looks is the caller's (`workspace`).
 	 */
 	import type { Snippet } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -45,6 +45,8 @@
 		rows,
 		folded,
 		root = null,
+		todos = false,
+		truncate = false,
 		live,
 		workspace,
 		workspaceMenu,
@@ -58,11 +60,15 @@
 		rows: Row[];
 		folded: { current: string[] };
 		root?: string | null;
+		/** Whether what is written here is a todo (a workspace's Plan) rather than a folder. */
+		todos?: boolean;
+		/** Whether a long line is cut short, as in the sidebar; else it wraps. */
+		truncate?: boolean;
 		/** Whether a workspace's item has its workspace in use; else it is an archived one's record. */
 		live: (id: string) => boolean;
 		workspace: Snippet<[WorkspaceRowProps]>;
 		/** What a workspace's menu offers; `zoom` where it can be zoomed into. */
-		workspaceMenu?: (entry: Entry, actions: { add: () => void; zoom?: () => void }) => MenuItem[];
+		workspaceMenu?: (entry: Entry, actions: { zoom?: () => void }) => MenuItem[];
 		/** Whether a workspace's row can be picked up (not one on its way out, say). */
 		draggable?: (id: string) => boolean;
 		/** What the top of this outline is called: where zooming out of the last level goes. */
@@ -101,9 +107,15 @@
 	const zoomUp = () => zoomOut(trail.at(-2)?.id ?? null);
 	const canZoom = (entry: Entry) => !!onzoom && zoomable(entry);
 
-	/** Ticks an item off, or not: it stays where it is, crossed out. */
-	const tickOff = (entry: { id: string; done: boolean }) =>
-		completeItem({ itemId: entry.id, done: !entry.done });
+	/** Ticks a todo off, or not: it stays where it is, crossed out. A folder is never done. */
+	const tickOff = async (entry: Entry) => {
+		if (entry.todo) await completeItem({ itemId: entry.id, done: !entry.done });
+	};
+	/** What is written here, by name. */
+	const kind = $derived(todos ? 'todo' : 'folder');
+	/** Whether a row is a workspace's: nothing is put under one here, where it would leave this outline for its plan. */
+	const isWorkspace = (id: string | null) =>
+		rows.some(({ workspace }) => workspace.id === id && workspace.workspace);
 
 	const motion = () => ({ duration: prefersReducedMotion.current ? 0 : MOTION, easing: cubicOut });
 
@@ -154,7 +166,12 @@
 						: { onto: index };
 		}
 		event.preventDefault();
-		dropAt = dropTarget(rows, dragged, place, true);
+		const target = dropTarget(rows, dragged, place, true);
+		// a folder or a todo stays out from under a workspace's row: it would be gone from here
+		dropAt =
+			target && !dragged.workspace && target.reparents && isWorkspace(target.parentId)
+				? undefined
+				: target;
 		if (event.dataTransfer) event.dataTransfer.dropEffect = dropAt ? 'move' : 'none';
 	}
 
@@ -271,7 +288,8 @@
 		} else if (event.key === 'Tab' && !event.shiftKey) {
 			event.preventDefault();
 			const above = siblingIndex(index, -1);
-			if (above === -1 || rows[above].workspace.project) return;
+			// not under a workspace: there it would be in that workspace's plan, and gone from here
+			if (above === -1 || rows[above].workspace.workspace) return;
 			await save();
 			unfold(idAt(above)!);
 			await moveKeeping(entry, null, idAt(above));
@@ -353,7 +371,7 @@
 				onselect: () => startOn(entry)
 			},
 			{
-				label: 'Add an item under it',
+				label: `Add a ${kind} under it`,
 				icon: 'icon-[lucide--list-plus]',
 				onselect: () => addUnder(index)
 			},
@@ -373,13 +391,17 @@
 						}
 					]
 				: []),
-			{
-				label: entry.done ? 'Mark as not done' : 'Mark as done',
-				icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
-				keys: ['cmd', 'enter'],
-				onselect: () => tickOff(entry)
-			},
-			'separator',
+			...(entry.todo
+				? [
+						{
+							label: entry.done ? 'Mark as not done' : 'Mark as done',
+							icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
+							keys: ['cmd', 'enter'],
+							onselect: () => tickOff(entry)
+						}
+					]
+				: []),
+			'separator' as const,
 			{
 				label: 'Remove',
 				icon: 'icon-[lucide--trash-2]',
@@ -471,7 +493,6 @@
 					? []
 					: entry.workspace
 						? (workspaceMenu?.(entry, {
-								add: () => addUnder(index),
 								zoom: canZoom(entry) ? () => zoomIn(entry) : undefined
 							}) ?? [])
 						: itemMenu(entry, index)
@@ -547,6 +568,8 @@
 					text={entry.text}
 					note={archived ? undefined : entry.note}
 					done={entry.done}
+					folder={!entry.workspace && !entry.todo}
+					{truncate}
 					href={archived ? resolve('/workspaces/[id]', { id: entry.id }) : undefined}
 					dragging={dragged?.id === entry.id}
 					highlighted={dropping === 'onto'}
@@ -569,7 +592,7 @@
 			<span class="grid size-6 shrink-0 place-items-center">
 				<span class="icon-[lucide--plus] size-4"></span>
 			</span>
-			<span class="py-1">New item</span>
+			<span class="py-1">New {kind}</span>
 		</button>
 	</li>
 </ul>

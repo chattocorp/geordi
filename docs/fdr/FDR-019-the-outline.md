@@ -1,11 +1,11 @@
 # FDR-019: The outline
 
 **Status:** Active
-**Last reviewed:** 2026-11-27
+**Last reviewed:** 2026-11-28
 
 ## Overview
 
-The outline is Geordi's main artifact: one tree of items in which the person plans, groups and follows their work. An item is a line of text. It can stand on its own (a heading, a folder, a todo) or have a workspace attached, which makes it a piece of work with an agent. Items under a workspace's item are that workspace's own: its todos, which the person and its agent keep together. It extends FDR-016: the outline is still the chain of command, but it is no longer made of workspaces only.
+The outline is Geordi's main artifact: one tree of items in which the person plans, groups and follows their work. An item is a line of text. It can have a workspace attached, which makes it a piece of work with an agent. Without one, it is a folder or a todo, by where it is: items under a workspace's item are that workspace's own, its todos, which the person and its agent keep together and tick off; items anywhere else are folders, which group workspaces. The sidebar shows folders and workspaces; todos show in their workspace's Plan window only. It extends FDR-016: the outline is still the chain of command, but it is no longer made of workspaces only.
 
 Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by its agent; agents starting agents on their items) are in place. It replaces FDR-016's grouping by repository; who supervises whom stays as FDR-016 decided.
 
@@ -13,21 +13,23 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 
 ### Items
 
-- Every entry in the outline is an item: a line of text, with an optional note under it. It can be ticked off as done.
+- Every entry in the outline is an item: a line of text, with an optional note under it.
 - An item can have a workspace attached. Its text is then the workspace's name: renaming the workspace, by the person or by its agent, changes the item, and the other way round.
 - Items nest freely. An item without a workspace can sit anywhere, under any item.
+- An item without a workspace is a **todo** where a workspace is above it, at any depth, and a **folder** everywhere else. Nothing records which: it follows from where the item is, and changes when it is moved. A todo can be ticked off as done; a folder can't, and one ticked off before there were folders shows as any other.
+- The sidebar shows folders and workspaces. A workspace's todos show in its Plan window, and nowhere else. A workspace filed under a todo (an agent's heading for its child agents) shows in the sidebar right under the workspace that supervises it.
 
 ### Editing
 
-- The outline is edited like any outliner: Enter starts a new item below, Tab and Shift-Tab indent and outdent, Alt with the arrows moves an item, Cmd-Enter (Ctrl-Enter) ticks it off, Alt-Enter starts a workspace on it, Shift-Enter goes to its note, Backspace on an empty item removes it, Escape takes back what was typed. Up and down go from row to row. Rows can also be dragged (FDR-016).
-- The outline's last line, "New item", starts one at the end of it. As in Workflowy, a row is its sign and its text, with nothing on it to click besides: to the left of its sign, in the outline's gutter, a row with something under it shows the arrow that folds it, while it is pointed at or folded. Nothing appears on the row itself, so pointing at it moves nothing. Adding under a row, removing it and zooming into it are in its menu and its keys.
-- The menu of an item offers starting a workspace on it, adding an item under it, ticking it off, and removing it (with what is under it, where none of it has a workspace). The menu of a workspace offers adding an item under it.
+- The outline is edited like any outliner: Enter starts a new item below, Tab and Shift-Tab indent and outdent (never under a workspace's row, by Tab or by dragging: there the item would be in that workspace's plan, and gone from sight), Alt with the arrows moves an item, Cmd-Enter (Ctrl-Enter) ticks a todo off, Alt-Enter starts a workspace on it, Shift-Enter goes to its note, Backspace on an empty item removes it, Escape takes back what was typed. Up and down go from row to row. Rows can also be dragged (FDR-016).
+- The outline's last line starts a new item at the end of it: "New folder" in the sidebar, "New todo" in a Plan window. As in Workflowy, a row is its sign and its text, with nothing on it to click besides: to the left of its sign, in the outline's gutter, a row with something under it shows the arrow that folds it, while it is pointed at or folded. Nothing appears on the row itself, so pointing at it moves nothing. Adding under a row, removing it and zooming into it are in its menu and its keys.
+- The menu of an item offers starting a workspace on it, adding an item under it, ticking it off (a todo), and removing it (with what is under it, where none of it has a workspace).
 - An item's note is written under its text, smaller and quieter: Shift-Enter in the line goes to it (a new one, where it has none), and so does a click on it. In a note, Enter is a new line; Escape, Shift-Enter, or Up from its start go back to the line. It is saved when it is left; emptied, it is gone. Until it is edited, two lines of it show. An item with a note isn't removed by Backspace.
 - An item's menu shows the keys that do the same beside its entries.
 - An item's text is saved when you leave the line or press Enter.
-- An item's text is one line, however long: it wraps on screen rather than being cut off, and up and down go through it line by line before going on to the next item. Workspaces' rows stay one line each, with their status beside them. An item's sign is its circle, whether or not something is under it; a workspace's, its repository's picture.
-- An item ticked off stays where it is, crossed out. "Show only what is active" leaves out archived and inactive workspaces, with what is under them, but never items: ticking one off is not putting it away.
-- The sidebar is the whole outline; a workspace's Plan window is its scope.
+- An item's text is one line, however long. In a Plan window it wraps on screen rather than being cut off, a child agent's title too, and up and down go through it line by line before going on to the next item. In the sidebar every row is one line, a long title cut short: there it is a map to find things in, read at a glance. A todo's sign is its circle, whether or not something is under it; a folder's, a folder; a workspace's, its repository's picture.
+- A todo ticked off stays where it is, crossed out. "Show only what is active" leaves out archived and inactive workspaces, with what is under them, but never folders.
+- The sidebar is the outline's folders and workspaces; a workspace's Plan window is its scope.
 
 ### Workspaces in the outline
 
@@ -65,16 +67,15 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 
 - Any item can be zoomed into, in the sidebar and in the Plan window: with Cmd-click on its row (Ctrl-click elsewhere; a workspace's too, rather than opening it), from its menu ("Zoom in"), or with Cmd-. (Ctrl-.) on its row. Its branch is then all the outline shows, under the item itself as the first row, with a back arrow in place of its sign that goes back to where it was zoomed into before, as Back does (one level up, where that isn't known, as after a reload); the whole way down is in the row's tooltip. Cmd-Shift-. zooms out one level.
 - Zoomed in, the outline is edited as ever: "New item" and Enter write under the item zoomed into.
-- In the sidebar, any item can be zoomed into, a workspace's too: then all of what is under it shows, its child agents' items included. In the Plan window, only items of its scope: a child agent's items are its own.
+- In the sidebar, any row can be zoomed into, a workspace's too: then the workspaces under it show, as ever without their todos. In the Plan window, only items of its scope: a child agent's items are its own.
 - The previous and next workspace keys go through what the sidebar shows, zoomed in or not.
 - Zooming in or out is a step in the page's history: Back zooms out again, Forward back in, in the sidebar and the Plan window alike. Going to another page keeps the zoom.
-- A workspace new to the outline starts folded: when its agent writes its plan under it, only the arrow beside it appears (one started on an item that has items under it stays as it was). Writing an item under it yourself unfolds it.
 - Where it is zoomed into is a preference of this browser, as what is folded: for the sidebar, and for each workspace's Plan window. Where that item is gone, the whole outline shows again.
 
 ### Agents starting agents on items
 
 - An agent starts another on one of its items (`start_agent` with `item`), as the person does from an item's menu: the item becomes the new workspace, named after it, and the items under it become the new agent's checklist. The starting agent sees it from then on as a child agent with its progress. As for the person, only an item with no agents under it.
-- An agent can file a new workspace under one of its items instead (`under`): a heading grouping several agents' work. It still reports to the agent that started it.
+- An agent can file a new workspace under one of its items instead (`under`): a heading grouping several agents' work, in its plan. It still reports to the agent that started it, and the sidebar lists it right under that agent's workspace.
 - Repository, agent, model and effort are chosen as with any `start_agent`; an item holds no settings of its own.
 - Agents keep their own todo lists (Claude Code's plans) to themselves: they change too often to belong in the outline. What goes there is written on purpose.
 
@@ -83,8 +84,14 @@ Stages 1 to 3 (items, editing, workspaces on items; a workspace's scope, kept by
 ### 1. One kind of entry: the item
 
 **Decision:** Folders, todos and work under way are all items. A workspace is attached to an item, never an entry of its own (ADR-016).
-**Why:** One thing to learn and to edit. A todo becomes work by attaching an agent to it, without moving or copying anything. Workspaces with fields left empty (projects, FDR-012) taught us what the alternative costs.
+**Why:** One thing to store and to edit. A todo becomes work by attaching an agent to it, without moving or copying anything. Workspaces with fields left empty (projects, FDR-012) taught us what the alternative costs.
 **Tradeoff:** The workspace's place in the tree, and its parent, move from the workspaces domain into the items domain, and everything that read them there has to change.
+
+### 1a. Folders and todos, told apart by place
+
+**Decision:** An item without a workspace is a todo under a workspace and a folder elsewhere (`isTodo`). The kind is derived, not stored. The sidebar leaves todos out; only a workspace's Plan window shows them. Only todos are ticked off.
+**Why:** With every item a todo, the sidebar was a map of the work and every agent's checklist at once, and a line that only groups things had a circle asking to be ticked. Two kinds in two places keep the sidebar a calm map and the Plan the one checklist. Deriving the kind needs no event and no migration, and makes it mean something: a todo is always some agent's.
+**Tradeoff:** No loose todo at the top of the outline, and no folder under a workspace that shows in the sidebar (grouping a lead's child agents there). A stored kind can be added later if that is missed. Moving an item across a workspace's edge changes what it is, so the outline refuses to put one under a workspace's row.
 
 ### 2. A workspace's name is its item's text
 

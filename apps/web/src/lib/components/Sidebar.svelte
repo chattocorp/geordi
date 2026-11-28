@@ -16,7 +16,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { INBOX, outlineRows, zoomedInto, zoomTrail } from '#lib/family.ts';
+	import { INBOX, outlineRows, withoutTodos, zoomedInto, zoomTrail } from '#lib/family.ts';
 	import Outline, { type WorkspaceRowProps } from './Outline.svelte';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
@@ -59,10 +59,12 @@
 	/** The workspaces in use, by ID: what the outline's items with workspaces show. */
 	const workspaceById = $derived(new Map(nav?.workspaces.map((each) => [each.id, each])));
 	const viewed = $derived(path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
+	/** What the sidebar lists (FDR-019): folders and workspaces. Todos are in a workspace's Plan. */
+	const items = $derived(nav ? withoutTodos(nav.items) : []);
 	/** The rows shown, top to bottom. */
 	const rows = $derived(
 		nav
-			? outlineRows(zoomedInto(nav.items, zoom.current), nav.workspaces, {
+			? outlineRows(zoomedInto(items, zoom.current), nav.workspaces, {
 					activeOnly,
 					focus: focus.current,
 					folded: folded.current,
@@ -71,12 +73,12 @@
 			: []
 	);
 	/** The way down to the item zoomed into; empty while not zoomed, or when it is gone. */
-	const trail = $derived(nav ? zoomTrail(nav.items, zoom.current) : []);
+	const trail = $derived(zoomTrail(items, zoom.current));
 	/** Back to where it was zoomed into before, where that is known. */
 	const back = $derived.by(() => {
 		const from = zoom.from;
 		if (from === undefined || !zoom.back) return undefined;
-		const text = from === null ? 'Outline' : nav?.items.find(({ id }) => id === from)?.text;
+		const text = from === null ? 'Outline' : items.find(({ id }) => id === from)?.text;
 		return { text: text || 'Untitled', go: zoom.back };
 	});
 
@@ -125,10 +127,7 @@
 	}
 
 	/** What can be done with a workspace from the sidebar, without opening it. */
-	function workspaceMenu(
-		workspace: Item,
-		{ add, zoom }: { add: () => void; zoom?: () => void }
-	): MenuItem[] {
+	function workspaceMenu(workspace: Item, { zoom }: { zoom?: () => void }): MenuItem[] {
 		const href = resolve('/workspaces/[id]', { id: workspace.id });
 		const running = workspace.status === 'running';
 		const project = workspace.repoId === null;
@@ -162,26 +161,16 @@
 				icon: 'icon-[lucide--hash]',
 				onselect: () => navigator.clipboard.writeText(workspace.id)
 			},
-			// its own todos (FDR-019)
-			...(project
-				? []
-				: [
+			...(!project && zoom
+				? [
 						{
-							label: 'Add an item under it',
-							icon: 'icon-[lucide--list-plus]',
-							onselect: add
-						},
-						...(zoom
-							? [
-									{
-										label: 'Zoom in',
-										icon: 'icon-[lucide--zoom-in]',
-										keys: ['cmd', '.'],
-										onselect: zoom
-									}
-								]
-							: [])
-					]),
+							label: 'Zoom in',
+							icon: 'icon-[lucide--zoom-in]',
+							keys: ['cmd', '.'],
+							onselect: zoom
+						}
+					]
+				: []),
 			// a project has no branch to copy or carry on from
 			...(project
 				? []
@@ -340,6 +329,7 @@
 				<Outline
 					{rows}
 					{folded}
+					truncate
 					{trail}
 					{back}
 					root={trail.at(-1)?.id ?? null}
@@ -353,7 +343,7 @@
 				>
 					{#snippet workspace(row)}{@render workspaceRow(row)}{/snippet}
 				</Outline>
-				{#if rows.length === 0 && nav.items.some(({ id }) => id !== INBOX) && !trail.length}
+				{#if rows.length === 0 && items.some(({ id }) => id !== INBOX) && !trail.length}
 					<p class="px-2 py-1 text-sm text-muted">Everything is done or put aside.</p>
 				{/if}
 			{/if}
