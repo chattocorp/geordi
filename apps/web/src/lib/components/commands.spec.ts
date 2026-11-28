@@ -192,8 +192,7 @@ it('offers every place a workspace can be moved to, but where it is and under it
 	const outline = {
 		...nav,
 		items: [
-			entry('inbox', null),
-			entry('new', 'inbox', true),
+			entry('new', null, true),
 			entry('todo', 'new'),
 			entry('release', null),
 			entry('old', 'release', true),
@@ -203,18 +202,13 @@ it('offers every place a workspace can be moved to, but where it is and under it
 	const move = vi.fn();
 	const targets = moveTargets(outline, 'new', move);
 	expect(targets.map(({ label, detail }) => [label, detail])).toEqual([
-		['The top of the outline', undefined],
 		['release', undefined],
 		['old', 'release']
 	]);
-	targets[2].run();
+	targets[1].run();
 	expect(move).toHaveBeenCalledWith('old');
-	// from the top, there is the Inbox to go back to, and no top to go to
-	expect(moveTargets(outline, 'release', move).map(({ label }) => label)).toEqual([
-		'inbox',
-		'new',
-		'todo'
-	]);
+	// from the top, there is no top to go to
+	expect(moveTargets(outline, 'release', move).map(({ label }) => label)).toEqual(['new', 'todo']);
 	expect(globalCommands(everywhere({ viewed: 'new' })).map(({ id }) => id)).toContain(
 		'move-workspace'
 	);

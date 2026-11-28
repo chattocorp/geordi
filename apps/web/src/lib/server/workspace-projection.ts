@@ -1,5 +1,5 @@
 import type { WorkspaceAction } from '@geordi/ui/actions';
-import { INBOX, lineOf } from '#lib/family.ts';
+import { lineOf } from '#lib/family.ts';
 import { promptTitle } from '#lib/prompt-title.ts';
 import { isExternal } from './agent-access.ts';
 import type {
@@ -59,7 +59,7 @@ export type WorkspacesEvent =
 				settings?: AgentSettings;
 				/** The workspace whose agent started this one (FDR-002). */
 				parentId?: string;
-				/** Started by the person, on no item: it lands in the Inbox (FDR-019). */
+				/** Once: started by the person, on no item, it landed in the Inbox. No longer written, and it is at the top. */
 				inbox?: true;
 				/** The workspace whose worktree this one works in, if not its own. */
 				worktreeId?: string;
@@ -440,7 +440,7 @@ function initialWorkspace(
 		worktreeId = created.id,
 		base = null,
 		settings = {},
-		// where its item starts out is the outline's (`place`)
+		// from when there was an Inbox: it says nothing any more
 		inbox: _inbox,
 		...data
 	} = created;
@@ -958,7 +958,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 	/** What the outline makes of an event: the items' own, and where workspaces come and move. */
 	function place(workspaces: Map<string, Workspace>, event: CurrentEvent | ItemEvent, seq: number) {
 		if (event.type === 'workspace.created') {
-			attach(outline, event.data.id, event.data.inbox ? INBOX : (event.data.parentId ?? null));
+			attach(outline, event.data.id, event.data.parentId ?? null);
 			derive(workspaces, [event.data.id], seq, false);
 		} else if (event.type === 'workspace.moved') {
 			const { id, before, parentId } = event.data;
@@ -975,8 +975,7 @@ export function createWorkspaceProjection(store: EventStore<GeordiEvent>) {
 			removeItems(outline, gone);
 			// what stays of a tree whose item went is at the top
 			for (const item of outline.items.values())
-				if (item.parentId && item.parentId !== INBOX && !outline.items.has(item.parentId))
-					item.parentId = null;
+				if (item.parentId && !outline.items.has(item.parentId)) item.parentId = null;
 		} else if (event.type.startsWith('item.')) {
 			const itemEvent = event as ItemEvent;
 			const affected =
