@@ -1,7 +1,7 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { closeTerminal, hasTerminalActivity, openTerminal, writeTerminal } from './terminals.ts';
 
 describe('a command in a terminal', () => {
@@ -93,3 +93,62 @@ it('distinguishes an idle shell from foreground and background processes on arch
 		closeTerminal(id);
 	}
 });
+
+it.each(['false', 'sleep 100', 'exit 7'])(
+	'prints the literal block before its output and handles a final %s',
+	async (lastCommand) => {
+		const id = `workspace:${lastCommand}`;
+		const directory = mkdtempSync(join(tmpdir(), 'geordi-shell-test-'));
+		vi.stubEnv('TMPDIR', directory);
+		vi.stubEnv('SHELL', '/bin/bash');
+		const initialCommand = [
+			'cd /',
+			'read marker <<EOF',
+			'port=$GEORDI_PORT',
+			'EOF',
+			'export marker',
+			'printf \'first:%s\\n\' "$marker"',
+			lastCommand
+		].join('\n');
+		const options = { cols: 80, rows: 24, env: { GEORDI_PORT: '39001' }, initialCommand };
+		let output = '';
+		const exited = Promise.withResolvers<void>();
+		const open = () =>
+			openTerminal(
+				id,
+				directory,
+				options,
+				() => {},
+				(data) => (output += data),
+				exited.resolve
+			);
+		try {
+			open();
+			await expect.poll(() => output).toContain('first:port=39001');
+			expect(
+				output.startsWith(
+					'\x1b[2m' + initialCommand.replaceAll('\n', '\r\n') + '\x1b[0m\r\nfirst:port=39001'
+				)
+			).toBe(true);
+			if (lastCommand === 'exit 7') {
+				await exited.promise;
+			} else {
+				if (lastCommand === 'sleep 100') {
+					await expect.poll(() => hasTerminalActivity('workspace')).toBe(true);
+					writeTerminal(id, '\x03');
+				}
+				await expect.poll(() => hasTerminalActivity('workspace')).toBe(false);
+				open(); // resizing an existing terminal must not repeat its block
+				writeTerminal(id, 'echo "next:$0:$PWD:$marker:${ENV-unset}"\r');
+				await expect.poll(() => output).toContain('next:/bin/bash:/:port=39001:unset');
+				expect(output.match(/first:port=39001/g)).toHaveLength(1);
+			}
+			expect(readdirSync(directory).filter((name) => name.startsWith('geordi-shell-'))).toEqual([]);
+		} finally {
+			closeTerminal(id);
+			await exited.promise;
+			vi.unstubAllEnvs();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	}
+);

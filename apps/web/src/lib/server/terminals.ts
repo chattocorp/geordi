@@ -75,7 +75,7 @@ export function createTerminals(
 	/** Something the forge has to say; it belongs after any output. */
 	const tell = (terminal: Terminal, text: string) => emit(terminal, notice(text), Infinity);
 
-	function start(at: TerminalRef) {
+	function start(at: TerminalRef, initialCommand?: string) {
 		const terminalId = idOf(at);
 		const terminal = get(terminalId);
 		// one whose command has ended is started again: the daemon puts a new one in its place
@@ -86,6 +86,7 @@ export function createTerminals(
 			terminalId,
 			...ref(at.workspaceId),
 			...terminal.size,
+			...(initialCommand !== undefined && { initialCommand }),
 			// A job's terminal (FDR-006) runs the job's command as someone saw and asked for it.
 			// Started again by a key press, it is that same command; with none on record (we
 			// restarted since), there is none, and the daemon says to start the job again.
@@ -110,11 +111,15 @@ export function createTerminals(
 		 * Starts the terminal's shell, at the given size. For a job's terminal, `run` is the
 		 * job and its command as whoever asked for it saw it.
 		 */
-		start(at: TerminalRef, size: TerminalSize, run?: Terminal['run']) {
+		start(
+			at: TerminalRef,
+			{ cols, rows, initialCommand }: TerminalSize & { initialCommand?: string },
+			run?: Terminal['run']
+		) {
 			const terminal = get(idOf(at));
-			terminal.size = size;
+			terminal.size = { cols, rows };
 			if (run) terminal.run = run;
-			start(at);
+			start(at, initialCommand);
 		},
 
 		/** Whether the terminal's shell is running. */

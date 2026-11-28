@@ -48,6 +48,7 @@
 		parentAgent,
 		queue = [],
 		queueImages = [],
+		onrun,
 		onopenturn,
 		onopensubagent,
 		onremove,
@@ -72,6 +73,7 @@
 		parentAgent?: { name: string; open: () => void };
 		queue?: string[];
 		queueImages?: string[][];
+		onrun?: (command: string) => void;
 		onopenturn?: (changes: TurnChanges) => void;
 		onopensubagent?: (id: string) => void;
 		onremove?: (index: number, text: string, images: string[]) => void;
@@ -407,7 +409,7 @@
 			text={part.text}
 			footer={ending ? footer : undefined}
 		>
-			<Markdown agentDirectives preserveLineBreaks text={part.text} {dimmed} {pictures} />
+			<Markdown {onrun} agentDirectives preserveLineBreaks text={part.text} {dimmed} {pictures} />
 		</AgentText>
 	{:else if part.kind === 'subagent'}
 		<SubagentRow child={part} {cwd} {pictures} onopen={onopensubagent} />

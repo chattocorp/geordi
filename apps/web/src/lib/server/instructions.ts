@@ -43,6 +43,8 @@ export function instructionsFor(workspace: {
 
 		DIAGRAMS,
 
+		'When you offer a command the person may want to run, put it in a fenced `sh` block. Its Run button runs the block as written in a new terminal in their workspace. Give each runnable thing its own block. Other tags such as `bash` and `console` get no button. Use those for examples and output.',
+
 		LINKS,
 
 		workspace.mayDelegate

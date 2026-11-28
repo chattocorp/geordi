@@ -1,5 +1,8 @@
 import { execFile } from 'node:child_process';
-import { basename } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { spawn, type IPty } from '@lydell/node-pty';
 import type { DaemonResults, TerminalSize } from '@geordi/protocol';
@@ -54,11 +57,13 @@ export function openTerminal(
 	{
 		cols,
 		rows,
+		initialCommand,
 		command,
 		closeOnSuccess = false,
 		env = {},
 		onEnded
 	}: TerminalSize & {
+		initialCommand?: string;
 		command?: string;
 		closeOnSuccess?: boolean;
 		/** On top of our own environment. */ env?: Record<string, string>;
@@ -92,14 +97,43 @@ export function openTerminal(
 	`;
 	const [file, args] = command
 		? ['/bin/sh', ['-c', script, shell, command, closeOnSuccess ? 'close' : 'wait']]
-		: [shell, []];
-	const pty = spawn(file, args, {
-		name: 'xterm-256color',
-		cwd,
-		cols,
-		rows,
-		env: { ...(process.env as Record<string, string>), ...env }
-	});
+		: [initialCommand === undefined ? shell : '/bin/sh', []];
+	// POSIX sh reads ENV before its first interactive prompt. The file keeps the
+	// block out of the line editor (tabs, here-documents) and out of argv's size limit.
+	let startup: string | undefined;
+	if (initialCommand !== undefined) {
+		guard();
+		startup = join(tmpdir(), `geordi-shell-${randomUUID()}`);
+		// Once opened, the shell can unlink it. A nested shell must not run it again.
+		// Interrupting a foreground job can abandon the rest of an interactive startup
+		// file. Hand over on SIGINT too, while this shell still owns the directory and exports.
+		const quote = (text: string) => "'" + text.replaceAll("'", "'\\''") + "'";
+		const handover = 'exec ' + quote(shell);
+		const script = [
+			'command -p rm -f "$ENV"',
+			'unset ENV',
+			'trap ' + quote(handover) + ' INT',
+			initialCommand,
+			handover
+		].join('\n');
+		writeFileSync(startup, script, {
+			flag: 'wx',
+			mode: 0o600
+		});
+	}
+	let pty: IPty;
+	try {
+		pty = spawn(file, args, {
+			name: 'xterm-256color',
+			cwd,
+			cols,
+			rows,
+			env: { ...(process.env as Record<string, string>), ...env, ...(startup && { ENV: startup }) }
+		});
+	} catch (error) {
+		if (startup) rmSync(startup, { force: true });
+		throw error;
+	}
 
 	/** Calls `onEnded` once. */
 	let ended = onEnded;
@@ -147,8 +181,16 @@ export function openTerminal(
 		}
 	};
 	terminals.set(id, terminal);
+	// Begin the scrollback with literal text before relaying any PTY output. The
+	// terminal needs CRLF to start each line in the first column.
+	if (initialCommand !== undefined) {
+		const block = initialCommand.replaceAll('\n', '\r\n');
+		output(`\x1b[2m${block}\x1b[0m${block.endsWith('\n') ? '' : '\r\n'}`);
+	}
 	pty.onData(output);
 	pty.onExit(() => {
+		// The shell may have been killed before it read its startup file.
+		if (startup) rmSync(startup, { force: true });
 		// a restarted shell may already have taken this one's place: then it is not this
 		// terminal that has gone, and nobody is told that it has
 		const current = terminals.get(id) === terminal;

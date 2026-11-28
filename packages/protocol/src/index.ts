@@ -17,9 +17,16 @@ import type { Sound } from './sounds.ts';
  * The daemon connects to the forge over a WebSocket; each frame is one JSON message.
  * Both sides authenticate before anything else is exchanged (see `./auth.ts`). See ADR-002.
  */
-export const PROTOCOL_VERSION = 45;
+export const PROTOCOL_VERSION = 46;
 /** A first search can include a cold scan of a large checkout. */
 export const FILE_SEARCH_TIMEOUT_MS = 120_000;
+
+/**
+ * Whether a code block may be run as it is shown (FDR-020): not if it holds characters that
+ * are not seen, or that change what is seen (control and escape characters, direction marks,
+ * zero-width ones), since what runs would then not be what the person read.
+ */
+export const runsAsShown = (text: string): boolean => !/[^\P{C}\n\t]|[\u2028\u2029]/u.test(text);
 
 export const AGENTS = ['claude', 'codex', 'opencode'] as const;
 export type Agent = (typeof AGENTS)[number];
@@ -944,6 +951,8 @@ export type ForgeMessage =
 	 */
 	| ({
 			type: 'terminal.open';
+			/** Text from a code block the person chose to run in this shell. */
+			initialCommand?: string;
 			terminalId: string;
 			run?: { job: string; command: string };
 	  } & WorktreeRef &

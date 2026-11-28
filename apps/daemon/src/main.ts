@@ -26,6 +26,7 @@ import {
 	type DaemonRequest,
 	type ForgeMessage,
 	type Harness,
+	type TerminalSize,
 	type WorktreeRef
 } from '@geordi/protocol';
 import { createNonce, prove, verify } from '@geordi/protocol/auth';
@@ -732,7 +733,7 @@ async function readRequest(request: DaemonRequest, signal?: AbortSignal) {
 }
 
 // Terminal preparation can still be queued or checking ports when a close arrives.
-const openingTerminals = new Map<string, symbol>();
+const openingTerminals = new Map<string, TerminalSize>();
 
 async function handle(message: ForgeMessage, removals: Map<string, AbortController>) {
 	switch (message.type) {
@@ -770,7 +771,7 @@ async function handle(message: ForgeMessage, removals: Map<string, AbortControll
 
 		case 'terminal.open': {
 			const { terminalId } = message;
-			const opening = Symbol();
+			const opening = { cols: message.cols, rows: message.rows };
 			openingTerminals.set(terminalId, opening);
 			const { output, exit } = relay(terminalId);
 			return inWorktree(worktreePath(worktreesDir, message), async () => {
@@ -804,6 +805,7 @@ async function handle(message: ForgeMessage, removals: Map<string, AbortControll
 						worktree.path,
 						{
 							...message,
+							...opening,
 							closeOnSuccess: asked?.job === 'setup',
 							command: asked && (taken ? PORT_TAKEN : agreed ? job!.command! : RUN_CHANGED),
 							// every terminal knows the workspace's ports; a task also which are its own
@@ -834,9 +836,12 @@ async function handle(message: ForgeMessage, removals: Map<string, AbortControll
 			writeTerminal(message.terminalId, message.data);
 			break;
 
-		case 'terminal.resize':
+		case 'terminal.resize': {
+			const opening = openingTerminals.get(message.terminalId);
+			if (opening) Object.assign(opening, { cols: message.cols, rows: message.rows });
 			resizeTerminal(message.terminalId, message);
 			break;
+		}
 
 		case 'terminal.close':
 			openingTerminals.delete(message.terminalId);

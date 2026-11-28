@@ -220,3 +220,47 @@ describe('agent review findings', () => {
 		);
 	});
 });
+
+describe('runnable code blocks', () => {
+	const options = { canRun: true };
+	it('offers Run for a complete sh fence when the caller can run it', () => {
+		const code = '~~~sh\necho hello\n~~~';
+		expect(renderMarkdown(code, options)).toContain('data-run');
+		expect(renderMarkdown(code)).not.toContain('data-run');
+		expect(renderMarkdown('> ```sh\n> pwd\n> ```', options)).toContain('data-run');
+	});
+
+	it.each([
+		'echo a\x1b[8mrm -rf ~',
+		'echo \u202egnp.exe',
+		'ls\u200b',
+		'echo ok\x08\x08rm',
+		'a\x07'
+	])('offers no Run for %j, which would not run as shown', (code) => {
+		const html = renderMarkdown('~~~sh\n' + code + '\n~~~', options);
+		expect(html).not.toContain('data-run');
+		expect(html).toContain('data-copy');
+	});
+
+	it('runs tabs, several lines and other scripts', () => {
+		expect(renderMarkdown('~~~sh\nif true; then\n\techo "héllo 你好"\nfi\n~~~', options)).toContain(
+			'data-run'
+		);
+	});
+
+	it.each(['bash', 'shell', 'zsh', 'SH', 'sh example', ''])('leaves %j copy-only', (tag) => {
+		const html = renderMarkdown('~~~' + tag + '\npwd\n~~~', options);
+		expect(html).not.toContain('data-run');
+		expect(html).toContain('data-copy');
+	});
+
+	it.each([
+		'~~~sh',
+		'~~~sh\necho',
+		'~~~sh\npwd\n',
+		'~~~~sh\npwd\n~~~',
+		'> ~~~sh\n> pwd\n\nOutside'
+	])('waits for a closing fence in %j', (source) => {
+		expect(renderMarkdown(source, options)).not.toContain('data-run');
+	});
+});

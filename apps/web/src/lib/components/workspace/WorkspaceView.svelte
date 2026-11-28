@@ -76,6 +76,7 @@
 	import Split from '#lib/ui/Split.svelte';
 	import TitleBar from '@geordi/ui/TitleBar.svelte';
 	import {
+		startTerminal,
 		closeTerminal,
 		continueWorkspace,
 		approveRun,
@@ -244,9 +245,10 @@
 
 	const terminalTitles = new SvelteMap<string, string>();
 	/** Terminals asked for just now, whose shells are still starting. */
-	const starting = new SvelteSet<string>();
+	const starting = new SvelteMap<string, Promise<unknown>>();
 	$effect(() => {
-		for (const name of starting) if (workspace.terminals.includes(name)) starting.delete(name);
+		for (const name of starting.keys())
+			if (workspace.terminals.includes(name)) starting.delete(name);
 	});
 
 	// Which windows there are follows from the workspace, not from memory: the conversation
@@ -551,11 +553,16 @@
 	}
 
 	let focusTerminal = $state<string>();
-	function newTerminal(focus = true) {
+	function newTerminal(initialCommand?: string) {
 		// starts with the time, so that terminals sort, and are numbered, in the order they were opened
 		const name = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 4)}`;
-		starting.add(name);
-		if (focus) focusTerminal = name;
+		starting.set(
+			name,
+			startTerminal({ workspaceId: id, terminal: name, cols: 80, rows: 24, initialCommand }).catch(
+				() => {}
+			)
+		);
+		focusTerminal = name;
 		return `terminal:${name}`;
 	}
 
@@ -575,9 +582,9 @@
 	}
 	/** Terminals without a job in them, in the order they were opened. */
 	const shellTabs = () => everywhere().filter((tab) => terminalOf(tab) && !jobOf(terminalOf(tab)));
-	function openNewTerminal() {
+	function openNewTerminal(initialCommand?: string) {
 		if (!frame.current.open) toggleSide();
-		arrange({ dock: open(dock, newTerminal()) });
+		arrange({ dock: open(dock, newTerminal(initialCommand)) });
 	}
 
 	/** Remembers a new arrangement. Run terminals can be reopened from the job row. */
@@ -1347,7 +1354,7 @@
 			workspaceId={id}
 			{terminal}
 			ontitle={jobOf(terminal) ? undefined : (title) => terminalTitles.set(tab, title)}
-			start={starting.has(terminal)}
+			start={starting.get(terminal)}
 			autofocus={focusTerminal === terminal}
 			onautofocus={() => (focusTerminal = undefined)}
 		/>
@@ -1360,6 +1367,7 @@
 		</div>
 	{:else if reviewer}
 		<MessageView
+			onrun={terminalsOpen ? openNewTerminal : undefined}
 			blocks={subagentBlocks(reviewer.child)}
 			onstoptask={(stopId) => stopTask({ workspaceId: reviewer.owner.id, stopId })}
 			background={reviewer.owner.background?.filter((task) => task.session === reviewer.child.id)}
@@ -1373,6 +1381,7 @@
 	{:else if aideOf(tab)}
 		<!-- what its own agent said there is that one's; and so on up -->
 		<Conversation
+			onrun={terminalsOpen ? openNewTerminal : undefined}
 			workspace={aideOf(tab)!}
 			questionTarget={questionTarget?.owner === aideOf(tab)!.id ? questionTarget : undefined}
 			onopenturn={(changes) => openTurn(changes, aideOf(tab)!.id)}
@@ -1382,6 +1391,7 @@
 		/>
 	{:else}
 		<Conversation
+			onrun={terminalsOpen ? openNewTerminal : undefined}
 			{workspace}
 			autofocus={focusChat}
 			onautofocus={() => (focusChat = false)}

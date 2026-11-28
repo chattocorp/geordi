@@ -9,6 +9,7 @@ import {
 	JOB_TERMINAL,
 	MAX_IMAGES,
 	FILE_SEARCH_TIMEOUT_MS,
+	runsAsShown,
 	type FileVersions
 } from '@geordi/protocol';
 import {
@@ -555,11 +556,13 @@ const terminal = {
 
 /** Starts a terminal's shell. Only ever called because a person asked for a terminal. */
 export const startTerminal = command(
-	v.object({ ...terminal, ...size }),
-	({ cols, rows, ...at }) => {
+	v.object({ ...terminal, ...size, initialCommand: v.optional(v.string()) }),
+	({ cols, rows, initialCommand, ...at }) => {
 		// a job's terminal runs a command of the repository's: that takes `startJobs`
 		if (at.terminal.startsWith(JOB_TERMINAL)) error(400, 'That name is for a job');
-		terminals().start(at, { cols, rows });
+		if (initialCommand !== undefined && !runsAsShown(initialCommand))
+			error(400, 'That command holds characters that are not shown');
+		terminals().start(at, { cols, rows, initialCommand });
 	}
 );
 
