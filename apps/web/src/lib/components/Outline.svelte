@@ -19,12 +19,11 @@
 <script lang="ts">
 	/**
 	 * The outline editor (FDR-019): rows of items, some with workspaces, edited as in any
-	 * outliner, and dragged to other places. The sidebar shows the outline's folders and
-	 * workspaces with it; a workspace's Plan window its scope, where what is written is a todo
-	 * (`todos`; `root`: the item everything here is under, `null` for the whole outline). How a workspace's row looks is the caller's (`workspace`).
+	 * outliner, and dragged to other places: the sidebar's folders and workspaces (`root`:
+	 * the item everything here is under, `null` for the whole outline). How a workspace's row
+	 * looks is the caller's (`workspace`).
 	 */
 	import type { Snippet } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { tick } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
@@ -33,19 +32,12 @@
 	import { dropTarget, type DropPlace } from '#lib/family.ts';
 	import { contextMenu, type MenuItem } from '#lib/ui/menu.svelte.ts';
 	import OutlineItemRow from './OutlineItemRow.svelte';
-	import {
-		addItem,
-		completeItem,
-		editItem,
-		moveItem,
-		removeItem
-	} from '../../routes/workspaces.remote';
+	import { addItem, editItem, moveItem, removeItem } from '../../routes/workspaces.remote';
 
 	let {
 		rows,
 		folded,
 		root = null,
-		todos = false,
 		truncate = false,
 		live,
 		workspace,
@@ -60,8 +52,6 @@
 		rows: Row[];
 		folded: { current: string[] };
 		root?: string | null;
-		/** Whether what is written here is a todo (a workspace's Plan) rather than a folder. */
-		todos?: boolean;
 		/** Whether a long line is cut short, as in the sidebar; else it wraps. */
 		truncate?: boolean;
 		/** Whether a workspace's item has its workspace in use; else it is an archived one's record. */
@@ -107,13 +97,7 @@
 	const zoomUp = () => zoomOut(trail.at(-2)?.id ?? null);
 	const canZoom = (entry: Entry) => !!onzoom && zoomable(entry);
 
-	/** Ticks a todo off, or not: it stays where it is, crossed out. A folder is never done. */
-	const tickOff = async (entry: Entry) => {
-		if (entry.todo) await completeItem({ itemId: entry.id, done: !entry.done });
-	};
-	/** What is written here, by name. */
-	const kind = $derived(todos ? 'todo' : 'folder');
-	/** Whether a row is a workspace's: nothing is put under one here, where it would leave this outline for its plan. */
+	/** Whether a row is a workspace's: no folder is put under one, where only its child agents are. */
 	const isWorkspace = (id: string | null) =>
 		rows.some(({ workspace }) => workspace.id === id && workspace.workspace);
 
@@ -167,7 +151,7 @@
 		}
 		event.preventDefault();
 		const target = dropTarget(rows, dragged, place, true);
-		// a folder or a todo stays out from under a workspace's row: it would be gone from here
+		// a folder stays out from under a workspace's row
 		dropAt =
 			target && !dragged.workspace && target.reparents && isWorkspace(target.parentId)
 				? undefined
@@ -271,24 +255,14 @@
 		const text = input.value;
 		const save = () => (text !== entry.text ? editItem({ itemId: entry.id, text }) : undefined);
 		const mod = event.metaKey || event.ctrlKey;
-		if (event.key === 'Enter' && event.altKey && !mod && !event.shiftKey) {
-			event.preventDefault();
-			// nothing written, nothing to start
-			if (!text.trim()) return;
-			await save();
-			startOn(entry);
-		} else if (event.key === 'Enter' && mod) {
-			event.preventDefault();
-			await save();
-			await tickOff(entry);
-		} else if (event.key === 'Enter') {
+		if (event.key === 'Enter' && !mod && !event.altKey) {
 			event.preventDefault();
 			await save();
 			await newItem(parentOf(index), idAt(siblingIndex(index, 1)));
 		} else if (event.key === 'Tab' && !event.shiftKey) {
 			event.preventDefault();
 			const above = siblingIndex(index, -1);
-			// not under a workspace: there it would be in that workspace's plan, and gone from here
+			// not under a workspace: only its child agents are there
 			if (above === -1 || rows[above].workspace.workspace) return;
 			await save();
 			unfold(idAt(above)!);
@@ -355,22 +329,11 @@
 	/** The items' rows, by item: to go into the note of one. */
 	const itemRows: Record<string, OutlineItemRow | undefined> = $state({});
 
-	/** Opens the start page for an item: what it says is there to be sent, or added to first. */
-	const startOn = (entry: Entry) =>
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve()d, with a query
-		void goto(`${resolve('/')}?item=${encodeURIComponent(entry.id)}`);
-
 	/** What can be done with an item without a workspace. */
 	function itemMenu(entry: Entry, index: number): MenuItem[] {
 		return [
 			{
-				label: 'Start a workspace on it',
-				icon: 'icon-[lucide--play]',
-				keys: ['alt', 'enter'],
-				onselect: () => startOn(entry)
-			},
-			{
-				label: `Add a ${kind} under it`,
+				label: 'Add a folder under it',
 				icon: 'icon-[lucide--list-plus]',
 				onselect: () => addUnder(index)
 			},
@@ -387,16 +350,6 @@
 							icon: 'icon-[lucide--zoom-in]',
 							keys: ['cmd', '.'],
 							onselect: () => zoomIn(entry)
-						}
-					]
-				: []),
-			...(entry.todo
-				? [
-						{
-							label: entry.done ? 'Mark as not done' : 'Mark as done',
-							icon: entry.done ? 'icon-[lucide--circle]' : 'icon-[lucide--circle-check]',
-							keys: ['cmd', 'enter'],
-							onselect: () => tickOff(entry)
 						}
 					]
 				: []),
@@ -548,8 +501,6 @@
 					id={entry.id}
 					text={entry.text}
 					note={archived ? undefined : entry.note}
-					done={entry.done}
-					folder={!entry.workspace && !entry.todo}
 					{truncate}
 					href={archived ? resolve('/workspaces/[id]', { id: entry.id }) : undefined}
 					dragging={dragged?.id === entry.id}
@@ -557,7 +508,6 @@
 					{fold}
 					onsave={(text) => editItem({ itemId: entry.id, text })}
 					onnote={(note) => editItem({ itemId: entry.id, note })}
-					ontoggle={() => tickOff(entry)}
 					onkeydown={(event) => itemKeys(event, index)}
 				/>
 			{/if}
@@ -573,7 +523,7 @@
 			<span class="grid size-6 shrink-0 place-items-center">
 				<span class="icon-[lucide--plus] size-4"></span>
 			</span>
-			<span class="py-1">New {kind}</span>
+			<span class="py-1">New folder</span>
 		</button>
 	</li>
 </ul>

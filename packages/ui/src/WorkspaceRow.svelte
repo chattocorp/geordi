@@ -58,7 +58,7 @@
 		onaction?: (action: WorkspaceAction) => void;
 		/** Whether what is under it folds from beside it (the outline's fold, FDR-019), not from its sign. */
 		foldAside?: boolean;
-		/** Whether a long title wraps (a Plan window); else it is cut short (the sidebar). */
+		/** Whether a long title wraps; else it is cut short (the sidebar). */
 		wrap?: boolean;
 	} = $props();
 

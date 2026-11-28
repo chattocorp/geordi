@@ -61,7 +61,7 @@ describe('the outline as people see it', () => {
 		]);
 	});
 
-	it('says which items are todos: those under a workspace; a folder is never done', () => {
+	it('leaves out what is left of workspaces’ todos, and a folder is never done', () => {
 		const outline = emptyOutline();
 		const write = (id: string, parentId: string | null) =>
 			applyItem(outline, {
@@ -73,6 +73,8 @@ describe('the outline as people see it', () => {
 		attach(outline, 'lead', 'folder');
 		write('step', 'lead');
 		write('substep', 'step');
+		// an agent filed under a todo: right under the workspace that supervises it
+		attach(outline, 'child', 'substep');
 		for (const id of ['folder', 'step'])
 			applyItem(outline, { type: 'item.completed', stream: `item:${id}`, data: { id } });
 		const view = outlineView(
@@ -80,11 +82,10 @@ describe('the outline as people see it', () => {
 			(id) => ({ title: id, worktreeId: id, archivedAt: null }),
 			() => undefined
 		);
-		expect(view.map(({ id, todo, done }) => [id, todo, done])).toEqual([
-			['lead', false, false],
-			['folder', false, false],
-			['step', true, true],
-			['substep', true, false]
+		expect(view.map(({ id, parentId, done }) => [id, parentId, done])).toEqual([
+			['child', 'lead', false],
+			['lead', 'folder', false],
+			['folder', null, false]
 		]);
 	});
 });

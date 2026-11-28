@@ -6,10 +6,8 @@ import {
 	nextUnread,
 	outlineRows,
 	stepThrough,
-	withoutTodos,
 	unfolded,
 	isInactive,
-	scopeItems,
 	zoomedInto,
 	zoomTrail,
 	withAides
@@ -80,8 +78,7 @@ describe('outlineRows', () => {
 		text: id,
 		note: '',
 		done,
-		workspace,
-		todo: false
+		workspace
 	});
 	const items = [
 		item('release'),
@@ -338,35 +335,6 @@ describe('nextUnread', () => {
 	});
 });
 
-describe('scopeItems', () => {
-	const item = (id: string, parentId: string | null, workspace = false) => ({
-		id,
-		parentId,
-		text: id,
-		note: '',
-		done: false,
-		workspace,
-		todo: false
-	});
-	const items = [
-		item('lead', null, true),
-		item('step', 'lead'),
-		item('detail', 'step'),
-		item('child', 'step', true),
-		item('childs-own', 'child'),
-		item('elsewhere', null)
-	];
-
-	it('keeps what is under the workspace, down to its child agents, not into them', () => {
-		expect(scopeItems(items, 'lead').map(({ id }) => id)).toEqual(['step', 'detail', 'child']);
-	});
-
-	it('gives a child agent a scope of its own', () => {
-		expect(scopeItems(items, 'child').map(({ id }) => id)).toEqual(['childs-own']);
-		expect(scopeItems(items, 'elsewhere')).toEqual([]);
-	});
-});
-
 describe('zooming', () => {
 	const item = (id: string, parentId: string | null, workspace = false) => ({
 		id,
@@ -374,8 +342,7 @@ describe('zooming', () => {
 		text: id,
 		note: '',
 		done: false,
-		workspace,
-		todo: false
+		workspace
 	});
 	const items = [
 		item('release', null),
@@ -397,41 +364,10 @@ describe('zooming', () => {
 		expect(zoomedInto(items, 'gone')).toBe(items);
 	});
 
-	it('leads down to it from the top, or from below a root', () => {
+	it('leads down to it from the top', () => {
 		expect(ids(zoomTrail(items, 'step'))).toEqual(['release', 'lead', 'step']);
-		expect(ids(zoomTrail(items, 'detail', 'lead'))).toEqual(['step', 'detail']);
-		expect(zoomTrail(items, 'lead', 'lead')).toEqual([]);
-		// not under the root, or gone: nothing to lead down
-		expect(zoomTrail(items, 'elsewhere', 'lead')).toEqual([]);
+		// gone: nothing to lead down
 		expect(zoomTrail(items, 'gone')).toEqual([]);
 		expect(zoomTrail(items, null)).toEqual([]);
-	});
-});
-
-describe('withoutTodos', () => {
-	const entry = (id: string, parentId: string | null, kind: 'folder' | 'todo' | 'workspace') => ({
-		id,
-		parentId,
-		text: id,
-		note: '',
-		done: false,
-		workspace: kind === 'workspace',
-		todo: kind === 'todo'
-	});
-
-	it('leaves folders and workspaces, and puts a workspace filed under todos under its supervisor', () => {
-		const items = [
-			entry('folder', null, 'folder'),
-			entry('lead', 'folder', 'workspace'),
-			entry('heading', 'lead', 'todo'),
-			entry('step', 'heading', 'todo'),
-			entry('child', 'step', 'workspace'),
-			entry('childs-step', 'child', 'todo')
-		];
-		expect(withoutTodos(items).map(({ id, parentId }) => [id, parentId])).toEqual([
-			['folder', null],
-			['lead', 'folder'],
-			['child', 'lead']
-		]);
 	});
 });

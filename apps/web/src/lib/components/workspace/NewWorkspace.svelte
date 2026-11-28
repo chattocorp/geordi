@@ -28,8 +28,6 @@
 		/** The repository picked to begin with; the first one, unless said otherwise. */
 		preferred?: string;
 		issue?: { title: string; url: string };
-		/** An item of the outline to start it on (FDR-019): what it and its note say is what to do. */
-		item?: { id: string; text: string; note?: string };
 		label?: string;
 		/** Whether the cursor starts in the text: on the page that is for starting a workspace. */
 		focused?: boolean;
@@ -41,16 +39,7 @@
 		/** Told of the repository the person picks here. */
 		onpick?: (repoId: string) => void;
 	};
-	let {
-		repos,
-		preferred,
-		issue,
-		item,
-		label,
-		focused = false,
-		alongside,
-		onpick
-	}: Props = $props();
+	let { repos, preferred, issue, label, focused = false, alongside, onpick }: Props = $props();
 
 	const fields = createWorkspace.fields;
 	const { prompt, images } = fields;
@@ -61,20 +50,9 @@
 	prompt.set('');
 	const written = draft(
 		() =>
-			alongside
-				? `alongside:${alongside}`
-				: item
-					? `item:${item.id}`
-					: issue
-						? `issue:${preferred}:${issue.url}`
-						: 'new',
+			alongside ? `alongside:${alongside}` : issue ? `issue:${preferred}:${issue.url}` : 'new',
 		() => prompt,
-		() =>
-			item
-				? [item.text, item.note].filter(Boolean).join('\n\n')
-				: issue
-					? `${issue.title}\n${issue.url}`
-					: ''
+		() => (issue ? `${issue.title}\n${issue.url}` : '')
 	);
 	// (Starting one goes to it, so the form is not reset: the draft is forgotten here.)
 	const form = createWorkspace.enhance(async ({ submit }) => {
@@ -167,7 +145,6 @@
 			<input {...fields.repoId.as('hidden', repo?.id ?? '')} />
 			{#if alongside}<input {...fields.alongside.as('hidden', alongside)} />
 			{:else}<input {...fields.base.as('hidden', base)} />{/if}
-			{#if item}<input {...fields.itemId.as('hidden', item.id)} />{/if}
 			{#if chosen}
 				<input {...fields.agent.as('hidden', chosen.harness.agent)} />
 				<input {...fields.model.as('hidden', chosen.model?.id ?? '')} />

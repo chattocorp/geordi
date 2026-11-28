@@ -80,11 +80,9 @@ export const createWorkspace = form(
 		 * A workspace to start this in instead, as another conversation in it, with an agent
 		 * working in its directory (FDR-002).
 		 */
-		alongside: v.optional(v.string()),
-		/** An item written down earlier to start it on (FDR-019). */
-		itemId: v.optional(v.string())
+		alongside: v.optional(v.string())
 	}),
-	({ model, effort, permissionMode, alongside, repoId, base, itemId, ...data }) => {
+	({ model, effort, permissionMode, alongside, repoId, base, ...data }) => {
 		const offered = hub().harnesses();
 		if (offered && !offered.some((h) => h.agent === data.agent))
 			error(409, `Provider ${data.agent} is unavailable`);
@@ -99,8 +97,7 @@ export const createWorkspace = form(
 			...data,
 			repoId,
 			settings,
-			...(base && { base }),
-			...(itemId && { itemId })
+			...(base && { base })
 		});
 		// with nothing to do yet there is no turn to make its worktree for: it is made now, so
 		// that there is somewhere to look around and open a terminal in
@@ -420,11 +417,6 @@ export const editItem = command(
 		note: v.optional(v.pipe(v.string(), v.maxLength(20_000)))
 	}),
 	({ itemId, ...changes }) => workspaces().editItem(itemId, changes)
-);
-
-export const completeItem = command(
-	v.object({ itemId: v.string(), done: v.boolean() }),
-	({ itemId, done }) => workspaces().completeItem(itemId, done)
 );
 
 export const removeItem = command(v.object({ itemId: v.string() }), ({ itemId }) =>

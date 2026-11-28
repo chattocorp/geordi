@@ -5,10 +5,6 @@ import { isInactive } from '#lib/family.ts';
 import {
 	descendantsOf as descendantsOfItem,
 	frontierOf,
-	inScope,
-	isTodo,
-	pathOf,
-	scopeOf,
 	workspaceAbove,
 	type Item
 } from './items.ts';
@@ -418,8 +414,7 @@ export function createWorkspaces(
 				sharesWorktree: workspace.worktreeId !== workspace.id,
 				named: workspace.named,
 				manuallyNamed: workspace.manuallyNamed,
-				mayDelegate: depthOf(workspace) < limits.depth,
-				outline: workspace.repoId === null ? undefined : scopeView(find(workspace.worktreeId))
+				mayDelegate: depthOf(workspace) < limits.depth
 			}),
 			...(attachments.length && { images: attachments }),
 			deliveryId,
@@ -599,15 +594,12 @@ export function createWorkspaces(
 			images = [],
 			settings = {},
 			title: given,
-			itemId,
 			...workspace
 		}: NewWorkspace & {
 			parentId?: string;
 			worktreeId?: string;
 			base?: string;
 			title?: string;
-			/** An item written down earlier to start it on (FDR-019): it is named after it, and works there. */
-			itemId?: string;
 		},
 		actor: string | null = null
 	): string {
@@ -621,18 +613,8 @@ export function createWorkspaces(
 			refuseHeld(`repo:${repoId}`);
 		}
 		const chosen = chosenOf(settings);
-		const item = itemId === undefined ? undefined : itemOf(itemId);
-		if (item) {
-			if (item.workspace) error(409, 'That item has a workspace already');
-			if (descendantsOfItem(projection.outline(), item.id).some((each) => each.workspace))
-				error(409, 'Start a workspace on an item with no workspaces under it');
-			if (repoId === null || rest.worktreeId)
-				error(400, 'A workspace on an item works in a repository');
-		}
-		const id = item?.id ?? randomUUID();
-		// named after its item, as the person wrote it: their name for it (FDR-019)
-		const named = item && item.text.slice(0, 80).trim();
-		const title = named || promptTitle(prompt) || UNTITLED;
+		const id = randomUUID();
+		const title = promptTitle(prompt) || UNTITLED;
 		store.append(
 			{
 				type: 'workspace.created',
@@ -643,18 +625,11 @@ export function createWorkspaces(
 					...(repoId !== null && { repoId }),
 					...(repoId !== null && !rest.worktreeId && { worktreeParent: repoId }),
 					...rest,
-					...(item && { parentId: workspaceAbove(projection.outline(), item.id) ?? undefined }),
 					...(Object.keys(chosen).length > 0 && { settings: chosen })
 				}
 			},
 			{ actor }
 		);
-		// its item's text is its name, chosen on purpose: by the person, or by the agent that started it there
-		if (named)
-			store.append(
-				{ type: 'workspace.titled', stream: `workspace:${id}`, data: { id, title: named } },
-				{ actor: actor ?? 'person' }
-			);
 		// whoever starts it may name it; otherwise its agent does (`titleFromAgent`, `name_workspace`)
 		if (given && actor) retitle(id, given, actor);
 		// started with nothing to do, it waits to be told: its first turn is its first message
@@ -701,6 +676,8 @@ export function createWorkspaces(
 
 	// --- The outline (FDR-019) -------------------------------------------------------------
 
+	const UNDER_WORKSPACE = 'A folder can’t be put under a workspace';
+
 	/** An item of the outline. Any other doesn't exist. */
 	function itemOf(id: string): Item {
 		const item = projection.outline().items.get(id);
@@ -725,14 +702,15 @@ export function createWorkspaces(
 	}
 
 	/**
-	 * Writes a new item, without a workspace: under `parentId` (or at the top), right
-	 * above `before` (or last among its siblings). Returns its ID.
+	 * Writes a new item, without a workspace (a folder): under `parentId` (or at the top),
+	 * right above `before` (or last among its siblings). Never under a workspace: what is
+	 * under one is its child agents. Returns its ID.
 	 */
 	function addItem(
 		{ parentId, before, text }: { parentId: string | null; before: string | null; text: string },
 		actor: string | null = null
 	): string {
-		if (parentId !== null) refuseParent(parentId);
+		if (parentId !== null && refuseParent(parentId)) error(409, UNDER_WORKSPACE);
 		if (before !== null) itemOf(before);
 		const id = randomUUID();
 		store.append(
@@ -768,19 +746,6 @@ export function createWorkspaces(
 		);
 	}
 
-	/**
-	 * Ticks a todo off, or not. A workspace's item is done when the workspace is archived; a
-	 * folder is never done.
-	 */
-	function completeItem(id: string, done: boolean, actor: string | null = null) {
-		const item = itemOf(id);
-		if (item.workspace) error(409, 'Archive the workspace to tick it off');
-		if (!isTodo(projection.outline(), id)) error(409, 'Only a todo can be ticked off');
-		if (item.done === done) return;
-		const type = done ? 'item.completed' : 'item.reopened';
-		store.append({ type, stream: `item:${id}`, data: { id } }, { actor });
-	}
-
 	/** Removes an item, with everything under it, where none of it has a workspace. */
 	function removeItem(id: string, actor: string | null = null) {
 		const item = itemOf(id);
@@ -793,79 +758,12 @@ export function createWorkspaces(
 	}
 
 	/**
-	 * The workspace whose scope a caller works in (FDR-019): its own; for an agent working in
-	 * another workspace's directory, that one's. An external client has none.
-	 */
-	function scopeHolder(callerId: string): Workspace {
-		if (isExternal(callerId)) error(403, 'Only an agent in a workspace has items of its own');
-		const caller = find(callerId);
-		return find(caller.worktreeId);
-	}
-
-	/** An item in a workspace's scope; any other doesn't exist for its agent. */
-	function ownItem(holder: Workspace, id: string): Item {
-		const item = projection.outline().items.get(id);
-		if (!item || item.workspace || !inScope(projection.outline(), holder.id, id))
-			error(404, `There is no item ${id} under your workspace`);
-		return item;
-	}
-
-	/**
-	 * Where in a workspace's scope something goes: under its workspace, or under one of its
-	 * items (`under`); right above `before`, which must be under that same one, or last.
-	 * Without `under`, `before` says where.
-	 */
-	function placeInScope(holder: Workspace, under?: string, before?: string) {
-		const sibling = before === undefined ? undefined : ownItem(holder, before);
-		const parentId = under ?? sibling?.parentId ?? holder.id;
-		if (parentId !== holder.id) ownItem(holder, parentId);
-		if (sibling && sibling.parentId !== parentId)
-			error(400, `Item ${before} is not under the item you put this under`);
-		return { parentId, before: before ?? null };
-	}
-
-	/** A workspace's scope as its agent reads it (FDR-019). */
-	function scopeView(holder: Workspace) {
-		const outline = projection.outline();
-		const nameOf = (item: Item) =>
-			item.workspace ? (projection.get().get(item.id)?.title ?? '') : item.text;
-		return {
-			workspace: holder.title,
-			path: pathOf(outline, holder.id).map(nameOf),
-			items: scopeOf(outline, holder.id).map((entry) => {
-				if (!entry.workspace)
-					return {
-						id: entry.id,
-						// what it is under: `null` right under the workspace
-						parentId: entry.parentId === holder.id ? null : entry.parentId,
-						text: entry.text,
-						done: entry.done,
-						depth: entry.depth,
-						...(entry.note && { note: entry.note })
-					};
-				const own = scopeOf(outline, entry.id).filter((each) => !each.workspace);
-				const workspace = projection.get().get(entry.id);
-				return {
-					id: entry.id,
-					parentId: entry.parentId === holder.id ? null : entry.parentId,
-					agent: workspace?.title ?? '',
-					done: !!workspace?.archivedAt,
-					depth: entry.depth,
-					itemsDone: own.filter((each) => each.done).length,
-					itemsTotal: own.length
-				};
-			})
-		};
-	}
-
-	/**
 	 * Moves an item in the outline (FDR-016, FDR-019), with everything under it: right above
 	 * `before`, or to the end where that is `null`; and, with `parentId`, under that item,
 	 * or to the top level where that is `null`. The workspaces that move with it report to
 	 * the workspace of the nearest item above them from now on: an old supervisor that waits
 	 * for one learns it was moved away, and what one had asked it goes to the person.
-	 * Nobody is told otherwise. A person moves any item; an agent, only items within its scope
-	 * (`agents.moveItem`).
+	 * Nobody is told otherwise. A folder is never put under a workspace.
 	 */
 	function moveItem(
 		id: string,
@@ -886,6 +784,7 @@ export function createWorkspaces(
 		let above = moving[0]?.parentId ?? null;
 		if (reparents) {
 			above = parentId === null ? null : refuseParent(parentId);
+			if (above && !item.workspace) error(409, UNDER_WORKSPACE);
 			if (parentId !== null) {
 				if (parentId === id || descendantsOfItem(outline, id).some((each) => each.id === parentId))
 					error(400, 'Nothing can be moved under itself');
@@ -1205,59 +1104,6 @@ export function createWorkspaces(
 		 * Names the caller's own workspace, so that people can tell it from the others. A few
 		 * times at most: a name that keeps changing is no name.
 		 */
-		/**
-		 * The caller's scope in the outline (FDR-019): the items under its workspace, with the
-		 * workspaces under it as lines of their own, and the path of items above it.
-		 */
-		items(callerId: string) {
-			const holder = scopeHolder(callerId);
-			return scopeView(holder);
-		},
-
-		/**
-		 * Writes an item in the caller's scope: under its workspace, or under one of its items,
-		 * right above `before` (one of its siblings there), or last.
-		 */
-		addItem(
-			callerId: string,
-			{ text, under, before }: { text: string; under?: string; before?: string }
-		) {
-			const holder = scopeHolder(callerId);
-			const place = placeInScope(holder, under, before);
-			const id = addItem({ ...place, text }, callerId);
-			return { id };
-		},
-
-		/**
-		 * Moves an item in the caller's scope, with what is under it: under its workspace, or
-		 * under another of its items, right above `before`, or last there. Its scope holds no
-		 * workspaces, so this hands nobody to anyone (FDR-016).
-		 */
-		moveItem(callerId: string, id: string, { under, before }: { under?: string; before?: string }) {
-			const holder = scopeHolder(callerId);
-			ownItem(holder, id);
-			const place = placeInScope(holder, under, before);
-			moveItem(id, place.before, place.parentId, callerId);
-			const item = itemOf(id);
-			return { id, parentId: item.parentId === holder.id ? null : item.parentId };
-		},
-
-		/** Changes an item in the caller's scope: its text, or whether it is done. */
-		updateItem(callerId: string, id: string, { text, done }: { text?: string; done?: boolean }) {
-			const holder = scopeHolder(callerId);
-			ownItem(holder, id);
-			if (text !== undefined) editItem(id, { text }, callerId);
-			if (done !== undefined) completeItem(id, done, callerId);
-			const item = itemOf(id);
-			return { id, text: item.text, done: item.done };
-		},
-
-		/** Removes an item in the caller's scope, with what is under it. */
-		removeItem(callerId: string, id: string) {
-			ownItem(scopeHolder(callerId), id);
-			removeItem(id, callerId);
-		},
-
 		name(callerId: string, title: string) {
 			if (find(callerId).manuallyNamed) error(409, 'The person chose this workspace name.');
 			const mine = store
@@ -1287,19 +1133,10 @@ export function createWorkspaces(
 				model,
 				effort,
 				prompt,
-				title,
-				item,
-				under
+				title
 			}: {
 				repository?: string;
 				worktree: WorktreeMode;
-				/**
-				 * One of the caller's items to start it on (FDR-019): the item becomes the new
-				 * workspace, named after it, and what is under it the new agent's items.
-				 */
-				item?: string;
-				/** One of the caller's items to put the new workspace under, rather than under the caller. */
-				under?: string;
 				/** The branch a new worktree starts from, and is compared with; the repository's base if absent. */
 				base?: string;
 				/** An existing workspace where the caller may start an agent alongside its agent. */
@@ -1315,16 +1152,6 @@ export function createWorkspaces(
 			const external = isExternal(callerId);
 			const caller = external ? null : find(callerId);
 			if (caller) refuseHeld(caller.id);
-			// where in the caller's scope it goes (FDR-019): only for a workspace's own agent
-			if (item !== undefined || under !== undefined) {
-				if (!caller || caller.worktreeId !== caller.id)
-					error(400, 'Only the agent of a workspace of its own can start one on its items');
-				if (item !== undefined && under !== undefined)
-					error(400, 'Start it on an item, or put it under one: not both');
-				if (alongside !== undefined || worktree === 'shared')
-					error(400, 'An agent on an item has a worktree of its own');
-				ownItem(caller, (item ?? under)!);
-			}
 			if (caller && depthOf(caller) + 1 > limits.depth)
 				error(403, `Agents can only be nested ${limits.depth} deep`);
 			ensureCapacity(callerId);
@@ -1391,11 +1218,7 @@ export function createWorkspaces(
 				{ model, effort },
 				offered?.find((harness) => harness.agent === kind)
 			);
-			const id = create(
-				{ ...where, agent: kind, settings, prompt, title, ...(item && { itemId: item }) },
-				callerId
-			);
-			if (under !== undefined) moveItem(id, null, under, callerId);
+			const id = create({ ...where, agent: kind, settings, prompt, title }, callerId);
 			return report(find(id));
 		},
 
@@ -1674,10 +1497,8 @@ export function createWorkspaces(
 		 * Starts a workspace with a first message to its agent, in a new worktree off `base`
 		 * (where work in the repository starts if absent). Returns the workspace's ID.
 		 */
-		create: (
-			workspace: NewWorkspace & { base?: string; itemId?: string },
-			actor: string | null = null
-		) => create(workspace, actor),
+		create: (workspace: NewWorkspace & { base?: string }, actor: string | null = null) =>
+			create(workspace, actor),
 
 		/**
 		 * Says something to the workspace's agent: at once if it is idle (and nothing is
@@ -1818,21 +1639,10 @@ export function createWorkspaces(
 
 		/**
 		 * Notes that the workspace's worktree was moved to a new branch, to carry on with new
-		 * work. The daemon did the moving; see `continueWorkspace`. What was ticked off right
-		 * under its item goes (FDR-019): that was the last branch's work, and its pull request
-		 * keeps the record. Only where all of it is done, and none of it is a workspace: a
-		 * workspace's items are its own, never its parent's to clear.
+		 * work. The daemon did the moving; see `continueWorkspace`.
 		 */
 		continued(id: string, branch: string, actor: string | null = null) {
 			const { worktreeId } = find(id);
-			const outline = projection.outline();
-			const finished = [...outline.items.values()].filter(
-				(item) =>
-					item.parentId === worktreeId &&
-					!item.workspace &&
-					item.done &&
-					descendantsOfItem(outline, item.id).every((each) => !each.workspace && each.done)
-			);
 			store.append(
 				{
 					type: 'workspace.continued',
@@ -1841,11 +1651,6 @@ export function createWorkspaces(
 				},
 				{ actor }
 			);
-			for (const { id: itemId } of finished)
-				store.append(
-					{ type: 'item.deleted', stream: `item:${itemId}`, data: { id: itemId } },
-					{ actor }
-				);
 		},
 
 		/**
@@ -1925,7 +1730,6 @@ export function createWorkspaces(
 
 		addItem,
 		editItem,
-		completeItem,
 		removeItem,
 
 		/**

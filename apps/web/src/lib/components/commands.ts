@@ -2,7 +2,7 @@ import type { Command } from '#lib/commands.ts';
 import type { Navigation } from '#lib/server/views.ts';
 import type { Section } from '#lib/components/settings.svelte.ts';
 import type { Theme } from '#lib/theme.svelte.ts';
-import { lineOf, nested, withoutTodos } from '#lib/family.ts';
+import { lineOf, nested } from '#lib/family.ts';
 
 /** Where Geordi stands, and what it can be asked to do, from anywhere. */
 export type Everywhere = {
@@ -245,8 +245,7 @@ export function moveTargets(
 	id: string | null,
 	move: (parentId: string | null) => void
 ): Command[] {
-	// todos are no place for a workspace: they are its supervisor's plan
-	const items = withoutTodos(nav?.items ?? []);
+	const items = nav?.items ?? [];
 	const byId = new Map(items.map((item) => [item.id, item]));
 	const moved = id ? byId.get(id) : undefined;
 	if (!moved) return [];

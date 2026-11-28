@@ -100,7 +100,7 @@
 	</div>
 </Story>
 
-<!-- a long title is cut short (the sidebar), or wraps (`wrap`, a Plan window): its sign, count and standing then stay on the first line -->
+<!-- a long title is cut short (the sidebar), or wraps (`wrap`): its sign, count and standing then stay on the first line -->
 <Story name="Long titles" asChild>
 	<div class="w-80 space-y-px sheet-quiet p-2">
 		<WorkspaceRow title="Short title" href="#short" working />

@@ -36,3 +36,7 @@ We considered:
 - Existing installations need nothing done: replaying their events gives every workspace the parent it had. Going back to an earlier version is safe too: it ignores `item.*` events, and a workspace moved under an item without a workspace is listed at the top there.
 - Grouping the sidebar by repository no longer fits a tree whose items need not belong to any repository; it is dropped for now (FDR-019).
 - Items are written by people and by agents at once. Each edit replaces the fields it changes, and the last one wins; there is no merging of concurrent text edits.
+
+## Amendment (2026-11-28): no todos, no scopes
+
+Workspaces no longer have todos (FDR-019, decision 11). An item without a workspace is a folder, and is never put under a workspace's item. A workspace's scope, its agent's access to the outline, and whether an item is done are gone with them. Events from before are read as they are: `item.completed` and `item.reopened` change nothing, and what is left of a workspace's todos stays in the outline's projection (so that a workspace filed under one keeps its supervisor) but is not shown. A workspace is no longer started on an item written down earlier: its item is always made with it.

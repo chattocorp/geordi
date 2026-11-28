@@ -16,7 +16,7 @@
 	} from '#lib/components/workspace/afar.svelte.ts';
 	import { beingArchived } from '#lib/components/workspace/archive.svelte.ts';
 	import { pendingPullAction, pullActionPending } from '#lib/components/workspace/review.svelte.ts';
-	import { outlineRows, withoutTodos, zoomedInto, zoomTrail } from '#lib/family.ts';
+	import { outlineRows, zoomedInto, zoomTrail } from '#lib/family.ts';
 	import Outline, { type WorkspaceRowProps } from './Outline.svelte';
 	import { hint } from '@geordi/ui/keys';
 	import { unread } from '#lib/notifications.svelte.ts';
@@ -59,8 +59,8 @@
 	/** The workspaces in use, by ID: what the outline's items with workspaces show. */
 	const workspaceById = $derived(new Map(nav?.workspaces.map((each) => [each.id, each])));
 	const viewed = $derived(path.match(/^\/workspaces\/([^/]+)$/)?.[1] ?? null);
-	/** What the sidebar lists (FDR-019): folders and workspaces. Todos are in a workspace's Plan. */
-	const items = $derived(nav ? withoutTodos(nav.items) : []);
+	/** What the sidebar lists (FDR-019): folders and workspaces. */
+	const items = $derived(nav?.items ?? []);
 	/** The rows shown, top to bottom. */
 	const rows = $derived(
 		nav
