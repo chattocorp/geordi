@@ -234,30 +234,7 @@ export type OutlineEntry = {
 	done: boolean;
 	/** Whether a workspace is attached: the one with this item's ID. */
 	workspace: boolean;
-	/** Whether it is a todo: an item without a workspace, under one. Else, without one, a folder. */
-	todo: boolean;
 };
-
-/**
- * The outline without its todos (FDR-019), as the sidebar shows it: folders and workspaces.
- * A workspace filed under a todo is under the nearest item above that is none: its
- * supervisor's.
- */
-export function withoutTodos<T extends OutlineEntry>(items: T[]): T[] {
-	const byId = new Map(items.map((item) => [item.id, item]));
-	const shownAbove = (item: T) => {
-		const seen = new Set<string>();
-		let parent = item.parentId;
-		while (parent && byId.get(parent)?.todo && !seen.has(parent)) {
-			seen.add(parent);
-			parent = byId.get(parent)!.parentId;
-		}
-		return parent;
-	};
-	return items
-		.filter((item) => !item.todo)
-		.map((item) => ({ ...item, parentId: shownAbove(item) }));
-}
 
 /** What the outline needs to know of a workspace in use, to show it or leave it out. */
 type Shown = { id: string; repoId: string | null; inactive?: boolean };
@@ -327,27 +304,6 @@ export function outlineRows<T extends OutlineEntry>(
 }
 
 /**
- * A workspace's scope (FDR-019), from the outline's items: what is under its item, down to
- * the next items with workspaces of their own, which are in it (its child agents) but not
- * what is under them.
- */
-export function scopeItems<T extends OutlineEntry>(items: T[], root: string): T[] {
-	const byId = new Map(items.map((item) => [item.id, item]));
-	return items.filter((item) => {
-		const seen = new Set<string>();
-		let parent = item.parentId;
-		while (parent && !seen.has(parent)) {
-			if (parent === root) return true;
-			seen.add(parent);
-			const above = byId.get(parent);
-			if (!above || above.workspace) return false;
-			parent = above.parentId;
-		}
-		return false;
-	});
-}
-
-/**
  * What shows zoomed into an item (FDR-019): everything under it, at any depth. Where the
  * item is gone (removed, or out of sight), the whole of `items`.
  */
@@ -358,18 +314,10 @@ export function zoomedInto<T extends OutlineEntry>(items: T[], zoom: string | nu
 }
 
 /**
- * The way down to the item zoomed into, for a breadcrumb: the items from just below `root`
- * (the top of the outline where `null`) to it, itself last. Empty where it is not under
- * `root`, or gone.
+ * The way down to the item zoomed into, for a breadcrumb: the items from the top of the
+ * outline to it, itself last. Empty where it is gone.
  */
-export function zoomTrail<T extends OutlineEntry>(
-	items: T[],
-	zoom: string | null,
-	root: string | null = null
-): T[] {
-	if (!zoom || zoom === root) return [];
-	const line = lineOf(new Map(items.map((item) => [item.id, item])), zoom).reverse();
-	if (!root) return line;
-	const below = line.findIndex(({ id }) => id === root);
-	return below === -1 ? [] : line.slice(below + 1);
+export function zoomTrail<T extends OutlineEntry>(items: T[], zoom: string | null): T[] {
+	if (!zoom) return [];
+	return lineOf(new Map(items.map((item) => [item.id, item])), zoom).reverse();
 }

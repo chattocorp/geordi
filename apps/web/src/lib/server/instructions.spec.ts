@@ -30,37 +30,6 @@ describe('instructionsFor', () => {
 		expect(named).not.toContain('`name_workspace`');
 	});
 
-	it('shows an agent the items under its workspace, to keep (FDR-019)', () => {
-		const text = instructionsFor({
-			...own,
-			outline: {
-				workspace: 'Bump the protocol',
-				path: ['Release 0.9'],
-				items: [
-					{ id: 'a', text: 'Update the daemon', done: true, depth: 0 },
-					{
-						id: 'b',
-						text: 'In the tests too',
-						done: false,
-						depth: 1,
-						note: 'The live ones.\nAll of them.'
-					},
-					{ id: 'c', agent: 'Review', done: false, depth: 0, itemsDone: 1, itemsTotal: 2 }
-				]
-			}
-		});
-		expect(text).toContain('your workspace "Bump the protocol" is part of "Release 0.9"');
-		expect(text).toContain('- [x] Update the daemon (item a)\n  - [ ] In the tests too (item b)');
-		// an item's note under it, as written
-		expect(text).toContain('(item b)\n    The live ones.\n    All of them.\n');
-		expect(text).toContain('- Agent "Review": 1 of 2 of its own items done');
-		expect(text).toContain('`update_item`');
-		// the plan is written there before any work that changes something
-		expect(text).toContain('write your plan here first');
-		expect(text).toContain('instead of a todo list of your own');
-		expect(instructionsFor(own)).not.toContain('`update_item`');
-	});
-
 	it('has an agent that an agent started ask that one, not the person', () => {
 		const child = instructionsFor({ ...own, parent: { title: 'x' } });
 		expect(child).toContain('Use your blocking question tool to ask the agent');

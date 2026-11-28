@@ -2,4 +2,4 @@
 type: highlight
 ---
 
-Write your plans into the sidebar: it is now an outline, with workspaces wherever you put them.
+Arrange your work in the sidebar: it is now an outline, with folders and workspaces wherever you put them.

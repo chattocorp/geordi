@@ -974,26 +974,6 @@
 }
 
 /*
- * A line drawn through text from its start, on every line it wraps onto at once: an item
- * ticked off in the outline (FDR-019), just then. Drawn at once where motion is reduced.
- */
-@utility strike-draw {
-	/* the colour of text that is done, the text itself unseen: only the line shows */
-	color: transparent;
-	background: linear-gradient(var(--color-faint), var(--color-faint)) 0 58% / 0% 1px no-repeat;
-	box-decoration-break: clone;
-	animation: strike-draw 320ms ease-out forwards;
-	@media (prefers-reduced-motion: reduce) {
-		animation-duration: 0s;
-	}
-}
-@keyframes strike-draw {
-	to {
-		background-size: 100% 1px;
-	}
-}
-
-/*
  * Something still running, as part of a bar (checks): a light passes over it. Still when
  * the user prefers reduced motion.
  */

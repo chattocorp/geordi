@@ -173,30 +173,27 @@
 					text: each.title,
 					note: '',
 					done: false,
-					workspace: true,
-					todo: false
+					workspace: true
 				}))
 			]
 		};
 	}
-	const item = (id: string, text: string, parentId: string | null = null, todo = false) => ({
+	const item = (id: string, text: string, parentId: string | null = null) => ({
 		id,
 		parentId,
 		text,
 		note: '',
 		done: false,
-		workspace: false,
-		todo
+		workspace: false
 	});
 
-	/** Workspaces under folders: a release, with folders in it, and a workspace's todo, which is its plan's. */
+	/** Workspaces under folders: a release, with folders in it. */
 	const withPlainItems = (base: Navigation) =>
 		withItems(
 			base,
 			[
 				item('release', 'Release 0.9'),
 				item('notes', 'Release notes', 'release'),
-				item('step', 'A step of its plan', 'failing', true),
 				item(
 					'long',
 					'Announce it everywhere: the website, the newsletter, and every channel that people read',
@@ -630,8 +627,7 @@
 		await expect(releaseRow.compareDocumentPosition(failingRow)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);
-		// a workspace's todos are in its Plan, not here; a folder is never ticked off
-		await expect(canvas.queryByRole('textbox', { name: 'A step of its plan' })).toBeNull();
+		// a folder is never ticked off
 		await expect(canvasElement.querySelector('button[aria-label^="Mark "]')).toBeNull();
 		// as in Workflowy, a row is its sign and its text: nothing is added under it, or removed,
 		// from buttons on it (Enter, Tab, its menu and its keys do that)

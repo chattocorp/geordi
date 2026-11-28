@@ -1366,15 +1366,12 @@ describe('the outline of items (FDR-019)', () => {
 		const notes = workspaces.addItem({ parentId: release, before: null, text: 'Notes\nfor it' });
 		const first = workspaces.addItem({ parentId: release, before: notes, text: 'Bump it' });
 		workspaces.editItem(notes, { text: 'Write the notes', note: 'In German too' });
-		// under no workspace, they are folders: never ticked off
-		expect(() => workspaces.completeItem(first, true)).toThrow(refusal(/Only a todo/));
 		const replayed = setup({ database }).workspaces.outline();
 		expect([...replayed.order]).toEqual([release, first, notes]);
 		expect(replayed.items.get(notes)).toMatchObject({
 			text: 'Write the notes',
 			note: 'In German too',
-			parentId: release,
-			done: false
+			parentId: release
 		});
 
 		workspaces.removeItem(release);
@@ -1395,110 +1392,49 @@ describe('the outline of items (FDR-019)', () => {
 		]);
 	});
 
-	it('puts a workspace the person starts at the top, first, and one started on an item on it', () => {
+	it('puts a workspace the person starts at the top, first', () => {
 		const { workspaces, create } = setup();
-		const heading = workspaces.addItem({ parentId: null, before: null, text: 'Release 0.9' });
-		const planned = workspaces.addItem({ parentId: heading, before: null, text: 'Planned' });
+		workspaces.addItem({ parentId: null, before: null, text: 'Release 0.9' });
 		const arrived = create('Arrived');
-		const onItem = workspaces.create({
-			repoId: workspaces.get(arrived).repoId,
-			agent: 'claude',
-			prompt: '',
-			itemId: planned
-		});
 		const { items, order } = workspaces.outline();
 		expect(items.get(arrived)?.parentId).toBeNull();
 		expect(order[0]).toBe(arrived);
-		expect(items.get(onItem)?.parentId).toBe(heading);
 		// there is no Inbox to put anything in
 		expect(() => workspaces.addItem({ parentId: 'inbox', before: null, text: 'Later' })).toThrow(
 			refusal(/not found/)
 		);
 	});
 
-	it('lets items between workspaces pass authority through', async () => {
+	it('lets folders pass authority through, and keeps them out from under workspaces', async () => {
 		const { workspaces, create } = setup();
 		const lead = create('Lead');
 		const { agents } = workspaces;
 		const child = agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
-		const folder = workspaces.addItem({ parentId: lead, before: null, text: 'Tests' });
-		workspaces.move(child, null, folder);
-		expect(workspaces.get(child).parentId).toBe(lead);
-		agents.send(lead, child, 'Still yours');
+		const folder = workspaces.addItem({ parentId: null, before: null, text: 'Tests' });
 
 		const waiting = agents.wait(lead, child, 30000);
-		workspaces.move(folder, null, null);
+		workspaces.move(child, null, folder);
 		expect(workspaces.get(child).parentId).toBeNull();
 		expect(await waiting).toMatchObject({ movedAway: true });
 		expect(() => agents.send(lead, child, 'Mine?')).toThrow();
-		expect(() => workspaces.move(folder, null, child)).toThrow(refusal(/under itself/));
 		expect(() => workspaces.removeItem(folder)).toThrow(refusal(/archived, not removed/));
-	});
-
-	it('clears what was ticked off right under a workspace when it carries on, and nothing else', () => {
-		const { workspaces, create } = setup();
-		const lead = create('Lead');
-		const item = (text: string, parentId = lead, done = false) => {
-			const id = workspaces.addItem({ parentId, before: null, text });
-			if (done) workspaces.completeItem(id, true);
-			return id;
-		};
-		const shipped = item('Shipped', lead, true);
-		item('With its details', shipped, true);
-		const open = item('Still to do');
-		const halfDone = item('Ticked, with something open under it', lead, true);
-		item('Open', halfDone);
-		const doneUnderOpen = item('Done, under what is still to do', open, true);
-		// a child's items are the child's, ticked off or not
-		const child = workspaces.agents.start(lead, { worktree: 'own', prompt: 'Help' }).id;
-		const childsDone = item('The child did this', child, true);
-		const holder = item('Ticked, with a workspace under it', lead, true);
-		workspaces.move(
-			workspaces.agents.start(lead, { worktree: 'own', prompt: 'More' }).id,
-			null,
-			holder
+		// under a workspace are its child agents, and nothing else
+		expect(() => workspaces.move(folder, null, lead)).toThrow(refusal(/under a workspace/));
+		expect(() => workspaces.addItem({ parentId: lead, before: null, text: 'A step' })).toThrow(
+			refusal(/under a workspace/)
 		);
-
-		workspaces.continued(lead, 'geordi/lead-2');
-		const left = new Set(workspaces.outline().items.keys());
-		expect(left.has(shipped)).toBe(false);
-		for (const kept of [open, halfDone, doneUnderOpen, child, childsDone, holder])
-			expect(left.has(kept)).toBe(true);
 	});
 
-	it('starts a workspace on an item written down earlier', () => {
-		const { workspaces, repo, create } = setup();
-		const lead = create('Lead');
-		const todo = workspaces.addItem({
-			parentId: lead,
-			before: null,
-			text: 'Check the error paths'
-		});
-		const id = workspaces.create({
-			repoId: repo.id,
-			agent: 'claude',
-			prompt: 'Look at every error path',
-			itemId: todo
-		});
-		expect(id).toBe(todo);
-		expect(workspaces.get(id)).toMatchObject({
-			title: 'Check the error paths',
-			manuallyNamed: true,
-			parentId: lead
-		});
-		expect(() =>
-			workspaces.create({ repoId: repo.id, agent: 'claude', prompt: 'Again', itemId: todo })
-		).toThrow(refusal(/has a workspace already/));
-		// the item's text is the workspace's name
-		workspaces.editItem(id, { text: 'Check every error path' });
-		expect(workspaces.get(id).title).toBe('Check every error path');
-		expect(() => workspaces.completeItem(id, true)).toThrow(refusal(/Archive/));
-	});
-
-	it('takes a workspace’s items along when it is purged', () => {
-		const { workspaces, create } = setup();
+	it('takes what is left of a workspace’s todos along when it is purged', () => {
+		const { store, workspaces, create } = setup();
 		const id = create('Done soon');
-		const todo = workspaces.addItem({ parentId: id, before: null, text: 'A detail' });
+		const todo = 'a-detail';
+		store.append({
+			type: 'item.created',
+			stream: `item:${todo}`,
+			data: { id: todo, parentId: id, before: null, text: 'A detail' }
+		});
+		expect(workspaces.outline().items.has(todo)).toBe(true);
 		workspaces.record(id, { kind: 'turn.completed' });
 		workspaces.archive(id);
 		workspaces.purge([id]);
