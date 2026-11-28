@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-	arrivals,
 	dropTarget,
 	gapDepths,
 	nested,
 	nextUnread,
 	outlineRows,
 	stepThrough,
+	withoutTodos,
 	unfolded,
 	isInactive,
 	scopeItems,
@@ -80,7 +80,8 @@ describe('outlineRows', () => {
 		text: id,
 		note: '',
 		done,
-		workspace
+		workspace,
+		todo: false
 	});
 	const items = [
 		item('release'),
@@ -369,7 +370,8 @@ describe('scopeItems', () => {
 		text: id,
 		note: '',
 		done: false,
-		workspace
+		workspace,
+		todo: false
 	});
 	const items = [
 		item('lead', null, true),
@@ -397,7 +399,8 @@ describe('zooming', () => {
 		text: id,
 		note: '',
 		done: false,
-		workspace
+		workspace,
+		todo: false
 	});
 	const items = [
 		item('release', null),
@@ -430,10 +433,30 @@ describe('zooming', () => {
 	});
 });
 
-describe('arrivals', () => {
-	it('names the workspaces that are new, but not one with items under it', () => {
-		const workspaces = [{ id: 'old' }, { id: 'new' }, { id: 'started-on-item' }];
-		const items = [{ parentId: null }, { parentId: 'old' }, { parentId: 'started-on-item' }];
-		expect(arrivals(new Set(['old']), workspaces, items)).toEqual(['new']);
+describe('withoutTodos', () => {
+	const entry = (id: string, parentId: string | null, kind: 'folder' | 'todo' | 'workspace') => ({
+		id,
+		parentId,
+		text: id,
+		note: '',
+		done: false,
+		workspace: kind === 'workspace',
+		todo: kind === 'todo'
+	});
+
+	it('leaves folders and workspaces, and puts a workspace filed under todos under its supervisor', () => {
+		const items = [
+			entry('folder', null, 'folder'),
+			entry('lead', 'folder', 'workspace'),
+			entry('heading', 'lead', 'todo'),
+			entry('step', 'heading', 'todo'),
+			entry('child', 'step', 'workspace'),
+			entry('childs-step', 'child', 'todo')
+		];
+		expect(withoutTodos(items).map(({ id, parentId }) => [id, parentId])).toEqual([
+			['folder', null],
+			['lead', 'folder'],
+			['child', 'lead']
+		]);
 	});
 });

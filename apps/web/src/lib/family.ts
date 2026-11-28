@@ -243,7 +243,30 @@ export type OutlineEntry = {
 	done: boolean;
 	/** Whether a workspace is attached: the one with this item's ID. */
 	workspace: boolean;
+	/** Whether it is a todo: an item without a workspace, under one. Else, without one, a folder. */
+	todo: boolean;
 };
+
+/**
+ * The outline without its todos (FDR-019), as the sidebar shows it: folders and workspaces.
+ * A workspace filed under a todo is under the nearest item above that is none: its
+ * supervisor's.
+ */
+export function withoutTodos<T extends OutlineEntry>(items: T[]): T[] {
+	const byId = new Map(items.map((item) => [item.id, item]));
+	const shownAbove = (item: T) => {
+		const seen = new Set<string>();
+		let parent = item.parentId;
+		while (parent && byId.get(parent)?.todo && !seen.has(parent)) {
+			seen.add(parent);
+			parent = byId.get(parent)!.parentId;
+		}
+		return parent;
+	};
+	return items
+		.filter((item) => !item.todo)
+		.map((item) => ({ ...item, parentId: shownAbove(item) }));
+}
 
 /** What the outline needs to know of a workspace in use, to show it or leave it out. */
 type Shown = { id: string; repoId: string | null; inactive?: boolean };
@@ -361,17 +384,4 @@ export function zoomTrail<T extends OutlineEntry>(
 	if (!root) return line;
 	const below = line.findIndex(({ id }) => id === root);
 	return below === -1 ? [] : line.slice(below + 1);
-}
-
-/**
- * The workspaces new to the outline since `known` was all of them, which start folded: all
- * but one started on an item that has items under it already, which stay in sight.
- */
-export function arrivals(
-	known: ReadonlySet<string>,
-	workspaces: readonly { id: string }[],
-	items: readonly { parentId: string | null }[]
-): string[] {
-	const parents = new Set(items.map(({ parentId }) => parentId));
-	return workspaces.flatMap(({ id }) => (known.has(id) || parents.has(id) ? [] : [id]));
 }

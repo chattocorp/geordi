@@ -6,6 +6,7 @@ import {
 	descendantsOf as descendantsOfItem,
 	frontierOf,
 	inScope,
+	isTodo,
 	pathOf,
 	scopeOf,
 	workspaceAbove,
@@ -773,10 +774,14 @@ export function createWorkspaces(
 		);
 	}
 
-	/** Ticks an item off, or not. A workspace's item is done when the workspace is archived. */
+	/**
+	 * Ticks a todo off, or not. A workspace's item is done when the workspace is archived; a
+	 * folder is never done.
+	 */
 	function completeItem(id: string, done: boolean, actor: string | null = null) {
 		const item = itemOf(id);
 		if (item.workspace) error(409, 'Archive the workspace to tick it off');
+		if (!isTodo(projection.outline(), id)) error(409, 'Only a todo can be ticked off');
 		if (item.done === done) return;
 		const type = done ? 'item.completed' : 'item.reopened';
 		store.append({ type, stream: `item:${id}`, data: { id } }, { actor });

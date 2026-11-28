@@ -1366,7 +1366,8 @@ describe('the outline of items (FDR-019)', () => {
 		const notes = workspaces.addItem({ parentId: release, before: null, text: 'Notes\nfor it' });
 		const first = workspaces.addItem({ parentId: release, before: notes, text: 'Bump it' });
 		workspaces.editItem(notes, { text: 'Write the notes', note: 'In German too' });
-		workspaces.completeItem(first, true);
+		// under no workspace, they are folders: never ticked off
+		expect(() => workspaces.completeItem(first, true)).toThrow(refusal(/Only a todo/));
 		const replayed = setup({ database }).workspaces.outline();
 		expect([...replayed.order]).toEqual([release, first, notes]);
 		expect(replayed.items.get(notes)).toMatchObject({
@@ -1375,7 +1376,6 @@ describe('the outline of items (FDR-019)', () => {
 			parentId: release,
 			done: false
 		});
-		expect(replayed.items.get(first)?.done).toBe(true);
 
 		workspaces.removeItem(release);
 		expect(workspaces.outline().items.size).toBe(0);

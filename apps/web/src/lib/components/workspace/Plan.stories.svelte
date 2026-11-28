@@ -27,7 +27,15 @@
 		text: string,
 		parentId: string | null,
 		{ done = false, attached = false, note = '' } = {}
-	) => ({ id, parentId, text, note, done, workspace: attached });
+	) => ({
+		id,
+		parentId,
+		text,
+		note,
+		done,
+		workspace: attached,
+		todo: !attached && parentId !== null
+	});
 
 	const base: Navigation = {
 		repos: [
@@ -96,7 +104,7 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/Write down what is to be done here/)).toBeVisible();
-		await expect(canvas.getByRole('button', { name: 'New item' })).toBeVisible();
+		await expect(canvas.getByRole('button', { name: 'New todo' })).toBeVisible();
 	}}
 >
 	<div class="h-96 w-80 sheet">

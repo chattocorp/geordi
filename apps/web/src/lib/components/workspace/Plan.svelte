@@ -59,6 +59,7 @@
 			{rows}
 			{folded}
 			{root}
+			todos
 			{trail}
 			{back}
 			home="Plan"
@@ -85,6 +86,7 @@
 		icon={workspace.repoId === null ? 'icon-[lucide--folder-kanban]' : repoIcon}
 		{dragging}
 		highlighted={target}
+		wrap
 		unread={unread.has(workspace.id)}
 		asking={workspace.outcome === 'asking'}
 		waiting={workspace.waiting}

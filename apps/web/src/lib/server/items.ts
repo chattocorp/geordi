@@ -1,6 +1,7 @@
 /**
  * The outline (FDR-019, ADR-016): a tree of items, each a line of text, some with a
- * workspace attached. A workspace's item has the workspace's ID, and its text is the
+ * workspace attached. What an item without one is follows from where it is (`isTodo`): a
+ * todo under a workspace, which can be ticked off; a folder anywhere else, which can't. A workspace's item has the workspace's ID, and its text is the
  * workspace's name: kept on the workspace, where agents and people rename it. Items
  * without a workspace have their own events, below; a workspace's item moves with
  * `workspace.moved` and comes into being with `workspace.created` (so workspaces from
@@ -91,6 +92,11 @@ export function workspaceAbove(outline: Outline, id: string): string | null {
 	return null;
 }
 
+/** Whether an item is a todo (FDR-019): one without a workspace, under one that has one. Else it is a folder. */
+export function isTodo(outline: Outline, id: string): boolean {
+	return !outline.items.get(id)?.workspace && workspaceAbove(outline, id) !== null;
+}
+
 /**
  * The workspaces whose supervisor follows this item when it moves: itself, if it has one;
  * else the nearest workspaces under it, with nothing but items between.
@@ -170,7 +176,8 @@ export type Attached = { title: string; worktreeId: string; archivedAt: string |
 
 /**
  * The outline as people see it (FDR-019), top to bottom: each item with the item it is
- * under, its text (a workspace's name), and whether it is done (a workspace: archived).
+ * under, its text (a workspace's name), whether it is a todo, and whether it is done (a
+ * todo: ticked off; a workspace: archived; a folder never is).
  *
  * An archived workspace's item stays as a record only within a tree still in use: under an
  * item without a workspace, or under a workspace in use. An archived tree leaves the
@@ -217,7 +224,8 @@ export function outlineView(
 		text: 'Inbox',
 		note: '',
 		done: false,
-		workspace: false
+		workspace: false,
+		todo: false
 	};
 	const listed = order.flatMap((id) => {
 		const item = items.get(id)!;
@@ -225,6 +233,7 @@ export function outlineView(
 		if (item.workspace && (!workspace || workspace.worktreeId !== id)) return [];
 		const gone = archivedTop(item) || above(item).some(archivedTop);
 		if (gone && (!workspace || workspace.archivedAt)) return [];
+		const todo = isTodo(outline, id);
 		const parentId = gone ? null : item.parentId && (ownerOf(item.parentId) ?? item.parentId);
 		return [
 			{
@@ -232,8 +241,9 @@ export function outlineView(
 				parentId: parentId || null,
 				text: workspace?.title ?? item.text,
 				note: item.note,
-				done: workspace ? !!workspace.archivedAt : item.done,
-				workspace: !!workspace
+				done: workspace ? !!workspace.archivedAt : todo && item.done,
+				workspace: !!workspace,
+				todo
 			}
 		];
 	});

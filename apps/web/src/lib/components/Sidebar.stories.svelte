@@ -173,28 +173,30 @@
 					text: each.title,
 					note: '',
 					done: false,
-					workspace: true
+					workspace: true,
+					todo: false
 				}))
 			]
 		};
 	}
-	const item = (id: string, text: string, parentId: string | null = null, done = false) => ({
+	const item = (id: string, text: string, parentId: string | null = null, todo = false) => ({
 		id,
 		parentId,
 		text,
 		note: '',
-		done,
-		workspace: false
+		done: false,
+		workspace: false,
+		todo
 	});
 
-	/** Workspaces under items without one: a release, with its todos, one of them done. */
+	/** Workspaces under folders: a release, with folders in it, and a workspace's todo, which is its plan's. */
 	const withPlainItems = (base: Navigation) =>
 		withItems(
 			base,
 			[
 				item('release', 'Release 0.9'),
-				item('notes', 'Write the release notes', 'release'),
-				item('tagged', 'Tag the release', 'release', true),
+				item('notes', 'Release notes', 'release'),
+				item('step', 'A step of its plan', 'failing', true),
 				item(
 					'long',
 					'Announce it everywhere: the website, the newsletter, and every channel that people read',
@@ -310,13 +312,11 @@
 		const idle = canvas.getByRole('link', { name: /Check every token/ });
 		idle.focus();
 		const cleanRow = within(idle.closest('li')!);
-		// nothing to do on it but add an item under it or zoom into it, which show when pointed at
+		// nothing to do on it but zoom into it
 		await expect(
 			cleanRow
 				.queryAllByRole('button')
-				.filter(
-					(button) => !/^(Add an item|Zoom into)/.test(button.getAttribute('aria-label') ?? '')
-				)
+				.filter((button) => !/^Zoom into/.test(button.getAttribute('aria-label') ?? ''))
 		).toEqual([]);
 		await expect(cleanRow.queryByRole('img')).toBeNull();
 		for (const label of ['Merge PR', 'Fix errors', 'Resolve conflicts', 'Archive']) {
@@ -630,17 +630,16 @@
 		await expect(releaseRow.compareDocumentPosition(failingRow)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);
-		// what is ticked off stays, crossed out, also among only what is active
-		const tagged = canvas.getByRole('textbox', { name: 'Tag the release' });
-		await expect(tagged).toHaveClass('line-through');
-		await expect(
-			canvas.getByRole('button', { name: 'Mark “Tag the release” as not done' })
-		).toHaveAttribute('aria-pressed', 'true');
+		// a workspace's todos are in its Plan, not here; a folder is never ticked off
+		await expect(canvas.queryByRole('textbox', { name: 'A step of its plan' })).toBeNull();
+		await expect(canvasElement.querySelector('button[aria-label^="Mark "]')).toBeNull();
 		// as in Workflowy, a row is its sign and its text: nothing is added under it, or removed,
 		// from buttons on it (Enter, Tab, its menu and its keys do that)
 		const offered = (label: string) => canvasElement.querySelector(`button[aria-label="${label}"]`);
-		await expect(offered('Remove Tag the release')).toBeNull();
-		await expect(canvasElement.querySelector('button[aria-label^="Add an item under"]')).toBeNull();
+		await expect(offered('Remove Release notes')).toBeNull();
+		await expect(
+			canvasElement.querySelector('button[aria-label^="Add a folder under"]')
+		).toBeNull();
 		// what is under it folds from the gutter beside its sign, not from inside the row; it is
 		// zoomed into with Cmd-click, its menu or its keys, with no button for it
 		await expect(canvasElement.querySelector('button[aria-label^="Zoom into"]')).toBeNull();
@@ -652,18 +651,13 @@
 				rowOf(label)!.querySelector('.item')!.getBoundingClientRect().left + 1
 			);
 		}
-		// a long line wraps, whole, rather than being cut off; its sign stays by its first line
+		// a long line is cut short here, to one line: the sidebar is read at a glance
 		const long = canvas.getByRole('textbox', { name: /^Announce it everywhere/ });
-		await expect(long.clientHeight).toBeGreaterThan(48);
-		await expect(long.scrollWidth).toBeLessThanOrEqual(long.clientWidth);
-		const sign = canvas.getByRole('button', { name: /^Mark “Announce it everywhere/ });
-		await expect(
-			Math.abs(sign.getBoundingClientRect().top - long.getBoundingClientRect().top)
-		).toBeLessThan(8);
+		await expect(long.clientHeight).toBeLessThan(48);
 		// it folds what is under it
 		await fireEvent.click(canvas.getByRole('button', { name: 'Collapse Release 0.9' }));
 		await waitFor(() =>
-			expect(canvas.queryByRole('textbox', { name: 'Write the release notes' })).toBeNull()
+			expect(canvas.queryByRole('textbox', { name: 'Release notes' })).toBeNull()
 		);
 	}}
 >
@@ -682,7 +676,7 @@
 			metaKey: true
 		});
 		await expect(await canvas.findByRole('heading', { name: 'Release 0.9' })).toBeVisible();
-		await expect(canvas.getByRole('textbox', { name: 'Write the release notes' })).toBeVisible();
+		await expect(canvas.getByRole('textbox', { name: 'Release notes' })).toBeVisible();
 		await waitFor(() => expect(canvas.queryByText('Choose a storage engine')).toBeNull());
 		// its sign leads back up
 		await fireEvent.click(canvas.getByRole('button', { name: 'Back to Outline' }));
@@ -721,10 +715,12 @@
 		const [list] = canvas.getAllByRole('list');
 		const last = [...list.querySelectorAll(':scope > li')].at(-1)!;
 		await expect(
-			within(last as HTMLElement).getByRole('button', { name: 'New item' })
+			within(last as HTMLElement).getByRole('button', { name: 'New folder' })
 		).toBeVisible();
 		// a row offers nothing to add under it: Enter, Tab and its menu do that
-		await expect(canvasElement.querySelector('button[aria-label^="Add an item under"]')).toBeNull();
+		await expect(
+			canvasElement.querySelector('button[aria-label^="Add a folder under"]')
+		).toBeNull();
 	}}
 >
 	{@render frame(withPlainItems(nav), '/workspaces/ready')}

@@ -29,7 +29,8 @@
 		actions = [],
 		fold,
 		onaction,
-		foldAside = false
+		foldAside = false,
+		wrap = false
 	}: {
 		title: string;
 		href?: string;
@@ -57,6 +58,8 @@
 		onaction?: (action: WorkspaceAction) => void;
 		/** Whether what is under it folds from beside it (the outline's fold, FDR-019), not from its sign. */
 		foldAside?: boolean;
+		/** Whether a long title wraps (a Plan window); else it is cut short (the sidebar). */
+		wrap?: boolean;
 	} = $props();
 
 	// Only promote the main action. Routine publishing stays inside the workspace.
@@ -87,8 +90,8 @@
 	}
 </script>
 
-<!-- the whole row is the item: the link, and what appears beside it on hover. A long title
-     wraps, as an item's text does: what is beside it stays level with its first line -->
+<!-- the whole row is the item: the link, and what appears beside it on hover. Where a long
+     title wraps (`wrap`), what is beside it stays level with its first line -->
 <div
 	class={[
 		'group relative item pr-1 text-base',
@@ -126,7 +129,7 @@
 			hint={parentTitle ? `Reports to "${parentTitle}"` : undefined}
 			fold={leaving ? undefined : fold}
 			chevron={!foldAside}
-			wrap
+			{wrap}
 			class={parentHref && !fold && !waiting ? 'py-1 pl-0' : 'py-1'}
 		/>
 	</div>
