@@ -1,5 +1,44 @@
 # Geordi Changelog
 
+## 0.9.0-alpha.3
+
+### Highlights
+
+- Write your plans into the sidebar: it is now an outline, with workspaces wherever you put them. ([#558](https://github.com/chattocorp/geordi/pull/558))
+
+### Features
+
+- Each workspace now has a Plan window beside its conversation: the items under it in the outline, edited as in the sidebar, with its child agents as rows. Drag it into the main area for a full-width outline. ([#563](https://github.com/chattocorp/geordi/pull/563))
+- Items you have ticked off in the outline show an × when you point at them, to remove them. ([#565](https://github.com/chattocorp/geordi/pull/565))
+- Press Cmd-Shift-M (Ctrl-Shift-M) in a workspace to move it under another item of the outline: type a few letters of the item and press Enter. The model picker moved to Cmd-Shift-L (Ctrl-Shift-L). ([#575](https://github.com/chattocorp/geordi/pull/575))
+- Press Alt-Enter on an outline item to start a workspace on it: the start page opens with the item’s text and note ready to send or add to. An item under a workspace starts in that workspace’s repository. ([#571](https://github.com/chattocorp/geordi/pull/571))
+- Agents no longer make macOS ask whether Geordi may access your drives, Downloads, Documents or other private folders. The new default permission mode, **Full Permissions (Sandboxed)**, keeps agents out of those places on macOS, while letting them do everything else. On Linux, with bubblewrap installed, it keeps them out of your mounted drives and private folders too. The repository they work on stays reachable wherever it lives. **Full Access** is now called **Full Permissions**: choose it when an agent needs those places too. ([#562](https://github.com/chattocorp/geordi/pull/562))
+- Outline items can have a note: press Shift-Enter in an item to write more about it than fits a line. A workspace’s agent sees the notes on its items. ([#571](https://github.com/chattocorp/geordi/pull/571))
+- Agents now see the items you write under their workspace in the outline, as a checklist at the start of every turn, and keep it: they tick off what they have done, add what they find still to do, and keep their items in order. Write an item under a workspace to steer its agent without a message. ([#558](https://github.com/chattocorp/geordi/pull/558))
+- The outline works more like Workflowy. Long items wrap onto more lines instead of being cut off, and up and down go through them line by line. Rows no longer grow buttons when you point at them: the arrow that folds a row sits to the left of it, and Cmd-click (Ctrl-click on Windows and Linux) zooms into a row, and the cursor shows it while you hold the key. Items keep their circle even when they have items under them, so you can tick them off too, and ticking one off draws a line through it. Adding under a row, removing it and zooming in are in its menu and its keys. ([#569](https://github.com/chattocorp/geordi/pull/569))
+- Your sidebar is now an outline you can write in. Add items that are not workspaces (headings, folders, todos), nest them, and edit them like in any outliner: Enter for a new item, Tab and Shift-Tab to indent, Alt with the arrows to move, Cmd-Enter to tick one off (it stays where it is, crossed out). Start a workspace on any item from its menu; it is named after it and works where the item is. A workspace under items without one still reports to the nearest workspace above it. Grouping by repository is gone; each workspace shows its repository's picture, and you can still filter by repository. ([#558](https://github.com/chattocorp/geordi/pull/558))
+- Archive and Continue now remove the old local branch when its work has merged. Branches with unmerged commits stay available, and you can still restore archived work. ([#560](https://github.com/chattocorp/geordi/pull/560))
+- Continuing a workspace on a new branch now clears the items it had ticked off, so its plan starts fresh, and its agent is asked to pick up what is still open. What is still to do stays, and items of agents under it are left alone. ([#567](https://github.com/chattocorp/geordi/pull/567))
+- You can run a shell command from an agent reply with the Run button beside Copy. Each click opens a new terminal in your workspace dock. You see the command and its output, then your usual shell prompt. ([#580](https://github.com/chattocorp/geordi/pull/580))
+- Agents can now hand one of their items to another agent: started on the item, the new agent works where the item was, named after it, with the items under it as its own checklist. They can also file new agents under a heading of theirs. ([#558](https://github.com/chattocorp/geordi/pull/558))
+- You can zoom into any item of the outline, in the sidebar and in a workspace's Plan window, so that its branch is all you see: Cmd-click it, choose Zoom in from its menu, or press Cmd-. on it. Back, or the arrow beside it, goes back to where you were before; Cmd-Shift-. zooms out one level. ([#566](https://github.com/chattocorp/geordi/pull/566))
+- The sidebar now shows only folders and workspaces, and a workspace’s todos are in its Plan window alone. What you write in the sidebar is a folder, to group workspaces with: it has a folder as its sign and is no longer ticked off. What you or an agent write under a workspace is a todo, as before. Workspaces of agents show right under the workspace that supervises them, and new workspaces no longer start folded. Long titles in the sidebar are cut short to one line again; in a Plan window they still wrap. ([#578](https://github.com/chattocorp/geordi/pull/578))
+
+### Fixes
+
+- Searching a list (the command palette, moving a workspace with Cmd-Shift-M, the model picker) now puts the best match first: the name you typed in full, then names that begin with it, then the rest. Letters that are merely scattered through a long title no longer fill the list when a real match exists. ([#576](https://github.com/chattocorp/geordi/pull/576))
+
+### Smaller changes
+
+- An item you zoom into in the sidebar now sits at the left edge, with what is under it right below: no more empty space beside it. ([#574](https://github.com/chattocorp/geordi/pull/574))
+- The command palette now finds the workspace you are in too, marked as current. ([#564](https://github.com/chattocorp/geordi/pull/564))
+- The chevrons on your workspace’s two right-hand panels now turn as the panels fold and unfold. ([#568](https://github.com/chattocorp/geordi/pull/568))
+- Context menus in the outline show the keys that do the same beside their entries. ([#571](https://github.com/chattocorp/geordi/pull/571))
+- Workspaces in the command palette show their repository’s picture, as they do in the sidebar. ([#575](https://github.com/chattocorp/geordi/pull/575))
+- The chevron that folds an outline item is now always shown, not only while you point at the item. ([#572](https://github.com/chattocorp/geordi/pull/572))
+- Agents are now told more firmly to give each command they offer its own runnable block, instead of listing several different ones in a single block. ([#581](https://github.com/chattocorp/geordi/pull/581))
+- Pointing at a workspace in the sidebar no longer lights up the workspace it reports to. ([#570](https://github.com/chattocorp/geordi/pull/570))
+
 ## 0.9.0-alpha.2
 
 ### Highlights
